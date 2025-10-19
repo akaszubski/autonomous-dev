@@ -1,6 +1,6 @@
 {
   "name": "claude-code-bootstrap",
-  "description": "Production-ready Claude Code plugins for autonomous development",
+  "description": "Production-ready Claude Code plugin for autonomous development",
   "owner": {
     "name": "Andrew Kaszubski",
     "url": "https://github.com/akaszubski"
@@ -11,12 +11,6 @@
       "source": "./plugins/autonomous-dev",
       "description": "Generic autonomous development setup (7 agents, 6 skills, 8 hooks) - works for ANY project",
       "tags": ["agents", "skills", "hooks", "testing", "documentation", "security", "generic"]
-    },
-    {
-      "name": "realign-mlx",
-      "source": "./plugins/realign-mlx",
-      "description": "MLX framework patterns skill + validation hooks for Apple Silicon LLM training (1 skill, 2 hooks)",
-      "tags": ["mlx", "training", "apple-silicon", "llm", "skills", "hooks"]
     }
   ]
 }

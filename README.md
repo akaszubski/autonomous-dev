@@ -2,41 +2,68 @@
 
 **Production-ready plugins for autonomous development**
 
-🚀 **One-command install** • 🤖 **Generic or MLX-specific** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
+🚀 **One-command install** • 🤖 **Generic autonomous development** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
 
 ---
 
 ## Quick Start
 
-### Generic Autonomous Development (Works for ANY project)
-
 ```bash
 # Add this marketplace
 /plugin marketplace add akaszubski/claude-code-bootstrap
 
-# Install generic autonomous development setup
+# Install autonomous development setup
 /plugin install autonomous-dev
-```
-
-### MLX/Apple Silicon Extensions (For LLM training)
-
-```bash
-# Install base plugin first
-/plugin install autonomous-dev
-
-# Then add MLX-specific extensions
-/plugin install realign-mlx
 ```
 
 **Done!** Claude now autonomously handles formatting, testing, documentation, and security.
 
-📖 **[Read ARCHITECTURE.md →](ARCHITECTURE.md)** for complete guide on how plugins work together
+---
+
+## How It Works: The Autonomous Loop
+
+Every time you write code, the plugin automatically:
+
+```
+1. CODE WRITTEN
+   └─> You: "Add user authentication"
+   └─> implementer agent writes code
+
+2. AUTO-FORMAT (instant)
+   └─> black + isort format Python
+   └─> prettier formats JS/TS
+   └─> No manual linting needed
+
+3. AUTO-TEST (2-5 seconds)
+   └─> Runs related tests automatically
+   └─> Shows failures immediately
+   └─> Blocks commit if tests fail
+
+4. AUTO-COVERAGE (during tests)
+   └─> Measures coverage on changed files
+   └─> Enforces 80% minimum
+   └─> Prevents untested code from shipping
+
+5. AUTO-SECURITY (5 seconds)
+   └─> Scans for hardcoded secrets (.env violations)
+   └─> Checks for SQL injection patterns
+   └─> Validates input sanitization
+
+6. AUTO-DOCUMENT (when APIs change)
+   └─> Updates docstrings
+   └─> Syncs README if needed
+   └─> Generates CHANGELOG entries
+
+7. COMMIT ✅
+   └─> All checks passed
+   └─> Code is formatted, tested, documented, secure
+```
+
+**Key principle**: You write code. Everything else is automatic.
 
 ---
 
-## Available Plugins
-
-### 🤖 autonomous-dev (Generic - Recommended for everyone)
+## What You Get: autonomous-dev Plugin
 
 **Works with**: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -52,25 +79,7 @@
 - Libraries
 - Any Python/JavaScript/TypeScript project
 
-[📖 Full autonomous-dev docs](plugins/autonomous-dev/README.md)
-
----
-
-### 🍎 realign-mlx (MLX-specific - For LLM training)
-
-**Requires**: autonomous-dev plugin (installed automatically)
-
-**Adds**:
-- ✅ 7 MLX-specific skills (mlx-patterns, pattern-curator, requirements-analyzer, doc-migrator, architecture-patterns, github-sync, mcp-builder)
-- ✅ 2 validation hooks (auto_align_filesystem, validate_standards)
-
-**Perfect for**:
-- LLM training on Apple Silicon (M1/M2/M3/M4)
-- MLX framework projects
-- ReAlign or similar training systems
-- System health monitoring
-
-[📖 Full realign-mlx docs](plugins/realign-mlx/README.md)
+[📖 Full docs](plugins/autonomous-dev/README.md)
 
 ---
 
@@ -105,7 +114,7 @@ All automatic. No manual steps.
 - Write Python → python-standards activates
 - Write tests → testing-guide activates
 - Handle API keys → security-patterns activates
-- Use MLX → mlx-patterns activates (if realign-mlx installed)
+- Write documentation → documentation-guide activates
 
 ---
 
@@ -180,22 +189,9 @@ your-project/
 
 ---
 
-## Comparison: Generic vs MLX
-
-| Feature | autonomous-dev | + realign-mlx |
-|---------|---------------|---------------|
-| **Agents** | 7 core | (same) |
-| **Skills** | 6 generic | +7 MLX-specific |
-| **Hooks** | 8 automation | +2 validation |
-| **Languages** | Python, JS, TS, Go, Rust | Python + MLX |
-| **Use Case** | Any project | LLM training |
-| **Apple Silicon** | Works | Optimized |
-
----
-
 ## Examples
 
-### Example 1: Generic Web App
+### Example 1: React Web App
 
 ```bash
 cd my-react-app
@@ -209,25 +205,10 @@ cd my-react-app
 # ✓ TDD workflow
 ```
 
-### Example 2: LLM Training Project
+### Example 2: Python API
 
 ```bash
-cd my-mlx-project
-/plugin install autonomous-dev    # Base autonomous development
-/plugin install realign-mlx        # Add MLX-specific tools
-
-# Claude now handles:
-# ✓ Everything from autonomous-dev
-# ✓ MLX pattern enforcement (model.model.layers[i])
-# ✓ Memory management (mx.metal.clear_cache())
-# ✓ System health monitoring
-# ✓ CI/CD monitoring
-```
-
-### Example 3: Python CLI Tool
-
-```bash
-cd my-cli-tool
+cd my-fastapi-project
 /plugin install autonomous-dev
 
 # Claude now handles:
@@ -238,18 +219,32 @@ cd my-cli-tool
 # ✓ Security scanning
 ```
 
+### Example 3: Node.js Backend
+
+```bash
+cd my-express-api
+/plugin install autonomous-dev
+
+# Claude now handles:
+# ✓ Auto-format with prettier
+# ✓ Auto-test with jest/mocha
+# ✓ Code quality enforcement
+# ✓ Security vulnerability scanning
+# ✓ Auto-documentation
+```
+
 ---
 
-## Production Example: ReAlign
+## Production Example
 
-These plugins were extracted from **ReAlign** - a production MLX training toolkit achieving:
+This autonomous development setup has been battle-tested in production, achieving:
 
-- **98% alignment score**
-- **80%+ test coverage** (enforced)
+- **80%+ test coverage** (enforced automatically)
 - **6 hours/week dev time** (vs 40 hours manual)
-- **Fully autonomous development**
+- **Fully autonomous development** workflow
+- **Zero manual formatting/linting** required
 
-See it in action: [github.com/akaszubski/realign](https://github.com/akaszubski/realign)
+Real-world usage: [github.com/akaszubski/realign](https://github.com/akaszubski/realign)
 
 ---
 
@@ -257,25 +252,17 @@ See it in action: [github.com/akaszubski/realign](https://github.com/akaszubski/
 
 | Guide | Purpose |
 |-------|---------|
-| **README.md** (this file) | Plugin marketplace overview & quick start |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **HOW IT ALL WORKS TOGETHER** - Complete plugin architecture, composition patterns, real-world examples |
-| **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Generic plugin details |
-| **[plugins/realign-mlx/README.md](plugins/realign-mlx/README.md)** | MLX plugin details |
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive (legacy bootstrap) |
-| **[USAGE.md](USAGE.md)** | Usage examples (legacy bootstrap) |
+| **README.md** (this file) | Quick start & overview |
+| **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Complete plugin documentation |
+| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive |
+| **[USAGE.md](USAGE.md)** | Usage examples |
 
 ---
 
 ## FAQ
 
-**Q: Which plugin should I use?**
-A: Start with `autonomous-dev` for any project. Add `realign-mlx` only if you're training LLMs on Apple Silicon.
-
-**Q: Can I use both plugins?**
-A: Yes! `realign-mlx` extends `autonomous-dev` with MLX-specific tools.
-
 **Q: Will it overwrite my existing code?**
-A: No! Plugins only add `.claude/` and `scripts/hooks/`. Your code is untouched.
+A: No! The plugin only adds `.claude/` and `scripts/hooks/`. Your code is untouched.
 
 **Q: Can I customize the agents/hooks?**
 A: Absolutely! After installation, edit `.claude/agents/*.md`, `scripts/hooks/*.py`, `.claude/settings.json` as needed.
@@ -287,10 +274,13 @@ A: No. Everything runs locally. Hooks are just Python scripts on your machine.
 A: `/plugin uninstall autonomous-dev` or manually delete `.claude/` and `scripts/hooks/`.
 
 **Q: Can I use the old bootstrap script?**
-A: Yes! The bootstrap script is still available for custom setups. See "Method 2" above.
+A: Yes! The bootstrap script is still available for custom setups. See "Installation Methods" above.
 
 **Q: Is this beginner-friendly?**
 A: Yes! Just run `/plugin install autonomous-dev` and start coding. Claude handles everything else.
+
+**Q: What languages does this support?**
+A: Python, JavaScript, TypeScript, Go, Rust, and more. The plugin is language-agnostic with specific optimizations for Python/JS/TS.
 
 ---
 
@@ -318,7 +308,7 @@ MIT License - See [LICENSE](LICENSE) file
 
 ## Credits
 
-Extracted from [ReAlign](https://github.com/akaszubski/realign) v3.0.0 by [@akaszubski](https://github.com/akaszubski)
+Created by [@akaszubski](https://github.com/akaszubski)
 
 Powered by [Claude Code 2.0](https://claude.com/claude-code)
 
