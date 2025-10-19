@@ -1,0 +1,202 @@
+# Autonomous Development with Claude Code 2.0
+
+This project uses the **autonomous-dev** plugin for fully automated development workflow.
+
+## Quick Start
+
+```bash
+# Implement any feature autonomously
+/auto-implement [feature description]
+
+# After completion, clear context (IMPORTANT!)
+/clear
+```
+
+## What Happens Automatically
+
+### 1. PROJECT.md Validation
+- Orchestrator checks feature aligns with project goals
+- Prevents scope creep and misaligned work
+
+### 2. Research & Planning (5-10 min)
+- **researcher** searches web for best practices
+- **planner** creates implementation plan
+
+### 3. TDD Implementation (10-20 min)
+- **test-master** writes FAILING tests first (TDD)
+- **implementer** makes tests PASS
+- Auto-format, auto-test hooks run automatically
+
+### 4. Quality Assurance (3-5 min)
+- **reviewer** checks code quality
+- **security-auditor** scans for vulnerabilities
+- **doc-master** updates CHANGELOG
+
+**Total**: 20-35 minutes, fully autonomous
+
+---
+
+## Context Management (CRITICAL!)
+
+### After Each Feature: Run `/clear`
+
+**Why this matters**:
+- Without `/clear`: Context grows to 50K+ tokens after 3-4 features → System fails
+- With `/clear`: Context stays <1K tokens → Works for 100+ features
+
+**What gets cleared**: Conversation history only
+**What stays**: All your code, tests, docs, agents, skills
+
+### Usage Pattern
+
+```bash
+# 1. Implement feature
+/auto-implement user authentication with JWT
+
+# 2. Wait for completion (orchestrator will prompt you)
+
+# 3. CLEAR CONTEXT (mandatory!)
+/clear
+
+# 4. Ready for next feature (context is fresh)
+/auto-implement next feature
+```
+
+---
+
+## PROJECT.md - Your North Star
+
+**Location**: `.claude/PROJECT.md`
+
+**Define your project**:
+- **GOALS**: What you're trying to achieve
+- **SCOPE**: What's in/out of scope
+- **CONSTRAINTS**: Technical/security limits
+
+**How it works**:
+- Orchestrator reads PROJECT.md before each feature
+- Validates feature aligns with goals
+- Rejects misaligned features with explanation
+
+**Update it**:
+```bash
+vim .claude/PROJECT.md
+# Review monthly or when strategy changes
+```
+
+---
+
+## Agents (8 Total)
+
+- **orchestrator** - Master coordinator, validates alignment (sonnet)
+- **researcher** - Web research, best practices (haiku)
+- **planner** - Architecture decisions (sonnet)
+- **test-master** - TDD test writing (sonnet)
+- **implementer** - Code implementation (sonnet)
+- **reviewer** - Quality gate checks (haiku)
+- **security-auditor** - Security scanning (haiku)
+- **doc-master** - Documentation sync (haiku)
+
+---
+
+## Skills (Auto-Load)
+
+Skills activate automatically when relevant:
+- **python-standards** - PEP 8, type hints
+- **testing-guide** - TDD workflow, pytest
+- **security-patterns** - OWASP compliance
+- **documentation-guide** - Docstring format
+- **research-patterns** - Web search strategies
+- **engineering-standards** - Code quality
+
+---
+
+## Hooks (Automatic Quality)
+
+After writing code, hooks run automatically:
+- **Auto-format** (black/prettier) - instant
+- **Auto-test** (pytest/jest) - 2-5 seconds
+- **Auto-coverage** (80% minimum) - enforced
+- **Auto-security** (secret scanning) - 5 seconds
+
+No manual steps needed!
+
+---
+
+## Session Logs
+
+Agent actions logged to `docs/sessions/`:
+
+```bash
+# View latest session
+cat docs/sessions/$(ls -t docs/sessions/ | head -1)
+```
+
+Contains: Timestamps, agent names, file paths (not full content)
+
+---
+
+## Troubleshooting
+
+### "Context budget exceeded"
+```bash
+/clear  # Then retry
+```
+
+### "Feature misaligned with PROJECT.md"
+```bash
+# Check goals
+cat .claude/PROJECT.md | grep GOALS
+
+# Either modify feature or update PROJECT.md
+```
+
+### Tests failing
+```bash
+# See session log for details
+cat docs/sessions/$(ls -t docs/sessions/ | head -1)
+```
+
+---
+
+## Commands Reference
+
+```bash
+# Main command
+/auto-implement [feature]
+
+# Context management (after each feature!)
+/clear
+
+# View session log
+cat docs/sessions/$(ls -t docs/sessions/ | head -1)
+
+# View project goals
+cat .claude/PROJECT.md
+
+# List agents
+ls .claude/agents/
+```
+
+---
+
+## Performance Metrics
+
+- **Time per feature**: 20-35 minutes (autonomous)
+- **Test coverage**: 80%+ (enforced)
+- **Context per feature**: <1K tokens (with /clear)
+- **Scalability**: 100+ features (with context management)
+
+---
+
+## Pro Tips
+
+**Be specific in feature requests**:
+- ❌ "Add authentication"
+- ✅ "Add JWT authentication with refresh tokens, bcrypt password hashing, HTTP-only cookies, and rate limiting (5 req/min) on login endpoint"
+
+**More detail = Better results**
+
+---
+
+**Plugin Source**: https://github.com/akaszubski/claude-code-bootstrap
