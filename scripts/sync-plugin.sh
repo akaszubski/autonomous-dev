@@ -62,6 +62,19 @@ cp -r "$PLUGIN_SOURCE/templates/"* "$PLUGIN_INSTALL/templates/"
 TEMPLATE_COUNT=$(ls "$PLUGIN_INSTALL/templates" | wc -l | xargs)
 echo -e "${GREEN}✓${NC} Templates synced ($TEMPLATE_COUNT files)"
 
+# Sync commands to global location (slash commands)
+echo -e "${BLUE}Syncing commands to global ~/.claude/commands/ ...${NC}"
+GLOBAL_COMMANDS="$HOME/.claude/commands"
+
+if [ -d "$GLOBAL_COMMANDS" ]; then
+    cp "$PLUGIN_SOURCE/commands/"* "$GLOBAL_COMMANDS/" 2>/dev/null && \
+    echo -e "${GREEN}✓${NC} Commands synced to global location (slash commands available)" || \
+    echo -e "${YELLOW}⚠${NC}  Could not sync to global commands (run manually: cp .claude/commands/* ~/.claude/commands/)"
+else
+    echo -e "${YELLOW}⚠${NC}  ~/.claude/commands/ not found (slash commands won't be available)"
+    echo -e "   ${YELLOW}Run manually:${NC} mkdir -p ~/.claude/commands && cp .claude/commands/* ~/.claude/commands/"
+fi
+
 # Note about PROJECT.md and settings
 echo ""
 echo -e "${YELLOW}ℹ️  Note:${NC} PROJECT.md and settings.local.json NOT synced (local customizations preserved)"
