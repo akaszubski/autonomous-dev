@@ -314,15 +314,100 @@ Powered by [Claude Code 2.0](https://claude.com/claude-code)
 
 **See**: [HYBRID_ARCHITECTURE_SUMMARY.md](HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
 
-### 🎯 PROJECT.md - Goal Alignment System
+### ⭐ PROJECT.md-First Architecture (MOST IMPORTANT)
 
-Prevent scope creep with automatic feature alignment:
+**Single Source of Truth**: All work aligns with strategic direction defined in PROJECT.md
+
+**Priority Hierarchy**:
+1. **PRIMARY**: PROJECT.md alignment - defines GOALS, SCOPE, CONSTRAINTS
+2. **SECONDARY**: GitHub integration - tracks sprint execution (optional)
+3. **SUPPORTING**: Safe project alignment - brings codebase into alignment
+
+**What PROJECT.md Defines**:
+```markdown
+## GOALS ⭐
+1. Primary Objective: What you're building
+2. Success Metric: How you measure success
+3. Quality Standard: Your quality bar
+
+## SCOPE
+- IN Scope ✅: Core features, technical capabilities
+- OUT of Scope ❌: Explicit boundaries
+
+## CONSTRAINTS
+- Technical Stack: Languages, frameworks, tools
+- Performance: Response times, scalability
+- Security: Secrets management, coverage minimums
+- Development: Context budget, feature time limits
+
+## CURRENT SPRINT
+- Sprint Name, GitHub Milestone, Duration, Status
+- Sprint Goals (1-3 key objectives)
+- Key Issues (GitHub issue links)
+```
+
+**How It Works**:
 
 ```bash
-# Every feature is validated against project goals
-# Located: .claude/PROJECT.md
-# Defines: GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+You: "implement user authentication"
+
+orchestrator:
+1. ✅ Reads PROJECT.md (PRIMARY validation)
+2. ✅ Checks: Does this align with GOALS?
+3. ✅ Checks: Is this IN SCOPE?
+4. ✅ Checks: Does this respect CONSTRAINTS?
+5. ✅ Queries GitHub Milestone (SECONDARY - optional)
+6. ✅ Coordinates 7-agent dev team
+7. ✅ Reports progress
+
+Result: Only aligned work proceeds. No scope creep.
 ```
+
+**Safe Project Alignment**:
+
+```bash
+# Phase 1: Analysis only (read-only, safe)
+/align-project
+
+# Phase 2: Generate PROJECT.md from code (draft only)
+/align-project --generate-project-md
+
+# Phase 3: Interactive alignment (ask before each change)
+/align-project --interactive
+```
+
+**Advanced Features**:
+- Smart Diff View - unified view with risk scoring
+- Dry Run with Stash - test changes before applying
+- Pattern Learning - learns from your decisions
+- Conflict Resolution - handles PROJECT.md vs reality mismatches
+- Progressive Enhancement - quick wins → deep work in stages
+- Undo Stack - visual history with granular rollback
+- Simulation Mode - risk-free sandbox testing
+
+**GitHub Integration (Optional)**:
+
+```bash
+# Setup authentication
+cp .env.example .env
+# Edit .env with GITHUB_TOKEN from https://github.com/settings/tokens
+
+# Create GitHub Milestone matching sprint in PROJECT.md
+gh api repos/owner/repo/milestones -f title="Sprint 4"
+
+# Auto-sync enabled
+# - orchestrator queries milestone for sprint progress
+# - Updates issue status as work completes
+# - Closes issues when features done
+```
+
+**See**: [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) for complete setup guide
+
+**Templates**:
+- [PROJECT.md template](plugins/autonomous-dev/templates/PROJECT.md) - Generic, works for any project type
+- [.env.example](.env.example) - GitHub authentication template
+
+**Philosophy**: PROJECT.md defines strategic "what" and "why". GitHub Milestones handle tactical "how". orchestrator ensures alignment before work begins.
 
 ### 🧹 Context Management
 
