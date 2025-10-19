@@ -30,6 +30,8 @@
 
 **Done!** Claude now autonomously handles formatting, testing, documentation, and security.
 
+📖 **[Read ARCHITECTURE.md →](ARCHITECTURE.md)** for complete guide on how plugins work together
+
 ---
 
 ## Available Plugins
@@ -256,11 +258,12 @@ See it in action: [github.com/akaszubski/realign](https://github.com/akaszubski/
 
 | Guide | Purpose |
 |-------|---------|
-| **README.md** (this file) | Plugin marketplace overview |
-| **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Generic plugin docs |
-| **[plugins/realign-mlx/README.md](plugins/realign-mlx/README.md)** | MLX plugin docs |
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive |
-| **[USAGE.md](USAGE.md)** | Usage examples |
+| **README.md** (this file) | Plugin marketplace overview & quick start |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **HOW IT ALL WORKS TOGETHER** - Complete plugin architecture, composition patterns, real-world examples |
+| **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Generic plugin details |
+| **[plugins/realign-mlx/README.md](plugins/realign-mlx/README.md)** | MLX plugin details |
+| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive (legacy bootstrap) |
+| **[USAGE.md](USAGE.md)** | Usage examples (legacy bootstrap) |
 
 ---
 
