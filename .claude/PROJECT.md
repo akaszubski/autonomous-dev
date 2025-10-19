@@ -10,18 +10,19 @@
 
 **What success looks like for this project**:
 
-1. **Prevent scope creep through PROJECT.md-first architecture** - Every feature validated against strategic direction before work begins
-2. **Enable one-command autonomous development** - Users install once (`/plugin install autonomous-dev`) and achieve 10x faster development
-3. **Maintain high code quality automatically** - 80%+ test coverage, TDD enforcement, security scanning without manual effort
-4. **Enable scalability** - Support 100+ features without context degradation through session management and `/clear` workflow
+1. **Enable team collaboration through co-defined outcomes** - PROJECT.md serves as the shared strategic direction that both human developers and AI agents align to
+2. **Maintain software engineering best practices** - Not just automation, but *quality* automation with TDD, code review, security scanning, proper git workflow
+3. **Tight GitHub integration for team workflow** - Issues, PRs, milestones, code reviews, CI/CD all integrated seamlessly
+4. **Personal productivity + team scalability** - Works for solo developers AND distributed teams working on shared codebase
+5. **Prevent scope creep at team level** - Every feature (human or AI-written) validated against PROJECT.md before work begins
 
 **Success Metrics**:
-- **Alignment**: 100% of features validated against PROJECT.md before work begins
-- **Development time**: Target < 30 minutes per feature (fully autonomous pipeline)
-- **Test coverage**: Target 80%+ (enforced automatically by hooks)
-- **Context efficiency**: < 8,000 tokens per feature (scales to 100+ features)
-- **Installation**: < 60 seconds one-command install (`/plugin install autonomous-dev`)
-- **Model costs**: 40% reduction through optimization (opus/sonnet/haiku)
+- **Team alignment**: 100% of work (human + AI) validates against PROJECT.md
+- **Code quality**: 80%+ test coverage, all PRs reviewed, security scans pass
+- **GitHub workflow**: Issues → Branches → PRs → Reviews → Merge (fully integrated)
+- **Development speed**: 10x faster than manual (autonomous pipeline + human oversight)
+- **Context efficiency**: < 8K tokens per feature (enables long-term collaboration)
+- **Adoption**: Easy install for new team members (`/plugin install autonomous-dev`)
 
 ---
 
@@ -29,32 +30,42 @@
 
 **What's IN Scope** ✅ (Features we build):
 
-**Core Architecture** (v2.0.0):
-- ✅ **PROJECT.md-first alignment** - orchestrator validates GOALS/SCOPE/CONSTRAINTS before every feature
-- ✅ **8-agent pipeline** - orchestrator + researcher + planner + test-master + implementer + reviewer + security-auditor + doc-master
-- ✅ **Model optimization** - opus (planner), sonnet (most), haiku (fast tasks) for 40% cost reduction
-- ✅ **/align-project command** - 3-phase safe alignment (Analyze → Generate → Interactive)
-- ✅ **GitHub integration (optional)** - Sprint tracking via .env authentication
+**Team Collaboration** (PRIMARY FOCUS):
+- ✅ **PROJECT.md as shared contract** - Co-defined outcomes that human + AI developers both follow
+- ✅ **GitHub-first workflow** - Issues → Branches → PRs → Code Review → CI/CD → Merge
+- ✅ **PR automation** - Auto-create PRs, link to issues, request reviews, update based on feedback
+- ✅ **Code review integration** - Reviewer agent + human reviewers = quality gate
+- ✅ **Milestone/Sprint tracking** - GitHub Milestones define sprints, PROJECT.md references current sprint
+- ✅ **Team onboarding** - New developers install plugin, read PROJECT.md, start contributing
 
-**Existing Features** (preserved):
-- ✅ Session-based context management (prevents context bloat)
-- ✅ Auto-formatting and auto-testing (Python, JavaScript/TypeScript)
-- ✅ Security scanning (secrets detection, vulnerability scanning)
-- ✅ Documentation sync (auto-update docs, CHANGELOG)
-- ✅ Plugin marketplace distribution
-- ✅ 6 core skills (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)
+**Software Engineering Best Practices**:
+- ✅ **TDD enforced** - Tests written before code (test-master → implementer flow)
+- ✅ **Git workflow** - Feature branches, conventional commits, protected main branch
+- ✅ **Code review** - All PRs reviewed (agent pre-review + human approval)
+- ✅ **Security scanning** - Secrets detection, vulnerability scanning, OWASP compliance
+- ✅ **Documentation sync** - README, CHANGELOG, API docs updated automatically
+- ✅ **Test coverage** - 80%+ minimum enforced by CI/CD
+
+**Autonomous Development Pipeline**:
+- ✅ **8-agent coordination** - orchestrator validates PROJECT.md, then coordinates specialist agents
+- ✅ **Model optimization** - opus (complex planning), sonnet (balanced), haiku (fast scans)
+- ✅ **Context management** - Session files, /clear prompts, scales to 100+ features
+- ✅ **/align-project command** - Brings existing projects into alignment with best practices
+
+**Plugin Distribution**:
+- ✅ **Plugin marketplace** - One-command install for teams
+- ✅ **Multi-language support** - Python, JavaScript/TypeScript, Go, Rust (generic approach)
+- ✅ **Customizable** - Teams can fork and adapt to their standards
 
 **What's OUT of Scope** ❌ (Features we avoid):
 
-- ❌ Manual code reviews (automated via reviewer agent)
-- ❌ Manual testing (TDD enforced via test-master)
-- ❌ Manual documentation (doc-master handles automatically)
-- ❌ Manual security scans (security-auditor handles automatically)
-- ❌ IDE-specific features (only Claude Code 2.0 plugins)
-- ❌ Language-specific tools (stay generic, multi-language)
-- ❌ Cloud hosting/SaaS (local-only plugins)
-- ❌ Paid features (100% free, MIT license)
-- ❌ Breaking changes to existing user configurations
+- ❌ **Replacing human developers** - AI augments teams, doesn't replace them
+- ❌ **Skipping code review** - All PRs require human approval (agent review is pre-filter)
+- ❌ **Committing directly to main** - Always use feature branches + PRs
+- ❌ **SaaS/Cloud hosting** - Local-first, teams own their infrastructure
+- ❌ **Paid features** - 100% free, MIT license, community-driven
+- ❌ **Language-specific lock-in** - Stay generic, support multiple ecosystems
+- ❌ **Breaking existing workflows** - Enhance, don't disrupt team processes
 
 **Boundaries**:
 - Focus on automation of repetitive development tasks
@@ -111,35 +122,38 @@
 
 ## CURRENT SPRINT
 
-**Sprint Name**: Sprint 5: Testing & Validation ✅
-**GitHub Milestone**: N/A (this is the source repo, not using milestones internally)
-**Duration**: 2025-10-20 → Complete
-**Status**: 100% complete ✅
+**Sprint Name**: Sprint 6: Team Collaboration Features 🚧
+**GitHub Milestone**: [Create milestone](https://github.com/akaszubski/claude-code-bootstrap/milestones)
+**Duration**: 2025-10-20 → 2025-11-03 (2 weeks)
+**Status**: In Progress (10% complete)
 
 **Sprint Goals**:
-1. ✅ Implement PROJECT.md-first architecture
-2. ✅ Create comprehensive testing infrastructure
-3. ✅ Update all documentation (3 README files)
-4. ✅ Dogfood: Apply PROJECT.md to claude-code-bootstrap itself
-5. ⏸️ Announce v2.0.0 release (NEXT)
+1. 🚧 **PR automation** - Auto-create PRs, link to issues, request human reviews
+2. ⏸️ **Enhanced GitHub integration** - Bidirectional sync (issues → branches → PRs → merge)
+3. ⏸️ **Team onboarding workflow** - New dev guide, PROJECT.md template examples
+4. ⏸️ **Code review integration** - Agent pre-review + human approval workflow
+5. ⏸️ **Update PROJECT.md with actual intent** - Team collaboration focus (IN PROGRESS)
 
-**Completed Tasks**:
-- ✅ Enhanced orchestrator with PRIMARY MISSION for PROJECT.md alignment
-- ✅ Created /align-project command (standard + safe with 3 phases)
-- ✅ GitHub integration setup (.env auth, GITHUB_AUTH_SETUP.md)
-- ✅ PROJECT.md template (generic, domain-agnostic)
-- ✅ Updated root README.md with PROJECT.md-first architecture
-- ✅ Updated plugins/autonomous-dev/README.md (v2.0.0 features)
-- ✅ Updated .mcp/README.md with integration details
-- ✅ Created automated test script (30 tests, all passing)
-- ✅ Created comprehensive testing guide (docs/TESTING_GUIDE.md)
-- ✅ Created/updated PROJECT.md for this repo (THIS FILE)
+**Current Tasks**:
+- 🚧 Updated PROJECT.md with team collaboration intent
+- 🚧 Added REFERENCES & DOCUMENTATION section (30+ resources)
+- ⏸️ Test orchestrator with real PROJECT.md
+- ⏸️ Implement PR creation automation
+- ⏸️ Add reviewer + human review workflow
+- ⏸️ Create team onboarding guide
 
-**Next Sprint**: Sprint 6: Release & Community
+**Completed in Sprint 5**:
+- ✅ PROJECT.md-first architecture
+- ✅ 8-agent pipeline with orchestrator
+- ✅ /align-project command
+- ✅ Testing infrastructure (30 automated tests)
+- ✅ Plugin v2.0.0 release
+
+**Next Sprint**: Sprint 7: Community & Adoption
 - Announce v2.0.0 on GitHub Discussions
-- Create release notes
-- Tag v2.0.0 release
-- Update marketplace listing
+- Create case studies / examples
+- Team collaboration demo video
+- Onboard first external contributor
 
 ---
 
