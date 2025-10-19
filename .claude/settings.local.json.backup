@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '\n📋 Project Context:\n- Active skills: ~/.claude/skills/ (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)\n- Central context file: docs/task/context-sessions.md\n- Agents available: .claude/agents/ (researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master)\n'"
+          }
+        ]
+      }
+    ]
+  }
+}
