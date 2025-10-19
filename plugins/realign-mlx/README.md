@@ -16,17 +16,11 @@ Extends the autonomous-dev plugin with MLX patterns, system monitoring, and trai
 
 ## What You Get
 
-### 📚 7 MLX-Specific Skills
+### 📚 1 MLX-Specific Skill
 
 | Skill | Domain |
 |-------|--------|
-| **mlx-patterns** | MLX framework best practices (Apple Silicon optimization) |
-| **pattern-curator** | Learn and validate engineering patterns from codebase |
-| **requirements-analyzer** | Extract ACTUAL requirements from code (evidence-based) |
-| **doc-migrator** | Migrate docs into .claude/ structure |
-| **architecture-patterns** | Architectural decision records (ADRs) |
-| **github-sync** | GitHub issue tracking, PR automation |
-| **mcp-builder** | Build MCP servers for API integrations |
+| **mlx-patterns** | MLX framework best practices (Apple Silicon optimization, memory management, nested layers) |
 
 ### ⚡ 2 Additional Hooks
 
@@ -87,12 +81,12 @@ raise ValueError(
 
 ## Architecture
 
-ReAlign MLX provides extensions to autonomous-dev:
+ReAlign MLX provides minimal MLX extensions to autonomous-dev:
 
 ```
 autonomous-dev (base)          realign-mlx (extensions)
 ├── 7 core agents              (no additional agents)
-├── 6 core skills          +   ├── 7 MLX-specific skills
+├── 6 core skills          +   ├── 1 MLX-specific skill (mlx-patterns)
 └── 8 automation hooks     +   └── 2 validation hooks
 ```
 

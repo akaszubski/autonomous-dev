@@ -1,7 +1,7 @@
 {
   "name": "realign-mlx",
   "version": "3.0.0",
-  "description": "MLX-specific skills and hooks for LLM training on Apple Silicon. Adds MLX patterns, pattern curation, and validation tools. Requires autonomous-dev plugin as base.",
+  "description": "MLX framework patterns and validation hooks for LLM training on Apple Silicon. Adds mlx-patterns skill and filesystem validation. Requires autonomous-dev plugin as base.",
   "author": {
     "name": "Andrew Kaszubski",
     "url": "https://github.com/akaszubski"

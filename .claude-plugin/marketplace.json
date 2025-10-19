@@ -15,7 +15,7 @@
     {
       "name": "realign-mlx",
       "source": "./plugins/realign-mlx",
-      "description": "MLX-specific skills and hooks for LLM training (MLX patterns, pattern curation, validation)",
+      "description": "MLX framework patterns skill + validation hooks for Apple Silicon LLM training (1 skill, 2 hooks)",
       "tags": ["mlx", "training", "apple-silicon", "llm", "skills", "hooks"]
     }
   ]
