@@ -123,7 +123,7 @@ your-project/
    - Write `model.layers[i]` → mlx-patterns skill warns: use `model.model.layers[i]`
    - Memory leak → mlx-patterns skill suggests `mx.metal.clear_cache()`
    - Commit → auto_align_filesystem.py validates project structure
-   - Weekly → system-aligner agent generates health report
+   - Commit → validate_standards.py checks type hints, docstrings
 
 ## Component Details
 
