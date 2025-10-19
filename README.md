@@ -1,8 +1,12 @@
 # Claude Code 2.0 Autonomous Development Plugins
 
+> **📦 This is the plugin source repository**
+> Users install with `/plugin install autonomous-dev` (see Quick Start below)
+> For post-installation docs, see the `INSTALL_TEMPLATE.md` created in your project
+
 **Production-ready plugins for autonomous development**
 
-🚀 **One-command install** • 🤖 **Generic autonomous development** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
+🚀 **One-command install** • 🤖 **Orchestrator-driven** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
 
 ---
 
@@ -68,9 +72,10 @@ Every time you write code, the plugin automatically:
 **Works with**: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **Includes**:
-- ✅ 7 specialized agents (planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master)
-- ✅ 6 core skills (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)
-- ✅ 8 automation hooks (auto-format, auto-test, TDD enforcement, coverage enforcement, security scan)
+- ✅ **8 specialized agents** - orchestrator (master coordinator), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
+- ✅ **6 core skills** - python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards
+- ✅ **8 automation hooks** - auto-format, auto-test, TDD enforcement, coverage enforcement, security scan
+- ✅ **`/auto-implement` command** - One command for complete feature implementation
 
 **Perfect for**:
 - Web applications (React, Next.js, Express)
@@ -85,20 +90,23 @@ Every time you write code, the plugin automatically:
 
 ## What You Get
 
-### Autonomous Development Workflow
+### Orchestrator-Driven Workflow
 
 ```
-You: "Add user authentication"
+You: "/auto-implement user authentication"
 
-Claude automatically:
-1. planner → Creates architecture plan
-2. test-master → Writes FAILING tests (TDD enforced)
-3. implementer → Makes tests PASS
-4. reviewer → Quality gate check
-5. security-auditor → Security scan
-6. doc-master → Updates docs + CHANGELOG
+orchestrator coordinates everything:
+1. Validates against .claude/PROJECT.md goals ✅
+2. researcher → Finds JWT best practices (5 min)
+3. planner → Creates implementation plan (5 min)
+4. test-master → Writes FAILING tests first (5 min)
+5. implementer → Makes tests PASS (12 min)
+6. reviewer → Quality gate check (2 min)
+7. security-auditor → Security scan (2 min)
+8. doc-master → Updates CHANGELOG (1 min)
+9. Prompts: "Run /clear for next feature"
 
-All automatic. No manual steps.
+Total: ~32 minutes, fully autonomous
 ```
 
 ### Auto-Everything
