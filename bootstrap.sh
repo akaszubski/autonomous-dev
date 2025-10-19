@@ -404,8 +404,47 @@ esac
 
 cat > .claude/settings.json << EOF
 {
+  "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "version": "2.0.0",
   "standards_version": "1.0.0",
+
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(git status)",
+      "Bash(git add)",
+      "Bash(git commit)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git diff)",
+      "Bash(git log)",
+      "Bash(python scripts/hooks/auto_format.py)",
+      "Bash(python scripts/hooks/auto_test.py)",
+      "Bash(python scripts/hooks/security_scan.py)",
+      "Bash(python scripts/hooks/validate_standards.py)",
+      "Bash(pytest)",
+      "Bash(black)",
+      "Bash(isort)",
+      "Bash(prettier)",
+      "Bash(eslint)",
+      "Bash(gofmt)",
+      "Bash(go test)",
+      "Bash(npm test)",
+      "Bash(jest)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force)",
+      "Bash(git push -f)"
+    ],
+    "ask": [
+      "Bash(rm)",
+      "Write(.env)",
+      "Write(secrets.json)"
+    ]
+  },
 
   "auto_mode": {
     "web_search": true,

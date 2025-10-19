@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "version": "2.0.0",
+
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(git status)",
+      "Bash(git add)",
+      "Bash(git commit)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git diff)",
+      "Bash(git log)",
+      "Bash(python scripts/hooks/auto_format.py)",
+      "Bash(python scripts/hooks/auto_test.py)",
+      "Bash(python scripts/hooks/security_scan.py)",
+      "Bash(python scripts/hooks/validate_standards.py)",
+      "Bash(python scripts/hooks/auto_align_filesystem.py)",
+      "Bash(pytest)",
+      "Bash(black)",
+      "Bash(isort)",
+      "Bash(prettier)",
+      "Bash(eslint)",
+      "Bash(gofmt)",
+      "Bash(go test)",
+      "Bash(npm test)",
+      "Bash(jest)",
+      "Bash(cd)",
+      "Bash(ls)",
+      "Bash(pwd)",
+      "Bash(echo)",
+      "Bash(cat)",
+      "Bash(mkdir)",
+      "Bash(cp)",
+      "Bash(mv)",
+      "Bash(find)",
+      "Bash(grep)",
+      "Bash(which)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force)",
+      "Bash(git push -f)"
+    ],
+    "ask": [
+      "Bash(rm)",
+      "Write(.env)",
+      "Write(secrets.json)",
+      "Write(credentials.json)"
+    ]
+  },
+
+  "logging": {
+    "level": "INFO",
+    "stream_file": ".claude/logs/events.jsonl",
+    "rotation": "daily",
+    "retention_days": 30
+  },
+
+  "cost_management": {
+    "prefer_quality": true,
+    "max_monthly_budget_usd": 1000,
+    "alert_threshold_usd": 800
+  },
+
+  "hooks": [],
+
+  "agent_context_mapping": {}
+}
