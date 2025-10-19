@@ -292,6 +292,60 @@ Powered by [Claude Code 2.0](https://claude.com/claude-code)
 
 ---
 
+---
+
+## New Features (2025-10-19)
+
+### 🎯 PROJECT.md - Goal Alignment System
+
+Prevent scope creep with automatic feature alignment:
+
+```bash
+# Every feature is validated against project goals
+# Located: .claude/PROJECT.md
+# Defines: GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+```
+
+### 🧹 Context Management
+
+Scale to 100+ features without performance degradation:
+
+```bash
+# After each feature:
+/clear
+
+# Context stays under 8K tokens (vs 50K+ without management)
+```
+
+**Session Tracker**: Logs agent actions to files instead of context
+- Located: `scripts/session_tracker.py`
+- Logs: `docs/sessions/`
+- Result: 10x more efficient context usage
+
+### 🔌 MCP Server Integration
+
+Optional Claude Desktop enhancement:
+
+```bash
+# Configuration: .mcp/config.json
+# Provides:
+- Filesystem access (read/write repository)
+- Shell commands (git, gh, python, npm)
+- Git operations (status, diff, commit)
+- Python interpreter (with virtualenv)
+
+# Setup guide: .mcp/README.md
+# Test script: .mcp/test-mcp.sh
+```
+
+### 📚 Documentation
+
+- **CLAUDE.md** - Project-specific instructions (streamlined to 215 lines)
+- **docs/UPDATES.md** - Complete update changelog
+- **.mcp/TESTING.md** - MCP server testing guide
+
+---
+
 **🚀 Transform your development workflow in one command**
 
 ```bash
