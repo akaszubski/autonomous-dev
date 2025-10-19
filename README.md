@@ -215,19 +215,6 @@ cd my-express-api
 
 ---
 
-## Production Example
-
-This autonomous development setup has been battle-tested in production, achieving:
-
-- **80%+ test coverage** (enforced automatically)
-- **6 hours/week dev time** (vs 40 hours manual)
-- **Fully autonomous development** workflow
-- **Zero manual formatting/linting** required
-
-Real-world usage: [github.com/akaszubski/realign](https://github.com/akaszubski/realign)
-
----
-
 ## Documentation
 
 | Guide | Purpose |
