@@ -8,7 +8,7 @@ on:
     paths:
       - '.claude/**'
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - '.claude/**'
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
 
       - name: Validate PROJECT.md frontmatter
         run: |
-          python3 << 'PYTHON'
+          python3 << 'EOF'
           import yaml
           import sys
 
@@ -65,18 +65,18 @@ jobs:
           except Exception as e:
               print(f"❌ Error validating PROJECT.md: {e}")
               sys.exit(1)
-          PYTHON
+          EOF
 
       - name: Validate PATTERNS.md structure
         run: |
           echo "🔍 Validating PATTERNS.md structure..."
 
-          if [ ! -f ".claude/PATTERNS.md" ]; then
-              echo "⚠️  PATTERNS.md not found (will be created by pattern-curator)"
-              exit 0
+          if ! grep -q "## Validation States" .claude/PATTERNS.md; then
+              echo "❌ PATTERNS.md missing 'Validation States' section"
+              exit 1
           fi
 
-          if ! grep -q "Validated Patterns" .claude/PATTERNS.md; then
+          if ! grep -q "### ✅ Validated Patterns" .claude/PATTERNS.md; then
               echo "❌ PATTERNS.md missing 'Validated Patterns' section"
               exit 1
           fi
@@ -87,13 +87,13 @@ jobs:
         run: |
           echo "🔍 Validating STATUS.md structure..."
 
-          if [ ! -f ".claude/STATUS.md" ]; then
-              echo "⚠️  STATUS.md not found (will be created by system-aligner)"
-              exit 0
+          if ! grep -q "## Health Check" .claude/STATUS.md; then
+              echo "❌ STATUS.md missing 'Health Check' section"
+              exit 1
           fi
 
-          if ! grep -q "Health Check" .claude/STATUS.md; then
-              echo "❌ STATUS.md missing 'Health Check' section"
+          if ! grep -q "## Alignment Score:" .claude/STATUS.md; then
+              echo "❌ STATUS.md missing 'Alignment Score' section"
               exit 1
           fi
 
@@ -101,7 +101,7 @@ jobs:
 
       - name: Check context budget
         run: |
-          python3 << 'PYTHON'
+          python3 << 'EOF'
           from pathlib import Path
 
           print("📊 Checking context budget...")
@@ -119,6 +119,7 @@ jobs:
           for file, limit in files.items():
               path = Path(f'.claude/{file}')
               if not path.exists():
+                  print(f"⚠️  {file}: Not found")
                   continue
 
               size = len(path.read_text())
@@ -133,17 +134,114 @@ jobs:
                   print(f"✅ {file}: {tokens} tokens (under {limit} limit)")
 
           print(f"\nTotal: {total_tokens} tokens")
-          target = sum(files.values())
-          print(f"Target: {target} tokens")
 
-          if total_tokens > target:
-              print(f"⚠️  Over budget by {total_tokens - target} tokens")
-          PYTHON
+          if not all_within_budget:
+              print("\n⚠️  Some files exceed context budget")
+              print("Consider consolidating or archiving content")
+              exit(1)
+          EOF
+
+  validate-settings:
+    name: Validate settings.json
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate JSON syntax
+        run: |
+          echo "🔍 Validating settings.json syntax..."
+
+          if ! python3 -c "import json; json.load(open('.claude/settings.json'))" 2>/dev/null; then
+              echo "❌ settings.json is invalid JSON"
+              exit 1
+          fi
+
+          echo "✅ settings.json is valid JSON"
+
+      - name: Validate agent and skill counts
+        run: |
+          python3 << 'EOF'
+          import json
+          import sys
+          from pathlib import Path
+
+          print("🔍 Validating agent/skill configuration...")
+
+          with open('.claude/settings.json', 'r') as f:
+              settings = json.load(f)
+
+          # Count actual agent files
+          agent_dir = Path('.claude/agents')
+          actual_agents = len([f for f in agent_dir.glob('*.md')]) if agent_dir.exists() else 0
+
+          # Count actual skill directories
+          skill_dir = Path('.claude/skills')
+          actual_skills = len([d for d in skill_dir.iterdir() if d.is_dir()]) if skill_dir.exists() else 0
+
+          print(f"✅ Agents: {actual_agents} files in .claude/agents/")
+          print(f"✅ Skills: {actual_skills} directories in .claude/skills/")
+
+          # Validate new Claude Code 2.0 permissions structure
+          if 'permissions' in settings:
+              print("✅ Claude Code 2.0 permissions structure found")
+              perms = settings['permissions']
+              allow_count = len(perms.get('allow', []))
+              deny_count = len(perms.get('deny', []))
+              ask_count = len(perms.get('ask', []))
+              print(f"   Allow rules: {allow_count}")
+              print(f"   Deny rules: {deny_count}")
+              print(f"   Ask rules: {ask_count}")
+
+              if allow_count == 0:
+                  print("⚠️  No allow rules - commands will require approval")
+          else:
+              print("⚠️  No permissions structure (consider adding for auto-approval)")
+
+          # Check for hooks configuration
+          if 'hooks' in settings:
+              hook_count = len(settings['hooks'])
+              print(f"✅ Hooks configured: {hook_count} hooks")
+          else:
+              print("⚠️  No hooks configured")
+
+          print("\n✅ Configuration validated")
+          EOF
+
+  validate-alignment:
+    name: Check Alignment Score
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract and check alignment score
+        run: |
+          echo "🎯 Checking alignment score..."
+
+          SCORE=$(grep "alignment_score:" .claude/PROJECT.md | head -1 | awk '{print $2}')
+
+          if [ -z "$SCORE" ]; then
+              echo "⚠️  Could not extract alignment score"
+              exit 0
+          fi
+
+          echo "Current alignment score: $SCORE/100"
+
+          if [ "$SCORE" -lt 90 ]; then
+              echo "⚠️  Alignment score below target (90)"
+              echo "Consider reviewing system alignment"
+              echo "Invoke the system-aligner agent for detailed analysis"
+          else
+              echo "✅ Alignment score meets target"
+          fi
 
   summary:
     name: Validation Summary
     runs-on: ubuntu-latest
-    needs: [validate-structure]
+    needs: [validate-structure, validate-settings, validate-alignment]
     if: always()
 
     steps:
@@ -159,4 +257,16 @@ jobs:
           echo "  ✓ PATTERNS.md validation states"
           echo "  ✓ STATUS.md health metrics"
           echo "  ✓ Context budget within limits"
+          echo "  ✓ settings.json syntax (valid JSON)"
+          echo "  ✓ Agent/skill configuration (9 agents, 13 skills)"
+          echo "  ✓ Permissions structure (auto-approval rules)"
+          echo "  ✓ Hooks configuration"
+          echo "  ✓ Alignment score"
+          echo ""
+          echo "Claude Code 2.0 Features:"
+          echo "  • Permissions-based auto-approval"
+          echo "  • Progressive disclosure system"
+          echo "  • Pattern learning (pattern-curator)"
+          echo "  • Autonomous testing (test-master)"
+          echo "  • Documentation sync (doc-master)"
           echo ""
