@@ -1,7 +1,7 @@
 {
   "name": "realign-mlx",
   "version": "3.0.0",
-  "description": "MLX-specific extensions for LLM training on Apple Silicon. Includes MLX patterns, system monitoring, CI monitoring, and ReAlign-specific tools. Requires autonomous-dev plugin as base.",
+  "description": "MLX-specific skills and hooks for LLM training on Apple Silicon. Adds MLX patterns, pattern curation, and validation tools. Requires autonomous-dev plugin as base.",
   "author": {
     "name": "Andrew Kaszubski",
     "url": "https://github.com/akaszubski"
@@ -12,7 +12,6 @@
   },
   "license": "MIT",
   "components": {
-    "agents": "./agents",
     "skills": "./skills",
     "hooks": "./hooks"
   },

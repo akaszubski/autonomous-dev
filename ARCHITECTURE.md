@@ -30,7 +30,6 @@ This repository provides **two Claude Code plugins** that work together to creat
 **Purpose**: MLX-specific tools for LLM training on Apple Silicon
 
 **Extends autonomous-dev with**:
-- 2 Monitoring Agents (system health, CI/CD monitoring)
 - 7 MLX Skills (MLX patterns, pattern curation, requirements analysis, documentation migration, architecture patterns, GitHub sync, MCP builder)
 - 2 Validation Hooks (filesystem alignment, standards validation)
 
@@ -100,9 +99,7 @@ your-project/
 │   │   ├── implementer.md       # ← From autonomous-dev
 │   │   ├── reviewer.md          # ← From autonomous-dev
 │   │   ├── security-auditor.md  # ← From autonomous-dev
-│   │   ├── doc-master.md        # ← From autonomous-dev
-│   │   ├── system-aligner.md    # ← From realign-mlx
-│   │   └── ci-monitor.md        # ← From realign-mlx
+│   │   └── doc-master.md        # ← From autonomous-dev
 │   ├── skills/
 │   │   ├── python-standards/    # ← From autonomous-dev
 │   │   ├── testing-guide/       # ← From autonomous-dev

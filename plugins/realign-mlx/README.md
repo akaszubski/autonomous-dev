@@ -16,13 +16,6 @@ Extends the autonomous-dev plugin with MLX patterns, system monitoring, and trai
 
 ## What You Get
 
-### 🤖 2 Additional Agents
-
-| Agent | Purpose |
-|-------|---------|
-| **system-aligner** | Generate STATUS.md with system health & alignment metrics |
-| **ci-monitor** | CI/CD health monitoring & failure analysis |
-
 ### 📚 7 MLX-Specific Skills
 
 | Skill | Domain |
@@ -98,7 +91,7 @@ ReAlign MLX provides extensions to autonomous-dev:
 
 ```
 autonomous-dev (base)          realign-mlx (extensions)
-├── 7 core agents          +   ├── 2 monitoring agents
+├── 7 core agents              (no additional agents)
 ├── 6 core skills          +   ├── 7 MLX-specific skills
 └── 8 automation hooks     +   └── 2 validation hooks
 ```

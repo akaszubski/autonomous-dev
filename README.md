@@ -61,7 +61,6 @@
 **Requires**: autonomous-dev plugin (installed automatically)
 
 **Adds**:
-- ✅ 2 monitoring agents (system-aligner, ci-monitor)
 - ✅ 7 MLX-specific skills (mlx-patterns, pattern-curator, requirements-analyzer, doc-migrator, architecture-patterns, github-sync, mcp-builder)
 - ✅ 2 validation hooks (auto_align_filesystem, validate_standards)
 
@@ -185,7 +184,7 @@ your-project/
 
 | Feature | autonomous-dev | + realign-mlx |
 |---------|---------------|---------------|
-| **Agents** | 7 core | +2 monitoring |
+| **Agents** | 7 core | (same) |
 | **Skills** | 6 generic | +7 MLX-specific |
 | **Hooks** | 8 automation | +2 validation |
 | **Languages** | Python, JS, TS, Go, Rust | Python + MLX |

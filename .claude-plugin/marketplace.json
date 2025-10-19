@@ -15,8 +15,8 @@
     {
       "name": "realign-mlx",
       "source": "./plugins/realign-mlx",
-      "description": "MLX-specific extensions for LLM training (MLX patterns, system monitoring, CI monitoring)",
-      "tags": ["mlx", "training", "apple-silicon", "llm", "monitoring"]
+      "description": "MLX-specific skills and hooks for LLM training (MLX patterns, pattern curation, validation)",
+      "tags": ["mlx", "training", "apple-silicon", "llm", "skills", "hooks"]
     }
   ]
 }
