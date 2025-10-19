@@ -194,15 +194,18 @@ If Claude can't run a command, add it to `allowedCommands` in `.mcp/config.json`
 
 ## Integration with Claude Code Bootstrap
 
-This MCP server configuration enhances the autonomous development workflow:
+This MCP server configuration enhances the PROJECT.md-first autonomous development workflow:
 
-1. **Research**: Claude can read existing code and documentation
-2. **Planning**: Access to git history and project structure
-3. **TDD**: Run tests via Python server
-4. **Implementation**: Write and modify code via filesystem server
-5. **Review**: Execute linters and quality checks
-6. **Security**: Run security scans
-7. **Documentation**: Update docs automatically
+1. **PROJECT.md Alignment**: Claude reads PROJECT.md to validate feature alignment with GOALS
+2. **Orchestrator**: Access to git history and project structure for coordination
+3. **Research**: Read existing code and documentation for pattern discovery
+4. **Planning**: Access architecture and design decisions
+5. **TDD**: Run tests via Python server (test-master agent)
+6. **Implementation**: Write and modify code via filesystem server (implementer agent)
+7. **Review**: Execute linters and quality checks (reviewer agent)
+8. **Security**: Run security scans (security-auditor agent)
+9. **Documentation**: Update docs automatically (doc-master agent)
+10. **GitHub Integration**: Query milestones and issues (optional, via gh CLI)
 
 ## Example Workflow
 
@@ -244,4 +247,4 @@ git push origin feature/new-feature
 
 ---
 
-**Last Updated**: 2025-10-19
+**Last Updated**: 2025-10-20
