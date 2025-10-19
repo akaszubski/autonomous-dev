@@ -37,3 +37,10 @@ build/
 
 # Backups
 *.backup
+
+# Plugin installation (installed via /plugin install, not source code)
+# We keep PROJECT.md and settings.local.json but ignore installed components
+.claude/agents/
+.claude/skills/
+.claude/commands/
+.claude/templates/

@@ -1,7 +1,7 @@
 {
   "name": "autonomous-dev",
-  "version": "1.0.0",
-  "description": "Generic autonomous development setup - works for ANY Python/JavaScript/TypeScript project. Includes specialized agents for planning, research, implementation, testing, security, and documentation, plus automated hooks for formatting, testing, and coverage enforcement.",
+  "version": "2.0.0",
+  "description": "PROJECT.md-first autonomous development plugin. 8-agent pipeline validates alignment before every feature. Includes orchestrator, model optimization (opus/sonnet/haiku), /align-project command, and optional GitHub integration. Works for ANY Python/JavaScript/TypeScript/Go project.",
   "author": {
     "name": "Andrew Kaszubski",
     "url": "https://github.com/akaszubski"
@@ -14,6 +14,8 @@
   "components": {
     "agents": "./agents",
     "skills": "./skills",
+    "commands": "./commands",
+    "templates": "./templates",
     "hooks": "./hooks"
   },
   "requirements": {
