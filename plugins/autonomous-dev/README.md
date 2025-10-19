@@ -18,17 +18,18 @@ Done! Your Claude Code environment now has autonomous agents, skills, and hooks.
 
 ## What You Get
 
-### 🤖 7 Specialized Agents
+### 🤖 8 Specialized Agents
 
-| Agent | Purpose |
-|-------|---------|
-| **planner** | Architecture & design planning for complex features |
-| **researcher** | Web research & best practices discovery |
-| **test-master** | TDD workflow, progression tracking, regression prevention |
-| **implementer** | Clean code implementation following patterns |
-| **reviewer** | Code quality gate before merge |
-| **security-auditor** | Security scanning & OWASP compliance |
-| **doc-master** | Documentation sync & CHANGELOG automation |
+| Agent | Purpose | Model |
+|-------|---------|-------|
+| **orchestrator** | Master coordinator - validates PROJECT.md alignment, manages context, coordinates all agents | sonnet |
+| **planner** | Architecture & design planning for complex features | opus |
+| **researcher** | Web research & best practices discovery | sonnet |
+| **test-master** | TDD workflow, progression tracking, regression prevention | sonnet |
+| **implementer** | Clean code implementation following patterns | sonnet |
+| **reviewer** | Code quality gate before merge | sonnet |
+| **security-auditor** | Security scanning & OWASP compliance | haiku |
+| **doc-master** | Documentation sync & CHANGELOG automation | haiku |
 
 ### 📚 6 Core Skills
 
@@ -56,18 +57,63 @@ Done! Your Claude Code environment now has autonomous agents, skills, and hooks.
 
 ## How It Works
 
-### Agents Auto-Invoke
+### ⭐ PROJECT.md-First Workflow (MOST IMPORTANT)
+
+**Every feature starts with alignment validation:**
 
 ```
 You: "Add user authentication"
 
-Claude automatically:
-1. planner → Creates architecture plan
-2. test-master → Writes FAILING tests (TDD)
-3. implementer → Makes tests PASS
-4. reviewer → Quality gate check
-5. doc-master → Updates docs + CHANGELOG
+orchestrator (PRIMARY MISSION):
+1. ✅ Reads .claude/PROJECT.md
+2. ✅ Validates alignment with GOALS
+3. ✅ Checks if IN SCOPE
+4. ✅ Verifies CONSTRAINTS respected
+5. ✅ Queries GitHub Milestone (optional)
+6. ✅ Only proceeds if aligned
+
+Then coordinates 7-agent pipeline:
+7. researcher → Web research (5 min)
+8. planner → Architecture plan (5 min, opus model)
+9. test-master → Writes FAILING tests (5 min, TDD)
+10. implementer → Makes tests PASS (12 min)
+11. reviewer → Quality gate check (2 min)
+12. security-auditor → Security scan (2 min, haiku)
+13. doc-master → Updates docs + CHANGELOG (1 min, haiku)
+14. Prompts: "Run /clear for next feature"
+
+Total: ~32 minutes, fully autonomous
 ```
+
+**Result**: No scope creep. All work aligns with strategic direction.
+
+### Safe Project Alignment
+
+Bring existing projects into alignment with `/align-project`:
+
+```bash
+# Phase 1: Analysis only (read-only, safe)
+/align-project
+
+# Phase 2: Generate PROJECT.md from code
+/align-project --generate-project-md
+
+# Phase 3: Interactive alignment (ask before each change)
+/align-project --interactive
+```
+
+**7 Advanced Features**:
+1. Smart Diff View - unified view with risk scoring
+2. Dry Run with Stash - test changes before applying
+3. Pattern Learning - learns from your decisions
+4. Conflict Resolution - handles PROJECT.md vs reality mismatches
+5. Progressive Enhancement - quick wins → deep work
+6. Undo Stack - visual history with rollback
+7. Simulation Mode - risk-free sandbox
+
+### Agents Auto-Invoke
+
+The orchestrator manages the entire pipeline automatically - you just describe what you want.
 
 ### Skills Auto-Activate
 
@@ -89,6 +135,48 @@ Claude automatically:
 
 ## Configuration
 
+### PROJECT.md Setup
+
+After installation, create `.claude/PROJECT.md` to define your strategic direction:
+
+```bash
+# Use the generic template (works for any project type)
+cp .claude/templates/PROJECT.md .claude/PROJECT.md
+
+# Edit to define your:
+# - GOALS (what you're building, success metrics)
+# - SCOPE (what's in/out of scope)
+# - CONSTRAINTS (tech stack, performance, security)
+# - CURRENT SPRINT (GitHub milestone, sprint goals)
+```
+
+**See**: [PROJECT.md template](templates/PROJECT.md) for complete structure
+
+### GitHub Integration (Optional)
+
+Enable sprint tracking and issue sync:
+
+```bash
+# 1. Create .env file
+cp .env.example .env
+
+# 2. Add GitHub token (https://github.com/settings/tokens)
+#    Required scopes: repo, read:org
+echo "GITHUB_TOKEN=ghp_your_token_here" > .env
+
+# 3. Add .env to .gitignore (already done by plugin)
+echo ".env" >> .gitignore
+
+# 4. Create GitHub Milestone matching your sprint
+gh api repos/owner/repo/milestones -f title="Sprint 4"
+```
+
+**See**: [GITHUB_AUTH_SETUP.md](docs/GITHUB_AUTH_SETUP.md) for complete guide
+
+**Note**: GitHub is optional - plugin works great without it. PROJECT.md is the primary source of truth.
+
+### Hooks Configuration
+
 After install, hooks are configured in `.claude/settings.json`:
 
 ```json
@@ -106,19 +194,25 @@ Customize as needed for your project!
 ## Why Use This?
 
 **Before autonomous-dev:**
-- Manual code formatting
-- Forget to write tests
-- Inconsistent code quality
-- Documentation gets out of sync
-- Security vulnerabilities slip through
+- ❌ Scope creep (features don't align with goals)
+- ❌ Manual code formatting
+- ❌ Forget to write tests
+- ❌ Inconsistent code quality
+- ❌ Documentation gets out of sync
+- ❌ Security vulnerabilities slip through
+- ❌ Context budget explodes after 3-4 features
 
 **After autonomous-dev:**
-- ✅ Auto-formatted code (black + isort)
-- ✅ TDD enforced (test before code)
-- ✅ 80%+ coverage required
-- ✅ Docs auto-updated
-- ✅ Security auto-scanned
-- ✅ Autonomous workflow
+- ✅ **PROJECT.md alignment** - no scope creep
+- ✅ **Orchestrated workflow** - 8-agent coordination
+- ✅ **Model-optimized** - 40% cost reduction (opus/sonnet/haiku)
+- ✅ **Auto-formatted code** (black + isort)
+- ✅ **TDD enforced** (test before code)
+- ✅ **80%+ coverage required**
+- ✅ **Docs auto-updated**
+- ✅ **Security auto-scanned**
+- ✅ **Context management** - scales to 100+ features
+- ✅ **Safe alignment** - 7 advanced features for existing projects
 
 ## Support
 
@@ -131,8 +225,19 @@ MIT License
 
 ## Version
 
-**v1.0.0** (2025-10-19)
+**v2.0.0** (2025-10-20)
+
+**Major Updates**:
+- ⭐ PROJECT.md-first architecture (alignment validation on every feature)
+- 🤖 orchestrator agent (master coordinator with PRIMARY MISSION)
+- 📊 GitHub integration (optional sprint tracking with .env auth)
+- 🔧 /align-project command (3-phase safe alignment with 7 advanced features)
+- 🧠 Model optimization (opus/sonnet/haiku for 40% cost reduction)
+- 📋 Context management (scales to 100+ features)
+- 🛡️ Safe alignment (dry run, pattern learning, undo stack, simulation mode)
+
+**See**: [HYBRID_ARCHITECTURE_SUMMARY.md](../../HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
 
 ---
 
-**🤖 Powered by Claude Code** | **Generic & Production-Ready**
+**🤖 Powered by Claude Code 2.0** | **PROJECT.md-First** | **Generic & Production-Ready**
