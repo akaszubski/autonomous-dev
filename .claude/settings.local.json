@@ -1,9 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Task"
     ],
-    "deny": [],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(**/.env)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)"
+    ],
     "ask": []
   },
   "hooks": {
