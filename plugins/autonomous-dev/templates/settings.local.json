@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": {
+      "Write": [
+        "python .claude/hooks/auto_format.py"
+      ],
+      "Edit": [
+        "python .claude/hooks/auto_format.py"
+      ]
+    },
+    "PreCommit": {
+      "*": [
+        "python .claude/hooks/auto_test.py",
+        "python .claude/hooks/security_scan.py"
+      ]
+    }
+  }
+}

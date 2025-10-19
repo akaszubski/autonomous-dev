@@ -1,0 +1,6 @@
+
+
+# Autonomous-dev plugin (gitignored)
+.env
+.env.local
+.claude/settings.local.json
