@@ -1,0 +1,82 @@
+---
+version: 0.1.0
+project_name: [PROJECT_NAME]
+language: [LANGUAGE]
+type: [PROJECT_TYPE]
+alignment_score: 95
+last_updated: [DATE]
+---
+
+# [PROJECT_NAME]
+
+## VISION
+
+**What**: [Brief description of what this project does]
+
+**Why**: [Why this project exists - the problem it solves]
+
+**For whom**: [Target users or use cases]
+
+## REQUIREMENTS
+
+### Functional Requirements
+
+*Auto-extracted from tests - managed by requirements-analyzer skill*
+
+1. [Requirement 1] → [Test file:line]
+2. [Requirement 2] → [Test file:line]
+
+### Non-Functional Requirements
+
+- **Performance**: [Performance requirements]
+- **Security**: [Security requirements]
+- **Scalability**: [Scalability needs]
+- **Maintainability**: [Maintenance considerations]
+
+## ARCHITECTURE
+
+### System Design
+
+```
+[High-level architecture diagram or description]
+```
+
+### Key Components
+
+- **Component 1**: [Purpose and responsibility]
+- **Component 2**: [Purpose and responsibility]
+
+### Technology Stack
+
+- **Language**: [LANGUAGE]
+- **Framework**: [If applicable]
+- **Dependencies**: [Key dependencies]
+- **Testing**: [Test framework]
+
+### Design Decisions
+
+*See docs/architecture/decisions/ for ADRs*
+
+## CURRENT FOCUS
+
+**Active Goal**: [What you're currently working on]
+
+**Status**: In Progress / Blocked / Complete
+
+**Next Steps**:
+1. [Next immediate task]
+2. [Following task]
+
+## TRACEABILITY
+
+| Requirement | Implementation | Tests | Status |
+|-------------|----------------|-------|--------|
+| REQ-001 | [file:line] | [test:line] | ✅ Complete |
+| REQ-002 | [file:line] | [test:line] | 🔄 In Progress |
+
+## VALIDATION STATES
+
+- ✅ **Validated**: Requirement implemented + tested + documented
+- 🔄 **In Progress**: Implementation underway
+- ⏳ **Pending**: Not yet started
+- ❌ **Blocked**: Waiting on dependency or decision

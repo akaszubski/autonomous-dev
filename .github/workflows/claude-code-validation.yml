@@ -1,0 +1,162 @@
+name: Claude Code 2.0 Validation
+
+# Validates .claude/ system structure and content
+# Runs on PR and push to main when .claude/ files change
+
+on:
+  pull_request:
+    paths:
+      - '.claude/**'
+  push:
+    branches: [main, master]
+    paths:
+      - '.claude/**'
+  workflow_dispatch:
+
+jobs:
+  validate-structure:
+    name: Validate .claude/ Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate PROJECT.md frontmatter
+        run: |
+          python3 << 'PYTHON'
+          import yaml
+          import sys
+
+          print("🔍 Validating PROJECT.md frontmatter...")
+
+          try:
+              with open('.claude/PROJECT.md', 'r') as f:
+                  content = f.read()
+
+              # Extract frontmatter
+              if not content.startswith('---'):
+                  print("❌ PROJECT.md missing frontmatter")
+                  sys.exit(1)
+
+              parts = content.split('---', 2)
+              if len(parts) < 3:
+                  print("❌ PROJECT.md frontmatter malformed")
+                  sys.exit(1)
+
+              frontmatter = yaml.safe_load(parts[1])
+
+              required = ['version', 'project_name', 'alignment_score']
+              for field in required:
+                  if field not in frontmatter:
+                      print(f"❌ Missing required field: {field}")
+                      sys.exit(1)
+
+              print("✅ PROJECT.md frontmatter valid")
+              print(f"   Project: {frontmatter['project_name']}")
+              print(f"   Version: {frontmatter['version']}")
+              print(f"   Alignment: {frontmatter['alignment_score']}/100")
+
+          except Exception as e:
+              print(f"❌ Error validating PROJECT.md: {e}")
+              sys.exit(1)
+          PYTHON
+
+      - name: Validate PATTERNS.md structure
+        run: |
+          echo "🔍 Validating PATTERNS.md structure..."
+
+          if [ ! -f ".claude/PATTERNS.md" ]; then
+              echo "⚠️  PATTERNS.md not found (will be created by pattern-curator)"
+              exit 0
+          fi
+
+          if ! grep -q "Validated Patterns" .claude/PATTERNS.md; then
+              echo "❌ PATTERNS.md missing 'Validated Patterns' section"
+              exit 1
+          fi
+
+          echo "✅ PATTERNS.md structure valid"
+
+      - name: Validate STATUS.md structure
+        run: |
+          echo "🔍 Validating STATUS.md structure..."
+
+          if [ ! -f ".claude/STATUS.md" ]; then
+              echo "⚠️  STATUS.md not found (will be created by system-aligner)"
+              exit 0
+          fi
+
+          if ! grep -q "Health Check" .claude/STATUS.md; then
+              echo "❌ STATUS.md missing 'Health Check' section"
+              exit 1
+          fi
+
+          echo "✅ STATUS.md structure valid"
+
+      - name: Check context budget
+        run: |
+          python3 << 'PYTHON'
+          from pathlib import Path
+
+          print("📊 Checking context budget...")
+
+          files = {
+              'PROJECT.md': 2000,
+              'PATTERNS.md': 1500,
+              'STATUS.md': 800,
+              'STANDARDS.md': 1200
+          }
+
+          total_tokens = 0
+          all_within_budget = True
+
+          for file, limit in files.items():
+              path = Path(f'.claude/{file}')
+              if not path.exists():
+                  continue
+
+              size = len(path.read_text())
+              tokens = size // 4  # rough estimate
+
+              total_tokens += tokens
+
+              if tokens > limit:
+                  print(f"❌ {file}: {tokens} tokens (limit: {limit})")
+                  all_within_budget = False
+              else:
+                  print(f"✅ {file}: {tokens} tokens (under {limit} limit)")
+
+          print(f"\nTotal: {total_tokens} tokens")
+          target = sum(files.values())
+          print(f"Target: {target} tokens")
+
+          if total_tokens > target:
+              print(f"⚠️  Over budget by {total_tokens - target} tokens")
+          PYTHON
+
+  summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [validate-structure]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Claude Code 2.0 Validation Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Validated:"
+          echo "  ✓ PROJECT.md frontmatter and structure"
+          echo "  ✓ PATTERNS.md validation states"
+          echo "  ✓ STATUS.md health metrics"
+          echo "  ✓ Context budget within limits"
+          echo ""

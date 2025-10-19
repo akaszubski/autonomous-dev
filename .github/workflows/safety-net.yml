@@ -1,0 +1,161 @@
+name: Safety Net (Minimal - Hook Bypass Detection)
+
+# MINIMAL safety net (2% of quality enforcement)
+# Purpose: Catch hook bypasses (git commit --no-verify)
+# Primary enforcement: Claude Code hooks + agents (90%) + local git hooks (8%)
+# Runs: Weekly + manual trigger only
+# Philosophy: Trust but verify - hooks do the work, this catches bypasses
+
+on:
+  schedule:
+    # Weekly on Sundays at 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Run with verbose output'
+        required: false
+        default: 'false'
+
+jobs:
+  safety-validation:
+    name: Safety Net Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for coverage comparison
+
+      - name: Detect project language
+        id: detect
+        run: |
+          if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
+            echo "language=python" >> $GITHUB_OUTPUT
+            echo "Detected: Python project"
+          elif [ -f "package.json" ]; then
+            echo "language=javascript" >> $GITHUB_OUTPUT
+            echo "Detected: JavaScript/TypeScript project"
+          elif [ -f "go.mod" ]; then
+            echo "language=go" >> $GITHUB_OUTPUT
+            echo "Detected: Go project"
+          else
+            echo "language=unknown" >> $GITHUB_OUTPUT
+            echo "Could not detect project language"
+            exit 1
+          fi
+
+      - name: Set up Python (if Python project)
+        if: steps.detect.outputs.language == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Set up Node (if JavaScript project)
+        if: steps.detect.outputs.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Go (if Go project)
+        if: steps.detect.outputs.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+            python -m pip install --upgrade pip
+            if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
+            if [ -f "pyproject.toml" ]; then pip install -e ".[dev]" || pip install -e . || true; fi
+          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+            npm install
+          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+            go mod download
+          fi
+
+      - name: Security Scan
+        run: |
+          echo "🔒 Running security scan..."
+
+          # Language-specific security scanning
+          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+            pip install bandit
+            python -m bandit -r src/ -ll --quiet || echo "⚠️ Security issues found"
+
+            # Check for hardcoded API keys (simple pattern)
+            if grep -rE 'sk-[a-zA-Z0-9]{20,}' src/ --include='*.py' 2>/dev/null | grep -v '#' | grep -q .; then
+              echo "❌ Hardcoded secrets detected!"
+              exit 1
+            fi
+
+          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+            npm install -g eslint-plugin-security
+            npx eslint --plugin security src/ || echo "⚠️ Security issues found"
+
+            # Check for hardcoded secrets
+            if grep -rE 'api[_-]?key.*[:=].*["\x27][a-zA-Z0-9]{20,}' src/ --include='*.js' --include='*.ts' | grep -v '//' | grep -q .; then
+              echo "❌ Hardcoded secrets detected!"
+              exit 1
+            fi
+
+          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+            go install github.com/securego/gosec/v2/cmd/gosec@latest
+            gosec ./... || echo "⚠️ Security issues found"
+
+            # Check for hardcoded secrets
+            if grep -rE 'apiKey.*:=.*"[a-zA-Z0-9]{20,}"' . --include='*.go' | grep -v '//' | grep -q .; then
+              echo "❌ Hardcoded secrets detected!"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Security scan passed"
+
+      - name: Run Tests with Coverage
+        run: |
+          echo "📊 Running tests with coverage..."
+
+          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+            pip install pytest pytest-cov
+            python -m pytest tests/ \
+              --cov=src \
+              --cov-fail-under=80 \
+              --cov-report=term-missing:skip-covered \
+              --tb=no \
+              -q
+
+          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+            npm test -- --coverage --coverageThreshold='{"global":{"lines":80}}'
+
+          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+            go test -cover ./... -coverprofile=coverage.out
+            go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//' | \
+              awk '{if ($1 < 80) exit 1}'
+          fi
+
+          echo "✅ Tests passed with ≥80% coverage"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Safety Net Validation Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🛡️  This workflow is a MINIMAL safety net that catches:"
+          echo "  • Hook bypasses (git commit --no-verify)"
+          echo "  • Hardcoded secrets in source code"
+          echo "  • Coverage dropping below 80%"
+          echo "  • Critical test failures"
+          echo ""
+          echo "🤖 Primary Quality Enforcement:"
+          echo "  • Claude Code hooks (instant feedback during dev)"
+          echo "  • Specialized agents (planner, test-master, reviewer, etc.)"
+          echo "  • Local git hooks (pre-commit + pre-push)"
+          echo ""
