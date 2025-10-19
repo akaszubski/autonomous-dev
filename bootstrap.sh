@@ -78,7 +78,8 @@ echo ""
 # Ask user to confirm
 echo "This will copy:"
 echo "  • 8 generic agents (planner, researcher, implementer, etc.)"
-echo "  • 5 multi-language hooks (auto-format, auto-test, security)"
+echo "  • 11 automation hooks (format, test, TDD, coverage, regression, etc.)"
+echo "  • 9 domain skills (testing, security, patterns, documentation, etc.)"
 echo "  • 2 GitHub workflows (CI safety net, validation)"
 echo "  • 3 document templates (PROJECT.md, PATTERNS.md, STATUS.md)"
 echo "  • settings.json with hooks configuration"
@@ -123,34 +124,47 @@ done
 echo ""
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  STEP 3: Copying multi-language hooks (5 files)"
+echo "  STEP 3: Copying automation hooks (11 files)"
 echo "════════════════════════════════════════════════════════════════"
 
-# Copy hooks from bootstrap template (these are multi-language)
-for hook in auto_format auto_test security_scan pattern_curator auto_align_filesystem; do
-    if [ -f "$BOOTSTRAP_TEMPLATE/hooks/${hook}.py" ]; then
-        cp "$BOOTSTRAP_TEMPLATE/hooks/${hook}.py" scripts/hooks/
-        chmod +x scripts/hooks/${hook}.py
-        echo "   ✓ ${hook}.py (supports Python/JS/Go)"
-    else
-        echo "   ⚠️  ${hook}.py not found in bootstrap template"
-    fi
-done
+# Copy ALL hooks from bootstrap template
+if [ -d "$BOOTSTRAP_TEMPLATE/hooks" ]; then
+    cp "$BOOTSTRAP_TEMPLATE/hooks/"*.py scripts/hooks/
+    chmod +x scripts/hooks/*.py
+    hook_count=$(ls -1 "$BOOTSTRAP_TEMPLATE/hooks/"*.py 2>/dev/null | wc -l | tr -d ' ')
+    echo "   ✓ Copied $hook_count hooks (format, test, TDD, coverage, regression, etc.)"
+else
+    echo "   ⚠️  Hooks directory not found in bootstrap template"
+fi
 
 echo ""
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  STEP 4: Copying GitHub workflows (2 files)"
+echo "  STEP 4: Copying domain skills (9 skills)"
+echo "════════════════════════════════════════════════════════════════"
+
+# Copy ALL skills from bootstrap template
+if [ -d "$BOOTSTRAP_TEMPLATE/skills" ]; then
+    cp -r "$BOOTSTRAP_TEMPLATE/skills/"* .claude/skills/
+    skill_count=$(ls -1d "$BOOTSTRAP_TEMPLATE/skills/"*/ 2>/dev/null | wc -l | tr -d ' ')
+    echo "   ✓ Copied $skill_count skills (testing, security, patterns, documentation, etc.)"
+else
+    echo "   ⚠️  Skills directory not found in bootstrap template"
+fi
+
+echo ""
+
+echo "════════════════════════════════════════════════════════════════"
+echo "  STEP 5: Copying GitHub workflows (2 files)"
 echo "════════════════════════════════════════════════════════════════"
 
 # Copy workflows
-if [ -d "$BOOTSTRAP_TEMPLATE/github/workflows" ]; then
-    for workflow in safety-net claude-code-validation; do
-        if [ -f "$BOOTSTRAP_TEMPLATE/github/workflows/${workflow}.yml" ]; then
-            cp "$BOOTSTRAP_TEMPLATE/github/workflows/${workflow}.yml" .github/workflows/
-            echo "   ✓ ${workflow}.yml"
-        fi
-    done
+if [ -d "$BOOTSTRAP_TEMPLATE/.github/workflows" ]; then
+    cp "$BOOTSTRAP_TEMPLATE/.github/workflows/"*.yml .github/workflows/
+    echo "   ✓ Copied GitHub workflows (CI/CD + validation)"
+elif [ -d "$BOOTSTRAP_TEMPLATE/github/workflows" ]; then
+    cp "$BOOTSTRAP_TEMPLATE/github/workflows/"*.yml .github/workflows/
+    echo "   ✓ Copied GitHub workflows (CI/CD + validation)"
 else
     echo "   ⚠️  Workflows not found in bootstrap template"
 fi
@@ -158,7 +172,7 @@ fi
 echo ""
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  STEP 5: Creating core documentation files"
+echo "  STEP 6: Creating core documentation files"
 echo "════════════════════════════════════════════════════════════════"
 
 # Use templates if available, otherwise create basic versions
@@ -375,7 +389,7 @@ echo "   ✓ STANDARDS.md (created)"
 echo ""
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  STEP 6: Creating settings.json"
+echo "  STEP 7: Creating settings.json"
 echo "════════════════════════════════════════════════════════════════"
 
 # Determine file extension for hooks
@@ -480,7 +494,7 @@ echo "   ✓ settings.json (configured for $LANGUAGE)"
 echo ""
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  STEP 7: Updating .gitignore"
+echo "  STEP 8: Updating .gitignore"
 echo "════════════════════════════════════════════════════════════════"
 
 if [ -f ".gitignore" ]; then
@@ -519,21 +533,39 @@ echo "✅ Generic Claude Code 2.0 setup applied to: $PROJECT_NAME"
 echo ""
 echo "📦 What was installed:"
 echo ""
-echo "   Agents (7):"
-echo "     • planner - Architecture & design (read-only)"
+echo "   Agents (8):"
+echo "     • planner - Architecture & design"
 echo "     • researcher - Web research & best practices"
 echo "     • test-master - TDD, progression, regression"
 echo "     • implementer - Code implementation"
 echo "     • reviewer - Code quality gate"
 echo "     • security-auditor - Security scanning"
 echo "     • doc-master - Documentation sync"
+echo "     • ci-monitor - CI/CD monitoring"
 echo ""
-echo "   Hooks (5):"
+echo "   Hooks (11):"
 echo "     • auto_format - Multi-language formatting"
-echo "     • auto_test - Test framework detection & execution"
+echo "     • auto_test - Test framework detection"
+echo "     • auto_generate_tests - TDD test generation"
+echo "     • auto_add_to_regression - Regression suite"
+echo "     • auto_enforce_coverage - 80% coverage gate"
+echo "     • auto_tdd_enforcer - TDD workflow"
+echo "     • auto_update_docs - Doc sync"
+echo "     • validate_standards - Code standards"
 echo "     • security_scan - Secret detection"
-echo "     • pattern_curator - Auto-learn coding patterns"
-echo "     • auto_align_filesystem - Keep docs organized"
+echo "     • pattern_curator - Pattern learning"
+echo "     • auto_align_filesystem - File organization"
+echo ""
+echo "   Skills (9):"
+echo "     • testing-guide - Complete testing methodology"
+echo "     • security-patterns - Security best practices"
+echo "     • python-standards - Python quality (PEP 8)"
+echo "     • research-patterns - Research methodology"
+echo "     • documentation-guide - Doc standards"
+echo "     • architecture-patterns - SOLID, DRY, design"
+echo "     • engineering-standards - General best practices"
+echo "     • mcp-builder - MCP server creation"
+echo "     • pattern-curator - Pattern learning automation"
 echo ""
 echo "   Workflows (2):"
 echo "     • safety-net.yml - Agent-first CI/CD"
