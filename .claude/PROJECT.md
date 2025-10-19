@@ -1,50 +1,60 @@
 # Project Context - Claude Code Bootstrap
 
-**Last Updated**: 2025-10-19
-**Project**: Autonomous Development System for Claude Code
+**Last Updated**: 2025-10-20
+**Project**: Autonomous Development Plugin System with PROJECT.md-First Architecture
+**Version**: v2.0.0
 
 ---
 
-## GOALS
+## GOALS ⭐
 
 **What success looks like for this project**:
 
-1. **Build autonomous development system** - Enable Claude Code to handle complete feature development from research through deployment
-2. **Reduce development time** - Reduce manual dev time from 40 hours/week to 6 hours/week through automation
-3. **Maintain high code quality** - Maintain 80%+ test coverage automatically with TDD enforcement
-4. **Enable scalability** - Support 100+ features without context degradation or system failures
+1. **Prevent scope creep through PROJECT.md-first architecture** - Every feature validated against strategic direction before work begins
+2. **Enable one-command autonomous development** - Users install once (`/plugin install autonomous-dev`) and achieve 10x faster development
+3. **Maintain high code quality automatically** - 80%+ test coverage, TDD enforcement, security scanning without manual effort
+4. **Enable scalability** - Support 100+ features without context degradation through session management and `/clear` workflow
 
 **Success Metrics**:
-- Development time: Target < 30 minutes per feature (autonomous)
-- Test coverage: Target 80%+ (enforced automatically)
-- Code quality: Automated enforcement via hooks
-- Time to feature: Target 20-30 minutes research-to-production
-- Context efficiency: < 8,000 tokens per feature (scalable to 100+ features)
+- **Alignment**: 100% of features validated against PROJECT.md before work begins
+- **Development time**: Target < 30 minutes per feature (fully autonomous pipeline)
+- **Test coverage**: Target 80%+ (enforced automatically by hooks)
+- **Context efficiency**: < 8,000 tokens per feature (scales to 100+ features)
+- **Installation**: < 60 seconds one-command install (`/plugin install autonomous-dev`)
+- **Model costs**: 40% reduction through optimization (opus/sonnet/haiku)
 
 ---
 
 ## SCOPE
 
-**What's IN Scope** (Features we build):
+**What's IN Scope** ✅ (Features we build):
 
-- ✅ Autonomous development workflow (research → plan → TDD → implement → review)
+**Core Architecture** (v2.0.0):
+- ✅ **PROJECT.md-first alignment** - orchestrator validates GOALS/SCOPE/CONSTRAINTS before every feature
+- ✅ **8-agent pipeline** - orchestrator + researcher + planner + test-master + implementer + reviewer + security-auditor + doc-master
+- ✅ **Model optimization** - opus (planner), sonnet (most), haiku (fast tasks) for 40% cost reduction
+- ✅ **/align-project command** - 3-phase safe alignment (Analyze → Generate → Interactive)
+- ✅ **GitHub integration (optional)** - Sprint tracking via .env authentication
+
+**Existing Features** (preserved):
+- ✅ Session-based context management (prevents context bloat)
 - ✅ Auto-formatting and auto-testing (Python, JavaScript/TypeScript)
 - ✅ Security scanning (secrets detection, vulnerability scanning)
 - ✅ Documentation sync (auto-update docs, CHANGELOG)
-- ✅ Session-based context management (prevents context bloat)
-- ✅ PROJECT.md alignment checks (prevents scope creep)
-- ✅ Multi-agent orchestration (researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master)
-- ✅ Plugin system for extending functionality
+- ✅ Plugin marketplace distribution
+- ✅ 6 core skills (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)
 
-**What's OUT of Scope** (Features we avoid):
+**What's OUT of Scope** ❌ (Features we avoid):
 
 - ❌ Manual code reviews (automated via reviewer agent)
 - ❌ Manual testing (TDD enforced via test-master)
 - ❌ Manual documentation (doc-master handles automatically)
 - ❌ Manual security scans (security-auditor handles automatically)
-- ❌ Features that don't serve automation goal
-- ❌ Complex UI/UX features (focus on developer workflow)
-- ❌ Non-development tasks (this is a dev automation system)
+- ❌ IDE-specific features (only Claude Code 2.0 plugins)
+- ❌ Language-specific tools (stay generic, multi-language)
+- ❌ Cloud hosting/SaaS (local-only plugins)
+- ❌ Paid features (100% free, MIT license)
+- ❌ Breaking changes to existing user configurations
 
 **Boundaries**:
 - Focus on automation of repetitive development tasks
@@ -60,17 +70,19 @@
 ### Technical Constraints
 
 **Required Technology**:
-- Language: Python 3.8+ for hooks/scripts
-- Testing: pytest (Python), jest (JavaScript)
-- Formatting: black, isort (Python), prettier (JavaScript/TypeScript)
-- Claude Code: 2.0+ with plugins, agents, hooks, skills support
-- Git: For version control and PR automation
+- **Primary**: Markdown (agent/skill/command definitions)
+- **Supporting**: Python 3.11+ (hooks/scripts), Bash (testing/automation), JSON (config)
+- **Testing**: pytest (Python), jest (JavaScript), automated test script (Bash)
+- **Formatting**: black, isort (Python), prettier (JavaScript/TypeScript)
+- **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
+- **Git**: For version control and rollback safety
 
-**Current Architecture** (preserve and enhance):
-- Agents: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
-- Skills: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards
-- Hooks: Auto-format, auto-test, auto-enforce-coverage, security-scan
-- Plugin: autonomous-dev (contains all agents and skills)
+**Current Architecture** (v2.0.0):
+- **Agents**: orchestrator (NEW), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master (8 total)
+- **Skills**: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards (6 total)
+- **Commands**: /align-project, /align-project-safe (NEW)
+- **Hooks**: Auto-format, auto-test, auto-enforce-coverage, security-scan
+- **Plugin**: autonomous-dev (contains all components)
 
 ### Performance Constraints
 
@@ -97,43 +109,96 @@
 
 ---
 
+## CURRENT SPRINT
+
+**Sprint Name**: Sprint 5: Testing & Validation ✅
+**GitHub Milestone**: N/A (this is the source repo, not using milestones internally)
+**Duration**: 2025-10-20 → Complete
+**Status**: 100% complete ✅
+
+**Sprint Goals**:
+1. ✅ Implement PROJECT.md-first architecture
+2. ✅ Create comprehensive testing infrastructure
+3. ✅ Update all documentation (3 README files)
+4. ✅ Dogfood: Apply PROJECT.md to claude-code-bootstrap itself
+5. ⏸️ Announce v2.0.0 release (NEXT)
+
+**Completed Tasks**:
+- ✅ Enhanced orchestrator with PRIMARY MISSION for PROJECT.md alignment
+- ✅ Created /align-project command (standard + safe with 3 phases)
+- ✅ GitHub integration setup (.env auth, GITHUB_AUTH_SETUP.md)
+- ✅ PROJECT.md template (generic, domain-agnostic)
+- ✅ Updated root README.md with PROJECT.md-first architecture
+- ✅ Updated plugins/autonomous-dev/README.md (v2.0.0 features)
+- ✅ Updated .mcp/README.md with integration details
+- ✅ Created automated test script (30 tests, all passing)
+- ✅ Created comprehensive testing guide (docs/TESTING_GUIDE.md)
+- ✅ Created/updated PROJECT.md for this repo (THIS FILE)
+
+**Next Sprint**: Sprint 6: Release & Community
+- Announce v2.0.0 on GitHub Discussions
+- Create release notes
+- Tag v2.0.0 release
+- Update marketplace listing
+
+---
+
 ## ARCHITECTURE
 
-### Current System Architecture
+### Current System Architecture (v2.0.0)
 
 ```
 User Request
      ↓
-Orchestrator Agent (future enhancement)
+orchestrator (PRIMARY MISSION: Validate PROJECT.md Alignment)
+     │
+     ├─> 1. Read .claude/PROJECT.md
+     ├─> 2. Validate: GOALS alignment?
+     ├─> 3. Validate: IN SCOPE?
+     ├─> 4. Validate: CONSTRAINTS respected?
+     ├─> 5. [Optional] Query GitHub Milestone (.env auth)
+     └─> 6. Only proceed if aligned ✅
+     ↓
+7-Agent Pipeline (if aligned):
      ↓
 ┌────────────┬─────────────┬──────────────┬─────────────┐
 │ Researcher │   Planner   │ Test-Master  │ Implementer │
-│  (Haiku)   │  (Sonnet)   │   (Sonnet)   │  (Sonnet)   │
+│  (Sonnet)  │   (Opus)    │   (Sonnet)   │  (Sonnet)   │
 │  Read-only │  Read-only  │  Write Tests │  Write Code │
+│  5 min     │   5 min     │    5 min     │   12 min    │
 └────────────┴─────────────┴──────────────┴─────────────┘
      ↓
 ┌────────────┬─────────────┬──────────────┐
 │  Reviewer  │  Security   │  Doc-Master  │
-│  (Haiku)   │  (Haiku)    │   (Haiku)    │
+│  (Sonnet)  │   (Haiku)   │   (Haiku)    │
 │  Read-only │  Read+Bash  │  Write Docs  │
+│   2 min    │    2 min    │    1 min     │
 └────────────┴─────────────┴──────────────┘
+     ↓
+Prompt: "Run /clear for next feature"
      ↓
 Quality Hooks (auto-format, auto-test, security-scan, coverage)
      ↓
 Production Code
 ```
 
+**Priority Hierarchy**:
+1. **PRIMARY**: PROJECT.md alignment (MOST IMPORTANT)
+2. **SECONDARY**: GitHub integration (optional, supporting)
+3. **SUPPORTING**: Safe alignment workflow
+
 ### Agent Responsibilities
 
-**Current Agents** (in `plugins/autonomous-dev/agents/`):
+**Current Agents** (in `plugins/autonomous-dev/agents/`) - v2.0.0:
 
-- **researcher**: Web research for best practices (model: haiku, tools: WebSearch, WebFetch, Grep, Glob, Read)
-- **planner**: Creates implementation plans (model: sonnet, tools: Read, Grep, Glob, Bash - read-only)
-- **test-master**: Writes TDD tests first (model: sonnet, tools: Read, Write, Bash)
-- **implementer**: Makes tests pass (model: sonnet, tools: Read, Write, Edit, Bash)
-- **reviewer**: Quality gate checks (model: haiku, tools: Read - read-only)
-- **security-auditor**: Security scanning (model: haiku, tools: Read, Bash)
-- **doc-master**: Documentation sync (model: haiku, tools: Read, Write, Edit)
+- **orchestrator** (NEW): Master coordinator with PRIMARY MISSION to validate PROJECT.md alignment (model: sonnet, tools: Task, Read, Bash)
+- **planner**: Creates implementation plans (model: opus - UPDATED for complex planning, tools: Read, Grep, Glob, Bash)
+- **researcher**: Web research for best practices (model: sonnet - UPDATED, tools: WebSearch, WebFetch, Grep, Glob, Read)
+- **test-master**: Writes TDD tests first (model: sonnet, tools: Read, Write, Edit, Bash, Grep, Glob)
+- **implementer**: Makes tests pass (model: sonnet, tools: Read, Write, Edit, Bash, Grep, Glob)
+- **reviewer**: Quality gate checks (model: sonnet - UPDATED, tools: Read, Bash, Grep, Glob)
+- **security-auditor**: Security scanning (model: haiku, tools: Read, Bash, Grep, Glob)
+- **doc-master**: Documentation sync (model: haiku, tools: Read, Write, Edit, Bash, Grep, Glob)
 
 ### Skills System (Current)
 
@@ -296,5 +361,6 @@ cat docs/sessions/$SESSION_FILE  # See file paths, load files directly
 
 ---
 
-**Last Updated**: 2025-10-19
-**Next Review**: 2025-11-19
+**Last Updated**: 2025-10-20
+**Version**: v2.0.0
+**Next Review**: 2025-11-20
