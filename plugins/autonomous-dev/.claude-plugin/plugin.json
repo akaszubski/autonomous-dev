@@ -1,0 +1,35 @@
+{
+  "name": "autonomous-dev",
+  "version": "1.0.0",
+  "description": "Generic autonomous development setup - works for ANY Python/JavaScript/TypeScript project. Includes specialized agents for planning, research, implementation, testing, security, and documentation, plus automated hooks for formatting, testing, and coverage enforcement.",
+  "author": {
+    "name": "Andrew Kaszubski",
+    "url": "https://github.com/akaszubski"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akaszubski/claude-code-bootstrap"
+  },
+  "license": "MIT",
+  "components": {
+    "agents": "./agents",
+    "skills": "./skills",
+    "hooks": "./hooks"
+  },
+  "requirements": {
+    "claude_code_version": ">=2.0.0",
+    "python": ">=3.11"
+  },
+  "tags": [
+    "agents",
+    "skills",
+    "hooks",
+    "testing",
+    "documentation",
+    "security",
+    "python",
+    "generic",
+    "autonomous"
+  ],
+  "readme": "./README.md"
+}

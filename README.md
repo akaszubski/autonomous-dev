@@ -1,281 +1,252 @@
-# Claude Code 2.0 Bootstrap
+# Claude Code 2.0 Autonomous Development Plugins
 
-**Production-ready autonomous development setup for ANY project**
+**Production-ready plugins for autonomous development**
 
-Turn any codebase into an autonomous development environment where Claude handles formatting, testing, documentation, and learns your patterns automatically.
-
-🚀 **5-minute setup** • 🤖 **Auto-format, auto-test** • 📚 **Pattern learning** • 🔒 **Security scanning** • 🌍 **Multi-language**
-
----
-
-## What You Get
-
-✅ **8 Specialized AI Agents** - planner, researcher, implementer, test-master, reviewer, security-auditor, doc-master, ci-monitor
-✅ **5 Automation Hooks** - Auto-format (black/prettier/gofmt), auto-test (pytest/jest/go test), security scan, pattern learning
-✅ **Multi-Language Support** - Python, JavaScript, TypeScript, Go, Rust
-✅ **Progressive Disclosure** - 79% less context (5.3K vs 25K+ tokens)
-✅ **Self-Improving** - Learns YOUR patterns automatically
-✅ **80% Coverage Enforced** - Quality gates built-in
-
-**Source**: Extracted from ReAlign (98% alignment, production-ready)
+🚀 **One-command install** • 🤖 **Generic or MLX-specific** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
 
 ---
 
 ## Quick Start
 
-### Option 1: Bootstrap Existing Project
+### Generic Autonomous Development (Works for ANY project)
 
 ```bash
-# 1. Clone this repo
+# Add this marketplace
+/plugin marketplace add akaszubski/claude-code-bootstrap
+
+# Install generic autonomous development setup
+/plugin install autonomous-dev
+```
+
+### MLX/Apple Silicon Extensions (For LLM training)
+
+```bash
+# Install base plugin first
+/plugin install autonomous-dev
+
+# Then add MLX-specific extensions
+/plugin install realign-mlx
+```
+
+**Done!** Claude now autonomously handles formatting, testing, documentation, and security.
+
+---
+
+## Available Plugins
+
+### 🤖 autonomous-dev (Generic - Recommended for everyone)
+
+**Works with**: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+**Includes**:
+- ✅ 7 specialized agents (planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master)
+- ✅ 6 core skills (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)
+- ✅ 8 automation hooks (auto-format, auto-test, TDD enforcement, coverage enforcement, security scan)
+
+**Perfect for**:
+- Web applications (React, Next.js, Express)
+- APIs (FastAPI, Django, Node.js)
+- CLI tools
+- Libraries
+- Any Python/JavaScript/TypeScript project
+
+[📖 Full autonomous-dev docs](plugins/autonomous-dev/README.md)
+
+---
+
+### 🍎 realign-mlx (MLX-specific - For LLM training)
+
+**Requires**: autonomous-dev plugin (installed automatically)
+
+**Adds**:
+- ✅ 2 monitoring agents (system-aligner, ci-monitor)
+- ✅ 7 MLX-specific skills (mlx-patterns, pattern-curator, requirements-analyzer, doc-migrator, architecture-patterns, github-sync, mcp-builder)
+- ✅ 2 validation hooks (auto_align_filesystem, validate_standards)
+
+**Perfect for**:
+- LLM training on Apple Silicon (M1/M2/M3/M4)
+- MLX framework projects
+- ReAlign or similar training systems
+- System health monitoring
+
+[📖 Full realign-mlx docs](plugins/realign-mlx/README.md)
+
+---
+
+## What You Get
+
+### Autonomous Development Workflow
+
+```
+You: "Add user authentication"
+
+Claude automatically:
+1. planner → Creates architecture plan
+2. test-master → Writes FAILING tests (TDD enforced)
+3. implementer → Makes tests PASS
+4. reviewer → Quality gate check
+5. security-auditor → Security scan
+6. doc-master → Updates docs + CHANGELOG
+
+All automatic. No manual steps.
+```
+
+### Auto-Everything
+
+- **Auto-format**: Code formatted on every write (black, prettier, gofmt)
+- **Auto-test**: Related tests run automatically
+- **Auto-coverage**: 80%+ coverage enforced
+- **Auto-security**: Secrets and vulnerabilities detected
+- **Auto-docs**: Documentation synced with code
+
+### Skills Auto-Activate
+
+- Write Python → python-standards activates
+- Write tests → testing-guide activates
+- Handle API keys → security-patterns activates
+- Use MLX → mlx-patterns activates (if realign-mlx installed)
+
+---
+
+## Installation Methods
+
+### Method 1: Claude Code Plugin (Recommended)
+
+```bash
+# One command install
+/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin install autonomous-dev
+
+# Updates are automatic
+/plugin update autonomous-dev
+```
+
+**Benefits**:
+- ✅ One-command installation
+- ✅ Automatic updates
+- ✅ Version management
+- ✅ Easy to uninstall
+
+### Method 2: Bootstrap Script (Legacy)
+
+For projects that need custom setup or don't support plugins:
+
+```bash
+# Clone this repo
 git clone https://github.com/akaszubski/claude-code-bootstrap.git
 
-# 2. Navigate to YOUR project
+# Navigate to YOUR project
 cd ~/your-project
 
-# 3. Run bootstrap
+# Run bootstrap
 ~/claude-code-bootstrap/bootstrap.sh .
-
-# 4. Done! Claude now manages your project autonomously
 ```
 
-### Option 2: Start New Project
-
-```bash
-# 1. Clone this repo
-git clone https://github.com/akaszubski/claude-code-bootstrap.git
-
-# 2. Create new project
-mkdir ~/my-new-api && cd ~/my-new-api
-git init
-touch requirements.txt  # or package.json, go.mod, etc.
-
-# 3. Run bootstrap
-~/claude-code-bootstrap/bootstrap.sh .
-
-# 4. Start coding with Claude!
-```
-
----
-
-## What Happens During Bootstrap
-
-```
-🔍 Detecting project language... Detected: Python
-
-📦 Installing Claude Code 2.0 setup:
-   ✓ 8 specialized agents
-   ✓ 5 multi-language hooks
-   ✓ 2 GitHub workflows
-   ✓ 4 core documentation files
-   
-🎉 Bootstrap Complete!
-
-Your project now has:
-   • Auto-format on every write
-   • Auto-test on every change
-   • Security scan for secrets
-   • Pattern learning (learns YOUR patterns)
-   • Progressive disclosure (smart context loading)
-```
-
----
-
-## Supported Languages
-
-| Language | Auto-Detected | Tools Configured |
-|----------|---------------|------------------|
-| **Python** | `pyproject.toml`, `requirements.txt` | black, isort, pytest, mypy, bandit |
-| **JavaScript** | `package.json` | prettier, eslint, jest |
-| **TypeScript** | `package.json` + TypeScript | prettier, eslint, jest, tsc strict |
-| **Go** | `go.mod` | gofmt, golint, go test, gosec |
-| **Rust** | `Cargo.toml` | rustfmt, clippy, cargo test |
+**Use this if**:
+- You need custom configuration
+- You're on older Claude Code (<2.0)
+- You want to modify files before installation
 
 ---
 
 ## What Gets Installed
 
+Both methods install the same components to your project:
+
 ```
 your-project/
 ├── .claude/
-│   ├── agents/              # 8 specialized subagents
+│   ├── agents/              # Specialized subagents
 │   │   ├── planner.md       # Architecture & design
 │   │   ├── researcher.md    # Web research
-│   │   ├── implementer.md   # Code implementation
 │   │   ├── test-master.md   # TDD + regression
+│   │   ├── implementer.md   # Code implementation
 │   │   ├── reviewer.md      # Quality gate
 │   │   ├── security-auditor.md # Security scanning
-│   │   ├── doc-master.md    # Doc sync
-│   │   └── ci-monitor.md    # CI/CD monitoring
-│   ├── PROJECT.md           # Single source of truth
-│   ├── PATTERNS.md          # Auto-learned patterns
-│   ├── STATUS.md            # Health dashboard
-│   ├── STANDARDS.md         # Engineering principles
-│   └── settings.json        # Hooks configuration
-├── scripts/hooks/
-│   ├── auto_format.py       # Multi-language formatting
-│   ├── auto_test.py         # Test detection & execution
-│   ├── security_scan.py     # Secret detection
-│   ├── pattern_curator.py   # Pattern learning
-│   └── auto_align_filesystem.py # Doc organization
-└── .github/workflows/
-    ├── safety-net.yml       # CI/CD
-    └── claude-code-validation.yml # Structure validation
+│   │   └── doc-master.md    # Doc sync
+│   ├── skills/              # Domain knowledge
+│   │   ├── python-standards/
+│   │   ├── testing-guide/
+│   │   ├── security-patterns/
+│   │   └── documentation-guide/
+│   └── settings.json        # Hook configuration
+└── scripts/hooks/
+    ├── auto_format.py       # Auto-formatting
+    ├── auto_test.py         # Auto-testing
+    ├── auto_enforce_coverage.py # Coverage check
+    └── security_scan.py     # Security scanning
 ```
 
 ---
 
-## How It Works
+## Comparison: Generic vs MLX
 
-### 1. Auto-Format on Every Write
-
-Claude writes code → Hook auto-formats:
-```bash
-Python: black + isort
-JavaScript: prettier
-Go: gofmt
-```
-
-### 2. Auto-Test on Every Change
-
-Source file changes → Related tests run automatically:
-```bash
-Python: pytest tests/unit/test_<module>.py
-JavaScript: jest <file>.test.js
-Go: go test ./pkg/<package>
-```
-
-### 3. Security Scan
-
-Every write scanned for:
-- API keys, tokens, passwords
-- SQL injection patterns
-- Security vulnerabilities
-
-### 4. Pattern Learning (Automatic!)
-
-System learns YOUR patterns:
-- Sees pattern 1-2 times → "🔄 Candidate"
-- Sees pattern 3+ times → "✅ Validated"
-- Claude uses validated patterns in future code
-
-**Example**: After you write a database connection pattern 3 times, Claude learns it and applies it automatically to new code.
-
-### 5. Progressive Disclosure
-
-Each agent loads ONLY what it needs:
-- Main agent: ~1,500 tokens
-- Planner: ~5,600 tokens (vision + patterns)
-- Implementer: ~4,700 tokens (architecture + patterns)
-
-**79% less context** = Faster, cheaper, more focused.
-
----
-
-## After Bootstrap
-
-### 1. Customize Your Vision
-
-Edit `.claude/PROJECT.md`:
-
-```markdown
-## VISION
-**What**: A CLI tool for analyzing git repositories
-**Why**: Understand code evolution and contributor patterns
-**For whom**: Engineering managers
-
-## REQUIREMENTS
-1. Parse git log and extract commits
-2. Generate contributor statistics
-3. Visualize code churn over time
-```
-
-### 2. Start Coding
-
-Claude will automatically:
-- ✅ Format your code
-- ✅ Run tests on changes
-- ✅ Scan for security issues
-- ✅ Learn patterns from your code
-- ✅ Keep documentation aligned
-
-### 3. Watch Patterns Emerge
-
-Check `.claude/PATTERNS.md` after a week:
-
-```markdown
-### Database Connection Pattern (✅ Validated)
-
-Seen: 5 times
-
-\`\`\`python
-def get_db():
-    return DatabaseConnection(
-        host=os.getenv("DB_HOST"),
-        pool_size=10
-    )
-\`\`\`
-
-**When to use**: All database access
-**Status**: ✅ Validated
-```
+| Feature | autonomous-dev | + realign-mlx |
+|---------|---------------|---------------|
+| **Agents** | 7 core | +2 monitoring |
+| **Skills** | 6 generic | +7 MLX-specific |
+| **Hooks** | 8 automation | +2 validation |
+| **Languages** | Python, JS, TS, Go, Rust | Python + MLX |
+| **Use Case** | Any project | LLM training |
+| **Apple Silicon** | Works | Optimized |
 
 ---
 
 ## Examples
 
-### Example: Bootstrap a Node.js API
+### Example 1: Generic Web App
 
 ```bash
-# Clone an existing API
-git clone https://github.com/someone/api-project.git
-cd api-project
+cd my-react-app
+/plugin install autonomous-dev
 
-# Bootstrap it
-~/claude-code-bootstrap/bootstrap.sh .
-
-# Output:
-🔍 Detected: JavaScript
-✓ Copied 8 agents
-✓ Configured prettier, jest, eslint
-🎉 Complete!
-
-# Commit the setup
-git add .claude/ .github/ scripts/
-git commit -m "feat: add Claude Code 2.0 autonomous setup"
-
-# Start coding - Claude handles the rest!
+# Claude now handles:
+# ✓ Auto-format with prettier
+# ✓ Auto-test with jest
+# ✓ 80% coverage enforcement
+# ✓ Security scanning
+# ✓ TDD workflow
 ```
 
-### Example: New Python Library
+### Example 2: LLM Training Project
 
 ```bash
-mkdir my-lib && cd my-lib
-git init
-touch requirements.txt
+cd my-mlx-project
+/plugin install autonomous-dev    # Base autonomous development
+/plugin install realign-mlx        # Add MLX-specific tools
 
-~/claude-code-bootstrap/bootstrap.sh .
+# Claude now handles:
+# ✓ Everything from autonomous-dev
+# ✓ MLX pattern enforcement (model.model.layers[i])
+# ✓ Memory management (mx.metal.clear_cache())
+# ✓ System health monitoring
+# ✓ CI/CD monitoring
+```
 
-# Output:
-🔍 Detected: Python
-✓ Configured black, pytest, mypy
-🎉 Complete!
+### Example 3: Python CLI Tool
 
-# Customize vision
-vim .claude/PROJECT.md
+```bash
+cd my-cli-tool
+/plugin install autonomous-dev
 
-# Start coding!
+# Claude now handles:
+# ✓ Auto-format with black + isort
+# ✓ Auto-test with pytest
+# ✓ Type hints enforcement
+# ✓ Docstring validation
+# ✓ Security scanning
 ```
 
 ---
 
 ## Production Example: ReAlign
 
-This bootstrap is extracted from **ReAlign** - a production MLX training toolkit achieving:
+These plugins were extracted from **ReAlign** - a production MLX training toolkit achieving:
 
-- 98% alignment score
-- 80%+ test coverage (enforced)
-- 6 hours/week dev time (vs 40 hours manual)
-- Fully autonomous development
+- **98% alignment score**
+- **80%+ test coverage** (enforced)
+- **6 hours/week dev time** (vs 40 hours manual)
+- **Fully autonomous development**
 
 See it in action: [github.com/akaszubski/realign](https://github.com/akaszubski/realign)
 
@@ -285,83 +256,55 @@ See it in action: [github.com/akaszubski/realign](https://github.com/akaszubski/
 
 | Guide | Purpose |
 |-------|---------|
-| **README.md** (this file) | Quick start guide |
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Complete technical explanation |
-| **[USAGE.md](USAGE.md)** | Detailed usage examples |
-| **[BOOTSTRAP_TEST_REPORT.md](BOOTSTRAP_TEST_REPORT.md)** | Test results (4 languages) |
+| **README.md** (this file) | Plugin marketplace overview |
+| **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Generic plugin docs |
+| **[plugins/realign-mlx/README.md](plugins/realign-mlx/README.md)** | MLX plugin docs |
+| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive |
+| **[USAGE.md](USAGE.md)** | Usage examples |
 
 ---
 
 ## FAQ
 
-**Q: Does this work with my language?**
-A: Yes! Supports Python, JavaScript, TypeScript, Go, Rust. More languages coming soon.
+**Q: Which plugin should I use?**
+A: Start with `autonomous-dev` for any project. Add `realign-mlx` only if you're training LLMs on Apple Silicon.
+
+**Q: Can I use both plugins?**
+A: Yes! `realign-mlx` extends `autonomous-dev` with MLX-specific tools.
 
 **Q: Will it overwrite my existing code?**
-A: No! Bootstrap only adds `.claude/`, `scripts/hooks/`, and `.github/workflows/`. Your code is untouched.
+A: No! Plugins only add `.claude/` and `scripts/hooks/`. Your code is untouched.
 
 **Q: Can I customize the agents/hooks?**
-A: Absolutely! Edit `.claude/agents/*.md`, `scripts/hooks/*.py`, `.claude/settings.json` as needed.
+A: Absolutely! After installation, edit `.claude/agents/*.md`, `scripts/hooks/*.py`, `.claude/settings.json` as needed.
 
 **Q: Does this send my code anywhere?**
 A: No. Everything runs locally. Hooks are just Python scripts on your machine.
 
-**Q: What if I don't like it?**
-A: Just delete `.claude/`, `scripts/hooks/`, `.github/workflows/`. Your code is unchanged.
+**Q: How do I uninstall?**
+A: `/plugin uninstall autonomous-dev` or manually delete `.claude/` and `scripts/hooks/`.
+
+**Q: Can I use the old bootstrap script?**
+A: Yes! The bootstrap script is still available for custom setups. See "Method 2" above.
 
 **Q: Is this beginner-friendly?**
-A: Yes! Just run `./bootstrap.sh .` and start coding. Claude handles the complexity.
+A: Yes! Just run `/plugin install autonomous-dev` and start coding. Claude handles everything else.
 
 ---
 
 ## Requirements
 
-- Python 3.11+ (for hooks)
-- Git
-- Language-specific tools (installed automatically):
-  - Python: `pip install black isort pytest mypy bandit`
-  - JavaScript: `npm install -D prettier eslint jest`
-  - Go: (built-in tools: gofmt, go test)
-
----
-
-## Troubleshooting
-
-### "Language not detected"
-
-Add a language marker:
-```bash
-# Python
-touch requirements.txt
-
-# JavaScript
-npm init -y
-
-# Go
-go mod init github.com/user/project
-```
-
-### "Hooks not running"
-
-Check permissions:
-```bash
-chmod +x scripts/hooks/*.py
-```
-
-### "Bootstrap template not found"
-
-Use absolute path:
-```bash
-/full/path/to/claude-code-bootstrap/bootstrap.sh .
-```
+- **Claude Code**: 2.0.0 or higher
+- **Python**: 3.11+ (for hooks)
+- **Git**: For automation hooks
 
 ---
 
 ## Support
 
-- **Issues**: [github.com/akaszubski/claude-code-bootstrap/issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Discussions**: [github.com/akaszubski/claude-code-bootstrap/discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
-- **Source Example**: [ReAlign Project](https://github.com/akaszubski/realign)
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
+- **Main Project**: [ReAlign Repository](https://github.com/akaszubski/realign)
 
 ---
 
@@ -379,12 +322,11 @@ Powered by [Claude Code 2.0](https://claude.com/claude-code)
 
 ---
 
-**🚀 Transform your development workflow in 5 minutes**
+**🚀 Transform your development workflow in one command**
 
 ```bash
-git clone https://github.com/akaszubski/claude-code-bootstrap.git
-cd your-project
-~/claude-code-bootstrap/bootstrap.sh .
+/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin install autonomous-dev
 ```
 
 **Happy autonomous coding! 🤖✨**

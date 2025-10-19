@@ -1,0 +1,33 @@
+{
+  "name": "realign-mlx",
+  "version": "3.0.0",
+  "description": "MLX-specific extensions for LLM training on Apple Silicon. Includes MLX patterns, system monitoring, CI monitoring, and ReAlign-specific tools. Requires autonomous-dev plugin as base.",
+  "author": {
+    "name": "Andrew Kaszubski",
+    "url": "https://github.com/akaszubski"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akaszubski/claude-code-bootstrap"
+  },
+  "license": "MIT",
+  "components": {
+    "agents": "./agents",
+    "skills": "./skills",
+    "hooks": "./hooks"
+  },
+  "requirements": {
+    "claude_code_version": ">=2.0.0",
+    "python": ">=3.11",
+    "plugins": ["autonomous-dev"]
+  },
+  "tags": [
+    "mlx",
+    "apple-silicon",
+    "llm",
+    "training",
+    "monitoring",
+    "realign"
+  ],
+  "readme": "./README.md"
+}
