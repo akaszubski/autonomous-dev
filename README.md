@@ -118,13 +118,13 @@ All automatic. No manual steps.
 
 ---
 
-## Installation Methods
-
-### Method 1: Claude Code Plugin (Recommended)
+## Installation
 
 ```bash
-# One command install
+# Add marketplace
 /plugin marketplace add akaszubski/claude-code-bootstrap
+
+# Install plugin
 /plugin install autonomous-dev
 
 # Updates are automatic
@@ -135,33 +135,13 @@ All automatic. No manual steps.
 - ✅ One-command installation
 - ✅ Automatic updates
 - ✅ Version management
-- ✅ Easy to uninstall
-
-### Method 2: Bootstrap Script (Legacy)
-
-For projects that need custom setup or don't support plugins:
-
-```bash
-# Clone this repo
-git clone https://github.com/akaszubski/claude-code-bootstrap.git
-
-# Navigate to YOUR project
-cd ~/your-project
-
-# Run bootstrap
-~/claude-code-bootstrap/bootstrap.sh .
-```
-
-**Use this if**:
-- You need custom configuration
-- You're on older Claude Code (<2.0)
-- You want to modify files before installation
+- ✅ Easy to uninstall (`/plugin uninstall autonomous-dev`)
 
 ---
 
 ## What Gets Installed
 
-Both methods install the same components to your project:
+The plugin installs these components to your project:
 
 ```
 your-project/
@@ -254,8 +234,6 @@ Real-world usage: [github.com/akaszubski/realign](https://github.com/akaszubski/
 |-------|---------|
 | **README.md** (this file) | Quick start & overview |
 | **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Complete plugin documentation |
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Technical deep-dive |
-| **[USAGE.md](USAGE.md)** | Usage examples |
 
 ---
 
@@ -273,8 +251,8 @@ A: No. Everything runs locally. Hooks are just Python scripts on your machine.
 **Q: How do I uninstall?**
 A: `/plugin uninstall autonomous-dev` or manually delete `.claude/` and `scripts/hooks/`.
 
-**Q: Can I use the old bootstrap script?**
-A: Yes! The bootstrap script is still available for custom setups. See "Installation Methods" above.
+**Q: Can I customize the installed files?**
+A: Yes! After installation, all files in `.claude/` and `scripts/hooks/` are yours to modify.
 
 **Q: Is this beginner-friendly?**
 A: Yes! Just run `/plugin install autonomous-dev` and start coding. Claude handles everything else.
