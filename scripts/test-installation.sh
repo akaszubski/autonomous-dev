@@ -1,12 +1,38 @@
 #!/bin/bash
 # Test script for PROJECT.md-first architecture installation
 # Usage: ./scripts/test-installation.sh [test-project-path]
+#
+# Options:
+#   --sync       Sync plugin source before testing (for local development)
+#   --no-sync    Skip sync (default for fresh install tests)
 
 set -e  # Exit on error
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-TEST_PROJECT="${1:-/tmp/test-autonomous-dev-$(date +%s)}"
+TEST_PROJECT=""
+SYNC_FIRST=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --sync)
+            SYNC_FIRST=true
+            shift
+            ;;
+        --no-sync)
+            SYNC_FIRST=false
+            shift
+            ;;
+        *)
+            TEST_PROJECT="$1"
+            shift
+            ;;
+    esac
+done
+
+# Default test project path
+TEST_PROJECT="${TEST_PROJECT:-/tmp/test-autonomous-dev-$(date +%s)}"
 
 echo "=========================================="
 echo "Testing autonomous-dev Plugin Installation"
@@ -14,6 +40,22 @@ echo "=========================================="
 echo ""
 echo "Test project: $TEST_PROJECT"
 echo ""
+
+# Step 0: Sync plugin if requested
+if [ "$SYNC_FIRST" = true ]; then
+    echo "=========================================="
+    echo "Step 0: Syncing Plugin Source → Local"
+    echo "=========================================="
+    echo ""
+
+    if [ -f "$SCRIPT_DIR/sync-plugin.sh" ]; then
+        "$SCRIPT_DIR/sync-plugin.sh"
+        echo ""
+    else
+        echo "⚠️  Warning: sync-plugin.sh not found, skipping sync"
+        echo ""
+    fi
+fi
 
 # Colors for output
 GREEN='\033[0;32m'
