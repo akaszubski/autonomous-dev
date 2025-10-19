@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '\n📋 Project Context:\n- Active skills: ~/.claude/skills/ (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)\n- Central context file: docs/task/context-sessions.md\n- Agents available: .claude/agents/ (researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master)\n'"
+            "command": "echo '\n⭐ PROJECT.md-First Architecture (v2.0.0)\n- PRIMARY MISSION: Read .claude/PROJECT.md and validate alignment before ANY work\n- Agents (8): orchestrator (coordinator) → researcher → planner (opus) → test-master → implementer → reviewer → security-auditor (haiku) → doc-master (haiku)\n- Commands: /align-project (3-phase safe alignment)\n- Skills (6): python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards\n- GitHub: Optional sprint tracking (if .env configured)\n- Context: Run /clear after each feature to maintain <8K tokens\n'"
           }
         ]
       }
