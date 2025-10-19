@@ -154,6 +154,25 @@ vim plugins/autonomous-dev/agents/[agent].md
 
 ---
 
+## MCP Server (Optional)
+
+For enhanced Claude Desktop integration, configure the MCP server:
+
+**Location**: `.mcp/config.json`
+
+**Provides**:
+- Filesystem access (read/write repository files)
+- Shell commands (git, python, npm, etc.)
+- Git operations (status, diff, commit)
+- Python interpreter (with virtualenv)
+
+**Setup**:
+```bash
+# See .mcp/README.md for full setup instructions
+```
+
+---
+
 ## Quick Reference
 
 ### Installation

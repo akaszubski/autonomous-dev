@@ -1,0 +1,32 @@
+{
+  "servers": {
+    "filesystem": {
+      "type": "mcp-filesystem",
+      "root": "~/Documents/GitHub/claude-code-bootstrap",
+      "permissions": ["read", "write"]
+    },
+    "shell": {
+      "type": "mcp-shell",
+      "workingDirectory": "~/Documents/GitHub/claude-code-bootstrap",
+      "allowedCommands": [
+        "git",
+        "gh",
+        "~/Documents/GitHub/claude-code-bootstrap/venv/bin/python",
+        "bash",
+        "zsh",
+        "pnpm",
+        "npm",
+        "make"
+      ]
+    },
+    "git": {
+      "type": "mcp-git",
+      "repoRoot": "~/Documents/GitHub/claude-code-bootstrap"
+    },
+    "python": {
+      "type": "mcp-python",
+      "interpreter": "~/Documents/GitHub/claude-code-bootstrap/venv/bin/python",
+      "venv": "~/Documents/GitHub/claude-code-bootstrap/venv"
+    }
+  }
+}
