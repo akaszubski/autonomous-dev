@@ -1,6 +1,8 @@
+---
+description: Format code using language-specific formatters (black, isort, ruff for Python; prettier, eslint for JS/TS)
+---
 
-
-**Format code using language-specific formatters (black, isort, ruff for Python; prettier, eslint for JS/TS)**# Format Code
+# Format Code
 
 Run code formatters on the project to ensure consistent style.
 
@@ -75,5 +77,6 @@ npm install -D prettier eslint
 - `/full-check` - Format + test + security scan
 - `/commit` - Format + commit changes
 
+---
 
 **This command gives you manual control over code formatting instead of automatic hooks.**

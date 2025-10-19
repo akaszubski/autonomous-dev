@@ -1,3 +1,22 @@
+---
+description: Safely aligns existing project with PROJECT.md standards using iterative, question-based approach. Analyzes → Asks → Acts in phases to prevent breaking things.
+---
+
+# Align Project (Safe, Iterative Approach)
+
+**Philosophy**: Don't break things! Analyze first, ask questions, then act in small, reversible steps.
+
+## The 3-Phase Safe Approach
+
+```
+Phase 1: ANALYZE (read-only, safe)
+    ↓
+Phase 2: GENERATE PROJECT.md from code (draft only)
+    ↓
+Phase 3: INTERACTIVE alignment (ask before each change)
+```
+
+---
 
 ## Phase 1: Analysis Only (Default - SAFE ✅)
 
@@ -86,6 +105,7 @@ Option B: You'll provide a PROJECT.md
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+---
 
 ## Phase 2: Generate PROJECT.md from Code (SAFE ✅)
 
@@ -176,6 +196,7 @@ NEXT STEPS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+---
 
 ## Phase 3: Interactive Alignment (ASK BEFORE ACTING ✅)
 
@@ -378,6 +399,7 @@ Progress: 3/12 actions completed
 ... (continues for remaining 9 actions)
 ```
 
+---
 
 ## Safety Features
 
@@ -429,6 +451,7 @@ Rollback this change: git reset --hard HEAD~1
 Rollback all changes: git reset --hard HEAD~12
 ```
 
+---
 
 ## What Gets Checked (Same as Before)
 
@@ -442,6 +465,7 @@ Rollback all changes: git reset --hard HEAD~12
 
 (Same detailed checks as before, but now **asks before acting**)
 
+---
 
 ## Workflow Examples
 
@@ -493,6 +517,7 @@ mv docs/draft/PROJECT.md ./PROJECT.md
 Score: 100/100 ✅
 ```
 
+---
 
 ## Configuration
 
@@ -508,6 +533,7 @@ Score: 100/100 ✅
 }
 ```
 
+---
 
 ## Philosophy
 
@@ -534,5 +560,6 @@ Score: 100/100 ✅
 - ✅ Provide rollback commands
 - ✅ Commit incrementally
 
+---
 
 **Your project. Your control. Your approval for every change.**

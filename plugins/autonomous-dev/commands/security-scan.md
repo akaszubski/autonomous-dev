@@ -1,6 +1,8 @@
+---
+description: Run security vulnerability scan (secrets detection, dependency check, code analysis)
+---
 
-
-**Run security vulnerability scan (secrets detection, dependency check, code analysis)**# Security Scan
+# Security Scan
 
 Scan code for security vulnerabilities, exposed secrets, and dependency issues.
 
@@ -185,5 +187,6 @@ npm install
 - `/full-check` - Run all checks (format + test + security)
 - `/commit` - Commit after security scan passes
 
+---
 
 **Run this before committing to ensure no security vulnerabilities are introduced.**
