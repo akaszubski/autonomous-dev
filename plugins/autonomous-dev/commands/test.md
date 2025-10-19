@@ -1,8 +1,6 @@
----
-description: Run test suite with coverage reporting (pytest for Python, jest for JS/TS)
----
 
-# Run Tests
+
+**Run test suite with coverage reporting (pytest for Python, jest for JS/TS)**# Run Tests
 
 Execute the test suite and generate coverage reports.
 
@@ -120,6 +118,5 @@ This command is **manual** (you control when it runs).
 - `/security-scan` - Security scan after tests pass
 - `/full-check` - Run all checks (format + test + security)
 
----
 
 **Run this after implementing features to verify all tests pass and coverage is sufficient.**

@@ -1,8 +1,6 @@
----
-description: Autonomously implement a feature from requirement to production-ready code. Handles PROJECT.md validation, research, planning, TDD, security, and documentation.
----
 
-# Autonomous Feature Implementation
+
+**Autonomously implement a feature from requirement to production-ready code. Handles PROJECT.md validation, research, planning, TDD, security, and documentation.**# Autonomous Feature Implementation
 
 Use the orchestrator agent to implement your feature with full autonomous pipeline.
 
@@ -209,7 +207,6 @@ After `/auto-implement` completes:
 
 All in 20-35 minutes, fully autonomous!
 
----
 
 **Invoke orchestrator agent to implement: $ARGUMENTS**
 

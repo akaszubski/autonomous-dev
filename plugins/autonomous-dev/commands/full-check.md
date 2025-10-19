@@ -1,8 +1,6 @@
----
-description: Run complete quality check (format + test + security) - the manual equivalent of automatic hooks
----
 
-# Full Quality Check
+
+**Run complete quality check (format + test + security) - the manual equivalent of automatic hooks**# Full Quality Check
 
 Run all quality checks in sequence: format → test → security scan.
 
@@ -201,6 +199,5 @@ black . & bandit -r src/ -ll
 - `/commit` - Commit after checks pass
 - `/auto-implement` - Full autonomous workflow
 
----
 
 **This is the manual equivalent of automatic hooks - giving you full control over when quality checks run.**

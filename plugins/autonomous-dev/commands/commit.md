@@ -1,8 +1,6 @@
----
-description: Generate conventional commit message and create commit (optionally run quality checks first)
----
 
-# Smart Commit
+
+**Generate conventional commit message and create commit (optionally run quality checks first)**# Smart Commit
 
 Generate a conventional commit message and create a commit with optional quality checks.
 
@@ -269,6 +267,5 @@ Fix:
 - `/full-check` - Run all checks before commit
 - `/auto-implement` - Complete autonomous workflow
 
----
 
 **Use this to create well-formatted, conventional commits with optional quality validation.**
