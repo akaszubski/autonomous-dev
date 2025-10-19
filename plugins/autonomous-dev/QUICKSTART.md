@@ -22,9 +22,10 @@ Run the setup wizard:
 ```
 
 This will guide you through:
-1. Choosing workflow (slash commands vs automatic hooks)
-2. Setting up PROJECT.md
-3. Configuring GitHub (optional)
+1. Copying hooks and templates from plugin to project
+2. Choosing workflow (slash commands vs automatic hooks)
+3. Setting up PROJECT.md
+4. Configuring GitHub (optional)
 
 ### Option 2: Automated Setup
 

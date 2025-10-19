@@ -2,16 +2,20 @@
 """
 Automated setup script for autonomous-dev plugin.
 
+Copies hooks and templates from plugin directory to project,
+then configures based on user preferences.
+
 Supports both interactive and non-interactive modes for:
-- Hook configuration
+- Plugin file copying (hooks, templates)
+- Hook configuration (slash commands vs automatic)
 - PROJECT.md template installation
 - GitHub authentication setup
 - Settings validation
 
 Usage:
-    Interactive:  python scripts/setup.py
-    Automated:    python scripts/setup.py --auto --hooks=slash-commands --github
-    Team install: python scripts/setup.py --preset=team
+    Interactive:  python .claude/scripts/setup.py
+    Automated:    python .claude/scripts/setup.py --auto --hooks=slash-commands --github
+    Team install: python .claude/scripts/setup.py --preset=team
 """
 
 import argparse
@@ -45,6 +49,10 @@ class SetupWizard:
         if not self.auto:
             self.print_welcome()
 
+        # Verify plugin installation
+        if not self.verify_plugin_installation():
+            return
+
         # Load preset if specified
         if self.preset:
             self.load_preset(self.preset)
@@ -55,6 +63,7 @@ class SetupWizard:
             self.choose_github()
 
         # Execute setup based on choices
+        self.copy_plugin_files()
         self.setup_hooks()
         self.setup_project_md()
         self.setup_github()
@@ -62,6 +71,48 @@ class SetupWizard:
 
         if not self.auto:
             self.print_completion()
+
+    def verify_plugin_installation(self):
+        """Verify the plugin is installed."""
+        if not self.plugin_dir.exists():
+            print("\n❌ Plugin not found!")
+            print(f"Expected at: {self.plugin_dir}")
+            print("\nPlease install first:")
+            print("  /plugin marketplace add akaszubski/claude-code-bootstrap")
+            print("  /plugin install autonomous-dev")
+            return False
+
+        if not self.auto:
+            print(f"\n✅ Plugin found at: {self.plugin_dir}")
+        return True
+
+    def copy_plugin_files(self):
+        """Copy hooks and templates from plugin to project."""
+        # Copy hooks
+        src_hooks = self.plugin_dir / "hooks"
+        dest_hooks = self.claude_dir / "hooks"
+
+        if src_hooks.exists():
+            if dest_hooks.exists():
+                if not self.auto:
+                    print(f"\nℹ️  Hooks directory already exists: {dest_hooks}")
+            else:
+                shutil.copytree(src_hooks, dest_hooks)
+                if not self.auto:
+                    print(f"\n✅ Copied hooks to: {dest_hooks}")
+
+        # Copy templates
+        src_templates = self.plugin_dir / "templates"
+        dest_templates = self.claude_dir / "templates"
+
+        if src_templates.exists():
+            if dest_templates.exists():
+                if not self.auto:
+                    print(f"\nℹ️  Templates directory already exists: {dest_templates}")
+            else:
+                shutil.copytree(src_templates, dest_templates)
+                if not self.auto:
+                    print(f"\n✅ Copied templates to: {dest_templates}")
 
     def print_welcome(self):
         """Print welcome message."""

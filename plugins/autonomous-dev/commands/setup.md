@@ -13,10 +13,11 @@ Interactive wizard to configure hooks, templates, and GitHub integration after p
 ```
 
 This will guide you through:
-1. **Hook Configuration** - Enable automatic formatting, testing, security
-2. **Template Installation** - Set up PROJECT.md from template
-3. **GitHub Integration** - Configure GitHub authentication (optional)
-4. **Settings Validation** - Verify everything is configured correctly
+1. **Plugin File Copy** - Copy hooks and templates from plugin to project
+2. **Hook Configuration** - Enable automatic formatting, testing, security
+3. **Template Installation** - Set up PROJECT.md from template
+4. **GitHub Integration** - Configure GitHub authentication (optional)
+5. **Settings Validation** - Verify everything is configured correctly
 
 ---
 
@@ -333,6 +334,16 @@ Happy coding! 🚀
 ---
 
 ## What Gets Created
+
+### Always (First Run)
+
+**Directory**: `.claude/hooks/`
+- Copied from: `.claude/plugins/autonomous-dev/hooks/`
+- Contains: All hook files (auto_format.py, auto_test.py, etc.)
+
+**Directory**: `.claude/templates/`
+- Copied from: `.claude/plugins/autonomous-dev/templates/`
+- Contains: PROJECT.md template and other templates
 
 ### If Automatic Hooks Selected
 
