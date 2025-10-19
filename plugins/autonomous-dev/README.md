@@ -120,14 +120,6 @@ Customize as needed for your project!
 - ✅ Security auto-scanned
 - ✅ Autonomous workflow
 
-## Extension Plugins
-
-Want MLX/Apple Silicon support? Install the companion plugin:
-
-```bash
-/plugin install realign-mlx  # Adds MLX patterns + system monitoring
-```
-
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)

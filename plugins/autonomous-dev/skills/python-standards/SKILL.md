@@ -79,84 +79,82 @@ from typing import ClassVar
 
 
 @dataclass
-class TrainingConfig:
-    """Training configuration with type hints."""
+class APIConfig:
+    """API configuration with type hints."""
 
-    model_name: str
-    learning_rate: float = 1e-4
-    batch_size: int = 32
-    num_epochs: int = 3
-    use_lora: bool = True
+    base_url: str
+    api_key: str
+    timeout: int = 30
+    max_retries: int = 3
+    enable_cache: bool = True
 
     # Class variable
-    DEFAULT_LR: ClassVar[float] = 1e-4
+    DEFAULT_TIMEOUT: ClassVar[int] = 30
 ```
 
 ## Docstrings (Google Style)
 
 ### Function Docstrings
 ```python
-def train_model(
+def process_data(
     data: List[Dict],
     *,
-    learning_rate: float = 1e-4,
-    num_epochs: int = 3
-) -> TrainResult:
-    """Train model on provided data.
+    batch_size: int = 32,
+    validate: bool = True
+) -> ProcessResult:
+    """Process data with validation and batching.
 
-    This function implements the training loop using the specified
-    hyperparameters. It supports both LoRA and full fine-tuning.
+    This function processes input data in batches with optional
+    validation. It handles errors gracefully and provides detailed results.
 
     Args:
-        data: Training data as list of dicts with 'input' and 'output' keys
-        learning_rate: Learning rate for optimizer (default: 1e-4)
-        num_epochs: Number of training epochs (default: 3)
+        data: Input data as list of dicts with 'id' and 'content' keys
+        batch_size: Number of items to process per batch (default: 32)
+        validate: Whether to validate input data (default: True)
 
     Returns:
-        TrainResult containing loss, metrics, and trained model
+        ProcessResult containing processed items, errors, and metrics
 
     Raises:
         ValueError: If data is empty or invalid format
-        TrainingError: If training fails
+        ValidationError: If validation fails
 
     Example:
-        >>> data = [{"input": "Q", "output": "A"}]
-        >>> result = train_model(data, learning_rate=1e-3)
-        >>> print(result.final_loss)
-        0.245
+        >>> data = [{"id": 1, "content": "text"}]
+        >>> result = process_data(data, batch_size=10)
+        >>> print(result.success_count)
+        1
     """
     pass
 ```
 
 ### Class Docstrings
 ```python
-class ModelTrainer:
-    """Training orchestrator for [PROJECT_NAME] models.
+class DataProcessor:
+    """Data processing orchestrator for batch operations.
 
-    This class handles the complete training workflow including
-    data preparation, model initialization, training loop, and
-    evaluation.
+    This class handles the complete data processing workflow including
+    validation, transformation, batching, and error handling.
 
     Args:
-        model_name: HuggingFace model identifier
-        config: Training configuration
-        device: Device for training ('gpu' or 'cpu')
+        config: Processing configuration
+        batch_size: Number of items per batch
+        validate: Whether to validate input data
 
     Attributes:
-        model: Loaded [FRAMEWORK] model
-        optimizer: Training optimizer
-        metrics: Training metrics tracker
+        config: Processing configuration
+        batch_size: Configured batch size
+        metrics: Processing metrics tracker
 
     Example:
-        >>> trainer = ModelTrainer("model-name", config)
-        >>> result = trainer.train(train_data)
-        >>> trainer.save("checkpoint.npz")
+        >>> processor = DataProcessor(config, batch_size=100)
+        >>> result = processor.process(input_data)
+        >>> processor.save("results.json")
     """
 
     def __init__(
         self,
-        model_name: str,
-        config: TrainingConfig,
+        config: APIConfig,
         device: str = "gpu"
     ):
         self.model_name = model_name
@@ -198,25 +196,25 @@ def load_config(path):
 
 ### Custom Exceptions
 ```python
-class ReAlignError(Exception):
-    """Base exception for [PROJECT_NAME]."""
+class AppError(Exception):
+    """Base exception for application."""
     pass
 
 
-class ConfigError(ReAlignError):
+class ConfigError(AppError):
     """Configuration error."""
     pass
 
 
-class TrainingError(ReAlignError):
-    """Training error."""
+class ValidationError(AppError):
+    """Validation error."""
     pass
 
 
 # Usage
 def validate_config(config: Dict) -> None:
     """Validate configuration."""
-    required = ["model", "data", "training"]
+    required = ["database", "api_key", "settings"]
     missing = [k for k in required if k not in config]
 
     if missing:
