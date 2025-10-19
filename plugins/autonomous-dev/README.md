@@ -7,14 +7,22 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 ## Quick Install
 
 ```bash
-# Add the marketplace
+# 1. Add the marketplace
 /plugin marketplace add akaszubski/claude-code-bootstrap
 
-# Install the plugin
+# 2. Install the plugin
 /plugin install autonomous-dev
+
+# 3. Run setup (copies hooks and templates, configures workflow)
+/setup
 ```
 
-Done! Your Claude Code environment now has autonomous agents, skills, and hooks.
+**What gets installed:**
+- ✅ Agents & Skills: Auto-active immediately
+- ✅ Commands: Available immediately (`/align-project`, `/auto-implement`, etc.)
+- ⚠️ Hooks: Copied but require setup (opt-in for safety)
+
+**See**: [QUICKSTART.md](QUICKSTART.md) for complete walkthrough
 
 ## What You Get
 
@@ -121,11 +129,18 @@ The orchestrator manages the entire pipeline automatically - you just describe w
 - Write tests → testing-guide activates
 - Handle secrets → security-patterns activates
 
-### Hooks Auto-Run
+### Hooks (Two Modes)
 
-- Save file → auto_format.py + auto_test.py run
-- Commit → auto_enforce_coverage.py checks coverage
-- All automatic, no manual steps!
+**Slash Commands Mode** (default):
+- Run manually when needed: `/format`, `/test`, `/security-scan`
+- Full control, great for learning
+
+**Automatic Hooks Mode** (optional):
+- Save file → auto_format.py runs
+- Commit → auto_test.py + security_scan.py run
+- Zero manual intervention
+
+**Configure via**: `/setup` or `python .claude/scripts/setup.py`
 
 ## Requirements
 
@@ -135,12 +150,38 @@ The orchestrator manages the entire pipeline automatically - you just describe w
 
 ## Configuration
 
-### PROJECT.md Setup
+### Easy Setup (Recommended)
 
-After installation, create `.claude/PROJECT.md` to define your strategic direction:
+Run the interactive setup wizard:
 
 ```bash
-# Use the generic template (works for any project type)
+/setup
+```
+
+Or use the automated script:
+
+```bash
+# Solo developer (slash commands)
+python .claude/scripts/setup.py --preset=solo
+
+# Team (automatic hooks + GitHub)
+python .claude/scripts/setup.py --preset=team
+```
+
+This will:
+1. Copy hooks and templates to your project
+2. Configure your workflow (slash commands or automatic hooks)
+3. Set up PROJECT.md from template
+4. Configure GitHub integration (optional)
+
+**See**: [QUICKSTART.md](QUICKSTART.md) for complete guide
+
+### PROJECT.md Setup (Manual)
+
+If you prefer manual setup, create `.claude/PROJECT.md` to define your strategic direction:
+
+```bash
+# Copy template (after running /setup or setup.py)
 cp .claude/templates/PROJECT.md .claude/PROJECT.md
 
 # Edit to define your:
@@ -177,19 +218,30 @@ gh api repos/owner/repo/milestones -f title="Sprint 4"
 
 ### Hooks Configuration
 
-After install, hooks are configured in `.claude/settings.json`:
+**Using /setup (Recommended)**:
+The setup wizard configures hooks automatically based on your choice.
+
+**Manual Configuration**:
+If you chose "Automatic Hooks" mode, edit `.claude/settings.local.json`:
 
 ```json
 {
   "hooks": {
-    "on_file_write": ["auto_format.py", "auto_test.py"],
-    "pre_commit": ["auto_enforce_coverage.py"],
-    "pre_push": ["security_scan.py"]
+    "PostToolUse": {
+      "Write": ["python .claude/hooks/auto_format.py"],
+      "Edit": ["python .claude/hooks/auto_format.py"]
+    },
+    "PreCommit": {
+      "*": [
+        "python .claude/hooks/auto_test.py",
+        "python .claude/hooks/security_scan.py"
+      ]
+    }
   }
 }
 ```
 
-Customize as needed for your project!
+**Note**: `.claude/settings.local.json` is gitignored - safe for local customization!
 
 ## Why Use This?
 

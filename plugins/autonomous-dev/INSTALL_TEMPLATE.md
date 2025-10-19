@@ -1,11 +1,54 @@
 # Autonomous Development Installed!
 
-**Plugin**: autonomous-dev v1.0.0
+**Plugin**: autonomous-dev v2.0.0
 **Installed**: [TIMESTAMP]
 
 ## ✨ What's New
 
 Your project now has **fully autonomous development** powered by 8 specialized agents and intelligent automation.
+
+**What's installed:**
+- ✅ Agents & Skills: Auto-active immediately
+- ✅ Commands: Available immediately (`/align-project`, `/auto-implement`, etc.)
+- ⚠️ Hooks & Templates: Copied but require setup (opt-in for safety)
+
+## 📋 First-Time Setup (Required!)
+
+### Step 1: Run Setup Wizard
+
+```bash
+/setup
+```
+
+This will:
+1. Copy hooks and templates to your project
+2. Configure your workflow (slash commands or automatic hooks)
+3. Set up PROJECT.md from template
+4. Configure GitHub integration (optional)
+
+**Takes 2-3 minutes** - see [QUICKSTART.md](QUICKSTART.md) for complete guide
+
+### Step 2: Configure PROJECT.md
+
+After setup, edit `.claude/PROJECT.md` with your project goals:
+
+```bash
+vim .claude/PROJECT.md
+```
+
+Update these sections:
+- **GOALS**: What you're trying to achieve
+- **SCOPE**: What's in/out of scope
+- **CONSTRAINTS**: Your technical limits
+- **CURRENT SPRINT**: Active work (optional)
+
+### Step 3: Align Your Project
+
+```bash
+/align-project
+```
+
+This analyzes your project against PROJECT.md standards and provides a score.
 
 ## 🚀 Quick Start
 
@@ -19,50 +62,6 @@ Your project now has **fully autonomous development** powered by 8 specialized a
 # CRITICAL: Clear context after each feature
 /clear
 ```
-
-## 📋 First-Time Setup
-
-### 1. Install Slash Commands Globally
-
-**IMPORTANT**: Slash commands must be in `~/.claude/commands/` to appear when you type `/`
-
-```bash
-# Copy commands to global location
-cp .claude/commands/align-project.md ~/.claude/commands/
-cp .claude/commands/align-project-safe.md ~/.claude/commands/
-cp .claude/commands/auto-implement.md ~/.claude/commands/
-cp .claude/commands/format.md ~/.claude/commands/
-cp .claude/commands/test.md ~/.claude/commands/
-cp .claude/commands/security-scan.md ~/.claude/commands/
-cp .claude/commands/full-check.md ~/.claude/commands/
-cp .claude/commands/commit.md ~/.claude/commands/
-
-# Verify installation
-ls ~/.claude/commands/ | grep -E "(align|auto|format|test|security|full|commit)"
-```
-
-**Expected output**: You should see all 8 commands listed
-
-### 2. Configure PROJECT.md
-
-```bash
-# Edit .claude/PROJECT.md with your project goals
-vim .claude/PROJECT.md
-```
-
-Update these sections:
-- **GOALS**: What you're trying to achieve
-- **SCOPE**: What's in/out of scope
-- **CONSTRAINTS**: Your technical limits
-
-### 3. Align Your Project
-
-```bash
-# Run alignment check (now that commands are installed globally)
-/align-project
-```
-
-This analyzes your project against PROJECT.md standards and provides a score.
 
 ### 4. Test the System
 
@@ -124,15 +123,25 @@ orchestrator prompts you to /clear
 - **research-patterns** - Web search strategies
 - **engineering-standards** - Code quality standards
 
-## ⚙️ Automation Hooks
+## ⚙️ Automation (Two Modes)
 
-**After you write code** (automatic):
-- ✅ Auto-format (black/prettier)
-- ✅ Auto-test (pytest/jest)
+### Slash Commands Mode (default)
+Run manually when needed:
+- `/format` - Format code (black/prettier/gofmt)
+- `/test` - Run tests with coverage
+- `/security-scan` - Scan for secrets/vulnerabilities
+- `/full-check` - Run all checks before commit
+
+**Philosophy**: Full control, great for learning
+
+### Automatic Hooks Mode (optional)
+Configure via `/setup` to enable:
+- ✅ Auto-format after file write
+- ✅ Auto-test before commit
+- ✅ Auto-security scan before commit
 - ✅ Auto-coverage check (80% minimum)
-- ✅ Auto-security scan (secrets/vulnerabilities)
 
-**No manual steps needed!**
+**Philosophy**: Zero manual intervention
 
 ## 🔑 Context Management (CRITICAL!)
 
