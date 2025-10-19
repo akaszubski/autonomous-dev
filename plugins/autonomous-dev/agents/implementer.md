@@ -1,6 +1,7 @@
 ---
 name: implementer
 description: Implementation specialist. Writes clean, tested code following existing patterns.
+model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 ---
 

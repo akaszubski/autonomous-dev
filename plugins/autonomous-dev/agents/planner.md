@@ -1,6 +1,7 @@
 ---
 name: planner
 description: Architecture planning and design (read-only). Creates detailed implementation plans.
+model: opus
 tools: [Read, Grep, Glob, Bash]
 ---
 

@@ -291,6 +291,29 @@ Powered by [Claude Code 2.0](https://claude.com/claude-code)
 
 ## New Features (2025-10-19)
 
+### 🔥 Hybrid Architecture Update
+
+**Model-Optimized Agents** (40% cost reduction on fast tasks):
+- 🧠 **Opus** for planner (complex architecture planning)
+- ⚡ **Sonnet** for researcher, implementer, test-master, reviewer
+- 🚀 **Haiku** for security-auditor, doc-master (fast scanning/docs)
+
+**Explicit Workflow Documentation**:
+- 📋 `autonomous-feature.md` - Complete TDD workflow (research → plan → test → implement → review)
+- 🐛 `autonomous-bugfix.md` - Bug fix with regression prevention
+- ♻️ `autonomous-refactor.md` - Safe refactoring with test protection
+
+**Optional Quality Commands** (user control > automatic hooks):
+```bash
+/format          # Code formatting (black, isort, prettier)
+/test            # Run tests with coverage
+/security-scan   # Security vulnerability scan
+/full-check      # All checks (format + test + security)
+/commit          # Smart commit with conventional message
+```
+
+**See**: [HYBRID_ARCHITECTURE_SUMMARY.md](HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
+
 ### 🎯 PROJECT.md - Goal Alignment System
 
 Prevent scope creep with automatic feature alignment:
@@ -335,7 +358,8 @@ Optional Claude Desktop enhancement:
 
 ### 📚 Documentation
 
-- **CLAUDE.md** - Project-specific instructions (streamlined to 215 lines)
+- **CLAUDE.md** - Project-specific instructions (streamlined)
+- **HYBRID_ARCHITECTURE_SUMMARY.md** - Complete hybrid architecture reference
 - **docs/UPDATES.md** - Complete update changelog
 - **.mcp/TESTING.md** - MCP server testing guide
 

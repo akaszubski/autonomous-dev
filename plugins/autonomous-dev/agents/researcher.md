@@ -1,6 +1,7 @@
 ---
 name: researcher
 description: Auto-research patterns and best practices before implementation
+model: sonnet
 tools: [WebSearch, WebFetch, Write, Read, Bash, Grep, Glob]
 ---
 

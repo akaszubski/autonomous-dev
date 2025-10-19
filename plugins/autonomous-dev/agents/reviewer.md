@@ -1,6 +1,7 @@
 ---
 name: reviewer
 description: Code quality gate. Reviews code for patterns, testing, documentation compliance.
+model: sonnet
 tools: [Read, Bash, Grep, Glob]
 ---
 

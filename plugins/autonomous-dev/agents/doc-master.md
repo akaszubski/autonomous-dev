@@ -1,6 +1,7 @@
 ---
 name: doc-master
 description: Complete documentation specialist - filesystem alignment, API docs sync, and CHANGELOG updates
+model: haiku
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 ---
 

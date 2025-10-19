@@ -1,6 +1,7 @@
 ---
 name: test-master
 description: Complete testing specialist - TDD, progression tracking, and regression prevention
+model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 ---
 
