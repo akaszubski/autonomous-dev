@@ -14,7 +14,367 @@ auto_activate: true
 
 ---
 
-## Three Testing Approaches
+## Two-Layer Testing Strategy ⭐ NEW
+
+### Critical Insight
+
+**Traditional tests (pytest)** validate **STRUCTURE** and **BEHAVIOR**
+**GenAI validation (Claude)** validates **INTENT** and **MEANING**
+
+Both are needed for comprehensive coverage.
+
+---
+
+## Testing Decision Matrix
+
+### When to Use Traditional Tests (pytest)
+
+✅ **BEST FOR**:
+- **Fast, deterministic checks** (CI/CD, pre-commit)
+- **Binary outcomes** (file exists? count correct? function returns X?)
+- **Regression prevention** (catches obvious breaks)
+- **Automated validation** (no human needed)
+- **Structural correctness** (file format, API signature)
+- **Performance benchmarks** (< 100ms response time)
+- **Coverage tracking** (80%+ line coverage)
+
+❌ **NOT GOOD FOR**:
+- Semantic understanding (does code match intent?)
+- Quality assessment (is this "good" code?)
+- Architectural alignment (does implementation serve goals?)
+- Context-aware decisions (does this fit the project?)
+
+**Examples**:
+
+```python
+# ✅ PERFECT for traditional tests
+def test_user_creation():
+    """Test user is created with email."""
+    user = create_user("test@example.com")
+    assert user.email == "test@example.com"  # Binary check
+
+def test_file_exists():
+    """Test config file exists."""
+    assert Path(".env").exists()  # Clear yes/no
+
+def test_api_response_time():
+    """Test API responds in < 100ms."""
+    start = time.time()
+    response = api.get("/users")
+    duration = time.time() - start
+    assert duration < 0.1  # Measurable benchmark
+```
+
+---
+
+### When to Use GenAI Validation (Claude)
+
+✅ **BEST FOR**:
+- **Semantic understanding** (does implementation match documented intent?)
+- **Behavioral validation** (does agent DO what description says?)
+- **Architectural drift detection** (subtle changes in meaning)
+- **Quality assessment** (is code maintainable, clear, well-designed?)
+- **Context-aware validation** (does this align with PROJECT.md goals?)
+- **Intent preservation** (does WHY match WHAT?)
+- **Complex reasoning** (trade-offs, design decisions)
+
+❌ **NOT GOOD FOR**:
+- Fast CI/CD checks (too slow, requires API calls)
+- Deterministic outcomes (slightly different answers each run)
+- Simple binary checks (overkill for "does file exist")
+- Automated regression tests (needs human review)
+
+**Examples**:
+
+```markdown
+# ✅ PERFECT for GenAI validation
+
+## Validate Architectural Intent
+
+Read orchestrator.md. Does it actually validate PROJECT.md before
+starting work? Look for:
+- File existence checks (bash if statements)
+- Reading GOALS/SCOPE/CONSTRAINTS
+- Blocking behavior if misaligned
+- Clear rejection messages
+
+Don't just check if "PROJECT.md" appears - validate the BEHAVIOR
+matches the documented INTENT.
+
+## Assess Code Quality
+
+Review the authentication implementation. Evaluate:
+- Is error handling comprehensive?
+- Are security best practices followed?
+- Is the code maintainable for future developers?
+- Does it align with project's security constraints?
+
+Provide contextual assessment with trade-offs.
+```
+
+---
+
+## Testing Layers: When to Use Which
+
+### Layer 1: Unit Tests (pytest, fast)
+
+**What**: Individual functions in isolation
+**When**: Every function with logic
+**Speed**: < 1 second total
+**CI/CD**: YES, run on every commit
+
+**Example**:
+```python
+# tests/unit/test_auth.py
+def test_hash_password():
+    """Test password is hashed."""
+    hashed = hash_password("secret123")
+    assert hashed != "secret123"  # Binary: not plaintext
+    assert len(hashed) == 60  # bcrypt length
+```
+
+**Validation Type**: STRUCTURE
+- ✅ Fast
+- ✅ Deterministic
+- ✅ Automated
+- ❌ Doesn't check if hashing algorithm is secure
+
+---
+
+### Layer 2: Integration Tests (pytest, medium)
+
+**What**: Components working together
+**When**: Testing workflows, API endpoints, database interactions
+**Speed**: < 10 seconds total
+**CI/CD**: YES, run before merge
+
+**Example**:
+```python
+# tests/integration/test_user_workflow.py
+def test_user_registration_workflow(db):
+    """Test complete user registration."""
+    # Create user
+    user = register_user("test@example.com", "password123")
+
+    # Verify in database
+    db_user = db.query(User).filter_by(email="test@example.com").first()
+    assert db_user is not None
+
+    # Verify password hashed
+    assert db_user.password != "password123"
+```
+
+**Validation Type**: BEHAVIOR
+- ✅ Tests real workflows
+- ✅ Catches integration issues
+- ✅ Automated
+- ❌ Doesn't validate if workflow serves business goals
+
+---
+
+### Layer 3: UAT Tests (pytest, slow)
+
+**What**: End-to-end user workflows
+**When**: Before release, testing complete features
+**Speed**: < 60 seconds total
+**CI/CD**: Optional, can run nightly
+
+**Example**:
+```python
+# tests/uat/test_user_journey.py
+def test_complete_user_journey(tmp_path):
+    """Test user journey: signup → login → create post → logout."""
+    # Setup
+    app = create_app(tmp_path)
+
+    # Signup
+    response = app.post("/signup", data={"email": "user@test.com"})
+    assert response.status_code == 201
+
+    # Login
+    response = app.post("/login", data={"email": "user@test.com"})
+    assert "session_token" in response.cookies
+
+    # Create post
+    response = app.post("/posts", json={"title": "Test"})
+    assert response.status_code == 201
+
+    # Logout
+    response = app.post("/logout")
+    assert "session_token" not in response.cookies
+```
+
+**Validation Type**: WORKS
+- ✅ Tests complete user experience
+- ✅ Catches workflow breaks
+- ✅ Can be automated (but slow)
+- ❌ Doesn't validate if feature aligns with strategic goals
+
+---
+
+### Layer 4: GenAI Validation (Claude, comprehensive)
+
+**What**: Architectural intent, semantic alignment, quality assessment
+**When**: Before release, after major changes, monthly maintenance
+**Speed**: 2-5 minutes (manual review)
+**CI/CD**: NO, requires human review
+
+**Example**:
+```markdown
+# /validate-architecture
+
+## Validate: Does orchestrator enforce PROJECT.md-first architecture?
+
+Read agents/orchestrator.md and analyze:
+
+1. **Intent (from ARCHITECTURE.md)**:
+   "Prevent scope creep by validating alignment before work"
+
+2. **Implementation Analysis**:
+   - Does orchestrator check if .claude/PROJECT.md exists?
+   - Does it read GOALS, SCOPE, CONSTRAINTS?
+   - Does it validate feature aligns with goals?
+   - Does it block work if misaligned?
+   - Does it create PROJECT.md if missing?
+
+3. **Behavioral Evidence**:
+   - Line 20: `if [ ! -f .claude/PROJECT.md ]` ✓ Checks existence
+   - Line 81-83: Reads GOALS/SCOPE/CONSTRAINTS ✓
+   - Line 357-391: Displays rejection if misaligned ✓
+   - Line 77: `exit 0` blocks work if PROJECT.md missing ✓
+
+**Assessment**: ✅ ALIGNED
+Implementation matches documented intent. Orchestrator actually
+enforces PROJECT.md-first, not just mentions it.
+
+**Why GenAI?**:
+Static test could only check if "PROJECT.md" appears in file.
+GenAI validates the BEHAVIOR matches the INTENT.
+```
+
+**Validation Type**: INTENT
+- ✅ Validates semantic meaning
+- ✅ Detects architectural drift
+- ✅ Assesses quality and design
+- ❌ Slow, requires human review
+- ❌ Not deterministic (slight variations)
+
+---
+
+## Recommended Testing Workflow
+
+### Development Phase
+
+1. **Write unit tests** (pytest, fast feedback)
+   ```bash
+   pytest tests/unit/test_feature.py -v
+   ```
+
+2. **Write integration tests** (pytest, workflow validation)
+   ```bash
+   pytest tests/integration/test_feature.py -v
+   ```
+
+3. **Run all tests locally** (before commit)
+   ```bash
+   pytest -v
+   ```
+
+---
+
+### Pre-Commit (Automated)
+
+```bash
+# .claude/hooks/pre-commit or CI/CD pipeline
+pytest tests/unit/ tests/integration/ -v --tb=short
+# Fast: < 10 seconds
+# Automated: Catches obvious breaks
+```
+
+---
+
+### Pre-Release (Manual)
+
+1. **Run UAT tests** (complete workflows)
+   ```bash
+   pytest tests/uat/ -v
+   ```
+
+2. **GenAI architectural validation** (intent alignment)
+   ```bash
+   /validate-architecture
+   ```
+
+3. **Manual testing** (critical user paths)
+
+---
+
+## Hybrid Approach: Best of Both Worlds
+
+### Example: Testing Orchestrator
+
+#### Static Tests (pytest) - Layer 1
+
+```python
+# tests/test_architecture.py
+def test_orchestrator_exists():
+    """Test orchestrator agent file exists."""
+    assert (agents_dir / "orchestrator.md").exists()
+
+def test_orchestrator_has_task_tool():
+    """Test orchestrator can coordinate agents."""
+    content = (agents_dir / "orchestrator.md").read_text()
+    assert "Task" in content
+```
+
+**Catches**: File deletion, obvious regressions
+**Misses**: Whether orchestrator actually uses Task tool correctly
+
+---
+
+#### GenAI Validation (Claude) - Layer 4
+
+```markdown
+Read orchestrator.md. Validate:
+
+1. Does it use Task tool to coordinate agents?
+2. Does it coordinate in correct order (researcher → planner → test-master → implementer)?
+3. Does it enforce TDD (tests before code)?
+4. Does it log to session files for context management?
+
+Look for actual implementation code (bash scripts, tool invocations),
+not just descriptions.
+```
+
+**Catches**: Behavioral drift, incorrect usage, missing logic
+**Provides**: Contextual assessment of quality and alignment
+
+---
+
+## Complete Testing Strategy
+
+| Test Type | Speed | Automated | Validates | When to Use |
+|-----------|-------|-----------|-----------|-------------|
+| **Unit** | < 1s | ✅ Yes | Structure, logic | Every function |
+| **Integration** | < 10s | ✅ Yes | Workflows, APIs | Component interaction |
+| **UAT** | < 60s | ⚠️ Optional | User journeys | End-to-end flows |
+| **GenAI** | 2-5min | ❌ No | Intent, quality | Before release, major changes |
+
+### Cost-Benefit Analysis
+
+**Traditional Tests (pytest)**:
+- Cost: Developer time to write tests
+- Benefit: Fast feedback, regression prevention
+- ROI: High (run thousands of times)
+
+**GenAI Validation**:
+- Cost: API calls, human review time
+- Benefit: Architectural integrity, drift detection
+- ROI: High (catches subtle issues static tests miss)
+
+---
+
+## Three Testing Approaches (Traditional)
 
 ### 1. TDD (Test-Driven Development)
 **Purpose**: Write tests BEFORE implementation

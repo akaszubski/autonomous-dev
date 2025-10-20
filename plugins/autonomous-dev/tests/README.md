@@ -2,6 +2,54 @@
 
 This document explains the testing strategy for ensuring architectural integrity and functionality.
 
+---
+
+## Two-Layer Validation Strategy ⭐ NEW
+
+**Critical Insight**: Testing architectural **INTENT** requires GenAI, not just static tests.
+
+### Why Two Layers?
+
+**Static tests (pytest)** can only check:
+- Files exist
+- Text contains keywords
+- Structure is correct
+
+**GenAI validation** (/validate-architecture) can check:
+- Does implementation match **INTENT**?
+- Are agents **behaving** as designed?
+- Does **meaning** match **purpose**?
+
+### Example of the Difference
+
+**Static test**:
+```python
+assert "PROJECT.md" in orchestrator_content  # Just checks word exists
+```
+
+**GenAI validation**:
+```
+Read orchestrator.md. Does it actually validate PROJECT.md
+before starting work? Look for Task tool calls, alignment
+logic, blocking on out-of-scope requests. Validate BEHAVIOR.
+```
+
+### Recommended Workflow
+
+1. **During Development** → Static tests (fast)
+   ```bash
+   pytest tests/test_architectural_intent.py -v
+   ```
+
+2. **Before Release** → GenAI validation (comprehensive)
+   ```bash
+   /validate-architecture
+   ```
+
+See ARCHITECTURE.md § Testing This Document for full details.
+
+---
+
 ## Test Categories
 
 ### 1. Architectural Intent Tests (`test_architectural_intent.py`) ⭐ NEW

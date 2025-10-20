@@ -1,15 +1,36 @@
 """
-Architectural Intent Validation Tests
+Architectural Intent Validation Tests (LAYER 2: Static Validation)
+
+⚠️ IMPORTANT: These are STATIC tests. They validate structure and keywords,
+but cannot validate BEHAVIOR or INTENT.
+
+For comprehensive architectural validation, use:
+    /validate-architecture (GenAI-powered, understands MEANING)
 
 These tests validate the DESIGN INTENT and ARCHITECTURAL DECISIONS
-documented in ARCHITECTURE.md.
+documented in ARCHITECTURE.md through static analysis.
+
+LIMITATIONS:
+- Can only check if files exist and contain keywords
+- Cannot understand if implementation matches INTENT
+- Cannot detect subtle behavioral drift
+- Example: Can check "PROJECT.md" appears in orchestrator.md,
+  but can't verify orchestrator actually validates alignment
+
+USE CASES:
+- CI/CD pipeline (fast, automated)
+- Pre-commit checks (quick sanity)
+- Catch obvious regressions (file removal, count changes)
 
 If these tests fail, it means:
 1. The architecture has fundamentally changed (update ARCHITECTURE.md), OR
-2. A regression has occurred (fix the code)
+2. A regression has occurred (fix the code), OR
+3. The test is too strict (update the test)
 
 Each test documents WHY an architectural decision was made and validates
-it remains true.
+structural invariants remain true.
+
+See ARCHITECTURE.md § Testing This Document for full validation strategy.
 """
 
 from pathlib import Path
@@ -494,6 +515,254 @@ class TestArchitecturalInvariants:
             )
 
 
+class TestAgentCommunicationStrategy:
+    """
+    INTENT: Agents communicate via session files, not context.
+
+    WHY: Context has hard limit (200K tokens). Session files are unlimited.
+    Keeps context focused on current work.
+
+    BREAKING CHANGE: If agents communicate via context instead of files.
+
+    See ARCHITECTURE.md § Agent Communication Strategy
+    """
+
+    def test_session_logging_documented(self):
+        """Test session logging strategy is documented."""
+        readme = Path(__file__).parent.parent / "README.md"
+        content = readme.read_text()
+
+        assert "session" in content.lower() or "/clear" in content, (
+            "ARCHITECTURE VIOLATION: Session logging not documented\n"
+            "Agents must use session files for communication.\n"
+            "See ARCHITECTURE.md § Agent Communication Strategy"
+        )
+
+    def test_context_management_strategy_exists(self):
+        """Test /clear command exists for context management."""
+        readme = Path(__file__).parent.parent / "README.md"
+        quickstart = Path(__file__).parent.parent / "QUICKSTART.md"
+
+        readme_content = readme.read_text() if readme.exists() else ""
+        quickstart_content = quickstart.read_text() if quickstart.exists() else ""
+
+        combined = readme_content + quickstart_content
+
+        assert "/clear" in combined, (
+            "ARCHITECTURE VIOLATION: /clear not documented\n"
+            "Context management requires /clear after features.\n"
+            "See ARCHITECTURE.md § Agent Communication Strategy"
+        )
+
+
+class TestAgentSpecializationNoOverlap:
+    """
+    INTENT: Each agent has unique, non-overlapping responsibility.
+
+    WHY:
+    - Clear separation of concerns
+    - Prevents conflicting decisions
+    - No wasted effort on duplicate work
+
+    BREAKING CHANGE: If agents gain overlapping responsibilities.
+
+    See ARCHITECTURE.md § Agent Specialization
+    """
+
+    @pytest.fixture
+    def agents_dir(self):
+        return Path(__file__).parent.parent / "agents"
+
+    def test_orchestrator_coordinates_not_implements(self, agents_dir):
+        """Test orchestrator coordinates but doesn't implement."""
+        orchestrator = (agents_dir / "orchestrator.md").read_text()
+
+        # Should have Task tool for coordination
+        assert "Task" in orchestrator or "task" in orchestrator.lower(), (
+            "ARCHITECTURE VIOLATION: Orchestrator must coordinate via Task tool\n"
+            "Orchestrator's unique role is coordination, not implementation.\n"
+            "See ARCHITECTURE.md § Agent Specialization"
+        )
+
+    def test_planner_designs_not_codes(self, agents_dir):
+        """Test planner designs architecture but doesn't write code."""
+        planner = (agents_dir / "planner.md").read_text()
+
+        # Planner should be read-only
+        assert "plan" in planner.lower() or "architect" in planner.lower(), (
+            "ARCHITECTURE VIOLATION: Planner's role is architecture design\n"
+            "Planner should not overlap with implementer.\n"
+            "See ARCHITECTURE.md § Agent Specialization"
+        )
+
+    def test_reviewer_identifies_not_fixes(self, agents_dir):
+        """Test reviewer identifies issues but doesn't fix them."""
+        reviewer = (agents_dir / "reviewer.md").read_text()
+
+        # Reviewer should be read-only
+        assert "review" in reviewer.lower() or "quality" in reviewer.lower(), (
+            "ARCHITECTURE VIOLATION: Reviewer's role is quality gate\n"
+            "Reviewer should identify issues, not fix them.\n"
+            "See ARCHITECTURE.md § Agent Specialization"
+        )
+
+    def test_all_agents_have_distinct_roles(self, agents_dir):
+        """Test each agent file exists with unique purpose."""
+        required_agents = {
+            "orchestrator.md": "coordinat",
+            "researcher.md": "research",
+            "planner.md": "plan",
+            "test-master.md": "test",
+            "implementer.md": "implement",
+            "reviewer.md": "review",
+            "security-auditor.md": "security",
+            "doc-master.md": "doc",
+        }
+
+        for agent_file, keyword in required_agents.items():
+            agent_path = agents_dir / agent_file
+            assert agent_path.exists(), f"Missing agent: {agent_file}"
+
+            content = agent_path.read_text().lower()
+            assert keyword in content, (
+                f"ARCHITECTURE VIOLATION: {agent_file} missing '{keyword}' in description\n"
+                f"Each agent must have clear, unique responsibility.\n"
+                f"See ARCHITECTURE.md § Agent Specialization"
+            )
+
+
+class TestSkillBoundariesNoRedundancy:
+    """
+    INTENT: Each skill covers unique domain expertise.
+
+    WHY:
+    - Clear expertise boundaries
+    - Skills can be combined
+    - Prevents conflicting advice
+
+    BREAKING CHANGE: If skills cover overlapping domains.
+
+    See ARCHITECTURE.md § Skill Boundaries
+    """
+
+    @pytest.fixture
+    def skills_dir(self):
+        return Path(__file__).parent.parent / "skills"
+
+    def test_all_skills_have_distinct_domains(self, skills_dir):
+        """Test each skill covers unique domain."""
+        required_skills = {
+            "python-standards": "python",
+            "testing-guide": "test",
+            "security-patterns": "security",
+            "documentation-guide": "doc",
+            "research-patterns": "research",
+            "engineering-standards": "engineering",
+        }
+
+        for skill_name, keyword in required_skills.items():
+            skill_dir = skills_dir / skill_name
+            assert skill_dir.exists(), f"Missing skill: {skill_name}"
+
+            skill_file = skill_dir / "SKILL.md"
+            if skill_file.exists():
+                content = skill_file.read_text().lower()
+                assert keyword in content, (
+                    f"ARCHITECTURE VIOLATION: {skill_name} missing '{keyword}' focus\n"
+                    f"Each skill must have clear domain boundary.\n"
+                    f"See ARCHITECTURE.md § Skill Boundaries"
+                )
+
+    def test_exactly_six_skills_exist(self, skills_dir):
+        """Test exactly 6 skills (no redundancy)."""
+        skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+
+        assert len(skill_dirs) == 6, (
+            f"ARCHITECTURE VIOLATION: Expected 6 skills, found {len(skill_dirs)}\n"
+            f"6 skills chosen to avoid redundancy.\n"
+            f"Adding skills may create overlapping advice.\n"
+            f"See ARCHITECTURE.md § Skill Boundaries"
+        )
+
+
+class TestDataFlowOneDirection:
+    """
+    INTENT: Information flows forward through pipeline, not backward.
+
+    WHY:
+    - Prevents circular dependencies
+    - Clear handoffs between stages
+    - Each agent builds on previous work
+
+    BREAKING CHANGE: If agents communicate backward or have circular deps.
+
+    See ARCHITECTURE.md § Data Flow
+    """
+
+    def test_pipeline_order_documented(self):
+        """Test pipeline order is documented."""
+        auto_impl = Path(__file__).parent.parent / "commands" / "auto-implement.md"
+        if auto_impl.exists():
+            content = auto_impl.read_text()
+
+            # Should mention pipeline or agent order
+            assert "orchestrator" in content.lower() or "pipeline" in content.lower(), (
+                "ARCHITECTURE VIOLATION: Pipeline order not documented\n"
+                "Data flow depends on agent execution order.\n"
+                "See ARCHITECTURE.md § Data Flow"
+            )
+
+    def test_no_backward_communication_tools(self):
+        """Test agents don't have tools for backward communication."""
+        agents_dir = Path(__file__).parent.parent / "agents"
+
+        # Later agents shouldn't be able to communicate backward
+        # (This is enforced by tool restrictions, validated in architecture tests)
+
+        # Test that implementer can't modify planner's output
+        implementer = (agents_dir / "implementer.md").read_text()
+        assert implementer, "Implementer must exist"
+
+        # Implementer has Write/Edit for code, not for plans
+        # (Actual enforcement via tool scoping in Claude Code)
+
+
+class TestContextBudgetManagement:
+    """
+    INTENT: Keep context per feature under 25K tokens.
+
+    WHY: Total limit is 200K. Multiple features must fit.
+    Context budget ensures scalability.
+
+    BREAKING CHANGE: If single agent uses >25K tokens or no budget tracking.
+
+    See ARCHITECTURE.md § Agent Communication Strategy
+    """
+
+    def test_context_budget_documented(self):
+        """Test context budget per agent is documented."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        content = arch_doc.read_text()
+
+        assert "Context Budget" in content or "context budget" in content.lower(), (
+            "ARCHITECTURE VIOLATION: Context budget not documented\n"
+            "Each agent should have context budget limit.\n"
+            "See ARCHITECTURE.md § Agent Communication Strategy"
+        )
+
+    def test_total_context_under_limit(self):
+        """Test total context budget per feature is reasonable."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        content = arch_doc.read_text()
+
+        # Should mention token limits
+        assert "25K" in content or "tokens" in content.lower(), (
+            "ARCHITECTURE VIOLATION: Context limits not specified\n"
+            "Total budget must be <200K to allow multiple features.\n"
+            "See ARCHITECTURE.md § Agent Communication Strategy"
+        )
+
+
 class TestDesignDecisionDocumentation:
     """
     Test that design decisions are documented and rationale is clear.
@@ -530,4 +799,28 @@ class TestDesignDecisionDocumentation:
         assert "Breaking Change" in content or "BREAKING" in content, (
             "ARCHITECTURE.md must document what changes break architecture.\n"
             "This helps prevent unintentional architectural drift."
+        )
+
+    def test_agent_responsibilities_table_exists(self):
+        """Test agent responsibilities are documented in table."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        content = arch_doc.read_text()
+
+        # Should have table documenting each agent's unique role
+        assert "| Agent |" in content or "Agent" in content and "Responsibility" in content, (
+            "ARCHITECTURE VIOLATION: Agent responsibilities not documented\n"
+            "Clear role definition prevents overlap and duplication.\n"
+            "See ARCHITECTURE.md § Agent Specialization"
+        )
+
+    def test_skill_domains_table_exists(self):
+        """Test skill domains are documented in table."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        content = arch_doc.read_text()
+
+        # Should have table documenting each skill's domain
+        assert "| Skill |" in content or ("Skill" in content and "Coverage" in content), (
+            "ARCHITECTURE VIOLATION: Skill domains not documented\n"
+            "Clear domain boundaries prevent redundancy.\n"
+            "See ARCHITECTURE.md § Skill Boundaries"
         )

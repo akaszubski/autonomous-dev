@@ -237,6 +237,131 @@ doc-master (1 min, haiku model - fast docs update)
 
 ---
 
+## Context & Data Exchange
+
+### 11. Agent Communication Strategy
+
+**Intent**: Agents communicate via session files, not context.
+
+**How**:
+- Agents log actions to `docs/sessions/YYYYMMDD-HHMMSS-session.md`
+- Context contains only current work
+- Session files contain history
+
+**Why**:
+- Context has hard limit (200K tokens)
+- Session files are unlimited
+- Keeps context focused on current task
+- Historical data doesn't bloat current work
+
+**Context Budget**:
+- Orchestrator: <500 tokens (coordination only)
+- Researcher: 2-5K tokens (web results)
+- Planner: 3-5K tokens (architecture design)
+- Test-master: 2-3K tokens (test specs)
+- Implementer: 5-10K tokens (code generation)
+- Reviewer: 1-2K tokens (review comments)
+- Security-auditor: 500-1K tokens (scan results)
+- Doc-master: 500-1K tokens (doc updates)
+
+**Total per feature**: 15-25K tokens (well under 200K limit)
+
+**Validation**: `test_architectural_intent.py::test_context_budget_management`
+
+**Breaking Change If**: Agents communicate via context instead of files, or single agent uses >25K tokens.
+
+---
+
+### 12. Agent Specialization (No Duplication)
+
+**Intent**: Each agent has unique, non-overlapping responsibility.
+
+**Responsibilities**:
+| Agent | Unique Role | NOT Responsible For |
+|-------|-------------|-------------------|
+| orchestrator | Validates alignment, coordinates pipeline | Does not implement |
+| researcher | Web research for best practices | Does not plan architecture |
+| planner | Architecture decisions | Does not write code |
+| test-master | Writes tests first (TDD) | Does not implement features |
+| implementer | Makes tests pass | Does not design architecture |
+| reviewer | Quality gate, identifies issues | Does not fix issues |
+| security-auditor | Security scanning | Does not fix vulnerabilities |
+| doc-master | Updates documentation | Does not write features |
+
+**Why No Overlap**:
+- Clear separation of concerns
+- Prevents conflicting decisions
+- Each agent optimized for its task
+- No wasted effort on duplicate work
+
+**Validation**: `test_architectural_intent.py::test_agent_specialization_no_overlap`
+
+**Breaking Change If**: Agents gain overlapping responsibilities or single agent does multiple jobs.
+
+---
+
+### 13. Skill Boundaries (No Redundancy)
+
+**Intent**: Each skill covers unique domain expertise.
+
+**Skill Domains**:
+| Skill | Coverage | Does NOT Cover |
+|-------|----------|----------------|
+| python-standards | PEP 8, type hints, docstrings | Not testing or security |
+| testing-guide | TDD, pytest, coverage | Not language-specific syntax |
+| security-patterns | Secrets, OWASP, vulnerabilities | Not code quality |
+| documentation-guide | CHANGELOG, API docs, README | Not code implementation |
+| research-patterns | Web search, pattern discovery | Not specific to one language |
+| engineering-standards | Git workflow, code review | Not language or domain specific |
+
+**Why No Redundancy**:
+- Clear expertise boundaries
+- Skills can be combined (e.g., python-standards + testing-guide)
+- Prevents conflicting advice
+- Each skill activates based on context
+
+**Validation**: `test_architectural_intent.py::test_skill_boundaries_no_redundancy`
+
+**Breaking Change If**: Skills cover overlapping domains or give conflicting guidance.
+
+---
+
+### 14. Data Flow (One Direction)
+
+**Intent**: Information flows forward through pipeline, not backward.
+
+**Flow Direction**:
+```
+orchestrator → PROJECT.md validation
+    ↓ (feature description)
+researcher → best practices
+    ↓ (research findings)
+planner → architecture design
+    ↓ (implementation plan)
+test-master → test specifications
+    ↓ (failing tests)
+implementer → working code
+    ↓ (code + tests)
+reviewer → quality report
+    ↓ (issues found)
+security-auditor → security scan results
+    ↓ (vulnerabilities)
+doc-master → updated documentation
+    ↓ (CHANGELOG, README)
+```
+
+**Why One Direction**:
+- Prevents circular dependencies
+- Clear handoffs between stages
+- Each agent builds on previous work
+- No rework loops (except on failure)
+
+**Validation**: `test_architectural_intent.py::test_data_flow_one_direction`
+
+**Breaking Change If**: Agents communicate backward in pipeline or have circular dependencies.
+
+---
+
 ## Architectural Invariants
 
 **These MUST remain true, or the architecture has fundamentally changed:**
@@ -252,6 +377,10 @@ doc-master (1 min, haiku model - fast docs update)
 - ✓ Hooks are opt-in (not auto-enabled)
 - ✓ Context management via /clear + session logging
 - ✓ PROJECT.md has GOALS, SCOPE, CONSTRAINTS
+- ✓ Each agent has unique, non-overlapping responsibility
+- ✓ Each skill covers distinct domain
+- ✓ Data flows forward through pipeline
+- ✓ Context budget <25K per feature
 
 ### Must Not Have
 - ✗ Agents with both read and write that shouldn't have both
@@ -261,6 +390,10 @@ doc-master (1 min, haiku model - fast docs update)
 - ✗ Global configuration affecting multiple projects
 - ✗ Security scan as optional
 - ✗ Context communication instead of session files
+- ✗ Overlapping agent responsibilities
+- ✗ Redundant skills
+- ✗ Circular data flow
+- ✗ Single agent using >25K tokens
 
 ---
 
@@ -345,17 +478,95 @@ doc-master (1 min, haiku model - fast docs update)
 
 ## Testing This Document
 
+### Two-Layer Validation Strategy
+
+**Why Two Layers?**
+- **Static tests** (pytest) catch obvious structural violations
+- **GenAI validation** (Claude) detects subtle intent drift
+- Both are needed for comprehensive coverage
+
+---
+
+### Layer 1: GenAI-Powered Validation (PRIMARY) ⭐
+
+**How to validate**: Run `/validate-architecture`
+
+**What it checks**:
+- Does implementation **actually** align with documented **INTENT**?
+- Are agents **behaving** as designed (not just structured correctly)?
+- Does the **meaning** of the code match the **purpose** documented?
+- Subtle architectural drift that static tests can't catch
+
+**Why GenAI?**:
+- Claude understands **MEANING**, not just structure
+- Can evaluate if behavior matches intent
+- Detects drift like: "orchestrator.md mentions PROJECT.md validation, but doesn't actually implement it"
+- Provides contextual explanations of WHY something violates intent
+
+**Example**:
+
+Static test limitation:
+```python
+# Can only check if word exists
+assert "PROJECT.md" in orchestrator_content
+```
+
+GenAI validation:
+```
+Read orchestrator.md. Does it actually validate PROJECT.md
+before starting work? Look for Task tool calls, alignment
+validation logic, blocking behavior if out of scope.
+Don't just check if word exists - validate the BEHAVIOR.
+```
+
+**When to run**:
+- Before each release (mandatory)
+- After major changes to agents/skills
+- Monthly maintenance check
+- When architectural drift suspected
+
+---
+
+### Layer 2: Static Tests (FALLBACK)
+
 **How to validate**: Run `pytest tests/test_architectural_intent.py -v`
 
 **What it checks**:
-- All architectural invariants remain true
-- Design principles are enforced in code
-- Breaking changes are detected
+- All architectural invariants remain true (8 agents, 6 skills, etc.)
+- File structure is correct
+- Keywords and patterns present
+- Breaking changes detected (file count, agent removal)
 
-**If tests fail**: Either:
-1. Architecture has changed (update this document)
-2. Tests are too strict (update tests)
-3. Regression detected (fix the code)
+**Limitations**:
+- Can't understand MEANING or INTENT
+- Only validates structure, not behavior
+- Misses subtle drift (agent exists but doesn't do what it should)
+
+**When to run**:
+- CI/CD pipeline (fast, automated)
+- Pre-commit checks
+- Quick sanity checks during development
+
+---
+
+### Recommended Workflow
+
+1. **During Development**: Static tests (fast feedback)
+   ```bash
+   pytest tests/test_architectural_intent.py -v
+   ```
+
+2. **Before Release**: GenAI validation (comprehensive)
+   ```bash
+   /validate-architecture
+   ```
+
+3. **If GenAI Finds Issues**: Fix code or update ARCHITECTURE.md
+
+4. **If Static Tests Fail**: Either:
+   - Architecture changed → Update ARCHITECTURE.md
+   - Tests too strict → Update tests
+   - Regression detected → Fix the code
 
 ---
 
