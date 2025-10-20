@@ -554,7 +554,7 @@ cat docs/sessions/architecture-validation-*.md
 
 ## Summary
 
-**Two dimensions of coverage**:
+**Three dimensions of coverage**:
 
 1. **Code Coverage** (automated)
    - Measured by pytest-cov
@@ -566,4 +566,109 @@ cat docs/sessions/architecture-validation-*.md
    - Target: 8/10 UX, 100% architecture
    - Commands: `/test uat-genai`, `/test architecture`
 
-**Both are essential for comprehensive quality assurance!**
+3. **System Performance Coverage** (meta-analysis) ⭐ **NEW**
+   - Measured by session analysis
+   - Target: < $1/feature, 95%+ success rate, ROI > 100×
+   - Command: `/test system-performance` (proposed)
+   - See: [SYSTEM-PERFORMANCE-GUIDE.md](SYSTEM-PERFORMANCE-GUIDE.md)
+
+**All three are essential for comprehensive quality assurance!**
+
+---
+
+## System Performance Coverage (Layer 3)
+
+### What It Measures
+
+**Meta-level validation** - testing the autonomous system itself:
+- ✅ **Agent effectiveness**: Which agents perform well?
+- ✅ **Model optimization**: Right model (Opus/Sonnet/Haiku) for each task?
+- ✅ **Cost efficiency**: Tokens, time, $ per feature
+- ✅ **Skill utilization**: Which skills provide most value?
+- ✅ **ROI measurement**: Value delivered vs cost
+
+### Why It Matters
+
+Without meta-validation, you can't answer:
+- ❓ Are we using the right models? (Could save 15% with Haiku)
+- ❓ Which agents are most/least effective?
+- ❓ Are we wasting tokens/money?
+- ❓ Which skills provide most value?
+- ❓ What's our cost per feature?
+
+### How to Measure
+
+**Manual tracking** (start simple):
+```bash
+# After each feature, record:
+# - Time spent (minutes)
+# - Estimated cost ($)
+# - Lines changed
+# - Coverage change
+# Track in spreadsheet, review monthly
+```
+
+**Automated analysis** (future):
+```bash
+# Proposed command
+/test system-performance
+
+# Analyzes:
+# - Agent invocation counts
+# - Token usage per agent
+# - Model optimization opportunities
+# - Cost trends
+# - Time efficiency
+```
+
+### Example Metrics
+
+```markdown
+## System Performance (October 2025)
+
+**Features completed**: 22
+**Avg time per feature**: 5.2 minutes
+**Avg cost per feature**: $0.85
+**Total cost**: $18.70
+**Developer time saved**: 88 hours
+**Value delivered**: $8,800
+**ROI**: 470× return on investment
+
+**Agent Performance**:
+| Agent | Avg Invocations | Success Rate | Avg Cost |
+|-------|-----------------|--------------|----------|
+| researcher | 1.8 | 100% | $0.09 |
+| planner | 1.0 | 100% | $0.07 |
+| test-master | 2.2 | 100% | $0.17 |
+| implementer | 3.4 | 100% | $0.28 |
+| reviewer | 1.0 | 100% | $0.05 |
+
+**Optimization Opportunities**:
+- ⚠️ Switch reviewer to Haiku (save 9%)
+- ✅ Agent performance excellent
+- ✅ Cost trending stable
+```
+
+### Targets
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| **Avg cost/feature** | < $1.00 | Sustainable scaling |
+| **Success rate** | 95%+ | Reliable automation |
+| **ROI** | > 100× | Demonstrable value |
+| **Time/feature** | < 10min | Fast iteration |
+| **Model waste** | < 10% | Efficient model selection |
+
+### Complete Guide
+
+For comprehensive system performance testing:
+**See**: [docs/SYSTEM-PERFORMANCE-GUIDE.md](SYSTEM-PERFORMANCE-GUIDE.md)
+
+Includes:
+- Agent performance metrics
+- Model optimization analysis
+- Cost/benefit tracking
+- Skill utilization metrics
+- Time efficiency analysis
+- Manual tracking templates
+- Automation roadmap

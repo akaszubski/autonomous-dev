@@ -889,6 +889,311 @@ Track your progress, celebrate wins, learn from findings, and keep evolving.
 **See Also**:
 - `docs/TESTING-DECISION-MATRIX.md` - When to use which test
 - `docs/GENAI-TESTING-GUIDE.md` - Complete GenAI testing guide
-- `docs/COVERAGE-GUIDE.md` - Measuring coverage
+- `docs/COVERAGE-GUIDE.md` - Measuring coverage (all 3 layers)
+- `docs/SYSTEM-PERFORMANCE-GUIDE.md` - Meta-optimization (Layer 3)
 - `skills/testing-guide/SKILL.md` - Testing methodology
 - `docs/research/20251020_131904_genai_testing_transformation/` - Industry trends
+
+---
+
+## Advanced: Meta-Optimization (Month 4+)
+
+**Once you've mastered TDD + GenAI, add Layer 3: System Performance Testing**
+
+### What is Meta-Optimization?
+
+**Testing the testing system itself**:
+- Are we using the right AI models? (Opus vs Sonnet vs Haiku)
+- Which agents are most effective?
+- What's our cost per feature?
+- Are we getting faster over time?
+- Which skills provide most value?
+
+### Why It Matters
+
+**Without meta-validation**, you optimize code but not the process:
+- ❌ Don't know if you're wasting tokens on wrong models
+- ❌ Can't identify ineffective agents
+- ❌ Don't track ROI (value delivered vs cost)
+- ❌ Miss optimization opportunities (e.g., use Haiku instead of Sonnet)
+
+**With meta-validation**, you optimize everything:
+- ✅ Reduce costs by 15% (use cheaper models for simple tasks)
+- ✅ Identify slow agents (optimize or replace)
+- ✅ Track ROI (prove value to stakeholders)
+- ✅ Continuous system improvement
+
+### How to Add Meta-Optimization
+
+**Month 4: Start tracking system metrics**
+
+```bash
+# After each feature, record:
+Date: 2025-10-20
+Feature: Add authentication
+Time: 5.2 minutes
+Estimated cost: $0.85
+Lines changed: 320
+Agents used: researcher, planner, test-master, implementer, reviewer
+Coverage change: +5%
+```
+
+**Month 5: Analyze trends**
+
+```markdown
+## October 2025 Performance
+
+**Features**: 22
+**Avg time**: 5.2 min/feature (↓ 10% from September)
+**Avg cost**: $0.85/feature (↓ 8% from September)
+**Total value**: $8,800 saved
+**ROI**: 470×
+
+**Trends**:
+- ✅ Getting faster (10% improvement)
+- ✅ Getting cheaper (8% improvement)
+- ✅ Excellent ROI (470×)
+```
+
+**Month 6: Optimize based on data**
+
+```markdown
+## Optimization Actions (based on data)
+
+**Discovery**: reviewer agent uses Sonnet ($0.05/invocation)
+**Opportunity**: Switch to Haiku ($0.004/invocation)
+**Savings**: 92% cost reduction on reviews
+**Action**: Update reviewer agent config
+
+**Result**: Avg cost drops from $0.85 → $0.80 (6% savings)
+```
+
+### The Complete Evolution Path
+
+```markdown
+Level 1: Code, then tests (reactive)
+    ↓
+Level 2: Tests, then code (TDD - proactive)
+    ↓
+Level 3: TDD + GenAI validation (intent-aware)
+    ↓
+Level 4: TDD + GenAI + Meta-optimization (self-improving) ⭐
+```
+
+### System Performance Metrics to Track
+
+**Agent Performance**:
+```markdown
+| Agent | Invocations | Success Rate | Avg Time | Avg Cost |
+|-------|-------------|--------------|----------|----------|
+| researcher | 1.8/feature | 100% | 42s | $0.09 |
+| planner | 1.0/feature | 100% | 28s | $0.07 |
+| test-master | 2.2/feature | 100% | 65s | $0.17 |
+| implementer | 3.4/feature | 100% | 95s | $0.28 |
+| reviewer | 1.0/feature | 100% | 18s | $0.05 |
+```
+
+**Model Optimization**:
+```markdown
+Task: Code review
+Current model: Sonnet ($3/1M tokens)
+Recommendation: Use Haiku ($0.25/1M tokens)
+Savings: 92% cost reduction
+Risk: Low (simple task)
+Action: Switch to Haiku
+```
+
+**ROI Tracking**:
+```markdown
+**This Month**:
+- Features: 22
+- Total cost: $18.70
+- Dev time saved: 88 hours
+- Value delivered: $8,800 (88hr × $100/hr)
+- ROI: 470× return on investment
+
+**Verdict**: Autonomous dev pays for itself 470× over 🚀
+```
+
+### Meta-Optimization Workflow
+
+**Weekly** (5 minutes):
+```bash
+# After each feature
+1. Record time spent
+2. Estimate cost (based on agents used)
+3. Note coverage change
+4. Add to tracking spreadsheet
+```
+
+**Monthly** (30 minutes):
+```bash
+# Review dashboard
+1. Calculate averages (time, cost, ROI)
+2. Identify trends (getting faster? cheaper?)
+3. Find optimization opportunities
+4. Set goals for next month
+```
+
+**Quarterly** (2 hours):
+```bash
+# Deep analysis
+1. Which agents are most valuable?
+2. Any model optimization opportunities?
+3. Skill utilization analysis
+4. Update agent configurations
+5. Share learnings with team
+```
+
+### Success Criteria
+
+**What "good" looks like at Level 4**:
+
+**System Performance**:
+- ✅ Avg cost/feature: < $1.00
+- ✅ Success rate: 95%+
+- ✅ ROI: > 100×
+- ✅ Time trending down (getting faster)
+- ✅ Cost trending stable or down
+
+**Process Maturity**:
+- ✅ Monthly performance reviews (habit)
+- ✅ Model optimization implemented
+- ✅ Agent performance tracked
+- ✅ Continuous improvement mindset
+- ✅ Data-driven decisions
+
+**Business Impact**:
+- ✅ Can prove ROI to stakeholders
+- ✅ Demonstrable efficiency gains
+- ✅ Cost optimization implemented
+- ✅ Scalable to more features
+- ✅ Team teaching others
+
+### Quick Start: Manual Tracking
+
+**Simple spreadsheet template**:
+```csv
+Date,Feature,Time(min),Cost($),Lines,Coverage,Notes
+2025-10-20,Add auth,5.2,0.85,320,+5%,Good performance
+2025-10-21,Add export,4.8,0.75,180,+3%,Fast
+2025-10-22,Fix bug,2.1,0.30,45,+1%,Small fix
+```
+
+**Monthly review checklist**:
+```markdown
+## Monthly System Review
+
+- [ ] Count features completed
+- [ ] Calculate average time
+- [ ] Calculate average cost
+- [ ] Calculate total ROI
+- [ ] Identify optimization opportunities
+- [ ] Update agent configs if needed
+- [ ] Set goals for next month
+```
+
+### Advanced: Automated Analysis
+
+**Future: `/test system-performance` command**
+
+```bash
+# Automated system analysis
+/test system-performance
+
+# Output:
+## System Performance Report
+
+**Period**: Last 30 days
+**Features**: 22
+
+**Averages**:
+- Time: 5.2 min/feature
+- Cost: $0.85/feature
+- ROI: 470×
+
+**Optimization Opportunities**:
+- ⚠️ Switch reviewer to Haiku (save 9%)
+- ✅ Agent performance excellent
+- ✅ Cost stable
+
+**Recommendations**:
+1. Update reviewer agent config
+2. Continue current approach
+3. Track for another month
+```
+
+### Complete Testing Evolution Journey
+
+**Month 1: Foundation**
+- Master basic TDD (RED → GREEN → REFACTOR)
+- Achieve 70%+ coverage
+- Learn pytest patterns
+
+**Month 2: Integration**
+- Add GenAI validation (`/test uat-genai architecture`)
+- Integrate into workflow (before every merge)
+- Target 8/10 UX score
+
+**Month 3: Mastery**
+- TDD + GenAI is habitual
+- 80%+ coverage, 100% alignment
+- Teaching others
+
+**Month 4: Meta-Optimization** ⭐
+- Start tracking system metrics
+- Manual spreadsheet tracking
+- Baseline performance established
+
+**Month 5: Analysis**
+- Monthly performance reviews
+- Identify trends and patterns
+- First optimization implemented
+
+**Month 6: Continuous Improvement**
+- Data-driven agent tuning
+- Model optimization active
+- Measurable efficiency gains
+- Autonomous system optimizes itself 🚀
+
+### Resources
+
+**For complete system performance guide**:
+- See: `docs/SYSTEM-PERFORMANCE-GUIDE.md`
+
+**Includes**:
+- Agent performance metrics
+- Model optimization strategies
+- Cost/benefit analysis
+- Skill utilization tracking
+- Time efficiency analysis
+- Manual tracking templates
+- Automation roadmap
+
+---
+
+## Summary: The Complete Picture
+
+**Three Testing Layers**:
+
+1. **Code Coverage** (pytest) - Fast, deterministic
+   - Command: `/test all`
+   - Target: 80%+
+   - Frequency: Every commit
+
+2. **Quality Coverage** (GenAI) - Semantic, intent-based
+   - Command: `/test uat-genai architecture`
+   - Target: 8/10 UX, 100% alignment
+   - Frequency: Before merge
+
+3. **System Performance** (meta-analysis) - Self-optimization
+   - Command: `/test system-performance` (proposed)
+   - Target: < $1/feature, ROI > 100×
+   - Frequency: Weekly/monthly
+
+**Evolution Timeline**:
+- **Months 1-3**: Master TDD + GenAI (Layers 1 & 2)
+- **Months 4-6**: Add meta-optimization (Layer 3)
+- **Month 6+**: Continuous improvement across all layers
+
+**The autonomous system that optimizes itself - that's true autonomy!** 🚀
