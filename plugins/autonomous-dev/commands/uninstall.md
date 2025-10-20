@@ -8,11 +8,44 @@ Interactive command to remove or disable plugin features based on your needs.
 
 ## Usage
 
+### Interactive Mode (Guided)
+
 ```bash
 /uninstall
 ```
 
-This command will guide you through removal options.
+Shows all 6 options and prompts you to choose.
+
+### Direct Mode (Specify Option)
+
+```bash
+# Option 1: Disable automatic hooks
+/uninstall --disable-hooks
+
+# Option 2: Remove project files, keep PROJECT.md
+/uninstall --clean-project
+
+# Option 3: Remove hooks and templates only
+/uninstall --remove-automation
+
+# Option 4: Remove all project files including PROJECT.md
+/uninstall --full-clean
+
+# Option 5: Uninstall plugin globally
+/uninstall --global
+
+# Option 6: Show options (same as interactive)
+/uninstall --help
+```
+
+**Aliases also work**:
+```bash
+/uninstall 1    # Same as --disable-hooks
+/uninstall 2    # Same as --clean-project
+/uninstall 3    # Same as --remove-automation
+/uninstall 4    # Same as --full-clean
+/uninstall 5    # Same as --global
+```
 
 ---
 
@@ -118,22 +151,38 @@ Exits without making any changes.
 
 ## Implementation
 
-When you run `/uninstall`, I will:
+### Interactive Mode
+
+When you run `/uninstall` (no arguments):
 
 1. **Show you these 6 options** with clear descriptions
 2. **Ask you to choose** which option you want
 3. **Confirm your choice** before making changes
-4. **Execute the removal** using appropriate commands:
-   - **Project-level only** (Options 1-4):
-     - `rm -rf .claude/hooks/` (if removing hooks)
-     - `rm -rf .claude/templates/` (if removing templates)
-     - `rm -f .claude/settings.local.json` (if removing settings)
-     - `rm -f .claude/PROJECT.md` (if removing PROJECT.md)
-     - `rm -f .env` (if removing GitHub config)
-   - **Global removal** (Option 5 only):
-     - `/plugin uninstall autonomous-dev` (removes plugin from Claude Code)
+4. **Execute the removal** (see commands below)
 5. **Show what was removed** and what remains
 6. **Provide next steps** based on your choice
+
+### Direct Mode
+
+When you run `/uninstall 2` or `/uninstall --clean-project`:
+
+1. **Parse the option** from your command
+2. **Show what will be removed** for that specific option
+3. **Confirm your choice** before making changes
+4. **Execute the removal** immediately
+5. **Show results** and next steps
+
+### Removal Commands
+
+**Project-level only** (Options 1-4):
+- `rm -rf .claude/hooks/` (if removing hooks)
+- `rm -rf .claude/templates/` (if removing templates)
+- `rm -f .claude/settings.local.json` (if removing settings)
+- `rm -f .claude/PROJECT.md` (if removing PROJECT.md)
+- `rm -f .env` (if removing GitHub config)
+
+**Global removal** (Option 5 only):
+- `/plugin uninstall autonomous-dev` (removes plugin from Claude Code)
 
 **Important**: Options 1-4 only affect THIS PROJECT. Plugin remains installed in Claude Code for use in other projects.
 
@@ -141,7 +190,64 @@ When you run `/uninstall`, I will:
 
 ## Example Sessions
 
-### Example 1: Option 2 (Remove Project Files, Keep PROJECT.md)
+### Example 1: Interactive Mode
+
+```
+User: /uninstall
+
+Claude: Choose an option:
+
+[1] Disable automatic hooks only
+[2] Remove project files only (keep PROJECT.md)
+[3] Remove hooks and templates only
+[4] Remove all project files (including PROJECT.md)
+[5] Uninstall plugin globally (all projects)
+[6] Cancel
+
+Your choice: 2
+
+Claude: You chose: Remove project files (keep PROJECT.md)
+
+[Shows confirmation, executes removal...]
+
+✓ Done! Plugin still available for other projects.
+```
+
+### Example 2: Direct Mode (Number)
+
+```
+User: /uninstall 2
+
+Claude: You requested: Remove project files (keep PROJECT.md)
+
+This will remove FROM THIS PROJECT:
+✗ Hooks directory (.claude/hooks/)
+✗ Templates directory (.claude/templates/)
+✗ Settings file (.claude/settings.local.json)
+✗ GitHub config (.env, if exists)
+
+This will keep:
+✓ PROJECT.md, code, tests, session logs
+✓ Plugin installation (works in other projects)
+
+Are you sure? [y/N]: y
+
+[Executes removal...]
+
+✓ Done!
+```
+
+### Example 3: Direct Mode (Named Option)
+
+```
+User: /uninstall --clean-project
+
+Claude: You requested: Remove project files (keep PROJECT.md)
+
+[Same as Example 2...]
+```
+
+### Example 4: Full Interactive Session (Option 2)
 
 ```
 User: /uninstall
@@ -247,18 +353,30 @@ Claude: No changes made. Plugin remains installed.
 
 ## Quick Reference
 
-| Option | Removes (from THIS project) | Keeps Globally | Use Case |
-|--------|----------------------------|----------------|----------|
-| 1 | settings.local.json | Plugin + everything else | Switch to manual mode |
-| 2 | Hooks + templates + settings | Plugin + PROJECT.md | **Clean project, keep docs + plugin** ⭐ |
-| 3 | Hooks + templates + settings | Plugin + PROJECT.md | Remove automation only |
-| 4 | Hooks + templates + settings + PROJECT.md | Plugin | Fresh start this project |
-| 5 | **Plugin globally** + project files | Nothing (complete removal) | Done with plugin everywhere |
-| 6 | Nothing | Everything | Cancel operation |
+| # | Command | Removes (THIS project) | Keeps Globally | Use Case |
+|---|---------|------------------------|----------------|----------|
+| 1 | `/uninstall --disable-hooks` or `/uninstall 1` | settings.local.json | Plugin + everything | Switch to manual |
+| 2 | `/uninstall --clean-project` or `/uninstall 2` | Hooks + templates + settings | Plugin + PROJECT.md | **Clean project** ⭐ |
+| 3 | `/uninstall --remove-automation` or `/uninstall 3` | Hooks + templates + settings | Plugin + PROJECT.md | Remove automation |
+| 4 | `/uninstall --full-clean` or `/uninstall 4` | Hooks + templates + settings + PROJECT.md | Plugin | Fresh start |
+| 5 | `/uninstall --global` or `/uninstall 5` | **Plugin globally** + project files | Nothing | Done everywhere ⚠️ |
+| 6 | `/uninstall` or `/uninstall --help` | Nothing | Everything | Interactive menu |
 
 **Key Difference**:
 - **Options 1-4**: Project-level only (plugin still works in other projects)
 - **Option 5**: Global removal (plugin removed from Claude Code entirely)
+
+**Quick Commands**:
+```bash
+# Most common: Clean this project, keep docs and plugin
+/uninstall 2
+
+# Switch to manual mode
+/uninstall 1
+
+# Nuclear option: Remove from all projects
+/uninstall 5
+```
 
 ---
 
