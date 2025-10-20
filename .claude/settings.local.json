@@ -8,7 +8,10 @@
       "Edit",
       "Glob",
       "Grep",
-      "Task"
+      "Task",
+      "WebFetch(domain:www.thoughtworks.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.anthropic.com)"
     ],
     "deny": [
       "Read(~/.ssh/*)",
@@ -35,8 +38,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/session_tracker.py subagent 'Subagent completed task'",
-            "description": "Log subagent completion to session"
+            "command": "python scripts/session_tracker.py subagent 'Subagent completed task'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/auto_format.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/auto_format.py"
           }
         ]
       }

@@ -14,20 +14,21 @@ auto_activate: true
 
 ---
 
-## Two-Layer Testing Strategy ⭐ NEW
+## Three-Layer Testing Strategy ⭐ UPDATED
 
 ### Critical Insight
 
-**Traditional tests (pytest)** validate **STRUCTURE** and **BEHAVIOR**
-**GenAI validation (Claude)** validates **INTENT** and **MEANING**
+**Layer 1 (pytest)** validates **STRUCTURE** and **BEHAVIOR**
+**Layer 2 (GenAI)** validates **INTENT** and **MEANING**
+**Layer 3 (Meta-analysis)** validates **SYSTEM PERFORMANCE** and **OPTIMIZATION**
 
-Both are needed for comprehensive coverage.
+All three layers are needed for complete autonomous system coverage.
 
 ---
 
 ## Testing Decision Matrix
 
-### When to Use Traditional Tests (pytest)
+### Layer 1: When to Use Traditional Tests (pytest)
 
 ✅ **BEST FOR**:
 - **Fast, deterministic checks** (CI/CD, pre-commit)
@@ -67,7 +68,7 @@ def test_api_response_time():
 
 ---
 
-### When to Use GenAI Validation (Claude)
+### Layer 2: When to Use GenAI Validation (Claude)
 
 ✅ **BEST FOR**:
 - **Semantic understanding** (does implementation match documented intent?)
@@ -111,6 +112,63 @@ Review the authentication implementation. Evaluate:
 
 Provide contextual assessment with trade-offs.
 ```
+
+---
+
+### Layer 3: When to Use System Performance Testing (Meta-analysis) ⭐ NEW
+
+✅ **BEST FOR**:
+- **Agent effectiveness tracking** (which agents succeed? which fail?)
+- **Model optimization** (is Opus needed or can we use Haiku?)
+- **Cost efficiency analysis** (are we spending too much per feature?)
+- **ROI measurement** (what's the return on investment?)
+- **System-level optimization** (how can the autonomous system improve itself?)
+- **Resource allocation** (where should we invest more/less?)
+
+❌ **NOT GOOD FOR**:
+- Individual feature validation (use Layer 1 or 2)
+- Fast feedback loops (takes time to collect data)
+- Binary pass/fail checks (provides metrics, not yes/no)
+
+**What it measures**:
+```markdown
+## Agent Performance
+| Agent | Invocations | Success Rate | Avg Time | Cost |
+|-------|-------------|--------------|----------|------|
+| researcher | 1.8/feature | 100% | 42s | $0.09 |
+| planner | 1.0/feature | 100% | 28s | $0.07 |
+| implementer | 1.2/feature | 95% | 180s | $0.45 |
+
+## Model Optimization Opportunities
+- reviewer: Sonnet → Haiku (save 92%)
+- security-auditor: Already Haiku ✅
+- doc-master: Already Haiku ✅
+
+## ROI Tracking
+- Total cost: $18.70 (22 features)
+- Value delivered: $8,800 (88hr × $100/hr)
+- ROI: 470× return on investment
+
+## System Performance
+- Average cost per feature: $0.85
+- Average time per feature: 18 minutes
+- Success rate: 95%
+- Target: < $1.00/feature, < 20min, > 90%
+```
+
+**Commands**:
+```bash
+/test system-performance              # Run system performance analysis
+/test system-performance --track-issues  # Auto-create optimization issues
+```
+
+**When to run**:
+- Weekly or monthly (not per-feature)
+- After major changes to agent pipeline
+- When reviewing system costs
+- During sprint retrospectives
+
+**See**: [SYSTEM-PERFORMANCE-GUIDE.md](../docs/SYSTEM-PERFORMANCE-GUIDE.md)
 
 ---
 
