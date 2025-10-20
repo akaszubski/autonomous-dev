@@ -35,27 +35,27 @@ Presents you with 6 options:
 
 **Use when**: You want manual control but keep plugin installed.
 
-### Option 2: Remove All Plugin Files (Keep PROJECT.md)
+### Option 2: Remove Project Files Only (Keep PROJECT.md)
 
-**Removes**:
-- Plugin via `/plugin uninstall autonomous-dev`
-  - Agents (orchestrator, researcher, planner, etc.)
-  - Skills (python-standards, testing-guide, etc.)
-  - Commands (/auto-implement, /format, /test, etc.)
-- `.claude/hooks/` directory
-- `.claude/templates/` directory
-- `.claude/settings.local.json`
-- `.env` (if exists)
+**Removes** (from THIS PROJECT only):
+- `.claude/hooks/` directory (copied hooks)
+- `.claude/templates/` directory (copied templates)
+- `.claude/settings.local.json` (project hook configuration)
+- `.env` (project GitHub config, if exists)
 
-**Keeps**:
+**Keeps** (in THIS PROJECT):
 - `.claude/PROJECT.md` (your project goals and scope)
 - Generated code in your project
 - Tests that were created
 - Session logs in `docs/sessions/`
 
-**Result**: Back to vanilla Claude Code, but PROJECT.md remains for reference.
+**Keeps** (globally in Claude Code):
+- Plugin installation (agents, skills, commands)
+- Available for use in OTHER projects
 
-**Use when**: Done with autonomous dev but want to keep project documentation.
+**Result**: Project cleaned up, but plugin still available for other projects.
+
+**Use when**: Done with autonomous dev in THIS PROJECT but want to keep plugin for other projects.
 
 ### Option 3: Remove Hooks and Templates Only
 
@@ -72,40 +72,43 @@ Presents you with 6 options:
 
 **Use when**: You want agent workflow but no automation hooks.
 
-### Option 4: Complete Uninstall (Remove Everything)
+### Option 4: Remove All Project Files (Including PROJECT.md)
 
-**Removes**:
-- Plugin via `/plugin uninstall autonomous-dev`
-- `.claude/hooks/`
-- `.claude/templates/`
+**Removes** (from THIS PROJECT only):
+- `.claude/hooks/` directory
+- `.claude/templates/` directory
 - `.claude/settings.local.json`
 - `.claude/PROJECT.md`
 - `.env` (if exists)
 
-**Keeps**:
+**Keeps** (in THIS PROJECT):
 - Generated code in your project
 - Tests that were created
 - Session logs in `docs/sessions/`
 
-**Result**: Complete removal, back to vanilla Claude Code.
+**Keeps** (globally in Claude Code):
+- Plugin installation (still available for other projects)
 
-**Use when**: Done with autonomous development entirely.
+**Result**: Complete project cleanup, plugin still available globally.
 
-### Option 5: Remove Plugin, Keep PROJECT.md and Hooks
+**Use when**: Done with autonomous dev in THIS PROJECT, want fresh start.
 
-**Removes**:
+### Option 5: Uninstall Plugin Globally (All Projects)
+
+**Removes** (GLOBALLY from Claude Code):
 - Plugin via `/plugin uninstall autonomous-dev`
+  - No longer available in ANY project
   - Agents, skills, commands removed
 
-**Keeps**:
+**Keeps** (in THIS PROJECT):
 - `.claude/PROJECT.md`
-- `.claude/hooks/` (can still use manually)
+- `.claude/hooks/` (files remain but won't work without plugin)
 - `.claude/templates/`
 - `.claude/settings.local.json`
 
-**Result**: Hooks remain but won't auto-trigger (no plugin to trigger them).
+**Result**: Plugin removed from Claude Code entirely.
 
-**Use when**: Want to keep project structure but remove agent automation.
+**Use when**: Done with autonomous-dev plugin across ALL your projects.
 
 ### Option 6: Cancel (No Changes)
 
@@ -121,19 +124,24 @@ When you run `/uninstall`, I will:
 2. **Ask you to choose** which option you want
 3. **Confirm your choice** before making changes
 4. **Execute the removal** using appropriate commands:
-   - `/plugin uninstall autonomous-dev` (if removing plugin)
-   - `rm -rf .claude/hooks/` (if removing hooks)
-   - `rm -rf .claude/templates/` (if removing templates)
-   - `rm -f .claude/settings.local.json` (if removing settings)
-   - `rm -f .env` (if removing GitHub config)
+   - **Project-level only** (Options 1-4):
+     - `rm -rf .claude/hooks/` (if removing hooks)
+     - `rm -rf .claude/templates/` (if removing templates)
+     - `rm -f .claude/settings.local.json` (if removing settings)
+     - `rm -f .claude/PROJECT.md` (if removing PROJECT.md)
+     - `rm -f .env` (if removing GitHub config)
+   - **Global removal** (Option 5 only):
+     - `/plugin uninstall autonomous-dev` (removes plugin from Claude Code)
 5. **Show what was removed** and what remains
 6. **Provide next steps** based on your choice
+
+**Important**: Options 1-4 only affect THIS PROJECT. Plugin remains installed in Claude Code for use in other projects.
 
 ---
 
 ## Example Sessions
 
-### Example 1: Option 2 (Remove All Plugin Files, Keep PROJECT.md)
+### Example 1: Option 2 (Remove Project Files, Keep PROJECT.md)
 
 ```
 User: /uninstall
@@ -143,35 +151,34 @@ Claude: I'll help you uninstall or disable autonomous-dev plugin features.
 Choose an option:
 
 [1] Disable automatic hooks only (switch to slash commands)
-[2] Remove all plugin files (keep PROJECT.md only)
+[2] Remove project files only (keep PROJECT.md)
 [3] Remove hooks and templates only
-[4] Complete uninstall (remove everything)
-[5] Remove plugin, keep PROJECT.md and hooks
+[4] Remove all project files (including PROJECT.md)
+[5] Uninstall plugin globally (all projects)
 [6] Cancel
 
 Your choice: 2
 
-Claude: You chose: Remove all plugin files (keep PROJECT.md)
+Claude: You chose: Remove project files (keep PROJECT.md)
 
-This will remove:
-✗ Plugin installation (agents, skills, commands)
+This will remove FROM THIS PROJECT:
 ✗ Hooks directory (.claude/hooks/)
 ✗ Templates directory (.claude/templates/)
 ✗ Settings file (.claude/settings.local.json)
 ✗ GitHub config (.env, if exists)
 
-This will keep:
+This will keep IN THIS PROJECT:
 ✓ PROJECT.md (your project goals)
 ✓ Generated code
 ✓ Tests
 ✓ Session logs
 
+This will keep GLOBALLY:
+✓ Plugin installation (still available for other projects)
+
 Are you sure? [y/N]: y
 
-Claude: Removing plugin files...
-
-[Executes: /plugin uninstall autonomous-dev]
-✓ Plugin uninstalled
+Claude: Removing project files...
 
 [Executes: rm -rf .claude/hooks/]
 ✓ Hooks removed
@@ -187,15 +194,15 @@ Claude: Removing plugin files...
 
 Done! ✓
 
-What remains:
+What remains in this project:
 - .claude/PROJECT.md (your project goals and scope)
 - Your generated code and tests
 - Session logs in docs/sessions/
 
-Next steps:
-- You can still use Claude Code normally
-- PROJECT.md is available for reference
-- To reinstall: /plugin install autonomous-dev
+Plugin still available:
+- You can still use autonomous-dev in OTHER projects
+- Commands like /auto-implement work in other projects
+- To use again in THIS project: /setup
 ```
 
 ### Example 2: Option 1 (Disable Hooks Only)
@@ -240,36 +247,63 @@ Claude: No changes made. Plugin remains installed.
 
 ## Quick Reference
 
-| Option | Removes | Keeps | Use Case |
-|--------|---------|-------|----------|
-| 1 | settings.local.json | Everything else | Switch to manual mode |
-| 2 | Plugin + hooks + templates | PROJECT.md only | **Done with plugin, keep docs** |
-| 3 | Hooks + templates | Plugin + PROJECT.md | Keep agents, remove automation |
-| 4 | Everything | Generated code/tests | Complete removal |
-| 5 | Plugin only | PROJECT.md + hooks | Keep structure, remove agents |
+| Option | Removes (from THIS project) | Keeps Globally | Use Case |
+|--------|----------------------------|----------------|----------|
+| 1 | settings.local.json | Plugin + everything else | Switch to manual mode |
+| 2 | Hooks + templates + settings | Plugin + PROJECT.md | **Clean project, keep docs + plugin** ⭐ |
+| 3 | Hooks + templates + settings | Plugin + PROJECT.md | Remove automation only |
+| 4 | Hooks + templates + settings + PROJECT.md | Plugin | Fresh start this project |
+| 5 | **Plugin globally** + project files | Nothing (complete removal) | Done with plugin everywhere |
 | 6 | Nothing | Everything | Cancel operation |
+
+**Key Difference**:
+- **Options 1-4**: Project-level only (plugin still works in other projects)
+- **Option 5**: Global removal (plugin removed from Claude Code entirely)
 
 ---
 
 ## After Uninstall
 
-Depending on your choice:
+### If You Used Options 1-4 (Project-Level Only)
 
-**If you kept PROJECT.md**:
-- Still useful for documenting project goals
-- Can be used with vanilla Claude Code
-- Easy to reference for any development work
+**In THIS project**:
+- Project files cleaned up
+- No automatic hooks or templates
 
-**If you removed the plugin**:
+**In OTHER projects**:
+- Plugin still fully functional
+- Can use /auto-implement, /setup, etc.
+- All agents and skills available
+
+**To use again in THIS project**:
+```bash
+/setup
+```
+
+### If You Used Option 5 (Global Removal)
+
+**In ALL projects**:
 - Slash commands no longer available
 - Agents and skills removed
 - Standard Claude Code behavior
 
-**To reinstall**:
+**To reinstall globally**:
 ```bash
 /plugin install autonomous-dev
+```
+
+Then in each project where you want to use it:
+```bash
 /setup
 ```
+
+### If You Kept PROJECT.md
+
+**Useful for**:
+- Documenting project goals and scope
+- Onboarding new developers
+- Strategic planning with vanilla Claude Code
+- Reference for any development work
 
 ---
 
