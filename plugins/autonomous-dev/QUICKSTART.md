@@ -84,21 +84,40 @@ python .claude/scripts/setup.py --auto --hooks=automatic --project-md --github
 git commit -m "feat: add hello world function"
 ```
 
-## Available Commands
+## Available Commands (33 Total)
 
-### Development
-- `/auto-implement` - Autonomous feature implementation (uses all 8 agents)
-- `/commit` - Smart commit with conventional message
+### Quick Reference
+**Testing**: `/test`, `/test-unit`, `/test-integration`, `/test-uat`, `/test-uat-genai`, `/test-architecture`, `/test-complete`
 
-### Quality Checks (Slash Commands Mode)
-- `/format` - Format code (black, prettier, gofmt)
-- `/test` - Run tests with coverage
-- `/security-scan` - Scan for secrets and vulnerabilities
-- `/full-check` - Run all checks (format + test + security)
+**Commit**: `/commit`, `/commit-check`, `/commit-push`, `/commit-release`
 
-### Project Alignment
-- `/align-project` - Validate project alignment with PROJECT.md
-- `/setup` - Re-run setup wizard
+**Alignment**: `/align-project`, `/align-project-fix`, `/align-project-safe`, `/align-project-sync`, `/align-project-dry-run`
+
+**Issues**: `/issue-auto`, `/issue-from-test`, `/issue-from-genai`, `/issue-create`, `/issue-preview`
+
+**Docs**: `/sync-docs`, `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize`, `/sync-docs-auto`
+
+**Quality**: `/format`, `/security-scan`, `/full-check`
+
+**Workflow**: `/auto-implement`, `/setup`, `/uninstall`
+
+### Most Used Commands
+
+**Daily development**:
+- `/test-unit` - Fast unit tests (< 1s)
+- `/commit` - Quick commit (< 5s)
+- `/format` - Format code
+
+**Feature completion**:
+- `/test` - All automated tests
+- `/commit-check` - Full validation
+- `/commit-push` - Push to GitHub
+
+**Pre-release**:
+- `/test-complete` - Complete validation
+- `/commit-release` - Production release
+
+See [docs/COMMANDS.md](../../docs/COMMANDS.md) for complete reference.
 
 ## Workflows
 

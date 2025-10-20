@@ -50,34 +50,71 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 | **research-patterns** | Research methodology, pattern discovery |
 | **engineering-standards** | Code review, git workflow, best practices |
 
-### ⚙️ Key Commands
+### ⚙️ 33 Slash Commands
 
+**All commands are independently discoverable with autocomplete.**
+
+#### Testing (7 commands)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/setup` | Configure workflow (hooks, PROJECT.md, presets) | One-time |
-| `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 20-30min |
-| `/align-project` | Safely align project with PROJECT.md standards | 10-15min |
-| `/test [target]` | Run tests (pytest) or GenAI validation | Varies |
-| &nbsp;&nbsp;`/test unit` | Fast unit tests (pytest) | < 1s |
-| &nbsp;&nbsp;`/test integration` | Integration tests (pytest) | < 10s |
-| &nbsp;&nbsp;`/test uat` | User acceptance tests (pytest) | < 60s |
-| &nbsp;&nbsp;`/test uat-genai` | GenAI: UX quality & goal alignment | 2-5min |
-| &nbsp;&nbsp;`/test architecture` | GenAI: Architectural intent validation | 2-5min |
-| &nbsp;&nbsp;`/test system-performance` | Layer 3: Agent/model/cost optimization | Future |
-| `/issue [action]` | Auto-create GitHub Issues from test results | < 5s |
-| &nbsp;&nbsp;`/issue auto` | Create issues from last test run | < 5s |
-| &nbsp;&nbsp;`/issue from-test` | Issue from specific test failure | < 5s |
-| &nbsp;&nbsp;`/test --track-issues` | Auto-create issues during testing | Varies |
+| `/test` | All automated tests (unit + integration + UAT) | < 60s |
+| `/test-unit` | Unit tests only - fast validation | < 1s |
+| `/test-integration` | Integration tests - components together | < 10s |
+| `/test-uat` | UAT tests - user workflows (automated) | < 60s |
+| `/test-uat-genai` | GenAI UX validation - analyze UX quality | 2-5min |
+| `/test-architecture` | GenAI architecture validation - detect drift | 2-5min |
+| `/test-complete` | Complete pre-release validation (all + GenAI) | 5-10min |
+
+#### Commit (4 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/commit` | Quick commit - format + unit tests + security → local | < 5s |
+| `/commit-check` | Standard commit - all tests + coverage → local | < 60s |
+| `/commit-push` | Push commit - full integrity + doc sync → GitHub | 2-5min |
+| `/commit-release` | Release - validation + version bump + GitHub Release | 5-10min |
+
+#### Alignment (5 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/align-project` | Analyze alignment with PROJECT.md (read-only) | 5-10min |
+| `/align-project-fix` | Auto-fix alignment issues (non-interactive) | 10-15min |
+| `/align-project-safe` | Interactive 3-phase fix (asks before changes) | 15-20min |
+| `/align-project-sync` | Safe fix + GitHub sync (push + issues) | 20-30min |
+| `/align-project-dry-run` | Preview changes without modifying | 5-10min |
+
+#### Issues (5 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/issue-auto` | Auto-create issues from last test run | < 5s |
+| `/issue-from-test` | Create issue from specific test failure | < 5s |
+| `/issue-from-genai` | Create issue from GenAI finding | < 5s |
+| `/issue-create` | Manual issue creation (custom) | < 5s |
+| `/issue-preview` | Preview issues without creating | < 5s |
+
+#### Documentation (5 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/sync-docs` | Sync all documentation (filesystem + API + CHANGELOG) | 5-10min |
+| `/sync-docs-api` | Sync API documentation only | 2-3min |
+| `/sync-docs-changelog` | Update CHANGELOG.md from commits | < 1min |
+| `/sync-docs-organize` | Organize files - move .md to docs/ | < 30s |
+| `/sync-docs-auto` | Auto-detect changes and sync | 1-5min |
+
+#### Quality (3 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
 | `/format` | Format code (black, isort, prettier) | < 5s |
 | `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
 | `/full-check` | Complete check (format + test + security) | < 60s |
-| `/commit` | Quick commit - format + unit tests + security → commit locally | < 5s |
-| `/commit-check` | Standard commit - all tests + coverage → commit locally | < 60s |
-| `/commit-push` | Push commit - full integrity + doc sync → push to GitHub | 2-5min |
-| `/commit-release` | Release - complete validation + version bump + GitHub Release | 5-10min |
-| `/uninstall` | Remove plugin files from project | < 5s |
 
-**See**: `commands/test.md` for complete testing guide
+#### Workflow (4 commands)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/setup` | Interactive setup wizard | 5-10min |
+| `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 20-30min |
+| `/uninstall` | Uninstall or disable plugin | < 5s |
+
+**See**: [docs/COMMANDS.md](../../docs/COMMANDS.md) for complete reference
 
 ### ⚡ 8 Automated Hooks
 
@@ -116,10 +153,10 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **Commands**:
 ```bash
-/test all                      # Layer 1: pytest
-/test uat-genai                # Layer 2: UX quality
-/test architecture             # Layer 2: Architectural intent
-/test system-performance       # Layer 3: Meta-optimization (future)
+/test                          # Layer 1: All automated tests (pytest)
+/test-uat-genai                # Layer 2: UX quality validation
+/test-architecture             # Layer 2: Architectural intent verification
+/test-complete                 # Layer 1 + 2: Complete pre-release validation
 ```
 
 **See**: [COVERAGE-GUIDE.md](docs/COVERAGE-GUIDE.md), [SYSTEM-PERFORMANCE-GUIDE.md](docs/SYSTEM-PERFORMANCE-GUIDE.md)

@@ -126,11 +126,20 @@ orchestrator prompts you to /clear
 ## ⚙️ Automation (Two Modes)
 
 ### Slash Commands Mode (default)
-Run manually when needed:
-- `/format` - Format code (black/prettier/gofmt)
-- `/test` - Run tests with coverage
-- `/security-scan` - Scan for secrets/vulnerabilities
-- `/full-check` - Run all checks before commit
+
+**33 commands available** - all discoverable via autocomplete:
+
+**Most used**:
+- `/test-unit` - Fast unit tests (< 1s)
+- `/commit` - Quick commit (< 5s)
+- `/format` - Format code
+- `/full-check` - Run all checks
+
+**Progressive workflows**:
+- `/commit` → `/commit-check` → `/commit-push` → `/commit-release`
+- `/test-unit` → `/test` → `/test-complete`
+
+See [docs/COMMANDS.md](../../docs/COMMANDS.md) for all 33 commands.
 
 **Philosophy**: Full control, great for learning
 

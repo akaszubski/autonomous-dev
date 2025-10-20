@@ -43,12 +43,57 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 - **security-auditor** - Security scanning (haiku model)
 - **doc-master** - Documentation sync (haiku model)
 
-### Essential Commands
+### 33 Slash Commands
+
+All commands are independently discoverable with autocomplete:
+
+**Testing** (7 commands):
+- `/test` - All automated tests
+- `/test-unit` - Unit tests only (< 1s)
+- `/test-integration` - Integration tests (< 10s)
+- `/test-uat` - UAT tests (< 60s)
+- `/test-uat-genai` - GenAI UX validation (2-5min)
+- `/test-architecture` - GenAI architecture validation (2-5min)
+- `/test-complete` - Complete pre-release validation (5-10min)
+
+**Commit** (4 commands):
+- `/commit` - Quick commit (< 5s)
+- `/commit-check` - Standard commit with full tests (< 60s)
+- `/commit-push` - Push commit with integrity checks (2-5min)
+- `/commit-release` - Production release (5-10min)
+
+**Alignment** (5 commands):
+- `/align-project` - Analyze alignment (read-only)
+- `/align-project-fix` - Auto-fix issues
+- `/align-project-safe` - Interactive 3-phase (recommended)
+- `/align-project-sync` - Safe + GitHub sync
+- `/align-project-dry-run` - Preview changes
+
+**Issues** (5 commands):
+- `/issue-auto` - Auto-create from test results
+- `/issue-from-test` - From specific test failure
+- `/issue-from-genai` - From GenAI finding
+- `/issue-create` - Manual creation
+- `/issue-preview` - Preview without creating
+
+**Documentation** (5 commands):
+- `/sync-docs` - Sync all documentation
+- `/sync-docs-api` - API docs only
+- `/sync-docs-changelog` - CHANGELOG only
+- `/sync-docs-organize` - File organization
+- `/sync-docs-auto` - Auto-detect and sync
+
+**Quality** (3 commands):
+- `/format` - Format code
+- `/security-scan` - Security scanning
+- `/full-check` - Complete quality check
+
+**Workflow** (4 commands):
 - `/auto-implement` - Autonomous feature implementation
-- `/align-project` - Validate alignment with PROJECT.md
-- `/sync-docs` - Synchronize documentation with code
-- `/commit` - Smart commit with conventional message
-- `/full-check` - Complete quality check (format + test + security)
+- `/setup` - Setup wizard
+- `/uninstall` - Uninstall plugin
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.
 
 ### 6 Core Skills
 - **python-standards** - PEP 8, type hints, docstrings
@@ -169,12 +214,12 @@ cd my-fastapi-project
 
 | Guide | Purpose |
 |-------|---------|
-| [QUICKSTART.md](QUICKSTART.md) | Get running in 2 minutes |
+| [QUICKSTART.md](plugins/autonomous-dev/QUICKSTART.md) | Get running in 2 minutes |
 | [plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md) | Complete plugin documentation |
-| [docs/README.md](docs/README.md) | Documentation index |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues & solutions |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Plugin development guide |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | How to contribute |
+| [docs/COMMANDS.md](docs/COMMANDS.md) | Complete command reference (33 commands) |
+| [docs/commit-workflow.md](docs/commit-workflow.md) | Progressive commit workflow guide |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow & file locations |
+| [.claude/PROJECT.md](.claude/PROJECT.md) | Project architecture & goals |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
