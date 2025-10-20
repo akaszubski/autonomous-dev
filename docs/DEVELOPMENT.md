@@ -72,6 +72,121 @@ autonomous-dev/
 └── docs/                         # Documentation
 ```
 
+### File Location Guidelines (CRITICAL)
+
+**This repository serves TWO audiences:**
+1. **Contributors** (building the plugin) → ROOT level
+2. **Users** (using the plugin) → PLUGIN level
+
+#### The Golden Rule
+
+Before creating or moving any file, ask these 3 questions:
+
+1. **WHO** is this for?
+   - Contributors/Developers → ROOT
+   - End users → PLUGIN
+
+2. **WHEN** do they need it?
+   - While building the plugin → ROOT
+   - While using the plugin → PLUGIN
+
+3. **WHAT** is it?
+   - Development tool/doc → ROOT
+   - Plugin feature/doc → PLUGIN
+
+#### ROOT Level (Development workspace - NOT distributed)
+
+```
+ROOT/
+├── docs/                         DEV/CONTRIBUTOR DOCS
+│   ├── CONTRIBUTING.md           How to contribute
+│   ├── DEVELOPMENT.md            Development workflow (this file)
+│   ├── CODE-REVIEW-WORKFLOW.md  Code review process
+│   ├── IMPLEMENTATION-STATUS.md Build status
+│   └── ... (dev docs only)
+│
+├── scripts/                      BUILD/DEV SCRIPTS
+│   ├── validate_structure.py    Structure validation
+│   ├── session_tracker.py       Dev session tracking
+│   └── hooks/                   Git hook templates
+│       └── pre-commit           Structure validation hook
+│
+├── tests/                        REPO TESTS
+│   ├── unit/                    Test build scripts
+│   └── integration/             Test repo functionality
+│
+└── Root files
+    ├── README.md                About the repository
+    ├── CONTRIBUTING.md          Contributor guide
+    ├── CLAUDE.md                Instructions for Claude
+    └── CHANGELOG.md             Version history
+```
+
+#### PLUGIN Level (Distribution package - what users get)
+
+```
+plugins/autonomous-dev/
+├── docs/                         USER DOCS
+│   ├── COMMANDS.md              Command reference
+│   ├── QUICKSTART.md            Quick start guide
+│   ├── TROUBLESHOOTING.md       User troubleshooting
+│   ├── GITHUB_AUTH_SETUP.md     GitHub setup guide
+│   └── ... (user docs only)
+│
+├── agents/                       AI AGENTS
+│   ├── orchestrator.md          Master coordinator
+│   ├── planner.md               Architecture planner
+│   └── ...
+│
+├── commands/                     SLASH COMMANDS
+│   ├── test.md                  /test command
+│   ├── format.md                /format command
+│   └── ...
+│
+├── skills/                       SKILLS
+│   ├── python-standards/        Python best practices
+│   ├── testing-guide/           Testing methodology
+│   └── ...
+│
+├── hooks/                        AUTOMATION HOOKS
+│   ├── auto_format.py           Auto-format on save
+│   ├── auto_test.py             Auto-test on commit
+│   └── ...
+│
+├── scripts/                      USER SCRIPTS
+│   └── setup.py                 Setup wizard for users
+│
+├── templates/                    TEMPLATES
+│   ├── PROJECT.md               PROJECT.md template
+│   └── settings.local.json      Settings template
+│
+└── tests/                        PLUGIN TESTS
+    ├── test_uat.py              User acceptance tests
+    └── test_architecture.py    Architecture validation
+```
+
+#### Enforcement
+
+**Automated validation** prevents misplaced files:
+
+```bash
+# Run validation manually
+python scripts/validate_structure.py
+
+# Install pre-commit hook (recommended)
+ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+```
+
+**What validation checks:**
+- User docs only in `plugins/autonomous-dev/docs/`
+- Dev docs only in `docs/`
+- No duplicate files between root and plugin
+- Clean root directory (only essential .md files)
+
+**See also:**
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Complete file location guidelines
+- [.claude/PROJECT.md](../.claude/PROJECT.md) - Repository structure constraints
+
 ### Publishing Updates
 
 ```bash

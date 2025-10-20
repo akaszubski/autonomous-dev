@@ -95,6 +95,35 @@
 - **Hooks**: Auto-format, auto-test, auto-enforce-coverage, security-scan
 - **Plugin**: autonomous-dev (contains all components)
 
+**Repository Structure** (CRITICAL):
+
+This repository serves TWO audiences - contributors building the plugin AND users installing it.
+
+**ROOT Level** (Development workspace - NOT distributed):
+- `docs/` - Dev/contributor documentation (CONTRIBUTING.md, DEVELOPMENT.md, CODE-REVIEW-WORKFLOW.md, etc.)
+- `scripts/` - Build/sync scripts for development (validate_structure.py, session_tracker.py, etc.)
+- `tests/` - Repository infrastructure tests (test build scripts, test structure)
+- Root `.md` files - Only essential: README.md, CHANGELOG.md, CLAUDE.md, CONTRIBUTING.md
+
+**PLUGIN Level** (Distribution package - what users get):
+- `plugins/autonomous-dev/docs/` - User documentation (COMMANDS.md, QUICKSTART.md, TROUBLESHOOTING.md, etc.)
+- `plugins/autonomous-dev/scripts/` - User scripts (setup.py wizard)
+- `plugins/autonomous-dev/tests/` - Plugin feature tests (test_uat.py, test_integration.py, test_architecture.py)
+- `plugins/autonomous-dev/agents/` - 8 AI agents
+- `plugins/autonomous-dev/skills/` - 6 core skills
+- `plugins/autonomous-dev/commands/` - 33 slash commands
+- `plugins/autonomous-dev/hooks/` - Automation hooks
+
+**Enforcement**:
+- `scripts/validate_structure.py` - Automated validation (run before commit)
+- Pre-commit hook - Prevents misplaced files from being committed
+- See CONTRIBUTING.md for complete file location guidelines
+
+**The Golden Rule**:
+1. WHO is this for? (Contributors → ROOT, Users → PLUGIN)
+2. WHEN do they need it? (Building → ROOT, Using → PLUGIN)
+3. WHAT is it? (Dev tool/doc → ROOT, Plugin feature/doc → PLUGIN)
+
 ### Performance Constraints
 
 - **Context Budget**: Keep under 8,000 tokens per feature (CRITICAL)

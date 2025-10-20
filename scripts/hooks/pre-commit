@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# Pre-commit hook - Validate repository structure
+#
+# This hook ensures files are in the correct locations:
+# - User docs in plugins/autonomous-dev/docs/
+# - Dev docs in docs/
+# - No duplicates between root and plugin
+# - Clean root directory
+#
+# To install this hook:
+#   ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+#
+# To bypass (emergency only):
+#   git commit --no-verify
+
+set -e
+
+echo "🔍 Validating repository structure..."
+
+# Run structure validation
+python scripts/validate_structure.py
+
+# If validation passes, allow commit
+exit $?

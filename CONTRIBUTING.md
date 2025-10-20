@@ -4,35 +4,202 @@
 
 ---
 
-## Important: File Locations
+## Important: File Locations (CRITICAL!)
 
-### ✅ ALWAYS Edit These (Git-Tracked)
+**This repository serves TWO audiences:**
+1. **Contributors** (building the plugin) → ROOT level
+2. **Users** (using the plugin) → `plugins/autonomous-dev/`
 
-All changes MUST go to these locations:
+### 🎯 The Golden Rule
+
+**Ask yourself 3 questions:**
+
+1️⃣ **WHO** is this for?
+   - Contributors/Developers → ROOT
+   - End users → PLUGIN
+
+2️⃣ **WHEN** do they need it?
+   - While building the plugin → ROOT
+   - While using the plugin → PLUGIN
+
+3️⃣ **WHAT** is it?
+   - Development tool/doc → ROOT
+   - Plugin feature/doc → PLUGIN
+
+---
+
+### ✅ ROOT LEVEL (Development)
+
+**For:** Contributors building the plugin
+**Distributed:** ❌ NO (stays on GitHub)
 
 ```
-.claude/                          # Project-specific config
-├── commands/                     # Slash commands
-├── PROJECT.md                    # Project architecture
-└── hooks/                        # Git hooks
-
-plugins/autonomous-dev/           # Plugin for marketplace
-├── commands/                     # Slash commands (same as .claude/commands/)
-├── agents/                       # AI agents
-├── skills/                       # Skills
-├── hooks/                        # Automation hooks
-└── marketplace.json              # Plugin metadata
+ROOT/
+├── docs/                         DEV/CONTRIBUTOR DOCS
+│   ├── CONTRIBUTING.md           How to contribute
+│   ├── DEVELOPMENT.md            Development workflow
+│   ├── CODE-REVIEW-WORKFLOW.md  Code review process
+│   ├── IMPLEMENTATION-STATUS.md Build status
+│   └── ... (dev docs only)
+│
+├── scripts/                      BUILD/DEV SCRIPTS
+│   └── session_tracker.py        Dev session tracking
+│
+├── tests/                        REPO TESTS
+│   ├── unit/                     Test build scripts
+│   └── integration/              Test repo functionality
+│
+└── Root files
+    ├── README.md                 About the repository
+    ├── CONTRIBUTING.md           Contributor guide
+    ├── CLAUDE.md                 Instructions for Claude
+    └── CHANGELOG.md              Version history
 ```
 
-### ❌ NEVER Edit These (Personal Config)
+**Examples:**
+- ✅ "How to add a new command" → `docs/DEVELOPMENT.md`
+- ✅ "Build script to sync docs" → `scripts/sync_docs.py`
+- ✅ "Test that build works" → `tests/integration/`
 
-These are your personal global settings, NOT for git:
+---
+
+### ✅ PLUGIN LEVEL (Distribution)
+
+**For:** End users installing the plugin
+**Distributed:** ✅ YES (via `/plugin install`)
 
 ```
-~/.claude/                        # Your personal config (NOT IN GIT)
-├── commands/                     # Don't edit manually
-├── CLAUDE.md                     # Your personal instructions
-└── settings.json                 # Your personal settings
+plugins/autonomous-dev/
+├── docs/                         USER DOCS (22 files)
+│   ├── COMMANDS.md               Command reference
+│   ├── TROUBLESHOOTING.md        User troubleshooting
+│   ├── GITHUB_AUTH_SETUP.md      GitHub setup guide
+│   └── ... (user docs only)
+│
+├── agents/                       AI AGENTS (8 files)
+│   ├── orchestrator.md           Master coordinator
+│   ├── planner.md                Architecture planner
+│   └── ...
+│
+├── commands/                     SLASH COMMANDS (33 files)
+│   ├── test.md                   /test command
+│   ├── format.md                 /format command
+│   └── ...
+│
+├── skills/                       SKILLS (6 directories)
+│   ├── python-standards/         Python best practices
+│   ├── testing-guide/            Testing methodology
+│   └── ...
+│
+├── hooks/                        AUTOMATION HOOKS (8 files)
+│   ├── auto_format.py            Auto-format on save
+│   ├── auto_test.py              Auto-test on commit
+│   └── ...
+│
+├── scripts/                      USER SCRIPTS
+│   └── setup.py                  Setup wizard for users
+│
+├── templates/                    TEMPLATES
+│   ├── PROJECT.md                PROJECT.md template
+│   └── settings.local.json       Settings template
+│
+├── tests/                        PLUGIN TESTS
+│   ├── test_uat.py               User acceptance tests
+│   └── test_architecture.py     Architecture validation
+│
+└── Plugin files
+    ├── README.md                 Plugin documentation
+    ├── QUICKSTART.md             User quick start
+    └── .claude-plugin/           Plugin metadata
+```
+
+**Examples:**
+- ✅ "How to use /test command" → `plugins/autonomous-dev/docs/COMMANDS.md`
+- ✅ "Setup wizard for users" → `plugins/autonomous-dev/scripts/setup.py`
+- ✅ "Test plugin features" → `plugins/autonomous-dev/tests/`
+
+---
+
+### ❌ NEVER Edit
+
+**Personal config (NOT in git):**
+```
+~/.claude/                        Your personal config
+├── CLAUDE.md                     Your personal instructions
+└── settings.json                 Your personal settings
+```
+
+---
+
+---
+
+## ⚠️ Common Mistakes (Don't Do This!)
+
+### ❌ Wrong: User docs in ROOT
+```bash
+# DON'T put user documentation in root docs/
+docs/how-to-use-commands.md  ❌
+```
+✅ **Correct:**
+```bash
+plugins/autonomous-dev/docs/how-to-use-commands.md  ✅
+```
+
+### ❌ Wrong: Dev docs in PLUGIN
+```bash
+# DON'T put development docs in plugin
+plugins/autonomous-dev/docs/CONTRIBUTING.md  ❌
+```
+✅ **Correct:**
+```bash
+docs/CONTRIBUTING.md  ✅ (or root CONTRIBUTING.md)
+```
+
+### ❌ Wrong: Build scripts in PLUGIN
+```bash
+# DON'T put build/sync scripts in plugin
+plugins/autonomous-dev/scripts/sync_docs.py  ❌
+```
+✅ **Correct:**
+```bash
+scripts/sync_docs.py  ✅
+```
+
+---
+
+## ✅ Validation
+
+### Manual Validation
+
+**Before committing, validate structure:**
+
+```bash
+# Run structure validation manually
+python scripts/validate_structure.py
+```
+
+**What it checks:**
+- User docs in plugin only
+- Dev docs in root only
+- No duplicates between root and plugin
+- All user-facing content in plugin
+- All dev content in root
+
+### Automatic Validation (Recommended)
+
+**Install pre-commit hook** to automatically validate structure:
+
+```bash
+# Install the hook (one-time setup)
+ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+
+# Now validation runs automatically before each commit
+git commit -m "your changes"
+```
+
+**To bypass hook** (emergency only):
+```bash
+git commit --no-verify
 ```
 
 ---
