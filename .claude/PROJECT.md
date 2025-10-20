@@ -120,6 +120,93 @@
 
 ---
 
+## DEVELOPMENT WORKFLOW
+
+### File Locations (CRITICAL for Plugin Development)
+
+**This project builds Claude Code automation tools for distribution via marketplace.**
+
+#### ✅ Git-Tracked Locations (ALWAYS edit here)
+
+All changes MUST go to these locations for git tracking and distribution:
+
+```
+.claude/                          # Project-specific config
+├── commands/                     # Slash commands
+├── PROJECT.md                    # Project architecture (this file)
+└── hooks/                        # Git hooks
+
+plugins/autonomous-dev/           # Plugin for marketplace distribution
+├── commands/                     # Slash commands (synced with .claude/commands/)
+├── agents/                       # 8 AI agents (orchestrator, planner, etc.)
+├── skills/                       # 6 core skills (python-standards, etc.)
+├── hooks/                        # Automation hooks (auto_format, auto_test, etc.)
+└── marketplace.json              # Plugin metadata
+```
+
+#### ❌ Personal Config (NEVER edit for this project)
+
+These are your personal global settings, NOT for git or distribution:
+
+```
+~/.claude/                        # Your personal config (NOT IN GIT)
+├── commands/                     # Auto-populated when plugin installs
+├── CLAUDE.md                     # Your personal instructions
+└── settings.json                 # Your personal settings
+```
+
+### Workflow for Changes
+
+**When adding/updating commands**:
+```bash
+# 1. Edit in project config
+vim .claude/commands/my-command.md
+
+# 2. Sync to plugin
+./scripts/sync-plugin.sh
+
+# 3. Commit and push
+git add .claude/ plugins/autonomous-dev/
+git commit -m "feat: add my-command"
+git push
+
+# 4. Test by reloading plugin
+# In Claude Code: /plugin uninstall autonomous-dev
+#                 /plugin install autonomous-dev
+```
+
+**When adding/updating agents, skills, hooks**:
+```bash
+# Edit directly in plugin directory
+vim plugins/autonomous-dev/agents/my-agent.md
+
+# Commit and push
+git add plugins/autonomous-dev/
+git commit -m "feat: add my-agent"
+git push
+```
+
+### Distribution
+
+Users install via marketplace:
+```bash
+/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin install autonomous-dev
+```
+
+This copies everything from `plugins/autonomous-dev/` to their personal `~/.claude/` folder.
+
+### Key Principle
+
+**This repository is the SOURCE OF TRUTH for the autonomous-dev plugin.**
+
+- Personal `~/.claude/` = where plugin gets INSTALLED (runtime)
+- `.claude/` and `plugins/autonomous-dev/` = where we DEVELOP (source)
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed workflow.
+
+---
+
 ## CURRENT SPRINT
 
 **Sprint Name**: Sprint 6: Team Collaboration Features 🚧
