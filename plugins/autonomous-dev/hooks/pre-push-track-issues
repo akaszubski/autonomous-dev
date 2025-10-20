@@ -1,0 +1,63 @@
+#!/bin/bash
+# pre-push hook: Auto-track issues before pushing
+#
+# Automatically creates GitHub Issues from:
+# - Test failures (pytest)
+# - GenAI validation findings
+# - System performance opportunities
+#
+# Configuration (.env):
+# GITHUB_AUTO_TRACK_ISSUES=true      # Enable
+# GITHUB_TRACK_ON_PUSH=true          # Run on push
+# GITHUB_TRACK_THRESHOLD=medium      # Min priority
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Load .env if exists
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
+# Check if auto-tracking is enabled
+if [ "${GITHUB_AUTO_TRACK_ISSUES:-false}" != "true" ]; then
+    exit 0  # Disabled, skip
+fi
+
+if [ "${GITHUB_TRACK_ON_PUSH:-true}" != "true" ]; then
+    exit 0  # Not configured for pre-push
+fi
+
+echo -e "${YELLOW}🔍 Checking for issues to track...${NC}"
+
+# Find hook script
+HOOK_SCRIPT="plugins/autonomous-dev/hooks/auto_track_issues.py"
+
+if [ ! -f "$HOOK_SCRIPT" ]; then
+    # Try alternate locations
+    if [ -f ".claude/hooks/auto_track_issues.py" ]; then
+        HOOK_SCRIPT=".claude/hooks/auto_track_issues.py"
+    else
+        echo -e "${YELLOW}⚠️  Issue tracking script not found, skipping${NC}"
+        exit 0
+    fi
+fi
+
+# Run issue tracking
+python3 "$HOOK_SCRIPT"
+
+exit_code=$?
+
+if [ $exit_code -eq 0 ]; then
+    echo -e "${GREEN}✅ Issue tracking complete${NC}"
+else
+    echo -e "${RED}⚠️  Issue tracking had errors (continuing push)${NC}"
+fi
+
+# Always allow push (non-blocking)
+exit 0
