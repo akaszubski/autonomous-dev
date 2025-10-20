@@ -71,7 +71,10 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 | `/format` | Format code (black, isort, prettier) | < 5s |
 | `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
 | `/full-check` | Complete check (format + test + security) | < 60s |
-| `/commit` | Generate conventional commit message | < 5s |
+| `/commit` | Quick commit - format + unit tests + security → commit locally | < 5s |
+| `/commit-check` | Standard commit - all tests + coverage → commit locally | < 60s |
+| `/commit-push` | Push commit - full integrity + doc sync → push to GitHub | 2-5min |
+| `/commit-release` | Release - complete validation + version bump + GitHub Release | 5-10min |
 | `/uninstall` | Remove plugin files from project | < 5s |
 
 **See**: `commands/test.md` for complete testing guide
