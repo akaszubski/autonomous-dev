@@ -20,6 +20,12 @@ Execute automated tests (pytest) or GenAI quality validation - all under one com
 /test uat-genai         # GenAI: UX quality & goal alignment (2-5min)
 /test architecture      # GenAI: Architectural intent validation (2-5min)
 
+# Automatic Issue Tracking ⭐ NEW
+/test all --track-issues                      # Auto-create GitHub Issues
+/test uat-genai --track-issues                # Track UX findings
+/test architecture --track-issues             # Track architectural drift
+/test all uat-genai architecture --track-issues  # Complete tracking
+
 # Combined Workflows
 /test unit integration  # Multiple test layers
 /test all uat-genai architecture  # Complete pre-release validation
@@ -243,6 +249,73 @@ This command is **manual** (you control when it runs).
 - **GenAI** (`uat-genai`, `architecture`) → Comprehensive Claude
 
 **Result**: Complete testing strategy under one intuitive command
+
+---
+
+## Automatic Issue Tracking
+
+**Flag**: `--track-issues`
+
+**Auto-creates GitHub Issues** from testing results:
+
+```bash
+# Enable automatic issue creation
+/test all --track-issues
+/test uat-genai --track-issues
+/test architecture --track-issues
+
+# Complete tracking
+/test all uat-genai architecture --track-issues
+```
+
+**What gets created**:
+- **Test failures** → Bug issues (Layer 1)
+- **UX problems** → Enhancement issues (Layer 2)
+- **Architectural drift** → Architecture issues (Layer 2)
+- **Performance opportunities** → Optimization issues (Layer 3)
+
+**Example**:
+```bash
+$ /test all --track-issues
+
+Running pytest...
+✅ 45 tests passed
+❌ 2 tests failed
+   ✅ Created issue #42: "test_export_speed fails"
+   ✅ Created issue #43: "test_validation fails"
+
+$ /test uat-genai --track-issues
+
+Running GenAI UX validation...
+⚠️ 1 UX issue found
+   ✅ Created issue #44: "No progress indicator during export"
+
+# View created issues
+$ gh issue list --label automated
+```
+
+**Configuration**:
+
+```bash
+# .env
+GITHUB_AUTO_TRACK_ISSUES=true       # Enable
+GITHUB_TRACK_THRESHOLD=medium       # Filter by priority
+```
+
+**Or use automatic mode** (no flag needed):
+```bash
+# .env
+GITHUB_TRACK_ON_PUSH=true           # Auto-track before git push
+
+# Just push normally
+git push
+# → Issues auto-created in background
+```
+
+**See**:
+- [AUTO-ISSUE-TRACKING.md](../docs/AUTO-ISSUE-TRACKING.md) - Complete automatic tracking guide
+- [GITHUB-ISSUES-INTEGRATION.md](../docs/GITHUB-ISSUES-INTEGRATION.md) - Manual /issue command
+- [commands/issue.md](issue.md) - /issue command reference
 
 ---
 

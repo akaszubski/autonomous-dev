@@ -89,6 +89,105 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 | **auto_update_docs.py** | API change | Update documentation automatically |
 | **security_scan.py** | File write | Scan for secrets, vulnerabilities |
 
+---
+
+## 🚀 Key Features
+
+### Three-Layer Testing Framework
+
+**Layer 1: Code Coverage** (pytest)
+- Fast automated tests (< 1s)
+- Traditional unit/integration/UAT
+- 80%+ coverage target
+
+**Layer 2: Quality Coverage** (GenAI) ⭐
+- UX quality validation (8/10 target)
+- Architectural intent verification
+- Goal alignment checking
+
+**Layer 3: System Performance** (Meta-analysis) ⭐ **NEW**
+- Agent effectiveness tracking
+- Model optimization (Opus/Sonnet/Haiku)
+- Cost efficiency analysis
+- ROI measurement
+
+**Commands**:
+```bash
+/test all                      # Layer 1: pytest
+/test uat-genai                # Layer 2: UX quality
+/test architecture             # Layer 2: Architectural intent
+/test system-performance       # Layer 3: Meta-optimization (future)
+```
+
+**See**: [COVERAGE-GUIDE.md](docs/COVERAGE-GUIDE.md), [SYSTEM-PERFORMANCE-GUIDE.md](docs/SYSTEM-PERFORMANCE-GUIDE.md)
+
+---
+
+### Automatic GitHub Issue Tracking ⭐ **NEW**
+
+**Zero-effort issue creation** - runs automatically as you work:
+
+```bash
+# Just push normally
+git push
+
+# Auto-creates issues:
+✅ #42: "test_export_speed fails" (bug)
+✅ #43: "No progress indicator" (UX)
+✅ #44: "Optimize reviewer - save 92%" (cost)
+
+# Review later
+gh issue list --label automated
+```
+
+**Three automatic triggers**:
+1. **On Push** (recommended) - Before git push
+2. **Background** - After each Claude prompt (silent)
+3. **After Commit** - Per-commit tracking
+
+**What gets tracked**:
+- Test failures (Layer 1) → Bug issues
+- UX problems (Layer 2) → Enhancement issues
+- Architectural drift (Layer 2) → Architecture issues
+- Optimization opportunities (Layer 3) → Optimization issues
+
+**Configuration**:
+```bash
+# .env
+GITHUB_AUTO_TRACK_ISSUES=true
+GITHUB_TRACK_ON_PUSH=true
+GITHUB_TRACK_THRESHOLD=medium
+```
+
+**See**: [AUTO-ISSUE-TRACKING.md](docs/AUTO-ISSUE-TRACKING.md), [GITHUB-ISSUES-INTEGRATION.md](docs/GITHUB-ISSUES-INTEGRATION.md)
+
+---
+
+### PROJECT.md-First Architecture
+
+**Strategic alignment before coding**:
+- All work validates against PROJECT.md (goals, scope, constraints)
+- Orchestrator blocks misaligned features
+- No scope creep, no architectural drift
+
+**Commands**:
+- `/auto-implement` - 8-agent pipeline with PROJECT.md validation
+- `/align-project` - Safely align existing projects
+
+---
+
+### Continuous Improvement
+
+**Autonomous system optimizes itself**:
+- Tests itself (3 layers)
+- Tracks its own issues (automatic)
+- Measures its own performance (ROI, cost, speed)
+- Suggests its own optimizations
+
+**Complete loop**: Test → Find Issues → Track → Fix → Measure → Optimize
+
+---
+
 ## How It Works
 
 ### ⭐ PROJECT.md-First Workflow (MOST IMPORTANT)
@@ -221,24 +320,34 @@ cp .claude/templates/PROJECT.md .claude/PROJECT.md
 
 ### GitHub Integration (Optional)
 
-Enable sprint tracking and issue sync:
+Enable sprint tracking, issue sync, and **automatic issue tracking**:
 
 ```bash
-# 1. Create .env file
+# 1. Install GitHub CLI
+brew install gh          # macOS
+sudo apt install gh      # Linux
+
+# 2. Authenticate
+gh auth login
+
+# 3. Configure automatic issue tracking
 cp .env.example .env
 
-# 2. Add GitHub token (https://github.com/settings/tokens)
-#    Required scopes: repo, read:org
-echo "GITHUB_TOKEN=ghp_your_token_here" > .env
-
-# 3. Add .env to .gitignore (already done by plugin)
-echo ".env" >> .gitignore
-
-# 4. Create GitHub Milestone matching your sprint
-gh api repos/owner/repo/milestones -f title="Sprint 4"
+# Edit .env:
+GITHUB_AUTO_TRACK_ISSUES=true       # Enable automatic tracking
+GITHUB_TRACK_ON_PUSH=true           # Auto-create issues before push
+GITHUB_TRACK_THRESHOLD=medium       # Filter by priority
 ```
 
-**See**: [GITHUB_AUTH_SETUP.md](docs/GITHUB_AUTH_SETUP.md) for complete guide
+**Automatic Issue Tracking** ⭐ **NEW**:
+- Automatically creates GitHub Issues from testing results
+- Runs before git push (or in background)
+- Tracks bugs, UX issues, and optimizations
+- Zero manual effort
+
+**See**:
+- [AUTO-ISSUE-TRACKING.md](docs/AUTO-ISSUE-TRACKING.md) - Automatic tracking guide
+- [GITHUB-ISSUES-INTEGRATION.md](docs/GITHUB-ISSUES-INTEGRATION.md) - Complete integration guide
 
 **Note**: GitHub is optional - plugin works great without it. PROJECT.md is the primary source of truth.
 
