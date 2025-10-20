@@ -4,7 +4,7 @@
 
 set -e
 
-REPO_ROOT="$HOME/Documents/GitHub/claude-code-bootstrap"
+REPO_ROOT="$HOME/Documents/GitHub/autonomous-dev"
 cd "$REPO_ROOT"
 
 echo "╔═══════════════════════════════════════════════════════════════╗"

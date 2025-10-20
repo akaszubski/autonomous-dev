@@ -6,7 +6,7 @@ Get up and running in 3 minutes!
 
 ```bash
 # Add marketplace
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 
 # Install plugin
 /plugin install autonomous-dev
@@ -245,7 +245,7 @@ rm .claude/settings.local.json
 ## Support
 
 - **Plugin docs**: `.claude/README.md` (installed)
-- **GitHub issues**: https://github.com/akaszubski/claude-code-bootstrap/issues
+- **GitHub issues**: https://github.com/akaszubski/autonomous-dev/issues
 - **Testing guide**: `tests/README.md`
 
 ## Summary

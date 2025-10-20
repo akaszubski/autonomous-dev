@@ -78,7 +78,7 @@ class SetupWizard:
             print("\n❌ Plugin not found!")
             print(f"Expected at: {self.plugin_dir}")
             print("\nPlease install first:")
-            print("  /plugin marketplace add akaszubski/claude-code-bootstrap")
+            print("  /plugin marketplace add akaszubski/autonomous-dev")
             print("  /plugin install autonomous-dev")
             return False
 

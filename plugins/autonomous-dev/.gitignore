@@ -1,6 +1,46 @@
+# Autonomous-dev plugin .gitignore
 
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+venv/
+.venv/
+env/
+.env/
 
-# Autonomous-dev plugin (gitignored)
+# Environment files
 .env
 .env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# User-specific Claude Code settings
 .claude/settings.local.json
+
+# Build artifacts
+dist/
+build/
+*.egg
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup

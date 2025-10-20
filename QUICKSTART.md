@@ -8,7 +8,7 @@
 
 ```bash
 # Add this marketplace
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 
 # Install autonomous development plugin
 /plugin install autonomous-dev
@@ -204,8 +204,8 @@ Enables:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/autonomous-dev/discussions)
 - **Full Docs**: [plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)
 - **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 

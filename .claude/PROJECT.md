@@ -159,18 +159,18 @@ These are your personal global settings, NOT for git or distribution:
 
 **When adding/updating commands**:
 ```bash
-# 1. Edit in project config
-vim .claude/commands/my-command.md
+# 1. Edit in plugin source (changes are immediately active via symlink)
+vim plugins/autonomous-dev/commands/my-command.md
 
-# 2. Sync to plugin
-./scripts/sync-plugin.sh
+# 2. Test immediately (symlink makes it active in Claude)
+# In Claude Code: /my-command
 
-# 3. Commit and push
-git add .claude/ plugins/autonomous-dev/
+# 3. Commit and push when ready
+git add plugins/autonomous-dev/commands/my-command.md
 git commit -m "feat: add my-command"
 git push
 
-# 4. Test by reloading plugin
+# 4. Users get update by reinstalling
 # In Claude Code: /plugin uninstall autonomous-dev
 #                 /plugin install autonomous-dev
 ```
@@ -190,7 +190,7 @@ git push
 
 Users install via marketplace:
 ```bash
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
@@ -210,7 +210,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed workflow.
 ## CURRENT SPRINT
 
 **Sprint Name**: Sprint 6: Team Collaboration Features 🚧
-**GitHub Milestone**: [Create milestone](https://github.com/akaszubski/claude-code-bootstrap/milestones)
+**GitHub Milestone**: [Create milestone](https://github.com/akaszubski/autonomous-dev/milestones)
 **Duration**: 2025-10-20 → 2025-11-03 (2 weeks)
 **Status**: In Progress (10% complete)
 

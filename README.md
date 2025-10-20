@@ -13,7 +13,7 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 
 ```bash
 # 1. Add marketplace (one time)
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 
 # 2. Install plugin
 /plugin install autonomous-dev
@@ -185,7 +185,7 @@ Result: Only aligned work proceeds. No scope creep.
 ### Example 1: React Web App
 ```bash
 cd my-react-app
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 
 # Claude now handles:
@@ -198,7 +198,7 @@ cd my-react-app
 ### Example 2: Python API
 ```bash
 cd my-fastapi-project
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 
 # Claude now handles:
@@ -256,8 +256,8 @@ A: Yes! Just install and start coding. Claude handles the rest.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/autonomous-dev/discussions)
 
 ---
 

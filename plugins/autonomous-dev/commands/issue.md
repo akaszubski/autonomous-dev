@@ -9,7 +9,6 @@
 Create GitHub Issues from:
 - Test failures (pytest)
 - GenAI validation findings (UX, architecture)
-- System performance opportunities (optimizations)
 
 **Goal**: Zero manual issue tracking - let testing drive continuous improvement
 
@@ -26,9 +25,6 @@ Create GitHub Issues from:
 
 # Create issue from GenAI finding
 /issue from-genai "No progress indicator"
-
-# Create optimization issue
-/issue from-performance "Switch reviewer to Haiku"
 
 # Manual issue creation
 /issue create --title "Export too slow" --type bug --priority high
@@ -51,13 +47,11 @@ Create GitHub Issues from:
 # Analyzes:
 # - pytest output (failures)
 # - GenAI validation results
-# - System performance analysis
 
 # Creates issues for:
 # ✅ Test failures
 # ✅ UX problems (< 8/10 score)
 # ✅ Architectural drift
-# ✅ Optimization opportunities (> 10% savings)
 ```
 
 **Options**:
@@ -142,51 +136,6 @@ Add progress indicator showing:
 - Cancel option
 
 **Expected Improvement**: UX score → 9/10
-```
-
----
-
-### `/issue from-performance "<opportunity>"`
-
-**Create issue from system performance analysis**
-
-```bash
-/issue from-performance "Switch reviewer to Haiku"
-
-# Creates issue with:
-# - Title: "Optimize reviewer - switch to Haiku"
-# - Body: Cost analysis, savings, risk assessment, action items
-# - Labels: optimization, cost-reduction, low-hanging-fruit
-```
-
-**Example Output**:
-```markdown
-✅ Created issue #44
-
-**Title**: Optimize reviewer agent - switch to Haiku (save 92%)
-
-**Labels**: optimization, cost-reduction, low-hanging-fruit
-
-**Body**:
-System Performance Analysis:
-
-**Current State**:
-- Agent: reviewer
-- Model: Sonnet ($3/1M tokens)
-- Avg cost: $0.054/invocation
-
-**Proposed Change**:
-- Switch to: Haiku ($0.25/1M tokens)
-- New cost: $0.0045/invocation
-- Savings: $0.99/month (92% reduction)
-
-**Risk**: Low (simple review task)
-
-**Action Items**:
-1. Update agents/reviewer.md (model: haiku)
-2. Test with 3 features
-3. Monitor quality
-4. Keep if quality maintained
 ```
 
 ---
@@ -524,8 +473,7 @@ gh issue list --label high-priority
 # Create issues for all findings in one command
 /issue batch \
   --from-test-failures \
-  --from-genai-findings \
-  --from-performance-opportunities
+  --from-genai-findings
 
 # Equivalent to:
 /issue auto

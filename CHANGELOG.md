@@ -27,7 +27,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Removed duplicate `/align-project-safe` from global commands (now `--safe` flag)
 
 ### Removed
-- **4 sync scripts** - refresh-claude-settings.sh, check-sync-status.sh, find-changes.sh, sync-plugin.sh
+- **Obsolete development scripts** - sync-plugin.sh, test-installation.sh (no longer needed with symlink workflow)
+- **4 sync scripts** - refresh-claude-settings.sh, check-sync-status.sh, find-changes.sh
 - **3 sync documentation files** - SYNC-GUIDE.md (550+ lines), GLOBAL-COMMANDS-GUIDE.md, REFRESH-SETTINGS.md
 - **DEVELOPMENT_WORKFLOW.md** - Duplicate of DEVELOPMENT.md
 - **Complex sync workflow** - Replaced with simple marketplace install/uninstall
@@ -35,6 +36,10 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Fixed
 - **Marketplace distribution** - Added marketplace.json for proper plugin discovery
 - **Documentation references** - Updated all docs to use marketplace workflow instead of refresh scripts
+- **Issue command documentation** - Removed unimplemented `/issue from-performance` command references
+  - Cleaned up all issue command documentation in `.claude/commands/` and `plugins/autonomous-dev/commands/`
+  - Updated command descriptions to reflect actual 5 issue commands (auto, create, from-genai, from-test, preview)
+  - Verified documentation accuracy across 33 total discoverable commands
 
 ---
 

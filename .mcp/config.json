@@ -2,16 +2,16 @@
   "servers": {
     "filesystem": {
       "type": "mcp-filesystem",
-      "root": "~/Documents/GitHub/claude-code-bootstrap",
+      "root": "~/Documents/GitHub/autonomous-dev",
       "permissions": ["read", "write"]
     },
     "shell": {
       "type": "mcp-shell",
-      "workingDirectory": "~/Documents/GitHub/claude-code-bootstrap",
+      "workingDirectory": "~/Documents/GitHub/autonomous-dev",
       "allowedCommands": [
         "git",
         "gh",
-        "~/Documents/GitHub/claude-code-bootstrap/venv/bin/python",
+        "~/Documents/GitHub/autonomous-dev/venv/bin/python",
         "bash",
         "zsh",
         "pnpm",
@@ -21,12 +21,12 @@
     },
     "git": {
       "type": "mcp-git",
-      "repoRoot": "~/Documents/GitHub/claude-code-bootstrap"
+      "repoRoot": "~/Documents/GitHub/autonomous-dev"
     },
     "python": {
       "type": "mcp-python",
-      "interpreter": "~/Documents/GitHub/claude-code-bootstrap/venv/bin/python",
-      "venv": "~/Documents/GitHub/claude-code-bootstrap/venv"
+      "interpreter": "~/Documents/GitHub/autonomous-dev/venv/bin/python",
+      "venv": "~/Documents/GitHub/autonomous-dev/venv"
     }
   }
 }

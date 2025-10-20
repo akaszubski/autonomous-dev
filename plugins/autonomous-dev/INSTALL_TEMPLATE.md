@@ -325,8 +325,8 @@ ls .claude/skills/
 
 - **Session logs**: `docs/sessions/` (debugging)
 - **Project goals**: `.claude/PROJECT.md`
-- **Plugin source**: https://github.com/akaszubski/claude-code-bootstrap
-- **Issues**: https://github.com/akaszubski/claude-code-bootstrap/issues
+- **Plugin source**: https://github.com/akaszubski/autonomous-dev
+- **Issues**: https://github.com/akaszubski/autonomous-dev/issues
 
 ---
 

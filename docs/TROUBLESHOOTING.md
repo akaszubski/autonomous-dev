@@ -24,11 +24,11 @@ Error: Plugin 'autonomous-dev' not found
 **Solutions**:
 ```bash
 # Option 1: Install from local path
-cd /path/to/claude-code-bootstrap
+cd /path/to/autonomous-dev
 /plugin install ./plugins/autonomous-dev
 
 # Option 2: Create symlink manually
-ln -s /path/to/claude-code-bootstrap/plugins/autonomous-dev \
+ln -s /path/to/autonomous-dev/plugins/autonomous-dev \
       ~/.claude/plugins/autonomous-dev
 
 # Option 3: Add to marketplace first
@@ -401,7 +401,7 @@ rm ~/.claude/plugins/autonomous-dev
    - IMPLEMENTATION-STATUS.md - What's implemented
 
 2. **Search issues**:
-   - [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
+   - [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
 
 3. **Ask for help**:
    - Open a new issue with:

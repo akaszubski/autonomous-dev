@@ -3,7 +3,7 @@ Sample Installation Output for autonomous-dev Plugin
 
 $ /plugin install autonomous-dev
 ✓ Found plugin: autonomous-dev (v2.0.0)
-✓ Downloading from: https://github.com/akaszubski/claude-code-bootstrap
+✓ Downloading from: https://github.com/akaszubski/autonomous-dev
 ✓ Installing components...
   - Agents: 8 files
   - Skills: 6 directories

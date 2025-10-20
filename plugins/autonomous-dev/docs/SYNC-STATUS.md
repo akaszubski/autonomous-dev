@@ -242,7 +242,7 @@ git push origin master
 
 ### To Install on Another Machine
 ```bash
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 /test unit              # Works immediately!
 ```

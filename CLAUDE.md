@@ -7,7 +7,7 @@
 
 ## Project Overview
 
-**claude-code-bootstrap** - Plugin repository for autonomous development in Claude Code.
+**autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
 **Core Plugin**: `autonomous-dev` - Agents, skills, and hooks for 10x faster development
 
@@ -177,7 +177,7 @@ For enhanced Claude Desktop integration, configure the MCP server:
 
 ### Installation
 ```bash
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 

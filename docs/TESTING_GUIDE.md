@@ -6,32 +6,7 @@
 
 ---
 
-## Quick Test (5 minutes)
-
-Run the automated test script:
-
-```bash
-# From repository root
-./scripts/test-installation.sh
-
-# Or test in specific directory
-./scripts/test-installation.sh /path/to/test-project
-```
-
-**What it tests**:
-- ✅ All 8 agents installed
-- ✅ Agent model assignments (opus/sonnet/haiku)
-- ✅ orchestrator has PRIMARY MISSION
-- ✅ /align-project commands exist
-- ✅ All 7 advanced features documented
-- ✅ PROJECT.md template has required sections
-- ✅ .env.example has GITHUB_TOKEN
-
-**Expected result**: All tests pass (green checkmarks)
-
----
-
-## Full Manual Test (20 minutes)
+## Manual Testing (20 minutes)
 
 ### Part 1: Installation Test
 
@@ -51,7 +26,7 @@ git commit -m "Initial commit"
 
 ```bash
 # In Claude Code
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 ```
 
 **Expected**: Success message
@@ -570,13 +545,8 @@ If any tests fail:
    ```
    Expected: v2.0.0 or higher
 
-2. **Run automated test**:
-   ```bash
-   ./scripts/test-installation.sh > test-results.txt 2>&1
-   ```
-
-3. **Report issue**:
-   - Go to: https://github.com/akaszubski/claude-code-bootstrap/issues
+2. **Report issue**:
+   - Go to: https://github.com/akaszubski/autonomous-dev/issues
    - Title: "Test failed: [describe which test]"
    - Include: test-results.txt output
    - Include: Steps to reproduce

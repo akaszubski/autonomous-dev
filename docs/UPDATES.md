@@ -523,8 +523,8 @@ grep "researcher" docs/sessions/*.md
 
 ### Issues or Questions?
 
-- **GitHub Issues**: [akaszubski/claude-code-bootstrap/issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Discussions**: [akaszubski/claude-code-bootstrap/discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
+- **GitHub Issues**: [akaszubski/autonomous-dev/issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Discussions**: [akaszubski/autonomous-dev/discussions](https://github.com/akaszubski/autonomous-dev/discussions)
 
 ### Want to Contribute?
 

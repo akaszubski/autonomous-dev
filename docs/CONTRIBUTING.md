@@ -177,13 +177,13 @@ python plugins/autonomous-dev/hooks/my_hook.py
 
 1. **Fork the repository**
    ```bash
-   gh repo fork akaszubski/claude-code-bootstrap
+   gh repo fork akaszubski/autonomous-dev
    ```
 
 2. **Clone your fork**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/claude-code-bootstrap.git
-   cd claude-code-bootstrap
+   git clone https://github.com/YOUR_USERNAME/autonomous-dev.git
+   cd autonomous-dev
    ```
 
 3. **Create development symlink**
@@ -321,9 +321,9 @@ docs(README): add troubleshooting section
 
 ## Questions?
 
-- **General questions**: Open a [Discussion](https://github.com/akaszubski/claude-code-bootstrap/discussions)
-- **Bug reports**: Open an [Issue](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Feature requests**: Open an [Issue](https://github.com/akaszubski/claude-code-bootstrap/issues) with `enhancement` label
+- **General questions**: Open a [Discussion](https://github.com/akaszubski/autonomous-dev/discussions)
+- **Bug reports**: Open an [Issue](https://github.com/akaszubski/autonomous-dev/issues)
+- **Feature requests**: Open an [Issue](https://github.com/akaszubski/autonomous-dev/issues) with `enhancement` label
 
 ---
 

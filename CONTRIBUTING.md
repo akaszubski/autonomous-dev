@@ -89,19 +89,6 @@ git push
 
 ---
 
-## Helper Scripts
-
-Use the sync script to ensure consistency:
-
-```bash
-# Sync commands from .claude to plugin
-./scripts/sync-plugin.sh
-
-# This ensures both locations stay in sync
-```
-
----
-
 ## Before Committing
 
 **Checklist**:
@@ -141,7 +128,7 @@ After making changes:
 ## Directory Structure
 
 ```
-claude-code-bootstrap/
+autonomous-dev/
 ├── .claude/                      ← Project config (git-tracked)
 │   ├── commands/                 ← Commands (sync to plugin)
 │   ├── PROJECT.md                ← Architecture

@@ -35,7 +35,7 @@ Before onboarding, ensure you have:
 
 ### Add Marketplace
 ```bash
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 ```
 
 ### Install Plugin

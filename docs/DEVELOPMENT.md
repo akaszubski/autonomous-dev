@@ -10,7 +10,7 @@ Simple guide for developing and updating the autonomous-dev plugin.
 
 ```bash
 # Install
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 
 # Update to latest
@@ -28,7 +28,7 @@ That's it. No scripts, no sync, no complexity.
 
 You have a **symlink** from Claude to your repo:
 ```
-~/.claude/plugins/autonomous-dev → ~/Documents/GitHub/claude-code-bootstrap/plugins/autonomous-dev
+~/.claude/plugins/autonomous-dev → ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev
 ```
 
 This means:
@@ -58,7 +58,7 @@ git push
 ### Repository Structure
 
 ```
-claude-code-bootstrap/
+autonomous-dev/
 ├── marketplace.json              # Tells Claude where to find plugins
 ├── plugins/
 │   └── autonomous-dev/
@@ -132,13 +132,13 @@ git commit -m "docs: update align-project help"
 Check if symlink exists:
 ```bash
 ls -la ~/.claude/plugins/autonomous-dev
-# Should show: ... -> /Users/.../claude-code-bootstrap/plugins/autonomous-dev
+# Should show: ... -> /Users/.../autonomous-dev/plugins/autonomous-dev
 ```
 
 If not a symlink, recreate it:
 ```bash
 rm -rf ~/.claude/plugins/autonomous-dev
-ln -s ~/Documents/GitHub/claude-code-bootstrap/plugins/autonomous-dev \
+ln -s ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev \
       ~/.claude/plugins/autonomous-dev
 ```
 
@@ -150,7 +150,7 @@ Remove symlink and install from marketplace:
 rm ~/.claude/plugins/autonomous-dev
 
 # Install as user would
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 
 # Test
@@ -158,7 +158,7 @@ rm ~/.claude/plugins/autonomous-dev
 
 # Restore symlink for development
 rm -rf ~/.claude/plugins/autonomous-dev
-ln -s ~/Documents/GitHub/claude-code-bootstrap/plugins/autonomous-dev \
+ln -s ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev \
       ~/.claude/plugins/autonomous-dev
 ```
 

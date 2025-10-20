@@ -26,7 +26,6 @@ Auto-detects issues from last test execution:
 - ❌ **Test failures** (pytest) → Bug issues
 - ⚠️ **UX friction** (`/test-uat-genai`) → UX improvement issues
 - ⚠️ **Architectural drift** (`/test-architecture`) → Technical debt issues
-- 💡 **Optimization opportunities** → Enhancement issues
 
 **Creates GitHub Issue for each finding** with full context.
 

@@ -8,7 +8,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 ```bash
 # 1. Add the marketplace
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 
 # 2. Install the plugin
 /plugin install autonomous-dev
@@ -443,8 +443,8 @@ If you chose "Automatic Hooks" mode, edit `.claude/settings.local.json`:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Documentation**: [Full Docs](https://github.com/akaszubski/claude-code-bootstrap/docs)
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Documentation**: [Full Docs](https://github.com/akaszubski/autonomous-dev/docs)
 
 ## License
 

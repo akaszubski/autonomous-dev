@@ -1,6 +1,6 @@
 # MCP Server Configuration
 
-This directory contains the Model Context Protocol (MCP) server configuration for the claude-code-bootstrap repository.
+This directory contains the Model Context Protocol (MCP) server configuration for the autonomous-dev repository.
 
 ## Overview
 
@@ -25,18 +25,18 @@ Provides file system access to the repository.
 - `read`: Read files and directories
 - `write`: Create, modify, and delete files
 
-**Root**: `~/Documents/GitHub/claude-code-bootstrap`
+**Root**: `~/Documents/GitHub/autonomous-dev`
 
 #### 2. Shell Server (`mcp-shell`)
 
 Executes shell commands within the repository.
 
-**Working Directory**: `~/Documents/GitHub/claude-code-bootstrap`
+**Working Directory**: `~/Documents/GitHub/autonomous-dev`
 
 **Allowed Commands**:
 - `git` - Git version control
 - `gh` - GitHub CLI
-- `~/Documents/GitHub/claude-code-bootstrap/venv/bin/python` - Python interpreter (virtualenv)
+- `~/Documents/GitHub/autonomous-dev/venv/bin/python` - Python interpreter (virtualenv)
 - `bash` - Bash shell
 - `zsh` - Zsh shell
 - `pnpm` - Package manager
@@ -47,7 +47,7 @@ Executes shell commands within the repository.
 
 Specialized Git operations.
 
-**Repository Root**: `~/Documents/GitHub/claude-code-bootstrap`
+**Repository Root**: `~/Documents/GitHub/autonomous-dev`
 
 **Capabilities**:
 - View git status
@@ -60,9 +60,9 @@ Specialized Git operations.
 
 Python interpreter with virtual environment support.
 
-**Interpreter**: `~/Documents/GitHub/claude-code-bootstrap/venv/bin/python`
+**Interpreter**: `~/Documents/GitHub/autonomous-dev/venv/bin/python`
 
-**Virtual Environment**: `~/Documents/GitHub/claude-code-bootstrap/venv`
+**Virtual Environment**: `~/Documents/GitHub/autonomous-dev/venv`
 
 **Use Cases**:
 - Run Python scripts
@@ -75,7 +75,7 @@ Python interpreter with virtual environment support.
 ### 1. Create Virtual Environment
 
 ```bash
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 python3 -m venv venv
 source venv/bin/activate
 ```
@@ -93,9 +93,9 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 ```json
 {
   "mcpServers": {
-    "claude-code-bootstrap": {
+    "autonomous-dev": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents/GitHub/claude-code-bootstrap"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents/GitHub/autonomous-dev"]
     }
   }
 }
@@ -168,7 +168,7 @@ make build
 
 ```bash
 # Create it:
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 python3 -m venv venv
 ```
 
@@ -176,7 +176,7 @@ python3 -m venv venv
 
 ```bash
 # Ensure paths are correct and accessible:
-ls -la ~/Documents/GitHub/claude-code-bootstrap
+ls -la ~/Documents/GitHub/autonomous-dev
 ```
 
 ### Command Not Allowed

@@ -5,7 +5,7 @@
 Run the automated test script:
 
 ```bash
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 .mcp/test-mcp.sh
 ```
 
@@ -29,11 +29,11 @@ python3 -m json.tool .mcp/config.json
 
 ```bash
 # Test read access
-ls -la ~/Documents/GitHub/claude-code-bootstrap
+ls -la ~/Documents/GitHub/autonomous-dev
 
 # Test write access
-touch ~/Documents/GitHub/claude-code-bootstrap/.mcp-test
-rm ~/Documents/GitHub/claude-code-bootstrap/.mcp-test
+touch ~/Documents/GitHub/autonomous-dev/.mcp-test
+rm ~/Documents/GitHub/autonomous-dev/.mcp-test
 ```
 
 ✅ **Expected**: File created and deleted successfully
@@ -55,7 +55,7 @@ gh --version
 gh auth status
 
 # Python (with venv)
-~/Documents/GitHub/claude-code-bootstrap/venv/bin/python --version
+~/Documents/GitHub/autonomous-dev/venv/bin/python --version
 
 # Bash/Zsh
 bash --version
@@ -77,7 +77,7 @@ make --version
 ### 4. Test Git Operations
 
 ```bash
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 
 # Test git status
 git status
@@ -100,7 +100,7 @@ git branch -a
 ### 5. Test Python Virtual Environment
 
 ```bash
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 
 # Create venv if it doesn't exist
 python3 -m venv venv
@@ -127,7 +127,7 @@ deactivate
 
 ```bash
 # Check .env file exists
-ls -la ~/Documents/GitHub/claude-code-bootstrap/.env
+ls -la ~/Documents/GitHub/autonomous-dev/.env
 
 # Test GitHub token (without showing it)
 if grep -q "GITHUB_TOKEN=" .env; then
@@ -153,20 +153,20 @@ gh auth status
 
 3. **Add MCP Server**:
 
-   **Name**: `claude-code-bootstrap`
+   **Name**: `autonomous-dev`
 
    **Command**: `npx`
 
    **Args**:
    ```json
-   ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents/GitHub/claude-code-bootstrap"]
+   ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents/GitHub/autonomous-dev"]
    ```
 
 4. **Restart Claude Desktop**
 
 5. **Test in conversation**:
    ```
-   Can you list the files in my claude-code-bootstrap repository?
+   Can you list the files in my autonomous-dev repository?
    ```
 
 ✅ **Expected**: Claude lists repository files
@@ -181,7 +181,7 @@ npm install -g @modelcontextprotocol/inspector
 # Test filesystem server
 npx -y @modelcontextprotocol/inspector \
   npx -y @modelcontextprotocol/server-filesystem \
-  ~/Documents/GitHub/claude-code-bootstrap
+  ~/Documents/GitHub/autonomous-dev
 ```
 
 This opens a web interface to test MCP servers directly.
@@ -206,7 +206,7 @@ Test the full autonomous development workflow with MCP:
 # In Claude Desktop: "Run python --version using the virtualenv"
 
 # 5. Cleanup
-rm ~/Documents/GitHub/claude-code-bootstrap/test-mcp.txt
+rm ~/Documents/GitHub/autonomous-dev/test-mcp.txt
 ```
 
 ✅ **Expected**: All operations succeed
@@ -273,7 +273,7 @@ brew install node
 **Solution**: Check Python path permissions
 ```bash
 # Fix ownership
-sudo chown -R $USER:staff ~/Documents/GitHub/claude-code-bootstrap/venv
+sudo chown -R $USER:staff ~/Documents/GitHub/autonomous-dev/venv
 
 # Or recreate venv
 rm -rf venv
@@ -284,7 +284,7 @@ python3 -m venv venv
 
 **Solution**: Ensure you're in the correct directory
 ```bash
-cd ~/Documents/GitHub/claude-code-bootstrap
+cd ~/Documents/GitHub/autonomous-dev
 git status
 ```
 
@@ -339,7 +339,7 @@ time git status
 time cat README.md
 
 # Time Python execution
-time ~/Documents/GitHub/claude-code-bootstrap/venv/bin/python --version
+time ~/Documents/GitHub/autonomous-dev/venv/bin/python --version
 ```
 
 **Expected**: All commands < 1 second

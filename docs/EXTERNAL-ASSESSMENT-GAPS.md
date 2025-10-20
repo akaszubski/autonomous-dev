@@ -181,9 +181,9 @@
    - Feature request template
    - PR template
 
-9. **Add installation test script**
-   - `tests/test-installation.sh`
-   - Validates plugin structure
+9. **Add automated integration tests**
+   - `tests/test_integration.py`
+   - Validates plugin structure and agent coordination
 
 10. **Expand FAQ in README**
     - Existing hooks conflict

@@ -3,7 +3,7 @@
 **Last Updated**: 2025-10-20
 **Version**: v2.0.0
 
-Complete documentation for the claude-code-bootstrap autonomous development plugin.
+Complete documentation for the autonomous-dev autonomous development plugin.
 
 ---
 
@@ -49,7 +49,7 @@ Complete documentation for the claude-code-bootstrap autonomous development plug
 ## Documentation Structure
 
 ```
-claude-code-bootstrap/
+autonomous-dev/
 ├── README.md                    # Project overview
 ├── QUICKSTART.md                # 2-minute quick start
 ├── CHANGELOG.md                 # Version history
@@ -128,8 +128,8 @@ claude-code-bootstrap/
 
 ### Troubleshooting & Support
 1. [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues
-2. [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues) - Report bugs
-3. [GitHub Discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions) - Ask questions
+2. [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues) - Report bugs
+3. [GitHub Discussions](https://github.com/akaszubski/autonomous-dev/discussions) - Ask questions
 4. [Security Policy](SECURITY.md) - Report security issues
 
 ### Contributing
@@ -233,10 +233,10 @@ See [REFERENCES.md](REFERENCES.md) for:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/akaszubski/claude-code-bootstrap/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/claude-code-bootstrap/discussions)
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/akaszubski/autonomous-dev/discussions)
 - **Security**: See [SECURITY.md](SECURITY.md)
 
 ---
 
-**Need help? Start with [Troubleshooting](TROUBLESHOOTING.md) or open a [GitHub Discussion](https://github.com/akaszubski/claude-code-bootstrap/discussions).**
+**Need help? Start with [Troubleshooting](TROUBLESHOOTING.md) or open a [GitHub Discussion](https://github.com/akaszubski/autonomous-dev/discussions).**

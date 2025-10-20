@@ -1,1 +1,1 @@
-"""Test suite for claude-code-bootstrap plugin."""
+"""Test suite for autonomous-dev plugin."""

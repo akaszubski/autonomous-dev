@@ -3,7 +3,7 @@
   "displayName": "Autonomous Development (PROJECT.md-First)",
   "version": "2.0.0",
   "description": "PROJECT.md-first autonomous development system. 8-agent pipeline validates alignment before every feature. Automatic formatting, testing, security scanning, and documentation. Works for Python, JavaScript, TypeScript, and Go projects.",
-  "longDescription": "Transform your development workflow with autonomous agents that handle the tedious work automatically.\n\n**What it does:**\n- Validates every feature against PROJECT.md goals\n- Auto-formats code (black, prettier) on every save\n- Auto-runs tests when you change code\n- Auto-scans for security vulnerabilities\n- Auto-updates documentation\n- Auto-creates GitHub Issues from test failures\n\n**8 Specialized Agents:**\n- orchestrator: Coordinates the entire pipeline\n- planner: Designs architecture (uses Opus for complex planning)\n- researcher: Finds existing patterns and best practices\n- test-master: TDD specialist (writes tests first!)\n- implementer: Writes production code\n- reviewer: Quality gate (checks patterns, tests, docs)\n- security-auditor: Security scanning (uses Haiku for cost efficiency)\n- doc-master: Documentation sync (uses Haiku)\n\n**11 Commands:**\n- /test: Unified testing (unit, integration, UAT, architecture, system-performance)\n- /commit: Progressive commit workflow (4 levels)\n- /format: Auto-format code\n- /security-scan: Vulnerability scanning\n- /full-check: Complete quality check\n- /auto-implement: Autonomous feature implementation\n- /align-project: Safe 3-phase project alignment\n- And more!\n\n**6 Skills:**\n- python-standards: PEP 8, type hints, docstrings\n- testing-guide: Three-layer testing (pytest + GenAI + meta-analysis)\n- security-patterns: OWASP, secrets management\n- documentation-guide: Docs sync automation\n- research-patterns: Web research methodology\n- engineering-standards: Code quality standards\n\n**Result:** Focus on features, everything else is automatic.",
+  "longDescription": "Transform your development workflow with autonomous agents that handle the tedious work automatically.\n\n**What it does:**\n- Validates every feature against PROJECT.md goals\n- Auto-formats code (black, prettier) on every save\n- Auto-runs tests when you change code\n- Auto-scans for security vulnerabilities\n- Auto-updates documentation\n- Auto-creates GitHub Issues from test failures\n\n**8 Specialized Agents:**\n- orchestrator: Coordinates the entire pipeline\n- planner: Designs architecture (uses Opus for complex planning)\n- researcher: Finds existing patterns and best practices\n- test-master: TDD specialist (writes tests first!)\n- implementer: Writes production code\n- reviewer: Quality gate (checks patterns, tests, docs)\n- security-auditor: Security scanning (uses Haiku for cost efficiency)\n- doc-master: Documentation sync (uses Haiku)\n\n**33 Discoverable Commands:**\n- Testing (7): /test, /test-unit, /test-integration, /test-uat, /test-uat-genai, /test-architecture, /test-complete\n- Commit (4): /commit, /commit-check, /commit-push, /commit-release\n- Alignment (5): /align-project, /align-project-fix, /align-project-safe, /align-project-sync, /align-project-dry-run\n- Issues (5): /issue-auto, /issue-from-test, /issue-from-genai, /issue-create, /issue-preview\n- Docs (5): /sync-docs, /sync-docs-api, /sync-docs-changelog, /sync-docs-organize, /sync-docs-auto\n- Quality (3): /format, /security-scan, /full-check\n- Workflow (4): /setup, /auto-implement, /uninstall, and more\n\n**6 Skills:**\n- python-standards: PEP 8, type hints, docstrings\n- testing-guide: Three-layer testing (pytest + GenAI + meta-analysis)\n- security-patterns: OWASP, secrets management\n- documentation-guide: Docs sync automation\n- research-patterns: Web research methodology\n- engineering-standards: Code quality standards\n\n**Result:** Focus on features, everything else is automatic.",
   "author": {
     "name": "Andrew Kaszubski",
     "email": "",
@@ -11,11 +11,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/akaszubski/claude-code-bootstrap"
+    "url": "https://github.com/akaszubski/autonomous-dev"
   },
-  "homepage": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/plugins/autonomous-dev/README.md",
+  "homepage": "https://github.com/akaszubski/autonomous-dev/blob/main/plugins/autonomous-dev/README.md",
   "bugs": {
-    "url": "https://github.com/akaszubski/claude-code-bootstrap/issues"
+    "url": "https://github.com/akaszubski/autonomous-dev/issues"
   },
   "license": "MIT",
   "keywords": [
@@ -95,16 +95,16 @@
     ]
   },
   "documentation": {
-    "quickstart": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/plugins/autonomous-dev/QUICKSTART.md",
-    "architecture": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/plugins/autonomous-dev/ARCHITECTURE.md",
-    "troubleshooting": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/TROUBLESHOOTING.md",
-    "contributing": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/CONTRIBUTING.md"
+    "quickstart": "https://github.com/akaszubski/autonomous-dev/blob/main/plugins/autonomous-dev/QUICKSTART.md",
+    "architecture": "https://github.com/akaszubski/autonomous-dev/blob/main/plugins/autonomous-dev/ARCHITECTURE.md",
+    "troubleshooting": "https://github.com/akaszubski/autonomous-dev/blob/main/TROUBLESHOOTING.md",
+    "contributing": "https://github.com/akaszubski/autonomous-dev/blob/main/CONTRIBUTING.md"
   },
   "support": {
-    "issues": "https://github.com/akaszubski/claude-code-bootstrap/issues",
-    "discussions": "https://github.com/akaszubski/claude-code-bootstrap/discussions"
+    "issues": "https://github.com/akaszubski/autonomous-dev/issues",
+    "discussions": "https://github.com/akaszubski/autonomous-dev/discussions"
   },
-  "changelog": "https://github.com/akaszubski/claude-code-bootstrap/blob/main/CHANGELOG.md",
+  "changelog": "https://github.com/akaszubski/autonomous-dev/blob/main/CHANGELOG.md",
   "tags": [
     "agents",
     "skills",
@@ -124,7 +124,7 @@
   "metrics": {
     "agents": 8,
     "skills": 6,
-    "commands": 11,
+    "commands": 33,
     "hooks": 9
   }
 }

@@ -383,7 +383,7 @@ pytest -v
 
 ### 1. Plugin Installation
 ```bash
-/plugin marketplace add akaszubski/claude-code-bootstrap
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
