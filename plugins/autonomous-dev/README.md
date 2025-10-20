@@ -50,6 +50,27 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 | **research-patterns** | Research methodology, pattern discovery |
 | **engineering-standards** | Code review, git workflow, best practices |
 
+### ⚙️ Key Commands
+
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/setup` | Configure workflow (hooks, PROJECT.md, presets) | One-time |
+| `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 20-30min |
+| `/align-project` | Safely align project with PROJECT.md standards | 10-15min |
+| `/test [target]` | Run tests (pytest) or GenAI validation | Varies |
+| &nbsp;&nbsp;`/test unit` | Fast unit tests (pytest) | < 1s |
+| &nbsp;&nbsp;`/test integration` | Integration tests (pytest) | < 10s |
+| &nbsp;&nbsp;`/test uat` | User acceptance tests (pytest) | < 60s |
+| &nbsp;&nbsp;`/test uat-genai` | GenAI: UX quality & goal alignment | 2-5min |
+| &nbsp;&nbsp;`/test architecture` | GenAI: Architectural intent validation | 2-5min |
+| `/format` | Format code (black, isort, prettier) | < 5s |
+| `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
+| `/full-check` | Complete check (format + test + security) | < 60s |
+| `/commit` | Generate conventional commit message | < 5s |
+| `/uninstall` | Remove plugin files from project | < 5s |
+
+**See**: `commands/test.md` for complete testing guide
+
 ### ⚡ 8 Automated Hooks
 
 | Hook | Event | Action |
