@@ -1,0 +1,44 @@
+{
+  "marketplaceName": "Claude Code Autonomous Development",
+  "marketplaceDescription": "Production-ready plugins for autonomous development with PROJECT.md-first architecture",
+  "marketplaceAuthor": {
+    "name": "Andrew Kaszubski",
+    "url": "https://github.com/akaszubski"
+  },
+  "plugins": [
+    {
+      "name": "autonomous-dev",
+      "source": "plugins/autonomous-dev",
+      "version": "2.0.0",
+      "description": "PROJECT.md-first autonomous development plugin. 8-agent pipeline validates alignment before every feature. Includes orchestrator, model optimization (opus/sonnet/haiku), /align-project command, and optional GitHub integration.",
+      "category": "development",
+      "tags": [
+        "agents",
+        "skills",
+        "hooks",
+        "testing",
+        "documentation",
+        "security",
+        "python",
+        "javascript",
+        "typescript",
+        "autonomous",
+        "tdd",
+        "ci-cd"
+      ],
+      "author": {
+        "name": "Andrew Kaszubski",
+        "url": "https://github.com/akaszubski"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/akaszubski/claude-code-bootstrap"
+      },
+      "license": "MIT",
+      "requirements": {
+        "claude_code_version": ">=2.0.0",
+        "python": ">=3.11"
+      }
+    }
+  ]
+}

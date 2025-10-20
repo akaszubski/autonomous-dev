@@ -47,11 +47,12 @@ tools:
 [Sample invocations and expected outputs]
 ```
 
-**Testing**:
+**Testing** (for developers with symlink):
 ```bash
-# Test your agent
-./scripts/refresh-claude-settings.sh
-# Then use the agent in Claude
+# If you have symlink: changes are immediate
+# Otherwise: reinstall plugin
+/plugin uninstall autonomous-dev
+/plugin install autonomous-dev
 ```
 
 ---
@@ -162,8 +163,10 @@ if __name__ == "__main__":
 # Test hook locally
 python plugins/autonomous-dev/hooks/my_hook.py
 
-# Refresh settings
-./scripts/refresh-claude-settings.sh
+# With symlink: changes active immediately
+# Otherwise: reinstall plugin
+/plugin uninstall autonomous-dev
+/plugin install autonomous-dev
 ```
 
 ---
@@ -207,12 +210,9 @@ python plugins/autonomous-dev/hooks/my_hook.py
    vim plugins/autonomous-dev/agents/my-agent.md
    ```
 
-3. **Refresh Claude settings**
-   ```bash
-   ./scripts/refresh-claude-settings.sh
-   ```
-
-4. **Test your changes**
+3. **Test your changes** (symlink makes changes immediate!)
+   - With symlink: No refresh needed
+   - Without symlink: Reinstall plugin
    - Use your new agent/command/skill in Claude
    - Verify it works as expected
 

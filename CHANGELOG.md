@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- **marketplace.json** - Plugin marketplace distribution file for `/plugin marketplace add`
 - **/sync-docs command** - Synchronize documentation with code changes (invokes doc-master agent)
   - `--auto` flag: Auto-detect changes via git diff
   - `--organize` flag: Organize .md files into docs/
@@ -18,9 +19,22 @@ Versioning: [Semantic Versioning](https://semver.org/)
   - Links to doc-master agent for automated doc sync
 
 ### Changed
+- **Simplified installation workflow** - No more refresh scripts, just marketplace install/uninstall
+- **DEVELOPMENT.md** - Rewritten to focus on simple symlink workflow for developers
+- **Documentation cleanup** - Removed complex sync guides (SYNC-GUIDE.md, GLOBAL-COMMANDS-GUIDE.md, REFRESH-SETTINGS.md)
 - Updated PROJECT.md with team collaboration intent (co-defined outcomes, GitHub-first workflow)
 - Removed legacy `/auto-doc-update` command from global commands
 - Removed duplicate `/align-project-safe` from global commands (now `--safe` flag)
+
+### Removed
+- **4 sync scripts** - refresh-claude-settings.sh, check-sync-status.sh, find-changes.sh, sync-plugin.sh
+- **3 sync documentation files** - SYNC-GUIDE.md (550+ lines), GLOBAL-COMMANDS-GUIDE.md, REFRESH-SETTINGS.md
+- **DEVELOPMENT_WORKFLOW.md** - Duplicate of DEVELOPMENT.md
+- **Complex sync workflow** - Replaced with simple marketplace install/uninstall
+
+### Fixed
+- **Marketplace distribution** - Added marketplace.json for proper plugin discovery
+- **Documentation references** - Updated all docs to use marketplace workflow instead of refresh scripts
 
 ---
 

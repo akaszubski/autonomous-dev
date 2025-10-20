@@ -11,7 +11,8 @@
       "Task",
       "WebFetch(domain:www.thoughtworks.com)",
       "WebFetch(domain:medium.com)",
-      "WebFetch(domain:www.anthropic.com)"
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [
       "Read(~/.ssh/*)",

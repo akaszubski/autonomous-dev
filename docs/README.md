@@ -16,7 +16,6 @@ Complete documentation for the claude-code-bootstrap autonomous development plug
 
 ### User Guides
 - [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
-- [Development Workflow](DEVELOPMENT_WORKFLOW.md) - How to develop with the plugin
 - [Testing Guide](TESTING_GUIDE.md) - Testing practices and patterns
 - [Updates](UPDATES.md) - v2.0.0 release notes
 - [Migration Guide](MIGRATION.md) - Adopting plugin in existing projects
@@ -72,8 +71,7 @@ claude-code-bootstrap/
 │   ├── CODE_OF_CONDUCT.md      # Community standards
 │   ├── SECURITY.md             # Security policy
 │   ├── TROUBLESHOOTING.md      # Common issues
-│   ├── DEVELOPMENT.md          # Development setup
-│   ├── DEVELOPMENT_WORKFLOW.md # Workflow guide
+│   ├── DEVELOPMENT.md          # Development setup (simplified)
 │   ├── TESTING_GUIDE.md        # Testing practices
 │   ├── IMPLEMENTATION-STATUS.md # Feature tracking
 │   ├── UPDATES.md              # v2.0.0 release notes
@@ -112,9 +110,8 @@ claude-code-bootstrap/
 
 ### Using the Plugin
 1. [Plugin README](../plugins/autonomous-dev/README.md) - Complete usage guide
-2. [Development Workflow](DEVELOPMENT_WORKFLOW.md) - Daily workflow
-3. [Testing Guide](TESTING_GUIDE.md) - Running tests
-4. [Examples](../examples/) - Sample workflows
+2. [Testing Guide](TESTING_GUIDE.md) - Running tests
+3. [Examples](../examples/) - Sample workflows
 
 ### Commands Reference
 1. `/auto-implement` - Autonomous feature implementation
@@ -152,9 +149,9 @@ Start here:
 
 ### Active Users
 Reference:
-1. [Development Workflow](DEVELOPMENT_WORKFLOW.md)
+1. [Plugin README](../plugins/autonomous-dev/README.md)
 2. [Testing Guide](TESTING_GUIDE.md)
-3. [Plugin README](../plugins/autonomous-dev/README.md)
+3. [Development Guide](DEVELOPMENT.md) - For plugin developers
 
 ### Contributors
 Read:

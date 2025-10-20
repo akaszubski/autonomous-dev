@@ -51,11 +51,9 @@ Error: Command not found
 
 **Solutions**:
 ```bash
-# Run setup to copy files
-/setup
-
-# Or manually refresh
-./scripts/refresh-claude-settings.sh
+# Reinstall plugin
+/plugin uninstall autonomous-dev
+/plugin install autonomous-dev
 
 # Verify commands exist
 ls -la .claude/commands/
@@ -75,15 +73,12 @@ ls -la .claude/commands/
 
 **Solutions**:
 ```bash
-# Refresh settings
-./scripts/refresh-claude-settings.sh
+# Reinstall plugin
+/plugin uninstall autonomous-dev
+/plugin install autonomous-dev
 
-# Verify agents exist
+# Verify agents exist (should have 8 agents)
 ls -la .claude/agents/
-
-# Check for 8 agent files
-# orchestrator.md, planner.md, researcher.md, test-master.md,
-# implementer.md, reviewer.md, security-auditor.md, doc-master.md
 ```
 
 ---
@@ -125,8 +120,9 @@ cat .claude/settings.local.json
   }
 }
 
-# 4. Refresh
-./scripts/refresh-claude-settings.sh
+# 4. Reinstall if needed
+/plugin uninstall autonomous-dev
+/plugin install autonomous-dev
 ```
 
 ---
