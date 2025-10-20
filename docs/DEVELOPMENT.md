@@ -1,5 +1,7 @@
 # Development Guide - Keeping Everything in Sync
 
+**Last Updated**: 2025-10-20
+
 **How to develop the autonomous system while keeping repo ↔ local Claude installation in sync**
 
 ---

@@ -1,5 +1,7 @@
 # Security Policy
 
+**Last Updated**: 2025-10-20
+
 ## Supported Versions
 
 Currently supported versions for security updates:

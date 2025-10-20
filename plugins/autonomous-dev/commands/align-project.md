@@ -1,5 +1,5 @@
 ---
-description: Brings existing project into alignment with PROJECT.md standards. Analyzes structure, creates missing docs/tests, validates patterns. Run after installing plugin or before each sprint.
+description: Brings existing project into alignment with PROJECT.md standards. Analyzes structure, validates patterns, optionally syncs with GitHub. Supports safe mode and GitHub integration.
 ---
 
 # Align Project with PROJECT.md Standards
@@ -9,476 +9,451 @@ Ensures your project structure, documentation, tests, and code align with the st
 ## Usage
 
 ```bash
-# Basic alignment check
+# Basic alignment check (read-only analysis)
 /align-project
 
-# Auto-fix issues (commit changes after)
+# Auto-fix issues
 /align-project --fix
 
-# Dry run (show what would be fixed)
+# Safe mode: Interactive 3-phase (ask before changes)
+/align-project --safe
+
+# Sync with GitHub after alignment
+/align-project --sync-github
+
+# Combined: Safe mode + GitHub sync
+/align-project --safe --sync-github
+
+# Dry run (show what would change)
 /align-project --dry-run
 ```
 
-## When to Run
+## Flags
 
-### 1. After Installing Plugin in Existing Project ✅
+| Flag | Description |
+|------|-------------|
+| `--fix` | Auto-fix issues and commit changes |
+| `--safe` | Interactive mode - asks before each change |
+| `--sync-github` | Push commits + create GitHub issues/milestones |
+| `--dry-run` | Show what would change without making changes |
+
+---
+
+## Standard Mode (Default)
+
 ```bash
-cd my-existing-project
-/plugin install autonomous-dev
-# Plugin auto-runs: /align-project --fix
-# Review changes: git diff HEAD~1
-# Rollback if needed: git reset --hard HEAD~1
-```
-
-### 2. Before Starting New Sprint ✅
-```bash
-# End of Sprint 3
-git commit -am "feat: Sprint 3 complete"
-
-# Before Sprint 4
 /align-project
-# Result: Score 95/100, 2 minor issues auto-fixed
-# Update PROJECT.md for Sprint 4
-# Create GitHub Milestone "Sprint 4"
 ```
 
-### 3. Regular Maintenance (Weekly/Monthly)
+**What it does**:
+- ✅ Analyzes project structure
+- ✅ Validates against PROJECT.md
+- ✅ Reports issues
+- ❌ Makes NO changes (read-only)
+
+**Use when**: You want to see alignment score without changes
+
+---
+
+## Safe Mode (`--safe`)
+
 ```bash
-/align-project --fix
-# Keeps project aligned with PROJECT.md standards
+/align-project --safe
 ```
+
+**3-Phase Interactive Approach**:
+
+### Phase 1: Analyze (Read-Only)
+- Reads codebase
+- Identifies issues
+- Asks clarifying questions
+- Generates analysis report
+
+### Phase 2: Generate PROJECT.md (Draft)
+```bash
+# After Phase 1 questions answered
+/align-project --safe --generate-project-md
+```
+- Creates PROJECT.md from code
+- You review and edit
+- Saves as draft
+
+### Phase 3: Interactive Alignment
+```bash
+# After PROJECT.md finalized
+/align-project --safe --interactive
+```
+- **Asks before EACH change**
+- You approve/reject individually
+- Safe, reversible steps
+
+**Use when**: First-time setup or existing projects
+
+---
+
+## GitHub Sync (`--sync-github`)
+
+```bash
+/align-project --sync-github
+```
+
+**Requires**: `.env` with `GITHUB_TOKEN`
+
+**What it does**:
+1. ✅ Pushes commits to GitHub
+2. ✅ Creates GitHub Milestone from PROJECT.md CURRENT SPRINT
+3. ✅ Creates GitHub issues for Sprint goals
+4. ✅ Updates PROJECT.md with GitHub links
+5. ✅ Links issues to milestone
+
+**Example**:
+```bash
+# Local alignment complete
+/align-project --fix
+# Score: 100/100 ✅
+
+# Sync with GitHub
+/align-project --sync-github
+
+# Creates:
+# ✅ Milestone: "Sprint 6: Team Collaboration"
+# ✅ Issue #42: "PR automation"
+# ✅ Issue #43: "GitHub integration"
+# ✅ Issue #44: "Team onboarding"
+# ✅ Issue #45: "Code review integration"
+# ✅ Updates PROJECT.md with links
+```
+
+**Use when**: After local alignment, ready to sync with team
+
+---
 
 ## What Gets Checked
 
 ### 1. PROJECT.md Alignment ⭐ (MOST IMPORTANT)
 
-**Checks:**
+**Checks**:
 - ✅ PROJECT.md exists
-- ✅ Contains required sections (GOALS, SCOPE, CONSTRAINTS)
-- ✅ Current sprint is defined
-- ✅ Strategic direction is clear
+- ✅ Contains GOALS, SCOPE, CONSTRAINTS, CURRENT SPRINT
+- ✅ Strategic direction clear
 
-**Auto-fixes:**
-- Creates PROJECT.md from template if missing
+**Auto-fixes** (with `--fix`):
+- Creates PROJECT.md from template
 - Adds missing sections
 - Validates structure
 
-**Example:**
-```markdown
-Score: 0/100 - No PROJECT.md found
-
-Auto-fix:
-✅ Created PROJECT.md from template
-⏸️  Manual: Fill in GOALS, SCOPE, CONSTRAINTS for your project
-
-Score after fix: 40/100
-```
-
 ### 2. Folder Structure
 
-**Checks:**
-- ✅ Source code in `src/` or project-specific directory
-- ✅ Tests in `tests/` directory
-- ✅ Documentation in `docs/` directory
-- ✅ No `.md` files in root (except README, CHANGELOG, LICENSE, CLAUDE)
-- ✅ Proper .gitignore entries
+**Checks**:
+- ✅ Source in `src/`
+- ✅ Tests in `tests/`
+- ✅ Docs in `docs/`
+- ✅ Clean root (only essential .md files)
 
-**Auto-fixes:**
-- Moves scattered tests to `tests/`
-- Moves documentation to `docs/`
+**Auto-fixes**:
+- Moves files to correct locations
 - Creates missing directories
 - Updates .gitignore
 
-**Example:**
-```markdown
-Score: 60/100 - Folder structure issues
+### 3. Documentation
 
-Found:
-❌ tests/test_auth.py in wrong location
-❌ IMPLEMENTATION_NOTES.md in root
+**Checks**:
+- ✅ README.md exists
+- ✅ CHANGELOG.md exists
+- ✅ Docstrings on functions
 
-Auto-fix:
-✅ Moved tests/test_auth.py → tests/unit/test_auth.py
-✅ Moved IMPLEMENTATION_NOTES.md → docs/archive/
-✅ Created docs/ directory structure
+**Auto-fixes**:
+- Creates templates
+- Organizes docs/
 
-Score after fix: 85/100
-```
+### 4. Testing
 
-### 3. Documentation Completeness
+**Checks**:
+- ✅ Test framework configured
+- ✅ Tests organized (unit/integration/regression)
+- ✅ Coverage ≥ 80%
 
-**Checks:**
-- ✅ README.md exists with project overview
-- ✅ CHANGELOG.md exists and follows format
-- ✅ API documentation (if applicable)
-- ✅ Docstrings on public functions (Python)
-
-**Auto-fixes:**
-- Creates README.md from template
-- Creates CHANGELOG.md
-- Creates docs/ subdirectories
-
-**Example:**
-```markdown
-Score: 70/100 - Documentation gaps
-
-Found:
-❌ No CHANGELOG.md
-❌ API functions missing docstrings (12 functions)
-
-Auto-fix:
-✅ Created CHANGELOG.md with template
-⏸️  Manual: Add docstrings to functions (see list below)
-
-Score after fix: 85/100
-```
-
-### 4. Testing Infrastructure
-
-**Checks:**
-- ✅ Test framework configured (pytest/jest)
-- ✅ Coverage measurement enabled
-- ✅ Tests organized by type (unit, integration, regression)
-- ✅ Test coverage ≥ 80%
-
-**Auto-fixes:**
+**Auto-fixes**:
 - Creates test directories
-- Adds pytest/jest configuration
-- Creates sample test files
+- Adds pytest/jest config
 
-**Example:**
-```markdown
-Score: 50/100 - Testing gaps
+### 5. Security
 
-Found:
-❌ No pytest.ini configuration
-❌ Tests not organized (all in one directory)
-❌ Coverage: 45% (below 80% threshold)
-
-Auto-fix:
-✅ Created pytest.ini with coverage config
-✅ Organized tests: unit/, integration/, regression/
-⏸️  Manual: Write tests to reach 80% coverage (35% more needed)
-
-Score after fix: 70/100
-```
-
-### 5. Security Validation
-
-**Checks:**
-- ✅ No hardcoded secrets in code
+**Checks**:
+- ✅ No hardcoded secrets
 - ✅ .env in .gitignore
 - ✅ No API keys committed
-- ✅ Input validation on user-facing code
 
-**Auto-fixes:**
+**Auto-fixes**:
 - Adds .env to .gitignore
-- Creates .env.example template
-- Warns about hardcoded secrets (manual fix required)
-
-**Example:**
-```markdown
-Score: 30/100 - SECURITY ISSUES
-
-Found:
-🔴 CRITICAL: API key found in src/config.py line 42
-❌ .env not in .gitignore
-
-Auto-fix:
-✅ Added .env to .gitignore
-✅ Created .env.example template
-🔴 MANUAL REQUIRED: Remove API key from src/config.py
-   Move to .env: API_KEY=...
-
-Score after fix: 50/100 (critical issue blocks higher score)
-```
+- Creates .env.example
+- Warns about secrets (manual fix required)
 
 ### 6. Code Quality
 
-**Checks:**
-- ✅ Code formatted (black/prettier)
-- ✅ Type hints on functions (Python)
-- ✅ No code duplication
-- ✅ Functions under 50 lines
+**Checks**:
+- ✅ Code formatted
+- ✅ Type hints (Python)
+- ✅ No duplication
 
-**Auto-fixes:**
-- Runs formatters (black, isort, prettier)
-- Reports issues needing manual fix
+**Auto-fixes**:
+- Runs formatters (black, prettier)
 
-**Example:**
-```markdown
-Score: 75/100 - Code quality issues
+### 7. GitHub Integration (with `--sync-github`)
 
-Found:
-❌ Code not formatted (23 files)
-❌ 45 functions missing type hints
+**Checks**:
+- ✅ .env with GITHUB_TOKEN exists
+- ✅ GitHub Milestone exists for sprint
+- ✅ Issues linked to milestone
 
-Auto-fix:
-✅ Ran black + isort on Python files
-✅ Ran prettier on JS/TS files
-⏸️  Manual: Add type hints to functions (see list)
+**Auto-syncs**:
+- Creates milestone from PROJECT.md
+- Creates issues for Sprint goals
+- Links issues to milestone
+- Updates PROJECT.md with URLs
 
-Score after fix: 90/100
-```
+---
 
-### 7. GitHub Integration
-
-**Checks:**
-- ✅ .env file exists with GITHUB_TOKEN
-- ✅ GitHub Milestone exists for current sprint
-- ✅ Issues tagged with milestone
-
-**Auto-fixes:**
-- Creates .env.example
-- Links to setup guide
-
-**Example:**
-```markdown
-Score: 100/100 - GitHub integration optional
-
-Found:
-⚠️  No .env file (GitHub integration disabled)
-
-Suggestion:
-💡 To enable GitHub integration:
-   1. See: .claude/docs/GITHUB_AUTH_SETUP.md
-   2. Create .env with GITHUB_TOKEN
-   3. Create GitHub Milestone for current sprint
-
-Note: GitHub integration is optional
-Score: 100/100 (not required for alignment)
-```
-
-## Alignment Report Format
+## Alignment Report Example
 
 ```markdown
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROJECT ALIGNMENT REPORT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Overall Score: 75/100
+Overall Score: 85/100
 
-┌─────────────────────────────────────────────────────────┐
-│ ⭐ PROJECT.md Alignment (MOST IMPORTANT)                │
-│ Score: 90/100                                           │
-│ ✅ PROJECT.md exists                                    │
-│ ✅ Contains GOALS, SCOPE, CONSTRAINTS                   │
-│ ⏸️  Current sprint needs updating                      │
-└─────────────────────────────────────────────────────────┘
+⭐ PROJECT.md: 90/100
+📁 Folder Structure: 85/100
+📚 Documentation: 80/100
+🧪 Testing: 70/100
+🔒 Security: 95/100
+✨ Code Quality: 90/100
+🔗 GitHub: N/A (not configured)
 
-┌─────────────────────────────────────────────────────────┐
-│ 📁 Folder Structure                                     │
-│ Score: 85/100                                           │
-│ ✅ Source in src/                                       │
-│ ✅ Tests in tests/                                      │
-│ ✅ Docs in docs/                                        │
-│ ⏸️  2 .md files in root (should be in docs/)           │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ 📚 Documentation                                        │
-│ Score: 70/100                                           │
-│ ✅ README.md exists                                     │
-│ ✅ CHANGELOG.md exists                                  │
-│ ⏸️  12 functions missing docstrings                    │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ 🧪 Testing                                              │
-│ Score: 60/100                                           │
-│ ✅ pytest configured                                    │
-│ ⚠️  Coverage: 65% (need 80%)                           │
-│ ⏸️  Write 15% more tests                               │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ 🔒 Security                                             │
-│ Score: 95/100                                           │
-│ ✅ No hardcoded secrets                                 │
-│ ✅ .env in .gitignore                                   │
-│ ✅ Input validation present                             │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ ✨ Code Quality                                         │
-│ Score: 80/100                                           │
-│ ✅ Code formatted                                       │
-│ ⏸️  45 functions need type hints                       │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│ 🔗 GitHub Integration (Optional)                        │
-│ Score: N/A                                              │
-│ ⚠️  GitHub integration not configured                  │
-│ 💡 See: .claude/docs/GITHUB_AUTH_SETUP.md              │
-└─────────────────────────────────────────────────────────┘
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-AUTO-FIXED (8 issues):
+AUTO-FIXED (5 issues):
 ✅ Moved 2 .md files to docs/
-✅ Created missing test directories
-✅ Ran black + isort formatters
-✅ Added .env to .gitignore
-✅ Created .env.example template
 ✅ Created pytest.ini
-✅ Organized tests into unit/integration/regression
+✅ Ran formatters
+✅ Added .env to .gitignore
 ✅ Created CHANGELOG.md
 
-MANUAL ACTIONS NEEDED (3 issues):
-⏸️  1. Update PROJECT.md current sprint to "Sprint 4"
-⏸️  2. Add docstrings to 12 functions (see list below)
-⏸️  3. Write tests to reach 80% coverage (currently 65%)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-NEXT STEPS:
-1. Review changes: git diff HEAD~1
-2. Complete manual actions (listed above)
-3. Re-run: /align-project (should reach 100/100)
-4. If satisfied with changes: git push
-5. If not satisfied: git reset --hard HEAD~1 (rollback)
+MANUAL ACTIONS NEEDED (2):
+⏸️  Write tests to reach 80% coverage (currently 70%)
+⏸️  Add docstrings to 8 functions
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-## Git Safety (Rollback Protection)
+---
 
-**Before making changes**, /align-project creates a checkpoint:
+## Common Workflows
 
+### Workflow 1: New Plugin Installation
 ```bash
-# Checkpoint commit
-git add -A
-git commit -m "checkpoint: before align-project"
-
-# Make alignment changes
-# ... auto-fixes ...
-
-# Commit alignment changes
-git add -A
-git commit -m "chore: align project with PROJECT.md standards"
-```
-
-**To rollback:**
-```bash
-# View what changed
-git diff HEAD~1
-
-# Rollback if not satisfied
-git reset --hard HEAD~1  # Removes alignment changes
-git reset --hard HEAD~2  # Removes checkpoint too
-```
-
-## Scoring System
-
-| Score | Meaning | Action |
-|-------|---------|--------|
-| 90-100 | ✅ Excellent alignment | Ready for autonomous development |
-| 70-89 | ⚠️ Good, minor issues | Fix manual actions, re-run |
-| 50-69 | ⚠️ Needs work | Address issues, may take time |
-| 0-49 | 🔴 Poor alignment | Significant work needed |
-
-## Auto-Fix vs Manual
-
-### Auto-Fixed (Immediate)
-- ✅ Folder structure (move files)
-- ✅ Create missing directories
-- ✅ Run formatters
-- ✅ Create template files (PROJECT.md, CHANGELOG.md)
-- ✅ Update .gitignore
-- ✅ Organize tests
-
-### Manual Required
-- ⏸️ Write missing tests
-- ⏸️ Add docstrings
-- ⏸️ Remove hardcoded secrets
-- ⏸️ Fill in PROJECT.md content
-- ⏸️ Create GitHub Milestones
-- ⏸️ Set up .env authentication
-
-## Example Workflows
-
-### Scenario 1: New Plugin Installation
-```bash
-cd my-existing-api
+# Install plugin
+cd my-project
 /plugin install autonomous-dev
 
-# Plugin auto-runs:
+# Safe first-time alignment
+/align-project --safe
+
+# Answer questions
+# Review proposed changes
+# Approve changes
+
+# Sync with GitHub
+/align-project --sync-github
+
+# Result: Project aligned + GitHub synced
+```
+
+### Workflow 2: Before Sprint
+```bash
+# Check alignment
+/align-project
+
+# Fix issues
 /align-project --fix
 
-# Result:
-Score: 65/100 → 85/100 (after auto-fixes)
-Manual actions needed: 3
+# Update PROJECT.md for new sprint
+vim .claude/PROJECT.md
 
-# Complete manual actions
-vim PROJECT.md  # Fill in goals
-# Add missing tests
-# Add docstrings
+# Sync new sprint with GitHub
+/align-project --sync-github
 
-# Re-run
-/align-project
-
-# Result:
-Score: 100/100 ✅
-
-# Ready!
-git push
+# Result: New sprint milestone and issues created
 ```
 
-### Scenario 2: Before Sprint
+### Workflow 3: Quick Check
 ```bash
-# End Sprint 3
-git commit -am "feat: Sprint 3 complete"
-
-# Align before Sprint 4
+# Just check score
 /align-project
 
-# Result:
-Score: 95/100
-Issues: PROJECT.md current sprint outdated
-
-# Fix
-vim PROJECT.md  # Update to Sprint 4
-
-# Re-run
-/align-project
-
-# Result:
-Score: 100/100 ✅
-
-# Create Sprint 4 Milestone
-gh api repos/owner/repo/milestones -f title="Sprint 4"
-
-# Start Sprint 4
-"implement first feature from Sprint 4"
+# Result: Score 95/100 ✅
 ```
 
-### Scenario 3: Messy Existing Project
+### Workflow 4: Dry Run
 ```bash
-cd very-messy-project
-# Files everywhere, no docs, tests failing
+# See what would change
+/align-project --dry-run
 
-/plugin install autonomous-dev
+# Review proposed changes
+# Decide to apply or not
 
-# Result:
-Score: 35/100
-Critical issues: 5
-Auto-fixes: 12
-Manual actions: 8
-
-# Review changes
-git diff HEAD~1
-
-# Keep changes
-git push
-
-# Work through manual actions (over time)
-# Each fix improves score
-
-# Week 1: 35 → 60
-# Week 2: 60 → 80
-# Week 3: 80 → 100 ✅
+# Apply if good
+/align-project --fix
 ```
+
+---
+
+## GitHub Sync Details
+
+When using `--sync-github`, here's what happens:
+
+### Step 1: Read PROJECT.md
+```markdown
+## CURRENT SPRINT
+
+**Sprint Name**: Sprint 6: Team Collaboration
+**Duration**: 2025-10-20 → 2025-11-03
+**Status**: In Progress
+
+**Sprint Goals**:
+1. PR automation
+2. GitHub integration
+3. Team onboarding
+4. Code review integration
+```
+
+### Step 2: Create GitHub Milestone
+```bash
+gh api repos/OWNER/REPO/milestones \
+  -f title="Sprint 6: Team Collaboration" \
+  -f due_on="2025-11-03T00:00:00Z" \
+  -f description="Focus on team collaboration features"
+```
+
+### Step 3: Create GitHub Issues
+```bash
+# For each Sprint Goal
+gh issue create \
+  --title "Implement PR automation" \
+  --body "Auto-create PRs, link to issues, request reviews" \
+  --milestone "Sprint 6" \
+  --label "enhancement"
+
+# Repeat for each goal
+```
+
+### Step 4: Update PROJECT.md
+```markdown
+## CURRENT SPRINT
+
+**Sprint Name**: Sprint 6: Team Collaboration
+**GitHub Milestone**: https://github.com/owner/repo/milestone/6
+**Duration**: 2025-10-20 → 2025-11-03
+
+**Sprint Goals**:
+1. 🚧 PR automation (#42)
+2. ⏸️ GitHub integration (#43)
+3. ⏸️ Team onboarding (#44)
+4. ⏸️ Code review integration (#45)
+```
+
+### Step 5: Commit Changes
+```bash
+git add .claude/PROJECT.md
+git commit -m "chore: sync Sprint 6 with GitHub"
+git push origin main
+```
+
+---
+
+## Safe Mode Features
+
+### 1. Smart Diff View
+Shows **before/after** with risk scoring:
+```markdown
+CHANGE #1: Move tests/old/test_auth.py → tests/unit/test_auth.py
+Risk: LOW ✅
+Impact: Organization only, no code changes
+
+Approve? (y/n/s=skip)
+```
+
+### 2. Dry Run with Stash
+```bash
+# Test changes without committing
+/align-project --safe --dry-run
+
+# Uses git stash to simulate
+# Rolls back after preview
+```
+
+### 3. Pattern Learning
+```markdown
+You chose: "Move old files to docs/archive/"
+
+Remember this pattern? (y/n)
+> y
+
+✅ Will apply same pattern to similar files:
+   - lib/old_utils.py → docs/archive/
+   - config/deprecated.yaml → docs/archive/
+```
+
+### 4. Conflict Resolution
+```markdown
+CONFLICT: PROJECT.md says "Sprint 2" but GitHub shows "Sprint 4"
+
+Options:
+A) Update PROJECT.md to Sprint 4 (trust GitHub)
+B) Update GitHub to Sprint 2 (trust PROJECT.md)
+C) Manual resolution (I'll help you decide)
+
+Choose: _
+```
+
+### 5. Progressive Enhancement
+```markdown
+Quick Wins (< 5 min):
+✅ Move 3 .md files to docs/
+✅ Run formatters
+✅ Create .gitignore entries
+
+Deep Work (> 30 min):
+⏸️  Write missing tests (15 tests needed)
+⏸️  Add docstrings (42 functions)
+⏸️  Refactor duplicated code (8 instances)
+
+Apply quick wins now, deep work later? (y/n)
+```
+
+### 6. Undo Stack
+```markdown
+Changes made:
+1. Moved files (5 files)
+2. Created pytest.ini
+3. Ran black formatter
+
+Undo last change? (u)
+Undo all changes? (U)
+Keep all changes? (y)
+```
+
+### 7. Simulation Mode
+```bash
+# Risk-free testing
+/align-project --safe --simulate
+
+# Creates isolated branch
+# Makes all changes
+# Shows results
+# Deletes branch (no permanent changes)
+```
+
+---
 
 ## Configuration
 
@@ -489,25 +464,124 @@ Add to `.claude/settings.json`:
   "commands": {
     "align-project": {
       "auto_run_after_install": true,
-      "strict_mode": false,
-      "min_score": 80
+      "default_mode": "safe",
+      "min_score": 80,
+      "github_sync_auto": false
     }
   }
 }
 ```
 
-- `auto_run_after_install`: Run after plugin install (recommended: true)
-- `strict_mode`: Require 100/100 score (recommended: false)
-- `min_score`: Minimum acceptable score (recommended: 80)
+---
 
-## Related Commands
+## Rollback
 
-- `/format` - Format code only
-- `/test` - Run tests only
-- `/security-scan` - Security check only
-- `/full-check` - Format + test + security
-- `/auto-implement` - Start autonomous development
+All modes create git commits for safety:
+
+```bash
+# View changes
+git diff HEAD~1
+
+# Rollback if needed
+git reset --hard HEAD~1
+
+# Or use undo stack (in safe mode)
+```
 
 ---
 
-**Philosophy**: PROJECT.md defines standards. /align-project brings reality into alignment with those standards.
+## Examples
+
+### Example 1: First-Time Safe Alignment
+```bash
+cd legacy-project
+
+# Safe mode asks questions
+/align-project --safe
+
+# Questions answered, ready to apply
+/align-project --safe --interactive
+
+# Approve each change
+# Changes applied safely
+
+# Sync with GitHub
+/align-project --sync-github
+```
+
+### Example 2: Quick Fix + GitHub Sync
+```bash
+# Fix and sync in one command
+/align-project --fix --sync-github
+
+# Result:
+# ✅ Local alignment: 100/100
+# ✅ GitHub milestone created
+# ✅ GitHub issues created
+# ✅ PROJECT.md updated with links
+```
+
+### Example 3: Sprint Transition
+```bash
+# End Sprint 5
+git commit -am "feat: Sprint 5 complete"
+
+# Update PROJECT.md for Sprint 6
+vim .claude/PROJECT.md
+
+# Sync Sprint 6 with GitHub
+/align-project --sync-github
+
+# Result:
+# ✅ Sprint 6 milestone created
+# ✅ Sprint 6 issues created from goals
+# ✅ Ready to start development
+```
+
+---
+
+## Troubleshooting
+
+### "GitHub sync failed"
+
+Check:
+1. `.env` file exists with `GITHUB_TOKEN`
+2. Token has `repo` scope
+3. Network connection
+4. GitHub API rate limit
+
+```bash
+# Test GitHub auth
+gh auth status
+
+# Check token scopes
+gh auth token
+```
+
+### "Conflicts in PROJECT.md"
+
+Safe mode will detect and ask:
+```markdown
+PROJECT.md has uncommitted changes.
+
+Options:
+A) Commit changes first
+B) Stash changes
+C) Cancel alignment
+
+Choose: _
+```
+
+---
+
+## Related Commands
+
+- `/format` - Code formatting only
+- `/test` - Testing only
+- `/security-scan` - Security only
+- `/full-check` - Format + test + security
+- `/auto-implement` - Start development
+
+---
+
+**Philosophy**: PROJECT.md defines standards. `/align-project` brings reality into alignment with those standards. `--safe` prevents breaking things. `--sync-github` connects team.

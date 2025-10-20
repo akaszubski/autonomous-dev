@@ -1,5 +1,7 @@
 # Troubleshooting Guide
 
+**Last Updated**: 2025-10-20
+
 Common issues and solutions for the autonomous-dev plugin.
 
 ---

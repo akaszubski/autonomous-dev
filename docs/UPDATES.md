@@ -1,7 +1,53 @@
-# System Updates - Best Practices Implementation
+# System Updates - v2.0.0 Release
 
-**Date**: 2025-10-19
-**Version**: Best Practices v1.0
+**Date**: 2025-10-20
+**Version**: v2.0.0 (PROJECT.md-First Architecture)
+
+---
+
+## v2.0.0 Updates (2025-10-20)
+
+### Major Changes
+
+#### 🎯 orchestrator Agent (NEW)
+**PRIMARY MISSION**: Validate PROJECT.md alignment before ANY work
+
+- Master coordinator for all development work
+- Validates GOALS, SCOPE, and CONSTRAINTS alignment
+- Optional GitHub Milestone integration
+- Coordinates 7-agent development pipeline
+- Prevents scope creep at team level
+
+#### 📊 Model Optimization
+**40% cost reduction on fast tasks**:
+- **opus** → planner (complex architecture planning)
+- **sonnet** → researcher, test-master, implementer, reviewer (balanced)
+- **haiku** → security-auditor, doc-master (fast scanning/docs)
+
+#### ⭐ Team Collaboration Focus
+- PROJECT.md as shared contract (human + AI developers)
+- GitHub-first workflow (Issues → Branches → PRs → Reviews)
+- Co-defined outcomes vs AI working alone
+- Enhanced for distributed team collaboration
+
+#### 🔧 New Commands
+- `/align-project` - Standard alignment validation
+- `/align-project-safe` - 3-phase safe alignment with 7 advanced features
+
+#### 📚 Enhanced Documentation
+- REFERENCES.md - 30+ reference URLs
+- GITHUB_AUTH_SETUP.md - Complete GitHub integration setup
+- Testing infrastructure - 30 automated tests
+- PROJECT.md template - Generic, domain-agnostic
+
+### Architecture Updates
+- **8-agent pipeline** (was 7) - Added orchestrator
+- **Model assignments** - All agents have optimal model specified
+- **Priority hierarchy** - PROJECT.md (PRIMARY) → GitHub (SECONDARY) → Alignment (SUPPORTING)
+
+---
+
+## v1.0 Foundation (2025-10-19)
 
 ---
 
@@ -517,6 +563,6 @@ grep "researcher" docs/sessions/*.md
 
 ---
 
-**Last Updated**: 2025-10-19
-**Version**: Best Practices v1.0
+**Last Updated**: 2025-10-20
+**Version**: v2.0.0 (PROJECT.md-First Architecture)
 **Status**: Production Ready ✅

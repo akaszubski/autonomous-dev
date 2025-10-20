@@ -21,7 +21,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - **orchestrator agent** - Master coordinator with PRIMARY MISSION to validate PROJECT.md
 - **Model optimization** - opus (planner), sonnet (balanced), haiku (fast tasks) for 40% cost reduction
 - **/align-project command** - Standard alignment validation and scoring
-- **/align-project-safe command** - 3-phase safe alignment (Analyze → Generate → Interactive) with 7 advanced features:
+- **/align-project --safe flag** - 3-phase safe alignment (Analyze → Generate → Interactive) with 7 advanced features:
   - Smart Diff View with risk scoring
   - Dry Run with Stash for safe testing
   - Pattern Learning from user decisions

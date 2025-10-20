@@ -1,5 +1,7 @@
 # Code of Conduct
 
+**Last Updated**: 2025-10-20
+
 ## Our Pledge
 
 We are committed to providing a welcoming and inclusive environment for all contributors, regardless of background or identity.

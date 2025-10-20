@@ -1,5 +1,7 @@
 # Contributing to Claude Code Bootstrap
 
+**Last Updated**: 2025-10-20
+
 Thank you for your interest in contributing! This plugin is designed to be extensible and community-driven.
 
 ---

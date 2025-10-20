@@ -4,6 +4,9 @@
 > Users install with `/plugin install autonomous-dev` (see Quick Start below)
 > For post-installation docs, see the `INSTALL_TEMPLATE.md` created in your project
 
+**Last Updated**: 2025-10-20
+**Version**: v2.0.0
+
 **Production-ready plugins for autonomous development**
 
 🚀 **One-command install** • 🤖 **Orchestrator-driven** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
@@ -227,8 +230,12 @@ cd my-express-api
 
 | Guide | Purpose |
 |-------|---------|
-| **README.md** (this file) | Quick start & overview |
+| **[QUICKSTART.md](QUICKSTART.md)** | Get running in 2 minutes |
+| **README.md** (this file) | Project overview |
 | **[plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md)** | Complete plugin documentation |
+| **[docs/README.md](docs/README.md)** | Documentation index |
+| **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Common issues & solutions |
+| **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** | How to contribute |
 
 ---
 
@@ -312,7 +319,7 @@ Powered by [Claude Code 2.0](https://claude.com/claude-code)
 /commit          # Smart commit with conventional message
 ```
 
-**See**: [HYBRID_ARCHITECTURE_SUMMARY.md](HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
+**See**: [HYBRID_ARCHITECTURE_SUMMARY.md](docs/architecture/HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
 
 ### ⭐ PROJECT.md-First Architecture (MOST IMPORTANT)
 
@@ -444,7 +451,7 @@ Optional Claude Desktop enhancement:
 ### 📚 Documentation
 
 - **CLAUDE.md** - Project-specific instructions (streamlined)
-- **HYBRID_ARCHITECTURE_SUMMARY.md** - Complete hybrid architecture reference
+- **[docs/architecture/HYBRID_ARCHITECTURE_SUMMARY.md](docs/architecture/HYBRID_ARCHITECTURE_SUMMARY.md)** - Complete hybrid architecture reference
 - **docs/UPDATES.md** - Complete update changelog
 - **.mcp/TESTING.md** - MCP server testing guide
 
