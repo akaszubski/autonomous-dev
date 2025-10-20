@@ -14,6 +14,29 @@
 
 ---
 
+## Quick Refresh (TL;DR)
+
+**After making changes to agents, commands, skills, or hooks**:
+
+```bash
+# From repo root
+./scripts/refresh-claude-settings.sh
+```
+
+**What it does**:
+- Syncs agents, commands, skills, hooks from `plugins/autonomous-dev/` to `.claude/`
+- Verifies plugin symlink exists
+- Changes active immediately (no restart needed)
+
+**When to run**:
+- After editing agent definitions
+- After modifying commands
+- After updating skills
+- After changing hooks
+- Before testing changes in Claude
+
+---
+
 ## Solution 1: Symlink (Recommended) ⭐
 
 **One-time setup** - Create symlink so repo and Claude share the same files:

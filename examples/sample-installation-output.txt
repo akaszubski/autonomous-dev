@@ -1,0 +1,156 @@
+Sample Installation Output for autonomous-dev Plugin
+=====================================================
+
+$ /plugin install autonomous-dev
+✓ Found plugin: autonomous-dev (v2.0.0)
+✓ Downloading from: https://github.com/akaszubski/claude-code-bootstrap
+✓ Installing components...
+  - Agents: 8 files
+  - Skills: 6 directories
+  - Commands: 11 files
+  - Hooks: 9 files
+  - Scripts: 3 files
+  - Templates: 2 files
+✓ Plugin installed successfully!
+
+Next step: Run /setup to configure your project
+
+---
+
+$ /setup
+Setting up autonomous-dev for your project...
+
+✓ Creating .claude/ directory
+✓ Copying agents (8 files):
+  - orchestrator.md
+  - planner.md
+  - researcher.md
+  - test-master.md
+  - implementer.md
+  - reviewer.md
+  - security-auditor.md
+  - doc-master.md
+
+✓ Copying commands (11 files):
+  - test.md
+  - commit.md
+  - format.md
+  - security-scan.md
+  - full-check.md
+  - auto-implement.md
+  - align-project.md
+  - align-project-safe.md
+  (and 3 more...)
+
+✓ Copying skills (6 directories):
+  - python-standards
+  - testing-guide
+  - security-patterns
+  - documentation-guide
+  - research-patterns
+  - engineering-standards
+
+✓ Copying hooks (9 files):
+  - auto_format.py
+  - auto_test.py
+  - auto_align_system.py
+  - auto_enforce_coverage.py
+  - security_scan.py
+  - auto_generate_tests.py
+  - auto_tdd_enforcer.py
+  - auto_add_to_regression.py
+  - auto_update_docs.py
+
+✓ Creating PROJECT.md template
+✓ Creating settings.local.json
+
+Setup complete! ✓
+
+Your project now has:
+  ✓ 8 autonomous agents
+  ✓ 11 slash commands
+  ✓ 6 knowledge skills
+  ✓ 9 automation hooks
+
+Next steps:
+1. Edit .claude/PROJECT.md (define your goals and scope)
+2. Configure .claude/settings.local.json (optional)
+3. Start coding! Everything else is automatic.
+
+Try these commands:
+  /test          - Run tests
+  /format        - Format code
+  /security-scan - Security audit
+  /full-check    - Complete quality check
+  /align-project - Align existing project
+
+---
+
+File Structure After Installation:
+
+.claude/
+├── PROJECT.md                 # Your project goals (EDIT THIS!)
+├── settings.local.json        # Plugin settings
+├── agents/                    # 8 autonomous agents
+│   ├── orchestrator.md
+│   ├── planner.md
+│   ├── researcher.md
+│   ├── test-master.md
+│   ├── implementer.md
+│   ├── reviewer.md
+│   ├── security-auditor.md
+│   └── doc-master.md
+├── commands/                  # 11 slash commands
+│   ├── test.md
+│   ├── commit.md
+│   ├── format.md
+│   ├── security-scan.md
+│   ├── full-check.md
+│   ├── auto-implement.md
+│   ├── align-project.md
+│   └── align-project-safe.md
+│   └── ... (3 more)
+├── skills/                    # 6 knowledge skills
+│   ├── python-standards/
+│   ├── testing-guide/
+│   ├── security-patterns/
+│   ├── documentation-guide/
+│   ├── research-patterns/
+│   └── engineering-standards/
+├── hooks/                     # 9 automation hooks
+│   ├── auto_format.py
+│   ├── auto_test.py
+│   ├── auto_align_system.py
+│   ├── auto_enforce_coverage.py
+│   ├── security_scan.py
+│   ├── auto_generate_tests.py
+│   ├── auto_tdd_enforcer.py
+│   ├── auto_add_to_regression.py
+│   └── auto_update_docs.py
+└── templates/
+    └── ... (project templates)
+
+---
+
+Testing Installation:
+
+$ /test unit
+Running unit tests...
+✓ pytest passed (83% coverage)
+✓ Coverage threshold met (80% required)
+
+$ /format
+Formatting code...
+✓ black: 5 files formatted
+✓ isort: 5 files organized
+✓ All files formatted successfully
+
+$ /security-scan
+Running security scan...
+✓ No secrets detected
+✓ No known vulnerabilities
+✓ Security scan passed
+
+---
+
+Everything works! You're ready to develop autonomously. 🚀
