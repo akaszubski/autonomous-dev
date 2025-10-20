@@ -5,53 +5,86 @@ Get up and running in 3 minutes!
 ## Installation
 
 ```bash
-# Add marketplace
+# 1. Add marketplace
 /plugin marketplace add akaszubski/autonomous-dev
 
-# Install plugin
+# 2. Install plugin
 /plugin install autonomous-dev
+
+# 3. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-## Setup (Choose One)
+**Done!** All commands work immediately: `/test`, `/format`, `/commit`, etc.
+
+### Updating the Plugin
+
+```bash
+# 1. Uninstall
+/plugin uninstall autonomous-dev
+
+# 2. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 3. Reinstall
+/plugin install autonomous-dev
+
+# 4. Exit and restart again
+```
+
+**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
+
+---
+
+## Optional Setup (Advanced)
+
+**Most users don't need this!** All commands work immediately after installation.
+
+**Only run setup if you want automatic hooks** (auto-format on save, auto-test on commit):
 
 ### Option 1: Interactive Setup (Recommended)
 
-Run the setup wizard:
 ```bash
-/setup
+python plugins/autonomous-dev/scripts/setup.py
 ```
 
-This will guide you through:
-1. Copying hooks and templates from plugin to project
-2. Choosing workflow (slash commands vs automatic hooks)
-3. Setting up PROJECT.md
-4. Configuring GitHub (optional)
+This wizard helps you:
+1. Enable automatic formatting when you save files
+2. Enable automatic testing when you commit
+3. Create PROJECT.md from template
+4. Configure GitHub integration (.env file)
+5. **Asks before overwriting any existing files** (safe!)
 
 ### Option 2: Automated Setup
 
-**For solo developers** (slash commands):
+**For solo developers** (slash commands only - no setup needed!):
 ```bash
-python .claude/scripts/setup.py --preset=solo
+# Just use the commands - no setup required
+/format
+/test
+/commit
 ```
 
 **For teams** (automatic hooks + GitHub):
 ```bash
-python .claude/scripts/setup.py --preset=team
+python plugins/autonomous-dev/scripts/setup.py --preset=team
 ```
 
 **Power users** (everything enabled):
 ```bash
-python .claude/scripts/setup.py --preset=power-user
+python plugins/autonomous-dev/scripts/setup.py --preset=power-user
 ```
 
 **Custom automated setup**:
 ```bash
 # Slash commands + PROJECT.md
-python .claude/scripts/setup.py --auto --hooks=slash-commands --project-md
+python plugins/autonomous-dev/scripts/setup.py --auto --hooks=slash-commands --project-md
 
 # Automatic hooks + PROJECT.md + GitHub
-python .claude/scripts/setup.py --auto --hooks=automatic --project-md --github
+python plugins/autonomous-dev/scripts/setup.py --auto --hooks=automatic --project-md --github
 ```
+
+**Note**: The setup script always asks before overwriting existing files unless you use `--auto` mode.
 
 ## First Feature
 
@@ -203,10 +236,37 @@ rm .claude/settings.local.json
 
 ## Troubleshooting
 
-### "Hooks not running"
+### "Commands not available after install"
+
+**Solution:** Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
+
+After restarting, test by typing:
+```bash
+/test
+/format
+/commit
+```
+
+All 33 commands should appear in autocomplete.
+
+### Still not working?
+
+```bash
+# 1. Check if plugin is installed
+ls ~/.claude/plugins/autonomous-dev
+
+# 2. Reinstall completely
+/plugin uninstall autonomous-dev
+# Exit and restart Claude Code
+/plugin install autonomous-dev
+# Exit and restart Claude Code again
+```
+
+### "Hooks not running" (if you ran the optional setup)
+
 1. Check: `.claude/settings.local.json` exists
 2. Check: Python 3.11+ installed
-3. Try: `/setup` to reconfigure
+3. Try: Re-run `python plugins/autonomous-dev/scripts/setup.py`
 
 ### "Tests failing"
 1. Check: Test framework installed (pytest/jest)

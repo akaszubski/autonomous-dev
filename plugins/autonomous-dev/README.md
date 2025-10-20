@@ -13,14 +13,49 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 # 2. Install the plugin
 /plugin install autonomous-dev
 
-# 3. Run setup (copies hooks and templates, configures workflow)
-/setup
+# 3. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
+
+**Done!** All commands immediately work.
 
 **What gets installed:**
 - ✅ Agents & Skills: Auto-active immediately
-- ✅ Commands: Available immediately (`/align-project`, `/auto-implement`, etc.)
-- ⚠️ Hooks: Copied but require setup (opt-in for safety)
+- ✅ Commands: All 33 commands available (`/test`, `/format`, `/commit`, etc.)
+- ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
+
+### Optional Setup Wizard
+
+**Only run if you want automatic hooks** (auto-format on save, auto-test on commit):
+
+```bash
+python plugins/autonomous-dev/scripts/setup.py
+```
+
+This wizard helps you:
+- Enable automatic formatting when you save files
+- Create PROJECT.md from template
+- Configure GitHub integration (.env file)
+- **Asks before overwriting any existing files** (safe!)
+
+**Most users don't need this** - just use slash commands instead.
+
+### Updating
+
+```bash
+# 1. Uninstall
+/plugin uninstall autonomous-dev
+
+# 2. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 3. Reinstall
+/plugin install autonomous-dev
+
+# 4. Exit and restart again
+```
+
+**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
 
 **See**: [QUICKSTART.md](QUICKSTART.md) for complete walkthrough
 

@@ -17,17 +17,49 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 
 # 2. Install plugin
 /plugin install autonomous-dev
+
+# 3. Exit and restart Claude Code (required!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** Claude now autonomously handles formatting, testing, documentation, and security.
+**Done!** All 33 commands now work: `/test`, `/format`, `/commit`, etc.
+
+Claude now autonomously handles formatting, testing, documentation, and security.
+
+### Optional Setup (Advanced)
+
+**Only needed if you want automatic hooks** (auto-format on save, auto-test on commit):
+
+```bash
+# Run the setup wizard
+python plugins/autonomous-dev/scripts/setup.py
+
+# This wizard helps you:
+# - Enable automatic formatting on file save
+# - Create PROJECT.md from template
+# - Configure GitHub integration (.env file)
+# - Asks before overwriting any existing files
+```
+
+**Note**: Most users don't need this! Use slash commands like `/format`, `/test` instead.
 
 ### Updating
 
 ```bash
-# Get latest version
+# 1. Uninstall current version
 /plugin uninstall autonomous-dev
+
+# 2. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 3. Reopen Claude Code and reinstall
 /plugin install autonomous-dev
+
+# 4. Exit and restart again
+# Done!
 ```
+
+**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
 
 ---
 
@@ -224,6 +256,38 @@ cd my-fastapi-project
 
 ---
 
+## Troubleshooting Installation
+
+### Commands not available after `/plugin install`
+
+**Solution:** Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
+
+Claude Code needs a restart to load the plugin commands. After restarting:
+
+```bash
+# Test by typing:
+/test
+/format
+/commit
+
+# All 33 commands should appear in autocomplete
+```
+
+### Still not working after restart?
+
+```bash
+# 1. Check if plugin is installed
+ls ~/.claude/plugins/autonomous-dev
+
+# 2. Reinstall completely
+/plugin uninstall autonomous-dev
+# Exit and restart Claude Code
+/plugin install autonomous-dev
+# Exit and restart Claude Code again
+```
+
+---
+
 ## FAQ
 
 **Q: Will it overwrite my existing code?**
@@ -235,11 +299,21 @@ A: Yes! After installation, edit files in `.claude/` as needed.
 **Q: Does this send my code anywhere?**
 A: No. Everything runs locally. Hooks are Python scripts on your machine.
 
+**Q: Do I need to run setup after installing?**
+A: **No!** All commands work immediately after install + restart. Setup is only for advanced users who want automatic hooks (auto-format on save).
+
 **Q: How do I uninstall?**
-A: `/plugin uninstall autonomous-dev`
+A: `/plugin uninstall autonomous-dev` then **exit and restart Claude Code**
 
 **Q: How do I update?**
-A: Uninstall then reinstall: `/plugin uninstall autonomous-dev` → `/plugin install autonomous-dev`
+A:
+1. `/plugin uninstall autonomous-dev`
+2. **Exit and restart Claude Code (required!)**
+3. `/plugin install autonomous-dev`
+4. **Exit and restart again**
+
+**Q: Why do I need to restart Claude Code after installing/uninstalling?**
+A: Claude Code caches plugin files. Restarting ensures changes take effect and prevents conflicts between versions.
 
 **Q: Is this beginner-friendly?**
 A: Yes! Just install and start coding. Claude handles the rest.

@@ -11,7 +11,13 @@
 
 **Core Plugin**: `autonomous-dev` - Agents, skills, and hooks for 10x faster development
 
-**Install**: `/plugin install autonomous-dev`
+**Install**:
+```bash
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+# Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
+# Done! All commands work: /test, /format, /commit, etc.
+```
 
 ---
 
@@ -177,8 +183,35 @@ For enhanced Claude Desktop integration, configure the MCP server:
 
 ### Installation
 ```bash
+# 1. Add marketplace
 /plugin marketplace add akaszubski/autonomous-dev
+
+# 2. Install plugin
 /plugin install autonomous-dev
+
+# 3. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+```
+
+**Done!** All commands immediately work.
+
+### Optional Setup
+```bash
+# Only if you want automatic hooks (auto-format on save, etc.)
+python plugins/autonomous-dev/scripts/setup.py
+```
+
+### Updating
+```bash
+# 1. Uninstall
+/plugin uninstall autonomous-dev
+
+# 2. Exit and restart Claude Code (REQUIRED!)
+
+# 3. Reinstall
+/plugin install autonomous-dev
+
+# 4. Exit and restart again
 ```
 
 ### Daily Workflow
