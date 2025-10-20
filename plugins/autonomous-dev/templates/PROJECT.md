@@ -288,6 +288,54 @@ def create_user(email: str) -> User:
 
 ## ARCHITECTURE
 
+### Standard Project Structure
+
+**The autonomous-dev automations expect and enforce this structure:**
+
+```
+your-project/
+├── docs/                     # Project documentation
+│   ├── api/                  # API documentation
+│   ├── guides/               # User guides
+│   └── sessions/             # Agent session logs (auto-created)
+├── src/                      # Source code
+│   ├── [language-specific]   # e.g., api/, models/, services/ (Python)
+│   └── ...                   # e.g., components/, hooks/ (React)
+├── tests/                    # All tests
+│   ├── unit/                 # Unit tests
+│   ├── integration/          # Integration tests
+│   ├── uat/                  # User acceptance tests
+│   ├── progression/          # Progression tracking (optional)
+│   └── regression/           # Regression prevention (optional)
+├── scripts/                  # Project automation scripts
+├── .claude/
+│   ├── PROJECT.md            # This file (project definition)
+│   └── settings.local.json   # Local Claude settings (gitignored)
+├── .env                      # Environment variables (gitignored)
+├── .gitignore
+├── README.md
+├── CHANGELOG.md
+└── [language-specific]       # e.g., pyproject.toml, package.json
+
+```
+
+**What automations expect:**
+- ✅ `docs/` - Project docs (README, guides, API docs)
+- ✅ `src/` - All source code (language-specific structure inside)
+- ✅ `tests/` - All test files (organized by type)
+- ✅ `scripts/` - Automation/build scripts
+- ✅ `.claude/PROJECT.md` - This file (agents read before every feature)
+
+**What gets auto-created:**
+- `docs/sessions/` - Agent session logs (for debugging)
+- `tests/progression/` - Baseline tracking tests (optional)
+- `tests/regression/` - Bug prevention tests (optional)
+
+**Commands that enforce this structure:**
+- `/align-project` - Analyzes and fixes structure violations
+- `/sync-docs-organize` - Moves .md files to docs/
+- `/auto-implement` - Creates files following this structure
+
 ### System Components
 
 **Example (Python API)**:

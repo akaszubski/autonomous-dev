@@ -251,6 +251,49 @@ GITHUB_TRACK_THRESHOLD=medium
 
 ---
 
+### Standard Project Structure
+
+**The automations expect and enforce this structure:**
+
+```
+your-project/
+├── docs/                     # Project documentation
+│   ├── api/                  # API documentation
+│   ├── guides/               # User guides
+│   └── sessions/             # Agent session logs (auto-created)
+├── src/                      # Source code
+├── tests/                    # All tests
+│   ├── unit/                 # Unit tests
+│   ├── integration/          # Integration tests
+│   └── uat/                  # User acceptance tests
+├── scripts/                  # Project automation scripts
+├── .claude/
+│   ├── PROJECT.md            # Project definition (agents read this)
+│   └── settings.local.json   # Local settings (gitignored)
+├── README.md
+├── CHANGELOG.md
+└── [language-specific files] # package.json, pyproject.toml, etc.
+```
+
+**Key directories:**
+- `docs/` - All project documentation (not plugin docs)
+- `src/` - All source code (language-specific structure)
+- `tests/` - All tests (organized by type: unit/integration/uat)
+- `scripts/` - Build and automation scripts
+- `.claude/PROJECT.md` - **Source of truth** (agents read before every feature)
+
+**Auto-created:**
+- `docs/sessions/` - Agent activity logs (for debugging)
+
+**Commands that use this structure:**
+- `/align-project` - Validates and fixes structure
+- `/sync-docs-organize` - Organizes .md files into docs/
+- `/auto-implement` - Creates files following this structure
+
+**See**: [templates/PROJECT.md](templates/PROJECT.md) for complete structure definition
+
+---
+
 ### Continuous Improvement
 
 **Autonomous system optimizes itself**:
