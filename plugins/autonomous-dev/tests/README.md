@@ -4,7 +4,58 @@ This document explains the testing strategy for ensuring architectural integrity
 
 ## Test Categories
 
-### 1. Unit Tests (`test_setup.py`)
+### 1. Architectural Intent Tests (`test_architectural_intent.py`) ⭐ NEW
+**Purpose**: Validate design intent and detect architectural drift
+
+**What This Tests**:
+- WHY the architecture is designed this way
+- Architectural invariants (things that MUST remain true)
+- Design decisions and their rationale
+- Breaking changes (alerts when architecture fundamentally changes)
+
+**Coverage**:
+- PROJECT.md-first architecture (prevent scope creep)
+- 8-agent pipeline (specialization and order)
+- Model optimization (opus/sonnet/haiku)
+- Context management (/clear + session logging)
+- Opt-in automation (user choice)
+- Project-level isolation (multi-project support)
+- TDD enforcement (tests before code)
+- Read-only planning (separation of concerns)
+- Security-first design (catch issues early)
+- Documentation sync (never stale)
+
+**Run**:
+```bash
+pytest tests/test_architectural_intent.py -v
+```
+
+**What This Catches**:
+- Architectural drift (unintentional changes)
+- Breaking changes (agent removal, pipeline reordering)
+- Design principle violations (PROJECT.md becomes optional)
+- Invariant violations (wrong number of agents, missing skills)
+
+**Example**:
+```python
+def test_exactly_eight_agents_exist():
+    """Test 8-agent pipeline remains intact."""
+    agents = list(agents_dir.glob("*.md"))
+    assert len(agents) == 8, (
+        "ARCHITECTURAL INVARIANT VIOLATION: Expected 8 agents\n"
+        "8-agent pipeline is core to architecture.\n"
+        "See ARCHITECTURE.md § 8-Agent Pipeline"
+    )
+```
+
+**If This Fails**:
+1. Architecture has changed → Update ARCHITECTURE.md
+2. Regression occurred → Fix the code
+3. Test is too strict → Update the test
+
+---
+
+### 2. Unit Tests (`test_setup.py`)
 **Purpose**: Test individual functions in isolation
 
 **Coverage**:
@@ -137,14 +188,21 @@ pytest -v
 
 ### By Category
 ```bash
-# Architecture only
+# Architectural intent (design rationale & drift detection)
+pytest -v -m intent
+pytest tests/test_architectural_intent.py -v
+
+# Architecture validation (static structure)
 pytest -v -m architecture
+pytest tests/test_architecture.py -v
 
-# Integration only
+# Integration tests (components working together)
 pytest -v -m integration
+pytest tests/test_integration.py -v
 
-# UAT only
+# UAT (user workflows)
 pytest -v -m uat
+pytest tests/test_uat.py -v
 
 # Unit tests only
 pytest tests/unit/ -v
@@ -171,6 +229,21 @@ pytest --cov=scripts --cov=hooks --cov-report=html
 ---
 
 ## What Each Test Type Validates
+
+### Architectural Intent Tests ✓ NEW
+- [x] PROJECT.md-first architecture enforced
+- [x] Exactly 8 agents in pipeline
+- [x] Model optimization strategy (opus/sonnet/haiku)
+- [x] Context management via /clear + session logging
+- [x] Opt-in automation (both modes available)
+- [x] Project-level isolation (multi-project support)
+- [x] TDD enforcement (test-master before implementer)
+- [x] Read-only planning (planner/reviewer can't write)
+- [x] Security-first design (auditor in pipeline)
+- [x] Documentation sync (doc-master exists)
+- [x] Architectural invariants (8 agents, 6 skills, PROJECT.md structure)
+- [x] Design decisions documented with rationale
+- [x] Breaking changes clearly defined
 
 ### Architecture Tests ✓
 - [x] All 8 agents exist
@@ -390,14 +463,21 @@ pytest -v -m "not slow"
 
 ## Summary
 
-**3-Layer Testing Strategy**:
+**4-Layer Testing Strategy**:
 
-1. **Architecture** - Structure is correct (static)
-2. **Integration** - Components work together (dynamic)
-3. **UAT** - User workflows function (end-to-end)
+1. **Architectural Intent** ⭐ - WHY things are designed this way (drift detection)
+2. **Architecture** - WHAT the structure should be (static validation)
+3. **Integration** - HOW components work together (dynamic validation)
+4. **UAT** - Does it WORK for users (end-to-end workflows)
 
 **Plus**: Unit tests for critical logic (setup.py)
 
-**Total Coverage**: Structure + Logic + Workflows = Comprehensive validation
+**Total Coverage**: Intent + Structure + Integration + Workflows = Comprehensive validation
 
-**Result**: Confidence that the autonomous development system works as designed.
+**Key Innovation**: Test the WHY, not just the WHAT
+- Architectural intent tests document design rationale
+- Alert when architecture fundamentally changes
+- Prevent unintentional architectural drift
+- Preserve institutional knowledge
+
+**Result**: Confidence that the autonomous development system works as designed AND that the design intent is preserved.
