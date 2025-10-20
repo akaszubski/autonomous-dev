@@ -9,8 +9,18 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **/sync-docs command** - Synchronize documentation with code changes (invokes doc-master agent)
+  - `--auto` flag: Auto-detect changes via git diff
+  - `--organize` flag: Organize .md files into docs/
+  - `--api` flag: Update API documentation only
+  - `--changelog` flag: Update CHANGELOG only
+  - Links to doc-master agent for automated doc sync
+
 ### Changed
 - Updated PROJECT.md with team collaboration intent (co-defined outcomes, GitHub-first workflow)
+- Removed legacy `/auto-doc-update` command from global commands
+- Removed duplicate `/align-project-safe` from global commands (now `--safe` flag)
 
 ---
 

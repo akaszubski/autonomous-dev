@@ -84,6 +84,11 @@ Try implementing a simple feature:
 - `/align-project --safe` - Safe 3-phase alignment workflow
 - `/align-project --sync-github` - Sync with GitHub (create milestones/issues)
 
+### Documentation
+- `/sync-docs` - Sync documentation with code changes
+- `/sync-docs --auto` - Auto-detect and sync based on git changes
+- `/sync-docs --organize` - Organize .md files into docs/
+
 ---
 
 ## Workflow

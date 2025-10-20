@@ -60,6 +60,7 @@ Every time you write code, the plugin automatically:
    └─> Updates docstrings
    └─> Syncs README if needed
    └─> Generates CHANGELOG entries
+   └─> Use /sync-docs for manual sync
 
 7. COMMIT ✅
    └─> All checks passed
@@ -78,7 +79,7 @@ Every time you write code, the plugin automatically:
 - ✅ **8 specialized agents** - orchestrator (master coordinator), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
 - ✅ **6 core skills** - python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards
 - ✅ **8 automation hooks** - auto-format, auto-test, TDD enforcement, coverage enforcement, security scan
-- ✅ **`/auto-implement` command** - One command for complete feature implementation
+- ✅ **Essential commands** - `/auto-implement`, `/align-project`, `/sync-docs`, `/commit`, `/full-check`
 
 **Perfect for**:
 - Web applications (React, Next.js, Express)

@@ -116,6 +116,13 @@ claude-code-bootstrap/
 3. [Testing Guide](TESTING_GUIDE.md) - Running tests
 4. [Examples](../examples/) - Sample workflows
 
+### Commands Reference
+1. `/auto-implement` - Autonomous feature implementation
+2. `/align-project` - Validate alignment with PROJECT.md
+3. `/sync-docs` - Sync documentation with code changes
+4. `/commit` - Smart commit with conventional message
+5. `/full-check` - Complete quality check
+
 ### Understanding the System
 1. [Architecture Overview](../plugins/autonomous-dev/ARCHITECTURE.md) - System design
 2. [Architecture Docs](architecture/) - Detailed architecture decisions
