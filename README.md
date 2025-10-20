@@ -125,7 +125,7 @@ All commands are independently discoverable with autocomplete:
 - `/setup` - Setup wizard
 - `/uninstall` - Uninstall plugin
 
-See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.
+See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
 
 ### 6 Core Skills
 - **python-standards** - PEP 8, type hints, docstrings
@@ -244,13 +244,26 @@ cd my-fastapi-project
 
 ## Documentation
 
+### For Plugin Users
+
 | Guide | Purpose |
 |-------|---------|
 | [QUICKSTART.md](plugins/autonomous-dev/QUICKSTART.md) | Get running in 2 minutes |
 | [plugins/autonomous-dev/README.md](plugins/autonomous-dev/README.md) | Complete plugin documentation |
-| [docs/COMMANDS.md](docs/COMMANDS.md) | Complete command reference (33 commands) |
-| [docs/commit-workflow.md](docs/commit-workflow.md) | Progressive commit workflow guide |
+| [plugins/autonomous-dev/docs/](plugins/autonomous-dev/docs/) | All user guides (commands, GitHub, testing, troubleshooting, etc.) |
+
+**Key docs:**
+- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (33 commands)
+- [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
+- [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
+- [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
+
+### For Contributors
+
+| Guide | Purpose |
+|-------|---------|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow & file locations |
+| [docs/](docs/) | Development documentation (architecture, code review, implementation status) |
 | [.claude/PROJECT.md](.claude/PROJECT.md) | Project architecture & goals |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 

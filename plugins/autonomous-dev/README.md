@@ -149,7 +149,7 @@ This wizard helps you:
 | `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 20-30min |
 | `/uninstall` | Uninstall or disable plugin | < 5s |
 
-**See**: [docs/COMMANDS.md](../../docs/COMMANDS.md) for complete reference
+**See**: [COMMANDS.md](docs/COMMANDS.md) for complete reference
 
 ### ⚡ 8 Automated Hooks
 
@@ -423,6 +423,7 @@ GITHUB_TRACK_THRESHOLD=medium       # Filter by priority
 **See**:
 - [AUTO-ISSUE-TRACKING.md](docs/AUTO-ISSUE-TRACKING.md) - Automatic tracking guide
 - [GITHUB-ISSUES-INTEGRATION.md](docs/GITHUB-ISSUES-INTEGRATION.md) - Complete integration guide
+- [GITHUB_AUTH_SETUP.md](docs/GITHUB_AUTH_SETUP.md) - GitHub authentication setup
 
 **Note**: GitHub is optional - plugin works great without it. PROJECT.md is the primary source of truth.
 
