@@ -63,6 +63,11 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 | &nbsp;&nbsp;`/test uat` | User acceptance tests (pytest) | < 60s |
 | &nbsp;&nbsp;`/test uat-genai` | GenAI: UX quality & goal alignment | 2-5min |
 | &nbsp;&nbsp;`/test architecture` | GenAI: Architectural intent validation | 2-5min |
+| &nbsp;&nbsp;`/test system-performance` | Layer 3: Agent/model/cost optimization | Future |
+| `/issue [action]` | Auto-create GitHub Issues from test results | < 5s |
+| &nbsp;&nbsp;`/issue auto` | Create issues from last test run | < 5s |
+| &nbsp;&nbsp;`/issue from-test` | Issue from specific test failure | < 5s |
+| &nbsp;&nbsp;`/test --track-issues` | Auto-create issues during testing | Varies |
 | `/format` | Format code (black, isort, prettier) | < 5s |
 | `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
 | `/full-check` | Complete check (format + test + security) | < 60s |
