@@ -22,7 +22,7 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All 33 commands now work: `/test`, `/format`, `/commit`, etc.
+**Done!** All 25 commands now work: `/test`, `/format`, `/commit`, etc.
 
 Claude now autonomously handles formatting, testing, documentation, and security.
 
@@ -75,7 +75,7 @@ python plugins/autonomous-dev/scripts/setup.py
 - **security-auditor** - Security scanning (haiku model)
 - **doc-master** - Documentation sync (haiku model)
 
-### 33 Slash Commands
+### 25 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
@@ -253,7 +253,7 @@ cd my-fastapi-project
 | [plugins/autonomous-dev/docs/](plugins/autonomous-dev/docs/) | All user guides (commands, GitHub, testing, troubleshooting, etc.) |
 
 **Key docs:**
-- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (33 commands)
+- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (25 commands)
 - [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
 - [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
@@ -283,7 +283,7 @@ Claude Code needs a restart to load the plugin commands. After restarting:
 /format
 /commit
 
-# All 33 commands should appear in autocomplete
+# All 25 commands should appear in autocomplete
 ```
 
 ### Still not working after restart?

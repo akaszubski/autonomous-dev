@@ -104,7 +104,7 @@ Don't just check if "PROJECT.md" appears - validate BEHAVIOR.
 
 ### Example 1: Testing File Creation
 
-**Question**: Verify setup.py creates .claude/PROJECT.md
+**Question**: Verify setup.py creates PROJECT.md
 
 **Traditional Test** (BEST):
 ```python

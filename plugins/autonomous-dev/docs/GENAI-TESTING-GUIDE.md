@@ -287,7 +287,7 @@ def test_orchestrator_has_task_tool():
 
 **Validates**:
 1. **PROJECT.md Validation** (Principle #1):
-   - Line 20: `if [ ! -f .claude/PROJECT.md ]` ✅ Checks existence
+   - Line 20: `if [ ! -f PROJECT.md ]` ✅ Checks existence
    - Line 81-83: Reads GOALS/SCOPE/CONSTRAINTS ✅
    - Line 357-391: Rejection message if misaligned ✅
    - Line 77: `exit 0` blocks work if missing ✅

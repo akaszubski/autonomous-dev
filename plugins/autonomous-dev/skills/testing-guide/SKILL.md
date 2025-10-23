@@ -289,14 +289,14 @@ Read agents/orchestrator.md and analyze:
    "Prevent scope creep by validating alignment before work"
 
 2. **Implementation Analysis**:
-   - Does orchestrator check if .claude/PROJECT.md exists?
+   - Does orchestrator check if PROJECT.md exists?
    - Does it read GOALS, SCOPE, CONSTRAINTS?
    - Does it validate feature aligns with goals?
    - Does it block work if misaligned?
    - Does it create PROJECT.md if missing?
 
 3. **Behavioral Evidence**:
-   - Line 20: `if [ ! -f .claude/PROJECT.md ]` ✓ Checks existence
+   - Line 20: `if [ ! -f PROJECT.md ]` ✓ Checks existence
    - Line 81-83: Reads GOALS/SCOPE/CONSTRAINTS ✓
    - Line 357-391: Displays rejection if misaligned ✓
    - Line 77: `exit 0` blocks work if PROJECT.md missing ✓

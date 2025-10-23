@@ -177,7 +177,7 @@ See [docs/COMMANDS.md](../../docs/COMMANDS.md) for complete reference.
 
 ## Configuration Files
 
-### `.claude/PROJECT.md`
+### `PROJECT.md`
 Strategic direction for your project:
 - **GOALS**: What success looks like
 - **SCOPE**: What's in/out of scope

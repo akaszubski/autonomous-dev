@@ -57,7 +57,7 @@
 
 #### 1. PROJECT.md Integration ✨
 
-**Location**: `.claude/PROJECT.md`
+**Location**: `PROJECT.md`
 
 **Purpose**: Define project goals, scope, and constraints to prevent scope creep and misaligned development
 
@@ -69,7 +69,7 @@
 **How to use**:
 ```bash
 # Review goals before starting work
-cat .claude/PROJECT.md | grep -A 10 "## GOALS"
+cat PROJECT.md | grep -A 10 "## GOALS"
 
 # Verify feature alignment
 # - Does it serve GOALS?
@@ -212,10 +212,10 @@ cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 
 ### 1. Configure PROJECT.md (One-Time Setup)
 
-Edit `.claude/PROJECT.md` with your specific project goals:
+Edit `PROJECT.md` with your specific project goals:
 
 ```bash
-vim .claude/PROJECT.md
+vim PROJECT.md
 ```
 
 **Update these sections**:
@@ -282,7 +282,7 @@ All systems verified working:
 
 ```bash
 # 1. PROJECT.md complete
-✅ .claude/PROJECT.md with GOALS, SCOPE, CONSTRAINTS
+✅ PROJECT.md with GOALS, SCOPE, CONSTRAINTS
 
 # 2. Session tracker works
 ✅ scripts/session_tracker.py functional
@@ -326,7 +326,7 @@ All systems verified working:
 
 1. **Check goals**:
    ```bash
-   cat .claude/PROJECT.md | grep -A 5 "## GOALS"
+   cat PROJECT.md | grep -A 5 "## GOALS"
    ```
 
 2. **Either**:
@@ -335,8 +335,8 @@ All systems verified working:
 
 3. **If updating PROJECT.md**:
    ```bash
-   vim .claude/PROJECT.md
-   git add .claude/PROJECT.md
+   vim PROJECT.md
+   git add PROJECT.md
    git commit -m "docs: Update project goals"
    ```
 
@@ -400,7 +400,7 @@ cp .claude/settings.local.json.backup .claude/settings.local.json
 ### Documentation
 
 - **System overview**: [CLAUDE.md](../CLAUDE.md)
-- **Project goals**: [.claude/PROJECT.md](../.claude/PROJECT.md)
+- **Project goals**: [PROJECT.md](../PROJECT.md)
 - **This update**: [docs/UPDATES.md](./UPDATES.md)
 - **Plugin docs**: [plugins/autonomous-dev/README.md](../plugins/autonomous-dev/README.md)
 

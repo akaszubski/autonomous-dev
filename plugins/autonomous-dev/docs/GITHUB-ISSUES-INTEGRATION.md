@@ -485,7 +485,7 @@ GITHUB_ISSUE_DRY_RUN=false        # Set true to preview only
 ### PROJECT.md Integration
 
 ```markdown
-# .claude/PROJECT.md
+# PROJECT.md
 
 ## GitHub Integration
 

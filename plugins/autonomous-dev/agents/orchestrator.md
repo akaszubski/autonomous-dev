@@ -17,12 +17,12 @@ I coordinate the complete autonomous development pipeline with PROJECT.md as the
 
 ```bash
 # Check if PROJECT.md exists
-if [ ! -f .claude/PROJECT.md ]; then
+if [ ! -f PROJECT.md ]; then
     echo "⚠️  No PROJECT.md found!"
     echo "📋 Creating from template..."
 
     mkdir -p .claude
-    cat > .claude/PROJECT.md << 'EOF'
+    cat > PROJECT.md << 'EOF'
 # Project Context
 
 ## GOALS
@@ -69,18 +69,18 @@ Current agents: orchestrator, researcher, planner, test-master, implementer, rev
 **Customize this file with your actual project goals, then run your command again.**
 EOF
 
-    echo "✅ Created .claude/PROJECT.md"
+    echo "✅ Created PROJECT.md"
     echo ""
     echo "👉 Next steps:"
-    echo "1. Edit .claude/PROJECT.md with your actual goals"
+    echo "1. Edit PROJECT.md with your actual goals"
     echo "2. Run your feature command again"
     exit 0
 fi
 
 # Read project context
-PROJECT_GOALS=$(grep -A 10 "## GOALS" .claude/PROJECT.md 2>/dev/null || echo "")
-PROJECT_SCOPE=$(grep -A 10 "## SCOPE" .claude/PROJECT.md 2>/dev/null || echo "")
-PROJECT_CONSTRAINTS=$(grep -A 10 "## CONSTRAINTS" .claude/PROJECT.md 2>/dev/null || echo "")
+PROJECT_GOALS=$(grep -A 10 "## GOALS" PROJECT.md 2>/dev/null || echo "")
+PROJECT_SCOPE=$(grep -A 10 "## SCOPE" PROJECT.md 2>/dev/null || echo "")
+PROJECT_CONSTRAINTS=$(grep -A 10 "## CONSTRAINTS" PROJECT.md 2>/dev/null || echo "")
 
 echo "📋 Project Context Loaded"
 echo "$PROJECT_GOALS" | head -5
@@ -359,7 +359,7 @@ When a feature doesn't align with PROJECT.md goals, I politely reject with expla
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Project Goals (from .claude/PROJECT.md):
+Project Goals (from PROJECT.md):
 $PROJECT_GOALS
 
 Requested Feature: $FEATURE
@@ -377,7 +377,7 @@ Suggestions:
 1. Modify the feature to align with goals
    → [Specific suggestion]
 
-2. Update .claude/PROJECT.md if strategic direction changed
+2. Update PROJECT.md if strategic direction changed
    → Edit goals to include this type of feature
 
 3. Skip this feature and focus on aligned work

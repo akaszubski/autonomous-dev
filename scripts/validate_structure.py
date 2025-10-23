@@ -123,6 +123,7 @@ def check_root_cleanliness() -> List[str]:
         "CHANGELOG.md",
         "CLAUDE.md",
         "CONTRIBUTING.md",
+        "PROJECT.md",  # Project-level strategic direction (not tool-specific)
     }
     
     root_mds = {f.name for f in ROOT.glob("*.md")}

@@ -97,7 +97,7 @@ pytest --cov=src --cov-report=term-missing
 # 6. Check doc sync (simplified check)
 # - Compare PROJECT.md modification time vs README.md
 # - Warn if README older than PROJECT.md
-stat -f %m .claude/PROJECT.md
+stat -f %m PROJECT.md
 stat -f %m README.md
 
 # 7. Analyze changes and commit

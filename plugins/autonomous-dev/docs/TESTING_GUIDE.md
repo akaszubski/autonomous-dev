@@ -71,7 +71,7 @@ ls -la .env.example
 ```
 
 **Expected**:
-- `.claude/PROJECT.md` created
+- `PROJECT.md` created
 - Has GOALS, SCOPE, CONSTRAINTS sections
 - Relevant to todo app context
 
@@ -159,7 +159,7 @@ ls -la .env.example
 
 ```bash
 # In test project without PROJECT.md
-rm .claude/PROJECT.md
+rm PROJECT.md
 
 # In Claude Code
 /align-project --generate-project-md
@@ -170,7 +170,7 @@ rm .claude/PROJECT.md
 - Infers GOALS, SCOPE, CONSTRAINTS from code
 - Creates DRAFT in `docs/draft/PROJECT.md`
 - Does NOT overwrite existing PROJECT.md
-- Asks user to review and move to `.claude/PROJECT.md`
+- Asks user to review and move to `PROJECT.md`
 
 **Test Phase 3: Interactive Alignment**
 
@@ -218,7 +218,7 @@ gh api repos/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\
 **Step 3: Update PROJECT.md**
 
 ```bash
-# In .claude/PROJECT.md
+# In PROJECT.md
 ## CURRENT SPRINT
 **Sprint Name**: Sprint 1
 **GitHub Milestone**: Sprint 1

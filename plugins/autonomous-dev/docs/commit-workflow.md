@@ -269,7 +269,7 @@ Fix issues and retry.
 - [Commands Documentation](../plugins/autonomous-dev/commands/)
 - [Testing Guide](../plugins/autonomous-dev/commands/test.md)
 - [Security Scan](../plugins/autonomous-dev/commands/security-scan.md)
-- [PROJECT.md Guide](.claude/PROJECT.md)
+- [PROJECT.md Guide](PROJECT.md)
 
 ---
 

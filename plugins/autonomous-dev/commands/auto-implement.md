@@ -1,216 +1,452 @@
 ---
-description: Autonomously implement a feature from requirement to production-ready code. Handles PROJECT.md validation, research, planning, TDD, security, and documentation.
+name: auto-implement-v2
+description: Autonomous implementation v2.0 with PROJECT.md-first governance and 8-agent orchestrated pipeline
+examples:
+  - /auto-implement-v2 user authentication with JWT tokens
+  - /auto-implement-v2 --resume 20251023_093456
 ---
 
-# Autonomous Feature Implementation
+# Autonomous Implementation v2.0
 
-Use the orchestrator agent to implement your feature with full autonomous pipeline.
+**Version**: 2.0.0-alpha
+**Status**: Week 3 implementation
 
-## What This Does
+Fully autonomous, PROJECT.md-aligned feature implementation using orchestrated 8-agent pipeline.
 
-1. **Validates** feature against .claude/PROJECT.md goals
-2. **Researches** best practices and patterns
-3. **Plans** detailed implementation approach
-4. **Writes tests first** (TDD - tests fail initially)
-5. **Implements code** to make tests pass
-6. **Reviews** code quality and patterns
-7. **Scans** for security vulnerabilities
-8. **Updates** documentation (CHANGELOG, README)
-9. **Prompts** you to `/clear` for next feature
+## What This Command Does
 
-**Time**: 20-35 minutes (fully autonomous)
-**Quality**: 80%+ coverage, security scanned, documented
+Coordinates 8 specialized agents to autonomously implement features:
+
+1. **Orchestrator**: Validates PROJECT.md alignment
+2. **Researcher**: Finds patterns and best practices
+3. **Planner**: Designs architecture
+4. **Test-Master**: Writes failing tests (TDD red phase)
+5. **Implementer**: Makes tests pass (TDD green phase)
+6. **Reviewer**: Validates code quality
+7. **Security-Auditor**: Scans for vulnerabilities
+8. **Doc-Master**: Updates documentation
+
+## Prerequisites
+
+1. **PROJECT.md must exist** at `PROJECT.md`
+2. Must contain: GOALS, SCOPE, CONSTRAINTS sections
+
+**If PROJECT.md missing**:
+```bash
+# Create template
+cat > PROJECT.md << 'EOF'
+# Project Context
+
+## GOALS
+- [Your primary objective]
+- [Success metrics]
+
+## SCOPE
+
+### In Scope
+- [Features you're building]
+
+### Out of Scope
+- [Features to avoid]
+
+## CONSTRAINTS
+- [Technical constraints]
+- [Business constraints]
+EOF
+
+# Edit with your actual goals
+vim PROJECT.md
+```
 
 ## Usage
 
+### Start New Workflow
+
 ```bash
-/auto-implement [feature description]
+/auto-implement-v2 implement user authentication with JWT tokens
 ```
 
-The more detailed your description, the better the results.
+**What happens**:
+1. ✓ Validates alignment with PROJECT.md
+2. ✓ Creates workflow artifacts
+3. ✓ Invokes 8-agent pipeline
+4. ✓ Generates production-ready code
+5. ✓ Creates commit with full context
 
-## Examples
+**Duration**: 60-120 seconds
 
-### Simple Feature
+### Resume Interrupted Workflow
+
 ```bash
-/auto-implement health check endpoint that returns {"status": "ok", "timestamp": "now"}
+# List resumable workflows
+/auto-implement-v2 --list
+
+# Resume specific workflow
+/auto-implement-v2 --resume 20251023_093456
 ```
 
-### Medium Complexity
+## Step-by-Step Execution
+
+### Step 1: Initialize Orchestrator
+
+```python
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+
+# Add lib to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+
+from orchestrator import Orchestrator
+from checkpoint import CheckpointManager
+
+# Get user request from command args
+request = ' '.join(sys.argv[1:])
+
+# Check for resume flag
+if '--resume' in request:
+    workflow_id = request.split('--resume')[1].strip()
+    print(f"📂 Resuming workflow: {workflow_id}")
+    # TODO: Implement resume logic
+    sys.exit(0)
+
+if '--list' in request:
+    checkpoint_manager = CheckpointManager()
+    resumable = checkpoint_manager.list_resumable_workflows()
+
+    print("📋 Resumable Workflows:\n")
+    if not resumable:
+        print("  No resumable workflows found.")
+    else:
+        for wf in resumable:
+            print(f"  • {wf['workflow_id']}")
+            print(f"    Progress: {wf['progress']}")
+            print(f"    Next: {wf['current_agent']}")
+            print(f"    Created: {wf['created_at']}\n")
+
+    sys.exit(0)
+
+# Initialize orchestrator
+try:
+    orchestrator = Orchestrator()
+except ValueError as e:
+    print(f"❌ Error: {e}")
+    print("\n💡 Create PROJECT.md with GOALS, SCOPE, CONSTRAINTS")
+    sys.exit(1)
+
+# Start workflow
+success, message, workflow_id = orchestrator.start_workflow(request)
+
+print(message)
+
+if not success:
+    sys.exit(1)
+
+# Workflow initialized - now invoke agent pipeline
+print("\n" + "="*60)
+print("AGENT PIPELINE")
+print("="*60 + "\n")
+```
+
+### Step 2: Invoke Researcher
+
+After workflow initialization, invoke the researcher agent:
+
+**Prompt**:
+```
+You are the researcher agent for autonomous-dev v2.0.
+
+Workflow ID: {workflow_id}
+
+Read the workflow manifest:
+.claude/artifacts/{workflow_id}/manifest.json
+
+Your task:
+1. Search codebase for existing patterns related to: {request}
+2. Research best practices via WebSearch
+3. Gather security considerations
+4. Document recommended libraries
+5. Provide alternatives considered
+
+Use these tools:
+- Read: Load manifest.json
+- Grep: Search codebase patterns
+- Glob: Find related files
+- WebSearch: Find best practices
+- WebFetch: Get detailed articles
+
+Output artifact (JSON format):
+.claude/artifacts/{workflow_id}/research.json
+
+Required structure:
+{
+  "version": "2.0",
+  "agent": "researcher",
+  "workflow_id": "{workflow_id}",
+  "status": "completed",
+  "codebase_patterns": [
+    {
+      "pattern": "...",
+      "location": "...",
+      "relevance": "..."
+    }
+  ],
+  "best_practices": [
+    {
+      "practice": "...",
+      "source": "...",
+      "rationale": "..."
+    }
+  ],
+  "security_considerations": [...],
+  "recommended_libraries": [...],
+  "alternatives_considered": [...]
+}
+
+After completing research, write the artifact to the specified path.
+```
+
+### Step 3: Invoke Remaining Agents
+
+**Pipeline order**:
+```
+orchestrator (done) → researcher → planner → test-master → implementer → [reviewer ‖ security ‖ docs]
+```
+
+**For each agent**:
+1. Wait for previous agent to complete
+2. Verify artifact was created
+3. Invoke next agent with context
+4. Create checkpoint after completion
+5. Update progress tracker
+
+### Step 4: Final Report
+
+After all agents complete:
+
+1. Read all artifacts
+2. Generate final report
+3. Create commit message
+4. Execute commit (if requested)
+
+## Artifacts Created
+
+Each workflow creates:
+
+```
+.claude/artifacts/{workflow_id}/
+├── manifest.json           # Orchestrator: Workflow plan
+├── research.json          # Researcher: Patterns & best practices
+├── architecture.json      # Planner: System design
+├── test-plan.json        # Test-Master: Test suite
+├── implementation.json    # Implementer: Code changes
+├── review.json           # Reviewer: Quality check
+├── security.json         # Security: Vulnerability scan
+├── docs.json            # Doc-Master: Documentation updates
+├── final-report.json    # Orchestrator: Aggregated results
+├── checkpoint.json      # Checkpoint: Resume state
+└── logs/
+    ├── orchestrator.log
+    ├── researcher.log
+    ├── planner.log
+    ├── test-master.log
+    ├── implementer.log
+    ├── reviewer.log
+    ├── security-auditor.log
+    └── doc-master.log
+```
+
+## Example Session
+
 ```bash
-/auto-implement user authentication with JWT tokens, refresh tokens, and password hashing
-```
+$ /auto-implement-v2 implement user authentication with JWT tokens
 
-### Complex Feature
-```bash
-/auto-implement REST API endpoint for blog posts with:
-- CRUD operations (create, read, update, delete)
-- Pagination (20 posts per page)
-- Full-text search by title/content
-- Tag filtering
-- Author association
-- Published/draft status
-- Timestamps (created_at, updated_at)
-- 80%+ test coverage
-```
+📋 Loading PROJECT.md...
+✓ Found: PROJECT.md
 
-### With Specific Requirements
-```bash
-/auto-implement database caching layer using Redis:
-- 5-minute TTL on all queries
-- Automatic cache invalidation on updates
-- Cache hit/miss metrics
-- Graceful fallback if Redis unavailable
-- Connection pool (max 10 connections)
-```
+🔍 Validating alignment...
+✓ Aligns with goal: "Improve security"
+✓ Within scope: "Authentication"
+✓ Respects all 3 constraints
 
-## What Happens
+✅ **Workflow Started**
 
-```
-You run: /auto-implement user authentication with JWT
+Workflow ID: 20251023_101530
+Request: implement user authentication with JWT tokens
 
-Orchestrator:
-├─ Checks .claude/PROJECT.md alignment ✅
-├─ researcher: Finds JWT best practices (5 min)
-├─ planner: Creates implementation plan (5 min)
-├─ test-master: Writes 18 failing tests (5 min)
-├─ implementer: Makes tests pass (12 min)
-├─ reviewer: Quality check ✅ (2 min)
-├─ security-auditor: Security scan ✅ (2 min)
-└─ doc-master: Updates CHANGELOG ✅ (1 min)
+Alignment: ✓ Validated
+- Goals: Improve security
+- Scope: ✓ Within scope
+- Constraints: ✓ All respected
 
-Total: 32 minutes
-Output: Production-ready code with tests, docs, security
-```
+============================================================
+AGENT PIPELINE
+============================================================
 
-## After Completion
+[1/8] 🔍 Researcher (10s)
+  ✓ Searched codebase patterns
+  ✓ Researched best practices
+  ✓ Identified security considerations
+  → research.json created
 
-You'll see:
+[2/8] 📐 Planner (15s)
+  ✓ Designed architecture
+  ✓ Defined API contracts
+  ✓ Created implementation plan
+  → architecture.json created
 
-```
-✨ Feature Implementation Complete!
+[3/8] ✍️  Test-Master (10s)
+  ✓ Generated test suite
+  ✓ Tests failing (red phase) ✓
+  ✓ 80% coverage target
+  → test-plan.json + tests/*.py created
 
-Session: docs/sessions/20251019-143022-session.md
-Branch: feature/user-authentication
+[4/8] 💻 Implementer (30s)
+  ✓ Implemented code
+  ✓ Tests passing (green phase) ✓
+  ✓ 85% coverage achieved
+  → implementation.json + src/*.py created
 
-👉 Next Steps:
+[5-7/8] 🔄 Validators (parallel, 20s)
+  [5/8] 👀 Reviewer: ✓ Quality approved
+  [6/8] 🔒 Security: ✓ No issues found
+  [7/8] 📚 Doc-Master: ✓ Docs updated
+
+[8/8] ✅ Orchestrator: Final report
+  → final-report.json created
+
+============================================================
+✨ WORKFLOW COMPLETE
+============================================================
+
+Duration: 95 seconds
+Files changed: 5 files
+Tests added: 15 tests
+Coverage: 85%
+Security issues: 0
+
+📝 Commit message generated:
+feat: implement user authentication with JWT tokens
+
+Add JWT-based authentication system with secure token handling...
+
+Would you like to:
 1. Review implementation
-2. Merge when ready
-3. CRITICAL: Run /clear
-
-🧹 Context Management:
-/clear
-
-This is MANDATORY to prevent context bloat!
+2. Commit changes
+3. Create pull request
 ```
 
-## Important Notes
+## Error Handling
 
-### PROJECT.md Alignment
-
-If your feature doesn't align with project goals, orchestrator will explain why:
-
-```
-⚠️ Feature Alignment Issue
-
-Goal: "Build lightweight system"
-Requested: "Add blockchain integration"
-Issue: Blockchain is heavy/complex, conflicts with "lightweight"
-
-Suggestions:
-1. Modify feature to be lighter
-2. Update PROJECT.md if strategy changed
-```
-
-### Context Clearing (CRITICAL!)
-
-After EVERY feature, you MUST run:
+### Alignment Failure
 
 ```bash
-/clear
+❌ **Alignment Failed**
+
+Your request: "add GraphQL API"
+
+Issue: Request is explicitly out of scope in PROJECT.md
+
+PROJECT.md excerpt:
+OUT OF SCOPE:
+- GraphQL API
+
+To proceed:
+1. Modify request to use REST API (in scope)
+2. OR update PROJECT.md if direction changed
 ```
 
-**Why**:
-- Without: Context grows to 50K+ tokens → System fails
-- With: Context stays <1K tokens → Works for 100+ features
-
-### Session Files
-
-All agent actions logged to `docs/sessions/`:
+### Agent Failure
 
 ```bash
-# View latest session
-cat docs/sessions/$(ls -t docs/sessions/ | head -1)
+⚠️  Agent Failed: planner
+
+Error: Timeout after 60 seconds
+
+Checkpoint created: .claude/artifacts/20251023_101530/checkpoint.json
+
+You can:
+1. Resume: /auto-implement-v2 --resume 20251023_101530
+2. Review logs: cat .claude/artifacts/20251023_101530/logs/planner.log
 ```
 
-Contains: Timestamps, agent names, file paths (not full content)
+## Comparison: v1.x vs v2.0
+
+**v1.x**:
+- ❌ Opaque Python scripts
+- ❌ Session files (not structured)
+- ❌ Hard to debug
+- ❌ No artifact validation
+
+**v2.0**:
+- ✅ Transparent markdown agents
+- ✅ Structured JSON artifacts
+- ✅ Complete audit trail
+- ✅ Schema validation
+- ✅ Checkpoint/resume
+- ✅ Semantic alignment
+
+## Configuration
+
+No configuration required - uses PROJECT.md as single source of truth.
+
+**Optional**: Set model preferences in agent definitions
+- Orchestrator: sonnet (balanced)
+- Planner: opus (complex reasoning)
+- Security/Docs: haiku (fast)
 
 ## Troubleshooting
 
-### "Context budget exceeded"
+**"PROJECT.md not found"**:
 ```bash
-/clear  # Then retry
+# Create from template
+cat > PROJECT.md << 'EOF'
+# Project Context
+## GOALS
+- Your goals here
+## SCOPE
+### In Scope
+- Your scope here
+## CONSTRAINTS
+- Your constraints here
+EOF
 ```
 
-### "Feature doesn't align"
+**"Workflow stuck"**:
 ```bash
-# Check goals
-cat .claude/PROJECT.md | grep -A 5 "## GOALS"
+# Check progress
+cat .claude/artifacts/{workflow_id}/progress.json
 
-# Either modify feature or update PROJECT.md
+# Check logs
+cat .claude/artifacts/{workflow_id}/logs/*.log
+
+# Resume if interrupted
+/auto-implement-v2 --resume {workflow_id}
 ```
 
-### "Tests failing"
+**"Agent failed"**:
 ```bash
-# See details in session
-cat docs/sessions/$(ls -t docs/sessions/ | head -1)
+# Checkpoints created automatically
+# Resume will retry failed agent
+/auto-implement-v2 --resume {workflow_id}
 ```
 
-### "Hooks not running"
-```bash
-# Make scripts executable
-chmod +x scripts/hooks/*.py
+## Success Criteria
 
-# Install dependencies
-pip install black isort pytest pytest-cov
-```
+✅ 100% PROJECT.md alignment (zero drift)
+✅ 80%+ test coverage
+✅ 0 critical security issues
+✅ Documentation updated
+✅ Complete audit trail
 
-## Tips for Best Results
+## References
 
-### Be Specific
-
-❌ Vague: "Add authentication"
-✅ Specific: "Add JWT authentication with refresh tokens, bcrypt hashing, HTTP-only cookies, rate limiting (5 req/min on login)"
-
-### Include Requirements
-
-✅ "with 80%+ test coverage"
-✅ "following REST conventions"
-✅ "with input validation for all fields"
-✅ "with error handling for edge cases"
-
-### Specify Technology
-
-✅ "using Redis for caching"
-✅ "with PostgreSQL database"
-✅ "using FastAPI framework"
-
-## What You Get
-
-After `/auto-implement` completes:
-
-- ✅ **Code**: Production-ready implementation
-- ✅ **Tests**: 80%+ coverage, all passing
-- ✅ **Docs**: CHANGELOG updated, README synced
-- ✅ **Security**: Scanned for vulnerabilities
-- ✅ **Quality**: Reviewed and formatted
-- ✅ **Branch**: Created with semantic name
-- ✅ **Session**: Full audit trail
-
-All in 20-35 minutes, fully autonomous!
+- **Spec**: AUTONOMOUS_DEV_V2_MASTER_SPEC.md
+- **Week 1**: docs/WEEK1_VALIDATION.md (Foundation)
+- **Week 2**: docs/WEEK2_VALIDATION.md (Orchestrator)
+- **Architecture**: docs/DOGFOODING-ARCHITECTURE.md
 
 ---
 
-**Invoke orchestrator agent to implement: $ARGUMENTS**
-
-The orchestrator handles the complete pipeline. Do NOT implement manually.
+**Status**: Week 3 implementation in progress
+**Next**: Connect to actual agent invocation via Task tool

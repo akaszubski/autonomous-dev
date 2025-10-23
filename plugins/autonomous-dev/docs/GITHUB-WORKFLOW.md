@@ -171,7 +171,45 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### Step 6: Push and Create Pull Request
 
-#### Option A: Automated PR Creation (Recommended)
+#### Option A: Using /pr-create (Modern - Recommended)
+
+The `/pr-create` command is the recommended way to create PRs in the autonomous-dev workflow:
+
+```bash
+# Push with upstream tracking
+git push -u origin feature/42-add-user-auth
+
+# Create draft PR (recommended for autonomous workflow)
+/pr-create
+
+# Or: Create draft PR with reviewer assignment
+/pr-create --reviewer alice
+
+# Or: Create ready PR with custom title and multiple reviewers
+/pr-create --ready --title "feat: Add user authentication" --reviewer alice,bob
+
+# Or: Create PR against different base branch
+/pr-create --base develop --reviewer @team-name
+```
+
+**What `/pr-create` Does**:
+- ✅ Creates draft PR by default (requires explicit approval before merge)
+- ✅ Auto-fills title and description from commit messages
+- ✅ Parses commit messages for issue linking (Closes #42)
+- ✅ Assigns reviewers if specified
+- ✅ Validates gh CLI is installed and authenticated
+- ✅ Checks for commits between base and head branches
+- ✅ Returns PR number and URL for quick linking
+
+**When Draft PRs Are Useful**:
+- Early feedback from reviewers before final approval
+- Multi-step feature development
+- Autonomous workflow safety (requires explicit approval)
+- Breaking changes needing discussion
+
+See **PR-AUTOMATION.md** for complete `/pr-create` command reference with all flags and examples.
+
+#### Option B: Using `gh` CLI (Alternative)
 
 ```bash
 # Push with upstream tracking
@@ -203,7 +241,7 @@ EOF
 )"
 ```
 
-#### Option B: GitHub Web UI
+#### Option C: GitHub Web UI
 
 1. Push branch: `git push -u origin feature/42`
 2. Go to GitHub repository

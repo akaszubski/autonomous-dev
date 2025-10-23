@@ -57,7 +57,7 @@ Enables automatic execution:
 
 Helps you create PROJECT.md from template:
 ```
-1. Copies template to .claude/PROJECT.md
+1. Copies template to PROJECT.md
 2. Opens in editor for you to fill in
 3. Validates structure
 ```
@@ -191,10 +191,10 @@ Do you want to create PROJECT.md from template? [Y/n]
 
 [If Yes]
 
-✅ Created .claude/PROJECT.md from template
+✅ Created PROJECT.md from template
 
 Next steps:
-1. Open .claude/PROJECT.md in your editor
+1. Open PROJECT.md in your editor
 2. Fill in:
    - GOALS: What success looks like
    - SCOPE: What's in/out of scope
@@ -367,7 +367,7 @@ Happy coding! 🚀
 
 ### If PROJECT.md Template Selected
 
-**File**: `.claude/PROJECT.md`
+**File**: `PROJECT.md`
 - Copied from `.claude/templates/PROJECT.md`
 - Ready for user to customize
 
@@ -404,8 +404,8 @@ Edit `.claude/settings.local.json`:
 ### Copy PROJECT.md Template
 
 ```bash
-cp .claude/templates/PROJECT.md .claude/PROJECT.md
-# Then edit .claude/PROJECT.md
+cp .claude/templates/PROJECT.md PROJECT.md
+# Then edit PROJECT.md
 ```
 
 ### Setup GitHub

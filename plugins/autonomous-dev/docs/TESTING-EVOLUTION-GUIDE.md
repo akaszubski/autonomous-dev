@@ -48,7 +48,7 @@ Level 3: TDD + GenAI validation (proactive + intent-aware)
 **Step 1: Define Feature Intent in PROJECT.md**
 
 ```markdown
-# .claude/PROJECT.md
+# PROJECT.md
 
 ## GOALS
 - Users can export reports in < 10 seconds

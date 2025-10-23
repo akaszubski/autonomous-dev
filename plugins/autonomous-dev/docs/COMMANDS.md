@@ -322,7 +322,7 @@ TEST_AUTO_TRACK_ISSUES=false    # Auto-create issues from tests
 
 - [Commit Workflow](commit-workflow.md) - Progressive commit details
 - [Testing Guide](../plugins/autonomous-dev/commands/test.md) - Complete testing reference
-- [PROJECT.md](.claude/PROJECT.md) - Project architecture and goals
+- [PROJECT.md](PROJECT.md) - Project architecture and goals
 
 ---
 

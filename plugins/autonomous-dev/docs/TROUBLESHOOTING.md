@@ -268,7 +268,7 @@ cp plugins/autonomous-dev/agents/* .claude/agents/
 # Adjust your request to match PROJECT.md goals
 
 # Option 2: Update PROJECT.md if direction changed
-vim .claude/PROJECT.md
+vim PROJECT.md
 # Update GOALS, SCOPE sections
 
 # Option 3: Use /align-project-safe

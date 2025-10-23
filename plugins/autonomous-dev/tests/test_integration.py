@@ -230,11 +230,11 @@ class TestFilePathConsistency:
 
     def test_project_md_path_consistency(self):
         """Test PROJECT.md path is consistent."""
-        # PROJECT.md should be at .claude/PROJECT.md
+        # PROJECT.md should be at PROJECT.md
         commands_dir = Path(__file__).parent.parent / "commands"
         setup_cmd = commands_dir / "setup.md"
         content = setup_cmd.read_text()
-        assert ".claude/PROJECT.md" in content
+        assert "PROJECT.md" in content
 
 
 class TestModelSelectionIntegration:

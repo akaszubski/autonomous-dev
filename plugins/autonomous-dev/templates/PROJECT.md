@@ -324,7 +324,7 @@ your-project/
 - ✅ `src/` - All source code (language-specific structure inside)
 - ✅ `tests/` - All test files (organized by type)
 - ✅ `scripts/` - Automation/build scripts
-- ✅ `.claude/PROJECT.md` - This file (agents read before every feature)
+- ✅ `PROJECT.md` - This file (agents read before every feature)
 
 **What gets auto-created:**
 - `docs/sessions/` - Agent session logs (for debugging)

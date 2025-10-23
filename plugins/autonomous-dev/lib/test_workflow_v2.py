@@ -24,7 +24,7 @@ def test_workflow_initialization():
     # Initialize orchestrator
     try:
         orchestrator = Orchestrator(
-            project_md_path=Path(".claude/PROJECT.md")
+            project_md_path=Path("PROJECT.md")
         )
         print("✓ Orchestrator initialized")
         print(f"  PROJECT.md: {orchestrator.project_md_path}")
@@ -33,7 +33,7 @@ def test_workflow_initialization():
         print()
     except ValueError as e:
         print(f"✗ Failed to initialize orchestrator: {e}")
-        print("\n💡 Create .claude/PROJECT.md first:")
+        print("\n💡 Create PROJECT.md first:")
         print("   See: plugins/autonomous-dev/docs/QUICKSTART.md")
         return False
 
@@ -285,7 +285,7 @@ def main():
 
     if not workflow_id:
         print("\n❌ Test suite failed: Workflow initialization")
-        print("\n💡 Ensure .claude/PROJECT.md exists with GOALS, SCOPE, CONSTRAINTS")
+        print("\n💡 Ensure PROJECT.md exists with GOALS, SCOPE, CONSTRAINTS")
         sys.exit(1)
 
     # Test 2: Checkpoint creation

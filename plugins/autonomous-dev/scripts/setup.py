@@ -301,7 +301,7 @@ class SetupWizard:
         if not self.auto:
             print(f"\n✅ Created: {target_path}")
             print("\nNext steps:")
-            print("  1. Open .claude/PROJECT.md in your editor")
+            print("  1. Open PROJECT.md in your editor")
             print("  2. Fill in GOALS, SCOPE, CONSTRAINTS")
             print("  3. Save and run: /align-project")
 

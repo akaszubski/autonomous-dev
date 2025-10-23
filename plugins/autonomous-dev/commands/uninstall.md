@@ -77,7 +77,7 @@ Presents you with 6 options:
 - `.env` (project GitHub config, if exists)
 
 **Keeps** (in THIS PROJECT):
-- `.claude/PROJECT.md` (your project goals and scope)
+- `PROJECT.md` (your project goals and scope)
 - Generated code in your project
 - Tests that were created
 - Session logs in `docs/sessions/`
@@ -111,7 +111,7 @@ Presents you with 6 options:
 - `.claude/hooks/` directory
 - `.claude/templates/` directory
 - `.claude/settings.local.json`
-- `.claude/PROJECT.md`
+- `PROJECT.md`
 - `.env` (if exists)
 
 **Keeps** (in THIS PROJECT):
@@ -134,7 +134,7 @@ Presents you with 6 options:
   - Agents, skills, commands removed
 
 **Keeps** (in THIS PROJECT):
-- `.claude/PROJECT.md`
+- `PROJECT.md`
 - `.claude/hooks/` (files remain but won't work without plugin)
 - `.claude/templates/`
 - `.claude/settings.local.json`
@@ -178,7 +178,7 @@ When you run `/uninstall 2` or `/uninstall --clean-project`:
 - `rm -rf .claude/hooks/` (if removing hooks)
 - `rm -rf .claude/templates/` (if removing templates)
 - `rm -f .claude/settings.local.json` (if removing settings)
-- `rm -f .claude/PROJECT.md` (if removing PROJECT.md)
+- `rm -f PROJECT.md` (if removing PROJECT.md)
 - `rm -f .env` (if removing GitHub config)
 
 **Global removal** (Option 5 only):
@@ -301,7 +301,7 @@ Claude: Removing project files...
 Done! ✓
 
 What remains in this project:
-- .claude/PROJECT.md (your project goals and scope)
+- PROJECT.md (your project goals and scope)
 - Your generated code and tests
 - Session logs in docs/sessions/
 

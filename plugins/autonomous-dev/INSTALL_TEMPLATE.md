@@ -30,10 +30,10 @@ This will:
 
 ### Step 2: Configure PROJECT.md
 
-After setup, edit `.claude/PROJECT.md` with your project goals:
+After setup, edit `PROJECT.md` with your project goals:
 
 ```bash
-vim .claude/PROJECT.md
+vim PROJECT.md
 ```
 
 Update these sections:
@@ -194,7 +194,7 @@ Result: Context stays minimal
 
 ## 📖 PROJECT.md - Staying On Track
 
-**Location**: `.claude/PROJECT.md`
+**Location**: `PROJECT.md`
 
 **Purpose**: Define project goals, scope, constraints
 
@@ -256,7 +256,7 @@ Suggestion: Focus on core features or update PROJECT.md if strategy changed
 ### "Feature doesn't align with PROJECT.md"
 ```bash
 # Check goals
-cat .claude/PROJECT.md | grep -A 5 "## GOALS"
+cat PROJECT.md | grep -A 5 "## GOALS"
 
 # Either:
 # 1. Modify feature to align
@@ -312,7 +312,7 @@ All in 20-35 minutes!
 cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 
 # View project goals
-cat .claude/PROJECT.md
+cat PROJECT.md
 
 # List installed agents
 ls .claude/agents/
@@ -324,7 +324,7 @@ ls .claude/skills/
 ## 🆘 Support
 
 - **Session logs**: `docs/sessions/` (debugging)
-- **Project goals**: `.claude/PROJECT.md`
+- **Project goals**: `PROJECT.md`
 - **Plugin source**: https://github.com/akaszubski/autonomous-dev
 - **Issues**: https://github.com/akaszubski/autonomous-dev/issues
 

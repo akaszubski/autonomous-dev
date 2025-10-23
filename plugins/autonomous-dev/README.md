@@ -21,7 +21,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **What gets installed:**
 - ✅ Agents & Skills: Auto-active immediately
-- ✅ Commands: All 33 commands available (`/test`, `/format`, `/commit`, etc.)
+- ✅ Commands: All 25 commands available (`/test`, `/format`, `/commit`, etc.)
 - ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
 
 ### Optional Setup Wizard
@@ -85,7 +85,7 @@ This wizard helps you:
 | **research-patterns** | Research methodology, pattern discovery |
 | **engineering-standards** | Code review, git workflow, best practices |
 
-### ⚙️ 33 Slash Commands
+### ⚙️ 25 Slash Commands
 
 **All commands are independently discoverable with autocomplete.**
 
@@ -141,6 +141,11 @@ This wizard helps you:
 | `/format` | Format code (black, isort, prettier) | < 5s |
 | `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
 | `/full-check` | Complete check (format + test + security) | < 60s |
+
+#### GitHub Workflow (1 command)
+| Command | Purpose | Speed |
+|---------|---------|-------|
+| `/pr-create` | Create pull request with optional reviewer assignment | < 5s |
 
 #### Workflow (4 commands)
 | Command | Purpose | Speed |
@@ -280,7 +285,7 @@ your-project/
 - `src/` - All source code (language-specific structure)
 - `tests/` - All tests (organized by type: unit/integration/uat)
 - `scripts/` - Build and automation scripts
-- `.claude/PROJECT.md` - **Source of truth** (agents read before every feature)
+- `PROJECT.md` - **Source of truth** (agents read before every feature)
 
 **Auto-created:**
 - `docs/sessions/` - Agent activity logs (for debugging)
@@ -316,7 +321,7 @@ your-project/
 You: "Add user authentication"
 
 orchestrator (PRIMARY MISSION):
-1. ✅ Reads .claude/PROJECT.md
+1. ✅ Reads PROJECT.md
 2. ✅ Validates alignment with GOALS
 3. ✅ Checks if IN SCOPE
 4. ✅ Verifies CONSTRAINTS respected
@@ -421,11 +426,11 @@ This will:
 
 ### PROJECT.md Setup (Manual)
 
-If you prefer manual setup, create `.claude/PROJECT.md` to define your strategic direction:
+If you prefer manual setup, create `PROJECT.md` to define your strategic direction:
 
 ```bash
 # Copy template (after running /setup or setup.py)
-cp .claude/templates/PROJECT.md .claude/PROJECT.md
+cp .claude/templates/PROJECT.md PROJECT.md
 
 # Edit to define your:
 # - GOALS (what you're building, success metrics)

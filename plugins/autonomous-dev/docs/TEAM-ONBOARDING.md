@@ -67,7 +67,7 @@ ls -la .claude/agents/
 
 ```bash
 # Open PROJECT.md
-cat .claude/PROJECT.md
+cat PROJECT.md
 
 # Focus on these sections:
 # - GOALS: What success looks like
@@ -270,7 +270,7 @@ git checkout main
 git pull origin main
 
 # 2. Check sprint status
-cat .claude/PROJECT.md | grep "CURRENT SPRINT" -A 10
+cat PROJECT.md | grep "CURRENT SPRINT" -A 10
 
 # 3. Pick issue from milestone
 gh issue list --milestone "Sprint 6"
@@ -331,7 +331,7 @@ gh pr create --draft
 
 ```bash
 # 1. Read sprint goals
-cat .claude/PROJECT.md | grep "Sprint Goals" -A 10
+cat PROJECT.md | grep "Sprint Goals" -A 10
 
 # 2. Check available issues
 gh issue list --milestone "Current Sprint" --assignee ""
@@ -346,7 +346,7 @@ gh issue comment ISSUE_NUMBER --body "I can work on this"
 
 ```bash
 # 1. Check if in scope
-cat .claude/PROJECT.md | grep "SCOPE" -A 20
+cat PROJECT.md | grep "SCOPE" -A 20
 
 # 2. Create GitHub issue
 gh issue create --title "Feature: X" --body "Description..."
@@ -382,7 +382,7 @@ gh issue list --label "ready"
 git checkout -b docs/update-project-md
 
 # 2. Edit PROJECT.md
-vim .claude/PROJECT.md
+vim PROJECT.md
 
 # 3. Create PR (requires review)
 gh pr create --title "docs: Update PROJECT.md goals"

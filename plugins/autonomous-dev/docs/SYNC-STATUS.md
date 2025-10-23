@@ -203,7 +203,7 @@ cdcc3e8 feat: add architectural intent testing framework (captures design WHY)
 **What gets created in project**:
 - `.claude/hooks/` - Automation scripts (opt-in)
 - `.claude/templates/` - Templates for PROJECT.md
-- `.claude/PROJECT.md` - Project goals/scope/constraints
+- `PROJECT.md` - Project goals/scope/constraints
 - `.claude/settings.local.json` - Workflow configuration
 - `.env` - GitHub auth (optional)
 - `.gitignore` - Updated to exclude settings.local.json
