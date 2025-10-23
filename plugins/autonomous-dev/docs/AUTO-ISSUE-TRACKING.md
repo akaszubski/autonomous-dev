@@ -277,8 +277,8 @@ gh issue list --label automated
 # Run manually anytime
 python3 plugins/autonomous-dev/hooks/auto_track_issues.py
 
-# Or via /issue command
-/issue auto
+# Or via /issue-auto command
+/issue-auto
 ```
 
 ---

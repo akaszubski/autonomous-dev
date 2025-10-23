@@ -1,6 +1,6 @@
 # Command Reference
 
-**Complete list of all 33 slash commands with descriptions**
+**Complete list of all 25 slash commands with descriptions**
 
 ---
 
@@ -8,12 +8,12 @@
 
 All commands are now **separate, discoverable slash commands** with clear descriptions. When you type `/` in Claude Code, you'll see autocomplete suggestions for all available commands.
 
-**Total Commands**: 33
+**Total Commands**: 25 (reduced from 33 - removed redundant variants)
 - **Testing** (7 commands): `/test*`
 - **Commit** (4 commands): `/commit*`
-- **Alignment** (5 commands): `/align-project*`
-- **Issues** (5 commands): `/issue*`
-- **Documentation** (5 commands): `/sync-docs*`
+- **Alignment** (2 commands): `/align-project*` ⚠️ Reduced - removed 3 redundant variants
+- **Issues** (3 commands): `/issue*` ⚠️ Reduced - removed 2 redundant variants
+- **Documentation** (2 commands): `/sync-docs*` ⚠️ Reduced - removed 3 niche variants
 - **Quality** (3 commands): `/format`, `/security-scan`, `/full-check`
 - **Workflow** (4 commands): `/setup`, `/auto-implement`, `/uninstall`, more
 
@@ -42,35 +42,42 @@ All commands are now **separate, discoverable slash commands** with clear descri
 | `/commit-push` | 2-5min | Push commit - full integrity + doc sync → GitHub |
 | `/commit-release` | 5-10min | Release - complete validation + version bump + GitHub Release |
 
-### Alignment Commands (5)
+### Alignment Commands (2)
 
 | Command | Time | Description |
 |---------|------|-------------|
 | `/align-project` | 5-10min | Analyze project alignment with PROJECT.md (read-only) |
-| `/align-project-fix` | 10-15min | Auto-fix alignment issues (non-interactive) |
 | `/align-project-safe` | 15-20min | Interactive 3-phase alignment (asks before changes) ⭐ Recommended |
-| `/align-project-sync` | 20-30min | Safe alignment + GitHub sync (push + issues) |
-| `/align-project-dry-run` | 5-10min | Preview alignment changes (no modifications) |
 
-### Issue Commands (5)
+**Removed**: `/align-project-dry-run` (duplicate of `/align-project`), `/align-project-fix` (risky), `/align-project-sync` (too automatic)
+
+### Issue Commands (3)
 
 | Command | Time | Description |
 |---------|------|-------------|
-| `/issue-auto` | < 5s | Auto-create GitHub Issues from last test run |
-| `/issue-from-test` | < 5s | Create GitHub Issue from specific test failure |
-| `/issue-from-genai` | < 5s | Create GitHub Issue from GenAI finding |
-| `/issue-create` | < 5s | Manually create GitHub Issue (custom) |
+| `/issue-auto` | < 5s | Auto-create GitHub Issues from last test run ⭐ Primary |
+| `/issue-from-genai` | < 5s | Create GitHub Issue from GenAI finding (specialized) |
 | `/issue-preview` | < 5s | Preview issues without creating (dry run) |
 
-### Documentation Commands (5)
+**Removed**: `/issue` (duplicate of `/issue-auto`), `/issue-from-test` (covered by `/issue-auto`), `/issue-create` (use `gh issue create` CLI directly)
+
+### GitHub PR Commands (1)
 
 | Command | Time | Description |
 |---------|------|-------------|
-| `/sync-docs` | 5-10min | Sync all documentation (filesystem + API + CHANGELOG) |
-| `/sync-docs-api` | 2-3min | Sync API documentation only (extract docstrings) |
-| `/sync-docs-changelog` | < 1min | Update CHANGELOG.md from commits |
-| `/sync-docs-organize` | < 30s | Organize files - move .md from root to docs/ |
+| `/pr-create` | < 5s | Create pull request with optional reviewer assignment (default: draft mode) |
+
+**See**: [PR-AUTOMATION.md](PR-AUTOMATION.md) for complete reference with flags and examples
+
+### Documentation Commands (2)
+
+| Command | Time | Description |
+|---------|------|-------------|
+| `/sync-docs` | 5-10min | Sync all documentation (filesystem + API + CHANGELOG) ⭐ Complete sync |
 | `/sync-docs-auto` | 1-5min | Auto-detect changes and sync intelligently |
+
+**Removed**: `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize` (niche - use `/sync-docs` for all needs)
+**Note**: `/auto-implement` includes doc-master agent (automatic documentation sync)
 
 ### Quality Commands (3)
 
@@ -115,10 +122,10 @@ All commands are now **separate, discoverable slash commands** with clear descri
 **Alignment Progression**:
 ```
 /align-project          →  Analysis only (5-10min)
-/align-project-dry-run  →  Preview changes (5-10min)
-/align-project-safe     →  Interactive fix (15-20min) ⭐
-/align-project-sync     →  Fix + GitHub (20-30min)
+/align-project-safe     →  Interactive fix (15-20min) ⭐ Recommended
 ```
+
+**Removed redundant variants** - only 2 essential commands remain
 
 ### Quick Actions
 
@@ -153,13 +160,14 @@ All commands are now **separate, discoverable slash commands** with clear descri
 
 **Documentation Sync**:
 ```bash
-# Auto-detect and sync
+# Auto-detect and sync intelligently
 /sync-docs-auto
 
-# Or sync specific parts
-/sync-docs-api       # API docs only
-/sync-docs-changelog # CHANGELOG only
+# Or complete sync (all docs)
+/sync-docs
 ```
+
+**Note**: `/auto-implement` includes automatic doc sync via doc-master agent
 
 ---
 
