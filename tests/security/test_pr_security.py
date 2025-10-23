@@ -17,9 +17,15 @@ import os
 import pytest
 from unittest.mock import patch, Mock
 from subprocess import CalledProcessError
+import sys
+from pathlib import Path
+
+# Add lib directory to path for imports
+lib_dir = Path(__file__).parent.parent.parent / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_dir))
 
 try:
-    from plugins.autonomous_dev.lib.pr_automation import (
+    from pr_automation import (
         create_pull_request,
         parse_commit_messages_for_issues
     )
