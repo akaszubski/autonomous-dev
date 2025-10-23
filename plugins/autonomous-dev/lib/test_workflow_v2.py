@@ -37,8 +37,8 @@ def test_workflow_initialization():
         print("   See: plugins/autonomous-dev/docs/QUICKSTART.md")
         return False
 
-    # Test workflow creation
-    request = "implement user authentication with JWT tokens"
+    # Test workflow creation (request must align with autonomous-dev's actual goals)
+    request = "implement GitHub PR automation for autonomous development workflow"
 
     print(f"Request: \"{request}\"")
     print()

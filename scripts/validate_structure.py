@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Validate repository structure - ensure clean separation of dev vs user content.
+Validate repository structure - ensure dogfooding architecture.
 
-This script enforces the ROOT vs PLUGIN architecture:
-- ROOT: Development/contributor content
-- PLUGIN: User/distribution content
+This script enforces the DOGFOODING architecture:
+- SOURCE: plugins/autonomous-dev/ (edit here, commit this)
+- INSTALLED: .claude/ (installed from plugin, gitignored)
+- DEV DOCS: docs/ (contributors only, not distributed)
 
 Run: python scripts/validate_structure.py
 """
@@ -137,17 +138,56 @@ def check_root_cleanliness() -> List[str]:
     return errors
 
 
+def check_claude_not_tracked() -> List[str]:
+    """Check that .claude/ automations are not tracked in git."""
+    errors = []
+
+    # These should be gitignored (installed, not source)
+    should_be_gitignored = [
+        '.claude/commands/',
+        '.claude/agents/',
+        '.claude/skills/',
+        '.claude/hooks/',
+        '.claude/templates/',
+    ]
+
+    import subprocess
+
+    for path in should_be_gitignored:
+        try:
+            # Check if any files in this path are tracked
+            result = subprocess.run(
+                ['git', 'ls-files', path],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.stdout.strip():
+                tracked_files = result.stdout.strip().split('\n')
+                errors.append(
+                    f"❌ .claude/ automation tracked in git: {path}\n"
+                    f"   Found {len(tracked_files)} tracked files\n"
+                    f"   → These should be gitignored (installed from plugin)\n"
+                    f"   → Source is in plugins/autonomous-dev/"
+                )
+        except Exception:
+            pass  # git command failed, skip
+
+    return errors
+
+
 def main() -> int:
     """Run all structure validations."""
-    print("🔍 Validating repository structure...\n")
-    
+    print("🔍 Validating dogfooding architecture...\n")
+
     all_errors = []
-    
+
     # Run checks
     all_errors.extend(check_doc_locations())
     all_errors.extend(check_no_duplicates())
     all_errors.extend(check_root_cleanliness())
-    
+    all_errors.extend(check_claude_not_tracked())
+
     # Report results
     if all_errors:
         print("❌ Structure validation FAILED\n")
@@ -156,13 +196,15 @@ def main() -> int:
             print(error)
             print("-" * 70)
         print(f"\nTotal errors: {len(all_errors)}")
-        print("\nSee CONTRIBUTING.md for file location guidelines.")
+        print("\nSee docs/DOGFOODING-ARCHITECTURE.md for guidelines.")
         return 1
     else:
         print("✅ Structure validation PASSED")
-        print("\nAll files are in the correct locations:")
+        print("\nDogfooding architecture correct:")
+        print("  ✓ Plugin source in plugins/autonomous-dev/")
         print("  ✓ User docs in plugins/autonomous-dev/docs/")
         print("  ✓ Dev docs in docs/")
+        print("  ✓ .claude/ automations gitignored (installed)")
         print("  ✓ No duplicates")
         print("  ✓ Clean root directory")
         return 0

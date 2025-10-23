@@ -39,15 +39,41 @@ You are automatically triggered when:
 
 ## Filesystem Rules
 
+### ROOT vs PLUGIN Architecture ⭐
+
+**This project has TWO documentation locations**:
+
+1. **ROOT `docs/`** - Dev/contributor documentation (NOT distributed)
+   - For people working ON the plugin
+   - CONTRIBUTING.md, DEVELOPMENT.md, ARCHITECTURE.md, SESSION-LOGS.md
+
+2. **PLUGIN `plugins/autonomous-dev/docs/`** - User documentation (distributed)
+   - For people USING the plugin via marketplace
+   - QUICKSTART.md, COMMANDS.md, TROUBLESHOOTING.md, TESTING_GUIDE.md
+
+**Use `scripts/validate_structure.py` to validate** (has the authoritative lists).
+
 ### Categorization Logic
 
 **Root directory should contain ONLY** (4 files):
 - `README.md` - Project overview
 - `CHANGELOG.md` - Version history
-- `LICENSE` - License file
+- `CONTRIBUTING.md` - Contributor guide
 - `CLAUDE.md` - Claude Code instructions
 
-**All other .md files move to docs/**:
+**User-facing docs → `plugins/autonomous-dev/docs/`**:
+- QUICKSTART.md, COMMANDS.md, TROUBLESHOOTING.md
+- GITHUB_AUTH_SETUP.md, CUSTOMIZATION.md, TEAM-ONBOARDING.md
+- GITHUB-ISSUES-INTEGRATION.md, AUTO-ISSUE-TRACKING.md
+- TESTING_GUIDE.md, COVERAGE-GUIDE.md, COMMIT-WORKFLOW-COMPLETE.md
+- (Check `scripts/validate_structure.py` for complete list)
+
+**Dev-facing docs → `docs/`**:
+- CONTRIBUTING.md, DEVELOPMENT.md, ARCHITECTURE.md
+- CODE-REVIEW-WORKFLOW.md, IMPLEMENTATION-STATUS.md, SESSION-LOGS.md
+- (Check `scripts/validate_structure.py` for complete list)
+
+**Old categorization (legacy)**:
 
 | File Pattern | Destination | Examples |
 |--------------|-------------|----------|
@@ -73,29 +99,39 @@ ls *.md | grep -v -E "^(README|CHANGELOG|LICENSE|CLAUDE)\.md$"
 
 ```python
 def categorize_file(file_path: Path) -> Path:
-    """Determine destination for .md file."""
+    """Determine destination for .md file using ROOT vs PLUGIN rules."""
 
-    name = file_path.stem
-    content = file_path.read_text()[:1000]  # First 1000 chars
+    # Load validation rules
+    import sys
+    sys.path.insert(0, 'scripts')
+    from validate_structure import USER_DOC_FILES, DEV_DOC_FILES
 
-    # Pattern-based rules
-    if name.endswith('_SUMMARY') or name.endswith('_AUDIT') or name.endswith('_ANALYSIS'):
+    name = file_path.name
+
+    # User-facing docs → plugin
+    if name in USER_DOC_FILES:
+        return Path('plugins/autonomous-dev/docs/')
+
+    # Dev-facing docs → root docs
+    if name in DEV_DOC_FILES:
+        return Path('docs/')
+
+    # Fallback: Check content
+    content = file_path.read_text()[:1000].lower()
+
+    # Archive patterns
+    if name.endswith('_SUMMARY.md') or name.endswith('_AUDIT.md'):
         return Path('docs/archive/')
 
-    # Content-based rules
-    if 'architecture' in content.lower() or 'system design' in content.lower():
-        return Path('docs/architecture/')
+    # User content → plugin
+    if any(kw in content for kw in ['quickstart', 'how to use', 'commands', 'troubleshooting']):
+        return Path('plugins/autonomous-dev/docs/')
 
-    if 'guide' in content.lower() or 'how to' in content.lower():
-        return Path('docs/guides/')
+    # Dev content → root docs
+    if any(kw in content for kw in ['contributing', 'development', 'architecture', 'implementation']):
+        return Path('docs/')
 
-    if 'research' in content.lower() or 'findings' in content.lower():
-        return Path('docs/research/')
-
-    if 'api' in content.lower() or 'reference' in content.lower():
-        return Path('docs/api/')
-
-    # Default: archive
+    # Default: root docs archive
     return Path('docs/archive/')
 ```
 
@@ -140,29 +176,41 @@ git add docs/archive/IMPLEMENTATION_SUMMARY.md
 git status
 ```
 
-**Step 6: Report** (1 min)
+**Step 6: Validate Structure** (1 min)
+
+```bash
+python scripts/validate_structure.py
+```
+
+**Step 7: Report** (1 min)
 
 ```markdown
-✅ Filesystem Aligned
+✅ Filesystem Aligned (ROOT vs PLUGIN)
 
-**Moved**:
-- IMPLEMENTATION_SUMMARY.md → docs/archive/
-- REDUNDANCY_ANALYSIS.md → docs/archive/
+**User docs moved to plugin**:
+- QUICKSTART.md → plugins/autonomous-dev/docs/
+- COMMANDS.md → plugins/autonomous-dev/docs/
+
+**Dev docs moved to root**:
+- CONTRIBUTING.md → docs/
+- DEVELOPMENT.md → docs/
 
 **Updated links in**:
 - README.md
-- docs/architecture/SYSTEM_OVERVIEW.md
+- CLAUDE.md
 
-**Root now contains**: 4 files (README, CHANGELOG, LICENSE, CLAUDE.md) ✅
+✅ Structure validation passed
+✅ Root clean: 4 files (README, CHANGELOG, CLAUDE.md, CONTRIBUTING.md)
 ```
 
 ## Filesystem Quality Gates
 
-- [ ] Root has exactly 4 .md files (README, CHANGELOG, LICENSE, CLAUDE)
-- [ ] All other docs in appropriate docs/ subdirectories
+- [ ] Root has exactly 4 .md files (README, CHANGELOG, CLAUDE.md, CONTRIBUTING.md)
+- [ ] User docs in `plugins/autonomous-dev/docs/` (distributed)
+- [ ] Dev docs in `docs/` (contributors only)
+- [ ] `python scripts/validate_structure.py` passes
 - [ ] All links updated (no broken references)
 - [ ] Changes staged in git
-- [ ] Clear categorization (files in correct subdirectories)
 
 ---
 
