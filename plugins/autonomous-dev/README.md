@@ -21,7 +21,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **What gets installed:**
 - ✅ Agents & Skills: Auto-active immediately
-- ✅ Commands: All 25 commands available (`/test`, `/format`, `/commit`, etc.)
+- ✅ Commands: All 24 commands available (`/test`, `/format`, `/commit`, etc.)
 - ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
 
 ### Optional Setup Wizard
@@ -85,7 +85,7 @@ This wizard helps you:
 | **research-patterns** | Research methodology, pattern discovery |
 | **engineering-standards** | Code review, git workflow, best practices |
 
-### ⚙️ 25 Slash Commands
+### ⚙️ 24 Slash Commands
 
 **All commands are independently discoverable with autocomplete.**
 
@@ -108,14 +108,16 @@ This wizard helps you:
 | `/commit-push` | Push commit - full integrity + doc sync → GitHub | 2-5min |
 | `/commit-release` | Release - validation + version bump + GitHub Release | 5-10min |
 
-#### Alignment (5 commands)
+#### Alignment (1 command)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/align-project` | Analyze alignment with PROJECT.md (read-only) | 5-10min |
-| `/align-project-fix` | Auto-fix alignment issues (non-interactive) | 10-15min |
-| `/align-project-safe` | Interactive 3-phase fix (asks before changes) | 15-20min |
-| `/align-project-sync` | Safe fix + GitHub sync (push + issues) | 20-30min |
-| `/align-project-dry-run` | Preview changes without modifying | 5-10min |
+| `/align-project` | Analyze + fix alignment (interactive menu with 4 options) | 5-20min |
+
+**Interactive menu after analysis:**
+1. View report only (no changes)
+2. Fix interactively (asks before each phase) ← Recommended
+3. Preview changes (dry run)
+4. Cancel
 
 #### Issues (5 commands)
 | Command | Purpose | Speed |

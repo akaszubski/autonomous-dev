@@ -22,7 +22,7 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All 25 commands now work: `/test`, `/format`, `/commit`, etc.
+**Done!** All 24 commands now work: `/test`, `/format`, `/commit`, etc.
 
 Claude now autonomously handles formatting, testing, documentation, and security.
 
@@ -75,7 +75,7 @@ python plugins/autonomous-dev/scripts/setup.py
 - **security-auditor** - Security scanning (haiku model)
 - **doc-master** - Documentation sync (haiku model)
 
-### 25 Slash Commands
+### 24 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
@@ -94,12 +94,8 @@ All commands are independently discoverable with autocomplete:
 - `/commit-push` - Push commit with integrity checks (2-5min)
 - `/commit-release` - Production release (5-10min)
 
-**Alignment** (5 commands):
-- `/align-project` - Analyze alignment (read-only)
-- `/align-project-fix` - Auto-fix issues
-- `/align-project-safe` - Interactive 3-phase (recommended)
-- `/align-project-sync` - Safe + GitHub sync
-- `/align-project-dry-run` - Preview changes
+**Alignment** (1 command):
+- `/align-project` - Analyze + fix (interactive menu: report/fix/preview/cancel)
 
 **Issues** (5 commands):
 - `/issue-auto` - Auto-create from test results
@@ -253,7 +249,7 @@ cd my-fastapi-project
 | [plugins/autonomous-dev/docs/](plugins/autonomous-dev/docs/) | All user guides (commands, GitHub, testing, troubleshooting, etc.) |
 
 **Key docs:**
-- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (25 commands)
+- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (24 commands)
 - [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
 - [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
@@ -283,7 +279,7 @@ Claude Code needs a restart to load the plugin commands. After restarting:
 /format
 /commit
 
-# All 25 commands should appear in autocomplete
+# All 24 commands should appear in autocomplete
 ```
 
 ### Still not working after restart?
