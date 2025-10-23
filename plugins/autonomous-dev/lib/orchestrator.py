@@ -391,6 +391,172 @@ Manifest: {manifest_path}
         """
         return self.artifact_manager.get_workflow_summary(workflow_id)
 
+    def invoke_researcher(self, workflow_id: str) -> Dict[str, Any]:
+        """
+        Invoke researcher agent via Task tool to perform pattern research
+
+        Args:
+            workflow_id: Workflow identifier
+
+        Returns:
+            Result dictionary with status and researcher output
+        """
+        from logging_utils import WorkflowLogger, WorkflowProgressTracker
+
+        # Initialize logger
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        logger.log_event('invoke_researcher', 'Invoking researcher agent')
+        logger.log_decision(
+            decision='Invoke researcher for pattern analysis',
+            rationale='Need to search codebase and web for existing patterns before planning',
+            alternatives_considered=['Skip research and plan directly'],
+            metadata={'workflow_id': workflow_id}
+        )
+
+        # Update progress
+        progress_tracker = WorkflowProgressTracker(workflow_id)
+        progress_tracker.update_progress(
+            current_agent='researcher',
+            status='in_progress',
+            progress_percentage=20,
+            message='Researcher: Searching codebase and web for patterns...'
+        )
+
+        # Read manifest to get request context
+        manifest = self.artifact_manager.read_artifact(workflow_id, 'manifest')
+        request = manifest.get('request', '')
+
+        # Invoke researcher via Task tool
+        logger.log_event('task_tool_invocation', f'Invoking researcher subagent for: {request}')
+
+        # This will invoke the researcher subagent through Claude Code's Task tool
+        # The Task tool will launch the researcher agent with the prompt below
+        result = {
+            'subagent_type': 'researcher',
+            'description': f'Research patterns for: {request}',
+            'prompt': f"""
+You are the **researcher** agent for autonomous-dev v2.0 workflow {workflow_id}.
+
+## Your Mission
+
+Research existing patterns, best practices, and security considerations for the following request:
+
+**Request**: {request}
+
+## Workflow Context
+
+Read the workflow manifest to understand the full context:
+- **Manifest location**: `.claude/artifacts/{workflow_id}/manifest.json`
+- This contains the user request, PROJECT.md alignment data, and workflow plan
+
+## Your Tasks
+
+### 1. Codebase Search (2-3 minutes)
+- Use Grep to search for relevant keywords from the request
+- Use Glob to find related files (e.g., if request mentions "auth", search for `**/auth*.py`)
+- Read existing implementations to understand current patterns
+- Document what we already have
+
+### 2. Web Research (5-7 minutes)
+- Perform 3-5 WebSearch queries for best practices (use 2025 for recency)
+- Use WebFetch to extract content from top 5 sources
+- Prioritize: official docs > GitHub examples > recent blog posts > Stack Overflow
+
+### 3. Create Research Artifact
+
+Create `.claude/artifacts/{workflow_id}/research.json` with this structure:
+
+```json
+{{
+  "version": "2.0",
+  "agent": "researcher",
+  "workflow_id": "{workflow_id}",
+  "status": "completed",
+  "timestamp": "<current ISO timestamp>",
+  "codebase_patterns": [
+    {{
+      "pattern": "<pattern name>",
+      "location": "<file path>",
+      "relevance": "<why it matters>"
+    }}
+  ],
+  "best_practices": [
+    {{
+      "practice": "<practice description>",
+      "source": "<URL>",
+      "rationale": "<why recommended>"
+    }}
+  ],
+  "security_considerations": [
+    "<security item 1>",
+    "<security item 2>"
+  ],
+  "recommended_libraries": [
+    {{
+      "name": "<library name>",
+      "version": "<version>",
+      "rationale": "<why chosen>"
+    }}
+  ],
+  "alternatives_considered": [
+    {{
+      "option": "<alternative approach>",
+      "reason_not_chosen": "<why not>"
+    }}
+  ]
+}}
+```
+
+## Quality Requirements
+
+✅ At least 1 codebase pattern documented (or note "none found")
+✅ At least 3 best practices from recent sources (2024-2025)
+✅ Security considerations included
+✅ At least 1 recommended library with rationale
+✅ Alternatives documented with reasons
+
+## Logging
+
+Use the logging system to track your research decisions:
+
+```python
+from plugins.autonomous_dev.lib.logging_utils import WorkflowLogger
+
+logger = WorkflowLogger('{workflow_id}', 'researcher')
+logger.log_decision(
+    decision='Selected pattern X over pattern Y',
+    rationale='Pattern X better fits our architecture',
+    alternatives_considered=['Pattern Y', 'Pattern Z']
+)
+```
+
+## Completion
+
+When done:
+1. Verify research.json exists and is valid JSON
+2. Report back with summary of findings
+3. Next agent (planner) will use your research to design architecture
+
+**Time limit**: 15 minutes maximum
+**Output**: .claude/artifacts/{workflow_id}/research.json
+
+Begin research now.
+"""
+        }
+
+        logger.log_event(
+            'researcher_invoked',
+            'Researcher agent invocation prepared',
+            metadata=result
+        )
+
+        # NOTE: In full implementation, this would use:
+        # from claude_code_tools import Task
+        # task_result = Task(**result)
+        # For now, returning the prepared invocation
+
+        return result
+
 
 if __name__ == '__main__':
     # Example usage
