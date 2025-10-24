@@ -21,7 +21,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **What gets installed:**
 - ✅ Agents & Skills: Auto-active immediately
-- ✅ Commands: All 24 commands available (`/test`, `/format`, `/commit`, etc.)
+- ✅ Commands: All 21 commands available (`/test`, `/format`, `/commit`, etc.)
 - ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
 
 ### Optional Setup Wizard
@@ -85,7 +85,7 @@ This wizard helps you:
 | **research-patterns** | Research methodology, pattern discovery |
 | **engineering-standards** | Code review, git workflow, best practices |
 
-### ⚙️ 24 Slash Commands
+### ⚙️ 21 Slash Commands
 
 **All commands are independently discoverable with autocomplete.**
 
@@ -119,23 +119,30 @@ This wizard helps you:
 3. Preview changes (dry run)
 4. Cancel
 
-#### Issues (5 commands)
+#### Issues (1 command)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/issue-auto` | Auto-create issues from last test run | < 5s |
-| `/issue-from-test` | Create issue from specific test failure | < 5s |
-| `/issue-from-genai` | Create issue from GenAI finding | < 5s |
-| `/issue-create` | Manual issue creation (custom) | < 5s |
-| `/issue-preview` | Preview issues without creating | < 5s |
+| `/issue` | Create GitHub Issues (interactive menu with 5 options) | < 5s |
 
-#### Documentation (5 commands)
+**Interactive menu after detection:**
+1. Auto-create from test failures
+2. Create from GenAI findings
+3. Create manual issue (custom)
+4. Preview (dry run)
+5. Cancel
+
+#### Documentation (1 command)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/sync-docs` | Sync all documentation (filesystem + API + CHANGELOG) | 5-10min |
-| `/sync-docs-api` | Sync API documentation only | 2-3min |
-| `/sync-docs-changelog` | Update CHANGELOG.md from commits | < 1min |
-| `/sync-docs-organize` | Organize files - move .md to docs/ | < 30s |
-| `/sync-docs-auto` | Auto-detect changes and sync | 1-5min |
+| `/sync-docs` | Sync documentation (interactive menu with 6 options) | 1-10min |
+
+**Interactive menu after detection:**
+1. Smart sync (auto-detect and sync only changed) ← Recommended
+2. Full sync (filesystem + API + CHANGELOG)
+3. Filesystem only (organize .md files)
+4. API docs only (extract docstrings)
+5. CHANGELOG only (from commits)
+6. Cancel
 
 #### Quality (3 commands)
 | Command | Purpose | Speed |

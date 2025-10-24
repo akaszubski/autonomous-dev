@@ -22,7 +22,7 @@ Production-ready plugin for autonomous development with PROJECT.md-first archite
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All 24 commands now work: `/test`, `/format`, `/commit`, etc.
+**Done!** All 21 commands now work: `/test`, `/format`, `/commit`, etc.
 
 Claude now autonomously handles formatting, testing, documentation, and security.
 
@@ -75,7 +75,7 @@ python plugins/autonomous-dev/scripts/setup.py
 - **security-auditor** - Security scanning (haiku model)
 - **doc-master** - Documentation sync (haiku model)
 
-### 24 Slash Commands
+### 21 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
@@ -95,21 +95,13 @@ All commands are independently discoverable with autocomplete:
 - `/commit-release` - Production release (5-10min)
 
 **Alignment** (1 command):
-- `/align-project` - Analyze + fix (interactive menu: report/fix/preview/cancel)
+- `/align-project` - Analyze + fix (menu: report/fix/preview/cancel)
 
-**Issues** (5 commands):
-- `/issue-auto` - Auto-create from test results
-- `/issue-from-test` - From specific test failure
-- `/issue-from-genai` - From GenAI finding
-- `/issue-create` - Manual creation
-- `/issue-preview` - Preview without creating
+**Documentation** (1 command):
+- `/sync-docs` - Sync docs (menu: smart/full/filesystem/API/CHANGELOG/cancel)
 
-**Documentation** (5 commands):
-- `/sync-docs` - Sync all documentation
-- `/sync-docs-api` - API docs only
-- `/sync-docs-changelog` - CHANGELOG only
-- `/sync-docs-organize` - File organization
-- `/sync-docs-auto` - Auto-detect and sync
+**Issues** (1 command):
+- `/issue` - Create issues (menu: tests/GenAI/manual/preview/cancel)
 
 **Quality** (3 commands):
 - `/format` - Format code
@@ -249,7 +241,7 @@ cd my-fastapi-project
 | [plugins/autonomous-dev/docs/](plugins/autonomous-dev/docs/) | All user guides (commands, GitHub, testing, troubleshooting, etc.) |
 
 **Key docs:**
-- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (24 commands)
+- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (21 commands)
 - [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
 - [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
@@ -279,7 +271,7 @@ Claude Code needs a restart to load the plugin commands. After restarting:
 /format
 /commit
 
-# All 24 commands should appear in autocomplete
+# All 21 commands should appear in autocomplete
 ```
 
 ### Still not working after restart?
