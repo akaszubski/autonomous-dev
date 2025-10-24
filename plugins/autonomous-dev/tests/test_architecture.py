@@ -91,6 +91,7 @@ class TestSkillStructure:
             "security-patterns",
             "documentation-guide",
             "research-patterns",
+            "consistency-enforcement",
             # Architecture & design
             "architecture-patterns",
             "api-design",

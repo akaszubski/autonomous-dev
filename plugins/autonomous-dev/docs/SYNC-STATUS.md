@@ -50,7 +50,7 @@ When users `/plugin install autonomous-dev`, they get:
 
 #### Immediate (No Setup)
 - ✅ 8 agents available
-- ✅ 12 skills auto-activate (comprehensive SDLC coverage)
+- ✅ 13 skills auto-activate (comprehensive SDLC coverage)
 - ✅ 21 commands available (including `/test`)
 
 #### After `/setup`

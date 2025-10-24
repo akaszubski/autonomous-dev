@@ -429,10 +429,136 @@ OPTION3=value1
 3. Add validation logic documentation
 4. Include example values
 
+## Documentation Consistency Enforcement (CRITICAL!)
+
+**⚠️ BEFORE ANY DOCUMENTATION CHANGES**: Always verify and maintain consistency across all documentation files.
+
+### Layer 2 Defense: Agent Memory Checklist
+
+**Every time you update documentation, you MUST verify:**
+
+#### 1. Skill Count Consistency
+```bash
+# Count actual skills
+ls -d plugins/autonomous-dev/skills/*/ | wc -l
+
+# Check README.md mentions correct count
+grep -E "[0-9]+ Skills" plugins/autonomous-dev/README.md
+
+# ✅ VERIFY: Counts match!
+# ❌ If mismatch: Update README.md to show correct skill count
+```
+
+#### 2. Agent Count Consistency
+```bash
+# Count actual agents
+ls plugins/autonomous-dev/agents/*.md | wc -l
+
+# Check README.md mentions correct count
+grep -E "[0-9]+ (Specialized )?Agents" plugins/autonomous-dev/README.md
+
+# ✅ VERIFY: Counts match!
+# ❌ If mismatch: Update README.md to show correct agent count
+```
+
+#### 3. Command Count Consistency
+```bash
+# Count actual commands
+ls plugins/autonomous-dev/commands/*.md | wc -l
+
+# Check README.md mentions correct count
+grep -E "[0-9]+ (Slash )?Commands" plugins/autonomous-dev/README.md
+
+# ✅ VERIFY: Counts match!
+# ❌ If mismatch: Update README.md to show correct command count
+```
+
+#### 4. Cross-Document Consistency
+**All these files must show the SAME counts:**
+
+- `README.md` (primary source)
+- `docs/SYNC-STATUS.md`
+- `docs/UPDATES.md`
+- `INSTALL_TEMPLATE.md`
+- `.claude-plugin/marketplace.json` (metrics section)
+- `templates/knowledge/best-practices/claude-code-2.0.md`
+
+```bash
+# Check each file matches README.md
+grep -E "[0-9]+ skills" plugins/autonomous-dev/README.md
+grep -E "[0-9]+ skills" plugins/autonomous-dev/docs/SYNC-STATUS.md
+grep -E "[0-9]+ skills" plugins/autonomous-dev/docs/UPDATES.md
+grep -E "[0-9]+ skills" plugins/autonomous-dev/INSTALL_TEMPLATE.md
+
+# ✅ VERIFY: All show same count!
+# ❌ If mismatch: Update all files to match README.md
+```
+
+#### 5. No Broken Skill References
+**Never reference non-existent skills!**
+
+```bash
+# Get list of actual skills
+ls -1 plugins/autonomous-dev/skills/
+
+# Check for problematic references
+grep -r "engineering-standards" plugins/autonomous-dev/*.md
+
+# ✅ VERIFY: No references to non-existent skills!
+# ❌ If found: Remove or replace with correct skill name
+```
+
+#### 6. Marketplace.json Metrics Match Reality
+```bash
+# Verify marketplace.json metrics match actual counts
+cat .claude-plugin/marketplace.json | grep -A 5 '"metrics"'
+
+# ✅ VERIFY:
+#   - "skills": matches actual skill count
+#   - "agents": matches actual agent count
+#   - "commands": matches actual command count
+# ❌ If mismatch: Update marketplace.json metrics section
+```
+
+### Automated Testing
+
+These checks are **automatically enforced** by `tests/test_documentation_consistency.py`.
+
+If you make documentation changes, these tests WILL FAIL if:
+- README.md skill/agent/command counts are wrong
+- Cross-document counts don't match
+- Non-existent skills are referenced
+- marketplace.json metrics are out of sync
+
+**Run tests before committing**:
+```bash
+pytest tests/test_documentation_consistency.py -v
+```
+
+### Common Documentation Drift Scenarios
+
+**Scenario 1: Added new skill but forgot to update README.md**
+- ❌ README.md still shows "9 Skills"
+- ✅ FIX: Update to "12 Skills (Comprehensive SDLC Coverage)"
+- ✅ FIX: Add skill to categorized table
+
+**Scenario 2: Updated README.md but forgot other docs**
+- ❌ README.md shows "12 skills" but SYNC-STATUS.md shows "9 skills"
+- ✅ FIX: Update ALL documents to show same count
+
+**Scenario 3: Referenced non-existent skill**
+- ❌ Documentation mentions "engineering-standards" but it doesn't exist
+- ✅ FIX: Remove reference or replace with actual skill name
+
+**Scenario 4: marketplace.json out of sync**
+- ❌ marketplace.json shows `"skills": 9` but actual is 12
+- ✅ FIX: Update `.claude-plugin/marketplace.json` metrics section
+
 ## Completion Checklist
 
 Before creating docs.json, verify:
 
+- [ ] **CONSISTENCY CHECK**: Ran all 6 consistency checks above ⚠️ CRITICAL!
 - [ ] Read all artifacts (architecture, implementation, review, security)
 - [ ] Identified all documentation files needing updates
 - [ ] Updated feature-specific documentation
@@ -442,6 +568,7 @@ Before creating docs.json, verify:
 - [ ] Added usage examples (at least 3)
 - [ ] Added troubleshooting section
 - [ ] Verified no broken links
+- [ ] **CONSISTENCY CHECK**: Verified README.md, SYNC-STATUS.md, UPDATES.md, marketplace.json all match
 - [ ] Created docs.json artifact
 
 ## Output

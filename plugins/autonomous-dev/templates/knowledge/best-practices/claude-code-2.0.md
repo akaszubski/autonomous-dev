@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This report documents best practices for creating Claude Code 2.0 plugins based on official documentation and analysis of the autonomous-dev plugin (8 agents, 6 skills, 9 hooks, 33 commands).
+This report documents best practices for creating Claude Code 2.0 plugins based on official documentation and analysis of the autonomous-dev plugin (8 agents, 13 skills, 9 hooks, 21 commands).
 
 ---
 
@@ -457,7 +457,7 @@ Semantic versioning: MAJOR.MINOR.PATCH
 
 **Example Plugin:**
 - autonomous-dev: https://github.com/akaszubski/autonomous-dev
-- 8 agents, 6 skills, 9 hooks, 33 commands
+- 8 agents, 13 skills, 9 hooks, 21 commands
 
 ---
 

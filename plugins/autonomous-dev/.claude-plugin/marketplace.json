@@ -130,7 +130,7 @@
   ],
   "metrics": {
     "agents": 8,
-    "skills": 12,
+    "skills": 13,
     "commands": 21,
     "hooks": 9
   }

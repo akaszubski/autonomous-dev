@@ -96,6 +96,11 @@ This wizard helps you:
 
 ### Updating
 
+**⚠️ TWO-LAYER UPDATE PROCESS** - The plugin has two separate parts that update differently:
+
+#### Layer 1: Global Plugin (Automatic)
+**What gets updated**: Agents, skills, commands (available globally across all projects)
+
 ```bash
 # 1. Uninstall
 /plugin uninstall autonomous-dev
@@ -109,7 +114,35 @@ This wizard helps you:
 # 4. Exit and restart again
 ```
 
-**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
+✅ **Done!** Agents, skills, and commands are now updated.
+
+#### Layer 2: Project-Level Hooks (Manual Per Project)
+**What gets updated**: Hooks in each project's `.claude/hooks/` directory
+
+**⚠️ CRITICAL**: Plugin reinstall does NOT update hooks in your projects!
+
+**For EACH project using hooks**, choose one:
+
+**Option A: Quick Update** (if you already ran `/setup`):
+```bash
+# Navigate to your project
+cd ~/my-project
+
+# Re-run setup to update hooks
+/setup
+# or
+python plugins/autonomous-dev/scripts/setup.py
+```
+
+**Option B: Manual Update** (advanced):
+```bash
+# Copy updated hooks from plugin to project
+cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
+```
+
+**Why this matters**:
+- Without updating hooks: Old hook versions run (may have bugs/missing features)
+- With updating hooks: Latest hook versions run (bug fixes + new features)
 
 **See**: [QUICKSTART.md](QUICKSTART.md) for complete walkthrough
 
@@ -128,8 +161,9 @@ This wizard helps you:
 | **security-auditor** | Security scanning & OWASP compliance | haiku |
 | **doc-master** | Documentation sync & CHANGELOG automation | haiku |
 
-### 📚 9 Core Skills
+### 📚 13 Skills (Comprehensive SDLC Coverage)
 
+**Core Development:**
 | Skill | Domain | Auto-Activate |
 |-------|--------|---------------|
 | **python-standards** | PEP 8, type hints, docstrings (Google style) | ✅ |
@@ -137,10 +171,26 @@ This wizard helps you:
 | **security-patterns** | API key management, input validation, secure coding | ✅ |
 | **documentation-guide** | CHANGELOG updates, API docs, filesystem alignment | ✅ |
 | **research-patterns** | Research methodology, pattern discovery, caching | ✅ |
-| **git-workflow** | Commit conventions, branching, PR workflows, CI/CD | ✅ |
-| **code-review** | Review standards, constructive feedback, quality checks | ✅ |
+| **consistency-enforcement** | Prevents documentation drift, auto-validates counts | ✅ |
+
+**Architecture & Design:**
+| Skill | Domain | Auto-Activate |
+|-------|--------|---------------|
 | **architecture-patterns** | Design patterns, ADRs, system design, SOLID principles | ✅ |
+| **api-design** | REST API design, versioning, OpenAPI, error handling | ✅ |
+| **database-design** | Schema design, migrations, ORMs, query optimization | ✅ |
+
+**Process & Workflow:**
+| Skill | Domain | Auto-Activate |
+|-------|--------|---------------|
+| **code-review** | Review standards, constructive feedback, quality checks | ✅ |
+| **git-workflow** | Commit conventions, branching, PR workflows, CI/CD | ✅ |
 | **project-management** | PROJECT.md structure, sprints, goals, roadmaps | ✅ |
+
+**Documentation & Observability:**
+| Skill | Domain | Auto-Activate |
+|-------|--------|---------------|
+| **observability** | Structured logging, debugging (pdb/ipdb), profiling (cProfile) | ✅ |
 
 ### ⚙️ 21 Slash Commands
 

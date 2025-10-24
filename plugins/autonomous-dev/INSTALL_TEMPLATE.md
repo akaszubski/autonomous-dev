@@ -114,12 +114,13 @@ orchestrator prompts you to /clear
 - **security-auditor** - Security scanning
 - **doc-master** - Documentation sync
 
-## 📚 12 Skills Auto-Load (Comprehensive SDLC Coverage)
+## 📚 13 Skills Auto-Load (Comprehensive SDLC Coverage)
 
 **Core Development:**
 - **python-standards** - PEP 8, type hints, docstrings
 - **testing-guide** - TDD workflow, pytest patterns, three-layer testing
 - **security-patterns** - OWASP, secrets management, input validation
+- **consistency-enforcement** - Prevents documentation drift, auto-validates counts
 
 **Architecture & Design:**
 - **architecture-patterns** - Design patterns, ADRs, SOLID principles
