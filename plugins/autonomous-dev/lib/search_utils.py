@@ -418,6 +418,92 @@ def parse_index_entry(index_content: str, topic: str) -> Optional[Dict[str, str]
     return None
 
 
+def bootstrap_knowledge_base(
+    workspace_kb: Optional[Path] = None,
+    template_kb: Optional[Path] = None
+) -> Tuple[bool, str]:
+    """Bootstrap knowledge base from plugin template if not exists.
+
+    Creates .claude/knowledge/ by copying from plugin templates/knowledge/
+    if the workspace knowledge base doesn't exist yet.
+
+    Args:
+        workspace_kb: Path to workspace knowledge base. Defaults to .claude/knowledge
+        template_kb: Path to template knowledge base. Defaults to plugins/.../templates/knowledge
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if workspace_kb is None:
+        workspace_kb = Path(".claude/knowledge")
+
+    if template_kb is None:
+        template_kb = Path("plugins/autonomous-dev/templates/knowledge")
+
+    # Check if workspace knowledge base already exists
+    if workspace_kb.exists():
+        # Already bootstrapped
+        return True, "Knowledge base already exists"
+
+    # Check if template exists
+    if not template_kb.exists():
+        # Create minimal structure without template
+        try:
+            workspace_kb.mkdir(parents=True, exist_ok=True)
+            (workspace_kb / "best-practices").mkdir(exist_ok=True)
+            (workspace_kb / "patterns").mkdir(exist_ok=True)
+            (workspace_kb / "research").mkdir(exist_ok=True)
+
+            # Create minimal INDEX.md
+            index_content = """# Knowledge Base Index
+
+**Last Updated**: {date}
+**Purpose**: Persistent, organized knowledge for autonomous-dev plugin
+
+## How to Use This Knowledge Base
+
+### For Agents
+Before researching a topic:
+1. Read this INDEX to check if knowledge already exists
+2. If found, read the specific file (avoids duplicate research)
+3. If not found, research and save new findings here
+
+### For Humans
+- Browse by category below
+- Each entry includes: topic, file path, date researched, brief description
+
+---
+
+## Best Practices
+
+*(No entries yet)*
+
+## Patterns
+
+*(No entries yet)*
+
+## Research
+
+*(No entries yet)*
+""".format(date=datetime.now().strftime("%Y-%m-%d"))
+
+            (workspace_kb / "INDEX.md").write_text(index_content)
+
+            return True, "Created minimal knowledge base structure (no template found)"
+
+        except Exception as e:
+            return False, f"Failed to create knowledge base: {str(e)}"
+
+    # Copy template to workspace
+    try:
+        import shutil
+        shutil.copytree(template_kb, workspace_kb)
+        return True, f"Initialized knowledge base from template: {template_kb}"
+
+    except Exception as e:
+        return False, f"Failed to copy template: {str(e)}"
+
+
 # Example usage and testing
 if __name__ == "__main__":
     print("=== Search Utilities Tests ===\n")

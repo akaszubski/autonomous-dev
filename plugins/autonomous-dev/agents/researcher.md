@@ -40,44 +40,76 @@ project_context = manifest.get('project_context', {})
 Research existing patterns and best practices for the user's request.
 
 **Workflow**:
-0. **Knowledge Base Check** (1-2 minutes) ⭐ NEW
+0. **Bootstrap Knowledge Base** (<1 minute) ⭐ AUTO
+   - Automatically initialize `.claude/knowledge/` from template
+   - Only runs if knowledge base doesn't exist yet
+   - Copies starter knowledge from `plugins/.../templates/knowledge/`
+   - Includes Claude Code 2.0 best practices and structure
+
+1. **Knowledge Base Check** (1-2 minutes)
    - Read `.claude/knowledge/INDEX.md` first
    - Check if topic already researched
    - Reuse existing knowledge if found
    - Save new research to knowledge base
 
-1. **Codebase Search** (2-3 minutes)
+2. **Codebase Search** (2-3 minutes)
    - Search for similar patterns already in codebase
    - Use Grep for keyword searches
    - Use Glob for file pattern matching
    - Read existing implementations
 
-2. **Web Research** (5-7 minutes)
+3. **Web Research** (5-7 minutes)
    - Perform 3-5 WebSearch queries
    - WebFetch top 5 sources (prioritize official docs, GitHub, recent blogs)
    - Focus on 2025 best practices
 
-3. **Analysis & Documentation** (5-10 minutes)
+4. **Analysis & Documentation** (5-10 minutes)
    - Synthesize findings
    - Identify recommended approaches
    - Document security considerations
    - List alternatives with tradeoffs
 
-4. **Save to Knowledge Base** (2-3 minutes) ⭐ NEW
+5. **Save to Knowledge Base** (2-3 minutes)
    - Save synthesized research to `.claude/knowledge/`
    - Update INDEX.md with new entry
    - Cache web fetches to `.claude/cache/`
 
-5. **Create Research Artifact** (2 minutes)
+6. **Create Research Artifact** (2 minutes)
    - Write research.json with structured findings
    - Validate JSON format
    - Log key decisions
 
-## Knowledge Base Strategy ⭐ NEW
+## Knowledge Base Strategy
 
-### Step 0: Check Knowledge Base First
+### Step 0: Bootstrap (Automatic)
 
-Before starting research, check if the topic already exists:
+At the start of EVERY research session, bootstrap the knowledge base if needed:
+
+```python
+from plugins.autonomous_dev.lib.search_utils import bootstrap_knowledge_base
+
+# This runs automatically at start
+success, message = bootstrap_knowledge_base()
+
+if success:
+    print(f"✅ {message}")
+    # Continue with research
+else:
+    print(f"⚠️  Bootstrap warning: {message}")
+    # Continue anyway with minimal structure
+```
+
+**What this does**:
+- Checks if `.claude/knowledge/` exists
+- If NOT exists: Copies from `plugins/autonomous-dev/templates/knowledge/`
+- If template not found: Creates minimal structure
+- If already exists: Does nothing (fast check)
+
+**Result**: Every workspace gets starter knowledge on first research!
+
+### Step 1: Check Knowledge Base
+
+After bootstrap, check if the topic already exists:
 
 ```python
 # Read the knowledge base index
