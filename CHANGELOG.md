@@ -9,6 +9,36 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-10-25
+
+### Added
+- **4 New Skills** (50% increase: 6 → 9 skills):
+  - `git-workflow`: Commit conventions, branching strategies, PR workflows, CI/CD integration
+  - `code-review`: Review standards, constructive feedback, quality checks
+  - `architecture-patterns`: Design patterns (GoF), ADRs, system design, SOLID principles
+  - `project-management`: PROJECT.md structure, sprint planning, goals (SMART/OKR), roadmaps
+- **Auto-Activate for All Skills**: All 9 skills now include `auto_activate: true` for consistent behavior
+- Progressive disclosure optimization: Skills use Anthropic's recommended 3-level loading system
+
+### Changed
+- **Skills refactored** (6 → 9): Broke up broad `engineering-standards` skill into focused domain skills
+- **Skill activation**: Improved keyword coverage and descriptions for better automatic activation
+- **Documentation**: Updated README, marketplace.json, and plugin.json to reflect 9 skills
+- **Version**: v2.1.0 → v2.2.0
+
+### Removed
+- `engineering-standards` skill - Content redistributed to focused skills:
+  - Git workflow → `git-workflow` skill
+  - Code review → `code-review` skill
+  - Architecture → `architecture-patterns` skill
+  - Python standards already covered by `python-standards` skill
+
+### Technical Details
+- Followed Anthropic's skill-creator best practices for skill design
+- All skills follow progressive disclosure pattern (metadata → SKILL.md → resources)
+- Skills optimized for context efficiency (<5K words per skill body)
+- Comprehensive coverage: Python, testing, security, docs, research, git, reviews, architecture, project management
+
 ## [2.1.0] - 2025-10-24
 
 ### Added

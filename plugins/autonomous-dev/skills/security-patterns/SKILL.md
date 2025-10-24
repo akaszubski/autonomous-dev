@@ -3,6 +3,7 @@ name: security-patterns
 type: knowledge
 description: Security best practices, API key management, input validation. Use when handling secrets, user input, or security-sensitive code.
 keywords: security, api key, secret, validation, injection, owasp
+auto_activate: true
 ---
 
 # Security Patterns Skill

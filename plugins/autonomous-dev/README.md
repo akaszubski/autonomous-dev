@@ -1,11 +1,11 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-2.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v2.1.0
-**Last Updated**: 2025-10-24
+**Version**: v2.2.0
+**Last Updated**: 2025-10-25
 
 **Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
 
@@ -128,16 +128,19 @@ This wizard helps you:
 | **security-auditor** | Security scanning & OWASP compliance | haiku |
 | **doc-master** | Documentation sync & CHANGELOG automation | haiku |
 
-### 📚 6 Core Skills
+### 📚 9 Core Skills
 
-| Skill | Domain |
-|-------|--------|
-| **python-standards** | PEP 8, type hints, docstrings (Google style) |
-| **testing-guide** | Complete testing methodology (TDD, progression, regression) |
-| **security-patterns** | API key management, input validation, secure coding |
-| **documentation-guide** | CHANGELOG updates, API docs, filesystem alignment |
-| **research-patterns** | Research methodology, pattern discovery |
-| **engineering-standards** | Code review, git workflow, best practices |
+| Skill | Domain | Auto-Activate |
+|-------|--------|---------------|
+| **python-standards** | PEP 8, type hints, docstrings (Google style) | ✅ |
+| **testing-guide** | Complete testing methodology (TDD, progression, regression) | ✅ |
+| **security-patterns** | API key management, input validation, secure coding | ✅ |
+| **documentation-guide** | CHANGELOG updates, API docs, filesystem alignment | ✅ |
+| **research-patterns** | Research methodology, pattern discovery, caching | ✅ |
+| **git-workflow** | Commit conventions, branching, PR workflows, CI/CD | ✅ |
+| **code-review** | Review standards, constructive feedback, quality checks | ✅ |
+| **architecture-patterns** | Design patterns, ADRs, system design, SOLID principles | ✅ |
+| **project-management** | PROJECT.md structure, sprints, goals, roadmaps | ✅ |
 
 ### ⚙️ 21 Slash Commands
 
