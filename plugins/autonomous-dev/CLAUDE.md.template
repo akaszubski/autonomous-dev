@@ -102,12 +102,18 @@ vim .claude/PROJECT.md
 ## Skills (Auto-Load)
 
 Skills activate automatically when relevant:
-- **python-standards** - PEP 8, type hints
-- **testing-guide** - TDD workflow, pytest
-- **security-patterns** - OWASP compliance
-- **documentation-guide** - Docstring format
-- **research-patterns** - Web search strategies
-- **engineering-standards** - Code quality
+- **python-standards** - PEP 8, type hints, docstrings
+- **testing-guide** - TDD workflow, pytest, three-layer testing
+- **security-patterns** - OWASP compliance, secrets management
+- **documentation-guide** - Docs sync automation, API docs
+- **research-patterns** - Web research, knowledge caching
+- **architecture-patterns** - Design patterns, ADRs, SOLID
+- **api-design** - REST APIs, versioning, OpenAPI
+- **database-design** - Schema design, ORMs, migrations
+- **code-review** - Review standards, feedback
+- **git-workflow** - Commits, branches, PRs
+- **project-management** - PROJECT.md, sprints, roadmaps
+- **observability** - Logging, debugging, profiling
 
 ---
 

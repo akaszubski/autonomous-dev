@@ -50,8 +50,8 @@ When users `/plugin install autonomous-dev`, they get:
 
 #### Immediate (No Setup)
 - ✅ 8 agents available
-- ✅ 6 skills auto-activate
-- ✅ 11 commands available (including `/test`)
+- ✅ 12 skills auto-activate (comprehensive SDLC coverage)
+- ✅ 21 commands available (including `/test`)
 
 #### After `/setup`
 - ✅ Hooks copied to project
@@ -165,7 +165,13 @@ skills/
 ├── security-patterns/
 ├── documentation-guide/
 ├── research-patterns/
-└── engineering-standards/
+├── architecture-patterns/
+├── api-design/
+├── database-design/
+├── code-review/
+├── git-workflow/
+├── project-management/
+└── observability/
 ```
 
 ---

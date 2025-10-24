@@ -289,7 +289,7 @@ pytest --cov=scripts --cov=hooks --cov-report=html
 - [x] Read-only planning (planner/reviewer can't write)
 - [x] Security-first design (auditor in pipeline)
 - [x] Documentation sync (doc-master exists)
-- [x] Architectural invariants (8 agents, 6 skills, PROJECT.md structure)
+- [x] Architectural invariants (8 agents, 12 skills, PROJECT.md structure)
 - [x] Design decisions documented with rationale
 - [x] Breaking changes clearly defined
 
@@ -298,7 +298,7 @@ pytest --cov=scripts --cov=hooks --cov-report=html
 - [x] Agents have correct frontmatter
 - [x] Models assigned correctly (opus/sonnet/haiku)
 - [x] Tools restricted appropriately
-- [x] All 6 skills exist
+- [x] All 12 skills exist
 - [x] Skills have proper structure
 - [x] All hooks exist
 - [x] Hooks are executable

@@ -673,14 +673,22 @@ class TestSkillBoundariesNoRedundancy:
                     f"See ARCHITECTURE.md § Skill Boundaries"
                 )
 
-    def test_exactly_six_skills_exist(self, skills_dir):
-        """Test exactly 6 skills (no redundancy)."""
+    def test_exactly_twelve_skills_exist(self, skills_dir):
+        """Test exactly 12 skills (comprehensive SDLC coverage)."""
         skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
 
-        assert len(skill_dirs) == 6, (
-            f"ARCHITECTURE VIOLATION: Expected 6 skills, found {len(skill_dirs)}\n"
-            f"6 skills chosen to avoid redundancy.\n"
-            f"Adding skills may create overlapping advice.\n"
+        expected_skills = [
+            "python-standards", "testing-guide", "security-patterns",
+            "documentation-guide", "research-patterns", "architecture-patterns",
+            "api-design", "database-design", "code-review", "git-workflow",
+            "project-management", "observability"
+        ]
+
+        assert len(skill_dirs) == 12, (
+            f"ARCHITECTURE VIOLATION: Expected 12 skills, found {len(skill_dirs)}\n"
+            f"12 skills chosen for comprehensive SDLC coverage (dev-focused).\n"
+            f"Expected: {sorted(expected_skills)}\n"
+            f"Found: {sorted([d.name for d in skill_dirs])}\n"
             f"See ARCHITECTURE.md § Skill Boundaries"
         )
 

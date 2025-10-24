@@ -12,7 +12,13 @@
       "WebFetch(domain:www.thoughtworks.com)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:www.anthropic.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:python.langchain.com)",
+      "WebFetch(domain:www.elastic.co)",
+      "WebFetch(domain:martinfowler.com)",
+      "WebFetch(domain:www.algolia.com)",
+      "WebFetch(domain:www.pinecone.io)"
     ],
     "deny": [
       "Read(~/.ssh/*)",

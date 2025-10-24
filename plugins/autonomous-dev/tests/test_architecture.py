@@ -85,12 +85,22 @@ class TestSkillStructure:
     def test_all_skills_exist(self, skills_dir):
         """Test all required skills are present."""
         required_skills = [
+            # Core development skills
             "python-standards",
             "testing-guide",
             "security-patterns",
             "documentation-guide",
             "research-patterns",
-            "engineering-standards",
+            # Architecture & design
+            "architecture-patterns",
+            "api-design",
+            "database-design",
+            # Process & workflow
+            "code-review",
+            "git-workflow",
+            "project-management",
+            # Operations
+            "observability",
         ]
 
         for skill in required_skills:

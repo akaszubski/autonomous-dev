@@ -1,16 +1,45 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "autonomous-dev",
-  "description": "Production-ready Claude Code plugin for autonomous development",
+  "version": "2.2.0",
+  "description": "PROJECT.md-first autonomous development with knowledge base system. 8-agent pipeline, auto-format, auto-test, security scanning, and documentation sync.",
   "owner": {
     "name": "Andrew Kaszubski",
+    "email": "",
     "url": "https://github.com/akaszubski"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akaszubski/autonomous-dev"
+  },
+  "license": "MIT",
   "plugins": [
     {
       "name": "autonomous-dev",
       "source": "./plugins/autonomous-dev",
-      "description": "Generic autonomous development setup (7 agents, 6 skills, 8 hooks) - works for ANY project",
-      "tags": ["agents", "skills", "hooks", "testing", "documentation", "security", "generic"]
+      "version": "2.2.0",
+      "description": "PROJECT.md-first autonomous development system with knowledge base. 8-agent pipeline validates alignment, auto-bootstraps starter knowledge, includes search utilities for 90% faster repeat research. Works for Python, JavaScript, TypeScript, and Go projects.",
+      "category": "productivity",
+      "author": {
+        "name": "Andrew Kaszubski",
+        "url": "https://github.com/akaszubski"
+      },
+      "tags": [
+        "agents",
+        "skills",
+        "hooks",
+        "testing",
+        "documentation",
+        "security",
+        "python",
+        "javascript",
+        "typescript",
+        "golang",
+        "autonomous",
+        "productivity",
+        "knowledge-base",
+        "project-management"
+      ]
     }
   ]
 }

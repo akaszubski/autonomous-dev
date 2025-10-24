@@ -114,14 +114,27 @@ orchestrator prompts you to /clear
 - **security-auditor** - Security scanning
 - **doc-master** - Documentation sync
 
-## 📚 6 Skills Auto-Load
+## 📚 12 Skills Auto-Load (Comprehensive SDLC Coverage)
 
+**Core Development:**
 - **python-standards** - PEP 8, type hints, docstrings
-- **testing-guide** - TDD workflow, pytest patterns
-- **security-patterns** - OWASP, secrets management
-- **documentation-guide** - Docstring format, README
-- **research-patterns** - Web search strategies
-- **engineering-standards** - Code quality standards
+- **testing-guide** - TDD workflow, pytest patterns, three-layer testing
+- **security-patterns** - OWASP, secrets management, input validation
+
+**Architecture & Design:**
+- **architecture-patterns** - Design patterns, ADRs, SOLID principles
+- **api-design** - REST APIs, versioning, OpenAPI documentation
+- **database-design** - Schema design, migrations, ORMs, query optimization
+
+**Process & Workflow:**
+- **code-review** - Review standards, constructive feedback
+- **git-workflow** - Commit conventions, branching, PR workflows
+- **project-management** - PROJECT.md structure, sprints, roadmaps
+
+**Documentation & Observability:**
+- **documentation-guide** - Docs sync automation, API docs, CHANGELOG
+- **research-patterns** - Web research methodology, knowledge caching
+- **observability** - Logging, debugging, profiling, performance monitoring
 
 ## ⚙️ Automation (Two Modes)
 
