@@ -80,19 +80,20 @@ Everything starts with `PROJECT.md` at your project root - defining goals, scope
 
 ### Optional Setup Wizard
 
-**Only run if you want automatic hooks** (auto-format on save, auto-test on commit):
+**Only run if you want to configure hooks or PROJECT.md**:
 
 ```bash
-python plugins/autonomous-dev/scripts/setup.py
+/setup
 ```
 
 This wizard helps you:
-- Enable automatic formatting when you save files
+- Choose workflow mode (slash commands vs automatic hooks)
+- Copy hooks to your project (if you want automatic execution)
 - Create PROJECT.md from template
 - Configure GitHub integration (.env file)
 - **Asks before overwriting any existing files** (safe!)
 
-**Most users don't need this** - just use slash commands instead.
+**Most users don't need this** - commands work immediately after plugin install!
 
 ### Updating
 
@@ -123,15 +124,13 @@ This wizard helps you:
 
 **For EACH project using hooks**, choose one:
 
-**Option A: Quick Update** (if you already ran `/setup`):
+**Option A: Quick Update** (recommended):
 ```bash
 # Navigate to your project
 cd ~/my-project
 
 # Re-run setup to update hooks
 /setup
-# or
-python plugins/autonomous-dev/scripts/setup.py
 ```
 
 **Option B: Manual Update** (advanced):
@@ -504,7 +503,7 @@ The orchestrator manages the entire pipeline automatically - you just describe w
 - Commit → auto_test.py + security_scan.py run
 - Zero manual intervention
 
-**Configure via**: `/setup` or `python .claude/scripts/setup.py`
+**Configure via**: `/setup`
 
 ## Requirements
 
@@ -522,21 +521,12 @@ Run the interactive setup wizard:
 /setup
 ```
 
-Or use the automated script:
-
-```bash
-# Solo developer (slash commands)
-python .claude/scripts/setup.py --preset=solo
-
-# Team (automatic hooks + GitHub)
-python .claude/scripts/setup.py --preset=team
-```
-
 This will:
 1. Copy hooks and templates to your project
 2. Configure your workflow (slash commands or automatic hooks)
 3. Set up PROJECT.md from template
 4. Configure GitHub integration (optional)
+5. Guide you through all options interactively
 
 **See**: [QUICKSTART.md](QUICKSTART.md) for complete guide
 
@@ -545,7 +535,7 @@ This will:
 If you prefer manual setup, create `PROJECT.md` to define your strategic direction:
 
 ```bash
-# Copy template (after running /setup or setup.py)
+# Copy template (after running /setup)
 cp .claude/templates/PROJECT.md PROJECT.md
 
 # Edit to define your:
