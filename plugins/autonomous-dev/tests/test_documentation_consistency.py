@@ -362,5 +362,50 @@ class TestMarketplaceConsistency:
         )
 
 
+
+
+class TestDeprecatedPatterns:
+    """Test that README.md doesn't contain deprecated procedural instructions."""
+
+    @pytest.fixture
+    def readme_content(self):
+        """README.md content."""
+        return (Path(__file__).parent.parent / "README.md").read_text()
+
+    def test_no_deprecated_setup_py_references(self, readme_content):
+        """Test README.md doesn't reference deprecated 'python setup.py' workflow."""
+        deprecated_patterns = [
+            r"python\s+.*setup\.py",
+            r"scripts/setup\.py",
+            r"python\s+plugins/.*setup\.py",
+            r"\.claude/scripts/setup\.py",
+        ]
+
+        violations = []
+        for pattern in deprecated_patterns:
+            matches = re.findall(pattern, readme_content, re.IGNORECASE)
+            if matches:
+                violations.append(f"Found deprecated pattern: {matches[0]}")
+
+        assert not violations, (
+            f"README.md contains deprecated setup instructions:
+" +
+            "
+".join(f"  - {v}" for v in violations) +
+            f"
+
+Fix: Replace 'python setup.py' references with '/setup' command.
+"
+            f"We now use slash commands, not Python scripts for setup."
+        )
+
+    def test_no_deprecated_script_references(self, readme_content):
+        """Test README.md doesn't reference scripts that should be commands."""
+        # This test can be extended for other deprecated patterns in the future
+        assert "python scripts/setup.py" not in readme_content.lower(), (
+            "README.md references 'python scripts/setup.py' but should use '/setup' command"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

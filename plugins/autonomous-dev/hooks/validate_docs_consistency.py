@@ -23,6 +23,7 @@ What it checks:
 - Cross-document consistency (SYNC-STATUS, UPDATES, marketplace.json)
 - No references to non-existent skills
 - marketplace.json metrics match actual counts
+- No deprecated procedural instructions (e.g., 'python setup.py' → '/setup')
 
 Exit codes:
 - 0: All checks passed
@@ -218,6 +219,45 @@ def check_cross_document_consistency(plugin_root: Path, skill_count: int) -> Tup
     return True, "✅ Cross-document consistency verified"
 
 
+def check_for_deprecated_patterns(plugin_root: Path) -> Tuple[bool, str]:
+    """Check for outdated procedural instructions in documentation.
+
+    This catches procedural drift like:
+    - 'python setup.py' when we now use '/setup'
+    - 'scripts/setup.py' references
+    - Other workflow changes that numeric validation doesn't catch
+    """
+    readme_path = plugin_root / "README.md"
+    if not readme_path.exists():
+        return True, "⚠️  README.md not found (skipping)"
+
+    content = readme_path.read_text()
+
+    # Define deprecated patterns and their modern replacements
+    deprecated_patterns = [
+        (r"python\s+.*setup\.py", "Use /setup command instead of 'python setup.py'"),
+        (r"scripts/setup\.py", "Use /setup command instead of 'scripts/setup.py'"),
+        (r"python\s+plugins/.*setup\.py", "Use /setup command instead of Python script"),
+        (r"\.claude/scripts/setup\.py", "Use /setup command instead of '.claude/scripts/setup.py'"),
+    ]
+
+    violations = []
+
+    for pattern, fix_message in deprecated_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        if matches:
+            violations.append(f"Found deprecated pattern: {matches[0]}\n  → {fix_message}")
+
+    if violations:
+        return False, (
+            f"Deprecated procedural instructions found in README.md:\n"
+            + "\n".join(f"  - {v}" for v in violations) +
+            f"\n\nThese patterns suggest outdated workflow documentation."
+        )
+
+    return True, "✅ No deprecated patterns found"
+
+
 def main() -> int:
     """Run all documentation consistency checks.
 
@@ -253,6 +293,7 @@ def main() -> int:
         ("marketplace.json metrics", check_marketplace_json(plugin_root, skill_count, agent_count, command_count)),
         ("Broken skill references", check_no_broken_skill_references(plugin_root)),
         ("Cross-document consistency", check_cross_document_consistency(plugin_root, skill_count)),
+        ("Deprecated patterns", check_for_deprecated_patterns(plugin_root)),
     ]
 
     all_passed = True
