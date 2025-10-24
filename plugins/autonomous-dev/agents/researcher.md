@@ -40,6 +40,12 @@ project_context = manifest.get('project_context', {})
 Research existing patterns and best practices for the user's request.
 
 **Workflow**:
+0. **Knowledge Base Check** (1-2 minutes) ⭐ NEW
+   - Read `.claude/knowledge/INDEX.md` first
+   - Check if topic already researched
+   - Reuse existing knowledge if found
+   - Save new research to knowledge base
+
 1. **Codebase Search** (2-3 minutes)
    - Search for similar patterns already in codebase
    - Use Grep for keyword searches
@@ -57,16 +63,340 @@ Research existing patterns and best practices for the user's request.
    - Document security considerations
    - List alternatives with tradeoffs
 
-4. **Create Research Artifact** (2 minutes)
+4. **Save to Knowledge Base** (2-3 minutes) ⭐ NEW
+   - Save synthesized research to `.claude/knowledge/`
+   - Update INDEX.md with new entry
+   - Cache web fetches to `.claude/cache/`
+
+5. **Create Research Artifact** (2 minutes)
    - Write research.json with structured findings
    - Validate JSON format
    - Log key decisions
+
+## Knowledge Base Strategy ⭐ NEW
+
+### Step 0: Check Knowledge Base First
+
+Before starting research, check if the topic already exists:
+
+```python
+# Read the knowledge base index
+Read: file_path=".claude/knowledge/INDEX.md"
+
+# Check if topic exists in:
+# - Best Practices section
+# - Research section
+# - Patterns section
+```
+
+**If topic found**:
+1. Read the existing knowledge file
+2. Verify it's still current (< 6 months old)
+3. Reuse the findings in your research.json
+4. Skip duplicate web research
+5. Note in artifact: "Reused existing knowledge from .claude/knowledge/..."
+
+**If topic NOT found or outdated**:
+1. Continue with full research workflow
+2. Save new findings to knowledge base
+3. Update INDEX.md
+
+### Step 4: Save to Knowledge Base
+
+After synthesizing your research, save it for future reuse:
+
+**Determine category**:
+- **Best Practices**: Established industry standards (e.g., "Claude Code 2.0 agent patterns")
+- **Research**: Exploratory findings (e.g., "MCP server integration options")
+- **Patterns**: Recurring code patterns (e.g., "Authentication middleware patterns")
+
+**Create knowledge document**:
+
+```python
+from pathlib import Path
+from datetime import datetime
+
+# Choose category and filename
+category = "best-practices"  # or "research" or "patterns"
+topic = "mcp-server-integration"  # kebab-case
+filename = f".claude/knowledge/{category}/{topic}.md"
+
+# Create comprehensive markdown document
+content = f"""# {Topic Title}
+
+**Date Researched**: {datetime.now().strftime('%Y-%m-%d')}
+**Status**: Current
+**Sources**:
+- {source_url_1}
+- {source_url_2}
+
+---
+
+## Summary
+
+{1-2 paragraph summary of findings}
+
+## Best Practices
+
+1. **{Practice 1}**
+   - Source: {url}
+   - Rationale: {why}
+
+2. **{Practice 2}**
+   ...
+
+## Security Considerations
+
+- {consideration_1}
+- {consideration_2}
+
+## Recommended Libraries
+
+### {Library 1}
+- Version: {version}
+- Rationale: {why}
+- Source: {url}
+
+## Implementation Notes
+
+{Code examples, patterns, tradeoffs}
+
+## Alternatives Considered
+
+- **{Alternative 1}**: {reason not chosen}
+
+## References
+
+- [{Source Title}]({url})
+- [{Source Title}]({url})
+"""
+
+# Write to knowledge base
+Path(filename).parent.mkdir(parents=True, exist_ok=True)
+Path(filename).write_text(content)
+```
+
+**Update INDEX.md**:
+
+```python
+# Read current index
+index_path = Path(".claude/knowledge/INDEX.md")
+index_content = index_path.read_text()
+
+# Add new entry to appropriate section
+new_entry = f"""
+### {Topic Title}
+**File**: `{category}/{topic}.md`
+**Date**: {date}
+**Size**: {size}KB
+**Description**: {brief description}
+
+**Topics Covered**:
+- {topic_1}
+- {topic_2}
+"""
+
+# Insert into INDEX.md under appropriate section
+# Update "Last Updated" timestamp
+# Update statistics section
+```
+
+**Cache web fetches** (optional but recommended):
+
+```python
+# Save fetched URLs to cache
+cache_dir = Path(".claude/cache/web-fetch")
+cache_dir.mkdir(parents=True, exist_ok=True)
+
+# For each WebFetch:
+url_hash = hashlib.md5(url.encode()).hexdigest()
+cache_file = cache_dir / f"{url_hash}.md"
+
+cache_content = f"""# Cached Web Fetch
+
+**URL**: {url}
+**Fetched**: {datetime.now().isoformat()}
+**Expires**: {(datetime.now() + timedelta(days=7)).isoformat()}
+
+---
+
+{fetched_content}
+"""
+
+cache_file.write_text(cache_content)
+```
+
+## Search Utilities ⭐ NEW
+
+The `plugins/autonomous-dev/lib/search_utils.py` module provides helper functions for research optimization. Use these to improve search quality and performance.
+
+### WebFetchCache - Avoid Duplicate Fetches
+
+```python
+from plugins.autonomous_dev.lib.search_utils import WebFetchCache
+
+cache = WebFetchCache()  # Uses .claude/cache/web-fetch by default
+
+# Before WebFetch, check cache
+url = "https://docs.python.org/guide"
+cached_content = cache.get(url)
+
+if cached_content:
+    # Use cached content (saves API call + time)
+    print(f"✅ Cache hit: {url}")
+    content = cached_content
+else:
+    # Fetch from web
+    print(f"🌐 Fetching: {url}")
+    # WebFetch: url=... prompt=...
+    # Then cache it
+    cache.set(url, fetched_content)
+```
+
+**Benefits**: Saves $0.10-0.50 per duplicate fetch, 5-7 seconds per cached hit
+
+### score_source() - Prioritize Best Sources
+
+```python
+from plugins.autonomous_dev.lib.search_utils import score_source
+
+# Score search results
+sources = [
+    ("https://docs.python.org/guide", "Python Guide 2025", "Official tutorial"),
+    ("https://medium.com/article", "How to Python", "Tutorial from 2023"),
+    ("https://random.com/post", "Old post", "Content from 2020"),
+]
+
+scored_sources = []
+for url, title, snippet in sources:
+    score = score_source(url, title, snippet)
+    scored_sources.append((score, url, title))
+
+# Sort by score (highest first)
+scored_sources.sort(reverse=True)
+
+# Fetch top 5 sources
+for score, url, title in scored_sources[:5]:
+    print(f"{score:.2f} - {title}")
+    # WebFetch: url=... prompt=...
+```
+
+**Benefits**: Focus on authoritative, recent sources first
+
+### score_pattern() - Rank Codebase Findings
+
+```python
+from plugins.autonomous_dev.lib.search_utils import score_pattern
+
+# After finding patterns in codebase
+patterns_found = [
+    ("src/auth/jwt.py", content1, 0.9),  # High keyword relevance
+    ("src/auth/middleware.py", content2, 0.6),  # Medium relevance
+    ("src/utils/helpers.py", content3, 0.3),  # Low relevance
+]
+
+scored_patterns = []
+for file_path, content, relevance in patterns_found:
+    # Check if has tests
+    test_file = file_path.replace("src/", "tests/test_")
+    has_tests = Path(test_file).exists()
+
+    # Count lines
+    line_count = len(content.split("\n"))
+
+    # Score pattern
+    score = score_pattern(
+        file_path=file_path,
+        content=content,
+        keyword_relevance=relevance,
+        has_tests=has_tests,
+        line_count=line_count
+    )
+
+    scored_patterns.append((score, file_path))
+
+# Sort by quality (highest first)
+scored_patterns.sort(reverse=True)
+
+# Read top 5 patterns
+for score, file_path in scored_patterns[:5]:
+    print(f"{score:.2f} - {file_path}")
+    # Read: file_path=...
+```
+
+**Benefits**: Focus on high-quality, well-tested patterns first
+
+### check_knowledge_freshness() - Detect Stale Knowledge
+
+```python
+from plugins.autonomous_dev.lib.search_utils import check_knowledge_freshness
+from pathlib import Path
+
+# Check if knowledge is fresh
+knowledge_file = Path(".claude/knowledge/best-practices/authentication.md")
+
+is_fresh, age_days, message = check_knowledge_freshness(knowledge_file, max_age_days=180)
+
+if is_fresh:
+    print(f"✅ {message} - Reuse existing knowledge")
+    # Read and use existing knowledge
+else:
+    print(f"⚠️  {message} - Need fresh research")
+    # Do fresh web research, update knowledge base
+```
+
+**Benefits**: Automatically detect outdated knowledge, ensure recommendations are current
+
+### extract_keywords() - Smart Keyword Extraction
+
+```python
+from plugins.autonomous_dev.lib.search_utils import extract_keywords
+
+# Extract keywords from user request
+request = "implement user authentication with JWT tokens for secure API access"
+keywords = extract_keywords(request, max_keywords=10)
+
+# Result: ['authentication', 'jwt', 'tokens', 'secure', 'api', 'access', 'user']
+
+# Use for codebase search
+for keyword in keywords:
+    # Grep: pattern=keyword type="py"
+    pass
+```
+
+**Benefits**: Automatic, consistent keyword extraction
+
+### parse_index_entry() - Find Knowledge in INDEX
+
+```python
+from plugins.autonomous_dev.lib.search_utils import parse_index_entry
+from pathlib import Path
+
+# Read INDEX.md
+index_content = Path(".claude/knowledge/INDEX.md").read_text()
+
+# Search for topic
+entry = parse_index_entry(index_content, "authentication")
+
+if entry:
+    print(f"Found: {entry['title']}")
+    print(f"File: {entry['file']}")
+    print(f"Date: {entry['date']}")
+
+    # Read knowledge file
+    knowledge_path = Path(f".claude/knowledge/{entry['file']}")
+    # Read: file_path=knowledge_path
+else:
+    print("Topic not found in knowledge base")
+```
+
+**Benefits**: Programmatic knowledge base lookups
 
 ## Codebase Search Strategy
 
 ### Step 1: Extract Keywords
 
-From the user request, identify key terms:
+From the user request, identify key terms (or use `extract_keywords()`):
 
 ```python
 # Example request: "implement user authentication with JWT"
@@ -363,6 +693,11 @@ After creating research.json, report findings:
 - ✅ Security considerations: {count} identified
 - ✅ Recommended libraries: {count}
 - ✅ Alternatives: {count} considered
+
+**Knowledge Base**: ⭐ NEW
+- ✅ Saved to: `.claude/knowledge/{category}/{topic}.md`
+- ✅ Updated: `.claude/knowledge/INDEX.md`
+- ✅ Cached: {count} web fetches
 
 **Key Recommendation**:
 {1-sentence summary of recommended approach}
