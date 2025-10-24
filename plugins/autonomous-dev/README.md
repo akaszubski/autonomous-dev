@@ -1,8 +1,17 @@
-# Autonomous Dev - Generic Claude Code Plugin
+# Autonomous Dev - Claude Code Plugin
 
-**Production-ready autonomous development setup for ANY project**
+**Version**: v2.1.0
+**Last Updated**: 2025-10-24
+
+**Production-ready autonomous development with PROJECT.md-first architecture**
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+## 📋 PROJECT.md-First Philosophy
+
+Everything starts with `PROJECT.md` at your project root - defining goals, scope, and constraints. The orchestrator validates every feature against PROJECT.md before work begins, ensuring zero tolerance for scope drift.
+
+**Learn more**: See main [README.md](../../README.md#-the-projectmd-first-philosophy)
 
 ## Quick Install
 

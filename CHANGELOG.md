@@ -9,7 +9,54 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-10-24
+
 ### Added
+- **PROJECT.md-First Philosophy Section** in README - Prominent explanation of PROJECT.md-first architecture
+- **New Project vs Existing Project Workflows** - Clear guides for greenfield vs retrofit scenarios
+- **FAQ Section** clarifying `.claude/` directory usage (not needed for most users)
+- **Consistency Validation Checklist** (`docs/CONSISTENCY_CHECKLIST.md`) with 30+ pre-release checks
+- Interactive menu pattern for all mode-based commands
+
+### Changed
+- **BREAKING**: PROJECT.md location changed from `.claude/PROJECT.md` → `PROJECT.md` (project root)
+  - Migration: `mv .claude/PROJECT.md ./PROJECT.md`
+  - Reason: PROJECT.md is project-level metadata, not tool-specific config
+- **Commands simplified**: 33 → 21 commands via interactive menus
+  - Alignment: 5 commands → 1 (`/align-project` with 4-option menu)
+  - Documentation: 2 commands → 1 (`/sync-docs` with 6-option menu)
+  - Issues: 3 commands → 1 (`/issue` with 5-option menu)
+- **README.md completely revised**:
+  - Fixed installation troubleshooting (removed incorrect `~/.claude/plugins` path)
+  - Added PROJECT.md-first philosophy section
+  - Added new vs existing project workflows
+  - Clarified `.claude/` directory is optional
+- **Plugin README** updated to match root README philosophy
+- **Version**: v2.0.0 → v2.1.0
+
+### Removed
+- Duplicate `-v2` agent files (8 files) - cleaned up from development
+- Redundant command variants:
+  - `align-project-safe`, `align-project-fix`, `align-project-dry-run`, `align-project-sync`
+  - `sync-docs-auto`
+  - `issue-auto`, `issue-from-genai`, `issue-preview`
+- Incorrect troubleshooting instructions referencing `~/.claude/plugins`
+
+### Fixed
+- Installation instructions now use correct GitHub marketplace method
+- All documentation now references PROJECT.md at root (not `.claude/PROJECT.md`)
+- Command count updated throughout documentation (21 commands)
+- Agent/skill counts verified (8 agents, 6 skills)
+
+### Documentation
+- Added comprehensive consistency checklist for maintainers
+- Updated all command counts (33 → 25 → 24 → 21)
+- Clarified .claude/ structure and when it's needed
+- Added migration guide for PROJECT.md location change
+
+---
+
+### Added (Unreleased items moved below)
 - **marketplace.json** - Plugin marketplace distribution file for `/plugin marketplace add`
 - **/sync-docs command** - Synchronize documentation with code changes (invokes doc-master agent)
   - `--auto` flag: Auto-detect changes via git diff
