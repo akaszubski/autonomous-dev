@@ -1,0 +1,38 @@
+{
+  "version": "2.0",
+  "agent": "researcher",
+  "workflow_id": "20251023_104009",
+  "status": "completed",
+  "codebase_patterns": [
+    {
+      "pattern": "JWT token validation",
+      "location": "src/auth/jwt.py",
+      "relevance": "Existing JWT utilities we can reuse"
+    }
+  ],
+  "best_practices": [
+    {
+      "practice": "Use RS256 for production JWT signing",
+      "source": "https://auth0.com/blog/rs256-vs-hs256/",
+      "rationale": "Asymmetric keys more secure for distributed systems"
+    }
+  ],
+  "security_considerations": [
+    "Store JWT secret in environment variables",
+    "Set reasonable expiration times (15 min access, 7 days refresh)",
+    "Validate all JWT claims, not just signature"
+  ],
+  "recommended_libraries": [
+    {
+      "name": "PyJWT",
+      "version": "2.8.0",
+      "rationale": "Industry standard, well-maintained"
+    }
+  ],
+  "alternatives_considered": [
+    {
+      "option": "python-jose",
+      "reason_not_chosen": "PyJWT has better community support"
+    }
+  ]
+}

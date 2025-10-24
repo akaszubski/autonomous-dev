@@ -89,7 +89,7 @@
 - **Git**: For version control and rollback safety
 
 **Current Architecture** (v2.0.0):
-- **Agents**: orchestrator (NEW), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master (8 total)
+- **Agents**: orchestrator , planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master (8 total)
 - **Skills**: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards (6 total)
 - **Commands**: /align-project (with --safe, --sync-github flags)
 - **Hooks**: Auto-format, auto-test, auto-enforce-coverage, security-scan

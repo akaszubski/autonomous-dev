@@ -17,15 +17,27 @@ Agent: test-master
 """
 
 import json
+import sys
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 from subprocess import CalledProcessError, TimeoutExpired
 from typing import Dict, Any, List, Tuple
 
+# Add lib directory to path for imports
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent
+        / "plugins"
+        / "autonomous-dev"
+        / "lib"
+    ),
+)
+
 # Import will fail - module doesn't exist yet (TDD!)
 try:
-    from plugins.autonomous_dev.lib.pr_automation import (
+    from pr_automation import (
         create_pull_request,
         parse_commit_messages_for_issues,
         validate_gh_prerequisites,
@@ -232,9 +244,9 @@ class TestParseCommitMessagesForIssues:
 class TestCreatePullRequest:
     """Test PR creation functionality."""
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
-    @patch('plugins.autonomous_dev.lib.pr_automation.parse_commit_messages_for_issues')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
+    @patch('pr_automation.parse_commit_messages_for_issues')
     @patch('subprocess.run')
     def test_create_pull_request_draft_default(self, mock_run, mock_parse, mock_branch, mock_validate):
         """Test PR creation defaults to draft status."""
@@ -257,8 +269,8 @@ class TestCreatePullRequest:
         assert result['draft'] is True
         assert '--draft' in str(mock_run.call_args)
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_ready_with_flag(self, mock_run, mock_branch, mock_validate):
         """Test PR creation with ready flag (not draft)."""
@@ -277,8 +289,8 @@ class TestCreatePullRequest:
         assert result['draft'] is False
         assert '--draft' not in str(mock_run.call_args)
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_with_custom_title_body(self, mock_run, mock_branch, mock_validate):
         """Test PR creation with custom title and body."""
@@ -304,8 +316,8 @@ class TestCreatePullRequest:
         assert '--body' in call_str
         assert '--fill-verbose' not in call_str  # Should use custom, not auto-fill
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_with_reviewer(self, mock_run, mock_branch, mock_validate):
         """Test PR creation with reviewer assignment."""
@@ -326,8 +338,8 @@ class TestCreatePullRequest:
         assert '--reviewer' in call_str
         assert 'alice' in call_str
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_with_multiple_reviewers(self, mock_run, mock_branch, mock_validate):
         """Test PR creation with multiple reviewers."""
@@ -347,7 +359,7 @@ class TestCreatePullRequest:
         call_str = str(mock_run.call_args)
         assert 'alice,bob,charlie' in call_str
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.get_current_branch')
     def test_create_pull_request_fails_on_main_branch(self, mock_branch):
         """Test PR creation raises ValueError when on main branch."""
         # Arrange
@@ -357,7 +369,7 @@ class TestCreatePullRequest:
         with pytest.raises(ValueError, match='Cannot create PR from main branch'):
             create_pull_request()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.get_current_branch')
     def test_create_pull_request_fails_on_master_branch(self, mock_branch):
         """Test PR creation raises ValueError when on master branch."""
         # Arrange
@@ -367,8 +379,8 @@ class TestCreatePullRequest:
         with pytest.raises(ValueError, match='Cannot create PR from master branch'):
             create_pull_request()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_fails_no_commits(self, mock_run, mock_branch, mock_validate):
         """Test PR creation raises ValueError when no commits exist."""
@@ -382,7 +394,7 @@ class TestCreatePullRequest:
         with pytest.raises(ValueError, match='No commits found'):
             create_pull_request()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.validate_gh_prerequisites')
     def test_create_pull_request_fails_no_auth(self, mock_validate):
         """Test PR creation fails when gh not authenticated."""
         # Arrange
@@ -395,8 +407,8 @@ class TestCreatePullRequest:
         assert result['success'] is False
         assert 'not authenticated' in result['error'].lower()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_handles_rate_limit(self, mock_run, mock_branch, mock_validate):
         """Test PR creation handles GitHub API rate limit error."""
@@ -416,8 +428,8 @@ class TestCreatePullRequest:
         assert result['success'] is False
         assert 'rate limit' in result['error'].lower()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_handles_permission_error(self, mock_run, mock_branch, mock_validate):
         """Test PR creation handles 403 permission error."""
@@ -437,8 +449,8 @@ class TestCreatePullRequest:
         assert result['success'] is False
         assert 'permission' in result['error'].lower() or 'protected' in result['error'].lower()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_handles_network_timeout(self, mock_run, mock_branch, mock_validate):
         """Test PR creation handles network timeout gracefully."""
@@ -454,9 +466,9 @@ class TestCreatePullRequest:
         assert result['success'] is False
         assert 'timeout' in result['error'].lower()
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
-    @patch('plugins.autonomous_dev.lib.pr_automation.parse_commit_messages_for_issues')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
+    @patch('pr_automation.parse_commit_messages_for_issues')
     @patch('subprocess.run')
     def test_create_pull_request_includes_linked_issues(self, mock_run, mock_parse, mock_branch, mock_validate):
         """Test PR creation returns linked issues found in commit messages."""
@@ -476,8 +488,8 @@ class TestCreatePullRequest:
         assert result['success'] is True
         assert result['linked_issues'] == [42, 123]
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     @patch('subprocess.run')
     def test_create_pull_request_with_base_develop(self, mock_run, mock_branch, mock_validate):
         """Test PR creation with non-main base branch."""
@@ -498,8 +510,8 @@ class TestCreatePullRequest:
         assert '--base' in call_str
         assert 'develop' in call_str
 
-    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')
-    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')
+    @patch('pr_automation.validate_gh_prerequisites')
+    @patch('pr_automation.get_current_branch')
     def test_create_pull_request_parses_pr_number_from_url(self, mock_branch, mock_validate):
         """Test PR number correctly extracted from GitHub URL."""
         # Arrange
