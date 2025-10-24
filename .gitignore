@@ -48,3 +48,9 @@ build/
 .claude/commands/
 .claude/templates/
 .claude/hooks/
+
+# Workspace-specific data (user-generated content)
+# Source of truth: plugins/autonomous-dev/templates/knowledge/ (template)
+# Workspace instance: .claude/knowledge/ (bootstrapped from template + user additions)
+.claude/knowledge/
+.claude/cache/
