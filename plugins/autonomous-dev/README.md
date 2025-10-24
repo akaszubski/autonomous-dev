@@ -1,5 +1,9 @@
 # Autonomous Dev - Claude Code Plugin
 
+[![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
+[![Version](https://img.shields.io/badge/version-2.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
+
 **Version**: v2.1.0
 **Last Updated**: 2025-10-24
 
