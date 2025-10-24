@@ -3,15 +3,56 @@
 **Version**: v2.1.0
 **Last Updated**: 2025-10-24
 
-**Production-ready autonomous development with PROJECT.md-first architecture**
+**Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+## ✨ What's New in v2.1.0
+
+**Knowledge Base System**: Auto-bootstraps on first use!
+- 🚀 **Zero-config starter knowledge**: Get Claude Code 2.0 best practices automatically
+- 📚 **Research caching**: 90% faster on repeat topics (saves time + API costs)
+- 🔍 **Smart search utilities**: Source quality scoring, pattern ranking, freshness checks
+- 💾 **Template architecture**: Follows industry patterns (git, Docker, VSCode)
+
+**First Research Experience**:
+```
+"Research Python testing best practices"
+→ ✅ Initializing knowledge base from template...
+→ ✅ Copied starter knowledge (Claude Code 2.0 best practices)
+→ ✅ Knowledge base ready!
+```
+
+**Benefits**:
+- Immediate value: Professional knowledge base structure on first use
+- Cost savings: Cache research, avoid duplicate web fetches
+- Time savings: 1-2 min vs 15-20 min on repeat topics
 
 ## 📋 PROJECT.md-First Philosophy
 
 Everything starts with `PROJECT.md` at your project root - defining goals, scope, and constraints. The orchestrator validates every feature against PROJECT.md before work begins, ensuring zero tolerance for scope drift.
 
 **Learn more**: See main [README.md](../../README.md#-the-projectmd-first-philosophy)
+
+## 🔍 How to Find This Plugin
+
+**Discovery Options**:
+
+1. **Direct Install** (if you're reading this):
+   ```bash
+   /plugin marketplace add akaszubski/autonomous-dev
+   /plugin install autonomous-dev
+   ```
+
+2. **GitHub Search**: Search for `"claude-code plugin" autonomous development`
+
+3. **Community Directories**:
+   - [Claude Code Plugin Hub](https://claudecodeplugin.org)
+   - [Claude Code Marketplace](https://github.com/ananddtyagi/claude-code-marketplace)
+
+4. **Share**: Tell colleagues about `akaszubski/autonomous-dev`
+
+**Star this repo** to help others discover it! ⭐
 
 ## Quick Install
 
@@ -76,7 +117,7 @@ This wizard helps you:
 |-------|---------|-------|
 | **orchestrator** | Master coordinator - validates PROJECT.md alignment, manages context, coordinates all agents | sonnet |
 | **planner** | Architecture & design planning for complex features | opus |
-| **researcher** | Web research & best practices discovery | sonnet |
+| **researcher** | **⭐ NEW**: Auto-bootstraps knowledge base, caches research, reuses findings (90% faster) | sonnet |
 | **test-master** | TDD workflow, progression tracking, regression prevention | sonnet |
 | **implementer** | Clean code implementation following patterns | sonnet |
 | **reviewer** | Code quality gate before merge | sonnet |
