@@ -191,12 +191,37 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All commands immediately work.
-
 **What gets installed:**
 - ✅ Agents & Skills: Auto-active immediately
-- ✅ Commands: All 21 commands available (`/test`, `/format`, `/commit`, etc.)
-- ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
+- ✅ Commands: 8 core commands available
+- ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (configured via setup)
+
+---
+
+### Required Setup (2 minutes)
+
+**Run setup to enable core features**:
+
+```bash
+/setup
+```
+
+This wizard helps you:
+- Create PROJECT.md from template (**required for /auto-implement**)
+- Choose workflow mode (slash commands vs automatic hooks)
+- Copy hooks to your project (optional - for automatic execution)
+- Configure GitHub integration (.env file - optional)
+- **Asks before overwriting any existing files** (safe!)
+
+**What works immediately** (no PROJECT.md needed):
+- `/health-check` - Validate plugin components
+- `/test` - Run tests (if tests exist)
+- `/uninstall` - Remove plugin
+
+**What needs PROJECT.md** (created by /setup):
+- `/auto-implement` - Autonomous feature development
+- `/align-project` - PROJECT.md alignment validation
+- `/status` - Progress tracking
 
 ---
 
@@ -211,23 +236,6 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 See `docs/TROUBLESHOOTING.md` section 0 for details.
 
 ---
-
-### Optional Setup Wizard
-
-**Only run if you want to configure hooks or PROJECT.md**:
-
-```bash
-/setup
-```
-
-This wizard helps you:
-- Choose workflow mode (slash commands vs automatic hooks)
-- Copy hooks to your project (if you want automatic execution)
-- Create PROJECT.md from template
-- Configure GitHub integration (.env file)
-- **Asks before overwriting any existing files** (safe!)
-
-**Most users don't need this** - commands work immediately after plugin install!
 
 ### Updating
 
@@ -325,85 +333,59 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 |-------|--------|---------------|
 | **observability** | Structured logging, debugging (pdb/ipdb), profiling (cProfile) | ✅ |
 
-### ⚙️ 21 Slash Commands
+### ⚙️ 8 Core Commands
 
 **All commands are independently discoverable with autocomplete.**
 
-#### Testing (7 commands)
+#### Workflow Commands (3 commands)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/test` | All automated tests (unit + integration + UAT) | < 60s |
-| `/test-unit` | Unit tests only - fast validation | < 1s |
-| `/test-integration` | Integration tests - components together | < 10s |
-| `/test-uat` | UAT tests - user workflows (automated) | < 60s |
-| `/test-uat-genai` | GenAI UX validation - analyze UX quality | 2-5min |
-| `/test-architecture` | GenAI architecture validation - detect drift | 2-5min |
-| `/test-complete` | Complete pre-release validation (all + GenAI) | 5-10min |
-
-#### Commit (4 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/commit` | Quick commit - format + unit tests + security → local | < 5s |
-| `/commit-check` | Standard commit - all tests + coverage → local | < 60s |
-| `/commit-push` | Push commit - full integrity + doc sync → GitHub | 2-5min |
-| `/commit-release` | Release - validation + version bump + GitHub Release | 5-10min |
+| `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 60-120s |
+| `/setup` | Interactive setup wizard (creates PROJECT.md, configures hooks) | 5-10min |
+| `/status` | View PROJECT.md goal progress and alignment status | < 5s |
 
 #### Alignment (1 command)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/align-project` | Analyze + fix alignment (interactive menu with 4 options) | 5-20min |
+| `/align-project` | Analyze + fix PROJECT.md alignment | 5-10min |
 
-**Interactive menu after analysis:**
-1. View report only (no changes)
-2. Fix interactively (asks before each phase) ← Recommended
-3. Preview changes (dry run)
-4. Cancel
+**What it checks:**
+- Directory structure (src/, docs/, tests/)
+- Documentation organization
+- Test structure (unit/, integration/, uat/)
+- Hook configuration
+- PROJECT.md completeness
 
-#### Issues (1 command)
+#### Testing (1 command)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/issue` | Create GitHub Issues (interactive menu with 5 options) | < 5s |
+| `/test` | Run all automated tests (unit + integration + UAT) with pytest | < 60s |
 
-**Interactive menu after detection:**
-1. Auto-create from test failures
-2. Create from GenAI findings
-3. Create manual issue (custom)
-4. Preview (dry run)
-5. Cancel
+**Note**: Requires `tests/` directory with pytest tests. See [Issue #7](https://github.com/akaszubski/autonomous-dev/issues/7) for test suite setup.
 
-#### Documentation (1 command)
+#### Utilities (3 commands)
 | Command | Purpose | Speed |
 |---------|---------|-------|
-| `/sync-docs` | Sync documentation (interactive menu with 6 options) | 1-10min |
+| `/health-check` | Validate all plugin components (agents, skills, hooks, commands) | < 5s |
+| `/sync-dev` | Sync development changes to installed plugin (for plugin developers) | < 1s |
+| `/uninstall` | Uninstall or disable plugin features | < 5s |
 
-**Interactive menu after detection:**
-1. Smart sync (auto-detect and sync only changed) ← Recommended
-2. Full sync (filesystem + API + CHANGELOG)
-3. Filesystem only (organize .md files)
-4. API docs only (extract docstrings)
-5. CHANGELOG only (from commits)
-6. Cancel
+---
 
-#### Quality (3 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/format` | Format code (black, isort, prettier) | < 5s |
-| `/security-scan` | Scan for secrets & vulnerabilities | < 30s |
-| `/full-check` | Complete check (format + test + security) | < 60s |
+### 📦 Archived Commands
 
-#### GitHub Workflow (1 command)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/pr-create` | Create pull request with optional reviewer assignment | < 5s |
+The following granular commands have been **moved to `commands/archive/`** and are deprecated in favor of the `/auto-implement` workflow:
 
-#### Workflow (4 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/setup` | Interactive setup wizard | 5-10min |
-| `/auto-implement` | Autonomous feature implementation (8-agent pipeline) | 20-30min |
-| `/uninstall` | Uninstall or disable plugin | < 5s |
+**Archived Testing Commands**: `/test-unit`, `/test-integration`, `/test-uat`, `/test-uat-genai`, `/test-architecture`, `/test-complete`
+**Archived Commit Commands**: `/commit`, `/commit-check`, `/commit-push`, `/commit-release`
+**Archived Quality Commands**: `/format`, `/security-scan`, `/full-check`
+**Archived Docs Commands**: `/sync-docs`, `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize`
+**Archived Issue Commands**: `/issue`, `/issue-auto`, `/issue-create`, `/issue-from-test`, `/issue-from-genai`
+**Archived GitHub Commands**: `/pr-create`
 
-**See**: [COMMANDS.md](docs/COMMANDS.md) for complete reference
+**Why archived?**: These commands provided granular control but added complexity. The autonomous workflow (`/auto-implement`) handles testing, formatting, commits, docs, and PRs automatically.
+
+**Still available**: Files exist in `commands/archive/` if you need granular control. Can be restored by moving to `commands/` directory.
 
 ### ⚡ 8 Automated Hooks
 
