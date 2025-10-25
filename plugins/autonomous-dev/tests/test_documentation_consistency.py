@@ -407,5 +407,180 @@ Fix: Replace 'python setup.py' references with '/setup' command.
         )
 
 
+
+
+class TestVersionConsistency:
+    """Test version numbers are consistent across configuration files."""
+
+    @pytest.fixture
+    def plugin_json_path(self):
+        return Path(__file__).parent.parent / ".claude-plugin" / "plugin.json"
+
+    @pytest.fixture
+    def marketplace_json_path(self):
+        return Path(__file__).parent.parent / ".claude-plugin" / "marketplace.json"
+
+    def test_versions_match(self, plugin_json_path, marketplace_json_path):
+        """Test plugin.json and marketplace.json have matching versions."""
+        import json
+        
+        plugin_data = json.loads(plugin_json_path.read_text())
+        marketplace_data = json.loads(marketplace_json_path.read_text())
+        
+        plugin_version = plugin_data.get("version")
+        marketplace_version = marketplace_data.get("version")
+        
+        assert plugin_version == marketplace_version, (
+            f"VERSION MISMATCH:\n"
+            f"  plugin.json: {plugin_version}\n"
+            f"  marketplace.json: {marketplace_version}\n"
+            f"Fix: Update both files to use the same version"
+        )
+
+
+class TestReadOnlyAgentRestrictions:
+    """Test that read-only agents don't have Write/Edit tools."""
+
+    @pytest.fixture
+    def agents_dir(self):
+        return Path(__file__).parent.parent / "agents"
+
+    def test_planner_is_readonly(self, agents_dir):
+        """Test planner agent has no Write/Edit tools."""
+        planner_path = agents_dir / "planner.md"
+        content = planner_path.read_text()
+        
+        # Check frontmatter
+        frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+        assert frontmatter_match, "planner.md missing frontmatter"
+        
+        frontmatter = frontmatter_match.group(1)
+        assert 'Write' not in frontmatter and 'Edit' not in frontmatter, (
+            "planner.md has Write/Edit tools but should be read-only"
+        )
+
+    def test_reviewer_is_readonly(self, agents_dir):
+        """Test reviewer agent has no Write/Edit tools."""
+        reviewer_path = agents_dir / "reviewer.md"
+        content = reviewer_path.read_text()
+        
+        frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+        assert frontmatter_match, "reviewer.md missing frontmatter"
+        
+        frontmatter = frontmatter_match.group(1)
+        assert 'Write' not in frontmatter and 'Edit' not in frontmatter, (
+            "reviewer.md has Write/Edit tools but should be read-only"
+        )
+
+    def test_security_auditor_is_readonly(self, agents_dir):
+        """Test security-auditor agent has no Write/Edit tools."""
+        auditor_path = agents_dir / "security-auditor.md"
+        content = auditor_path.read_text()
+        
+        frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+        assert frontmatter_match, "security-auditor.md missing frontmatter"
+        
+        frontmatter = frontmatter_match.group(1)
+        assert 'Write' not in frontmatter and 'Edit' not in frontmatter, (
+            "security-auditor.md has Write/Edit tools but should be read-only"
+        )
+
+
+class TestSkillTableCompleteness:
+    """Test that all skills are documented in README."""
+
+    @pytest.fixture
+    def readme_content(self):
+        return (Path(__file__).parent.parent / "README.md").read_text()
+
+    @pytest.fixture
+    def skills_dir(self):
+        return Path(__file__).parent.parent / "skills"
+
+    def test_all_skills_documented_in_readme(self, readme_content, skills_dir):
+        """Test that every skill in skills/ is mentioned in README.md."""
+        actual_skills = [
+            d.name for d in skills_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(".")
+        ]
+        
+        missing_skills = [
+            skill for skill in actual_skills
+            if skill not in readme_content
+        ]
+        
+        assert not missing_skills, (
+            f"Skills exist but not documented in README.md:\n"
+            + "\n".join(f"  - {s}" for s in missing_skills) +
+            f"\nFix: Add these skills to README.md skill table"
+        )
+
+
+class TestAgentFrontmatterSchema:
+    """Test that all agents have required frontmatter fields."""
+
+    @pytest.fixture
+    def agents_dir(self):
+        return Path(__file__).parent.parent / "agents"
+
+    def test_all_agents_have_name_field(self, agents_dir):
+        """Test that all agents have 'name' field in frontmatter."""
+        for agent_file in agents_dir.glob("*.md"):
+            if agent_file.name.startswith("."):
+                continue
+            
+            content = agent_file.read_text()
+            assert content.startswith("---"), f"{agent_file.name} missing frontmatter"
+            
+            frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+            assert frontmatter_match, f"{agent_file.name} invalid frontmatter format"
+            
+            frontmatter = frontmatter_match.group(1)
+            assert "name:" in frontmatter, f"{agent_file.name} missing 'name' field"
+
+    def test_all_agents_have_tools_field(self, agents_dir):
+        """Test that all agents have 'tools' field in frontmatter."""
+        for agent_file in agents_dir.glob("*.md"):
+            if agent_file.name.startswith("."):
+                continue
+            
+            content = agent_file.read_text()
+            frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+            assert frontmatter_match, f"{agent_file.name} missing frontmatter"
+            
+            frontmatter = frontmatter_match.group(1)
+            assert "tools:" in frontmatter, f"{agent_file.name} missing 'tools' field"
+
+
+class TestCommandDocumentation:
+    """Test that all commands are documented."""
+
+    @pytest.fixture
+    def readme_content(self):
+        return (Path(__file__).parent.parent / "README.md").read_text()
+
+    @pytest.fixture
+    def commands_dir(self):
+        return Path(__file__).parent.parent / "commands"
+
+    def test_all_commands_documented_in_readme(self, readme_content, commands_dir):
+        """Test that every command in commands/ is mentioned in README.md."""
+        actual_commands = [
+            f.stem for f in commands_dir.glob("*.md")
+            if not f.name.startswith(".")
+        ]
+        
+        undocumented_commands = [
+            cmd for cmd in actual_commands
+            if f"/{cmd}" not in readme_content
+        ]
+        
+        assert not undocumented_commands, (
+            f"Commands exist but not documented in README.md:\n"
+            + "\n".join(f"  - /{cmd}" for cmd in sorted(undocumented_commands)) +
+            f"\nFix: Add these commands to README.md"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -45,7 +45,7 @@ Get up and running in 3 minutes!
 ### Option 1: Interactive Setup (Recommended)
 
 ```bash
-python plugins/autonomous-dev/scripts/setup.py
+/setup
 ```
 
 This wizard helps you:
@@ -67,24 +67,17 @@ This wizard helps you:
 
 **For teams** (automatic hooks + GitHub):
 ```bash
-python plugins/autonomous-dev/scripts/setup.py --preset=team
+/setup
+# Then select: Automatic hooks, PROJECT.md, GitHub integration
 ```
 
 **Power users** (everything enabled):
 ```bash
-python plugins/autonomous-dev/scripts/setup.py --preset=power-user
+/setup
+# Then select: All options
 ```
 
-**Custom automated setup**:
-```bash
-# Slash commands + PROJECT.md
-python plugins/autonomous-dev/scripts/setup.py --auto --hooks=slash-commands --project-md
-
-# Automatic hooks + PROJECT.md + GitHub
-python plugins/autonomous-dev/scripts/setup.py --auto --hooks=automatic --project-md --github
-```
-
-**Note**: The setup script always asks before overwriting existing files unless you use `--auto` mode.
+**Note**: The /setup command always asks before overwriting existing files.
 
 ## First Feature
 
@@ -219,7 +212,7 @@ GITHUB_TOKEN=ghp_your_token_here
 cp .claude/templates/settings.local.json .claude/settings.local.json
 
 # Or run setup again
-python .claude/scripts/setup.py --auto --hooks=automatic
+/setup
 ```
 
 ### From Automatic Hooks → Slash Commands
@@ -266,7 +259,7 @@ ls ~/.claude/plugins/autonomous-dev
 
 1. Check: `.claude/settings.local.json` exists
 2. Check: Python 3.11+ installed
-3. Try: Re-run `python plugins/autonomous-dev/scripts/setup.py`
+3. Try: Re-run `/setup`
 
 ### "Tests failing"
 1. Check: Test framework installed (pytest/jest)
@@ -316,7 +309,7 @@ ls ~/.claude/plugins/autonomous-dev
 
 # Setup (choose one)
 /setup                                    # Interactive
-python .claude/scripts/setup.py --preset=solo  # Automated
+/setup  # Interactive wizard
 
 # First feature
 /auto-implement

@@ -23,7 +23,12 @@ What it checks:
 - Cross-document consistency (SYNC-STATUS, UPDATES, marketplace.json)
 - No references to non-existent skills
 - marketplace.json metrics match actual counts
-- No deprecated procedural instructions (e.g., 'python setup.py' → '/setup')
+- All commands in commands/ are documented in README
+- No deprecated procedural instructions (e.g., 'python setup.py' → '/setup') across 6 docs
+- Version consistency (plugin.json = marketplace.json)
+- Read-only agent restrictions (planner, reviewer, security-auditor)
+- Skill table completeness (all skills documented)
+- Agent frontmatter schema (name, tools fields present)
 
 Exit codes:
 - 0: All checks passed
@@ -220,18 +225,24 @@ def check_cross_document_consistency(plugin_root: Path, skill_count: int) -> Tup
 
 
 def check_for_deprecated_patterns(plugin_root: Path) -> Tuple[bool, str]:
-    """Check for outdated procedural instructions in documentation.
+    """Check for outdated procedural instructions across all documentation.
 
     This catches procedural drift like:
     - 'python setup.py' when we now use '/setup'
     - 'scripts/setup.py' references
     - Other workflow changes that numeric validation doesn't catch
+    
+    Checks multiple documentation files, not just README.md.
     """
-    readme_path = plugin_root / "README.md"
-    if not readme_path.exists():
-        return True, "⚠️  README.md not found (skipping)"
-
-    content = readme_path.read_text()
+    # Files to check for deprecated patterns
+    files_to_check = [
+        "README.md",
+        "QUICKSTART.md",
+        "INSTALL_TEMPLATE.md",
+        "docs/UPDATES.md",
+        "docs/SYNC-STATUS.md",
+        "templates/knowledge/best-practices/claude-code-2.0.md",
+    ]
 
     # Define deprecated patterns and their modern replacements
     deprecated_patterns = [
@@ -241,21 +252,201 @@ def check_for_deprecated_patterns(plugin_root: Path) -> Tuple[bool, str]:
         (r"\.claude/scripts/setup\.py", "Use /setup command instead of '.claude/scripts/setup.py'"),
     ]
 
-    violations = []
+    all_violations = []
 
-    for pattern, fix_message in deprecated_patterns:
-        matches = re.findall(pattern, content, re.IGNORECASE)
-        if matches:
-            violations.append(f"Found deprecated pattern: {matches[0]}\n  → {fix_message}")
+    for file_path in files_to_check:
+        full_path = plugin_root / file_path
+        if not full_path.exists():
+            continue  # Skip files that don't exist
 
-    if violations:
+        content = full_path.read_text()
+
+        for pattern, fix_message in deprecated_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                all_violations.append(
+                    f"{file_path}: Found deprecated pattern: {matches[0]}\n  → {fix_message}"
+                )
+                break  # Only report first match per file
+
+    if all_violations:
         return False, (
-            f"Deprecated procedural instructions found in README.md:\n"
-            + "\n".join(f"  - {v}" for v in violations) +
+            f"Deprecated procedural instructions found:\n"
+            + "\n".join(f"  - {v}" for v in all_violations) +
             f"\n\nThese patterns suggest outdated workflow documentation."
         )
 
-    return True, "✅ No deprecated patterns found"
+    files_checked = len([f for f in files_to_check if (plugin_root / f).exists()])
+    return True, f"✅ No deprecated patterns found (checked {files_checked} files)"
+
+
+
+
+
+def check_command_existence(plugin_root: Path) -> Tuple[bool, str]:
+    """Check that all commands in commands/ are documented in README."""
+    commands_dir = plugin_root / "commands"
+    readme_path = plugin_root / "README.md"
+    
+    if not readme_path.exists():
+        return True, "⚠️  README.md not found (skipping)"
+    
+    readme_content = readme_path.read_text()
+    
+    # Get all actual commands
+    actual_commands = [
+        f.stem for f in commands_dir.glob("*.md")
+        if not f.name.startswith(".")
+    ]
+    
+    # Check that each command is documented (mentioned somewhere in README)
+    undocumented_commands = [
+        cmd for cmd in actual_commands
+        if f"/{cmd}" not in readme_content
+    ]
+    
+    if undocumented_commands:
+        return False, (
+            f"Undocumented commands:\n"
+            + "\n".join(f"  - /{cmd}" for cmd in sorted(undocumented_commands)) +
+            f"\nFix: Add these commands to README.md documentation"
+        )
+    
+    return True, f"✅ All {len(actual_commands)} commands documented in README"
+
+
+def check_version_consistency(plugin_root: Path) -> Tuple[bool, str]:
+    """Check plugin.json and marketplace.json have matching versions."""
+    plugin_json_path = plugin_root / ".claude-plugin" / "plugin.json"
+    marketplace_json_path = plugin_root / ".claude-plugin" / "marketplace.json"
+    
+    if not plugin_json_path.exists() or not marketplace_json_path.exists():
+        return True, "⚠️  Version files not found (skipping)"
+    
+    try:
+        plugin_data = json.loads(plugin_json_path.read_text())
+        marketplace_data = json.loads(marketplace_json_path.read_text())
+        
+        plugin_version = plugin_data.get("version", "MISSING")
+        marketplace_version = marketplace_data.get("version", "MISSING")
+        
+        if plugin_version != marketplace_version:
+            return False, (
+                f"VERSION MISMATCH:\n"
+                f"  plugin.json: {plugin_version}\n"
+                f"  marketplace.json: {marketplace_version}\n"
+                f"Fix: Update both files to use the same version"
+            )
+        
+        return True, f"✅ Version consistent: {plugin_version}"
+    except json.JSONDecodeError as e:
+        return False, f"JSON parsing error: {e}"
+
+
+def check_readonly_agent_restrictions(plugin_root: Path) -> Tuple[bool, str]:
+    """Check that read-only agents don't have Write/Edit tools."""
+    readonly_agents = ["planner.md", "reviewer.md", "security-auditor.md"]
+    agents_dir = plugin_root / "agents"
+    
+    violations = []
+    
+    for agent_file in readonly_agents:
+        agent_path = agents_dir / agent_file
+        if not agent_path.exists():
+            violations.append(f"{agent_file} not found")
+            continue
+        
+        content = agent_path.read_text()
+        
+        # Check frontmatter for Write/Edit tools
+        frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+        if frontmatter_match:
+            frontmatter = frontmatter_match.group(1)
+            if 'Write' in frontmatter or 'Edit' in frontmatter:
+                violations.append(f"{agent_file} has Write/Edit (should be read-only)")
+    
+    if violations:
+        return False, (
+            f"Read-only agent violations:\n"
+            + "\n".join(f"  - {v}" for v in violations) +
+            f"\nFix: Remove Write/Edit from planner, reviewer, security-auditor"
+        )
+    
+    return True, f"✅ Read-only agents properly restricted ({len(readonly_agents)} checked)"
+
+
+def check_skill_table_completeness(plugin_root: Path) -> Tuple[bool, str]:
+    """Check that README.md skill table lists all actual skills."""
+    skills_dir = plugin_root / "skills"
+    readme_path = plugin_root / "README.md"
+    
+    if not readme_path.exists():
+        return True, "⚠️  README.md not found (skipping)"
+    
+    # Get actual skills
+    actual_skills = set(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and not d.name.startswith(".")
+    )
+    
+    readme_content = readme_path.read_text()
+    
+    # Find skills mentioned in README
+    missing_skills = []
+    for skill in actual_skills:
+        if skill not in readme_content:
+            missing_skills.append(skill)
+    
+    if missing_skills:
+        return False, (
+            f"Skill table incomplete - missing skills:\n"
+            + "\n".join(f"  - {s}" for s in missing_skills) +
+            f"\nFix: Add these skills to README.md skill table"
+        )
+    
+    return True, f"✅ All {len(actual_skills)} skills documented in README"
+
+
+def check_agent_frontmatter_schema(plugin_root: Path) -> Tuple[bool, str]:
+    """Check that all agents have required frontmatter fields."""
+    agents_dir = plugin_root / "agents"
+    required_fields = ["name", "tools"]  # Claude Code 2.0 uses 'name', not 'subagent_type'
+    
+    violations = []
+    
+    for agent_file in agents_dir.glob("*.md"):
+        if agent_file.name.startswith("."):
+            continue
+        
+        content = agent_file.read_text()
+        
+        # Check for frontmatter
+        if not content.startswith("---"):
+            violations.append(f"{agent_file.name}: Missing frontmatter")
+            continue
+        
+        # Extract frontmatter
+        frontmatter_match = re.search(r'---\n(.*?)\n---', content, re.DOTALL)
+        if not frontmatter_match:
+            violations.append(f"{agent_file.name}: Invalid frontmatter format")
+            continue
+        
+        frontmatter = frontmatter_match.group(1)
+        
+        # Check required fields
+        for field in required_fields:
+            if f"{field}:" not in frontmatter:
+                violations.append(f"{agent_file.name}: Missing '{field}' field")
+    
+    if violations:
+        return False, (
+            f"Agent frontmatter violations:\n"
+            + "\n".join(f"  - {v}" for v in violations) +
+            f"\nFix: Add required fields (name, tools) to all agents"
+        )
+    
+    agent_count = len(list(agents_dir.glob("*.md")))
+    return True, f"✅ All {agent_count} agents have valid frontmatter"
 
 
 def main() -> int:
@@ -287,13 +478,25 @@ def main() -> int:
 
     # Run all checks
     checks = [
+        # Numeric consistency
         ("README.md skill count", check_readme_skill_count(plugin_root, skill_count)),
         ("README.md agent count", check_readme_agent_count(plugin_root, agent_count)),
         ("README.md command count", check_readme_command_count(plugin_root, command_count)),
         ("marketplace.json metrics", check_marketplace_json(plugin_root, skill_count, agent_count, command_count)),
+        
+        # Reference integrity
         ("Broken skill references", check_no_broken_skill_references(plugin_root)),
         ("Cross-document consistency", check_cross_document_consistency(plugin_root, skill_count)),
+        ("Command existence", check_command_existence(plugin_root)),
+        
+        # Procedural consistency
         ("Deprecated patterns", check_for_deprecated_patterns(plugin_root)),
+        
+        # Configuration consistency
+        ("Version consistency", check_version_consistency(plugin_root)),
+        ("Read-only agent restrictions", check_readonly_agent_restrictions(plugin_root)),
+        ("Skill table completeness", check_skill_table_completeness(plugin_root)),
+        ("Agent frontmatter schema", check_agent_frontmatter_schema(plugin_root)),
     ]
 
     all_passed = True
