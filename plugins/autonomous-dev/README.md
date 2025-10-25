@@ -192,7 +192,7 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 ```
 
 **What gets installed:**
-- ✅ Agents & Skills: Auto-active immediately
+- ✅ Agents: 8 specialist agents auto-active immediately
 - ✅ Commands: 8 core commands available
 - ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (configured via setup)
 
@@ -302,36 +302,9 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | **security-auditor** | Security scanning & OWASP compliance | haiku |
 | **doc-master** | Documentation sync & CHANGELOG automation | haiku |
 
-### 📚 13 Skills (Comprehensive SDLC Coverage)
+**Note**: Skills directory removed per [Issue #5](https://github.com/akaszubski/autonomous-dev/issues/5). PROJECT.md states "No skills/ directory - anti-pattern". Agents follow best practices without explicit skill guides, adhering to Anthropic's "trust the model" principle.
 
-**Core Development:**
-| Skill | Domain | Auto-Activate |
-|-------|--------|---------------|
-| **python-standards** | PEP 8, type hints, docstrings (Google style) | ✅ |
-| **testing-guide** | Complete testing methodology (TDD, progression, regression) | ✅ |
-| **security-patterns** | API key management, input validation, secure coding | ✅ |
-| **documentation-guide** | CHANGELOG updates, API docs, filesystem alignment | ✅ |
-| **research-patterns** | Research methodology, pattern discovery, caching | ✅ |
-| **consistency-enforcement** | Prevents documentation drift, auto-validates counts | ✅ |
-
-**Architecture & Design:**
-| Skill | Domain | Auto-Activate |
-|-------|--------|---------------|
-| **architecture-patterns** | Design patterns, ADRs, system design, SOLID principles | ✅ |
-| **api-design** | REST API design, versioning, OpenAPI, error handling | ✅ |
-| **database-design** | Schema design, migrations, ORMs, query optimization | ✅ |
-
-**Process & Workflow:**
-| Skill | Domain | Auto-Activate |
-|-------|--------|---------------|
-| **code-review** | Review standards, constructive feedback, quality checks | ✅ |
-| **git-workflow** | Commit conventions, branching, PR workflows, CI/CD | ✅ |
-| **project-management** | PROJECT.md structure, sprints, goals, roadmaps | ✅ |
-
-**Documentation & Observability:**
-| Skill | Domain | Auto-Activate |
-|-------|--------|---------------|
-| **observability** | Structured logging, debugging (pdb/ipdb), profiling (cProfile) | ✅ |
+---
 
 ### ⚙️ 8 Core Commands
 

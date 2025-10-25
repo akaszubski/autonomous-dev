@@ -4,9 +4,10 @@ Plugin health check utility.
 
 Validates all autonomous-dev plugin components:
 - Agents (8 specialist agents)
-- Skills (13 core skills)
 - Hooks (8 automation hooks)
-- Commands (21+ slash commands)
+- Commands (8 core commands)
+
+Note: Skills removed per Issue #5 (PROJECT.md: "No skills/ directory - anti-pattern")
 
 Usage:
     python health_check.py
@@ -35,22 +36,8 @@ class PluginHealthCheck:
         "doc-master",
     ]
 
-    EXPECTED_SKILLS = [
-        "python-standards",
-        "testing-guide",
-        "security-patterns",
-        "documentation-guide",
-        "research-patterns",
-        "consistency-enforcement",
-        "architecture-patterns",
-        "api-design",
-        "database-design",
-        "code-review",
-        "git-workflow",
-        "github-workflow",
-        "project-management",
-        "observability",
-    ]
+    # Skills removed per Issue #5 - PROJECT.md: "No skills/ directory - anti-pattern"
+    EXPECTED_SKILLS = []
 
     EXPECTED_HOOKS = [
         "auto_format.py",
@@ -121,16 +108,13 @@ class PluginHealthCheck:
         return passed, len(self.EXPECTED_AGENTS)
 
     def validate_skills(self) -> Tuple[int, int]:
-        """Validate all skills exist and are loadable."""
-        passed = 0
-        for skill in self.EXPECTED_SKILLS:
-            # Skills are in subdirectories with SKILL.md files
-            skill_path = self.plugin_dir / "skills" / skill / "SKILL.md"
-            exists = skill_path.exists()
-            self.results["skills"][skill] = "PASS" if exists else "FAIL"
-            if exists:
-                passed += 1
-        return passed, len(self.EXPECTED_SKILLS)
+        """Validate all skills exist and are loadable.
+
+        Note: Skills removed per Issue #5 - PROJECT.md states
+        "No skills/ directory - anti-pattern". Returns (0, 0).
+        """
+        # Skills intentionally removed - no validation needed
+        return 0, 0
 
     def validate_hooks(self) -> Tuple[int, int]:
         """Validate all hooks exist and are executable."""
@@ -172,13 +156,9 @@ class PluginHealthCheck:
             print(f"  {agent} {dots} {status}")
         print()
 
-        # Skills
+        # Skills - removed per Issue #5
         skill_pass, skill_total = self.validate_skills()
-        print(f"Skills: {skill_pass}/{skill_total} loaded")
-        for skill, status in self.results["skills"].items():
-            dots = "." * (30 - len(skill))
-            print(f"  {skill} {dots} {status}")
-        print()
+        # Skills section intentionally removed - no output
 
         # Hooks
         hook_pass, hook_total = self.validate_hooks()
@@ -201,10 +181,10 @@ class PluginHealthCheck:
         # Overall status
         total_issues = (
             (agent_total - agent_pass)
-            + (skill_total - skill_pass)
             + (hook_total - hook_pass)
             + (cmd_total - cmd_pass)
         )
+        # Note: skills intentionally excluded (removed per Issue #5)
 
         print("=" * 60)
         if total_issues == 0:
@@ -221,11 +201,11 @@ class PluginHealthCheck:
         else:
             print("⚠️  Issues detected:")
             issue_num = 1
-            for component_type in ["agents", "skills", "hooks", "commands"]:
+            for component_type in ["agents", "hooks", "commands"]:  # skills removed
                 for name, status in self.results[component_type].items():
                     if status == "FAIL":
                         component_path = f"~/.claude/plugins/autonomous-dev/{component_type}/{name}"
-                        if component_type in ["agents", "skills", "commands"]:
+                        if component_type in ["agents", "commands"]:
                             component_path += ".md"
                         elif component_type == "hooks":
                             component_path += ""
@@ -242,14 +222,13 @@ class PluginHealthCheck:
         """Print machine-readable JSON output."""
         # Run all validations first
         agent_pass, agent_total = self.validate_agents()
-        skill_pass, skill_total = self.validate_skills()
+        skill_pass, skill_total = self.validate_skills()  # Returns (0, 0)
         hook_pass, hook_total = self.validate_hooks()
         cmd_pass, cmd_total = self.validate_commands()
 
-        # Calculate overall status
+        # Calculate overall status (skills excluded - removed per Issue #5)
         total_issues = (
             (agent_total - agent_pass)
-            + (skill_total - skill_pass)
             + (hook_total - hook_pass)
             + (cmd_total - cmd_pass)
         )

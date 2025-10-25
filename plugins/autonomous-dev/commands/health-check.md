@@ -1,5 +1,5 @@
 ---
-description: Validate all plugin components are working correctly (agents, skills, hooks, commands)
+description: Validate all plugin components are working correctly (agents, hooks, commands)
 ---
 
 # Health Check - Plugin Component Validation
@@ -13,29 +13,25 @@ Validates all autonomous-dev plugin components to ensure the system is functioni
 ```
 
 **Time**: < 5 seconds
-**Scope**: All plugin components (agents, skills, hooks, commands)
+**Scope**: All plugin components (agents, hooks, commands)
+
+**Note**: Skills removed per [Issue #5](https://github.com/akaszubski/autonomous-dev/issues/5) - PROJECT.md: "No skills/ directory - anti-pattern"
 
 ## What This Does
 
-Validates 4 critical component types:
+Validates 3 critical component types:
 
 1. **Agents** (8 specialist agents)
    - orchestrator, planner, researcher, test-master
    - implementer, reviewer, security-auditor, doc-master
 
-2. **Skills** (14 core skills)
-   - python-standards, testing-guide, security-patterns
-   - documentation-guide, research-patterns, consistency-enforcement
-   - architecture-patterns, api-design, database-design
-   - code-review, git-workflow, github-workflow, project-management, observability
-
-3. **Hooks** (8 automation hooks)
+2. **Hooks** (8 automation hooks)
    - auto_format.py, auto_test.py, auto_generate_tests.py
    - auto_tdd_enforcer.py, auto_add_to_regression.py
    - auto_enforce_coverage.py, auto_update_docs.py, security_scan.py
 
-4. **Commands** (7 active commands)
-   - align-project, auto-implement, health-check, setup, status, test, uninstall
+3. **Commands** (8 core commands)
+   - align-project, auto-implement, health-check, setup, status, sync-dev, test, uninstall
 
 ## Expected Output
 
@@ -56,22 +52,6 @@ Agents: 8/8 loaded
   security-auditor .............. PASS
   doc-master .................... PASS
 
-Skills: 14/14 loaded
-  python-standards .............. PASS
-  testing-guide ................. PASS
-  security-patterns ............. PASS
-  documentation-guide ........... PASS
-  research-patterns ............. PASS
-  consistency-enforcement ....... PASS
-  architecture-patterns ......... PASS
-  api-design .................... PASS
-  database-design ............... PASS
-  code-review ................... PASS
-  git-workflow .................. PASS
-  github-workflow ............... PASS
-  project-management ............ PASS
-  observability ................. PASS
-
 Hooks: 8/8 executable
   auto_format.py ................ PASS
   auto_test.py .................. PASS
@@ -82,12 +62,13 @@ Hooks: 8/8 executable
   auto_update_docs.py ........... PASS
   security_scan.py .............. PASS
 
-Commands: 7/7 present
+Commands: 8/8 present
   /align-project ................. PASS
   /auto-implement ................ PASS
   /health-check .................. PASS
   /setup ......................... PASS
   /status ........................ PASS
+  /sync-dev ...................... PASS
   /test .......................... PASS
   /uninstall ..................... PASS
 
@@ -117,13 +98,10 @@ Agents: 7/8 loaded
   security-auditor ............ PASS
   doc-master .................. PASS
 
-Skills: 13/13 loaded
-  [all pass]
-
 Hooks: 8/8 executable
   [all pass]
 
-Commands: 20/21 present
+Commands: 7/8 present
   /test ....................... PASS
   /health-check ............... FAIL (file missing)
   [... other commands ...]
