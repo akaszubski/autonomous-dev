@@ -8,12 +8,12 @@ examples:
 
 # Autonomous Implementation
 
-**Version**: 2.1.0 (see VERSION file in repo root)
-**Status**: Experimental - Python orchestrator not yet fully integrated
+**Version**: 2.3.1
+**Status**: Beta - Full-featured with proven architecture
 
 Fully autonomous, PROJECT.md-aligned feature implementation using orchestrated 8-agent pipeline.
 
-**Note**: This command uses the experimental Python orchestrator (`lib/orchestrator.py`). For production use, rely on the agent-based orchestrator (`agents/orchestrator.md`) which is invoked automatically by Claude Code.
+**Architecture Note**: This command uses the Python-based orchestrator (`lib/workflow_coordinator.py`) which provides workflow artifacts, checkpointing, and detailed progress tracking. See `ARCHITECTURE.md` for architectural details about the two orchestration systems (Python-based vs agent-based).
 
 ## What This Command Does
 

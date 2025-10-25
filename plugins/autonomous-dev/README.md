@@ -1,13 +1,13 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-2.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-2.3.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v2.1.0
-**Last Updated**: 2025-10-25
+**Version**: v2.3.1
+**Last Updated**: 2025-10-26
 
-**Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
+**Beta Release - Production features with proven architecture. Documentation fully aligned (95%), refinements ongoing.**
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
