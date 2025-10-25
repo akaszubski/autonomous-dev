@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-10-25
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
-**Version**: v2.2.0 (Strict Mode + Auto-Orchestration)
+**Version**: v2.4.0 (Streamlined GenAI Validation)
 
 ---
 
@@ -109,7 +109,7 @@
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v2.2.0 - Strict Mode):
+**Current Architecture** (v2.4.0 - Streamlined):
 - **Agents**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master (8 total)
 - **Skills**: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards, consistency-enforcement (7 total - UPDATED)
 - **Commands**: /setup (with --strict-mode), /align-project (with --safe, --sync-github flags), /align-project-retrofit (PLANNED)
@@ -194,7 +194,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 ## ARCHITECTURE
 
-### System Architecture (v2.2.0 - Auto-Orchestration)
+### System Architecture (v2.4.0 - Streamlined)
 
 ```
 User: "implement user authentication"  [VIBE CODING]
@@ -252,7 +252,7 @@ Production Code (Professional Quality Guaranteed)
 3. **TERTIARY**: File organization enforcement
 4. **SUPPORTING**: SDLC step enforcement
 
-### Agent Responsibilities (v2.2.0)
+### Agent Responsibilities (v2.4.0)
 
 **orchestrator** (ENHANCED):
 - **PRIMARY MISSION**: PROJECT.md gatekeeper
@@ -271,7 +271,7 @@ Production Code (Professional Quality Guaranteed)
 - **security-auditor**: Security scan (haiku, read-only)
 - **doc-master**: Documentation sync (haiku, write docs)
 
-### Strict Mode Components (NEW - v2.2.0)
+### Strict Mode Components
 
 **Auto-Orchestration**:
 - `hooks/detect_feature_request.py` - Detects vibe coding, auto-invokes orchestrator
@@ -363,7 +363,7 @@ Production Code (Professional Quality Guaranteed)
 
 ## DEVELOPMENT WORKFLOW
 
-### Strict Mode Workflow (NEW - v2.2.0)
+### Strict Mode Workflow
 
 **Step 1: Enable Strict Mode**
 ```bash
@@ -516,5 +516,5 @@ Work cannot proceed without alignment.
 ---
 
 **Last Updated**: 2025-10-25
-**Version**: v2.2.0 (Strict Mode + Auto-Orchestration)
+**Version**: v2.4.0 (Streamlined GenAI Validation)
 **Next Review**: 2025-11-25
