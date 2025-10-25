@@ -111,92 +111,38 @@ ls -lt ~/.claude/plugins/marketplaces/.../autonomous-dev/agents/implementer.md
 
 ---
 
-### 0b. "Slash commands don't do anything" (MAJOR FIX - 2025-10-25)
+### 0b. "Slash commands don't do anything"
 
-**Symptoms**:
-- Run slash command like `/sync-docs`, `/format`, `/test`
-- See command description but no action
-- No script runs, no agent invoked
-- Just documentation displayed
+**Symptom**: Command runs but only shows documentation, doesn't execute anything.
 
-**Root Cause**:
-**15 out of 22 commands were missing implementation instructions!**
+**Cause**: Command file missing `## Implementation` section.
 
-Commands were just documentation files describing what should happen, but didn't tell Claude:
-- Which bash script to run
-- Which agent to invoke
-- What prompt to use
+**Fix**: Commands must have one of these patterns:
 
-**Affected Commands** (ALL FIXED):
-- ❌ `/format` - Now runs: `black . && isort . && ruff check --fix .`
-- ❌ `/test` - Now runs: `pytest tests/ -v --cov`
-- ❌ `/test-unit` - Now runs: `pytest tests/unit/`
-- ❌ `/test-integration` - Now runs: `pytest tests/integration/`
-- ❌ `/test-uat` - Now runs: `pytest tests/uat/`
-- ❌ `/test-uat-genai` - Now invokes: test-master agent
-- ❌ `/test-architecture` - Now invokes: security-auditor agent
-- ❌ `/test-complete` - Now runs: all tests + GenAI validation
-- ❌ `/security-scan` - Now runs: security_scan.py script
-- ❌ `/commit` - Now runs: format + unit tests + security + commit
-- ❌ `/commit-check` - Now runs: full tests + coverage + commit
-- ❌ `/commit-push` - Now runs: full validation + docs sync + push
-- ❌ `/align-project` - Now invokes: orchestrator agent
-- ❌ `/setup` - Now runs: setup.py script
-- ❌ `/pr-create` - Now runs: gh pr create
-
-**Fixed in**: 2025-10-25
-
-**How they work now**:
-1. User runs command (e.g., `/test`)
-2. Command expands with `## Implementation` section
-3. Claude sees explicit bash commands or agent invocation instructions
-4. Claude executes the implementation
-5. Reports results
-
-**Pattern Added to ALL Commands**:
-
-For bash scripts:
+**Bash script:**
 ```markdown
 ## Implementation
 
-Run the script:
 ```bash
-pytest tests/ -v --cov=. --cov-report=term-missing
+pytest tests/ -v
 ```
 \```
 ```
 
-For agent invocations:
+**Agent invocation:**
 ```markdown
 ## Implementation
 
-Invoke the <agent-name> agent with prompt:
-
+Invoke the test-master agent with prompt:
 ```
-<specific instructions for agent>
+Run comprehensive tests...
 ```
 \```
 ```
 
-**Why This Happened**:
-Commands were created with great documentation but no execution instructions. Classic "describes what should happen but not how to make it happen" problem.
+**To create new command**: Copy an existing working command and modify it.
 
-**Lesson Learned**:
-Every slash command MUST have one of:
-1. Bash script invocation: `` `python script.py` ``
-2. Agent invocation: "Invoke X agent with prompt Y"
-3. Tool invocation: "Use gh/git/npm command Z"
-
-**Verification**:
-```bash
-# Check all commands have implementations
-grep -l "## Implementation" .claude/commands/*.md | wc -l
-# Should show 22 (all commands)
-
-# Check specific command
-tail -20 .claude/commands/test.md
-# Should see ## Implementation section
-```
+**Validator**: Pre-commit hook automatically checks all commands have implementations.
 
 ---
 
