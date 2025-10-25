@@ -21,5 +21,10 @@ echo "🔍 Validating repository structure..."
 # Run structure validation
 python scripts/validate_structure.py
 
-# If validation passes, allow commit
+echo "🔍 Validating slash command implementations..."
+
+# Run command validation
+python plugins/autonomous-dev/scripts/validate_commands.py
+
+# If all validations pass, allow commit
 exit $?

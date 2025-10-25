@@ -198,6 +198,66 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 - ✅ Commands: All 21 commands available (`/test`, `/format`, `/commit`, etc.)
 - ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (opt-in via optional setup)
 
+---
+
+## ⚠️ CRITICAL: Plugin Development Warning
+
+**IF YOU ARE DEVELOPING THIS PLUGIN** (not just using it), read this carefully:
+
+### The Two-Location Problem
+
+When you edit plugin files, you're editing:
+```
+/path/to/autonomous-dev/plugins/autonomous-dev/
+```
+
+But Claude Code actually reads from:
+```
+~/.claude/plugins/autonomous-dev/
+```
+
+**Without syncing between these locations, you'll test stale code and lose your mind.**
+
+### Development Workflow (ALWAYS FOLLOW THIS)
+
+```bash
+# 1. Make changes to plugin files
+vim plugins/autonomous-dev/agents/something.md
+
+# 2. CRITICAL: Sync to Claude Code's plugin directory
+python plugins/autonomous-dev/scripts/sync_plugin_for_testing.py
+
+# 3. Test (no restart needed for most changes!)
+/health-check
+
+# 4. Repeat steps 1-3 until working
+```
+
+**The sync script copies your changes from the development directory to the runtime directory.**
+
+### When You MUST Restart Claude Code
+
+Only restart (Cmd+Q or Ctrl+Q) when:
+- Installing/uninstalling plugins
+- Changing plugin.json manifest
+- Adding/removing top-level components (agents, skills, commands)
+
+For most edits (agent prompts, skill content, command scripts), the sync script is enough.
+
+### This Will Save You Hours
+
+Without this workflow, you'll:
+- Edit files thinking they'll be used
+- Test and see no changes
+- Edit more, test more, see no changes
+- Question reality
+- Eventually discover the two-location problem
+- Want to scream
+
+**With this workflow**: Edit → Sync → Test → Done in seconds.
+
+---
+
 ### Optional Setup Wizard
 
 **Only run if you want to configure hooks or PROJECT.md**:

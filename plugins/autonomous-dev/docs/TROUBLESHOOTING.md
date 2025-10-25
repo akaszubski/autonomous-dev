@@ -1,8 +1,202 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2025-10-20
+**Last Updated**: 2025-10-25
 
 Common issues and solutions for the autonomous-dev plugin.
+
+---
+
+## 🔥 CRITICAL: Plugin Development Issues
+
+### 0. "I'm editing plugin files but changes don't appear when testing" (MOST COMMON!)
+
+**Symptoms**:
+- Edit agent/command/skill files
+- Test with `/health-check` or commands
+- See NO CHANGES (old behavior persists)
+- Edit more, test more, still nothing
+- Start questioning reality
+- Eventually discover the two-location problem
+
+**Root Cause**:
+**YOU ARE EDITING THE WRONG LOCATION!**
+
+When developing this plugin, there are TWO separate locations:
+
+1. **Development location** (where you edit):
+   ```
+   /path/to/autonomous-dev/plugins/autonomous-dev/
+   ```
+
+2. **Runtime location** (where Claude Code reads):
+   ```
+   ~/.claude/plugins/marketplaces/akaszubski-autonomous-dev/plugins/autonomous-dev/
+   ```
+
+**Claude Code reads from the runtime location, NOT your development directory!**
+
+**Solutions**:
+
+**Option 1: Use `/sync-dev` command (EASIEST)**
+```bash
+# 1. Make changes to plugin files
+vim plugins/autonomous-dev/agents/implementer.md
+
+# 2. CRITICAL: Sync to Claude Code's runtime location
+/sync-dev
+
+# 3. Restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 4. Test your changes
+/health-check
+```
+
+**Option 2: Use sync script directly**
+```bash
+# 1. Make changes
+vim plugins/autonomous-dev/agents/implementer.md
+
+# 2. Run sync script
+python plugins/autonomous-dev/scripts/sync_to_installed.py
+
+# 3. Restart Claude Code
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 4. Test
+/health-check
+```
+
+**Option 3: Manual sync (NOT RECOMMENDED)**
+```bash
+# Find runtime location first
+find ~/.claude/plugins/marketplaces -name "autonomous-dev" -type d
+
+# Copy files manually
+cp -r plugins/autonomous-dev/* ~/.claude/plugins/marketplaces/.../autonomous-dev/
+
+# Restart Claude Code
+```
+
+**Prevention**:
+```bash
+# ALWAYS follow this workflow:
+# Edit → Sync → Restart → Test → Repeat
+
+# NEVER skip the sync step!
+# Your edits won't appear without it.
+```
+
+**How to verify you're synced**:
+```bash
+# Check file timestamps match
+ls -lt plugins/autonomous-dev/agents/implementer.md
+ls -lt ~/.claude/plugins/marketplaces/.../autonomous-dev/agents/implementer.md
+
+# Should show same modification time after sync
+```
+
+**When restart IS required**:
+- Installing/uninstalling plugins ← YES
+- Changing plugin.json manifest ← YES
+- Adding/removing agents/skills/commands ← YES
+- Editing existing agent/skill/command content ← YES (after sync)
+
+**When restart NOT required**:
+- Editing test files (tests/) ← NO
+- Editing dev docs (docs/dev/) ← NO
+- Editing project README.md ← NO (unless testing user view)
+
+**This will save you HOURS of frustration!**
+
+---
+
+### 0b. "Slash commands don't do anything" (MAJOR FIX - 2025-10-25)
+
+**Symptoms**:
+- Run slash command like `/sync-docs`, `/format`, `/test`
+- See command description but no action
+- No script runs, no agent invoked
+- Just documentation displayed
+
+**Root Cause**:
+**15 out of 22 commands were missing implementation instructions!**
+
+Commands were just documentation files describing what should happen, but didn't tell Claude:
+- Which bash script to run
+- Which agent to invoke
+- What prompt to use
+
+**Affected Commands** (ALL FIXED):
+- ❌ `/format` - Now runs: `black . && isort . && ruff check --fix .`
+- ❌ `/test` - Now runs: `pytest tests/ -v --cov`
+- ❌ `/test-unit` - Now runs: `pytest tests/unit/`
+- ❌ `/test-integration` - Now runs: `pytest tests/integration/`
+- ❌ `/test-uat` - Now runs: `pytest tests/uat/`
+- ❌ `/test-uat-genai` - Now invokes: test-master agent
+- ❌ `/test-architecture` - Now invokes: security-auditor agent
+- ❌ `/test-complete` - Now runs: all tests + GenAI validation
+- ❌ `/security-scan` - Now runs: security_scan.py script
+- ❌ `/commit` - Now runs: format + unit tests + security + commit
+- ❌ `/commit-check` - Now runs: full tests + coverage + commit
+- ❌ `/commit-push` - Now runs: full validation + docs sync + push
+- ❌ `/align-project` - Now invokes: orchestrator agent
+- ❌ `/setup` - Now runs: setup.py script
+- ❌ `/pr-create` - Now runs: gh pr create
+
+**Fixed in**: 2025-10-25
+
+**How they work now**:
+1. User runs command (e.g., `/test`)
+2. Command expands with `## Implementation` section
+3. Claude sees explicit bash commands or agent invocation instructions
+4. Claude executes the implementation
+5. Reports results
+
+**Pattern Added to ALL Commands**:
+
+For bash scripts:
+```markdown
+## Implementation
+
+Run the script:
+```bash
+pytest tests/ -v --cov=. --cov-report=term-missing
+```
+\```
+```
+
+For agent invocations:
+```markdown
+## Implementation
+
+Invoke the <agent-name> agent with prompt:
+
+```
+<specific instructions for agent>
+```
+\```
+```
+
+**Why This Happened**:
+Commands were created with great documentation but no execution instructions. Classic "describes what should happen but not how to make it happen" problem.
+
+**Lesson Learned**:
+Every slash command MUST have one of:
+1. Bash script invocation: `` `python script.py` ``
+2. Agent invocation: "Invoke X agent with prompt Y"
+3. Tool invocation: "Use gh/git/npm command Z"
+
+**Verification**:
+```bash
+# Check all commands have implementations
+grep -l "## Implementation" .claude/commands/*.md | wc -l
+# Should show 22 (all commands)
+
+# Check specific command
+tail -20 .claude/commands/test.md
+# Should see ## Implementation section
+```
 
 ---
 
@@ -454,6 +648,6 @@ echo "Exit code: $?"
 
 ---
 
-**Last Updated**: 2025-10-20
+**Last Updated**: 2025-10-25
 
 **Found a new issue?** Add it to this guide via pull request!
