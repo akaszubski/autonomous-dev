@@ -27,11 +27,11 @@
 
 4. **Professional Consistency Automated** - All SDLC steps (research, plan, TDD, implement, review, security, docs) enforced by team workflow → Can't skip steps → Quality is automatic → GenAI makes intelligent decisions throughout
 
-5. **Minimal User Intervention** - 7 commands total (5 core + 2 utilities, down from 23) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/uninstall` cleanup
+5. **Minimal User Intervention** - 8 commands total (5 core + 3 utilities, down from 40) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
 
 **Success Metrics**:
 - **Autonomous execution**: 100% of features auto-commit, auto-push, auto-PR (zero manual git)
-- **Command minimalism**: 7 commands total (5 core + 2 utilities, down from 23 = -70% complexity)
+- **Command minimalism**: 8 commands total (5 core + 3 utilities, down from 40 = -80% complexity)
 - **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation
 - **SDLC compliance**: 100% of features follow research → plan → TDD → implement → review → security → docs
 - **GenAI decision-making**: 95%+ decisions made by GenAI (not regex/hardcoded rules)
@@ -50,10 +50,10 @@
    PROJECT.md: "Performance" goal → 60% complete
 ```
 
-**Command Structure** (7 total):
+**Command Structure** (8 total):
 - **Core Commands (5)**: auto-implement, align-project, setup, test, status
-- **Utility Commands (2)**: health-check (diagnostics), uninstall (cleanup)
-- **Archived (16)**: Redundant manual commands moved to archive (commit variants, format, sync-docs, granular test commands, etc.)
+- **Utility Commands (3)**: health-check (diagnostics), sync-dev (development sync), uninstall (cleanup)
+- **Archived (32)**: Redundant manual commands moved to commands/archive/ (commit variants, format, sync-docs, granular test commands, etc.)
 
 **Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
 
@@ -138,16 +138,16 @@
 - **Git**: For version control and rollback safety
 
 **Current Architecture** (v2.4.0 - Streamlined):
-- **Agents**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master (8 total)
-- **Skills**: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards, consistency-enforcement (7 total - UPDATED)
-- **Commands**: /setup (with --strict-mode), /align-project (with --safe, --sync-github flags), /align-project-retrofit (PLANNED)
-- **Hooks**:
-  - Auto-orchestration: detect_feature_request.py (UserPromptSubmit)
-  - Gatekeeper: validate_project_alignment.py (PreCommit)
-  - File organization: enforce_file_organization.py
-  - Quality: auto_format.py, auto_test.py, security_scan.py
-  - Docs: validate_docs_consistency.py
+- **Agents**: 12 total
+  - **Core 8**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
+  - **Utility 4**: alignment-validator, commit-message-generator, pr-description-generator, project-progress-tracker
+- **Skills**: 0 (removed per Anthropic anti-pattern guidance - no skills/ directory)
+- **Commands**: 8 total - /auto-implement, /align-project, /setup, /test, /status, /health-check, /sync-dev, /uninstall
+- **Hooks**: 15 total
+  - **Core 7**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency
+  - **Optional 8**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes
 - **Plugin**: autonomous-dev (contains all components)
+- **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
 
 **Standard Project Structure** (ENFORCED in strict mode):
 ```
@@ -184,13 +184,12 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 **PLUGIN Level** (Distribution package - what users get):
 - `plugins/autonomous-dev/docs/` - User documentation (STRICT-MODE.md, QUICKSTART.md, etc.)
-- `plugins/autonomous-dev/scripts/` - User scripts (setup.py wizard)
+- `plugins/autonomous-dev/scripts/` - User scripts (setup.py wizard) + Python infrastructure (~250KB)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
-- `plugins/autonomous-dev/agents/` - 8 AI agents
-- `plugins/autonomous-dev/skills/` - 7 core skills
-- `plugins/autonomous-dev/commands/` - Slash commands
-- `plugins/autonomous-dev/hooks/` - Automation hooks (including auto-orchestration)
-- `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json)
+- `plugins/autonomous-dev/agents/` - 12 AI agents (8 core + 4 utility)
+- `plugins/autonomous-dev/commands/` - 8 slash commands
+- `plugins/autonomous-dev/hooks/` - 15 automation hooks (7 core + 8 optional)
+- `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json, PROJECT.md)
 
 ### Performance Constraints
 
@@ -282,22 +281,31 @@ Production Code (Professional Quality Guaranteed)
 
 ### Agent Responsibilities (v2.4.0)
 
-**orchestrator** (ENHANCED):
-- **PRIMARY MISSION**: PROJECT.md gatekeeper
-- **Strict Mode**: Validates alignment BEFORE proceeding
-- **Blocks work**: If feature not in SCOPE
-- **Auto-invoked**: By detect_feature_request.py hook
-- Tools: Task, Read, Bash
-- Model: sonnet
+**Core Workflow Agents (8)**:
 
-**Specialist Agents** (Unchanged):
-- **researcher**: Web research, best practices (sonnet, read-only)
-- **planner**: Implementation plans (opus, read-only)
-- **test-master**: TDD tests (sonnet, write tests)
-- **implementer**: Make tests pass (sonnet, write code)
-- **reviewer**: Quality gate (sonnet, read-only)
-- **security-auditor**: Security scan (haiku, read-only)
-- **doc-master**: Documentation sync (haiku, write docs)
+1. **orchestrator** (ENHANCED):
+   - **PRIMARY MISSION**: PROJECT.md gatekeeper
+   - **Strict Mode**: Validates alignment BEFORE proceeding
+   - **Blocks work**: If feature not in SCOPE
+   - **Auto-invoked**: By detect_feature_request.py hook
+   - Tools: Task, Read, Bash | Model: sonnet
+
+2. **researcher**: Web research, best practices (sonnet, read-only)
+3. **planner**: Implementation plans (opus, read-only)
+4. **test-master**: TDD tests (sonnet, write tests)
+5. **implementer**: Make tests pass (sonnet, write code)
+6. **reviewer**: Quality gate (sonnet, read-only)
+7. **security-auditor**: Security scan (haiku, read-only)
+8. **doc-master**: Documentation sync (haiku, write docs)
+
+**Utility Agents (4)**:
+
+9. **alignment-validator**: GenAI-powered PROJECT.md alignment validation (sonnet, read-only)
+10. **commit-message-generator**: Generate conventional commit messages (sonnet)
+11. **pr-description-generator**: Generate comprehensive PR descriptions (sonnet)
+12. **project-progress-tracker**: Track progress against PROJECT.md goals (sonnet)
+
+**Note**: Utility agents support core workflow but are not part of main pipeline. Consider consolidating alignment-validator into orchestrator (duplicate functionality).
 
 ### Strict Mode Components
 
