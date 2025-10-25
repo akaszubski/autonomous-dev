@@ -11,32 +11,85 @@
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
-## ✨ What's New in v2.1.0
+## ✨ What's New in v2.2.0
 
-**Knowledge Base System**: Auto-bootstraps on first use!
-- 🚀 **Zero-config starter knowledge**: Get Claude Code 2.0 best practices automatically
-- 📚 **Research caching**: 90% faster on repeat topics (saves time + API costs)
-- 🔍 **Smart search utilities**: Source quality scoring, pattern ranking, freshness checks
-- 💾 **Template architecture**: Follows industry patterns (git, Docker, VSCode)
+**Strict Mode + Auto-Orchestration**: "Vibe coding" meets SDLC enforcement!
+- 🔒 **Strict Mode**: Complete SDLC best practices enforced automatically
+- 🤖 **Auto-Orchestration**: Just say "implement X" → Full agent pipeline activates
+- 🎯 **PROJECT.md Gatekeeper**: Work blocked if not aligned with strategic direction
+- 📁 **File Organization**: Standard structure enforced (src/, tests/, docs/, scripts/)
 
-**First Research Experience**:
+**Vibe Coding Experience**:
 ```
-"Research Python testing best practices"
-→ ✅ Initializing knowledge base from template...
-→ ✅ Copied starter knowledge (Claude Code 2.0 best practices)
-→ ✅ Knowledge base ready!
+"implement user authentication with JWT"
+→ ✅ [Auto-Orchestration] Feature request detected
+→ ✅ [Orchestrator] Checking PROJECT.md alignment...
+→ ✅ [Orchestrator] Feature IN SCOPE - proceeding
+→ ✅ [Research] Finding JWT best practices...
+→ ✅ [Planning] Creating implementation plan...
+→ ✅ [TDD] Writing failing tests first...
+→ ✅ [Implementation] Making tests pass...
+→ ✅ [Review] Code quality check passed
+→ ✅ [Security] Vulnerability scan passed
+→ ✅ [Documentation] Docs synced
 ```
 
 **Benefits**:
-- Immediate value: Professional knowledge base structure on first use
-- Cost savings: Cache research, avoid duplicate web fetches
-- Time savings: 1-2 min vs 15-20 min on repeat topics
+- Professional consistency without manual steps
+- PROJECT.md prevents scope drift automatically
+- All SDLC steps enforced (Research → Plan → Test → Implement → Review → Security → Docs)
+- Works for greenfield AND brownfield projects (retrofit capability)
+
+**Previous releases**:
+- **v2.1.0**: Knowledge Base System with auto-bootstrap
+- **v2.0.0**: PROJECT.md-First Architecture with orchestrator agent
 
 ## 📋 PROJECT.md-First Philosophy
 
 Everything starts with `PROJECT.md` at your project root - defining goals, scope, and constraints. The orchestrator validates every feature against PROJECT.md before work begins, ensuring zero tolerance for scope drift.
 
 **Learn more**: See main [README.md](../../README.md#-the-projectmd-first-philosophy)
+
+## 🔒 Strict Mode - SDLC Automation
+
+**"Vibe coding" that enforces professional best practices automatically**
+
+Strict Mode turns natural language requests into complete SDLC workflows:
+
+```bash
+# Just describe what you want
+"implement user authentication with JWT"
+
+# System automatically:
+→ Detects feature request (auto-orchestration)
+→ Checks PROJECT.md alignment (gatekeeper)
+→ Runs full agent pipeline if aligned
+→ Enforces all SDLC steps (Research → Plan → Test → Implement → Review → Security → Docs)
+→ Validates before commit (blocking hooks)
+```
+
+**Enable Strict Mode**:
+```bash
+# Copy strict mode template
+cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.local.json
+
+# Ensure PROJECT.md exists
+cp plugins/autonomous-dev/templates/PROJECT.md .claude/PROJECT.md
+
+# All future work now follows strict SDLC
+```
+
+**What it enforces**:
+- ✅ PROJECT.md gatekeeper - Work BLOCKED if not aligned with strategic direction
+- ✅ Auto-orchestration - "implement X" auto-triggers full agent pipeline
+- ✅ File organization - Standard structure enforced (src/, tests/, docs/, scripts/)
+- ✅ Commit validation - All commits checked for alignment + tests + security + docs (BLOCKING)
+
+**Works for**:
+- Greenfield projects - Start with best practices from day 1
+- Brownfield projects - Retrofit existing projects (coming soon: `/align-project-retrofit`)
+
+**Learn more**: See [docs/STRICT-MODE.md](docs/STRICT-MODE.md)
 
 ## 🔍 How to Find This Plugin
 

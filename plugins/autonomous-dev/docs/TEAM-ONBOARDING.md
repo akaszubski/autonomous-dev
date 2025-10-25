@@ -1,7 +1,7 @@
 # Team Onboarding Guide
 
-**Last Updated**: 2025-10-20
-**Version**: v2.0.0
+**Last Updated**: 2025-10-25
+**Version**: v2.2.0
 
 Complete guide for onboarding new team members to autonomous development workflow.
 

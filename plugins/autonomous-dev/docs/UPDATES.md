@@ -1,7 +1,77 @@
-# System Updates - v2.0.0 Release
+# System Updates
 
-**Date**: 2025-10-20
-**Version**: v2.0.0 (PROJECT.md-First Architecture)
+**Latest Version**: v2.2.0 (Strict Mode + Auto-Orchestration)
+**Last Updated**: 2025-10-25
+
+---
+
+## v2.2.0 Updates (2025-10-25)
+
+### 🔒 Strict Mode - Complete SDLC Automation
+
+**PRIMARY MISSION**: "Vibe coding" that enforces professional best practices automatically
+
+**Auto-Orchestration Engine**:
+- Feature request detection via UserPromptSubmit hook
+- Automatic orchestrator invocation on keywords ("implement", "add", "create", "build", "develop", "write")
+- Full agent pipeline activates automatically (Research → Plan → Test → Implement → Review → Security → Docs)
+
+**PROJECT.md Gatekeeper**:
+- Work BLOCKED if feature not in PROJECT.md SCOPE
+- Validates BEFORE any implementation starts
+- Two options when misaligned: (1) Update PROJECT.md, (2) Don't implement
+- New validation hook: `hooks/validate_project_alignment.py`
+
+**File Organization Enforcement**:
+- Standard structure: `src/`, `tests/`, `docs/`, `scripts/`, `.claude/`
+- Root directory kept clean (no loose files)
+- Auto-fix capability: `hooks/enforce_file_organization.py --fix`
+- Validates file placement before commits
+
+**New Files**:
+- `hooks/detect_feature_request.py` (169 lines) - Auto-detect vibe coding
+- `hooks/validate_project_alignment.py` (201 lines) - PROJECT.md gatekeeper
+- `hooks/enforce_file_organization.py` (259 lines) - File structure validation
+- `templates/settings.strict-mode.json` (70 lines) - Strict mode configuration
+- `templates/project-structure.json` (92 lines) - Standard structure definition
+- `docs/STRICT-MODE.md` (401 lines) - Complete guide
+
+**Enhanced Files**:
+- `agents/orchestrator.md` - Added STRICT MODE gatekeeper logic
+- `hooks/validate_docs_consistency.py` - 5 new validation functions (version, tools, skills, commands, frontmatter)
+- `.claude/PROJECT.md` - Rewritten to reflect "Software Engineering Operating System" vision
+
+**Benefits**:
+- ✅ Professional consistency without manual steps
+- ✅ PROJECT.md prevents scope drift automatically
+- ✅ All SDLC steps enforced (can't skip tests, docs, security)
+- ✅ Works for greenfield AND brownfield projects
+
+**Commands Added**:
+- None (uses existing `/auto-implement` but now auto-triggered)
+
+**Breaking Changes**:
+- None (strict mode is opt-in via template)
+
+---
+
+## v2.1.0 Updates (2025-10-21)
+
+### 📚 Knowledge Base System
+
+**Auto-Bootstrap**: Zero-config starter knowledge
+- Template system with Claude Code 2.0 best practices included
+- First research auto-initializes knowledge base
+- 90% faster on repeat topics (cache vs web fetch)
+
+**New Files**:
+- `templates/knowledge/` - Template structure
+- `templates/knowledge/best-practices/claude-code-2.0.md` - Starter knowledge
+
+**Benefits**:
+- Immediate value: Professional knowledge base on first use
+- Cost savings: Cache research, avoid duplicate API calls
+- Time savings: 1-2 min vs 15-20 min on repeat topics
 
 ---
 
