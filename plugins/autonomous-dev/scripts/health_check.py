@@ -140,6 +140,83 @@ class PluginHealthCheck:
                 passed += 1
         return passed, len(self.EXPECTED_COMMANDS)
 
+    def _is_plugin_development_mode(self) -> bool:
+        """Check if we're in plugin development mode (editing source)."""
+        # Check if current plugin_dir is the source location
+        source_markers = [
+            self.plugin_dir / ".claude-plugin" / "plugin.json",
+            self.plugin_dir.parent.parent / ".git"  # plugins/autonomous-dev is in git repo
+        ]
+        return all(marker.exists() for marker in source_markers)
+
+    def _find_installed_plugin_path(self) -> Path:
+        """Find the installed plugin path from Claude's config."""
+        home = Path.home()
+        installed_plugins_file = home / ".claude" / "plugins" / "installed_plugins.json"
+
+        if not installed_plugins_file.exists():
+            return None
+
+        try:
+            with open(installed_plugins_file) as f:
+                config = json.load(f)
+
+            # Look for autonomous-dev plugin
+            for plugin_key, plugin_info in config.get("plugins", {}).items():
+                if plugin_key.startswith("autonomous-dev@"):
+                    return Path(plugin_info["installPath"])
+        except Exception:
+            pass
+
+        return None
+
+    def validate_sync_status(self) -> Tuple[bool, List[str]]:
+        """
+        Validate if development and installed plugin locations are in sync.
+
+        Returns:
+            (in_sync, out_of_sync_files)
+        """
+        # Only relevant for plugin development mode
+        if not self._is_plugin_development_mode():
+            return True, []  # Not in dev mode, sync not applicable
+
+        # Find installed location
+        installed_path = self._find_installed_plugin_path()
+        if not installed_path or not installed_path.exists():
+            return True, []  # Plugin not installed, sync not applicable
+
+        out_of_sync = []
+
+        # Check key directories
+        check_dirs = ["agents", "commands", "hooks", "scripts"]
+
+        for dir_name in check_dirs:
+            source_dir = self.plugin_dir / dir_name
+            target_dir = installed_path / dir_name
+
+            if not source_dir.exists():
+                continue
+
+            # Compare modification times
+            for source_file in source_dir.rglob("*"):
+                if source_file.is_file() and not source_file.name.startswith('.'):
+                    relative_path = source_file.relative_to(source_dir)
+                    target_file = target_dir / relative_path
+
+                    if not target_file.exists():
+                        out_of_sync.append(f"{dir_name}/{relative_path}")
+                    elif source_file.stat().st_mtime > target_file.stat().st_mtime:
+                        out_of_sync.append(f"{dir_name}/{relative_path}")
+
+        self.results["sync"] = {
+            "in_sync": len(out_of_sync) == 0,
+            "dev_mode": True,
+            "out_of_sync_files": out_of_sync[:10]  # Limit to first 10
+        }
+
+        return len(out_of_sync) == 0, out_of_sync
+
     def print_report(self):
         """Print human-readable health check report."""
         print("\nRunning plugin health check...\n")
@@ -177,6 +254,24 @@ class PluginHealthCheck:
         if cmd_total > 10:
             print(f"  ... and {cmd_total - 10} more")
         print()
+
+        # Sync status (only for plugin development)
+        in_sync, out_of_sync_files = self.validate_sync_status()
+        if "sync" in self.results and self.results["sync"]["dev_mode"]:
+            if in_sync:
+                print("Development Sync: IN SYNC ✅")
+                print("  Source and installed locations match")
+            else:
+                print(f"Development Sync: OUT OF SYNC ⚠️")
+                print(f"  {len(out_of_sync_files)} files need syncing")
+                if out_of_sync_files[:5]:
+                    print("  Recent changes not synced:")
+                    for file in out_of_sync_files[:5]:
+                        print(f"    - {file}")
+                    if len(out_of_sync_files) > 5:
+                        print(f"    ... and {len(out_of_sync_files) - 5} more")
+                print("\n  💡 Run: /sync-dev to sync changes")
+            print()
 
         # Overall status
         total_issues = (
