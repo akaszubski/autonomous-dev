@@ -452,4 +452,14 @@ After setup, use these commands:
 
 ---
 
+## Implementation
+
+Run the interactive setup wizard to configure the plugin.
+
+```bash
+python "$(dirname "$0")/../scripts/setup.py"
+```
+
+---
+
 **Pro Tip**: Start with slash commands, then enable hooks once comfortable with the workflow!

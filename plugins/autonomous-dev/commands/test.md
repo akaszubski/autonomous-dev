@@ -62,4 +62,14 @@ Time: 12.3s
 
 ---
 
+## Implementation
+
+Run pytest against all test directories with coverage reporting.
+
+```bash
+pytest tests/ --cov=src --cov-report=term-missing -v
+```
+
+---
+
 **Use this for quick validation that all automated tests pass.**

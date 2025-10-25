@@ -367,4 +367,15 @@ Choice [1-4]: 2
 
 ---
 
+## Implementation
+
+Invoke the alignment-validator agent to analyze project alignment with PROJECT.md.
+
+The agent will:
+1. Analyze project structure and alignment
+2. Present interactive menu with options
+3. Execute user-selected action (view, fix, preview, or cancel)
+
+---
+
 **Use this to analyze project health and optionally fix issues. Self-documenting menu guides you through options.**

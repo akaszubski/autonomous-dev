@@ -129,7 +129,9 @@ python plugins/autonomous-dev/scripts/sync_to_installed.py --dry-run
 
 ---
 
-**Run the sync script to copy local changes to installed plugin location.**
+## Implementation
+
+Run the sync script to copy local changes to installed plugin location.
 
 ```bash
 python "$(dirname "$0")/../scripts/sync_to_installed.py"

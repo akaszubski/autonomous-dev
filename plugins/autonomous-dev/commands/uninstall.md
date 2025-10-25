@@ -151,6 +151,15 @@ Exits without making any changes.
 
 ## Implementation
 
+Display interactive menu and execute selected uninstall option.
+
+```bash
+# Show menu with 6 uninstall options
+# Get user choice (1-6)
+# Execute corresponding removal commands based on choice
+# See detailed removal commands in sections below
+```
+
 ### Interactive Mode
 
 When you run `/uninstall` (no arguments):

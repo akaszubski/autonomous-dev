@@ -37,7 +37,13 @@ Next Priorities:
 
 ## Implementation
 
-This command reads PROJECT.md and parses goal completion metadata. It uses the project-progress-tracker agent to analyze current state.
+Invoke the project-progress-tracker agent to analyze project status and goal completion.
+
+The agent will:
+1. Read and parse PROJECT.md
+2. Analyze goal completion metadata
+3. Calculate progress for each goal
+4. Generate status report with visual progress bars
 
 ## Examples
 

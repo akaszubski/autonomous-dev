@@ -16,7 +16,7 @@ from pathlib import Path
 
 def validate_command(filepath: Path) -> tuple[bool, str]:
     """
-    Validate a command file has implementation instructions.
+    Validate a command file has proper ## Implementation section.
 
     Returns:
         (is_valid, error_message)
@@ -24,31 +24,49 @@ def validate_command(filepath: Path) -> tuple[bool, str]:
     with open(filepath) as f:
         content = f.read()
 
-    # Check for bash code blocks with actual commands
-    has_bash_block = bool(re.search(r'```bash\n(?!#\s*$).+', content, re.DOTALL))
+    # Check for ## Implementation section header
+    has_implementation_section = bool(re.search(r'^## Implementation', content, re.MULTILINE))
 
-    # Check for agent invocation instructions (inline or in Implementation section)
-    has_agent_invoke = bool(re.search(r'Invoke (the |orchestrator|test-master|doc-master|security-auditor|implementer|planner|reviewer|researcher)', content, re.IGNORECASE))
+    if not has_implementation_section:
+        # Check if implementation exists but not in proper section
+        has_bash_block = bool(re.search(r'```bash\n(?!#\s*$).+', content, re.DOTALL))
+        has_agent_invoke = bool(re.search(r'Invoke (the |orchestrator|test-master|doc-master|security-auditor|implementer|planner|reviewer|researcher)', content, re.IGNORECASE))
+        has_script_exec = bool(re.search(r'python ["\']?\$\(dirname|python .+\.py', content))
 
-    # Check for script execution
-    has_script_exec = bool(re.search(r'python ["\']?\$\(dirname|python .+\.py', content))
+        if has_bash_block or has_agent_invoke or has_script_exec:
+            return False, "Implementation found but missing '## Implementation' section header (see templates/command-template.md)"
 
-    # Valid if has ANY of: bash block, agent invoke, or script exec
-    # (Some commands have inline instructions, others have ## Implementation sections)
-    if has_bash_block or has_agent_invoke or has_script_exec:
-        return True, ""
+        return False, "Missing '## Implementation' section (command will only show docs, not execute)"
 
-    # Provide specific error
-    return False, "No implementation found (needs bash commands, agent invocations, or script execution)"
+    # Has Implementation section - verify it contains actual execution instructions
+    # Extract the Implementation section content
+    impl_match = re.search(r'## Implementation\n(.+?)(?=\n## |\Z)', content, re.DOTALL)
+
+    if not impl_match:
+        return False, "## Implementation section is empty"
+
+    impl_content = impl_match.group(1)
+
+    # Check if Implementation section contains bash, agent invocation, or script
+    has_bash = bool(re.search(r'```bash\n(?!#\s*$).+', impl_content, re.DOTALL))
+    has_agent = bool(re.search(r'Invoke (the |orchestrator|test-master|doc-master|security-auditor|implementer|planner|reviewer|researcher)', impl_content, re.IGNORECASE))
+    has_script = bool(re.search(r'python ["\']?\$\(dirname|python .+\.py', impl_content))
+
+    if not (has_bash or has_agent or has_script):
+        return False, "## Implementation section exists but contains no execution instructions (bash/agent/script)"
+
+    return True, ""
 
 
 def main():
-    """Validate all commands in .claude/commands/"""
+    """Validate all commands in commands/"""
 
     # Find commands directory relative to this script
+    # Script is at: plugins/autonomous-dev/scripts/validate_commands.py
+    # Commands are at: plugins/autonomous-dev/commands/
     script_dir = Path(__file__).parent
-    repo_root = script_dir.parent.parent.parent
-    commands_dir = repo_root / ".claude" / "commands"
+    plugin_dir = script_dir.parent
+    commands_dir = plugin_dir / "commands"
 
     if not commands_dir.exists():
         print(f"❌ Commands directory not found: {commands_dir}")
@@ -93,23 +111,33 @@ def main():
             print()
 
         print("TO FIX:")
-        print("  Each command must have an '## Implementation' section with:")
-        print("  1. Bash commands (```bash ... ```)")
-        print("  2. OR Agent invocation ('Invoke the X agent with...')")
-        print("  3. OR Script execution ('python script.py')")
         print()
-        print("  Example bash implementation:")
-        print("    ## Implementation")
-        print("    ```bash")
-        print("    pytest tests/ -v")
-        print("    ```")
+        print("  All commands MUST have a '## Implementation' section that shows")
+        print("  how the command executes. Without this section, commands only")
+        print("  display documentation without actually running (silent failure).")
         print()
-        print("  Example agent implementation:")
-        print("    ## Implementation")
-        print("    Invoke the test-master agent with prompt:")
-        print("    ```")
-        print("    Run comprehensive test analysis...")
-        print("    ```")
+        print("  This is Issue #13 - Commands without Implementation sections cause")
+        print("  user confusion: 'The command doesn't do anything!'")
+        print()
+        print("  Add one of these patterns to your ## Implementation section:")
+        print()
+        print("  1. Direct bash commands:")
+        print("     ## Implementation")
+        print("     ```bash")
+        print("     pytest tests/ --cov=src -v")
+        print("     ```")
+        print()
+        print("  2. Script execution:")
+        print("     ## Implementation")
+        print("     ```bash")
+        print('     python "$(dirname "$0")/../scripts/your_script.py"')
+        print("     ```")
+        print()
+        print("  3. Agent invocation:")
+        print("     ## Implementation")
+        print("     Invoke the [agent-name] agent to [what it does].")
+        print()
+        print("  See templates/command-template.md for full guidance.")
         print()
 
         sys.exit(1)

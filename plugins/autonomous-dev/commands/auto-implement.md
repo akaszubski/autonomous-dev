@@ -450,5 +450,19 @@ cat .claude/artifacts/{workflow_id}/logs/*.log
 
 ---
 
+## Implementation
+
+Invoke the orchestrator agent to coordinate autonomous feature implementation.
+
+The orchestrator will:
+1. Validate alignment with PROJECT.md
+2. Coordinate 8-agent pipeline (researcher → planner → test-master → implementer → reviewer → security → docs)
+3. Create workflow artifacts in `.claude/artifacts/{workflow_id}/`
+4. Generate final report and commit message
+
+For details on the workflow, see the step-by-step execution guide above.
+
+---
+
 **Status**: Week 3 implementation in progress
 **Next**: Connect to actual agent invocation via Task tool
