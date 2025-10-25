@@ -35,7 +35,7 @@ Validates 4 critical component types:
    - auto_enforce_coverage.py, auto_update_docs.py, security_scan.py
 
 4. **Commands** (7 active commands)
-   - align-project, auto-implement, health-check, setup, status, test-complete, test
+   - align-project, auto-implement, health-check, setup, status, test, uninstall
 
 ## Expected Output
 
@@ -88,8 +88,8 @@ Commands: 7/7 present
   /health-check .................. PASS
   /setup ......................... PASS
   /status ........................ PASS
-  /test-complete ................. PASS
   /test .......................... PASS
+  /uninstall ..................... PASS
 
 ============================================================
 OVERALL STATUS: HEALTHY
@@ -151,7 +151,7 @@ Action: Reinstall plugin with /plugin uninstall autonomous-dev && /plugin instal
 
 - `/setup` - Interactive setup wizard
 - `/align-project` - Validate PROJECT.md alignment
-- `/test-complete` - Complete pre-release validation
+- `/test` - Run all automated tests
 
 ---
 

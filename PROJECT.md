@@ -27,11 +27,11 @@
 
 4. **Professional Consistency Automated** - All SDLC steps (research, plan, TDD, implement, review, security, docs) enforced by team workflow → Can't skip steps → Quality is automatic → GenAI makes intelligent decisions throughout
 
-5. **Minimal User Intervention** - 5 commands total (not 22) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging only
+5. **Minimal User Intervention** - 7 commands total (5 core + 2 utilities, down from 23) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/uninstall` cleanup
 
 **Success Metrics**:
 - **Autonomous execution**: 100% of features auto-commit, auto-push, auto-PR (zero manual git)
-- **Command minimalism**: ≤ 5 commands total (22 → 5 = -77% complexity)
+- **Command minimalism**: 7 commands total (5 core + 2 utilities, down from 23 = -70% complexity)
 - **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation
 - **SDLC compliance**: 100% of features follow research → plan → TDD → implement → review → security → docs
 - **GenAI decision-making**: 95%+ decisions made by GenAI (not regex/hardcoded rules)
@@ -49,6 +49,11 @@
    PR #43: https://github.com/user/repo/pull/43
    PROJECT.md: "Performance" goal → 60% complete
 ```
+
+**Command Structure** (7 total):
+- **Core Commands (5)**: auto-implement, align-project, setup, test, status
+- **Utility Commands (2)**: health-check (diagnostics), uninstall (cleanup)
+- **Archived (16)**: Redundant manual commands moved to archive (commit variants, format, sync-docs, granular test commands, etc.)
 
 **Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
 
@@ -725,19 +730,40 @@ git commit -m "feat: add JWT authentication"
 
 ### File Locations (CRITICAL for Plugin Development)
 
-**Git-Tracked Locations** (ALWAYS edit here):
+**SOURCE OF TRUTH** - Always edit here:
 
 ```
-plugins/autonomous-dev/           # Plugin for marketplace distribution
-├── agents/                       # 8 AI agents
-├── skills/                       # 7 core skills
-├── commands/                     # Slash commands
-├── hooks/                        # Automation hooks (auto-orchestration, etc.)
-├── templates/                    # Project templates (strict-mode, structure)
-├── docs/                         # User documentation (STRICT-MODE.md, etc.)
-├── scripts/                      # User scripts (setup.py)
-└── tests/                        # Plugin tests
+plugins/autonomous-dev/           # Plugin source code (what users get)
+├── agents/                       # 8 AI agents (edit here)
+├── skills/                       # 7 core skills (edit here)
+├── commands/                     # Slash commands (edit here)
+├── hooks/                        # Automation hooks (edit here)
+├── templates/                    # Project templates (edit here)
+├── docs/                         # User documentation (edit here)
+├── scripts/                      # User scripts (edit here)
+└── tests/                        # Plugin tests (edit here)
 ```
+
+**TESTING ENVIRONMENT** - Installed plugin (like users see it):
+
+```
+.claude/                          # Plugin installed here for testing
+├── agents/                       # Installed from plugins/ (DO NOT EDIT)
+├── commands/                     # Installed from plugins/ (DO NOT EDIT)
+├── hooks/                        # Installed from plugins/ (DO NOT EDIT)
+├── skills/                       # Installed from plugins/ (DO NOT EDIT)
+├── PROJECT.md                    # Repo-specific goals (edit here)
+└── settings.local.json           # Personal settings (edit here)
+```
+
+**DEVELOPMENT WORKFLOW**:
+
+1. **Edit source**: Make changes in `plugins/autonomous-dev/`
+2. **Reinstall plugin**: `/plugin uninstall autonomous-dev` → Exit Claude Code → Restart → `/plugin install autonomous-dev` → Exit → Restart
+3. **Test like users**: Test features in `.claude/` environment
+4. **Fix bugs**: Edit `plugins/autonomous-dev/` and reinstall
+
+**CRITICAL RULE**: `.claude/` is the TESTING environment. It mirrors what users get when they run `/plugin install autonomous-dev`. NEVER edit files in `.claude/agents/`, `.claude/commands/`, `.claude/hooks/`, or `.claude/skills/` directly. Always edit in `plugins/autonomous-dev/` and reinstall.
 
 ---
 

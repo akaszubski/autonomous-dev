@@ -540,7 +540,7 @@ I can't approve this yet due to the backwards compatibility break.
 
 We need to either:
 1. Add a migration path for existing users
-2. Defer this change to v2.1.0
+2. Defer this change to v2.0.0
 
 Happy to discuss the best approach.
 ```

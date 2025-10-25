@@ -69,8 +69,8 @@ class PluginHealthCheck:
         "health-check.md",  # Self-reference
         "setup.md",
         "status.md",
-        "test-complete.md",
         "test.md",
+        "uninstall.md",
     ]
 
     def __init__(self, verbose: bool = False):
