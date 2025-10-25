@@ -182,6 +182,22 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 
 ## Quick Install
 
+**Choose Your Installation Tier**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+
+| Tier | Time | What You Get |
+|------|------|--------------|
+| **[Basic](#basic-tier-2-minutes)** | 2 min | Commands only (learning/solo) |
+| **[Standard](#standard-tier-5-minutes)** | 5 min | Commands + auto-hooks (solo with automation) |
+| **[Team](#team-tier-10-minutes)** | 10 min | Full integration (GitHub + PROJECT.md) |
+
+**Not sure?** Start with [Basic](#basic-tier-2-minutes) → upgrade later.
+
+---
+
+### Basic Tier (2 minutes)
+
+**For**: Solo developers, learning the plugin, want explicit control
+
 ```bash
 # 1. Add the marketplace
 /plugin marketplace add akaszubski/autonomous-dev
@@ -193,37 +209,64 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**What gets installed:**
-- ✅ Agents: 8 specialist agents auto-active immediately
-- ✅ Commands: 8 core commands available
-- ✅ Hooks: Available in `plugins/autonomous-dev/hooks/` (configured via setup)
+**Done!** All 8 commands work immediately:
+- `/test` - Run tests
+- `/align-project` - Check alignment
+- `/auto-implement` - Autonomous feature development
+- `/setup` - Configuration wizard
+- `/status` - Project status
+- `/health-check` - Plugin validation
+- `/sync-dev` - Sync plugin (developers only)
+- `/uninstall` - Remove plugin
+
+**Upgrade to Standard** when you want automatic formatting/testing: [docs/INSTALLATION.md#standard-tier](docs/INSTALLATION.md#standard-tier)
 
 ---
 
-### Required Setup (2 minutes)
+### Standard Tier (5 minutes)
 
-**Run setup to enable core features**:
+**For**: Solo developers who want automatic quality checks
 
 ```bash
+# Basic tier + setup wizard
 /setup
+
+# Choose: "Automatic Hooks"
+# Enables: auto-format, auto-test, security scan
 ```
 
-This wizard helps you:
-- Create PROJECT.md from template (**required for /auto-implement**)
-- Choose workflow mode (slash commands vs automatic hooks)
-- Copy hooks to your project (optional - for automatic execution)
-- Configure GitHub integration (.env file - optional)
-- **Asks before overwriting any existing files** (safe!)
+**What changes**:
+- ✅ Code auto-formatted on save
+- ✅ Tests run before commit
+- ✅ Security scan before commit
+- ✅ 80% coverage enforced
 
-**What works immediately** (no PROJECT.md needed):
-- `/health-check` - Validate plugin components
-- `/test` - Run tests (if tests exist)
-- `/uninstall` - Remove plugin
+**Upgrade to Team** when collaborating with GitHub: [docs/INSTALLATION.md#team-tier](docs/INSTALLATION.md#team-tier)
 
-**What needs PROJECT.md** (created by /setup):
-- `/auto-implement` - Autonomous feature development
-- `/align-project` - PROJECT.md alignment validation
-- `/status` - Progress tracking
+---
+
+### Team Tier (10 minutes)
+
+**For**: Teams collaborating with GitHub, want scope enforcement
+
+```bash
+# Standard tier + PROJECT.md + GitHub
+/setup
+
+# Steps:
+# 1. Create PROJECT.md (strategic direction)
+# 2. Setup GitHub integration (token + milestones)
+# 3. Verify: /align-project && /health-check
+```
+
+**What changes**:
+- ✅ PROJECT.md governance (scope enforcement)
+- ✅ GitHub sprint tracking
+- ✅ Automatic issue creation
+- ✅ PR description generation
+- ✅ `/auto-implement` validates alignment before work
+
+**Full details**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
 
 ---
 
