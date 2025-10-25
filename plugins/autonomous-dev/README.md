@@ -1,10 +1,10 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-2.3.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-2.3.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v2.3.0
+**Version**: v2.3.1
 **Last Updated**: 2025-10-25
 
 **Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
@@ -91,57 +91,72 @@ cp plugins/autonomous-dev/templates/PROJECT.md .claude/PROJECT.md
 
 **Learn more**: See [docs/STRICT-MODE.md](docs/STRICT-MODE.md)
 
-### 📝 Strict Documentation Enforcement (v2.3.0)
+### 📝 Hybrid Auto-Fix Documentation (v2.3.1)
 
 **Problem**: README.md and other docs drift out of sync when code changes.
 
-**Solution**: Proactive doc change detection - commits BLOCKED if required docs aren't updated.
+**Solution**: Hybrid auto-fix + validation - "vibe coding" with safety net.
+
+**True "Vibe Coding" Experience:**
 
 ```bash
-# You add a new command
-git add commands/new-feature.md
-git commit -m "feat: add new feature"
+# You add a new skill
+git add skills/my-new-skill/
+git commit -m "feat: add my-new-skill"
 
-# ⛔ BLOCKED!
-# "You changed commands/new-feature.md"
-# "Must also update: README.md, QUICKSTART.md"
+# 🔧 Attempting to auto-fix documentation...
+# ✅ Auto-fixed: README.md (updated skill count: 13 → 14)
+# ✅ Auto-fixed: marketplace.json (updated metrics)
+# 📝 Auto-staged: README.md
+# 📝 Auto-staged: .claude-plugin/marketplace.json
+# 🔍 Validating auto-fix...
+#
+# ============================================================
+# ✅ Documentation auto-updated and validated!
+# ============================================================
+#
+# Auto-fixed files have been staged automatically.
+# Proceeding with commit...
 
-# Update the required docs
-vim README.md QUICKSTART.md
-git add README.md QUICKSTART.md
-git commit -m "feat: add new feature"
-
-# ✅ PASS - All docs updated!
+# [Commit succeeds!]
 ```
 
-**How it works:**
-- `config/doc_change_registry.json` maps code changes → required doc updates
-- `hooks/detect_doc_changes.py` enforces mappings on every commit
-- Helpful error messages tell you EXACTLY which docs to update
-- Can't forget anymore - commit won't succeed until docs are updated
+**How it works (Option C: Hybrid Approach):**
 
-**Mappings enforced:**
-- Add command → Update README.md + QUICKSTART.md
-- Add skill → Update README.md + marketplace.json (count)
-- Add agent → Update README.md + marketplace.json (count)
-- Add hook → Update README.md + STRICT-MODE.md
-- Version bump → Update README.md + UPDATES.md
+1. **Detect** - Finds code changes requiring doc updates
+2. **Auto-fix** - Automatically updates docs for simple cases:
+   - Skill/agent count updates (just increment numbers)
+   - Version sync (copy version across files)
+   - Marketplace metrics (auto-calculate)
+3. **Validate** - Checks auto-fix worked correctly
+4. **Auto-stage** - Adds fixed docs to commit automatically
+5. **Block only if needed** - Only blocks for complex cases requiring human input:
+   - New commands (need human-written descriptions)
+   - New feature docs (need human context)
+   - Breaking changes (need human explanation)
 
-**Enable strict doc enforcement:**
+**Smart mappings:**
+- Add skill/agent → **AUTO-FIX** count in README.md + marketplace.json
+- Version bump → **AUTO-FIX** sync version across all files
+- Add command → **MANUAL** (need human-written description)
+- Add hook → **MANUAL** (need human-written docs)
+
+**Works out-of-box:**
 ```bash
-# Add to .claude/settings.local.json
-{
-  "hooks": {
-    "PreCommit": [{
-      "hooks": [
-        {"command": "python .claude/hooks/detect_doc_changes.py || exit 1"}
-      ]
-    }]
-  }
-}
+# After plugin install, auto-fix is enabled by default!
+/plugin install autonomous-dev
+# Done! Docs stay in sync automatically.
+
+# No manual setup required! ✅
 ```
 
-**Result**: README.md never goes stale again! 🎉
+**Manual setup (optional):**
+```bash
+# If you want to customize which hooks run:
+cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.local.json
+```
+
+**Result**: README.md never goes stale, and you never have to manually update counts/versions! 🎉
 
 ## 🔍 How to Find This Plugin
 

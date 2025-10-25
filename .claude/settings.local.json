@@ -1,10 +1,21 @@
 {
-  "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin",
+  "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
   "permissions": {
     "allow": [
-      "Bash(chmod:*)"
+      "*"
     ],
-    "deny": [],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(**/.env)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)",
+      "Write(/etc/*)",
+      "Write(/usr/*)",
+      "Write(/System/*)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)"
+    ],
     "ask": []
   },
   "hooks": {
@@ -32,7 +43,7 @@
     "PostToolUse": [],
     "PreCommit": [
       {
-        "description": "BLOCKING validation - enforces all SDLC requirements",
+        "description": "Hybrid auto-fix + validation - vibe coding with safety net",
         "hooks": [
           {
             "type": "command",
@@ -40,7 +51,7 @@
           },
           {
             "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/validate_docs_consistency.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/auto_fix_docs.py || exit 1"
           }
         ]
       }

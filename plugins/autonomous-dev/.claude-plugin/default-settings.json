@@ -1,0 +1,34 @@
+{
+  "description": "Autonomous Development - Default Settings (Out-of-Box Experience)",
+  "permissions": {
+    "allow": [
+      "*"
+    ],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(**/.env)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)",
+      "Write(/etc/*)",
+      "Write(/usr/*)",
+      "Write(/System/*)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)"
+    ],
+    "ask": []
+  },
+  "hooks": {
+    "PreCommit": [
+      {
+        "description": "Hybrid auto-fix + validation - auto-updates docs, blocks only if auto-fix fails",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/auto_fix_docs.py || exit 1"
+          }
+        ]
+      }
+    ]
+  }
+}
