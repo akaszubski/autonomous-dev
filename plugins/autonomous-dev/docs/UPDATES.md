@@ -1,6 +1,6 @@
 # System Updates
 
-**Latest Version**: v2.3.1 (Hybrid Auto-Fix Documentation)
+**Latest Version**: v2.1.0 (PROJECT.md-First Architecture)
 **Last Updated**: 2025-10-25
 
 ---

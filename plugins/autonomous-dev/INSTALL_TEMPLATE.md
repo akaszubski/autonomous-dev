@@ -1,6 +1,6 @@
 # Autonomous Development Installed!
 
-**Plugin**: autonomous-dev v2.0.0
+**Plugin**: autonomous-dev v2.1.0
 **Installed**: [TIMESTAMP]
 
 ## ✨ What's New

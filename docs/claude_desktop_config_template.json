@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "shell": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-shell"
+      ],
+      "env": {
+        "ALLOWED_COMMANDS": "ls,cat,grep,find,git,gh,pytest,black,isort,python3,npm"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your-token-here"
+      }
+    }
+  }
+}

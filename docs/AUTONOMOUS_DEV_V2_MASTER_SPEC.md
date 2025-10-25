@@ -2320,7 +2320,7 @@ describe('Orchestrator - Agent Coordination', () => {
       "input": 500,
       "output": 300,
       "total": 800,
-      "model": "claude-3-5-sonnet-20241022",
+      "model": "claude-sonnet-4-5-20250929",
       "cost_usd": 0.01
     },
     "performance": {

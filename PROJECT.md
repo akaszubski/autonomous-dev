@@ -8,26 +8,49 @@
 
 ## GOALS ⭐
 
-**Primary Mission**: Build a "Software Engineering Operating System" that enforces SDLC best practices automatically through natural language ("vibe coding") while maintaining PROJECT.md as the strategic gatekeeper.
+**Primary Mission**: Build an **Autonomous Development Team** - not a toolkit, but a self-managing team of AI agents that execute on PROJECT.md goals using best practices, skills, and consistency. User states WHAT they want, the team autonomously handles HOW.
+
+**Core Philosophy**:
+- **Team, not toolkit** - Autonomous agents work together, not manual commands the user orchestrates
+- **WHAT, not HOW** - User specifies goals in natural language, team figures out implementation
+- **Autonomous git operations** - Team auto-commits, auto-pushes, auto-creates PRs (no manual git commands)
+- **PROJECT.md is the mission** - Team executes on PROJECT.md strategic goals, validates alignment automatically
+- **Minimal commands** - 5 essential commands maximum (auto-implement, align-project, setup, test, status)
 
 **What success looks like**:
 
-1. **"Vibe Coding" Works Seamlessly** - Say "implement user authentication" → Full agent pipeline activates automatically → Professional output without manual step management
-2. **PROJECT.md is Absolute Gatekeeper** - 100% of work (human or AI) validates against PROJECT.md BEFORE proceeding → Work BLOCKED if not aligned → Single source of truth enforced
-3. **Professional Consistency Without Cognitive Load** - All SDLC steps (research, plan, test-first, implement, review, security, docs) enforced automatically → Can't skip steps → Quality is automatic, not optional
-4. **File Organization Enforced** - Standard structure (src/, tests/, docs/, scripts/) automatically maintained → Root directory kept clean → Professional project organization without thinking
-5. **Works for Greenfield AND Brownfield** - New projects start with strict mode → Existing projects can retrofit to align → Universal applicability
+1. **True Autonomous Execution** - User says "implement user authentication" → Team autonomously: researches, plans, writes tests, implements, reviews, audits security, updates docs, commits, pushes, creates PR → User sees: "✅ Feature complete! PR #42: https://..."
+
+2. **PROJECT.md is Team's Mission** - 100% of work validates against PROJECT.md BEFORE execution → Team blocks work if not aligned → Single source of strategic truth → Team updates PROJECT.md progress automatically
+
+3. **Zero Manual Git Operations** - Team autonomously: generates commit messages (GenAI), creates commits, pushes to feature branches, creates PRs with comprehensive descriptions (GenAI) → User never runs git commands manually
+
+4. **Professional Consistency Automated** - All SDLC steps (research, plan, TDD, implement, review, security, docs) enforced by team workflow → Can't skip steps → Quality is automatic → GenAI makes intelligent decisions throughout
+
+5. **Minimal User Intervention** - 5 commands total (not 22) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging only
 
 **Success Metrics**:
-- **Auto-orchestration**: 100% of "implement X" requests trigger full agent pipeline
+- **Autonomous execution**: 100% of features auto-commit, auto-push, auto-PR (zero manual git)
+- **Command minimalism**: ≤ 5 commands total (22 → 5 = -77% complexity)
 - **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation
-- **SDLC compliance**: 100% of features follow research → plan → test → implement → review → security → docs
-- **File organization**: 100% compliance with standard structure (src/, tests/, docs/, scripts/)
-- **Test coverage**: 80%+ enforced (can't commit without)
-- **Context efficiency**: < 8K tokens per feature (enables scaling to 100+ features)
-- **Brownfield success**: Existing projects successfully retrofit to align with standards
+- **SDLC compliance**: 100% of features follow research → plan → TDD → implement → review → security → docs
+- **GenAI decision-making**: 95%+ decisions made by GenAI (not regex/hardcoded rules)
+- **Test coverage**: 80%+ enforced automatically
+- **Context efficiency**: < 8K tokens per feature (team uses agents, not context)
+- **User effort**: 1 command per feature (`/auto-implement`) → team handles rest
 
-**Meta-Goal**: This plugin enforces its own principles on projects that use it.
+**Success Example**:
+```bash
+# User input (simple)
+/auto-implement "Add rate limiting to API"
+
+# Team output (automatic, 5-10 minutes)
+✅ Feature complete!
+   PR #43: https://github.com/user/repo/pull/43
+   PROJECT.md: "Performance" goal → 60% complete
+```
+
+**Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
 
 ---
 
@@ -307,6 +330,282 @@ Production Code (Professional Quality Guaranteed)
 - Logs: Agent name, timestamp, message
 - Creates: Session files in `docs/sessions/`
 - Used by: All agents when completing work
+
+---
+
+## DESIGN PRINCIPLES ⚙️
+
+**Source**: Official Anthropic Claude Code repository analysis (2025-10-25)
+**Purpose**: Codify production-grade standards to maintain simplicity and context efficiency
+
+### Agent Design (Official Anthropic Standard)
+
+**Length Requirements**:
+- **Target**: 50-100 lines total (frontmatter + content)
+- **Maximum**: 150 lines (enforce strictly)
+- **Current baseline**: Most agents 300-800 lines (NEEDS SIMPLIFICATION)
+- **Rationale**: Agents must fit in context with room for codebase exploration
+
+**Frontmatter (Required Fields Only)**:
+```yaml
+---
+name: agent-name
+description: Clear one-sentence mission
+model: sonnet  # or opus/haiku based on task complexity
+tools: [Tool1, Tool2, Tool3]  # Only essential tools
+color: blue  # Optional: red/green/blue/yellow for visual distinction
+---
+```
+
+**Content Structure** (Anthropic Production Pattern):
+1. **Clear Mission** (1-2 sentences) - What is the agent's purpose?
+2. **Core Responsibilities** (3-5 bullet points) - What does it do?
+3. **Process** (Simple workflow, NOT prescriptive step-by-step)
+4. **Output Format** (Actionable structure for results)
+
+**Design Philosophy**:
+- ✅ **Trust the model** - Claude is smart, don't over-prescribe implementation
+- ✅ **Clear mission** - Agent knows its purpose and boundaries
+- ✅ **Minimal guidance** - Just enough structure, not detailed scripts
+- ✅ **Focused scope** - Single responsibility, well-defined outputs
+
+**What to AVOID** (Anti-patterns from over-engineering):
+- ❌ Bash scripts embedded in markdown
+- ❌ Python code examples in agent prompts
+- ❌ Complex artifact protocols (`.claude/artifacts/` pattern)
+- ❌ Detailed JSON schemas (100+ line examples)
+- ❌ Step-by-step implementation prescriptions
+- ❌ Over-specification of tools/techniques
+
+**What to INCLUDE**:
+- ✅ Clear mission statement (why this agent exists)
+- ✅ Core responsibilities (what it does)
+- ✅ Expected output format (structure of results)
+- ✅ High-level process (general approach, not detailed steps)
+- ✅ Context about when to invoke (optional)
+
+**Example** (Official Anthropic Pattern):
+```markdown
+---
+name: researcher
+description: Research best practices and existing patterns
+model: sonnet
+tools: [WebSearch, WebFetch, Read, Grep, Glob]
+color: blue
+---
+
+You are a research specialist who finds best practices and patterns.
+
+## Your Mission
+Research the requested feature to inform planning and implementation.
+
+## Core Responsibilities
+- Search codebase for similar implementations
+- Find official documentation and current best practices
+- Identify security considerations
+- Recommend libraries and approaches
+
+## Research Process
+Use Grep/Glob to find existing patterns, WebSearch for official docs,
+prioritize authoritative sources (official docs > GitHub > blogs).
+
+## Output Format
+- **Codebase Patterns**: Existing code with file:line references
+- **Best Practices**: Industry standards with sources
+- **Security**: Critical considerations
+- **Recommendations**: Preferred approach with rationale
+
+Quality over quantity. Trust the model to execute effectively.
+```
+
+**Total**: ~30 lines (vs 864 lines in over-engineered version)
+
+### Hook Design (Official Anthropic Standard)
+
+**Structure** (Python-based):
+```python
+#!/usr/bin/env python3
+"""Clear purpose description in docstring."""
+
+import json
+import sys
+
+# Pattern configuration (declarative, at top)
+PATTERNS = [
+    (r"pattern1", "message1"),
+    (r"pattern2", "message2"),
+]
+
+def main():
+    """Main hook function."""
+    # 1. Check if enabled (optional)
+    # 2. Read stdin JSON
+    # 3. Check patterns/rules
+    # 4. Exit with appropriate code
+
+if __name__ == "__main__":
+    main()
+```
+
+**Exit Codes** (CRITICAL - Anthropic Standard):
+- **0**: Allow tool, no message shown
+- **1**: Allow tool, show stderr to USER only (warning, not blocking)
+- **2**: BLOCK tool, show stderr to CLAUDE (enforcement, Claude can fix)
+
+**Exit Code Strategy**:
+```python
+# Exit 0: Tool proceeds, silent success
+sys.exit(0)
+
+# Exit 1: Tool proceeds, user sees warning
+print("⚠️  Warning: Consider using rg instead of grep", file=sys.stderr)
+sys.exit(1)
+
+# Exit 2: Tool BLOCKED, Claude sees error and can fix
+print("❌ PROJECT.md alignment failed: missing GOALS section", file=sys.stderr)
+print("\nUpdate PROJECT.md or run: /align-project", file=sys.stderr)
+sys.exit(2)  # Claude receives message and can take action
+```
+
+**Design Principles**:
+- ✅ **Single concern** - Each hook does ONE thing (security, validation, etc.)
+- ✅ **Declarative rules** - Pattern lists at top, easy to maintain
+- ✅ **Warn, don't auto-fix** - Let Claude see issues and fix them
+- ✅ **Session state** - Track shown warnings per session (avoid spam)
+- ✅ **Fast execution** - Must complete in < 1 second (user experience)
+
+**What to AVOID**:
+- ❌ Auto-fixing issues (risky, hides problems from Claude)
+- ❌ Complex multi-stage logic (keep simple)
+- ❌ Heavy I/O operations (parsing large files, slow)
+- ❌ Silent failures (always exit with appropriate code)
+
+**Session Management** (Official Pattern):
+```python
+def get_state_file(session_id: str) -> Path:
+    """Get per-session state file."""
+    return Path.home() / ".claude" / f"state_{session_id}.json"
+
+def load_shown_warnings(session_id: str) -> set:
+    """Load warnings already shown this session."""
+    state_file = get_state_file(session_id)
+    if not state_file.exists():
+        return set()
+    return set(json.loads(state_file.read_text()))
+
+def save_shown_warnings(session_id: str, warnings: set):
+    """Save warnings shown this session."""
+    state_file = get_state_file(session_id)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(list(warnings)))
+```
+
+### Plugin Architecture (Official Anthropic Standard)
+
+**Minimal File Structure**:
+```
+plugins/plugin-name/
+├── agents/           # AI agents (50-100 lines each)
+│   ├── agent1.md
+│   └── agent2.md
+├── commands/         # Slash commands
+│   ├── command1.md
+│   └── command2.md
+├── hooks/            # Lifecycle hooks (optional)
+│   └── hook1.py
+├── scripts/          # Utility scripts (optional)
+│   └── setup.py
+└── README.md         # Single comprehensive guide (400-600 lines)
+```
+
+**No skills/ directory** - Skills are anti-pattern in official plugins:
+- Guidance goes directly in agent prompts (if agent needs python standards, include in agent)
+- OR in shared README.md (project-wide standards)
+- Skills add indirection without value
+
+**Documentation Strategy**:
+- **Single README.md** - Comprehensive 400-600 line guide
+- **Optional**: TROUBLESHOOTING.md, STRICT-MODE.md for advanced features
+- **Avoid**: 66+ scattered markdown files (documentation sprawl)
+
+### Command Design (Official Anthropic Standard)
+
+**Phase-Based Workflow Pattern**:
+```markdown
+---
+description: Guided feature development workflow
+argument-hint: Optional feature description
+---
+
+# Feature Development
+
+Follow a systematic 7-phase approach with user checkpoints:
+
+## Phase 1: Discovery
+- Create todo list with TodoWrite
+- Clarify requirements
+- Summarize understanding
+- **User checkpoint**: Approve before proceeding
+
+## Phase 2: Codebase Exploration
+- Launch 2-3 explorer agents in parallel
+- Each agent traces different aspect
+- Read key files identified
+- **User checkpoint**: Review findings
+
+## Phase 3: Architecture Design
+- Launch 2-3 architect agents in parallel
+- Present 2-3 approaches
+- **User checkpoint**: Pick preferred approach
+
+## Phase 4-7: Implementation → Review → Summary
+[Continue pattern...]
+```
+
+**Key Principles**:
+- ✅ **User gates** - Wait for approval between phases
+- ✅ **TodoWrite tracking** - Track progress throughout
+- ✅ **Parallel agents** - Launch 2-3 agents per phase for diverse perspectives
+- ✅ **Clear phases** - Discovery → Exploration → Design → Implementation → Review → Summary
+
+### Context Management (Critical for Scaling)
+
+**Best Practices** (Official Pattern):
+- ✅ **Keep agents short** - 50-100 lines = minimal context usage
+- ✅ **No artifact protocols** - Don't create complex `.claude/artifacts/` systems
+- ✅ **Session logging** - Log to files, reference paths (not full content)
+- ✅ **Clear after features** - Use `/clear` after each feature completes
+- ✅ **Minimal prompts** - Trust model > detailed instructions
+
+**Context Budget**:
+- Target: < 8,000 tokens per feature
+- Agent prompts: 500-1,000 tokens (50-100 lines)
+- Codebase exploration: 2,000-3,000 tokens
+- Working memory: 2,000-3,000 tokens
+- Buffer: 1,000-2,000 tokens
+
+### Simplification Principles (v2.5 Standards)
+
+**Official Anthropic Philosophy**:
+1. **Trust the model** - Claude Sonnet/Opus are extremely capable
+2. **Simple > Complex** - 50-line agent > 800-line agent (both work, simple scales better)
+3. **Warn > Auto-fix** - Let Claude see and fix issues (learns patterns)
+4. **Minimal > Complete** - Focused guidance > exhaustive documentation
+5. **Parallel > Sequential** - Launch multiple agents, get diverse perspectives
+
+**When You're Over-Engineering**:
+- Agent prompts exceed 150 lines
+- Using complex artifact protocols
+- Writing bash/python in agent markdown
+- Creating 60+ documentation files
+- Auto-fixing instead of warning
+- Prescribing exact implementation steps
+
+**Correction Path**:
+- Read official Anthropic plugins (https://github.com/anthropics/claude-code)
+- Identify over-engineered components
+- Simplify to match official patterns
+- Measure: Context usage, execution speed, maintainability
 
 ---
 

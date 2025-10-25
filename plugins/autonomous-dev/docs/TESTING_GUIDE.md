@@ -543,7 +543,7 @@ If any tests fail:
    ```bash
    grep "^## Version" plugins/autonomous-dev/README.md
    ```
-   Expected: v2.0.0 or higher
+   Expected: v2.1.0 or higher
 
 2. **Report issue**:
    - Go to: https://github.com/akaszubski/autonomous-dev/issues

@@ -9,17 +9,16 @@ Simplified orchestrator using modular components:
 """
 
 import json
+import subprocess
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from concurrent.futures import ThreadPoolExecutor
 
 from artifacts import ArtifactManager, generate_workflow_id
 from logging_utils import WorkflowLogger, WorkflowProgressTracker
 from project_md_parser import ProjectMdParser
-from alignment_validator import AlignmentValidator
 from agent_invoker import AgentInvoker
-from security_validator import SecurityValidator
 
 
 class WorkflowCoordinator:
@@ -66,6 +65,68 @@ class WorkflowCoordinator:
         # Initialize agent invoker
         self.agent_invoker = AgentInvoker(self.artifact_manager)
 
+    def _validate_alignment_with_agent(
+        self,
+        request: str,
+        workflow_id: str
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        Validate request alignment using alignment-validator agent.
+
+        Uses Claude Code's native Task tool, so runs with user's subscription.
+        No separate API key needed.
+
+        Args:
+            request: User's implementation request
+            workflow_id: Current workflow ID
+
+        Returns:
+            (is_aligned, reasoning, alignment_data)
+        """
+        try:
+            # Create context for agent
+            agent_context = {
+                'request': request,
+                'project_md_path': str(self.project_md_path),
+                'project_md_goals': self.project_md.get('goals', []),
+                'project_md_scope_in': self.project_md.get('scope', {}).get('included', []),
+                'project_md_scope_out': self.project_md.get('scope', {}).get('excluded', []),
+                'project_md_constraints': self.project_md.get('constraints', [])
+            }
+
+            # Invoke alignment-validator agent (uses Task tool - Claude Code native)
+            result = self.agent_invoker.invoke(
+                'alignment-validator',
+                workflow_id,
+                **agent_context
+            )
+
+            # Parse agent output
+            if result.get('success') and result.get('output'):
+                # Agent returns JSON in output
+                alignment_data = json.loads(result['output'])
+
+                return (
+                    alignment_data.get('is_aligned', False),
+                    alignment_data.get('reasoning', 'No reasoning provided'),
+                    alignment_data
+                )
+            else:
+                # Agent failed
+                error = result.get('error', 'Unknown error')
+                raise RuntimeError(f"Alignment validation agent failed: {error}")
+
+        except Exception as e:
+            # Fail loudly - don't silently pass invalid requests
+            raise RuntimeError(
+                f"Alignment validation failed: {e}\n\n"
+                f"This could mean:\n"
+                f"1. alignment-validator agent encountered an error\n"
+                f"2. PROJECT.md format is invalid\n"
+                f"3. Agent returned invalid JSON\n\n"
+                f"Check logs for details."
+            )
+
     def start_workflow(
         self,
         request: str,
@@ -81,11 +142,14 @@ class WorkflowCoordinator:
         Returns:
             (success, message, workflow_id)
         """
-        # Step 1: Validate alignment
+        # Step 1: Validate alignment using alignment-validator agent
         if validate_alignment:
-            is_aligned, reason, alignment_data = AlignmentValidator.validate(
+            # Create temporary workflow ID for validation
+            validation_workflow_id = f"validation-{int(time.time())}"
+
+            is_aligned, reason, alignment_data = self._validate_alignment_with_agent(
                 request,
-                self.project_md
+                validation_workflow_id
             )
 
             if not is_aligned:
@@ -396,6 +460,498 @@ Manifest: {manifest_path}
             architecture,
             workflow_id
         )
+
+    # Autonomous git operations
+    def _auto_commit(
+        self,
+        workflow_id: str,
+        files_to_commit: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Automatically commit changes with GenAI-generated commit message.
+
+        Args:
+            workflow_id: Current workflow ID
+            files_to_commit: List of files to stage (None = all changed files)
+
+        Returns:
+            {
+                'success': bool,
+                'commit_sha': str,
+                'commit_message': str,
+                'files_committed': List[str]
+            }
+        """
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        logger.log_event('auto_commit_start', 'Generating commit message with GenAI...')
+
+        try:
+            # Step 1: Stage files
+            if files_to_commit:
+                for file_path in files_to_commit:
+                    subprocess.run(['git', 'add', file_path], check=True)
+                logger.log_event('files_staged', f'Staged {len(files_to_commit)} files')
+            else:
+                # Stage all changed files
+                subprocess.run(['git', 'add', '.'], check=True)
+                logger.log_event('files_staged', 'Staged all changed files')
+
+            # Step 2: Get list of staged files
+            result = subprocess.run(
+                ['git', 'diff', '--cached', '--name-only'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            staged_files = [f for f in result.stdout.strip().split('\n') if f]
+
+            if not staged_files:
+                return {
+                    'success': False,
+                    'error': 'No files to commit'
+                }
+
+            # Step 3: Invoke commit-message-generator agent
+            manifest = self.artifact_manager.read_artifact(workflow_id, 'manifest')
+            agent_result = self.agent_invoker.invoke(
+                'commit-message-generator',
+                workflow_id,
+                request=manifest.get('request', ''),
+                staged_files=staged_files
+            )
+
+            if not agent_result.get('success'):
+                raise RuntimeError(f"Commit message generation failed: {agent_result.get('error')}")
+
+            commit_message = agent_result.get('output', '').strip()
+
+            # Step 4: Create git commit
+            subprocess.run(
+                ['git', 'commit', '-m', commit_message],
+                check=True
+            )
+
+            # Step 5: Get commit SHA
+            result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            commit_sha = result.stdout.strip()
+
+            logger.log_event(
+                'commit_created',
+                f'Created commit {commit_sha[:8]} with {len(staged_files)} files'
+            )
+
+            return {
+                'success': True,
+                'commit_sha': commit_sha,
+                'commit_message': commit_message,
+                'files_committed': staged_files
+            }
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Git command failed: {e}"
+            logger.log_error('auto_commit_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+        except Exception as e:
+            error_msg = f"Auto-commit failed: {e}"
+            logger.log_error('auto_commit_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
+    def _auto_push(
+        self,
+        workflow_id: str,
+        branch_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Automatically push to remote, creating feature branch if needed.
+
+        Args:
+            workflow_id: Current workflow ID
+            branch_name: Branch name (None = generate from workflow_id)
+
+        Returns:
+            {
+                'success': bool,
+                'branch': str,
+                'remote_url': str
+            }
+        """
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        logger.log_event('auto_push_start', 'Pushing to remote...')
+
+        try:
+            # Step 1: Get current branch
+            result = subprocess.run(
+                ['git', 'branch', '--show-current'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            current_branch = result.stdout.strip()
+
+            # Step 2: Create feature branch if needed
+            if not branch_name:
+                # Generate branch name from workflow_id
+                manifest = self.artifact_manager.read_artifact(workflow_id, 'manifest')
+                request = manifest.get('request', 'feature')
+                # Sanitize request for branch name (lowercase, hyphens, max 50 chars)
+                sanitized = request.lower().replace(' ', '-')[:50]
+                branch_name = f"auto-dev/{sanitized}-{workflow_id[:8]}"
+
+            # Check if we're on the feature branch already
+            if current_branch != branch_name:
+                # Create and switch to feature branch
+                subprocess.run(
+                    ['git', 'checkout', '-b', branch_name],
+                    check=True
+                )
+                logger.log_event('branch_created', f'Created feature branch: {branch_name}')
+
+            # Step 3: Push to remote with upstream tracking
+            subprocess.run(
+                ['git', 'push', '-u', 'origin', branch_name],
+                check=True
+            )
+
+            # Step 4: Get remote URL
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            remote_url = result.stdout.strip()
+
+            logger.log_event(
+                'push_complete',
+                f'Pushed {branch_name} to {remote_url}'
+            )
+
+            return {
+                'success': True,
+                'branch': branch_name,
+                'remote_url': remote_url
+            }
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Git push failed: {e}"
+            logger.log_error('auto_push_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+        except Exception as e:
+            error_msg = f"Auto-push failed: {e}"
+            logger.log_error('auto_push_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
+    def _auto_create_pr(
+        self,
+        workflow_id: str,
+        branch: str
+    ) -> Dict[str, Any]:
+        """
+        Automatically create GitHub PR with GenAI-generated description.
+
+        Args:
+            workflow_id: Current workflow ID
+            branch: Feature branch name
+
+        Returns:
+            {
+                'success': bool,
+                'pr_number': int,
+                'pr_url': str,
+                'pr_description': str
+            }
+        """
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        logger.log_event('auto_pr_start', 'Creating PR with GenAI description...')
+
+        try:
+            # Step 1: Invoke pr-description-generator agent
+            manifest = self.artifact_manager.read_artifact(workflow_id, 'manifest')
+            agent_result = self.agent_invoker.invoke(
+                'pr-description-generator',
+                workflow_id,
+                request=manifest.get('request', ''),
+                branch=branch
+            )
+
+            if not agent_result.get('success'):
+                raise RuntimeError(f"PR description generation failed: {agent_result.get('error')}")
+
+            pr_description = agent_result.get('output', '').strip()
+
+            # Step 2: Extract PR title from description (first line)
+            lines = pr_description.split('\n')
+            pr_title = lines[0].replace('## Summary', '').strip() if lines else manifest.get('request', 'Auto-generated PR')[:72]
+
+            # If title is still a header, use the request
+            if pr_title.startswith('#'):
+                pr_title = manifest.get('request', 'Auto-generated PR')[:72]
+
+            # Step 3: Create PR using gh CLI
+            # Use heredoc to avoid shell escaping issues
+            result = subprocess.run(
+                ['gh', 'pr', 'create', '--title', pr_title, '--body', pr_description],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            # Parse PR URL from output
+            pr_url = result.stdout.strip()
+
+            # Extract PR number from URL (last segment)
+            pr_number = int(pr_url.split('/')[-1])
+
+            logger.log_event(
+                'pr_created',
+                f'Created PR #{pr_number}: {pr_url}'
+            )
+
+            return {
+                'success': True,
+                'pr_number': pr_number,
+                'pr_url': pr_url,
+                'pr_description': pr_description
+            }
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"GitHub CLI failed: {e.stderr if hasattr(e, 'stderr') else e}"
+            logger.log_error('auto_pr_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+        except Exception as e:
+            error_msg = f"Auto-PR creation failed: {e}"
+            logger.log_error('auto_pr_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
+    def _auto_track_progress(
+        self,
+        workflow_id: str
+    ) -> Dict[str, Any]:
+        """
+        Automatically update PROJECT.md progress tracking.
+
+        Args:
+            workflow_id: Current workflow ID
+
+        Returns:
+            {
+                'success': bool,
+                'goal_progress': Dict,
+                'next_priorities': List
+            }
+        """
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        logger.log_event('auto_progress_start', 'Updating PROJECT.md progress...')
+
+        try:
+            # Invoke project-progress-tracker agent
+            manifest = self.artifact_manager.read_artifact(workflow_id, 'manifest')
+            agent_result = self.agent_invoker.invoke(
+                'project-progress-tracker',
+                workflow_id,
+                request=manifest.get('request', '')
+            )
+
+            if not agent_result.get('success'):
+                raise RuntimeError(f"Progress tracking failed: {agent_result.get('error')}")
+
+            # Parse agent output (should be JSON)
+            progress_data = json.loads(agent_result.get('output', '{}'))
+
+            logger.log_event(
+                'progress_updated',
+                f"Updated PROJECT.md: {progress_data.get('summary', 'Progress tracked')}"
+            )
+
+            return {
+                'success': True,
+                'goal_progress': progress_data.get('goal_progress', {}),
+                'next_priorities': progress_data.get('next_priorities', [])
+            }
+
+        except Exception as e:
+            error_msg = f"Auto-progress tracking failed: {e}"
+            logger.log_error('auto_progress_failed', error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
+    def execute_autonomous_workflow(
+        self,
+        request: str,
+        auto_commit: bool = True,
+        auto_push: bool = True,
+        auto_pr: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Execute complete autonomous workflow: validate → research → plan → test → implement → review → security → docs → commit → push → PR.
+
+        This is the main entry point for autonomous development.
+
+        Args:
+            request: User's implementation request (e.g., "Add dark mode toggle")
+            auto_commit: Auto-commit with GenAI message (default: True)
+            auto_push: Auto-push to feature branch (default: True)
+            auto_pr: Auto-create PR with GenAI description (default: True)
+
+        Returns:
+            {
+                'success': bool,
+                'workflow_id': str,
+                'commit_sha': str (if auto_commit),
+                'branch': str (if auto_push),
+                'pr_url': str (if auto_pr),
+                'goal_progress': Dict (PROJECT.md progress),
+                'next_priorities': List (suggested next features),
+                'summary': str
+            }
+        """
+        logger = None
+        workflow_id = None
+
+        try:
+            # Step 1: Start workflow with alignment validation
+            success, message, workflow_id = self.start_workflow(request, validate_alignment=True)
+
+            if not success:
+                return {
+                    'success': False,
+                    'error': message
+                }
+
+            logger = WorkflowLogger(workflow_id, 'orchestrator')
+            progress_tracker = WorkflowProgressTracker(workflow_id)
+
+            # Step 2: Execute 8-agent pipeline
+            logger.log_event('pipeline_start', 'Starting 8-agent autonomous pipeline...')
+
+            # Sequential agents
+            progress_tracker.update_progress('researcher', 'in_progress', 15, 'Researching patterns...')
+            self.invoke_researcher_with_task_tool(workflow_id)
+
+            progress_tracker.update_progress('planner', 'in_progress', 30, 'Planning architecture...')
+            self.invoke_planner_with_task_tool(workflow_id)
+
+            progress_tracker.update_progress('test-master', 'in_progress', 45, 'Writing tests (TDD)...')
+            self.invoke_test_master_with_task_tool(workflow_id)
+
+            progress_tracker.update_progress('implementer', 'in_progress', 60, 'Implementing feature...')
+            self.invoke_implementer_with_task_tool(workflow_id)
+
+            # Parallel validators
+            progress_tracker.update_progress('validators', 'in_progress', 75, 'Running validators...')
+            self.invoke_parallel_validators(workflow_id)
+
+            logger.log_event('pipeline_complete', '8-agent pipeline completed successfully')
+
+            result = {
+                'success': True,
+                'workflow_id': workflow_id
+            }
+
+            # Step 3: Auto-commit (if enabled)
+            if auto_commit:
+                progress_tracker.update_progress('auto-commit', 'in_progress', 90, 'Auto-committing...')
+                commit_result = self._auto_commit(workflow_id)
+
+                if commit_result.get('success'):
+                    result['commit_sha'] = commit_result['commit_sha']
+                    result['commit_message'] = commit_result['commit_message']
+                else:
+                    logger.log_error('auto_commit_failed', commit_result.get('error'))
+                    result['commit_error'] = commit_result.get('error')
+
+            # Step 4: Auto-push (if enabled)
+            if auto_push and auto_commit and result.get('commit_sha'):
+                progress_tracker.update_progress('auto-push', 'in_progress', 93, 'Auto-pushing...')
+                push_result = self._auto_push(workflow_id)
+
+                if push_result.get('success'):
+                    result['branch'] = push_result['branch']
+                    result['remote_url'] = push_result['remote_url']
+                else:
+                    logger.log_error('auto_push_failed', push_result.get('error'))
+                    result['push_error'] = push_result.get('error')
+
+            # Step 5: Auto-create PR (if enabled)
+            if auto_pr and auto_push and result.get('branch'):
+                progress_tracker.update_progress('auto-pr', 'in_progress', 96, 'Creating PR...')
+                pr_result = self._auto_create_pr(workflow_id, result['branch'])
+
+                if pr_result.get('success'):
+                    result['pr_number'] = pr_result['pr_number']
+                    result['pr_url'] = pr_result['pr_url']
+                else:
+                    logger.log_error('auto_pr_failed', pr_result.get('error'))
+                    result['pr_error'] = pr_result.get('error')
+
+            # Step 6: Track progress (always)
+            progress_tracker.update_progress('progress-tracker', 'in_progress', 98, 'Updating PROJECT.md...')
+            progress_result = self._auto_track_progress(workflow_id)
+
+            if progress_result.get('success'):
+                result['goal_progress'] = progress_result['goal_progress']
+                result['next_priorities'] = progress_result['next_priorities']
+
+            # Step 7: Generate summary
+            progress_tracker.update_progress('complete', 'completed', 100, 'Workflow complete!')
+
+            summary_lines = [
+                f"✅ Feature complete: {request}",
+                f"   Workflow: {workflow_id}"
+            ]
+
+            if result.get('commit_sha'):
+                summary_lines.append(f"   Commit: {result['commit_sha'][:8]}")
+
+            if result.get('pr_url'):
+                summary_lines.append(f"   PR: {result['pr_url']}")
+
+            if result.get('goal_progress'):
+                goal_name = result['goal_progress'].get('goal_name', 'Unknown')
+                new_progress = result['goal_progress'].get('new_progress', '0%')
+                summary_lines.append(f"   PROJECT.md: '{goal_name}' → {new_progress}")
+
+            result['summary'] = '\n'.join(summary_lines)
+
+            logger.log_event('autonomous_workflow_complete', result['summary'])
+
+            return result
+
+        except Exception as e:
+            error_msg = f"Autonomous workflow failed: {e}"
+            if logger:
+                logger.log_error('autonomous_workflow_failed', error_msg)
+
+            return {
+                'success': False,
+                'workflow_id': workflow_id,
+                'error': error_msg
+            }
 
 
 # Backward compatibility: Orchestrator is now an alias for WorkflowCoordinator

@@ -2,14 +2,16 @@
 Security validation using GenAI.
 
 Validates threat model coverage and performs code security review.
+Uses Claude Opus 4 for security-critical analysis (GenAI-only, no fallbacks).
 """
 
 import json
 from typing import Dict, Any, List
+from anthropic import Anthropic
 
 
 class SecurityValidator:
-    """Security validation using Claude for threat analysis and code review"""
+    """Security validation using Claude Opus (GenAI-only)"""
 
     @staticmethod
     def validate_threats_with_genai(
@@ -17,7 +19,7 @@ class SecurityValidator:
         implementation_code: str
     ) -> Dict[str, Any]:
         """
-        Validate threat model coverage using Claude.
+        Validate threat model coverage using Claude Opus.
 
         Args:
             threats: List of threat dictionaries from security audit
@@ -28,13 +30,15 @@ class SecurityValidator:
                 - threats_validated: List of per-threat assessments
                 - overall_coverage: Coverage score 0-100
                 - recommendation: "PASS" or "FAIL"
-                - issues: List of issues found
-        """
-        try:
-            from anthropic import Anthropic
-            client = Anthropic()
+                - summary: Overall assessment
 
-            prompt = f"""Validate threat mitigation coverage:
+        Raises:
+            ImportError: If anthropic package not installed
+            anthropic.APIError: If API call fails
+        """
+        client = Anthropic()
+
+        prompt = f"""Validate threat mitigation coverage:
 
 THREAT MODEL:
 {json.dumps(threats, indent=2)}
@@ -66,31 +70,14 @@ Return JSON (valid JSON only, no markdown):
   "summary": "overall assessment"
 }}"""
 
-            response = client.messages.create(
-                model="claude-opus-4-20250514",  # Use Opus for security-critical analysis
-                max_tokens=3000,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        response = client.messages.create(
+            model="claude-opus-4-20250514",  # Use Opus for security-critical analysis
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-            result = json.loads(response.content[0].text)
-            return result
-
-        except ImportError:
-            print("⚠️  anthropic package not installed, skipping GenAI threat validation")
-            return {
-                "recommendation": "PASS",
-                "overall_coverage": 75,
-                "threats_validated": [],
-                "summary": "GenAI validation skipped (anthropic not installed)"
-            }
-        except Exception as e:
-            print(f"⚠️  GenAI threat validation failed: {e}")
-            return {
-                "recommendation": "PASS",
-                "overall_coverage": 75,
-                "threats_validated": [],
-                "summary": f"GenAI validation failed: {str(e)}"
-            }
+        result = json.loads(response.content[0].text)
+        return result
 
     @staticmethod
     def review_code_with_genai(
@@ -99,7 +86,7 @@ Return JSON (valid JSON only, no markdown):
         workflow_id: str
     ) -> Dict[str, Any]:
         """
-        Review code for security issues using Claude.
+        Review code for security issues using Claude Opus.
 
         Args:
             implementation_code: Code to review
@@ -112,15 +99,17 @@ Return JSON (valid JSON only, no markdown):
                 - issues: List of security issues found
                 - recommendations: List of recommendations
                 - approved: Boolean approval status
+
+        Raises:
+            ImportError: If anthropic package not installed
+            anthropic.APIError: If API call fails
         """
-        try:
-            from anthropic import Anthropic
-            client = Anthropic()
+        client = Anthropic()
 
-            # Extract API contracts for context
-            api_contracts = architecture.get('api_contracts', [])
+        # Extract API contracts for context
+        api_contracts = architecture.get('api_contracts', [])
 
-            prompt = f"""Security code review:
+        prompt = f"""Security code review:
 
 IMPLEMENTATION:
 ```python
@@ -155,30 +144,11 @@ Return JSON (valid JSON only, no markdown):
   "summary": "overall security assessment"
 }}"""
 
-            response = client.messages.create(
-                model="claude-opus-4-20250514",  # Use Opus for security
-                max_tokens=3000,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        response = client.messages.create(
+            model="claude-opus-4-20250514",  # Use Opus for security
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-            result = json.loads(response.content[0].text)
-            return result
-
-        except ImportError:
-            print("⚠️  anthropic package not installed, skipping GenAI code review")
-            return {
-                "security_score": 85,
-                "issues": [],
-                "recommendations": [],
-                "approved": True,
-                "summary": "GenAI review skipped (anthropic not installed)"
-            }
-        except Exception as e:
-            print(f"⚠️  GenAI code review failed: {e}")
-            return {
-                "security_score": 85,
-                "issues": [],
-                "recommendations": [],
-                "approved": True,
-                "summary": f"GenAI review failed: {str(e)}"
-            }
+        result = json.loads(response.content[0].text)
+        return result

@@ -6,12 +6,14 @@ examples:
   - /auto-implement-v2 --resume 20251023_093456
 ---
 
-# Autonomous Implementation v2.0
+# Autonomous Implementation
 
-**Version**: 2.0.0-alpha
-**Status**: Week 3 implementation
+**Version**: 2.1.0 (see VERSION file in repo root)
+**Status**: Experimental - Python orchestrator not yet fully integrated
 
 Fully autonomous, PROJECT.md-aligned feature implementation using orchestrated 8-agent pipeline.
+
+**Note**: This command uses the experimental Python orchestrator (`lib/orchestrator.py`). For production use, rely on the agent-based orchestrator (`agents/orchestrator.md`) which is invoked automatically by Claude Code.
 
 ## What This Command Does
 

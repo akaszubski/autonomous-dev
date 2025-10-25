@@ -16,6 +16,12 @@ class AgentInvoker:
 
     # Agent configuration mapping
     AGENT_CONFIGS = {
+        'alignment-validator': {
+            'progress_pct': 5,
+            'artifacts_required': [],  # No artifacts needed, just PROJECT.md
+            'description_template': 'Validate PROJECT.md alignment for: {request}',
+            'mission': 'Validate if request aligns with PROJECT.md GOALS, SCOPE, and CONSTRAINTS'
+        },
         'researcher': {
             'progress_pct': 20,
             'artifacts_required': ['manifest'],
@@ -57,6 +63,24 @@ class AgentInvoker:
             'artifacts_required': ['manifest', 'architecture', 'implementation'],
             'description_template': 'Document: {request}',
             'mission': 'Synchronize documentation with implementation'
+        },
+        'commit-message-generator': {
+            'progress_pct': 90,
+            'artifacts_required': ['manifest', 'architecture', 'implementation'],
+            'description_template': 'Generate commit message for: {request}',
+            'mission': 'Generate descriptive commit message following conventional commits format'
+        },
+        'pr-description-generator': {
+            'progress_pct': 96,
+            'artifacts_required': ['manifest', 'architecture', 'implementation', 'tests', 'security', 'review', 'documentation'],
+            'description_template': 'Generate PR description for: {request}',
+            'mission': 'Generate comprehensive pull request description from implementation artifacts'
+        },
+        'project-progress-tracker': {
+            'progress_pct': 98,
+            'artifacts_required': ['manifest', 'implementation'],
+            'description_template': 'Track PROJECT.md progress for: {request}',
+            'mission': 'Track and update PROJECT.md goal completion progress'
         }
     }
 

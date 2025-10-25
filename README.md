@@ -1,7 +1,7 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-10-24
-**Version**: v2.1.0
+**Last Updated**: 2025-10-25
+**Version**: v2.4.0
 
 Production-ready plugin for autonomous development with **PROJECT.md-first architecture**.
 
@@ -45,6 +45,8 @@ A single file at your project root that defines:
 
 ## Quick Start
 
+### Installation
+
 ```bash
 # 1. Add marketplace (one time)
 /plugin marketplace add akaszubski/autonomous-dev
@@ -58,7 +60,7 @@ A single file at your project root that defines:
 
 **Done!** All 21 commands now work: `/test`, `/format`, `/commit`, etc.
 
-Claude now autonomously handles formatting, testing, documentation, and security.
+Claude now autonomously handles formatting, testing, documentation, and security using **GenAI semantic validation** (95% accuracy).
 
 ### Optional Setup (Advanced)
 
@@ -229,13 +231,20 @@ All commands are independently discoverable with autocomplete:
 
 See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
 
-### 6 Core Skills
+### 13 Skills
 - **python-standards** - PEP 8, type hints, docstrings
 - **testing-guide** - TDD workflow, pytest patterns
 - **security-patterns** - OWASP, secrets management
 - **documentation-guide** - Docstring format, README updates
 - **research-patterns** - Web search strategies
-- **engineering-standards** - Code quality standards
+- **architecture-patterns** - System design patterns
+- **api-design** - REST API best practices
+- **code-review** - Review guidelines
+- **consistency-enforcement** - Documentation drift prevention
+- **database-design** - Schema design, migrations
+- **git-workflow** - Commit conventions, branching
+- **observability** - Logging, debugging, profiling
+- **project-management** - PROJECT.md templates
 
 ### Automation Hooks
 - **Auto-format** - black, isort (Python), prettier (JS/TS)

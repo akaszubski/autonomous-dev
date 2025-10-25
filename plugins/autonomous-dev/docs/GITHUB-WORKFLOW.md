@@ -1,7 +1,7 @@
 # GitHub-First Workflow Guide
 
 **Last Updated**: 2025-10-25
-**Version**: v2.2.0
+**Version**: v2.1.0
 
 Complete guide to the GitHub-first development workflow: Issues → Branches → PRs → Code Review → CI/CD → Merge
 

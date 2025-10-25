@@ -1,17 +1,17 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-2.3.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v2.3.1
+**Version**: v2.1.0
 **Last Updated**: 2025-10-25
 
 **Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
-## ✨ What's New in v2.2.0
+## ✨ What's New in v2.1.0
 
 **Strict Mode + Auto-Orchestration**: "Vibe coding" meets SDLC enforcement!
 - 🔒 **Strict Mode**: Complete SDLC best practices enforced automatically
@@ -42,7 +42,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 **Previous releases**:
 - **v2.1.0**: Knowledge Base System with auto-bootstrap
-- **v2.0.0**: PROJECT.md-First Architecture with orchestrator agent
+- **v2.1.0**: PROJECT.md-First Architecture with orchestrator agent
 
 ## 📋 PROJECT.md-First Philosophy
 
@@ -91,7 +91,7 @@ cp plugins/autonomous-dev/templates/PROJECT.md .claude/PROJECT.md
 
 **Learn more**: See [docs/STRICT-MODE.md](docs/STRICT-MODE.md)
 
-### 📝 Hybrid Auto-Fix Documentation (v2.3.1)
+### 📝 Hybrid Auto-Fix Documentation (v2.1.0)
 
 **Problem**: README.md and other docs drift out of sync when code changes.
 
@@ -762,7 +762,7 @@ MIT License
 
 ## Version
 
-**v2.0.0** (2025-10-20)
+**v2.1.0** (2025-10-25)
 
 **Major Updates**:
 - ⭐ PROJECT.md-first architecture (alignment validation on every feature)
