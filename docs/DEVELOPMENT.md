@@ -24,20 +24,31 @@ That's it. No scripts, no sync, no complexity.
 
 ## For Plugin Developers (You)
 
-### Your Current Setup
+### Setup Options
 
-You have a **symlink** from Claude to your repo:
-```
-~/.claude/plugins/autonomous-dev → ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev
+There are two ways to develop the plugin:
+
+#### Option 1: Symlink (Recommended for rapid development)
+
+Create a symlink from Claude to your repo:
+```bash
+# Remove marketplace installation
+/plugin uninstall autonomous-dev
+# Restart Claude Code
+
+# Create symlink
+ln -s ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev \
+      ~/.claude/plugins/autonomous-dev
+# Restart Claude Code
 ```
 
-This means:
+**Benefits:**
 - ✅ Edit files in repo → Changes active immediately in Claude
-- ✅ No refresh scripts needed
+- ✅ No sync scripts needed
 - ✅ Test locally before pushing
+- ✅ Fastest iteration cycle
 
-### Development Workflow
-
+**Workflow:**
 ```bash
 # 1. Edit plugin files
 vim plugins/autonomous-dev/commands/test.md
@@ -49,11 +60,47 @@ vim plugins/autonomous-dev/commands/test.md
 git add plugins/autonomous-dev/commands/test.md
 git commit -m "feat: improve test command"
 git push
-
-# 4. Users update with:
-/plugin uninstall autonomous-dev
-/plugin install autonomous-dev
 ```
+
+#### Option 2: Marketplace Install + Sync (Test as users see it)
+
+Install via marketplace and sync changes:
+```bash
+# Install from marketplace
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+# Restart Claude Code
+```
+
+**Benefits:**
+- ✅ Test exactly as users experience it
+- ✅ Catch installation issues
+- ✅ Validate marketplace integration
+
+**Workflow:**
+```bash
+# 1. Edit plugin files
+vim plugins/autonomous-dev/commands/test.md
+
+# 2. Sync to installed location
+/sync-dev
+
+# 3. Restart Claude Code (REQUIRED!)
+# Press Cmd+Q or Ctrl+Q, then relaunch
+
+# 4. Test
+/test
+
+# 5. Commit and push when ready
+git add plugins/autonomous-dev/commands/test.md
+git commit -m "feat: improve test command"
+git push
+```
+
+**Sync Command:**
+- `/sync-dev` - Copies local changes to `~/.claude/plugins/marketplaces/.../autonomous-dev/`
+- Must restart Claude Code after syncing
+- See [sync-dev command docs](../plugins/autonomous-dev/commands/sync-dev.md)
 
 ### Repository Structure
 
