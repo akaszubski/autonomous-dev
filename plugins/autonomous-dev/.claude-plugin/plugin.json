@@ -1,6 +1,6 @@
 {
   "name": "autonomous-dev",
-  "version": "2.3.1",
+  "version": "2.4.0-beta",
   "description": "PROJECT.md-first autonomous development with hybrid auto-fix documentation. 8-agent pipeline, auto-orchestration, docs auto-update on commit (true vibe coding). Knowledge base system with 90% faster repeat research. Strict mode enforces SDLC best practices automatically. Works for ANY Python/JavaScript/TypeScript/Go project.",
   "author": {
     "name": "Andrew Kaszubski",
