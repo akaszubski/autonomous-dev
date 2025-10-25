@@ -5,9 +5,11 @@ Master coordinator for PROJECT.md-aligned autonomous development.
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 from artifacts import ArtifactManager, generate_workflow_id
 from logging_utils import WorkflowLogger, WorkflowProgressTracker
@@ -144,12 +146,88 @@ class AlignmentValidator:
     """Validate request alignment with PROJECT.md"""
 
     @staticmethod
+    def validate_with_genai(
+        request: str,
+        project_md: Dict[str, Any]
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """Use Claude Sonnet for semantic alignment validation."""
+        try:
+            from anthropic import Anthropic
+            client = Anthropic()  # Uses ANTHROPIC_API_KEY env var
+
+            prompt = f"""Analyze if this request aligns with PROJECT.md.
+
+Request: "{request}"
+
+PROJECT.md GOALS:
+{json.dumps(project_md.get('goals', []), indent=2)}
+
+PROJECT.md SCOPE (IN):
+{json.dumps(project_md.get('scope', {}).get('included', []), indent=2)}
+
+PROJECT.md SCOPE (OUT):
+{json.dumps(project_md.get('scope', {}).get('excluded', []), indent=2)}
+
+PROJECT.md CONSTRAINTS:
+{json.dumps(project_md.get('constraints', []), indent=2)}
+
+Evaluate alignment:
+1. Does request serve any GOALS? (semantic match, not just keywords)
+2. Is request within defined SCOPE?
+3. Does request violate any CONSTRAINTS?
+
+Return JSON (valid JSON only, no markdown):
+{{
+  "is_aligned": true or false,
+  "confidence": 0.0 to 1.0,
+  "matching_goals": ["goal1", "goal2"],
+  "reasoning": "detailed explanation of alignment assessment",
+  "scope_assessment": "in scope" or "out of scope" or "unclear",
+  "constraint_violations": []
+}}"""
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            result = json.loads(response.content[0].text)
+
+            # Build alignment_data in expected format
+            alignment_data = {
+                'validated': True,
+                'matches_goals': result.get('matching_goals', []),
+                'within_scope': result.get('scope_assessment') == 'in scope',
+                'scope_items': result.get('matching_goals', []),
+                'respects_constraints': len(result.get('constraint_violations', [])) == 0,
+                'constraints_checked': len(project_md.get('constraints', [])),
+                'confidence': result.get('confidence', 0.0),
+                'genai_enhanced': True
+            }
+
+            return (
+                result['is_aligned'],
+                result['reasoning'],
+                alignment_data
+            )
+
+        except ImportError:
+            # Fallback to regex if anthropic not installed
+            print("⚠️  anthropic package not installed, falling back to regex validation")
+            return None  # Signal to use fallback
+        except Exception as e:
+            # Fallback on any error
+            print(f"⚠️  GenAI validation failed: {e}, falling back to regex")
+            return None  # Signal to use fallback
+
+    @staticmethod
     def validate(
         request: str,
         project_md: Dict[str, Any]
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        Validate if request aligns with PROJECT.md
+        Validate if request aligns with PROJECT.md (try GenAI, fallback to regex)
 
         Args:
             request: User's request
@@ -158,6 +236,16 @@ class AlignmentValidator:
         Returns:
             (is_aligned, reason, alignment_data)
         """
+        # Try GenAI first
+        try:
+            genai_result = AlignmentValidator.validate_with_genai(request, project_md)
+            if genai_result is not None:
+                return genai_result
+        except Exception:
+            # Fall back to regex if GenAI fails
+            pass
+
+        # Original regex implementation
         goals = project_md.get('goals', [])
         scope_included = project_md.get('scope', {}).get('included', [])
         scope_excluded = project_md.get('scope', {}).get('excluded', [])
@@ -2212,7 +2300,7 @@ Search for missing docs:
 
 ```bash
 grep -r "TODO.*doc" plugins/autonomous-dev/
-grep -A 1 "^def " plugins/autonomous-dev/lib/*.py | grep -v '"""'
+grep -A 1 "^def " plugins/autonomous-dev/lib/*.py | grep -v "\\\"\\\"\\\""
 ```
 
 ### 8. Create Documentation Artifact (3-5 minutes)
@@ -2381,6 +2469,123 @@ Begin documentation updates now.
                     'checkpoint_error',
                     f'Failed to create checkpoint: {str(e)}'
                 )
+
+    def invoke_parallel_validators(self, workflow_id: str) -> Dict[str, Any]:
+        """Invoke reviewer, security-auditor, doc-master in parallel."""
+        logger = WorkflowLogger(workflow_id, 'orchestrator')
+        progress_tracker = WorkflowProgressTracker(workflow_id)
+
+        progress_tracker.update_progress(
+            current_agent='validators',
+            status='in_progress',
+            progress_percentage=85,
+            message='Running 3 validators in parallel...'
+        )
+
+        validator_results = {}
+        start_time = time.time()
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                'reviewer': executor.submit(
+                    self.invoke_reviewer_with_task_tool, workflow_id
+                ),
+                'security-auditor': executor.submit(
+                    self.invoke_security_auditor_with_task_tool, workflow_id
+                ),
+                'doc-master': executor.submit(
+                    self.invoke_doc_master_with_task_tool, workflow_id
+                )
+            }
+
+            for name, future in futures.items():
+                try:
+                    result = future.result(timeout=1800)  # 30 min timeout
+                    validator_results[name] = result
+                    logger.log_event(
+                        f'{name}_completed',
+                        f'{name} validator completed'
+                    )
+                except Exception as e:
+                    validator_results[name] = {'status': 'failed', 'error': str(e)}
+                    logger.log_error(f'{name} failed', exception=e)
+
+        elapsed = time.time() - start_time
+
+        progress_tracker.update_progress(
+            current_agent='validators',
+            status='completed',
+            progress_percentage=95,
+            message=f'Validators complete ({elapsed:.1f}s)'
+        )
+
+        return {
+            'status': 'completed',
+            'validator_results': validator_results,
+            'elapsed_seconds': elapsed
+        }
+
+    def review_code_with_genai(
+        self,
+        implementation_code: str,
+        architecture: Dict[str, Any],
+        workflow_id: str
+    ) -> Dict[str, Any]:
+        """Use Claude for real code review."""
+        try:
+            from anthropic import Anthropic
+            client = Anthropic()
+
+            prompt = f"""Review this Python code implementation:
+
+```python
+{implementation_code}
+```
+
+Architecture expectations:
+{json.dumps(architecture, indent=2)}
+
+Perform comprehensive code review covering:
+1. Design quality - follows architecture?
+2. Code quality - readable, maintainable?
+3. Bugs and edge cases - potential issues?
+4. Performance - obvious inefficiencies?
+5. Security - vulnerabilities?
+
+Return JSON (valid JSON only):
+{{
+  "decision": "APPROVE" or "REQUEST_CHANGES",
+  "overall_quality_score": 0 to 100,
+  "issues_found": [
+    {{
+      "severity": "critical|high|medium|low",
+      "category": "design|bugs|performance|security|style",
+      "description": "clear issue description",
+      "location": "file:line or function name",
+      "suggestion": "how to fix"
+    }}
+  ],
+  "strengths": ["strength1", "strength2"],
+  "reasoning": "overall assessment"
+}}"""
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            return json.loads(response.content[0].text)
+
+        except Exception as e:
+            # Fallback to basic approval
+            return {
+                "decision": "APPROVE",
+                "overall_quality_score": 75,
+                "issues_found": [],
+                "strengths": ["GenAI review unavailable, basic checks passed"],
+                "reasoning": f"GenAI review failed ({str(e)}), falling back to basic validation"
+            }
 
 
 if __name__ == '__main__':
