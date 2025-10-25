@@ -289,20 +289,33 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ## What You Get
 
-### 🤖 8 Specialized Agents
+### 🤖 12 Specialized Agents
 
-| Agent | Purpose | Model |
-|-------|---------|-------|
-| **orchestrator** | Master coordinator - validates PROJECT.md alignment, manages context, coordinates all agents | sonnet |
-| **planner** | Architecture & design planning for complex features | opus |
-| **researcher** | **⭐ NEW**: Auto-bootstraps knowledge base, caches research, reuses findings (90% faster) | sonnet |
-| **test-master** | TDD workflow, progression tracking, regression prevention | sonnet |
-| **implementer** | Clean code implementation following patterns | sonnet |
-| **reviewer** | Code quality gate before merge | sonnet |
-| **security-auditor** | Security scanning & OWASP compliance | haiku |
-| **doc-master** | Documentation sync & CHANGELOG automation | haiku |
+**Core Workflow Agents (8)**:
 
-**Note**: Skills directory removed per [Issue #5](https://github.com/akaszubski/autonomous-dev/issues/5). PROJECT.md states "No skills/ directory - anti-pattern". Agents follow best practices without explicit skill guides, adhering to Anthropic's "trust the model" principle.
+| Agent | Purpose | Model | Size |
+|-------|---------|-------|------|
+| **orchestrator** | Master coordinator - validates PROJECT.md alignment, manages context | sonnet | 67 lines |
+| **planner** | Architecture & design planning for complex features | opus | 74 lines |
+| **researcher** | Research patterns, best practices, security considerations | sonnet | 66 lines |
+| **test-master** | TDD workflow, comprehensive test coverage | sonnet | 67 lines |
+| **implementer** | Clean code implementation following patterns | sonnet | 61 lines |
+| **reviewer** | Code quality gate before merge | sonnet | 70 lines |
+| **security-auditor** | Security scanning & OWASP compliance | haiku | 68 lines |
+| **doc-master** | Documentation sync & CHANGELOG automation | haiku | 63 lines |
+
+**Utility Agents (4)**:
+
+| Agent | Purpose | Model | Size |
+|-------|---------|-------|------|
+| **alignment-validator** | GenAI-powered PROJECT.md alignment validation | sonnet | 88 lines |
+| **commit-message-generator** | Generate conventional commit messages | sonnet | 142 lines |
+| **pr-description-generator** | Generate comprehensive PR descriptions | sonnet | 283 lines † |
+| **project-progress-tracker** | Track progress against PROJECT.md goals | sonnet | 266 lines † |
+
+**Note**: † Utility agents need simplification to match core agent pattern (<75 lines). See [Issue #4](https://github.com/akaszubski/autonomous-dev/issues/4).
+
+**Skills removed**: Per [Issue #5](https://github.com/akaszubski/autonomous-dev/issues/5), skills directory eliminated. PROJECT.md states "No skills/ directory - anti-pattern". Agents follow Anthropic's "trust the model" principle.
 
 ---
 
