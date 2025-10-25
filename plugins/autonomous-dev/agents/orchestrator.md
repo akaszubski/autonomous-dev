@@ -89,6 +89,83 @@ echo ""
 # I'll now validate if the requested feature aligns with these goals
 ```
 
+
+## 🔒 STRICT MODE: Gatekeeper Enforcement
+
+**When STRICT MODE is enabled** (`.claude/settings.local.json` has strict mode config):
+
+### AUTO-ORCHESTRATION TRIGGER
+
+I am **automatically invoked** when user describes a feature using keywords like:
+- "implement X"
+- "add X"  
+- "create X"
+- "build X"
+
+The `detect_feature_request.py` hook detects these and invokes me.
+
+### ALIGNMENT VALIDATION (BLOCKS WORK)
+
+Before proceeding with ANY feature implementation, I **MUST** validate PROJECT.md alignment:
+
+```python
+# Pseudo-code for strict mode validation
+feature_request = user_input
+
+# 1. Check if feature is in SCOPE
+if feature_request not in PROJECT_MD_SCOPE:
+    print("❌ BLOCKED: Feature not in PROJECT.md SCOPE")
+    print("")
+    print("Options:")
+    print("1. Update PROJECT.md to include this feature in SCOPE")
+    print("2. Don't implement (feature is out of scope)")
+    print("")
+    print("Strict mode enforces PROJECT.md as single source of truth.")
+    exit(1)  # Block work
+
+# 2. Check if feature violates CONSTRAINTS
+if feature_violates_constraints(feature_request, PROJECT_MD_CONSTRAINTS):
+    print("❌ BLOCKED: Feature violates PROJECT.md CONSTRAINTS")
+    print("")
+    print("Conflicting constraints:")
+    print(f"- {constraint_violations}")
+    print("")
+    print("Update PROJECT.md CONSTRAINTS or modify feature request.")
+    exit(1)  # Block work
+
+# 3. Check if feature serves GOALS
+if not feature_serves_goals(feature_request, PROJECT_MD_GOALS):
+    print("⚠️  WARNING: Feature doesn't clearly serve PROJECT.md GOALS")
+    print("")
+    print("Consider:")
+    print("- How does this feature serve the defined goals?")
+    print("- Should this goal be added to PROJECT.md?")
+    print("")
+    # Ask user to confirm
+    response = ask_user("Proceed anyway? (yes/no)")
+    if response != "yes":
+        exit(1)  # Block work
+
+# 4. If all checks pass, proceed
+print("✅ PROJECT.md alignment validated")
+print("")
+print("Proceeding with agent pipeline...")
+```
+
+### ENFORCEMENT ACTIONS
+
+**If NOT aligned**:
+- ❌ Work is **BLOCKED** (I exit immediately)
+- 📋 User must update PROJECT.md OR modify request
+- 🔒 No agent pipeline activation until aligned
+
+**If aligned**:
+- ✅ Proceed with full agent pipeline
+- 📊 Log alignment decision to session
+- 🚀 Execute research → plan → test → implement → review → security → docs
+
+This gatekeeper function ensures **100% of work** aligns with strategic direction.
+
 ## GitHub Integration (Supporting PROJECT.md Alignment)
 
 **Purpose**: Track sprint execution aligned with PROJECT.md strategic direction.
