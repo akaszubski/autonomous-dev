@@ -1,10 +1,10 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-2.2.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-2.3.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v2.2.0
+**Version**: v2.3.0
 **Last Updated**: 2025-10-25
 
 **Production-ready autonomous development with PROJECT.md-first architecture + Knowledge Base System**
@@ -90,6 +90,58 @@ cp plugins/autonomous-dev/templates/PROJECT.md .claude/PROJECT.md
 - Brownfield projects - Retrofit existing projects (coming soon: `/align-project-retrofit`)
 
 **Learn more**: See [docs/STRICT-MODE.md](docs/STRICT-MODE.md)
+
+### 📝 Strict Documentation Enforcement (v2.3.0)
+
+**Problem**: README.md and other docs drift out of sync when code changes.
+
+**Solution**: Proactive doc change detection - commits BLOCKED if required docs aren't updated.
+
+```bash
+# You add a new command
+git add commands/new-feature.md
+git commit -m "feat: add new feature"
+
+# ⛔ BLOCKED!
+# "You changed commands/new-feature.md"
+# "Must also update: README.md, QUICKSTART.md"
+
+# Update the required docs
+vim README.md QUICKSTART.md
+git add README.md QUICKSTART.md
+git commit -m "feat: add new feature"
+
+# ✅ PASS - All docs updated!
+```
+
+**How it works:**
+- `config/doc_change_registry.json` maps code changes → required doc updates
+- `hooks/detect_doc_changes.py` enforces mappings on every commit
+- Helpful error messages tell you EXACTLY which docs to update
+- Can't forget anymore - commit won't succeed until docs are updated
+
+**Mappings enforced:**
+- Add command → Update README.md + QUICKSTART.md
+- Add skill → Update README.md + marketplace.json (count)
+- Add agent → Update README.md + marketplace.json (count)
+- Add hook → Update README.md + STRICT-MODE.md
+- Version bump → Update README.md + UPDATES.md
+
+**Enable strict doc enforcement:**
+```bash
+# Add to .claude/settings.local.json
+{
+  "hooks": {
+    "PreCommit": [{
+      "hooks": [
+        {"command": "python .claude/hooks/detect_doc_changes.py || exit 1"}
+      ]
+    }]
+  }
+}
+```
+
+**Result**: README.md never goes stale again! 🎉
 
 ## 🔍 How to Find This Plugin
 

@@ -535,6 +535,64 @@ If you make documentation changes, these tests WILL FAIL if:
 pytest tests/test_documentation_consistency.py -v
 ```
 
+### Proactive Doc Change Detection (NEW - v2.3.0)
+
+**STRICT MODE**: Code changes automatically require doc updates - commits BLOCKED if docs missing!
+
+The `detect_doc_changes.py` hook uses `config/doc_change_registry.json` to map code changes → required doc updates.
+
+**How it works:**
+```bash
+# Developer adds new command
+git add commands/new-feature.md
+git commit -m "feat: add new feature"
+
+# ⛔ BLOCKED by detect_doc_changes.py:
+# "You changed commands/new-feature.md"
+# "Must update: README.md, QUICKSTART.md"
+
+# Developer updates required docs
+git add README.md QUICKSTART.md
+git commit -m "feat: add new feature"
+
+# ✅ PASS - All required docs updated!
+```
+
+**Registry Mappings** (config/doc_change_registry.json):
+- `commands/*.md` → Must update README.md, QUICKSTART.md
+- `skills/*/` → Must update README.md, marketplace.json (count)
+- `agents/*.md` → Must update README.md, marketplace.json (count)
+- `hooks/*.py` → Must update README.md, STRICT-MODE.md
+- `.claude-plugin/plugin.json` → Must update README.md, UPDATES.md
+
+**Your role in proactive enforcement:**
+
+1. **Before making doc changes**: Check if registry mapping applies
+2. **When code changes**: Verify all mapped docs are updated
+3. **If new code pattern**: Update registry to add mapping
+4. **In completion checklist**: Include "✅ All registry-mapped docs updated"
+
+**Integration with your workflow:**
+```bash
+# 1. Read implementation artifacts
+# 2. Identify code changes made
+# 3. Check registry for required doc updates
+python -c "
+import json
+with open('plugins/autonomous-dev/config/doc_change_registry.json') as f:
+    registry = json.load(f)
+    print('Code changes require these doc updates:')
+    for mapping in registry['mappings']:
+        print(f\"  {mapping['code_pattern']} → {mapping['required_docs']}\")
+"
+
+# 4. Update ALL mapped docs (not just some)
+# 5. Verify with detect_doc_changes.py
+python plugins/autonomous-dev/hooks/detect_doc_changes.py
+```
+
+**This prevents**: "I updated the code but forgot to update README.md" scenarios
+
 ### Common Documentation Drift Scenarios
 
 **Scenario 1: Added new skill but forgot to update README.md**

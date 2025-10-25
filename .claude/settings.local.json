@@ -2,32 +2,9 @@
   "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin",
   "permissions": {
     "allow": [
-      "WebSearch",
-      "Bash",
-      "Read",
-      "Write",
-      "Edit",
-      "Glob",
-      "Grep",
-      "Task",
-      "WebFetch(domain:www.thoughtworks.com)",
-      "WebFetch(domain:medium.com)",
-      "WebFetch(domain:www.anthropic.com)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:arxiv.org)",
-      "WebFetch(domain:python.langchain.com)",
-      "WebFetch(domain:www.elastic.co)",
-      "WebFetch(domain:martinfowler.com)",
-      "WebFetch(domain:www.algolia.com)",
-      "WebFetch(domain:www.pinecone.io)"
+      "Bash(chmod:*)"
     ],
-    "deny": [
-      "Read(~/.ssh/*)",
-      "Read(~/.aws/*)",
-      "Read(**/.env)",
-      "Write(~/.ssh/*)",
-      "Write(~/.aws/*)"
-    ],
+    "deny": [],
     "ask": []
   },
   "hooks": {

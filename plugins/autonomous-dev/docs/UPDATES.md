@@ -1,7 +1,74 @@
 # System Updates
 
-**Latest Version**: v2.2.0 (Strict Mode + Auto-Orchestration)
+**Latest Version**: v2.3.0 (Strict Documentation Enforcement)
 **Last Updated**: 2025-10-25
+
+---
+
+## v2.3.0 Updates (2025-10-25)
+
+### 📝 Strict Documentation Enforcement
+
+**PRIMARY MISSION**: Prevent README.md and other docs from drifting out of sync with code changes
+
+**Problem Solved:**
+- Developers add commands/skills/agents but forget to update README.md
+- Documentation becomes stale and misleading for new users
+- Manual reminders don't work - developers forget
+
+**Solution: Proactive Doc Change Detection**
+
+**New Files:**
+- `config/doc_change_registry.json` (120 lines) - Code→doc mapping registry
+- `hooks/detect_doc_changes.py` (245 lines) - Pre-commit enforcement hook
+- `tests/test_doc_change_detection.py` (360 lines) - Comprehensive test suite
+
+**Enhanced Files:**
+- `agents/doc-master.md` (+57 lines) - Proactive checking workflow
+- `README.md` (+48 lines) - Strict doc enforcement section
+
+**How It Works:**
+
+```bash
+# Developer adds command
+git add commands/new-feature.md
+git commit -m "feat: add new feature"
+
+# ⛔ BLOCKED by detect_doc_changes.py:
+# "You changed commands/new-feature.md"
+# "Must update: README.md, QUICKSTART.md"
+
+# Developer updates required docs
+git add README.md QUICKSTART.md
+git commit -m "feat: add new feature"
+
+# ✅ PASS - All required docs updated!
+```
+
+**Registry Mappings:**
+- `commands/*.md` → README.md, QUICKSTART.md
+- `skills/*/` → README.md, marketplace.json (update count)
+- `agents/*.md` → README.md, marketplace.json (update count)
+- `hooks/*.py` → README.md, STRICT-MODE.md
+- `.claude-plugin/plugin.json` → README.md, UPDATES.md
+
+**Benefits:**
+- ✅ **Zero tolerance for doc drift** - Commits blocked if docs missing
+- ✅ **Helpful, not hostile** - Exact files to update + templates provided
+- ✅ **Catches early** - Before merge, not after
+- ✅ **Comprehensive** - All doc files covered
+- ✅ **Maintainable** - Centralized registry, easy to extend
+
+**Three-Layer Defense:**
+1. **Proactive Detection** (NEW!) - `detect_doc_changes.py` blocks commits
+2. **Agent Awareness** - `doc-master` checks registry before updating
+3. **Reactive Validation** - `validate_docs_consistency.py` verifies correctness
+
+**Commands Added:**
+- None (hook-based enforcement)
+
+**Breaking Changes:**
+- None (opt-in via settings.local.json)
 
 ---
 
