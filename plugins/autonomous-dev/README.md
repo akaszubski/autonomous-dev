@@ -379,12 +379,14 @@ The following granular commands have been **moved to `commands/archive/`** and a
 
 ### Three-Layer Testing Framework
 
-**Layer 1: Code Coverage** (pytest)
+**Layer 1: Code Coverage** (pytest) - Optional
 - Fast automated tests (< 1s)
-- Traditional unit/integration/UAT
+- Traditional unit/integration/UAT tests
 - 80%+ coverage target
+- **Setup**: `pip install -r requirements-dev.txt`
+- **Run**: `/test` or `pytest tests/`
 
-**Layer 2: Quality Coverage** (GenAI) ⭐
+**Layer 2: Quality Coverage** (GenAI) ⭐ **Primary**
 - UX quality validation (8/10 target)
 - Architectural intent verification
 - Goal alignment checking
@@ -397,10 +399,13 @@ The following granular commands have been **moved to `commands/archive/`** and a
 
 **Commands**:
 ```bash
-/test                          # Layer 1: All automated tests (pytest)
-/test-uat-genai                # Layer 2: UX quality validation
-/test-architecture             # Layer 2: Architectural intent verification
-/test-complete                 # Layer 1 + 2: Complete pre-release validation
+# Primary (GenAI) - No dependencies required
+/test-uat-genai                # Layer 2: UX quality validation (2-5min)
+/test-architecture             # Layer 2: Architectural intent verification (2-5min)
+/test-complete                 # Layer 1 + 2: Complete validation (5-10min)
+
+# Optional (pytest) - Requires: pip install -r requirements-dev.txt
+/test                          # Layer 1: pytest tests (< 60s, if pytest installed)
 ```
 
 **See**: [COVERAGE-GUIDE.md](docs/COVERAGE-GUIDE.md), [SYSTEM-PERFORMANCE-GUIDE.md](docs/SYSTEM-PERFORMANCE-GUIDE.md)
