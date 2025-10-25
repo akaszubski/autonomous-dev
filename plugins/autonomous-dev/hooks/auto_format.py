@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
+# Add lib to path for error_messages module
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from error_messages import formatter_not_found_error, print_warning
+
 
 def detect_language() -> str:
     """Detect project language from project files."""
@@ -47,8 +51,12 @@ def format_python(files: List[Path]) -> Tuple[bool, str]:
         )
 
         return True, "Formatted with black + isort"
-    except FileNotFoundError:
-        return False, "black or isort not installed. Run: pip install black isort"
+    except FileNotFoundError as e:
+        # Determine which formatter is missing
+        formatter = "black" if "black" in str(e) else "isort"
+        error = formatter_not_found_error(formatter, sys.executable)
+        error.print()
+        sys.exit(1)
 
 
 def format_javascript(files: List[Path]) -> Tuple[bool, str]:
@@ -59,7 +67,11 @@ def format_javascript(files: List[Path]) -> Tuple[bool, str]:
         )
         return True, "Formatted with prettier"
     except FileNotFoundError:
-        return False, "prettier not installed. Run: npm install --save-dev prettier"
+        print_warning(
+            "prettier not found",
+            "Install with: npm install --save-dev prettier\nOR skip formatting: git commit --no-verify"
+        )
+        sys.exit(1)
 
 
 def format_go(files: List[Path]) -> Tuple[bool, str]:
@@ -69,7 +81,11 @@ def format_go(files: List[Path]) -> Tuple[bool, str]:
             subprocess.run(["gofmt", "-w", str(file)], capture_output=True, text=True)
         return True, "Formatted with gofmt"
     except FileNotFoundError:
-        return False, "gofmt not installed (should come with Go)"
+        print_warning(
+            "gofmt not found",
+            "gofmt should come with Go installation\nInstall Go from: https://golang.org/dl/\nOR skip formatting: git commit --no-verify"
+        )
+        sys.exit(1)
 
 
 def get_source_files(language: str) -> List[Path]:
@@ -113,11 +129,8 @@ def main():
 
     success, message = formatters[language](files)
 
-    if success:
-        print(f"✅ {message} ({len(files)} files)")
-    else:
-        print(f"⚠️  {message}")
-        sys.exit(0)  # Don't fail, just warn
+    # If we get here, formatting succeeded
+    print(f"✅ {message} ({len(files)} files)")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,10 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+# Add lib to path for error_messages module
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from error_messages import ErrorMessage, ErrorCode, print_info
+
 
 class PluginHealthCheck:
     """Validates autonomous-dev plugin component integrity."""
@@ -83,9 +87,20 @@ class PluginHealthCheck:
         if cwd_plugin.exists():
             return cwd_plugin
 
-        print("❌ Plugin directory not found!", file=sys.stderr)
-        print(f"Checked: {home_plugin}", file=sys.stderr)
-        print(f"Checked: {cwd_plugin}", file=sys.stderr)
+        # Plugin not found - provide helpful error
+        error = ErrorMessage(
+            code=ErrorCode.DIRECTORY_NOT_FOUND,
+            title="Plugin directory not found",
+            what_wrong=f"autonomous-dev plugin not found in expected locations:\n  • {home_plugin}\n  • {cwd_plugin}",
+            how_to_fix=[
+                "Install the plugin:\n/plugin marketplace add akaszubski/autonomous-dev\n/plugin install autonomous-dev",
+                "Exit and restart Claude Code (REQUIRED):\nPress Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)",
+                "Verify installation:\n/plugin list  # Check if autonomous-dev appears",
+                "If developing plugin, run from plugin directory:\ncd plugins/autonomous-dev\npython scripts/health_check.py"
+            ],
+            learn_more="docs/TROUBLESHOOTING.md#plugin-not-found"
+        )
+        error.print()
         sys.exit(1)
 
     def check_component_exists(
@@ -296,20 +311,50 @@ class PluginHealthCheck:
         else:
             print("⚠️  Issues detected:")
             issue_num = 1
+            missing_components = []
+
             for component_type in ["agents", "hooks", "commands"]:  # skills removed
                 for name, status in self.results[component_type].items():
                     if status == "FAIL":
                         component_path = f"~/.claude/plugins/autonomous-dev/{component_type}/{name}"
                         if component_type in ["agents", "commands"]:
                             component_path += ".md"
-                        elif component_type == "hooks":
-                            component_path += ""
                         print(f"  {issue_num}. {component_type[:-1].title()} '{name}' missing: {component_path}")
+                        missing_components.append((component_type, name))
                         issue_num += 1
 
-            print("\n💡 Action: Reinstall plugin")
-            print("   /plugin uninstall autonomous-dev")
-            print("   /plugin install autonomous-dev")
+            # Provide detailed recovery guidance
+            print()
+            print("=" * 70)
+            print("HOW TO FIX [ERR-304]")
+            print("=" * 70)
+            print()
+            print("Missing components indicate incomplete or corrupted plugin installation.")
+            print()
+            print("Recovery options:")
+            print()
+            print("1. QUICK FIX - Reinstall plugin (recommended):")
+            print("   Step 1: Uninstall")
+            print("     /plugin uninstall autonomous-dev")
+            print()
+            print("   Step 2: Exit and restart Claude Code (REQUIRED!)")
+            print("     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)")
+            print()
+            print("   Step 3: Reinstall")
+            print("     /plugin install autonomous-dev")
+            print()
+            print("   Step 4: Exit and restart again")
+            print("     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)")
+            print()
+            print("2. VERIFY INSTALLATION - Check plugin location:")
+            print("   ls -la ~/.claude/plugins/marketplaces/*/autonomous-dev/")
+            print()
+            print("3. MANUAL FIX - If you're developing the plugin:")
+            print("   /sync-dev  # Sync local changes to installed location")
+            print("   # Then restart Claude Code")
+            print()
+            print("Learn more: docs/TROUBLESHOOTING.md#plugin-health-check-failures")
+            print("=" * 70)
 
         print()
 
