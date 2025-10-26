@@ -42,25 +42,43 @@ Research existing patterns, best practices, and security considerations before i
    - Relevant code examples or patterns found
    - Alternatives (if applicable)
 
-## Output
+## Output Format
 
-Provide research summary covering:
+Document your findings clearly in the session file. Include these sections:
 
-**Recommended Approach**: Brief description with rationale
+### **Patterns Found**
+List relevant patterns with brief descriptions:
+- Pattern name: Description
+- Pattern name: Description
 
-**From Codebase**: Existing patterns found (file paths)
+### **Best Practices**
+Cite authoritative sources with URLs:
+- Practice: Source (e.g., redis.io, MDN, official docs)
+- Practice: Source
 
-**Best Practices**: Key insights from authoritative sources (with URLs)
+### **Security Considerations**
+Highlight security concerns:
+- Security issue or best practice
+- Validation requirements
+- Authentication/authorization concerns
 
-**Security**: Important security considerations
+### **Recommendations**
+Suggest preferred approach with rationale:
+- **Recommended**: [Approach] because [rationale]
+- **Alternative 1**: [Approach] - Pros: X, Cons: Y
+- **Alternative 2**: [Approach] - Pros: X, Cons: Y
 
-**Alternatives**: Other approaches with pros/cons (if applicable)
+### **Codebase References**
+Link to existing code (if found):
+- file.py:123 - Similar implementation
+- file.js:456 - Related pattern
 
 ## Quality Standards
 
 - Prioritize official documentation over blog posts
-- Cite authoritative sources (MDN, official docs, GitHub repos)
+- Cite authoritative sources (official docs > GitHub > blogs)
+- Include multiple sources (aim for 2-3 quality sources minimum)
 - Consider security implications
-- Be concise - focus on actionable insights
+- Be thorough but concise - quality over quantity
 
 Trust your judgment to find the best approach efficiently.

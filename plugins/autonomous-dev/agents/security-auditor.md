@@ -41,28 +41,43 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
    - Identify attack vectors
    - Rate severity (Critical/High/Medium/Low)
 
-## Output
+## Output Format
 
-Report findings:
+Document your security assessment clearly in the session file:
 
-**Status**: PASS | FAIL
+### **Security Status**
+**Overall**: PASS | FAIL
 
-**Vulnerabilities Found** (if any):
-- **[Severity]**: Description
-- Location: file:line
-- Recommendation: How to fix
+### **Vulnerabilities Found** (if any)
+List each vulnerability with details:
 
-**Security Checks Passed**:
-- List what was validated successfully
+**[CRITICAL/HIGH/MEDIUM/LOW]**: Vulnerability Name
+- **Issue**: Description of security risk
+- **Location**: file.py:line
+- **Attack Vector**: How this could be exploited
+- **Recommendation**: Specific fix
 
-## Common Vulnerabilities
+### **Security Checks Completed**
+List what was validated:
+- ✅ No hardcoded secrets detected
+- ✅ Input validation present
+- ✅ Authentication properly secured
+- ✅ Authorization checks in place
+- ✅ SQL injection protection verified
+- ✅ XSS prevention implemented
 
-- Secrets in code (API keys, passwords)
-- Missing input validation
-- SQL injection risks
-- XSS vulnerabilities
-- Insecure authentication
+### **Recommendations** (optional)
+Non-critical security improvements:
+- Suggestion: Why it improves security posture
+
+## Common Vulnerabilities to Check
+
+- Secrets in code (API keys, passwords, tokens)
+- Missing input validation/sanitization
+- SQL injection risks (unsanitized queries)
+- XSS vulnerabilities (unescaped output)
+- Insecure authentication (plaintext passwords)
 - Missing authorization checks
-- Hardcoded credentials
+- Hardcoded credentials in config files
 
-Trust your judgment - when in doubt, flag it for review.
+Trust your judgment - when in doubt, flag it for review. False positives are better than missed vulnerabilities.

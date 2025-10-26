@@ -43,7 +43,8 @@ The agent will:
 1. Read and parse PROJECT.md
 2. Analyze goal completion metadata
 3. Calculate progress for each goal
-4. Generate status report with visual progress bars
+4. Check recent session quality
+5. Generate status report with visual progress bars and quality indicators
 
 ## Examples
 
@@ -82,6 +83,54 @@ PROJECT.md Goal Progress:
 Performance:          [████░░░░░░] 40% (2/5 features - in progress)
 
 Estimated completion: 3 minutes
+```
+
+### Session Quality Check
+
+```bash
+/status
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 PROJECT.md Goal Progress
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enhanced UX:          [████████░░] 80% (4/5 features)
+Security:             [██████████] 100% ✅ COMPLETE
+Performance:          [██░░░░░░░░] 20% (1/5 features)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Recent Session Quality
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Last 3 sessions:
+  ✅ session-20251026-200515.md (5 min ago)
+     • Research: ✅ 4/3 quality markers
+     • Planning: ✅ 5/3 quality markers
+     • Review: ✅ 3/2 quality markers
+     • Security: ✅ 2/1 quality markers
+
+  ✅ session-20251026-195230.md (15 min ago)
+     • Research: ✅ 3/3 quality markers
+     • Planning: ✅ 4/3 quality markers
+     • Review: ✅ 2/2 quality markers
+     • Security: ✅ 1/1 quality markers
+
+  ⚠️  session-20251026-190845.md (1 hour ago)
+     • Research: ⚠️ 2/3 quality markers (thin)
+     • Planning: ✅ 3/3 quality markers
+     • Review: ❌ 0/2 quality markers (missing!)
+     • Security: ✅ 1/1 quality markers
+
+     → Review phase appears incomplete
+     → Consider running: /review
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Next Actions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Add keyboard shortcuts (completes Enhanced UX goal)
+2. Review session-20251026-190845.md for completeness
+3. Consider re-running /auto-implement for incomplete work
 ```
 
 ## Related Commands

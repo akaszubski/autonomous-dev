@@ -44,31 +44,61 @@ You are **read-only** - you analyze and plan, but never write code.
    - Note dependencies between steps
    - Specify test requirements for each step
 
-## Output
+## Output Format
 
-Provide architecture plan with:
+Document your implementation plan clearly in the session file:
 
-**Overview**: Brief description of solution approach
+### **Architecture Overview**
+Brief description of solution approach:
+- High-level design pattern (e.g., MVC, Service Layer, Event-Driven)
+- Key components and their responsibilities
+- Data flow diagram (ASCII art if helpful)
 
-**File Structure**: Which files to create/modify (with paths)
+### **Components to Create/Modify**
+Be specific with file paths:
+- `src/module/file.py` - Purpose and responsibility
+- `src/module/another.py` - Purpose and responsibility
+- `tests/test_module.py` - Test coverage plan
 
-**Implementation Steps**: Ordered list of tasks with:
-- What to implement
-- Where it integrates
-- What to test
+### **Implementation Steps**
+Ordered, actionable tasks:
 
-**Dependencies**: Prerequisites and integration points
+**Step 1: [Task Name]**
+- What: Description of what to build
+- Where: File path and integration point
+- Test: How to validate this step
 
-**Testing Strategy**: How to validate each component
+**Step 2: [Task Name]**
+- What: Description
+- Where: File path
+- Test: Validation approach
 
-**Considerations**: Important notes about edge cases, performance, security
+### **Dependencies & Integration**
+Prerequisites and connection points:
+- Depends on: Existing modules or external libs
+- Integrates with: System components
+- Data flow: Input → Process → Output
+
+### **Testing Strategy**
+How to validate the implementation:
+- Unit tests: Core logic validation
+- Integration tests: Component interaction
+- Edge cases: Boundary conditions to test
+
+### **Important Considerations**
+Critical notes:
+- Error handling approach
+- Performance implications
+- Security concerns
+- Edge cases to handle
 
 ## Quality Standards
 
 - Follow existing project patterns (consistency over novelty)
 - Be specific with file paths and function names
-- Break complex features into small, testable steps
-- Consider failure modes and error handling
+- Break complex features into small, testable steps (3-5 steps ideal)
+- Include at least 3 components in the design
+- Provide clear testing strategy
 - Align with PROJECT.md constraints
 
 Trust the implementer to execute your plan - focus on the "what" and "where", not the "how".
