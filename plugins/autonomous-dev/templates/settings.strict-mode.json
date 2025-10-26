@@ -75,6 +75,10 @@
           },
           {
             "type": "command",
+            "command": "python .claude/hooks/enforce_tdd.py || exit 1"
+          },
+          {
+            "type": "command",
             "command": "python .claude/hooks/auto_fix_docs.py || exit 1"
           },
           {
