@@ -1,5 +1,6 @@
 {
-  "description": "Strict Mode Configuration - Vibe coding with auto-fix + validation",
+  "description": "Strict Mode Configuration - Vibe coding with strict enforcement",
+  "customInstructions": "STRICT MODE ACTIVE: When user requests a feature using natural language (e.g., 'implement X', 'add Y', 'create Z'), you MUST automatically invoke the /auto-implement command with their request. Do not just respond conversationally - actually run the command. Example: User says 'add Redis caching' → You run: /auto-implement 'add Redis caching'. This ensures orchestrator validates PROJECT.md alignment before any work begins.",
   "permissions": {
     "allow": [
       "*"

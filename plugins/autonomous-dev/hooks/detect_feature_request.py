@@ -95,31 +95,27 @@ def is_feature_request(user_input: str) -> bool:
 
 def get_orchestrator_message(user_input: str) -> str:
     """
-    Generate message to display when orchestrator is invoked.
+    Generate message to display when feature request is detected.
 
     Returns:
-        Formatted message explaining auto-orchestration
+        Formatted message reminding Claude to invoke /auto-implement
     """
     return f"""
-🎯 **Feature Request Detected** - Auto-Orchestration Activated
+🎯 **STRICT MODE: Feature Request Detected**
 
 **User Request**: {user_input[:100]}{'...' if len(user_input) > 100 else ''}
 
-**Next Steps**:
-1. ✅ Orchestrator will check PROJECT.md alignment
-2. ✅ If aligned → Full agent pipeline activates
-3. ✅ If NOT aligned → Suggests PROJECT.md update or blocks work
+**ACTION REQUIRED**: You MUST run /auto-implement command now:
+  /auto-implement "{user_input[:80]}{'...' if len(user_input) > 80 else ''}"
 
-**Agent Pipeline**:
-researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master
+**Why**: Strict mode requires orchestrator to validate PROJECT.md alignment
+before any implementation work begins. This ensures:
+- ✅ Feature aligns with PROJECT.md (GOALS, SCOPE, CONSTRAINTS)
+- ✅ Full agent pipeline executes (researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master)
+- ✅ SDLC best practices enforced automatically
+- ✅ Background validation via PreCommit hooks
 
-**This ensures**:
-- All work aligns with PROJECT.md strategic direction
-- SDLC best practices followed automatically
-- Professional consistency without manual steps
-
----
-**Invoking orchestrator agent...**
+**DO NOT respond conversationally** - Run the command above to trigger the autonomous workflow.
 """
 
 
