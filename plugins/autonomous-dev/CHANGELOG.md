@@ -5,6 +5,87 @@ All notable changes to the autonomous-dev plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-10-26
+
+### 🧠 Critical Thinking Release - Advisor Agent
+
+**Problem Solved**: Developers make implementation decisions without critical analysis, leading to scope creep, overengineering, and misalignment with project goals.
+
+### Added
+
+#### 🤔 Advisor Agent - Devils Advocate for Decision-Making
+
+**Purpose**: GenAI-powered critical thinking agent that challenges assumptions and validates alignment BEFORE implementation.
+
+- **advisor Agent** (`agents/advisor.md`)
+  - Critical analysis framework (alignment check, complexity assessment, trade-off analysis)
+  - Alternative approach generation (simpler, more robust, hybrid options)
+  - Risk identification (technical, project, team risks)
+  - Recommendation engine (PROCEED / PROCEED WITH CAUTION / RECONSIDER / REJECT)
+  - Evidence-based analysis with PROJECT.md validation
+  - Completes in 2-5 minutes
+
+- **`/advise` Command** (`commands/advise.md`)
+  - Get critical analysis before major decisions
+  - Usage: `/advise "Add WebSocket support"`
+  - Outputs: Alignment score, pros/cons, alternatives, risks, recommendation
+  - Integration with planning workflow
+
+- **advisor-triggers Skill** (`skills/advisor-triggers/`)
+  - Auto-detects significant decisions (new dependencies, architecture changes, scope expansions)
+  - Suggests running `/advise` when patterns detected
+  - Configurable sensitivity (low/medium/high)
+  - Helps prevent regrettable decisions before implementation starts
+
+**Use Cases**:
+- Architecture decisions ("Should we use microservices?")
+- Technology choices ("Switch from REST to GraphQL?")
+- New feature proposals ("Add real-time collaboration?")
+- Refactoring decisions ("Rewrite in Rust?")
+- Scope changes ("Extend to mobile platforms?")
+
+**Why This Matters**:
+GenAI excels at critical thinking, not just code generation. This agent helps developers:
+- ✅ Catch scope creep before implementation
+- ✅ Avoid overengineering (detects simple problem + complex solution)
+- ✅ Stay aligned with PROJECT.md goals
+- ✅ Consider alternatives they might miss
+- ✅ Identify risks early
+
+**Example Output**:
+```
+User: /advise "Add real-time collaboration"
+
+📊 Alignment Score: 3/10
+⚠️ Conflicts with "simplicity" goal
+🔴 VERY HIGH complexity (3000-5000 LOC)
+💡 Alternative: "Share Session" (90% benefit, 5% cost)
+❌ Recommendation: RECONSIDER
+
+Rationale: Real-time collab conflicts with your project's
+core principle of simplicity. Alternative achieves 90% of
+benefit with 5% of cost.
+```
+
+**Integration with Workflow**:
+```
+User: "Add feature X"
+  ↓
+/advise "Add feature X"  ← Critical analysis
+  ↓
+User: Reviews and decides
+  ↓
+[IF proceed] → /plan → /auto-implement
+```
+
+**Success Metrics**:
+- ✅ Prevents scope creep (catches misalignment early)
+- ✅ Reduces overengineering (suggests simpler alternatives)
+- ✅ Keeps projects aligned with stated goals
+- ✅ Saves time by avoiding wrong decisions
+
+---
+
 ## [3.0.0] - 2025-10-26
 
 ### 🚀 Intelligence & Automation Release - GenAI-Powered Validation + Auto-Enforcement
