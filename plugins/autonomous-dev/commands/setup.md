@@ -181,44 +181,156 @@ To disable later: Remove .claude/settings.local.json
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 PROJECT.md Template Setup
+📄 PROJECT.md Setup
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-PROJECT.md defines your project's strategic direction.
-All agents validate against it before working.
+PROJECT.md is ESSENTIAL for autonomous-dev to work.
+It defines your project's strategic direction and standards.
 
-Do you want to create PROJECT.md from template? [Y/n]
+Without PROJECT.md:
+  ❌ /align-project won't work
+  ❌ File organization validation disabled
+  ❌ Agents lack project context
 
-[If Yes]
+```
 
-✅ Created PROJECT.md from template
+Check if PROJECT.md exists:
+
+```bash
+if [ -f PROJECT.md ]; then
+  echo "✅ PROJECT.md exists - skipping creation"
+else
+  echo "⚠️ No PROJECT.md found!"
+  # Show options menu
+fi
+```
+
+**If PROJECT.md missing**, user sees:
+
+```
+⚠️ No PROJECT.md found!
+
+How would you like to create it?
+
+[1] Generate from codebase (recommended)
+    → AI analyzes your repo and creates comprehensive PROJECT.md
+    → 300-500 lines, 80-90% complete
+    → Ready in 30-60 seconds
+    → Best for: existing projects with code
+
+[2] Create from template
+    → Basic structure with examples and TODOs
+    → You fill in all content manually
+    → Best for: new projects or non-standard structure
+
+[3] Interactive wizard
+    → Answer questions, AI generates PROJECT.md
+    → Guided experience, customized output
+    → Best for: first-time users
+
+[4] Skip (not recommended)
+    → You can run /create-project-md later
+    → Many autonomous-dev features won't work until then
+
+Your choice [1-4]:
+```
+
+#### Option 1: Generate from Codebase
+
+```
+🔍 Analyzing codebase...
+
+✅ Found README.md (extracting project vision)
+✅ Found package.json (extracting tech stack)
+✅ Analyzing src/ structure (12 files)
+✅ Analyzing tests/ structure (unit + integration detected)
+✅ Analyzing docs/ organization (4 categories)
+
+🧠 Architecture pattern detected: {Pattern}
+
+✅ Generated PROJECT.md (427 lines)
+
+📋 Sections Created:
+✅ Project Vision
+✅ Architecture Overview (with ASCII diagram)
+✅ File Organization Standards
+✅ Development Workflow
+✅ Testing Strategy
+✅ Documentation Map
+
+📝 Only 3 TODO sections need your input (10%)
+
+Next steps:
+1. Review PROJECT.md
+2. Fill in TODO sections (marked clearly)
+3. Continue with setup
+
+✅ PROJECT.md ready!
+```
+
+#### Option 2: Template Mode
+
+```
+✅ Created PROJECT.md from template (312 lines)
+
+Each section includes:
+- TODO placeholder
+- Example of what to write
+- Explanation of why it matters
 
 Next steps:
 1. Open PROJECT.md in your editor
-2. Fill in:
-   - GOALS: What success looks like
-   - SCOPE: What's in/out of scope
-   - CONSTRAINTS: Technical limits
-   - CURRENT SPRINT: Active work
+2. Replace TODO sections with your content
+3. Follow examples provided
+4. Save and continue
 
-3. Save and close
+✅ Template ready for customization!
+```
 
-Example:
-  ## GOALS
-  1. Build a REST API for blog posts
-  2. 80%+ test coverage
-  3. < 100ms response time
+#### Option 3: Interactive Wizard
 
-  ## SCOPE
-  IN: CRUD operations, pagination, search
-  OUT: Admin UI, real-time features
+Uses AskUserQuestion to gather:
+- Primary project goal
+- Architecture type
+- Detail level desired
 
-Tip: See template for full structure.
+Then generates PROJECT.md based on responses + codebase analysis.
 
-[Wait for user to edit and close]
+```
+✅ Generated PROJECT.md (365 lines)
+
+Based on your responses:
+  - Goal: Production application
+  - Architecture: Translation layer
+  - Detail: Comprehensive
+
+Next steps:
+1. Review generated content
+2. Customize as needed
+3. Continue with setup
 
 ✅ PROJECT.md ready!
-Run /align-project to validate structure.
+```
+
+#### Option 4: Skip
+
+```
+⚠️ Skipped PROJECT.md creation
+
+Important: Many features won't work without PROJECT.md:
+  ❌ /align-project
+  ❌ /auto-implement
+  ❌ File organization validation
+
+You can create it later:
+  → Run: /create-project-md
+
+Setup will continue, but with reduced functionality.
+
+Continue? [Y/n]
+```
+
+**After any option completes**, setup continues to Step 5 (GitHub Integration).
 ```
 
 ### Step 5: GitHub Integration (Optional)
