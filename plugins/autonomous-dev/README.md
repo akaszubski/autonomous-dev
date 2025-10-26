@@ -1,15 +1,59 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.2.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.1.0
+**Version**: v3.2.0
 **Last Updated**: 2025-10-26
 
-**Simplicity Release** - Philosophy alignment through radical simplification. 64% command reduction (11 → 4) by moving manual quality checks to background hooks. Pure "vibe coding with background enforcement" - describe what you want, hooks validate automatically.
+**GenAI Validation & Alignment Release** - Replace traditional testing with GenAI-powered quality validation. Deep alignment analysis finds ALL inconsistencies between PROJECT.md, code, and docs. Auto-creates GitHub issues and synced todos.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+## ✨ What's New in v3.2.0
+
+**🧠 GenAI Validation & Alignment Release**
+
+This release replaces traditional testing with GenAI-powered validation and adds deep alignment analysis:
+
+### v3.2.0 Features (2025-10-26)
+
+- 🧪 **GenAI Quality Validation** (`agents/quality-validator.md`)
+  - Replaces traditional unit testing (pytest, jest)
+  - Validates 4 dimensions: Intent alignment, UX quality, Architecture, Documentation
+  - Asks: "Does this serve PROJECT.md goals?" not just "Does it work?"
+  - Scores features 0-10 on strategic alignment
+  - **Philosophy**: Quality = alignment with vision, not just "tests pass"
+
+- 🔍 **Full Alignment Analysis** (`/align-full` command)
+  - Deep GenAI scan finds ALL inconsistencies
+  - Compares PROJECT.md (truth) vs code (reality) vs docs (claims)
+  - 6 inconsistency types: docs vs code, scope drift, missing references, constraint violations, broken links, outdated claims
+  - Interactive resolution (asks what to do for each)
+  - Auto-creates GitHub issues for tracking
+  - Builds synced `.todos.md` file
+
+- 📊 **GitHub Issue Integration**
+  - Every inconsistency → GitHub issue automatically
+  - Labels: `alignment`, `inconsistency`, severity
+  - Linked to `.todos.md` for tracking
+  - Close issue when todo complete
+
+- ✅ **Deep Alignment Metrics**
+  - Overall alignment percentage (PROJECT.md vs reality)
+  - Traceability score (code → goals)
+  - Constraint compliance (LOC budget, dependencies)
+  - Documentation accuracy
+
+**Impact**:
+- ✅ GenAI validates strategic alignment, not just function behavior
+- ✅ Finds inconsistencies humans miss (docs vs code vs PROJECT.md)
+- ✅ Auto-creates actionable todos with GitHub sync
+- ✅ Weekly alignment runs prevent drift
+- ✅ Projected 95%+ alignment after fix workflow
+
+---
 
 ## ✨ What's New in v3.1.0
 

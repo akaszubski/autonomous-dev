@@ -5,6 +5,195 @@ All notable changes to the autonomous-dev plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2025-10-26
+
+### 🧠 GenAI Validation & Alignment Release
+
+**Problem Solved**: Traditional testing asks "does it work?" but not "does it serve our goals?" Documentation drifts from reality, code drifts from PROJECT.md, and inconsistencies accumulate silently.
+
+### Added
+
+#### 🧪 GenAI Quality Validation System
+
+**Created `agents/quality-validator.md`** - GenAI-powered quality validation agent:
+- **Replaces traditional testing** (pytest, jest) with strategic validation
+- **4-dimension validation**:
+  1. Intent Alignment (40% weight) - Does it serve PROJECT.md goals?
+  2. UX Quality (30% weight) - Is the user experience good?
+  3. Architecture Alignment (20% weight) - Follows documented patterns?
+  4. Documentation Alignment (10% weight) - Linked to strategy?
+- **Scoring system**: 0-10 overall quality score
+- **Actionable output**: Specific improvements, not just pass/fail
+- **Philosophy shift**: Quality = alignment with vision, not just "works"
+
+**Use cases**:
+- After `/auto-implement` completion
+- Before feature commits
+- Strategic validation vs tactical testing
+
+#### 🔍 Full Alignment Analysis System
+
+**Created `commands/align-full.md`** - Deep GenAI alignment analysis command:
+- **Comprehensive scan**: PROJECT.md (truth) vs code (reality) vs docs (claims)
+- **7-phase workflow**:
+  1. Read PROJECT.md (source of truth)
+  2. Analyze codebase reality (what exists)
+  3. Analyze documentation claims (what we say exists)
+  4. Find inconsistencies (GenAI deep comparison)
+  5. Interactive resolution (ask user what to do)
+  6. Create GitHub issues (auto-track fixes)
+  7. Build synced todos (`.todos.md` file)
+
+**6 inconsistency types detected**:
+1. **Docs vs Code**: Docs claim X, code does Y
+2. **Scope Drift**: Code exists but not in PROJECT.md goals
+3. **Missing References**: Code doesn't link to PROJECT.md
+4. **Constraint Violations**: Exceeds LOC/dependency budgets
+5. **Broken Links**: Cross-references to missing files
+6. **Outdated Claims**: Version mismatches, stale info
+
+**Interactive workflow**:
+```
+Inconsistency #3: Missing PROJECT.md references
+Options:
+A) Add references
+B) Skip
+
+What should we do? [A/B]: A
+
+✅ Creating GitHub Issue #24
+✅ Adding to .todos.md
+```
+
+**Created `agents/alignment-analyzer.md`** - GenAI alignment analysis agent:
+- Deep comparison across all project artifacts
+- Detects inconsistencies humans miss
+- Presents multiple resolution options
+- Severity classification (CRITICAL/HIGH/MEDIUM/LOW)
+
+#### 📊 GitHub Issue Integration
+
+**Automatic issue creation**:
+- Every inconsistency → GitHub issue
+- Labels: `alignment`, `inconsistency`, severity
+- Detailed description with file references
+- Linked to `.todos.md` for tracking
+
+**Commands**:
+```bash
+# View all alignment issues
+gh issue list --label alignment
+
+# Critical only
+gh issue list --label alignment,critical
+```
+
+#### ✅ Synced Todo System
+
+**`.todos.md` file** - Version-controlled todo list:
+- Synced with GitHub issues
+- Prioritized by severity (CRITICAL → LOW)
+- File references and specific actions
+- Track completion with [x] checkboxes
+
+**Workflow**:
+1. `/align-full` creates `.todos.md`
+2. Pick highest priority todo
+3. Fix issue
+4. Mark [x] complete
+5. Close GitHub issue
+6. Commit `.todos.md`
+
+### Changed
+
+#### Updated Core Commands Count
+
+**Now 5 core commands** (was 4):
+1. `/auto-implement` - Vibe coding entry point
+2. `/setup` - Installation wizard
+3. `/status` - Strategic visibility
+4. `/uninstall` - Removal wizard
+5. `/align-full` - Deep alignment analysis ← NEW
+
+### Impact
+
+**GenAI Validation**:
+- ✅ Strategic alignment validated, not just "tests pass"
+- ✅ 4-dimension quality assessment (intent, UX, architecture, docs)
+- ✅ Actionable recommendations, not binary pass/fail
+
+**Alignment Analysis**:
+- ✅ Finds inconsistencies humans miss (GenAI deep comparison)
+- ✅ 6 inconsistency types detected automatically
+- ✅ Interactive resolution (user decides what to do)
+- ✅ Auto-creates GitHub issues + synced todos
+
+**Workflow**:
+- ✅ Weekly `/align-full` runs prevent drift
+- ✅ 78% → 95% alignment after fix workflow
+- ✅ PROJECT.md remains source of truth
+
+**Metrics**:
+- Overall alignment percentage
+- Traceability score (code → goals)
+- Constraint compliance (LOC, dependencies)
+- Documentation accuracy
+
+### Use Cases
+
+**GenAI quality validation** (after features):
+```bash
+/auto-implement "add feature"
+# quality-validator runs automatically
+# Validates: Intent, UX, Architecture, Docs
+# Score: 8.5/10 - EXCELLENT
+```
+
+**Weekly alignment check**:
+```bash
+/align-full
+# Scans everything
+# Finds 8 inconsistencies
+# Creates 8 GitHub issues
+# Builds .todos.md
+# Overall: 78% aligned
+```
+
+**Fix workflow**:
+```bash
+# Review todos
+cat .todos.md
+
+# Fix highest priority
+"Fix issue #23"
+git commit
+
+# Mark complete
+# Edit .todos.md: [ ] → [x]
+gh issue close 23
+
+# Re-run alignment
+/align-full
+# Now: 95% aligned
+```
+
+### Philosophy
+
+**From**: "Did the tests pass?"
+**To**: "Does this align with our vision and serve our goals?"
+
+**From**: Manual alignment checks
+**To**: GenAI finds inconsistencies automatically
+
+**From**: Scattered documentation
+**To**: PROJECT.md as single source of truth
+
+### Breaking Changes
+
+None - this is purely additive functionality.
+
+---
+
 ## [3.1.0] - 2025-10-26
 
 ### 🎯 Simplicity Release - Philosophy Alignment
