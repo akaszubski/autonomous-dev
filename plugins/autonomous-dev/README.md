@@ -1,15 +1,52 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.0.2-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.1.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.0.2
+**Version**: v3.1.0
 **Last Updated**: 2025-10-26
 
-**Automation & Onboarding Release** - Critical thinking automation with preview mode advisor. Intelligent project bootstrapping with tech stack auto-detection. Preserves "1 command" workflow while adding quality gates. Onboarding time reduced from 30-60 min to 2-3 min.
+**Simplicity Release** - Philosophy alignment through radical simplification. 64% command reduction (11 → 4) by moving manual quality checks to background hooks. Pure "vibe coding with background enforcement" - describe what you want, hooks validate automatically.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+## ✨ What's New in v3.1.0
+
+**🎯 Simplicity Release - Philosophy Alignment Through Command Reduction**
+
+This release achieves true "vibe coding with background enforcement" by eliminating manual quality commands:
+
+### v3.1.0 Features (2025-10-26)
+
+- 🗂️ **Command Simplification**: 64% reduction (11 → 4 core commands)
+  - Archived: `/test`, `/align-project`, `/advise` (manual quality checks → automatic hooks)
+  - Merged: `/bootstrap`, `/create-project-md` into `/setup`
+  - Developer tools: `/sync-dev`, `/health-check` moved to scripts/
+  - **Philosophy**: Background enforcement, not manual intervention
+
+- 📋 **Professional Methodology Documentation** (`docs/METHODOLOGY.md`)
+  - Partnership model (you decide WHAT, Claude handles HOW)
+  - /clear discipline (context management)
+  - Trust + verify philosophy
+  - Warn don't block approach
+  - Small batch development patterns
+  - Success metrics and common pitfalls
+
+- 🔄 **Migration Support** (`commands/archived/ARCHIVE.md`)
+  - Detailed guide for each archived command
+  - Hook replacements explained
+  - Before/after workflow examples
+  - Restoration instructions if needed
+
+**Impact**:
+- ✅ Cognitive overhead reduced (4 commands vs 11)
+- ✅ Pure vibe coding UX (natural language → professional result)
+- ✅ All quality enforcement automatic (hooks validate at commit)
+- ✅ Philosophy-driven architecture (aligned with stated goals)
+- ✅ Professional practices documented (methodology guide)
+
+---
 
 ## ✨ What's New in v3.0.2
 
@@ -239,29 +276,24 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All 11 commands work immediately:
-- `/test` - Run tests
-- `/align-project` - Check alignment
-- `/auto-implement` - Autonomous feature development
-- `/advise` - Critical thinking analysis ⭐ **NEW**
-- `/bootstrap` - Auto-configure for your tech stack ⭐ **NEW**
-- `/create-project-md` - Generate PROJECT.md ⭐ **NEW**
-- `/setup` - Configuration wizard
-- `/status` - Project status
-- `/health-check` - Plugin validation
-- `/sync-dev` - Sync plugin (developers only)
+**Done!** All 4 core commands work immediately:
+- `/auto-implement` - Autonomous feature development (vibe coding entry point)
+- `/setup` - Configuration wizard (creates PROJECT.md, configures hooks)
+- `/status` - View PROJECT.md goal progress
 - `/uninstall` - Remove plugin
 
 **Recommended first-time flow:**
 ```bash
-# 1. Bootstrap project-specific config
-/bootstrap
-# → Detects tech stack, creates optimal .claude/config.yml
-
-# 2. Run setup (uses bootstrapped config)
+# 1. Run setup
 /setup
-# → Installs hooks, creates PROJECT.md, sets up GitHub (optional)
+# → Auto-detects tech stack, creates PROJECT.md, installs hooks
+
+# 2. Start building with vibe coding
+"Add user authentication"
+# → /auto-implement runs automatically in strict mode
 ```
+
+**Philosophy**: 4 commands (64% reduction from v3.0.2). Manual quality commands archived - hooks enforce automatically in background.
 
 **Upgrade to Standard** when you want automatic formatting/testing: [docs/INSTALLATION.md#standard-tier](docs/INSTALLATION.md#standard-tier)
 
@@ -410,68 +442,70 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ---
 
-### ⚙️ 11 Core Commands
+### ⚙️ 4 Core Commands
 
-**All commands are independently discoverable with autocomplete.**
+**Philosophy**: "Vibe coding with background enforcement" - Natural language input → Professional engineering output
 
-#### Workflow Commands (3 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/auto-implement` | Autonomous feature implementation (14-agent pipeline with advisor) | 60-120s |
-| `/setup` | Interactive setup wizard (creates PROJECT.md, configures hooks) | 5-10min |
-| `/status` | View PROJECT.md goal progress and alignment status | < 5s |
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/auto-implement` | Autonomous feature development (vibe coding entry point) | Every feature - say what you want, Claude handles SDLC |
+| `/setup` | Interactive setup wizard (auto-detects tech stack, creates PROJECT.md, installs hooks) | Once per project during installation |
+| `/status` | View PROJECT.md goal progress and recent session quality | Check strategic alignment and workflow quality |
+| `/uninstall` | Uninstall or disable plugin features with guided options | Once when removing plugin |
 
-#### Critical Thinking (1 command) ⭐ **NEW**
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/advise` | Critical analysis of proposals (alignment, complexity, trade-offs, alternatives) | 2-5min |
+**Core Workflow**:
+```bash
+# 1. Setup (once)
+/setup
 
-**Use before:** New dependencies, architecture changes, scope expansions, tech swaps, major features
+# 2. Build features (repeat)
+"Add user authentication"        # Natural language
+# → /auto-implement auto-invokes (strict mode)
+# → All SDLC steps automated (research → plan → test → implement → review → security → docs)
+# → Hooks validate at commit (format, test, security, quality)
 
-#### Alignment & Bootstrapping (3 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/align-project` | Analyze + fix PROJECT.md alignment | 5-10min |
-| `/bootstrap` | Auto-detect tech stack and generate optimal config | 1-2min |
-| `/create-project-md` | Generate PROJECT.md from codebase analysis | < 60s |
+/clear                           # Clear context
 
-**What `/align-project` checks:**
-- Directory structure (src/, docs/, tests/)
-- Documentation organization
-- Test structure (unit/, integration/, uat/)
-- Hook configuration
-- PROJECT.md completeness
+"Add rate limiting"              # Next feature
+# → Repeat
+```
 
-#### Testing (1 command)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/test` | Run all automated tests (unit + integration + UAT) with pytest | < 60s |
+**What happened to other commands?**
+- **Manual quality commands** (`/test`, `/align-project`) → Hooks run automatically at commit
+- **Manual analysis** (`/advise`) → orchestrator validates PROJECT.md alignment automatically
+- **Duplicates** (`/bootstrap`, `/create-project-md`) → Merged into `/setup`
+- **Developer tools** (`/sync-dev`, `/health-check`) → Moved to scripts/ for direct invocation
 
-**Note**: Requires `tests/` directory with pytest tests. See [Issue #7](https://github.com/akaszubski/autonomous-dev/issues/7) for test suite setup.
-
-#### Utilities (3 commands)
-| Command | Purpose | Speed |
-|---------|---------|-------|
-| `/health-check` | Validate all plugin components (agents, skills, hooks, commands) | < 5s |
-| `/sync-dev` | Sync development changes to installed plugin (for plugin developers) | < 1s |
-| `/uninstall` | Uninstall or disable plugin features | < 5s |
+See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration guide.
 
 ---
 
 ### 📦 Archived Commands
 
-The following granular commands have been **moved to `commands/archive/`** and are deprecated in favor of the `/auto-implement` workflow:
+The following commands have been **moved to `commands/archived/`** to align with the "vibe coding with background enforcement" philosophy:
 
-**Archived Testing Commands**: `/test-unit`, `/test-integration`, `/test-uat`, `/test-uat-genai`, `/test-architecture`, `/test-complete`
-**Archived Commit Commands**: `/commit`, `/commit-check`, `/commit-push`, `/commit-release`
-**Archived Quality Commands**: `/format`, `/security-scan`, `/full-check`
-**Archived Docs Commands**: `/sync-docs`, `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize`
-**Archived Issue Commands**: `/issue`, `/issue-auto`, `/issue-create`, `/issue-from-test`, `/issue-from-genai`
-**Archived GitHub Commands**: `/pr-create`
+**v3.1.0 Archived** (Philosophy alignment):
+- `/test` → `hooks/auto_test.py` runs tests automatically at commit
+- `/align-project` → `hooks/validate_project_alignment.py` validates alignment at commit
+- `/advise` → orchestrator agent validates PROJECT.md alignment automatically
+- `/bootstrap` → Merged into `/setup` (auto-detection included)
+- `/create-project-md` → Merged into `/setup` (PROJECT.md creation included)
+- `/sync-dev` → Developer tool moved to `scripts/sync_to_installed.py`
+- `/health-check` → Developer tool moved to `scripts/health_check.py`
 
-**Why archived?**: These commands provided granular control but added complexity. The autonomous workflow (`/auto-implement`) handles testing, formatting, commits, docs, and PRs automatically.
+**v2.5.0 Archived** (Granular workflow commands):
+- **Testing Commands**: `/test-unit`, `/test-integration`, `/test-uat`, `/test-uat-genai`, `/test-architecture`, `/test-complete`
+- **Commit Commands**: `/commit`, `/commit-check`, `/commit-push`, `/commit-release`
+- **Quality Commands**: `/format`, `/security-scan`, `/full-check`
+- **Docs Commands**: `/sync-docs`, `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize`
+- **Issue Commands**: `/issue`, `/issue-auto`, `/issue-create`, `/issue-from-test`, `/issue-from-genai`
+- **GitHub Commands**: `/pr-create`
 
-**Still available**: Files exist in `commands/archive/` if you need granular control. Can be restored by moving to `commands/` directory.
+**Why archived?**: These commands violated the philosophy of "background enforcement". The `/auto-implement` workflow + hooks handle all quality steps automatically.
+
+**Migration guide**: See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for detailed migration from manual commands to automated hooks.
+
+**Still available**: Files exist in `commands/archived/` if you need manual control. Can be restored by moving to `commands/` directory.
 
 ### ⚡ 8 Automated Hooks
 

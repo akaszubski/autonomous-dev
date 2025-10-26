@@ -5,6 +5,80 @@ All notable changes to the autonomous-dev plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2025-10-26
+
+### 🎯 Simplicity Release - Philosophy Alignment
+
+**Problem Solved**: Manual quality commands violated "vibe coding with background enforcement" philosophy. Users had to remember to run `/test`, `/align-project`, `/advise` manually, creating friction and cognitive overhead.
+
+### Changed
+
+#### 🗂️ Command Simplification (64% Reduction)
+
+**Archived manual quality commands** - hooks enforce automatically:
+- `/test` → `hooks/auto_test.py` runs tests at commit
+- `/align-project` → `hooks/validate_project_alignment.py` validates alignment at commit
+- `/advise` → orchestrator agent validates PROJECT.md alignment automatically
+
+**Merged duplicate commands** - reduced installation complexity:
+- `/bootstrap` → Merged into `/setup` (tech stack auto-detection included)
+- `/create-project-md` → Merged into `/setup` (PROJECT.md creation included)
+
+**Moved developer tools** - not user-facing commands:
+- `/sync-dev` → `scripts/sync_to_installed.py` (direct invocation)
+- `/health-check` → `scripts/health_check.py` (direct invocation)
+
+**Result**: 11 commands → 4 core commands
+
+**Core commands** (aligned with philosophy):
+1. `/auto-implement` - Vibe coding entry point (natural language → professional result)
+2. `/setup` - Installation wizard (once per project)
+3. `/status` - Strategic visibility (PROJECT.md progress)
+4. `/uninstall` - Removal wizard (once when removing)
+
+### Added
+
+#### 📋 Professional Methodology Documentation
+
+**`docs/METHODOLOGY.md`** - Complete guide to using Claude Code professionally:
+- Partnership model (you decide WHAT, Claude handles HOW)
+- /clear discipline (context management after every feature)
+- Trust + verify (validate outputs, not process)
+- Warn don't block (exit 1 vs exit 2)
+- Small batch development (30-60 min features)
+- /status habit (strategic alignment)
+- Quality iteration (respond to warnings)
+- Common pitfalls and success patterns
+
+#### 🔄 Migration Support
+
+**`commands/archived/ARCHIVE.md`** - Detailed migration guide:
+- Explanation for each archived command
+- Hook replacement for each manual command
+- Before/after workflow examples
+- Restoration instructions if needed
+
+### Impact
+
+**Philosophy Alignment:**
+- ✅ Pure vibe coding UX (natural language input)
+- ✅ Background enforcement (hooks validate automatically)
+- ✅ Minimal intervention (4 commands vs 11)
+- ✅ Strategic simplicity (clear purpose for each command)
+
+**User Experience:**
+- ✅ Cognitive overhead reduced (64% fewer commands to learn)
+- ✅ No manual quality steps (hooks handle automatically)
+- ✅ Professional practices documented (methodology guide)
+- ✅ Clear migration path (archived commands preserved)
+
+**Technical:**
+- ✅ Philosophy-driven architecture (aligned with stated goals)
+- ✅ Hook-based validation (automatic, not manual)
+- ✅ Preserved functionality (hooks replace commands)
+
+---
+
 ## [3.0.2] - 2025-10-26
 
 ### 🚀 Automation & Onboarding Release
