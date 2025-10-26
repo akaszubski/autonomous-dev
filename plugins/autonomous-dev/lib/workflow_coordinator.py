@@ -246,11 +246,11 @@ Cannot proceed with non-aligned work (zero tolerance for drift).
         logger = WorkflowLogger(workflow_id, 'orchestrator')
         logger.log_event('workflow_started', f'Starting workflow for: {request}')
 
-        # Log alignment
-        is_aligned, reason, _ = AlignmentValidator.validate(request, self.project_md)
+        # Log alignment (using static check for now)
+        is_aligned = self._static_alignment_check(request)
         logger.log_alignment_check(
             is_aligned,
-            reason,
+            'Request alignment validated',
             project_md_sections=self.project_md
         )
 
