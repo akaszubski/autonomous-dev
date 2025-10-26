@@ -2,9 +2,11 @@
 description: Deep GenAI alignment analysis - find ALL inconsistencies and build synced GitHub issues + todos
 ---
 
-# /align-full - Complete Alignment Analysis
+# /align-full - Interactive Conflict Resolution
 
-**GenAI-powered deep scan** - Finds every inconsistency between PROJECT.md, code, and documentation.
+**GenAI-powered deep scan** - Finds every inconsistency between PROJECT.md (vision), code (reality), and docs (claims).
+
+Then asks **you** which source of truth should win, and creates actionable GitHub issues + todos based on your decision.
 
 ---
 
@@ -79,33 +81,92 @@ Scans all documentation:
 
 ---
 
-### Phase 5: Interactive RESOLUTION (2-5 min)
+### Phase 5: Interactive Conflict Resolution (3-5 min)
 
-For each inconsistency, presents options:
+For **each inconsistency**, presents all three perspectives and asks user which source of truth wins:
 
 ```markdown
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INCONSISTENCY #3: Missing PROJECT.md References
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFLICT #1: Notifications Implementation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Code exists**:
-- File: src/controllers/TaskController.ts
-- Feature: Task CRUD operations
+Three sources disagree:
 
-**PROJECT.md status**:
-- Serves: Goal 1 (Core Task Management)
-- Code references goal: ❌ No
+1️⃣  PROJECT.md SAYS (Strategic Intent):
+   Goal 2: "Real-time user notifications"
+   Success Criteria: "Instant delivery (< 100ms latency)"
+   Constraint: "No expensive infrastructure"
 
-**Options**:
-A) Add PROJECT.md reference comment to code
-B) Skip (traceability not critical)
+2️⃣  CODE SHOWS (Reality):
+   src/services/NotificationService.ts:12
+   • Uses polling (30 second intervals)
+   • Zero latency guarantee
+   • No infrastructure requirements
 
-What should we do? [A/B]:
+3️⃣  DOCS CLAIM (Communication):
+   README.md:45 - "Real-time notifications via WebSocket"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE CONFLICT:
+❌ PROJECT.md promises "real-time" (instant)
+❌ Code delivers "polling" (30-second delay)
+❌ Docs claim "WebSocket" (which isn't implemented)
+
+All three disagree. Which source should WIN?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RESOLUTION OPTIONS:
+
+A) PROJECT.md wins (Adjust code to match promise)
+   Action: Implement WebSocket for true real-time notifications
+   Files to change: src/services/NotificationService.ts
+   Effort: Medium (add WebSocket infrastructure)
+   Why: Users expect real-time (per PROJECT.md promise)
+
+B) CODE wins (Adjust PROJECT.md + docs to match reality)
+   Action: Update PROJECT.md Goal 2 to say "polling-based (30s)"
+           Update README.md to remove WebSocket mention
+   Files to change: .claude/PROJECT.md, README.md
+   Effort: Low (documentation updates only)
+   Why: Polling meets constraints + works (pragmatic choice)
+
+C) COMPROMISE (Update code + docs, redefine goal)
+   Action: Keep polling BUT implement client-side notification queue
+           Update PROJECT.md to "near-real-time with queued delivery"
+           Update docs to explain polling + queuing approach
+   Files to change: src/services/NotificationService.ts, .claude/PROJECT.md, README.md
+   Effort: Medium (add queue + update docs)
+   Why: Balances promise vs constraints (best UX within limits)
+
+Which approach? [A/B/C]:
 ```
 
-**You choose**: `A` ↵
+**You choose**: `B` ↵
 
-**System records decision** and moves to next.
+```
+✅ YOU CHOSE: CODE wins
+
+This means:
+1. PROJECT.md Goal 2 will be updated (polling, not real-time)
+2. README.md will be corrected (polling, not WebSocket)
+3. Code stays as-is (polling implementation is correct)
+
+Creating GitHub issues for the fixes:
+  ✅ Issue #23: Update PROJECT.md Goal 2 to describe polling approach
+  ✅ Issue #24: Update README.md to remove WebSocket claim
+
+Adding to .todos.md:
+  Priority: HIGH (user-facing documentation mismatch)
+
+Next step: Fix these issues, then re-run /align-full to verify alignment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFLICT #2: Authentication System Scope...
+```
+
+**System records decision** and moves to next conflict.
 
 ---
 
@@ -397,46 +458,52 @@ Weekly runs keep alignment > 90%.
 
 ---
 
-## What Gets Checked
+## What Gets Checked & How Conflicts Are Resolved
 
-### ✅ PROJECT.md Alignment
+### 🔍 Detection: Finds Inconsistencies
 
-- Are all features in PROJECT.md actually implemented?
-- Are all implemented features listed in PROJECT.md?
-- Do features serve documented goals?
-- Are success criteria met?
+Scans all three sources and detects conflicts:
 
-### ✅ Scope Compliance
+1. **PROJECT.md vs Code**: Goal promises X, code does Y
+2. **PROJECT.md vs Docs**: Goal says X, docs claim Y
+3. **Code vs Docs**: Implementation is X, documentation says Y
+4. **Features vs Goals**: Code has feature not in PROJECT.md (scope drift)
+5. **Constraints**: LOC/dependency budgets exceeded
+6. **Traceability**: Code doesn't link to which goal it serves
 
-- No features violating documented exclusions
-- No scope drift (features outside goals)
-- Intentional scope changes documented
+### 🤔 Resolution: Asks You Which Source Wins
 
-### ✅ Constraint Compliance
+For each conflict, presents three perspectives:
 
-- LOC within budget
-- Dependencies within limit
-- Response times meet targets
-- Technology stack matches
+```
+PROJECT.md (VISION)      CODE (REALITY)      DOCS (CLAIMS)
+    ↓                        ↓                    ↓
+ "X feature"           "Actually does Y"    "Claims it's Z"
 
-### ✅ Architecture Alignment
+                   CONFLICT!
+            Which source should WIN?
 
-- Code follows documented patterns
-- No pattern violations
-- Architecture decisions documented (ADRs)
+A) PROJECT.md wins → Update code (implement vision)
+B) CODE wins → Update PROJECT.md + docs (accept reality)
+C) COMPROMISE → Update all three (balanced approach)
+```
 
-### ✅ Documentation Accuracy
+### 📋 Action: Creates Issues Based on Your Decision
 
-- README claims match reality
-- CHANGELOG versions accurate
-- API docs up to date
-- No broken cross-references
+**If you choose A (PROJECT.md wins)**:
+- Creates issue: "Implement WebSocket notifications"
+- Todo: Code needs feature work
+- Docs and PROJECT.md stay as-is
 
-### ✅ Traceability
+**If you choose B (CODE wins)**:
+- Creates issues: "Update PROJECT.md Goal 2" + "Fix README documentation"
+- Todos: Documentation updates only
+- Code stays as-is (already correct)
 
-- Code references which PROJECT.md goal it serves
-- Docs link back to PROJECT.md
-- Can trace any feature → goal → success criteria
+**If you choose C (COMPROMISE)**:
+- Creates issues: "Add queuing to notifications" + "Update PROJECT.md" + "Update docs"
+- Todos: Both code and documentation updates
+- Balances promise vs constraints
 
 ---
 
