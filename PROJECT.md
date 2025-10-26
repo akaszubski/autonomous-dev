@@ -1,8 +1,8 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-10-26
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
-**Version**: v2.4.0 (Streamlined GenAI Validation)
+**Version**: v3.0.2 (Vibe Coding + Background Enforcement)
 
 ---
 
@@ -10,12 +10,30 @@
 
 **Primary Mission**: Build an **Autonomous Development Team** - not a toolkit, but a self-managing team of AI agents that execute on PROJECT.md goals using best practices, skills, and consistency. User states WHAT they want, the team autonomously handles HOW.
 
+**User Intent** (stated 2025-10-26):
+> "i speak requirements and claude code delivers a first grade software engineering outcome in minutes"
+
+This is achieved via **dual-layer architecture**:
+
+**Layer 1: Vibe Coding** (User Experience)
+- User describes feature in natural language ("add Redis caching")
+- customInstructions auto-invoke /auto-implement
+- No manual command typing required
+- Natural conversation triggers autonomous workflow
+
+**Layer 2: Background Enforcement** (Quality Assurance)
+- PreCommit hooks validate workflow compliance
+- Enforces: orchestrator ran, TDD followed, all agents executed
+- Blocks commits if violations detected
+- User never sees this - it just works in background
+
 **Core Philosophy**:
-- **Team, not toolkit** - Autonomous agents work together, not manual commands the user orchestrates
-- **WHAT, not HOW** - User specifies goals in natural language, team figures out implementation
-- **Autonomous git operations** - Team auto-commits, auto-pushes, auto-creates PRs (no manual git commands)
-- **PROJECT.md is the mission** - Team executes on PROJECT.md strategic goals, validates alignment automatically
-- **Minimal commands** - 5 essential commands maximum (auto-implement, align-project, setup, test, status)
+- **Vibe coding that enforces strict workflow** - Natural input + background validation
+- **Team, not toolkit** - Autonomous agents work together, hooks validate they did
+- **WHAT, not HOW** - User specifies goals in natural language, team + hooks ensure quality
+- **Autonomous git operations** - Team auto-commits, hooks validate before allowing
+- **PROJECT.md is the mission** - Team executes on goals, hooks block misaligned work
+- **No micromanagement** - User doesn't manage workflow, hooks enforce it automatically
 
 **What success looks like**:
 
@@ -30,14 +48,15 @@
 5. **Minimal User Intervention** - 8 commands total (5 core + 3 utilities, down from 40) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
 
 **Success Metrics**:
+- **Vibe coding**: 100% of features triggered by natural language (no manual /auto-implement typing)
+- **Background enforcement**: 100% of commits validated by hooks (orchestrator, TDD, pipeline, security, docs)
 - **Autonomous execution**: 100% of features auto-commit, auto-push, auto-PR (zero manual git)
-- **Command minimalism**: 8 commands total (5 core + 3 utilities, down from 40 = -80% complexity)
-- **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation
+- **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation (enforced by hooks)
 - **SDLC compliance**: 100% of features follow research → plan → TDD → implement → review → security → docs
-- **GenAI decision-making**: 95%+ decisions made by GenAI (not regex/hardcoded rules)
+- **Hook reliability**: Hooks always fire (100%), agents sometimes don't (hooks catch violations)
 - **Test coverage**: 80%+ enforced automatically
 - **Context efficiency**: < 8K tokens per feature (team uses agents, not context)
-- **User effort**: 1 command per feature (`/auto-implement`) → team handles rest
+- **User effort**: 0 commands per feature (just describe, it works) → team + hooks handle rest
 
 **Success Example**:
 ```bash
@@ -137,14 +156,14 @@
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v2.4.0 - Streamlined):
+**Current Architecture** (v3.0.2 - Vibe Coding + Enforcement):
 - **Agents**: 12 total
   - **Core 8**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
   - **Utility 4**: alignment-validator, commit-message-generator, pr-description-generator, project-progress-tracker
 - **Skills**: 0 (removed per Anthropic anti-pattern guidance - no skills/ directory)
 - **Commands**: 8 total - /auto-implement, /align-project, /setup, /test, /status, /health-check, /sync-dev, /uninstall
-- **Hooks**: 15 total
-  - **Core 7**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency
+- **Hooks**: 17 total
+  - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, **enforce_orchestrator** (v3.0 - NEW), **enforce_tdd** (v3.0 - NEW)
   - **Optional 8**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes
 - **Plugin**: autonomous-dev (contains all components)
 - **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
@@ -221,15 +240,15 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 ## ARCHITECTURE
 
-### System Architecture (v2.4.0 - Streamlined)
+### System Architecture (v3.0 - Dual-Layer: Vibe Coding + Enforcement)
 
 ```
-User: "implement user authentication"  [VIBE CODING]
+User: "implement user authentication"  [VIBE CODING - Layer 1]
      ↓
-[Feature Detection Hook] (UserPromptSubmit)
-detect_feature_request.py
-     ├─> Detects: "implement", "add", "create", "build", etc.
-     └─> Auto-invokes: orchestrator agent
+[customInstructions] + [Feature Detection Hook]
+     ├─> customInstructions: "Auto-run /auto-implement for feature requests"
+     ├─> detect_feature_request.py: Reinforces "run /auto-implement"
+     └─> Result: /auto-implement automatically invoked
      ↓
 orchestrator (GATEKEEPER - PRIMARY MISSION)
      │
@@ -261,14 +280,16 @@ orchestrator (GATEKEEPER - PRIMARY MISSION)
      ↓
 Prompt: "Run /clear for next feature"
      ↓
-[Pre-Commit Hooks] (BLOCKING - Strict Mode)
+[Pre-Commit Hooks] (BLOCKING - Strict Mode) [v3.0 - ENHANCED]
      ├─> validate_project_alignment.py  [PROJECT.md GATEKEEPER]
+     ├─> enforce_orchestrator.py        [Orchestrator ran - NEW v3.0]
+     ├─> enforce_tdd.py                 [TDD followed - NEW v3.0]
+     ├─> auto_fix_docs.py               [Docs synced + congruence validated]
      ├─> auto_test.py                   [Tests must pass]
-     ├─> security_scan.py               [Security must pass]
-     └─> validate_docs_consistency.py   [Docs must be synced]
+     └─> security_scan.py               [Security must pass]
      ↓
      ✅ All pass → Commit allowed
-     ❌ Any fail → Commit BLOCKED
+     ❌ Any fail → Commit BLOCKED → Claude can fix
      ↓
 Production Code (Professional Quality Guaranteed)
 ```
@@ -627,15 +648,16 @@ Follow a systematic 7-phase approach with user checkpoints:
 **Sprint Name**: Sprint 7: Auto-Orchestration & Strict Mode 🚀
 **GitHub Milestone**: [Create milestone](https://github.com/akaszubski/autonomous-dev/milestones)
 **Duration**: 2025-10-20 → 2025-11-10 (3 weeks)
-**Status**: In Progress (60% complete)
+**Status**: In Progress (85% complete) - v3.0.2 Released
 
 **Sprint Goals**:
 1. ✅ **Auto-orchestration engine** - "Vibe coding" triggers full agent pipeline
 2. ✅ **PROJECT.md gatekeeper** - Blocks work if not aligned
 3. ✅ **File organization enforcement** - Standard structure enforced
 4. ✅ **Strict mode configuration** - Pre-configured templates
-5. 🚧 **Brownfield alignment** - `/align-project-retrofit` command (PLANNED)
-6. 🚧 **Documentation** - Complete strict mode guide
+5. ✅ **Background enforcement hooks** - Validate workflow compliance (v3.0 - NEW)
+6. 🚧 **Brownfield alignment** - `/align-project-retrofit` command (PLANNED)
+7. 🚧 **Documentation** - Complete strict mode guide
 
 **Completed in This Sprint**:
 - ✅ Feature detection hook (detect_feature_request.py)
@@ -646,6 +668,11 @@ Follow a systematic 7-phase approach with user checkpoints:
 - ✅ Orchestrator enhancement (gatekeeper logic)
 - ✅ Comprehensive validation system (12 checks)
 - ✅ Strict mode documentation (STRICT-MODE.md)
+- ✅ **customInstructions auto-invocation** (v3.0.2 - vibe coding enabled)
+- ✅ **enforce_orchestrator.py hook** (v3.0.2 - blocks commits without orchestrator)
+- ✅ **enforce_tdd.py hook** (v3.0.2 - enforces tests-before-code)
+- ✅ **Documentation congruence validation** (auto_fix_docs.py enhanced)
+- ✅ **Dual-layer architecture** (Layer 1: Vibe Coding + Layer 2: Enforcement)
 
 **Next Tasks**:
 - 🚧 Build `/align-project-retrofit` command
@@ -848,6 +875,6 @@ Work cannot proceed without alignment.
 
 ---
 
-**Last Updated**: 2025-10-25
-**Version**: v2.4.0 (Streamlined GenAI Validation)
-**Next Review**: 2025-11-25
+**Last Updated**: 2025-10-26
+**Version**: v3.0.2 (Vibe Coding + Background Enforcement)
+**Next Review**: 2025-11-26
