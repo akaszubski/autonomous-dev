@@ -5,6 +5,140 @@ All notable changes to the autonomous-dev plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.2] - 2025-10-26
+
+### 🚀 Automation & Onboarding Release
+
+**Problem Solved**: (1) Manual advisor invocation adds friction, (2) Generic plugin config doesn't optimize for specific projects.
+
+### Added
+
+#### 🎯 Advisor Preview Mode (Automatic)
+
+**Enhanced orchestrator agent** with intelligent advisor integration:
+- **Preview Mode**: Quick 15-second assessment shown automatically for significant decisions
+- **User Choice**: `Y` (full analysis) / `N` (skip) / `always` (strict) / `never` (fast)
+- **Preserves "1 command" workflow** - User stays in control
+- **Smart Triggers**: New dependencies, architecture changes, scope expansions, tech swaps, major features
+- **Skip for**: Bug fixes, trivial changes, documentation updates
+
+**Workflow:**
+```
+User: "Add Redis caching"
+  ↓
+Orchestrator: Detects significant decision
+  ↓
+Quick Preview (15s):
+  📊 Alignment: ~7/10 (serves performance goal)
+  🟡 Complexity: MEDIUM (Docker, client, cache layer)
+  💡 Consider: In-memory cache first (simpler)
+
+  Run full analysis? [Y/n/always/never]
+  ↓
+User: Chooses Y or N
+  ↓
+Proceeds based on choice
+```
+
+**Benefits:**
+- ✅ No manual `/advise` to remember
+- ✅ Preserves fast iteration (can skip)
+- ✅ Quality gate when needed
+- ✅ Configurable (strict/balanced/fast modes)
+
+#### 🎨 `/bootstrap` Command - Intelligent Project Setup
+
+**Smart project detection and configuration**:
+
+- **Auto-Detects** (30 seconds):
+  - Tech stack (Node.js/TypeScript/Python/Rust/Go)
+  - Project size (small/medium/large via LOC count)
+  - Testing framework (Jest/Pytest/Cargo/Go test)
+  - Documentation state
+  - Git setup
+
+- **Generates Optimal Config**:
+  - Enables relevant skills (Python-standards if Python detected)
+  - Suggests appropriate agents (security-auditor for auth/payment apps)
+  - Configures hooks (prettier for TS, black for Python)
+  - Sets advisor mode (preview for medium projects, strict for large)
+
+- **User Options**:
+  - Accept recommended (1 click)
+  - Customize (workflow preference, automation level)
+  - Presets (fast/balanced/strict)
+
+**Example Output:**
+```
+/bootstrap
+
+🔍 Analyzing project...
+  ✓ Tech Stack: Node.js + TypeScript
+  ✓ Size: Medium (2,347 LOC)
+  ✓ Testing: Jest detected
+
+Recommended Configuration:
+  [✓] Agents: orchestrator, advisor (preview), planner, implementer, test-master, reviewer, doc-master
+  [✓] Skills: testing-guide, engineering-standards, documentation-guide
+  [✓] Hooks: auto-format (prettier, eslint), auto-test
+  [✓] Advisor: Preview mode (balanced)
+
+Apply? [Y/n/customize]
+```
+
+**Creates `.claude/config.yml`**:
+```yaml
+project:
+  tech_stack: [nodejs, typescript]
+  size: medium
+
+advisor:
+  mode: preview  # Quick assessment, optional full analysis
+  sensitivity: medium
+
+skills:
+  enabled: [testing-guide, engineering-standards, documentation-guide]
+
+hooks:
+  auto_format:
+    enabled: true
+    tools: [prettier, eslint]
+```
+
+**Why This Matters:**
+- ✅ Works immediately after install (no manual config)
+- ✅ Project-specific optimization
+- ✅ Fewer "why isn't X working?" questions
+- ✅ Better onboarding experience
+
+**Recommended First-Time Flow:**
+```bash
+/plugin install autonomous-dev
+/bootstrap  # ← Detects and configures
+/setup      # ← Uses bootstrapped config
+```
+
+### Changed
+
+- **orchestrator Agent**: Enhanced with preview mode workflow and smart trigger detection
+- **Advisor Integration**: Changed from manual-only to preview mode (automatic but optional)
+
+### Impact
+
+**Onboarding Time**:
+- Before: 30-60 min (read docs, configure manually)
+- After: 2-3 min (/bootstrap → /setup → done)
+
+**User Friction**:
+- Before: "I don't know which agents/skills to enable"
+- After: "Bootstrap detected my project and configured everything"
+
+**Advisor Adoption**:
+- Before: Manual `/advise` → Users forget
+- After: Preview mode → Automatic suggestions
+
+---
+
 ## [3.0.1] - 2025-10-26
 
 ### 🧠 Critical Thinking Release - Advisor Agent
