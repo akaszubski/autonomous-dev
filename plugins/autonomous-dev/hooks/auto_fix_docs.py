@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-Hybrid Auto-Fix + Block Documentation Hook
+Hybrid Auto-Fix + Block Documentation Hook (with Congruence Validation)
 
-This hook implements Option C: Hybrid approach
-1. Detect doc changes needed
-2. Try auto-fix (using doc-master agent logic)
+This hook implements hybrid auto-fix with congruence checking:
+
+**Congruence Checks** (NEW - prevents drift over time):
+1. Version congruence: CHANGELOG.md → README.md (badge + header)
+2. Count congruence: Actual files → README.md (commands, agents)
+3. Auto-fix: Automatically syncs versions and counts
+4. Block: If auto-fix fails
+
+**Documentation Updates** (existing functionality):
+1. Detect doc changes needed (new skills, agents, commands)
+2. Try auto-fix (simple cases like count updates)
 3. Validate auto-fix worked
-4. If validation fails → BLOCK (with helpful message)
-5. Otherwise → Auto-stage and continue ✅
+4. Block if manual intervention needed
 
-This provides "vibe coding" experience while catching edge cases.
+This provides "vibe coding" experience while preventing documentation drift.
 
 Usage:
     # As pre-commit hook (automatic)
@@ -36,6 +43,184 @@ def get_plugin_root() -> Path:
 def get_repo_root() -> Path:
     """Get the repository root directory."""
     return get_plugin_root().parent.parent
+
+
+def check_version_congruence() -> Tuple[bool, List[str]]:
+    """
+    Check version matches across CHANGELOG and README.
+
+    Returns:
+        (is_congruent, issues_list)
+    """
+    issues = []
+    plugin_root = get_plugin_root()
+
+    # Source of truth: CHANGELOG.md
+    changelog = plugin_root / "CHANGELOG.md"
+    if not changelog.exists():
+        return True, []  # Don't block if CHANGELOG doesn't exist
+
+    # Extract latest version from CHANGELOG (first [X.Y.Z] found)
+    changelog_content = changelog.read_text()
+    changelog_match = re.search(r'\[(\d+\.\d+\.\d+)\]', changelog_content)
+    if not changelog_match:
+        return True, []  # Can't determine version, don't block
+
+    changelog_version = changelog_match.group(1)
+
+    # Check README.md
+    readme = plugin_root / "README.md"
+    if readme.exists():
+        readme_content = readme.read_text()
+
+        # Check version badge: version-X.Y.Z-green
+        badge_match = re.search(r'version-(\d+\.\d+\.\d+)-green', readme_content)
+        if badge_match:
+            readme_badge_version = badge_match.group(1)
+            if changelog_version != readme_badge_version:
+                issues.append(f"Version badge mismatch: {changelog_version} (CHANGELOG) vs {readme_badge_version} (README badge)")
+
+        # Check version header: **Version**: vX.Y.Z
+        header_match = re.search(r'\*\*Version\*\*:\s*v(\d+\.\d+\.\d+)', readme_content)
+        if header_match:
+            readme_header_version = header_match.group(1)
+            if changelog_version != readme_header_version:
+                issues.append(f"Version header mismatch: {changelog_version} (CHANGELOG) vs {readme_header_version} (README header)")
+
+    return len(issues) == 0, issues
+
+
+def check_count_congruence() -> Tuple[bool, List[str]]:
+    """
+    Check command/agent counts match between actual files and README.
+
+    Returns:
+        (is_congruent, issues_list)
+    """
+    issues = []
+    plugin_root = get_plugin_root()
+
+    # Count actual files
+    commands_dir = plugin_root / "commands"
+    agents_dir = plugin_root / "agents"
+
+    if not commands_dir.exists() or not agents_dir.exists():
+        return True, []  # Don't block if directories don't exist
+
+    # Count non-archived commands
+    actual_commands = len([
+        f for f in commands_dir.glob("*.md")
+        if "archive" not in str(f)
+    ])
+
+    # Count all agents
+    actual_agents = len(list(agents_dir.glob("*.md")))
+
+    # Extract from README
+    readme = plugin_root / "README.md"
+    if readme.exists():
+        content = readme.read_text()
+
+        # Extract "### ⚙️ 11 Core Commands"
+        commands_match = re.search(r'### ⚙️ (\d+) Core Commands', content)
+        if commands_match:
+            readme_commands = int(commands_match.group(1))
+            if actual_commands != readme_commands:
+                issues.append(f"Command count: {actual_commands} actual vs {readme_commands} in README")
+
+        # Extract "### 🤖 14 Specialized Agents"
+        agents_match = re.search(r'### 🤖 (\d+) Specialized Agents', content)
+        if agents_match:
+            readme_agents = int(agents_match.group(1))
+            if actual_agents != readme_agents:
+                issues.append(f"Agent count: {actual_agents} actual vs {readme_agents} in README")
+
+    return len(issues) == 0, issues
+
+
+def auto_fix_congruence_issues(issues: List[str]) -> bool:
+    """
+    Auto-fix version and count congruence issues.
+
+    Returns:
+        True if auto-fix successful, False otherwise
+    """
+    plugin_root = get_plugin_root()
+    readme = plugin_root / "README.md"
+    changelog = plugin_root / "CHANGELOG.md"
+
+    if not readme.exists() or not changelog.exists():
+        return False
+
+    try:
+        # Get source of truth values
+        changelog_content = changelog.read_text()
+        changelog_match = re.search(r'\[(\d+\.\d+\.\d+)\]', changelog_content)
+        if not changelog_match:
+            return False
+
+        correct_version = changelog_match.group(1)
+
+        # Count actual files
+        commands_dir = plugin_root / "commands"
+        agents_dir = plugin_root / "agents"
+
+        correct_commands = len([
+            f for f in commands_dir.glob("*.md")
+            if "archive" not in str(f)
+        ])
+
+        correct_agents = len(list(agents_dir.glob("*.md")))
+
+        # Fix README
+        readme_content = readme.read_text()
+        updated_content = readme_content
+
+        # Fix version badge
+        updated_content = re.sub(
+            r'version-\d+\.\d+\.\d+-green',
+            f'version-{correct_version}-green',
+            updated_content
+        )
+
+        # Fix version header
+        updated_content = re.sub(
+            r'\*\*Version\*\*:\s*v\d+\.\d+\.\d+',
+            f'**Version**: v{correct_version}',
+            updated_content
+        )
+
+        # Fix command count
+        updated_content = re.sub(
+            r'(### ⚙️ )\d+( Core Commands)',
+            f'\\g<1>{correct_commands}\\g<2>',
+            updated_content
+        )
+
+        # Fix agent count
+        updated_content = re.sub(
+            r'(### 🤖 )\d+( Specialized Agents)',
+            f'\\g<1>{correct_agents}\\g<2>',
+            updated_content
+        )
+
+        if updated_content != readme_content:
+            readme.write_text(updated_content)
+            print(f"✅ Auto-fixed README.md congruence:")
+            print(f"   - Version: {correct_version}")
+            print(f"   - Commands: {correct_commands}")
+            print(f"   - Agents: {correct_agents}")
+
+            # Auto-stage README
+            subprocess.run(["git", "add", str(readme)], check=True, capture_output=True)
+            print(f"📝 Auto-staged: README.md")
+            return True
+
+        return True  # No changes needed
+
+    except Exception as e:
+        print(f"⚠️  Congruence auto-fix failed: {e}")
+        return False
 
 
 def run_detect_doc_changes() -> Tuple[bool, List[Dict]]:
@@ -354,22 +539,48 @@ def main():
     """Main entry point for hybrid auto-fix + block hook."""
     print("🔍 Checking documentation consistency...")
 
-    # Step 1: Detect doc changes needed
+    # Step 1: Check congruence (version, counts)
+    version_ok, version_issues = check_version_congruence()
+    count_ok, count_issues = check_count_congruence()
+
+    congruence_issues = version_issues + count_issues
+
+    if congruence_issues:
+        print("📊 Congruence issues detected:")
+        for issue in congruence_issues:
+            print(f"   - {issue}")
+        print()
+
+        # Try to auto-fix congruence issues
+        if auto_fix_congruence_issues(congruence_issues):
+            print("✅ Congruence issues auto-fixed!")
+            print()
+        else:
+            print("❌ Failed to auto-fix congruence issues")
+            print()
+            print("Please fix manually:")
+            for issue in congruence_issues:
+                print(f"   - {issue}")
+            print()
+            return 1
+
+    # Step 2: Detect doc changes needed
     all_updated, violations = run_detect_doc_changes()
 
-    if all_updated:
+    if all_updated and not congruence_issues:
         print("✅ No documentation updates needed (or already included)")
         return 0
 
-    # Step 2: Try auto-fix
-    auto_fix_success = auto_fix_documentation(violations)
+    if violations:
+        # Step 3: Try auto-fix
+        auto_fix_success = auto_fix_documentation(violations)
 
-    if not auto_fix_success:
-        # Auto-fix failed, need manual intervention
-        print_manual_intervention_needed(violations)
-        return 1
+        if not auto_fix_success:
+            # Auto-fix failed, need manual intervention
+            print_manual_intervention_needed(violations)
+            return 1
 
-    # Step 3: Validate auto-fix worked
+    # Step 4: Validate auto-fix worked
     print("🔍 Validating auto-fix...")
     validation_success = validate_auto_fix()
 
