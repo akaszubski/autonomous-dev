@@ -394,6 +394,80 @@ Production Code (Professional Quality Guaranteed)
 
 ---
 
+## ENFORCEMENT RULES 🛑
+
+**These rules PREVENT bloat from returning. Aligned with autonomous team philosophy.**
+
+### What We Protect
+
+✅ **Keep**: Skills directory (consistency for team)
+✅ **Keep**: 16 agents (8 core + 8 utility for autonomous execution)
+✅ **Keep**: Python infrastructure (automation backbone)
+❌ **Cut**: Documentation sprawl (114 files → 15 focused files)
+❌ **Cut**: Redundant commands (9 → 8)
+❌ **Cut**: Over-prescriptive agent guidance (trust the model)
+
+### Automatic Enforcement via Pre-Commit Hooks
+
+**enforce_bloat_prevention.py** (NEW - BLOCKING):
+```python
+# Fail (exit 2) if:
+- Total markdown files in docs/ > 15
+- Total markdown files in plugins/autonomous-dev/docs/ > 20
+- Any agent >150 lines (trust the model threshold)
+- Any command >80 lines
+- Python lib/ grows beyond 25 modules
+- New documentation file added without archiving old one
+
+# Warn (exit 1) if:
+- Agent approaching 150 lines (140+)
+- Total docs approaching limit (12+)
+- Command approaching 80 lines (75+)
+```
+
+**enforce_command_limit.py** (NEW - BLOCKING):
+```python
+# Fail (exit 2) if:
+- >8 active commands in commands/ directory
+# Allowed 8: auto-implement, align-project, setup, test, status, health-check, sync-dev, uninstall
+# All others must be archived or removed
+```
+
+### Manual Enforcement via CODE REVIEW
+
+**Before merging any PR:**
+1. Agent count: Should be 16 (8 core + 8 utility)
+2. Agent lines: `wc -l plugins/autonomous-dev/agents/*.md | tail -1` should be 1200-1500 (trust-the-model focused)
+3. Command count: `ls plugins/autonomous-dev/commands/*.md | wc -l` must equal 8
+4. Docs count: `find docs plugins/autonomous-dev/docs -name "*.md" | wc -l` must be < 35 total
+5. Skills: Should have 6-10 consistent skills (not sprawling)
+
+### When BLOAT Returns (It Will)
+
+**The "Documentation Budget" Rule**:
+```
+For every new .md file added → Archive 2 old .md files
+For every new command → Remove 1 old command
+For every agent that grows → Simplify 1 other agent
+```
+
+### The Core Rule: STAY WITHIN BUDGET
+
+Every PR must satisfy ONE OF:
+```
+A) files_added <= files_deleted  (zero or negative net growth)
+B) If adding files, proportional deletion elsewhere
+C) If no deletion, explain why in PR (rare exceptions only)
+```
+
+**Exceptions that DON'T count as bloat**:
+- Test files (TDD requires growth)
+- Skill improvements (consistency > quantity)
+- Agent behavior improvements (kept within 150 lines)
+- Temporary session files (auto-archived)
+
+---
+
 ## DESIGN PRINCIPLES ⚙️
 
 **Source**: Official Anthropic Claude Code repository analysis (2025-10-25)
