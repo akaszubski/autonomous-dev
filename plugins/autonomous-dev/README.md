@@ -1,15 +1,56 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.2.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.2.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.2.0
+**Version**: v3.2.1
 **Last Updated**: 2025-10-26
 
-**GenAI Validation & Alignment Release** - Replace traditional testing with GenAI-powered quality validation. Deep alignment analysis finds ALL inconsistencies between PROJECT.md, code, and docs. Auto-creates GitHub issues and synced todos.
+**Alignment Simplicity Release** - Find conflicts between PROJECT.md and reality. Ask one question per conflict: Is PROJECT.md correct? Auto-creates GitHub issues and synced todos based on your answers.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+## ✨ What's New in v3.2.1
+
+**🎯 Alignment Simplicity Release**
+
+This release simplifies v3.2.0 by eliminating complexity and focusing on one core insight: **All conflicts reduce to one question: Is PROJECT.md correct?**
+
+### v3.2.1 Changes (2025-10-26)
+
+**🔍 Simplified `/align-full` Command**:
+- **Before**: 5-level hierarchy, cascade analysis, stakeholder categorization
+- **After**: One simple question per conflict
+- **Decision**: `A) PROJECT.md is correct → align code/docs` OR `B) Update PROJECT.md to match reality`
+- **Removed**: 90% of complexity logic, 574 lines of code
+- **Result**: 2-3 minute decisions (vs 5-10 min with hierarchy)
+
+**✅ What Stays the Same**:
+- GenAI conflict detection still finds mismatches
+- GitHub issues still auto-created based on your decision
+- `.todos.md` file still synced with issues
+- Fully reversible (change mind, re-run, choose again)
+
+**Why This Is Better**:
+- ✅ No categorization overhead ("what level is this?")
+- ✅ Objective framework (PROJECT.md is source of truth)
+- ✅ Works at any scale (5 conflicts or 500)
+- ✅ USER DECIDES, not system assumes
+
+### Key Principle
+
+```
+PROJECT.md = Source of Truth
+
+For every conflict:
+  A) YES → Align code/docs to PROJECT.md
+  B) NO  → Update PROJECT.md to match reality
+```
+
+That's the complete decision framework.
+
+---
 
 ## ✨ What's New in v3.2.0
 

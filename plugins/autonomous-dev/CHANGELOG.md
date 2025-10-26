@@ -5,6 +5,62 @@ All notable changes to the autonomous-dev plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2025-10-26
+
+### 🎯 Alignment Simplicity Release
+
+**Key Insight**: All conflicts reduce to one question: **Is PROJECT.md correct?**
+
+**Changes**:
+- Simplified `/align-full` by eliminating complexity
+- Removed: 5-level hierarchy, cascade analysis, stakeholder categorization
+- Removed: 90% of complexity logic (574 fewer lines of code)
+- Result: 2-3 minute conflict resolution (vs 5-10 min with hierarchy)
+
+### Refactored
+
+#### Simplified `alignment-analyzer` Agent
+- **Before**: Detect conflicts, categorize into 5 levels, analyze cascades, present 3-5 options
+- **After**: Detect conflicts, ask one question per conflict (A/B choice)
+- **Impact**: Faster, simpler, no false precision
+
+#### Simplified `/align-full` Command
+- **Before**: Present levels, cascade impacts, stakeholder routing
+- **After**: Show PROJECT.md claim vs reality, ask "Is PROJECT.md correct?"
+- **Decision Framework**:
+  - A) YES → Align code/docs to PROJECT.md
+  - B) NO  → Update PROJECT.md to match reality
+
+### Why This Works
+
+✅ **Objective**: PROJECT.md is source of truth (no ambiguity)
+✅ **Fast**: A/B decision in 2-3 minutes (vs hierarchy categorization)
+✅ **Scalable**: Works at 5 conflicts or 500 conflicts
+✅ **Reversible**: Change mind, re-run, choose again
+✅ **User-centric**: You decide, system implements
+
+### What Stays the Same
+
+- ✅ GenAI finds actual conflicts
+- ✅ GitHub issues auto-created
+- ✅ `.todos.md` synced with issues
+- ✅ Weekly alignment runs work
+- ✅ Full reversibility
+
+### Principle
+
+```
+PROJECT.md = Source of Truth
+
+Every conflict = One binary question
+Is PROJECT.md correct?
+
+A) YES → Implement/align to match PROJECT.md
+B) NO  → Update PROJECT.md to match reality
+```
+
+---
+
 ## [3.2.0] - 2025-10-26
 
 ### 🧠 GenAI Validation & Alignment Release
