@@ -329,6 +329,6 @@ vim .claude/PROJECT.md
 
 **For detailed guides**: See `docs/UPDATES.md` and `plugins/autonomous-dev/README.md`
 
-**For code standards**: See skills in `plugins/autonomous-dev/skills/`
+**For code standards**: See CLAUDE.md best practices and agent prompts for guidance (skills directory removed per Anthropic anti-pattern guidance v2.5+)
 
-**Last Updated**: 2025-10-19
+**Last Updated**: 2025-10-27

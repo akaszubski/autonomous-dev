@@ -1,6 +1,6 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-27
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
 **Version**: v3.0.2 (Vibe Coding + Background Enforcement)
 
@@ -179,14 +179,14 @@ This is achieved via **dual-layer architecture**:
 - **Git**: For version control and rollback safety
 
 **Current Architecture** (v3.0.2 - Vibe Coding + Enforcement):
-- **Agents**: 12 total
-  - **Core 8**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
-  - **Utility 4**: alignment-validator, commit-message-generator, pr-description-generator, project-progress-tracker
+- **Agents**: 19 total
+  - **Core 10**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+  - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
 - **Skills**: 0 (removed per Anthropic anti-pattern guidance - no skills/ directory)
-- **Commands**: 8 total - /auto-implement, /align-project, /setup, /test, /status, /health-check, /sync-dev, /uninstall
-- **Hooks**: 17 total
+- **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
+- **Hooks**: 23 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, **enforce_orchestrator** (v3.0 - NEW), **enforce_tdd** (v3.0 - NEW)
-  - **Optional 8**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes
+  - **Extended 14**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_session_quality
 - **Plugin**: autonomous-dev (contains all components)
 - **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
 
@@ -976,6 +976,6 @@ Work cannot proceed without alignment.
 
 ---
 
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-27
 **Version**: v3.0.2 (Vibe Coding + Background Enforcement)
 **Next Review**: 2025-11-26
