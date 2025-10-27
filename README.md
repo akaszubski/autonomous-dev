@@ -357,13 +357,14 @@ Agents leverage 19 specialized skill packages using **progressive disclosure** -
 
 **How Skills Work**: Each agent includes relevant skill metadata in its system prompt. When an agent recognizes a task needs specialized expertise, it loads the full skill content (SKILL.md) and supporting files on-demand. This "progressive disclosure" approach eliminates context bloat - you can scale to 50+ skills without exceeding token budgets.
 
-### 8 Slash Commands
+### 9 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
-**Core Commands** (5):
+**Core Commands** (6):
 - `/auto-implement` - Describe feature, Claude handles everything autonomously
 - `/align-project` - Analyze & fix PROJECT.md alignment (menu: report/fix/preview/cancel)
+- `/align-claude` - Check and fix CLAUDE.md alignment with codebase
 - `/setup` - Interactive project setup wizard
 - `/test` - Run all automated tests (unit + integration + UAT)
 - `/status` - Track strategic goal progress with AI recommendations

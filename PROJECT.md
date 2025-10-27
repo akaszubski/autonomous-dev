@@ -982,5 +982,5 @@ Work cannot proceed without alignment.
 ---
 
 **Last Updated**: 2025-10-27
-**Version**: v3.0.2 (Vibe Coding + Background Enforcement)
+**Version**: v3.1.0 (Agent-Skill Integration Architecture)
 **Next Review**: 2025-11-26

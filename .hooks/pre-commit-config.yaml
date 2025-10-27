@@ -1,0 +1,42 @@
+# Pre-commit Hook Configuration
+# Validates README.md accuracy on every commit
+
+# Installation:
+#   pip install pre-commit
+#   pre-commit install -c .hooks/pre-commit-config.yaml
+
+# Usage:
+#   git commit (hooks run automatically)
+#   pre-commit run --all-files (run manually)
+
+repos:
+  # README.md Accuracy Validation
+  - repo: local
+    hooks:
+      - id: validate-readme-accuracy
+        name: Validate README.md accuracy
+        description: Check README counts and descriptions match filesystem
+        entry: python plugins/autonomous-dev/hooks/validate_readme_accuracy.py
+        language: python
+        stages: [commit]
+        pass_filenames: false
+        always_run: true
+        verbose: false
+        require_serial: true
+        # Only run if these files changed
+        files: '^(plugins/autonomous-dev/(agents|skills|commands|hooks)/|README\.md)'
+
+      - id: validate-readme-genai
+        name: GenAI semantic validation (README)
+        description: Validate README descriptions match implementation using Claude
+        entry: python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
+        language: python
+        stages: [commit]
+        pass_filenames: false
+        # Only run on relevant changes
+        files: '^(plugins/autonomous-dev/(agents|skills|commands)/|README\.md)'
+        verbose: false
+        require_serial: true
+        # Only run if ANTHROPIC_API_KEY is set
+        # Remove this if you want it to run always
+        additional_dependencies: ['anthropic']
