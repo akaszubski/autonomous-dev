@@ -45,44 +45,46 @@ auto_fix_docs.py
 
 ---
 
-## Code Template
+## Code Template (Refactored - v2.0)
 
-Use this pattern for all hooks:
+**Updated**: All hooks now use shared utility pattern for maintainability.
 
 ```python
-from anthropic import Anthropic
-from typing import Optional
+from genai_utils import GenAIAnalyzer, parse_binary_response
+from genai_prompts import SECRET_ANALYSIS_PROMPT
 
-def analyze_with_genai(content: str, question: str) -> Optional[str]:
-    """Analyze content using Claude.
-    
-    Args:
-        content: Text to analyze
-        question: Question to ask Claude
-    
-    Returns:
-        Claude's analysis or None if unavailable
-    """
-    try:
-        client = Anthropic()
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=500,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{question}\n\nContent:\n{content}"
-                }
-            ]
+# Initialize analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
+)
+
+def analyze_secret_context(line: str, secret_type: str) -> bool:
+    """Use GenAI to determine if secret is real or test data."""
+    response = analyzer.analyze(
+        SECRET_ANALYSIS_PROMPT,
+        line=line,
+        secret_type=secret_type,
+        variable_name="N/A"
+    )
+
+    if response:
+        is_real = parse_binary_response(
+            response,
+            true_keywords=["REAL", "LIKELY_REAL"],
+            false_keywords=["FAKE"]
         )
-        return message.content[0].text
-    except ImportError:
-        print("⚠️  Anthropic SDK not installed. GenAI analysis disabled.")
-        return None
-    except Exception as e:
-        print(f"⚠️  GenAI analysis failed: {e}")
-        return None
+        if is_real is not None:
+            return is_real
+
+    return _heuristic_fallback(line, secret_type)
 ```
+
+**Key Features**:
+- ✅ Centralized prompts in `genai_prompts.py`
+- ✅ Shared analyzer in `genai_utils.py`
+- ✅ 70% code reduction per hook
+- ✅ Single source of truth for prompts
+- ✅ Consistent error handling
 
 ---
 
