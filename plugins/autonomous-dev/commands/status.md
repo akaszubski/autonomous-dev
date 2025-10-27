@@ -1,14 +1,16 @@
-# /status - View PROJECT.md Goal Progress
+---
+description: View PROJECT.md goal progress with GenAI analysis and strategic recommendations
+---
 
-Show current progress on PROJECT.md strategic goals, active workflows, and suggested next priorities.
+## Implementation
 
-## What This Does
+Invoke the project-progress-tracker agent to analyze goal completion and suggest strategic next priorities.
 
-Displays an at-a-glance view of:
-- **Goal Progress**: Completion percentage for each PROJECT.md goal
-- **Active Workflows**: Currently running autonomous workflows
-- **Recent Activity**: Last completed feature
-- **Next Priorities**: Suggested features based on goal progress
+# Status - Project Goal Progress
+
+**GenAI-powered strategic goal tracking and progress analysis**
+
+---
 
 ## Usage
 
@@ -16,133 +18,310 @@ Displays an at-a-glance view of:
 /status
 ```
 
-## Output Format
+**Time**: 30-60 seconds
+**Interactive**: Shows progress, answers questions
+**GenAI-Powered**: Uses project-progress-tracker agent for intelligent analysis
+
+---
+
+## How It Works
+
+The project-progress-tracker agent analyzes your strategic direction:
+
+### Analysis Phase
+
+The agent:
+- ✅ Reads PROJECT.md goals, scope, constraints
+- ✅ Scans session logs for completed features
+- ✅ Analyzes git history for feature implementation
+- ✅ Calculates progress toward each goal
+- ✅ Identifies neglected goals
+- ✅ Suggests strategic next priorities
+
+### Report Phase
+
+Shows you:
+- 📊 **Goal Progress**: Visual bars for each goal
+- ✅ **Completed Features**: What's been accomplished
+- ⏳ **In Progress**: What's currently being worked on
+- 💡 **Strategic Recommendations**: What to do next
+- ⚠️  **Risk Flags**: Neglected or drifting goals
+
+---
+
+## Example Output
 
 ```
-PROJECT.md Goal Progress:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 PROJECT.md Goal Progress
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Enhanced UX:          [████████░░] 80% (4/5 features)
-Security:             [██████████] 100% ✅ COMPLETE
-Performance:          [██░░░░░░░░] 20% (1/5 features)
-Maintainability:      [░░░░░░░░░░] 0% (0/3 features)
-
-Active Workflows: 0
-Last Feature: "Add OAuth login" (2 hours ago)
-
-Next Priorities:
-1. Add keyboard shortcuts (completes Enhanced UX goal → 100%)
-2. Add rate limiting (advances Performance goal → 40%)
-3. Start maintainability work (currently at 0%)
-```
-
-## Implementation
-
-Invoke the project-progress-tracker agent to analyze project status and goal completion.
-
-The agent will:
-1. Read and parse PROJECT.md
-2. Analyze goal completion metadata
-3. Calculate progress for each goal
-4. Check recent session quality
-5. Generate status report with visual progress bars and quality indicators
-
-## Examples
-
-### After Completing a Feature
-
-```bash
-/auto-implement "Add dark mode toggle"
-# ... autonomous workflow executes ...
-
-/status
-
-PROJECT.md Goal Progress:
-
-Enhanced UX:          [████████░░] 80% (4/5 features)
+Enhanced UX:       [████████░░] 80% (4/5 features)
   ✅ Responsive design
   ✅ Accessibility improvements
-  ✅ Dark mode toggle (NEW!)
-  ✅ User preferences persistence
-  ⏳ Keyboard shortcuts
+  ✅ Dark mode toggle
+  ✅ User preferences
+  ⏳ Keyboard shortcuts (Next priority - 1 feature away!)
 
-Security:             [██████████] 100% ✅ COMPLETE
-Performance:          [██░░░░░░░░] 20% (1/5 features)
+Security:          [██████████] 100% ✅ COMPLETE
+  ✅ OAuth integration
+  ✅ JWT tokens
+  ✅ Password hashing
+  ✅ CSRF protection
 
-Next Priority: Add keyboard shortcuts (completes UX goal)
+Performance:       [██░░░░░░░░] 20% (1/5 features)
+  ✅ Basic caching
+  ⏳ Rate limiting (should start soon)
+  ⏳ Query optimization
+  ⏳ Compression
+  ⏳ CDN integration
+
+Maintainability:   [░░░░░░░░░░] 0% (0/3 features)
+  ⏳ Code organization
+  ⏳ API versioning
+  ⏳ Documentation structure
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 Strategic Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Status Summary:
+- ✅ Security: COMPLETE (maintain)
+- ✅ Enhanced UX: Near completion (4/5 features)
+- ⚠️  Performance: Neglected (only 1/5, should balance)
+- ❌ Maintainability: Not started (0/3)
+
+Overall: 42% complete (5/11 features)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Recommended Next Priorities
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ⭐ Add keyboard shortcuts
+   Goal: Enhanced UX (80% → 100%)
+   Impact: Completes a strategic goal
+   Effort: medium
+   Reason: One feature away from 100% completion
+
+2. Add rate limiting
+   Goal: Performance (20% → 40%)
+   Impact: Improves stability, advances neglected goal
+   Effort: high
+   Reason: Performance is underserved (only 20%)
+
+3. Start code organization
+   Goal: Maintainability (0% → 33%)
+   Impact: Begins new strategic area
+   Effort: medium
+   Reason: Maintainability not started (0%)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 Historical Progress
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Last 7 days:
+  Day 1: Enhanced UX (40% → 60%)
+  Day 2: Security (80% → 100%)
+  Day 3: Enhanced UX (60% → 80%)
+  Day 4-7: No progress (Performance needs work!)
+
+Pace: Averaging 1.4 features per day
+Trend: Good on UX, neglecting other goals
+
+Next week: Focus on Performance to balance progress
 ```
 
-### During Active Development
+---
+
+## What the Agent Analyzes
+
+### Goal Completion
+- Counts completed features per goal
+- Calculates percentage (features done / total planned)
+- Marks goals 100% complete with ✅
+- Flags goals under 20% as "neglected"
+
+### Strategic Balance
+- Are we completing goals evenly?
+- Are some goals being neglected?
+- Is there a risk of missing strategic direction?
+- What would provide best overall progress?
+
+### Next Priorities
+- Which goal is closest to 100%? (finish it!)
+- Which goal is neglected? (start balancing)
+- What provides strategic value?
+- What should we work on next?
+
+### Risk Flags
+- ⚠️ Goals under 20% progress (neglected)
+- 🚨 Goals completely untouched (risk)
+- 📉 Goals stalled for 7+ days
+- 🔄 Scope drift detected (features not mapped to goals)
+
+---
+
+## Example Workflows
+
+### First Feature Completed
 
 ```bash
+# After implementing "Add OAuth login"
 /status
 
-Active Workflows:
-- workflow-abc123: "Add rate limiting" (60% complete, implementer phase)
+OUTPUT:
+Security: [██░░░░░░░░] 20% (1/5 features)
+  ✅ Add OAuth login (NEW!)
+  ⏳ Password reset
+  ⏳ 2FA
+  ⏳ Rate limiting
+  ⏳ CSRF protection
 
-PROJECT.md Goal Progress:
-Performance:          [████░░░░░░] 40% (2/5 features - in progress)
-
-Estimated completion: 3 minutes
+💡 Recommend: Continue with password reset (momentum)
 ```
 
-### Session Quality Check
+### Checking Strategic Alignment
 
 ```bash
+# Mid-sprint, checking balance
 /status
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 PROJECT.md Goal Progress
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT:
+Enhanced UX:       [████████░░] 80% (4/5 features)  ← Near done
+Performance:       [░░░░░░░░░░] 0% (0/5 features)   ← Neglected!
+Maintainability:   [░░░░░░░░░░] 0% (0/3 features)   ← Not started
 
-Enhanced UX:          [████████░░] 80% (4/5 features)
-Security:             [██████████] 100% ✅ COMPLETE
-Performance:          [██░░░░░░░░] 20% (1/5 features)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 Recent Session Quality
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Last 3 sessions:
-  ✅ session-20251026-200515.md (5 min ago)
-     • Research: ✅ 4/3 quality markers
-     • Planning: ✅ 5/3 quality markers
-     • Review: ✅ 3/2 quality markers
-     • Security: ✅ 2/1 quality markers
-
-  ✅ session-20251026-195230.md (15 min ago)
-     • Research: ✅ 3/3 quality markers
-     • Planning: ✅ 4/3 quality markers
-     • Review: ✅ 2/2 quality markers
-     • Security: ✅ 1/1 quality markers
-
-  ⚠️  session-20251026-190845.md (1 hour ago)
-     • Research: ⚠️ 2/3 quality markers (thin)
-     • Planning: ✅ 3/3 quality markers
-     • Review: ❌ 0/2 quality markers (missing!)
-     • Security: ✅ 1/1 quality markers
-
-     → Review phase appears incomplete
-     → Consider running: /review
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 Next Actions
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. Add keyboard shortcuts (completes Enhanced UX goal)
-2. Review session-20251026-190845.md for completeness
-3. Consider re-running /auto-implement for incomplete work
+⚠️  Warning: Performance and Maintainability are completely untouched
+💡 Recommend: After UX, focus on Performance (more neglected)
 ```
+
+### After Completing a Goal
+
+```bash
+# Just finished "Add user preferences" (5th UX feature)
+/status
+
+OUTPUT:
+Enhanced UX: [██████████] 100% ✅ COMPLETE
+
+🎉 Goal completed! Moving focus to Performance (currently 20%)
+
+💡 Recommend:
+  1. Add rate limiting (Performance: 20% → 40%)
+  2. Add query optimization (Performance: 40% → 60%)
+```
+
+---
+
+## When to Use
+
+**Run /status when**:
+- 📊 Starting your day (see progress on strategic goals)
+- ✅ Completing a feature (see updated progress)
+- 🤔 Deciding what to work on next (gets strategic recommendations)
+- 📈 Periodic check-ins (weekly/bi-weekly)
+- 👥 Team meetings (show project progress)
+
+**Output tells you**:
+- Where are we strategically?
+- What goals need attention?
+- What should we do next?
+- Are we balanced across goals?
+
+---
+
+## Integration with /auto-implement
+
+After using `/auto-implement` to complete a feature:
+
+```bash
+# 1. Complete feature
+/auto-implement "Add keyboard shortcuts"
+
+# 2. Check updated progress
+/status
+
+# Shows: Enhanced UX now 100% complete! 🎉
+# Recommends: Next priorities based on new state
+```
+
+---
+
+## Understanding the Recommendations
+
+The agent prioritizes based on:
+
+**Priority 1**: Finish nearly-complete goals
+- Goal at 80% or higher? Finish it!
+- Psychology: Completing goals is motivating
+- Impact: Full credit for strategic goal
+
+**Priority 2**: Balance neglected goals
+- Goal under 20%? Start making progress
+- Risk: Neglected goals become technical debt
+- Impact: Distribute effort across strategic areas
+
+**Priority 3**: Address dependencies
+- Some features unlock others
+- Agent considers ordering
+- Maximizes velocity
+
+**Priority 4**: Effort vs. Impact
+- Quick wins motivate teams
+- High-impact features deliver value
+- Balance between quick wins and deep work
+
+---
+
+## Safety Features
+
+✅ **No modifications**: /status never changes anything
+✅ **Pure analysis**: Shows progress, recommends direction
+✅ **Clear reasoning**: Explains why recommendations
+✅ **Strategic focus**: Keeps work aligned with goals
+
+---
+
+## Troubleshooting
+
+### "PROJECT.md not found"
+
+```bash
+# Create PROJECT.md first
+/setup
+
+# Then check status
+/status
+```
+
+### "No goals detected"
+
+PROJECT.md exists but has no GOALS section:
+```bash
+# Update PROJECT.md with goals
+vim PROJECT.md
+
+# Add GOALS section with strategic objectives
+/status
+```
+
+### "Progress not updating"
+
+Progress is tracked in PROJECT.md. After completing features:
+```bash
+# Update PROJECT.md with completed features
+# Then check status
+/status
+```
+
+---
 
 ## Related Commands
 
-- `/auto-implement "feature"` - Start autonomous development workflow
-- `/align-project` - Check PROJECT.md alignment (read-only analysis)
+- `/auto-implement "feature"` - Implement a feature strategically
+- `/align-project` - Ensure implementation matches goals
+- `/setup` - Create or update PROJECT.md
 
-## Philosophy
+---
 
-**Strategic visibility** - The /status command keeps you focused on PROJECT.md strategic goals, not random features. It answers:
-- What have we accomplished?
-- What goals are we neglecting?
-- What should we work on next?
-
-Use this command frequently to stay aligned with strategic direction.
+**Use this to understand strategic progress, identify goals needing attention, and get intelligent recommendations on what to work on next.**

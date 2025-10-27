@@ -1,14 +1,14 @@
 ---
-description: Analyze and fix project alignment with PROJECT.md standards
+description: Analyze and fix project alignment with PROJECT.md using GenAI
 ---
 
 ## Implementation
 
-Invoke the alignment-analyzer agent to analyze PROJECT.md against current project state, then present interactive menu for fixing issues.
+Invoke the alignment-analyzer agent to find conflicts between PROJECT.md and reality, then guide interactive fixing.
 
 # Align Project
 
-**Analyze project structure and optionally fix alignment issues**
+**GenAI-powered project alignment analysis and interactive fixing**
 
 ---
 
@@ -18,225 +18,104 @@ Invoke the alignment-analyzer agent to analyze PROJECT.md against current projec
 /align-project
 ```
 
-**Time**: 5-20 minutes (depending on mode selected)
-**Interactive**: Asks what you want to do after analysis
+**Time**: 5-20 minutes (depending on issues found)
+**Interactive**: Agent asks about each conflict found
+**GenAI-Powered**: Uses alignment-analyzer agent for intelligent analysis
 
 ---
 
 ## How It Works
 
-The command runs in two steps:
+The alignment-analyzer agent works with you to align your project:
 
-### Step 1: Analysis (Always Runs)
+### Phase 1: Analysis (GenAI Agent)
 
-Analyzes your project:
-- ✅ PROJECT.md exists and is complete
-- ✅ Directory structure (tests/, docs/)
-- ✅ Documentation organization
-- ✅ Test coverage structure
-- ✅ Hook configuration
-- ✅ Command availability
+The agent:
+- ✅ Reads PROJECT.md (source of truth)
+- ✅ Scans your codebase for actual implementation
+- ✅ Checks documentation against reality
+- ✅ Identifies conflicts and misalignments
+- ✅ Explains each issue in context
 
-### Step 2: Action Menu (You Choose)
+### Phase 2: Interactive Fixing (GenAI + You)
 
-After analysis, you see:
+For each conflict found, the agent asks:
 
 ```
-┌─ Alignment Report ──────────────────────────┐
-│                                              │
-│ Overall Alignment: 75% (needs improvement)   │
-│                                              │
-│ ✅ PROJECT.md: Present and complete          │
-│ ✅ Directory structure: Correct              │
-│ ⚠️  Documentation: 3 files in root           │
-│ ❌ Test structure: Missing tests/unit/       │
-│ ⚠️  Hooks: Not all active                    │
-│                                              │
-│ Issues Found: 5                              │
-│  - 2 critical (must fix)                     │
-│  - 3 warnings (should fix)                   │
-└──────────────────────────────────────────────┘
+PROJECT.md says: "REST API only, no GraphQL"
+Reality shows: graphql/ directory with resolvers
+Status: GraphQL implementation exists
 
-What would you like to do?
+What should we do?
+A) YES - PROJECT.md is correct (remove GraphQL)
+B) NO - Update PROJECT.md to include GraphQL
 
-1. View detailed report only (no changes)
-2. Fix issues interactively (asks before each phase)
-3. Preview all changes (dry run, no modifications)
-4. Cancel
-
-Choice [1-4]:
+Your choice [A/B]:
 ```
 
-**You type your choice (1-4)** - no need to remember flags!
+The agent intelligently:
+- Asks binary questions (no ambiguity)
+- Explains impact of each choice
+- Groups related conflicts
+- Suggests fixes based on your answers
+
+### Phase 3: Execution
+
+After all questions answered, the agent:
+- ✅ Updates PROJECT.md (if needed)
+- ✅ Suggests code changes (if needed)
+- ✅ Creates documentation (if needed)
+- ✅ Removes scope drift (if needed)
+- ✅ Commits changes
 
 ---
 
-## Option 1: View Report Only
-
-**Read-only analysis**:
-- Shows all issues with details
-- Suggests fixes
-- **Makes no changes**
+## Example: Analyzing Misalignment
 
 ```
-Detailed Findings:
+🔍 Analyzing project alignment with PROJECT.md...
 
-❌ CRITICAL: Missing test directories
-   Location: Root directory
-   Expected: tests/unit/, tests/integration/, tests/uat/
-   Impact: Cannot run automated tests
-   Fix: Choose option 2 to create
+Found 5 conflicts:
 
-❌ CRITICAL: README.md out of sync with PROJECT.md
-   PROJECT.md updated: 2 days ago
-   README.md updated: 1 week ago
-   Impact: Documentation misleading
-   Fix: Choose option 2 to rebuild
+CONFLICT #1: GraphQL Scope Mismatch
+────────────────────────────────────
+PROJECT.md says:
+  SCOPE (Out of Scope):
+    - GraphQL API
 
-⚠️  WARNING: Documentation files in root
-   Files: GUIDE.md, ARCHITECTURE.md, RESEARCH.md
-   Expected location: docs/
-   Impact: Cluttered root directory
-   Fix: Choose option 2 to organize
+Reality shows:
+  graphql/ directory exists with resolvers implemented
+
+What should we do?
+A) YES - PROJECT.md is correct (remove GraphQL code)
+B) NO - Update PROJECT.md to include GraphQL
+
+Your choice [A/B]: A
+
+Action: Remove graphql/ directory and update PROJECT.md
+Impact: Removes ~200 lines of code (not in scope)
 ```
 
-**When to use**:
-- ✅ First assessment of project
-- ✅ Periodic alignment checks
-- ✅ Want to see issues without fixing
-
----
-
-## Option 2: Fix Interactively (Recommended)
-
-**Three-phase interactive fix**:
-
-### Phase 1: Directory Structure
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PHASE 1: Directory Structure
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Proposed changes:
-  + Create tests/unit/
-  + Create tests/integration/
-  + Create tests/uat/
-  + Create docs/guides/
-
-Apply Phase 1? [Y/n/q]: Y
-
-✅ Created tests/unit/
-✅ Created tests/integration/
-✅ Created tests/uat/
-✅ Created docs/guides/
-```
-
-### Phase 2: File Organization
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PHASE 2: File Organization
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Proposed moves:
-  GUIDE.md → docs/guides/GUIDE.md
-  ARCHITECTURE.md → docs/ARCHITECTURE.md
-  RESEARCH.md → docs/research/RESEARCH.md
-
-Apply Phase 2? [Y/n/q]: Y
-
-✅ Moved GUIDE.md → docs/guides/
-✅ Moved ARCHITECTURE.md → docs/
-✅ Moved RESEARCH.md → docs/research/
-```
-
-### Phase 3: Documentation & Hooks
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PHASE 3: Documentation & Hooks
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Proposed changes:
-  - Rebuild README.md from PROJECT.md
-  - Update CHANGELOG.md
-  - Install auto_format.py hook
-  - Configure pre-commit hooks
-
-Apply Phase 3? [Y/n/q]: Y
-
-✅ Rebuilt README.md
-✅ Updated CHANGELOG.md
-✅ Installed hooks
-✅ Configured pre-commit
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Directories created: 4
-Files moved: 3
-Documentation updated: 2
-Hooks installed: 2
-
-✅ All phases completed
-✅ Changes committed (abc1234)
-
-Project now 100% aligned with PROJECT.md ✅
-```
-
-**User control at each phase**:
-- Type `Y` to apply phase
-- Type `n` to skip phase (move to next)
-- Type `q` to quit (stop all changes)
-
-**When to use**:
-- ✅ **First time** using alignment (safest)
-- ✅ Want control over each change
-- ✅ Unfamiliar projects
-- ✅ Review before applying
-
----
-
-## Option 3: Preview Changes (Dry Run)
-
-**Show what would change without applying**:
+## Example: Completing a Conflict
 
 ```
-DRY RUN - No changes will be made
+CONFLICT #2: Missing Test Structure
+────────────────────────────────────
+PROJECT.md says:
+  Tests organized in: tests/unit/, tests/integration/
 
-Would create directories:
-  + tests/unit/
-  + tests/integration/
-  + tests/uat/
-  + docs/guides/
+Reality shows:
+  Only tests/ directory exists (no subdirectories)
 
-Would move files:
-  GUIDE.md → docs/guides/GUIDE.md
-  ARCHITECTURE.md → docs/ARCHITECTURE.md
+What should we do?
+A) YES - PROJECT.md is correct (organize tests)
+B) NO - Update PROJECT.md to reflect current structure
 
-Would update documentation:
-  README.md (rebuild from PROJECT.md)
-  CHANGELOG.md (add recent commits)
+Your choice [A/B]: A
 
-Would install hooks:
-  auto_format.py
-  security_scan.py
-
-To apply these changes, run again and choose option 2.
+Action: Organize existing tests into unit/integration/uat
+Impact: Makes testing structure match documentation
 ```
-
-**When to use**:
-- ✅ See what would change first
-- ✅ Before interactive fix
-- ✅ Sanity check
-
----
-
-## Option 4: Cancel
-
-**Exit without changes**:
-- Aborts immediately
-- No modifications made
-- Report still available (was shown before menu)
 
 ---
 
@@ -248,92 +127,72 @@ To apply these changes, run again and choose option 2.
 # 1. Run alignment
 /align-project
 
-# 2. See report, choose option 2 (fix interactively)
-Choice [1-4]: 2
-
-# 3. Review and approve each phase
-Apply Phase 1? [Y/n/q]: Y
-Apply Phase 2? [Y/n/q]: Y
-Apply Phase 3? [Y/n/q]: Y
-
-# Done! Project aligned.
+# 2. Agent analyzes and asks about each conflict
+# 3. You choose A (PROJECT.md correct) or B (update PROJECT.md)
+# 4. Agent implements your choices
+# 5. Agent commits changes with summary
 ```
 
 ### Periodic Checks
 
 ```bash
-# Quick alignment check
+# Check alignment
 /align-project
 
-# Choose option 1 (view report only)
-Choice [1-4]: 1
+# If fully aligned:
+# ✅ No conflicts found - project is well-aligned!
 
-# Review issues, decide if fixes needed
+# If conflicts found:
+# Answer each question to resolve
 ```
 
-### Preview Before Fixing
+---
 
-```bash
-# See what would change
-/align-project
+## What the Agent Does
 
-# Choose option 3 (dry run)
-Choice [1-4]: 3
+### Analysis Phase
+- ✅ Reads PROJECT.md entirely
+- ✅ Scans codebase (src/, lib/, components/, etc.)
+- ✅ Checks documentation (README, docs/, etc.)
+- ✅ Identifies conflicts between stated goals and reality
+- ✅ Groups related issues together
 
-# Review proposed changes
+### Question Phase
+- ✅ Asks binary questions (clear A or B choices)
+- ✅ Explains context for each conflict
+- ✅ Shows what code exists vs. what PROJECT.md says
+- ✅ Suggests practical fixes
 
-# Run again to apply
-/align-project
-Choice [1-4]: 2
-```
+### Execution Phase
+- ✅ Updates PROJECT.md (if you choose B)
+- ✅ Removes unscoped code (if you choose A)
+- ✅ Organizes files to match scope
+- ✅ Commits changes with clear messages
 
 ---
 
 ## Safety Features
 
-✅ **Analysis first**: Always shows what's wrong before asking what to do
-✅ **Interactive approval**: Option 2 asks at each phase
-✅ **Dry run available**: Option 3 shows changes without applying
-✅ **Git commits**: Changes are committed (easy rollback)
-✅ **Cancel anytime**: Press Ctrl+C or choose option 4
-
----
-
-## Comparison to Old Commands
-
-**Before** (complicated, hard to remember):
-```bash
-/align-project              # Just analysis
-/align-project-safe         # Interactive fix
-/align-project-dry-run      # Preview
-/align-project-fix          # Auto-fix (risky!)
-```
-
-**Now** (simple, self-documenting):
-```bash
-/align-project              # Shows menu, you choose
-```
-
-**Benefits**:
-- ✅ One command to learn
-- ✅ Options shown when needed
-- ✅ No flag memorization
-- ✅ Clearer workflow
+✅ **Analysis before action**: Agent shows conflicts before making changes
+✅ **Binary questions**: No ambiguity - clear choices
+✅ **Clear impact**: Agent explains what each choice does
+✅ **Reversible**: Changes are committed (easy rollback)
+✅ **Stop anytime**: Can exit at any point
 
 ---
 
 ## When to Use This Command
 
 **Run /align-project when**:
-- 🆕 First time setup (option 2)
-- 📊 Periodic health checks (option 1)
-- 🔄 After major PROJECT.md changes (option 2)
-- 🔍 Before releases (option 1)
-- 👥 Onboarding new team members (option 2)
+- 🆕 First time setup (understand project scope)
+- 📊 After major development (ensure docs match code)
+- 🔄 After PROJECT.md changes (verify implementation updated)
+- 🔍 Before releases (ensure scope is accurate)
+- 👥 Onboarding team members (clarify what's in/out of scope)
 
-**Don't need it if**:
-- Project already aligned (will show 100%)
-- You just want to code (not needed every time)
+**No need if**:
+- Project already aligned (agent will say "no conflicts found")
+- You just want to code quickly (can skip)
 
 ---
 
@@ -349,26 +208,26 @@ Choice [1-4]: 2
 /align-project
 ```
 
-### "Permission denied" during phase 2 (file moves)
+### "Agent can't find files"
 
-- Check file permissions
-- Close any editors with files open
-- Run with proper permissions
+- Check that PROJECT.md exists and is readable
+- Verify codebase has typical structure (src/, lib/, etc.)
+- Agent may need broader scope to find features
 
-### "Hook installation failed"
+### "Disagreeing with agent's analysis"
 
-- Verify .git/ directory exists
-- Check .git/hooks/ is writable
-- May need to run /setup first
+Agent analyzes based on PROJECT.md being the source of truth. If you disagree:
+- Choose `B) NO` to update PROJECT.md instead
+- Agent will adapt the documentation to match reality
 
 ---
 
 ## Related Commands
 
-- `/setup` - Create PROJECT.md from template
+- `/setup` - Create or update PROJECT.md
 - `/test` - Run tests after alignment
-- `/format` - Format code after alignment
+- `/auto-implement` - Autonomous feature development
 
 ---
 
-**Use this to analyze project health and optionally fix issues. Self-documenting menu guides you through options.**
+**Use this to find conflicts between your documented goals and actual implementation. Agent intelligently guides you to alignment.**

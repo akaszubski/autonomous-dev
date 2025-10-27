@@ -1,7 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-10-19
+**Last Updated**: 2025-10-27
 **Project**: Autonomous Development Plugin for Claude Code 2.0
+**Version**: v3.0.2 (Aligned with PROJECT.md)
 
 ---
 
@@ -9,15 +10,17 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - Agents, skills, and hooks for 10x faster development
+**Core Plugin**: `autonomous-dev` - 16 AI agents, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /test, /format, /commit, etc.
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
 ```
+
+**Note**: Commands `/test`, `/format`, `/commit` were archived in v3.1.0. Use `/auto-implement` for full feature development.
 
 ---
 
@@ -98,43 +101,90 @@ git commit -m "docs: Update project goals"
 
 ## Architecture
 
-### Agents (7 specialists)
+### Agents (16 specialists)
 
 Located: `plugins/autonomous-dev/agents/`
 
-- **researcher**: Web research (WebSearch, WebFetch, Grep, Glob, Read)
-- **planner**: Architecture planning (Read, Grep, Glob, Bash)
-- **test-master**: TDD specialist (Read, Write, Edit, Bash, Grep, Glob)
-- **implementer**: Code implementation (Read, Write, Edit, Bash, Grep, Glob)
-- **reviewer**: Quality gate (Read, Bash, Grep, Glob)
-- **security-auditor**: Security scanning (Read, Bash, Grep, Glob)
-- **doc-master**: Documentation sync (Read, Write, Edit, Bash, Grep, Glob)
+**Core Workflow Agents (10)**:
+- **orchestrator**: PROJECT.md gatekeeper, validates alignment before proceeding
+- **researcher**: Web research for patterns and best practices
+- **planner**: Architecture planning and design
+- **test-master**: TDD specialist (writes tests first)
+- **implementer**: Code implementation (makes tests pass)
+- **reviewer**: Quality gate (code review)
+- **security-auditor**: Security scanning and vulnerability detection
+- **doc-master**: Documentation synchronization
+- **advisor**: Critical thinking and validation (v3.0+)
+- **quality-validator**: GenAI-powered feature validation (v3.0+)
 
-### Skills (6 core competencies)
+**Utility Agents (6)**:
+- **alignment-validator**: PROJECT.md alignment checking
+- **commit-message-generator**: Conventional commit generation
+- **pr-description-generator**: Pull request descriptions
+- **project-progress-tracker**: Track progress against goals
+- **alignment-analyzer**: Detailed alignment analysis
+- **project-bootstrapper**: Tech stack detection and setup (v3.0+)
 
-Located: `plugins/autonomous-dev/skills/`
+### Skills (0 - Removed)
 
-- **python-standards**: PEP 8, type hints, docstrings
-- **testing-guide**: TDD workflow, pytest patterns
-- **security-patterns**: OWASP, secrets management
-- **documentation-guide**: Docstring format, README updates
-- **research-patterns**: Web search strategies
-- **engineering-standards**: Code quality standards
+Per Anthropic anti-pattern guidance (v2.5+), skills were removed. Guidance now lives directly in agent prompts and global CLAUDE.md files.
 
-### Hooks (Automation)
+Previously had: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards
+
+### Hooks (23 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`
 
+**Core Hooks (9)**:
 - `auto_format.py`: black + isort (Python), prettier (JS/TS)
 - `auto_test.py`: pytest on related tests
-- `auto_enforce_coverage.py`: 80% minimum coverage
 - `security_scan.py`: Secrets detection, vulnerability scanning
+- `validate_project_alignment.py`: PROJECT.md validation
+- `validate_claude_alignment.py`: CLAUDE.md alignment checking (v3.0.2+)
+- `enforce_file_organization.py`: Standard structure enforcement
+- `enforce_orchestrator.py`: Validates orchestrator ran (v3.0+)
+- `enforce_tdd.py`: Validates tests written before code (v3.0+)
 
-**Lifecycle hooks**:
+**Optional/Extended Hooks (14+)**:
+- `auto_enforce_coverage.py`: 80% minimum coverage
+- `auto_fix_docs.py`: Documentation consistency
+- `auto_add_to_regression.py`: Regression test tracking
+- `auto_track_issues.py`: GitHub issue tracking
+- Plus 10+ others for extended enforcement and validation
+
+**Lifecycle Hooks**:
 - `UserPromptSubmit`: Display project context
 - `SubagentStop`: Log agent completion to session
 
 ---
+
+## CLAUDE.md Alignment (New in v3.0.2)
+
+**What it is**: System to detect and prevent drift between documented standards and actual codebase
+
+**Why it matters**: CLAUDE.md defines development practices. If it drifts from reality, new developers follow outdated practices.
+
+**Check alignment**:
+```bash
+# Automatic (via hook)
+git commit -m "feature"  # Hook validates CLAUDE.md is in sync
+
+# Manual check
+python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+```
+
+**What it validates**:
+- Version consistency (global vs project CLAUDE.md vs PROJECT.md)
+- Agent counts match reality (currently 16, not 7)
+- Command counts match installed commands (currently 8)
+- Documented features actually exist
+- Best practices are up-to-date
+
+**If drift detected**:
+1. Run validation to see specific issues
+2. Update CLAUDE.md with actual current state
+3. Commit the alignment fix
+4. Hooks ensure all features stay in sync
 
 ## Troubleshooting
 
@@ -149,6 +199,21 @@ Located: `plugins/autonomous-dev/hooks/`
 1. Check goals: `cat .claude/PROJECT.md | grep GOALS`
 2. Either: Modify feature to align
 3. Or: Update PROJECT.md if direction changed
+
+### "CLAUDE.md alignment drift detected"
+
+This means CLAUDE.md is outdated. Fix it:
+```bash
+# See what's drifted
+python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+
+# Update CLAUDE.md based on findings
+vim CLAUDE.md  # Update version, counts, descriptions
+
+# Commit the fix
+git add CLAUDE.md
+git commit -m "docs: update CLAUDE.md alignment"
+```
 
 ### "Agent can't use tool X"
 

@@ -102,12 +102,19 @@ This release replaces traditional testing with GenAI-powered validation and adds
 
 This release achieves true "vibe coding with background enforcement" by eliminating manual quality commands:
 
+### v3.2.0 Features (2025-10-27)
+
+- 🧠 **GenAI Command Refactoring**: Replaced Python orchestration with intelligent agents
+  - ✅ Refactored `/align-project` → GenAI-native (alignment-analyzer agent)
+  - ✅ Refactored `/status` → GenAI-native (project-progress-tracker agent)
+  - 🗑️ Removed `/sync-dev` → Dev utility with limited value
+  - **Result**: 8 commands, all with intelligent GenAI reasoning
+
 ### v3.1.0 Features (2025-10-26)
 
 - 🗂️ **Command Simplification**: 64% reduction (11 → 4 core commands)
-  - Archived: `/test`, `/align-project`, `/advise` (manual quality checks → automatic hooks)
+  - Archived: `/test`, `/advise` (manual quality checks → automatic hooks)
   - Merged: `/bootstrap`, `/create-project-md` into `/setup`
-  - Developer tools: `/sync-dev`, `/health-check` moved to scripts/
   - **Philosophy**: Background enforcement, not manual intervention
 
 - 📋 **Professional Methodology Documentation** (`docs/METHODOLOGY.md`)
@@ -527,39 +534,48 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ---
 
-### ⚙️ 4 Core Commands
+### ⚙️ 8 Commands (All GenAI-Native)
 
 **Philosophy**: "Vibe coding with background enforcement" - Natural language input → Professional engineering output
 
-| Command | Purpose | When to Use |
-|---------|---------|-------------|
-| `/auto-implement` | Autonomous feature development (vibe coding entry point) | Every feature - say what you want, Claude handles SDLC |
-| `/setup` | Interactive setup wizard (auto-detects tech stack, creates PROJECT.md, installs hooks) | Once per project during installation |
-| `/status` | View PROJECT.md goal progress and recent session quality | Check strategic alignment and workflow quality |
-| `/uninstall` | Uninstall or disable plugin features with guided options | Once when removing plugin |
+| Command | Purpose | Agent | When to Use |
+|---------|---------|-------|------------|
+| `/auto-implement` | Autonomous feature development | orchestrator | Every feature - describe what you want |
+| `/align-project` | Find/fix conflicts between goals and code | alignment-analyzer | After major changes, before releases |
+| `/status` | Track strategic progress, get recommendations | project-progress-tracker | Check goal progress, decide next priorities |
+| `/setup` | Interactive setup wizard | project-bootstrapper | Once per project during installation |
+| `/health-check` | Validate plugin component integrity | (Python validation) | After installation, when debugging issues |
+| `/align-claude` | Check/fix documentation drift | (Validation + script) | Automated via hook, manual check optional |
+| `/test` | Run all automated tests | (Pytest wrapper) | Validate quality before commit |
+| `/uninstall` | Remove or disable plugin | (Interactive menu) | When cleaning up |
 
-**Core Workflow**:
+**Workflow**:
 ```bash
 # 1. Setup (once)
 /setup
 
-# 2. Build features (repeat)
-"Add user authentication"        # Natural language
-# → /auto-implement auto-invokes (strict mode)
-# → All SDLC steps automated (research → plan → test → implement → review → security → docs)
-# → Hooks validate at commit (format, test, security, quality)
+# 2. Check strategic direction
+/status           # See what goals need work
 
-/clear                           # Clear context
+# 3. Implement feature (repeat)
+/auto-implement "Add user authentication"  # Natural language
+# → Orchestrator coordinates agents
+# → All SDLC steps automated
+# → Hooks validate at commit
 
-"Add rate limiting"              # Next feature
-# → Repeat
+/status           # Check updated progress
+/clear            # Reset context for next feature
+
+# 4. Before release
+/align-project    # Ensure implementation matches goals
+/test             # Run full test suite
 ```
 
-**What happened to other commands?**
-- **Manual quality commands** (`/test`, `/align-project`) → Hooks run automatically at commit
-- **Manual analysis** (`/advise`) → orchestrator validates PROJECT.md alignment automatically
-- **Duplicates** (`/bootstrap`, `/create-project-md`) → Merged into `/setup`
-- **Developer tools** (`/sync-dev`, `/health-check`) → Moved to scripts/ for direct invocation
+**Key Changes**:
+- ✅ **All commands are GenAI-native**: Every command uses intelligent agents
+- ✅ **Commands are cooperative**: `/status` → `/auto-implement` → `/align-project` → `/test`
+- ✅ **Removed `/sync-dev`**: Dev-only utility with limited value
+- ✅ **Kept `/test`**: Simple bash wrapper for pytest (no GenAI needed)
 
 See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration guide.
 
