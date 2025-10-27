@@ -54,13 +54,19 @@ analyzer = GenAIAnalyzer(
 
 def get_plugin_root() -> Path:
     """Find plugin root directory."""
-    current = Path(__file__).parent.parent
-    # Verify we're in the plugin directory
+    # First, check if we're running from .claude/hooks (dogfooding)
+    hook_dir = Path(__file__).parent
+    repo_root = hook_dir.parent.parent  # .claude/hooks -> .claude -> repo_root
+
+    plugin_path = repo_root / "plugins" / "autonomous-dev"
+    if plugin_path.exists():
+        return plugin_path
+
+    # Fallback: check if we're already in the plugin directory
+    current = hook_dir.parent
     if (current / "agents").exists() and (current / "skills").exists():
         return current
-    # Try parent directory (if running from project)
-    if (current.parent / "plugins" / "autonomous-dev").exists():
-        return current.parent / "plugins" / "autonomous-dev"
+
     # Give up
     raise FileNotFoundError("Could not find plugin root directory")
 
