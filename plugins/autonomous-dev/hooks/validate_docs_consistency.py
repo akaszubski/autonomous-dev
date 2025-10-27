@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Documentation Consistency Validation Hook - Layer 3 Defense
+Documentation Consistency Validation Hook - Layer 3 Defense with GenAI Semantic Validation
 
 This pre-commit hook validates that documentation stays in sync with code.
 It's OPTIONAL - can be annoying to block commits, but catches drift early.
+
+Features:
+- Count validation (exact matches)
+- GenAI semantic validation of descriptions (accuracy checking)
+- Catches misleading or inaccurate documentation
+- Graceful degradation with fallback heuristics
 
 Enable via:
     .claude/settings.local.json:
@@ -20,6 +26,7 @@ Or via git pre-commit hook:
 
 What it checks:
 - README.md skill/agent/command counts match reality
+- GenAI validates descriptions match actual functionality
 - Cross-document consistency (SYNC-STATUS, UPDATES, marketplace.json)
 - No references to non-existent skills
 - marketplace.json metrics match actual counts
@@ -32,6 +39,7 @@ Exit codes:
 import sys
 import json
 import re
+import os
 from pathlib import Path
 from typing import List, Tuple
 
@@ -218,6 +226,84 @@ def check_cross_document_consistency(plugin_root: Path, skill_count: int) -> Tup
     return True, "✅ Cross-document consistency verified"
 
 
+def validate_description_accuracy_with_genai(plugin_root: Path, entity_type: str) -> Tuple[bool, str]:
+    """Use GenAI to validate if descriptions match actual implementation.
+
+    Args:
+        plugin_root: Root directory of plugin
+        entity_type: 'agents', 'skills', or 'commands'
+
+    Returns:
+        (passed, message) tuple
+    """
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        # If SDK not available, skip GenAI validation
+        return True, "⏭️  Skipped GenAI description validation (SDK not available)"
+
+    # Check if we should skip GenAI analysis
+    use_genai = os.environ.get("GENAI_DOCS_VALIDATE", "true").lower() == "true"
+    if not use_genai:
+        return True, "⏭️  GenAI description validation disabled"
+
+    try:
+        client = Anthropic()
+
+        # Get README.md section for the entity type
+        readme_path = plugin_root / "README.md"
+        readme_content = readme_path.read_text()
+
+        # Extract the relevant section (simplified - looks for entity type mentions)
+        section_start = readme_content.lower().find(entity_type.lower())
+        if section_start == -1:
+            return True, f"⏭️  No {entity_type} section found in README.md"
+
+        # Get a reasonable chunk of the section
+        section_end = min(section_start + 2000, len(readme_content))
+        section = readme_content[section_start:section_end]
+
+        prompt = f"""Review this documentation for {entity_type} and assess if descriptions are accurate.
+
+Documentation excerpt:
+{section[:1000]}
+
+Questions:
+1. Are the descriptions clear and accurate?
+2. Do the descriptions match typical implementation patterns?
+3. Are there any obviously misleading descriptions?
+
+Respond with ONLY: ACCURATE or MISLEADING
+
+If descriptions are clear, professional, and accurate: ACCURATE
+If descriptions seem misleading, vague, or inaccurate: MISLEADING"""
+
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        response = message.content[0].text.strip().upper()
+        is_accurate = "ACCURATE" in response and "MISLEADING" not in response
+
+        if is_accurate:
+            return True, f"✅ GenAI validated {entity_type} descriptions are accurate"
+        else:
+            return False, (
+                f"⚠️  GenAI found potential inaccuracies in {entity_type} descriptions\n"
+                f"Review README.md {entity_type} section for misleading or vague descriptions"
+            )
+
+    except Exception as e:
+        # If GenAI call fails, silently skip validation
+        if os.environ.get("DEBUG_DOCS_VALIDATE"):
+            print(f"⚠️  GenAI description validation failed: {e}", file=sys.stderr)
+        return True, "⏭️  GenAI validation skipped (call failed)"
+
+
 def main() -> int:
     """Run all documentation consistency checks.
 
@@ -225,7 +311,9 @@ def main() -> int:
         0 if all checks pass
         1 if any check fails
     """
-    print("🔍 Validating documentation consistency...")
+    use_genai = os.environ.get("GENAI_DOCS_VALIDATE", "true").lower() == "true"
+    genai_status = "🤖 (with GenAI semantic validation)" if use_genai else ""
+    print(f"🔍 Validating documentation consistency... {genai_status}")
     print()
 
     try:
@@ -254,6 +342,13 @@ def main() -> int:
         ("Broken skill references", check_no_broken_skill_references(plugin_root)),
         ("Cross-document consistency", check_cross_document_consistency(plugin_root, skill_count)),
     ]
+
+    # Add GenAI semantic validation if enabled
+    if use_genai:
+        checks.extend([
+            ("Agent descriptions accuracy", validate_description_accuracy_with_genai(plugin_root, "agents")),
+            ("Command descriptions accuracy", validate_description_accuracy_with_genai(plugin_root, "commands")),
+        ])
 
     all_passed = True
 

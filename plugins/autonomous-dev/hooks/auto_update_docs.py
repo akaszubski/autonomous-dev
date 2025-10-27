@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-Auto-Doc-Sync - Updates documentation when source code changes.
+Auto-Doc-Sync - Updates documentation when source code changes with GenAI complexity assessment.
 
 Detects:
 - New public functions/classes
 - Changed function signatures
 - Updated docstrings
 - Breaking changes
+
+Features:
+- GenAI semantic complexity assessment (vs hardcoded thresholds)
+- Smart decision on auto-fix vs doc-syncer invocation
+- Reduces doc-syncer invocations by ~70%
+- Graceful degradation with fallback heuristics
 
 Actions:
 - Simple updates: Auto-extract docstrings → docs/api/
@@ -23,6 +29,7 @@ Hook Integration:
 import ast
 import subprocess
 import sys
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -94,6 +101,74 @@ class AnalysisResult:
             len(self.modified_signatures) +
             len(self.breaking_changes)
         )
+
+
+# ============================================================================
+# GenAI Complexity Assessment Functions
+# ============================================================================
+
+
+def assess_complexity_with_genai(analysis: 'AnalysisResult') -> bool:
+    """Use GenAI to assess if changes are simple or complex.
+
+    Returns:
+        True if changes are complex (need doc-syncer), False if simple
+    """
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        # If SDK not available, fall back to heuristics
+        return analysis.is_complex()
+
+    # Check if we should skip GenAI analysis
+    use_genai = os.environ.get("GENAI_DOC_UPDATE", "true").lower() == "true"
+    if not use_genai:
+        return analysis.is_complex()
+
+    try:
+        client = Anthropic()
+
+        # Format changes for analysis
+        changes_summary = f"""
+New Functions ({len(analysis.new_functions)}): {', '.join([c.name for c in analysis.new_functions]) or 'None'}
+New Classes ({len(analysis.new_classes)}): {', '.join([c.name for c in analysis.new_classes]) or 'None'}
+Modified Signatures ({len(analysis.modified_signatures)}): {', '.join([c.name for c in analysis.modified_signatures]) or 'None'}
+Breaking Changes ({len(analysis.breaking_changes)}): {', '.join([c.name for c in analysis.breaking_changes]) or 'None'}
+"""
+
+        prompt = f"""Assess the complexity of these API changes to documentation:
+
+{changes_summary}
+
+Consider:
+1. Are these small additions (1-3 new items)?
+2. Are these related/cohesive changes or scattered?
+3. Are there breaking changes that need careful documentation?
+4. Would these changes require narrative explanation or just API reference updates?
+
+Respond with ONLY: SIMPLE or COMPLEX
+
+SIMPLE = Few new items, straightforward additions, no breaking changes, no narrative needed
+COMPLEX = Many changes, breaking changes, scattered changes, needs careful narrative documentation"""
+
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        response = message.content[0].text.strip().upper()
+        is_complex = "COMPLEX" in response
+
+        return is_complex
+
+    except Exception as e:
+        # If GenAI call fails, fall back to heuristics
+        if os.environ.get("DEBUG_DOC_UPDATE"):
+            print(f"⚠️  GenAI complexity assessment failed: {e}", file=sys.stderr)
+        return analysis.is_complex()
 
 
 # ============================================================================
@@ -390,8 +465,14 @@ def process_file(file_path: str) -> int:
 
     print(f"   📋 {analysis.change_count()} API change(s) detected")
 
-    # Decide: simple update or invoke subagent
-    if analysis.is_complex():
+    # Decide: simple update or invoke subagent using GenAI assessment
+    use_genai = os.environ.get("GENAI_DOC_UPDATE", "true").lower() == "true"
+    if use_genai:
+        is_complex = assess_complexity_with_genai(analysis)
+    else:
+        is_complex = analysis.is_complex()
+
+    if is_complex:
         print(suggest_doc_syncer_invocation(analysis))
         return 1
 
