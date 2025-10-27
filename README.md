@@ -2,11 +2,11 @@
 
 **Last Updated**: 2025-10-27
 **Version**: v3.2.0
-**Status**: Production-ready with GenAI command refactoring
+**Status**: Production-ready with Vibe Coding + Auto-Orchestration
 
-Production-ready plugin for autonomous development with **PROJECT.md-first architecture** and **8 GenAI-native commands**.
+Production-ready plugin for autonomous development with **dual-layer architecture** (Vibe Coding + Background Enforcement), **PROJECT.md-first enforcement**, and **automatic agent orchestration**.
 
-🚀 **Smart Installation** • 📋 **PROJECT.md-first** • 🧠 **GenAI Commands** • 🤖 **16 Specialist Agents** • 🔒 **Security Scanning** • 🌍 **Multi-language**
+🧠 **Vibe Coding** • 🛑 **PROJECT.md Gatekeeper** • 🤖 **19 Specialist Agents** • ✅ **Auto-Orchestration** • 🔒 **Security Enforcement** • 📋 **8 Core Commands**
 
 ---
 
@@ -76,13 +76,16 @@ A single file at your project root that defines:
 
 ### What You Get (8 Commands)
 
-✅ `/auto-implement` - Describe a feature, Claude handles everything
+**Core Commands**:
+✅ `/auto-implement` - Describe a feature, Claude handles everything autonomously
 ✅ `/align-project` - Find & fix misalignment between goals and code
 ✅ `/status` - Track strategic goal progress with AI recommendations
 ✅ `/setup` - Interactive project configuration
-✅ `/health-check` - Verify all components loaded
-✅ `/align-claude` - Check documentation drift
-✅ `/test` - Run automated tests
+✅ `/test` - Run all automated tests (unit + integration + UAT)
+
+**Utility Commands**:
+✅ `/health-check` - Verify all components loaded and working
+✅ `/sync-dev` - Intelligent development sync with conflict detection
 ✅ `/uninstall` - Remove or disable plugin
 
 ### Verify Installation
@@ -91,7 +94,9 @@ A single file at your project root that defines:
 /health-check
 ```
 
-Should show all 8 commands loaded ✅
+Should show all 8 commands loaded and working ✅:
+- `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`
+- `/health-check`, `/sync-dev`, `/uninstall`
 
 ### Optional Setup (Advanced)
 
@@ -211,133 +216,151 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 ## What You Get
 
-### 8 Specialized Agents
-- **orchestrator** - Validates PROJECT.md alignment (master coordinator)
-- **researcher** - Web research for best practices
+### 19 Specialized Agents
+
+**Core Workflow Agents (10)**:
+- **orchestrator** - PROJECT.md gatekeeper, validates alignment before any work begins
+- **researcher** - Web research for patterns and best practices
 - **planner** - Architecture & implementation planning (opus model)
 - **test-master** - TDD specialist (writes tests first)
 - **implementer** - Code implementation
 - **reviewer** - Quality gate checks (sonnet model)
-- **security-auditor** - Security scanning (haiku model)
+- **security-auditor** - Security scanning and vulnerability detection (haiku model)
 - **doc-master** - Documentation sync (haiku model)
+- **advisor** - Critical thinking and validation
+- **quality-validator** - GenAI-powered feature validation
 
-### 21 Slash Commands
+**Utility Agents (9)**:
+- **alignment-validator** - PROJECT.md alignment checking
+- **alignment-analyzer** - Detailed alignment analysis
+- **commit-message-generator** - Conventional commit generation
+- **pr-description-generator** - Pull request descriptions
+- **project-progress-tracker** - Track progress against goals
+- **project-bootstrapper** - Tech stack detection and setup
+- **setup-wizard** - Intelligent setup and configuration
+- **project-status-analyzer** - Real-time project health monitoring
+- **sync-validator** - Smart development sync and conflict detection
+
+### 8 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
-**Testing** (7 commands):
-- `/test` - All automated tests
-- `/test-unit` - Unit tests only (< 1s)
-- `/test-integration` - Integration tests (< 10s)
-- `/test-uat` - UAT tests (< 60s)
-- `/test-uat-genai` - GenAI UX validation (2-5min)
-- `/test-architecture` - GenAI architecture validation (2-5min)
-- `/test-complete` - Complete pre-release validation (5-10min)
+**Core Commands** (5):
+- `/auto-implement` - Describe feature, Claude handles everything autonomously
+- `/align-project` - Analyze & fix PROJECT.md alignment (menu: report/fix/preview/cancel)
+- `/setup` - Interactive project setup wizard
+- `/test` - Run all automated tests (unit + integration + UAT)
+- `/status` - Track strategic goal progress with AI recommendations
 
-**Commit** (4 commands):
-- `/commit` - Quick commit (< 5s)
-- `/commit-check` - Standard commit with full tests (< 60s)
-- `/commit-push` - Push commit with integrity checks (2-5min)
-- `/commit-release` - Production release (5-10min)
-
-**Alignment** (1 command):
-- `/align-project` - Analyze + fix (menu: report/fix/preview/cancel)
-
-**Documentation** (1 command):
-- `/sync-docs` - Sync docs (menu: smart/full/filesystem/API/CHANGELOG/cancel)
-
-**Issues** (1 command):
-- `/issue` - Create issues (menu: tests/GenAI/manual/preview/cancel)
-
-**Quality** (3 commands):
-- `/format` - Format code
-- `/security-scan` - Security scanning
-- `/full-check` - Complete quality check
-
-**Workflow** (4 commands):
-- `/auto-implement` - Autonomous feature implementation
-- `/setup` - Setup wizard
-- `/uninstall` - Uninstall plugin
+**Utility Commands** (3):
+- `/health-check` - Verify all components loaded and working
+- `/sync-dev` - Intelligent development sync with conflict detection
+- `/uninstall` - Remove or disable plugin
 
 See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
 
-### 13 Skills
-- **python-standards** - PEP 8, type hints, docstrings
-- **testing-guide** - TDD workflow, pytest patterns
-- **security-patterns** - OWASP, secrets management
-- **documentation-guide** - Docstring format, README updates
-- **research-patterns** - Web search strategies
-- **architecture-patterns** - System design patterns
-- **api-design** - REST API best practices
-- **code-review** - Review guidelines
-- **consistency-enforcement** - Documentation drift prevention
-- **database-design** - Schema design, migrations
-- **git-workflow** - Commit conventions, branching
-- **observability** - Logging, debugging, profiling
-- **project-management** - PROJECT.md templates
+### Automation Hooks (24 total)
 
-### Automation Hooks
-- **Auto-format** - black, isort (Python), prettier (JS/TS)
-- **Auto-test** - pytest (Python), jest (JS/TS)
-- **Auto-coverage** - 80% minimum enforcement
-- **Auto-security** - Secrets detection, vulnerability scanning
+**Core Enforcement Hooks (9)**:
+- **auto-format** - black + isort (Python), prettier (JS/TS)
+- **auto-test** - pytest (Python), jest (JS/TS)
+- **security-scan** - Secrets detection, vulnerability scanning
+- **validate-project-alignment** - PROJECT.md validation before commits
+- **validate-docs-consistency** - Documentation consistency enforcement
+- **enforce-file-organization** - Standard structure enforcement
+- **enforce-orchestrator** - Validates orchestrator ran (v3.0+)
+- **enforce-tdd** - Validates tests written before code (v3.0+)
+- **detect-feature-request** - Auto-invokes /auto-implement (vibe coding)
+
+**Extended Enforcement Hooks (15)**:
+- auto-add-to-regression, auto-enforce-coverage, auto-fix-docs, auto-generate-tests, auto-sync-dev, auto-tdd-enforcer, auto-track-issues, auto-update-docs, detect-doc-changes, enforce-bloat-prevention, enforce-command-limit, post-file-move, validate-claude-alignment, validate-documentation-alignment, validate-session-quality
 
 ---
 
 ## How It Works
 
-### The Autonomous Loop
+### The Autonomous Development Loop
 
-Every time you write code, the plugin automatically:
+This is a **dual-layer architecture**: Vibe Coding (natural language triggers) + Background Enforcement (automatic validation).
 
 ```
-1. CODE WRITTEN
-   └─> You: "Add user authentication"
-   └─> implementer agent writes code
+LAYER 1: VIBE CODING (User Experience)
+   ↓
+You: "implement user authentication"
+   ↓
+[Auto-Orchestration Hook]
+   └─> Detects feature request automatically
+   └─> Auto-invokes /auto-implement (no manual command typing)
+   ↓
 
-2. AUTO-FORMAT (instant)
-   └─> black + isort format Python
-   └─> prettier formats JS/TS
+LAYER 2: BACKGROUND ENFORCEMENT (Quality Assurance)
+   ↓
+orchestrator (PROJECT.md GATEKEEPER)
+   ├─> 1. Reads PROJECT.md (GOALS, SCOPE, CONSTRAINTS)
+   ├─> 2. Validates: Does feature serve GOALS?
+   ├─> 3. Validates: Is feature IN SCOPE?
+   ├─> 4. Validates: Respects CONSTRAINTS?
+   └─> 5. Decision:
+        ✅ Aligned → Proceed with 7-agent pipeline
+        ❌ NOT Aligned → BLOCK work (user updates PROJECT.md or modifies request)
+   ↓
 
-3. AUTO-TEST (2-5 seconds)
-   └─> Runs related tests automatically
-   └─> Shows failures immediately
+7-AGENT PIPELINE (only if PROJECT.md aligned):
+   │
+   ├─> researcher (5 min)     Finds patterns & best practices
+   ├─> planner (5 min)        Creates architecture plan
+   ├─> test-master (5 min)    Writes tests first (TDD)
+   ├─> implementer (10 min)   Writes code to pass tests
+   ├─> reviewer (2 min)       Quality gate checks
+   ├─> security-auditor (2 min) Security scanning
+   └─> doc-master (1 min)     Documentation sync
+   ↓
 
-4. AUTO-COVERAGE
-   └─> Measures coverage on changed files
-   └─> Enforces 80% minimum
+Total Time: ~30 minutes (vs 7+ hours manual)
+All SDLC steps completed, no shortcuts taken
+   ↓
 
-5. AUTO-SECURITY
-   └─> Scans for hardcoded secrets
-   └─> Checks for SQL injection patterns
+PRE-COMMIT VALIDATION (Automatic & Blocking):
+   ├─> ✅ PROJECT.md alignment
+   ├─> ✅ Tests pass (80%+ coverage)
+   ├─> ✅ Security scan passes
+   ├─> ✅ Docs synchronized
+   ├─> ✅ Code formatted
+   └─> ✅ TDD workflow validated
+   ↓
 
-6. AUTO-DOCUMENT
-   └─> Updates docstrings
-   └─> Syncs README if needed
-   └─> Use /sync-docs for manual sync
-
-7. COMMIT ✅
-   └─> All checks passed
-   └─> Code is formatted, tested, documented, secure
+RESULT:
+   ✅ Code committed (professional quality guaranteed)
+   ❌ If any check fails → Commit blocked (Claude can fix)
 ```
 
-### PROJECT.md-First Architecture
+### PROJECT.md-First Philosophy
 
-All work validates against `.claude/PROJECT.md`:
+Everything starts with **PROJECT.md** - a single file that defines your project's strategic direction:
 
-```bash
-You: "/auto-implement user authentication"
+```markdown
+# PROJECT.md (at your project root)
 
-orchestrator:
-1. ✅ Reads PROJECT.md
-2. ✅ Checks: Does this align with GOALS?
-3. ✅ Checks: Is this IN SCOPE?
-4. ✅ Checks: Does this respect CONSTRAINTS?
-5. ✅ Coordinates 7-agent pipeline
-6. ✅ Reports progress
+## GOALS
+What success looks like (e.g., "Build a scalable API")
 
-Result: Only aligned work proceeds. No scope creep.
+## SCOPE
+What's in/out (e.g., "Include auth, exclude payments")
+
+## CONSTRAINTS
+Technical limits (e.g., "Must support Python 3.11+")
+
+## ARCHITECTURE
+How it works (e.g., "FastAPI + PostgreSQL + Redis")
 ```
+
+**Why PROJECT.md-First?**
+
+✅ **Single source of truth** - One file defines strategic direction
+✅ **Automatic enforcement** - All work validates against PROJECT.md before proceeding
+✅ **Zero scope creep** - Feature requests outside SCOPE are automatically blocked
+✅ **Team alignment** - Humans and AI work toward same goals
+✅ **Survives tool changes** - PROJECT.md is markdown at root, survives plugin updates
 
 ---
 
