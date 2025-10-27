@@ -1,7 +1,9 @@
 {
   "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
   "permissions": {
-    "allow": [],
+    "allow": [
+      "Bash(git push:*)"
+    ],
     "deny": [],
     "ask": []
   },
