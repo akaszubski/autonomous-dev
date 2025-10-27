@@ -218,28 +218,30 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 ### 19 Specialized Agents
 
-**Core Workflow Agents (10)**:
+**Core Workflow Agents (8)** - Execute the main SDLC pipeline:
 - **orchestrator** - PROJECT.md gatekeeper, validates alignment before any work begins
 - **researcher** - Web research for patterns and best practices
-- **planner** - Architecture & implementation planning (opus model)
+- **planner** - Architecture & implementation planning
 - **test-master** - TDD specialist (writes tests first)
 - **implementer** - Code implementation
-- **reviewer** - Quality gate checks (sonnet model)
-- **security-auditor** - Security scanning and vulnerability detection (haiku model)
-- **doc-master** - Documentation sync (haiku model)
-- **advisor** - Critical thinking and validation
-- **quality-validator** - GenAI-powered feature validation
+- **reviewer** - Quality gate checks
+- **security-auditor** - Security scanning and vulnerability detection
+- **doc-master** - Documentation sync
 
-**Utility Agents (9)**:
-- **alignment-validator** - PROJECT.md alignment checking
-- **alignment-analyzer** - Detailed alignment analysis
-- **commit-message-generator** - Conventional commit generation
-- **pr-description-generator** - Pull request descriptions
-- **project-progress-tracker** - Track progress against goals
-- **project-bootstrapper** - Tech stack detection and setup
-- **setup-wizard** - Intelligent setup and configuration
+**Analysis & Validation Agents (6)** - Validate quality and alignment:
+- **advisor** - Critical thinking and risk validation
+- **quality-validator** - GenAI-powered feature quality validation
+- **alignment-validator** - PROJECT.md alignment validation
+- **alignment-analyzer** - Detailed conflict analysis (PROJECT.md vs reality)
+- **project-progress-tracker** - Track and update goal completion
 - **project-status-analyzer** - Real-time project health monitoring
-- **sync-validator** - Smart development sync and conflict detection
+
+**Automation & Setup Agents (5)** - Configure and automate workflows:
+- **commit-message-generator** - Conventional commit generation
+- **pr-description-generator** - Comprehensive PR descriptions
+- **setup-wizard** - Intelligent setup and tech stack configuration
+- **project-bootstrapper** - Analyze codebases and generate PROJECT.md
+- **sync-validator** - Smart dev sync and conflict detection
 
 ### 8 Slash Commands
 
