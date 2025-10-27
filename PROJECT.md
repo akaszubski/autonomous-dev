@@ -184,9 +184,9 @@ This is achieved via **dual-layer architecture**:
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
 - **Skills**: 0 (removed per Anthropic anti-pattern guidance - no skills/ directory)
 - **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
-- **Hooks**: 23 total
+- **Hooks**: 24 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, **enforce_orchestrator** (v3.0 - NEW), **enforce_tdd** (v3.0 - NEW)
-  - **Extended 14**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_session_quality
+  - **Extended 15**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, **validate_documentation_alignment** (v3.0.3 - NEW), validate_session_quality
 - **Plugin**: autonomous-dev (contains all components)
 - **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
 
