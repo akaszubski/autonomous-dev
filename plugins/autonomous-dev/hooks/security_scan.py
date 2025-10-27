@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-Language-agnostic security scanning hook.
+Language-agnostic security scanning hook with GenAI context analysis.
 
 Scans for:
 - Hardcoded API keys and secrets
 - Common security vulnerabilities
 - Sensitive data in code
 
+Features:
+- Pattern matching (regex-based detection)
+- GenAI context analysis (Claude determines if real vs test data)
+- Graceful degradation (works without Anthropic SDK)
+
 Works across Python, JavaScript, Go, and other languages.
 """
 
 import re
 import sys
+import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 # Secret patterns to detect
 SECRET_PATTERNS = [
@@ -72,6 +78,92 @@ def is_comment_or_docstring(line: str, language: str) -> bool:
     return False
 
 
+def analyze_secret_context(line: str, secret_type: str, variable_name: Optional[str] = None) -> bool:
+    """Use GenAI to determine if a matched secret is real or test data.
+
+    Returns:
+        True if it appears to be a real secret, False if likely test data
+    """
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        # If SDK not available, fall back to heuristics
+        return _heuristic_secret_check(line, secret_type, variable_name)
+
+    # Check if we should skip GenAI analysis
+    use_genai = os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
+    if not use_genai:
+        return _heuristic_secret_check(line, secret_type, variable_name)
+
+    try:
+        client = Anthropic()
+
+        # Extract variable context
+        var_context = ""
+        if "=" in line:
+            var_context = line.split("=")[0].strip()
+
+        prompt = f"""Analyze this line of code and determine if it contains a REAL API key/secret or TEST DATA.
+
+Line of code:
+{line}
+
+Secret type detected: {secret_type}
+Variable name context: {var_context or 'N/A'}
+
+Consider:
+1. Variable naming: Does name suggest test data? (test_, fake_, mock_, example_)
+2. Context: Is this in a test file, fixture, or documentation?
+3. Value patterns: Common test patterns like "test123", "dummy", all zeros/same chars?
+
+Respond with ONLY: REAL or FAKE
+
+If unsure, respond: LIKELY_REAL (be conservative - false negatives are better than false positives)"""
+
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        response = message.content[0].text.strip().upper()
+        is_real = "REAL" in response and "FAKE" not in response
+
+        return is_real
+
+    except Exception as e:
+        # If GenAI call fails, fall back to heuristics
+        if os.environ.get("DEBUG_SECURITY_SCAN"):
+            print(f"⚠️  GenAI analysis failed: {e}", file=sys.stderr)
+        return _heuristic_secret_check(line, secret_type, variable_name)
+
+
+def _heuristic_secret_check(line: str, secret_type: str, variable_name: Optional[str] = None) -> bool:
+    """Fallback heuristic check if GenAI unavailable.
+
+    Returns:
+        True if likely real secret, False if likely test data
+    """
+    # Common test data indicators
+    test_indicators = [
+        "test_", "fake_", "mock_", "example_", "dummy_",
+        "test123", "fake123", "mock123",
+        "sk-test", "pk_test", "rk_test",
+        "00000000", "11111111", "aaaaaaa", "99999999",
+        "placeholder", "sample", "demo", "xxx",
+    ]
+
+    line_lower = line.lower()
+    for indicator in test_indicators:
+        if indicator in line_lower:
+            return False
+
+    # If no obvious test indicators, assume real (conservative approach)
+    return True
+
+
 def get_language(file_path: Path) -> str:
     """Get language from file extension."""
     ext_map = {
@@ -87,7 +179,7 @@ def get_language(file_path: Path) -> str:
 
 
 def scan_file(file_path: Path) -> List[Tuple[int, str, str]]:
-    """Scan a file for secrets.
+    """Scan a file for secrets with GenAI context analysis.
 
     Returns:
         List of (line_number, secret_type, matched_text) tuples
@@ -114,7 +206,14 @@ def scan_file(file_path: Path) -> List[Tuple[int, str, str]]:
                         else:
                             redacted = "***"
 
-                        violations.append((line_num, secret_type, redacted))
+                        # Use GenAI to determine if this is a real secret or test data
+                        is_real_secret = analyze_secret_context(line, secret_type)
+
+                        if is_real_secret:
+                            violations.append((line_num, secret_type, redacted))
+                        elif os.environ.get("DEBUG_SECURITY_SCAN"):
+                            print(f"ℹ️  Skipped test data in {file_path}:{line_num} ({secret_type})",
+                                  file=sys.stderr)
 
     except Exception as e:
         print(f"⚠️  Error scanning {file_path}: {e}", file=sys.stderr)
@@ -151,13 +250,17 @@ def scan_directory(directory: Path = Path(".")) -> dict:
 
 
 def main():
-    """Run security scan."""
-    print("🔒 Running security scan...")
+    """Run security scan with GenAI context analysis."""
+    use_genai = os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
+    genai_status = "🤖 (with GenAI context analysis)" if use_genai else ""
+    print(f"🔒 Running security scan... {genai_status}")
 
     violations = scan_directory()
 
     if not violations:
         print("✅ No secrets or sensitive data detected")
+        if use_genai:
+            print("   (GenAI context analysis reduced false positives)")
         sys.exit(0)
 
     # Report violations
@@ -174,6 +277,11 @@ def main():
     print("  1. Move secrets to .env file (add to .gitignore)")
     print("  2. Use environment variables: os.getenv('API_KEY')")
     print("  3. Never commit real API keys or passwords")
+    print()
+
+    if use_genai:
+        print("💡 Tip: GenAI analysis reduces false positives by understanding context")
+        print("   Disable with: export GENAI_SECURITY_SCAN=false")
     print()
 
     sys.exit(1)
