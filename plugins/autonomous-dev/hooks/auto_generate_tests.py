@@ -34,6 +34,9 @@ import os
 from pathlib import Path
 from typing import Optional, Tuple
 
+from genai_utils import GenAIAnalyzer, parse_classification_response
+from genai_prompts import INTENT_CLASSIFICATION_PROMPT
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -68,6 +71,11 @@ SKIP_KEYWORDS = [
     "fix formatting",
 ]
 
+# Initialize GenAI analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_TEST_GENERATION", "true").lower() == "true"
+)
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -76,60 +84,25 @@ SKIP_KEYWORDS = [
 def classify_intent_with_genai(user_prompt: str) -> str:
     """Use GenAI to classify the intent of the user's prompt.
 
+    Delegates to shared GenAI utility with graceful fallback to heuristics.
+
     Returns:
         One of: IMPLEMENT, REFACTOR, DOCS, TEST, OTHER
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        # If SDK not available, fall back to heuristics
-        return _classify_intent_heuristic(user_prompt)
+    # Call shared GenAI analyzer
+    response = analyzer.analyze(INTENT_CLASSIFICATION_PROMPT, user_prompt=user_prompt)
 
-    # Check if we should skip GenAI analysis
-    use_genai = os.environ.get("GENAI_TEST_GENERATION", "true").lower() == "true"
-    if not use_genai:
-        return _classify_intent_heuristic(user_prompt)
-
-    try:
-        client = Anthropic()
-
-        prompt = f"""Classify the intent of this development task.
-
-User's statement:
-{user_prompt}
-
-Intent categories:
-- IMPLEMENT: Building new features, adding functionality, creating new code
-- REFACTOR: Restructuring existing code without changing behavior, renaming, improving
-- DOCS: Documentation updates, docstrings, README changes
-- TEST: Writing tests, fixing test issues, test-related work
-- OTHER: Everything else
-
-Respond with ONLY the category name (IMPLEMENT, REFACTOR, DOCS, TEST, or OTHER)."""
-
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+    # Parse response using shared utility
+    if response:
+        intent = parse_classification_response(
+            response,
+            expected_values=["IMPLEMENT", "REFACTOR", "DOCS", "TEST", "OTHER"]
         )
+        if intent:
+            return intent
 
-        response = message.content[0].text.strip().upper()
-
-        # Validate response is one of our categories
-        valid_intents = ["IMPLEMENT", "REFACTOR", "DOCS", "TEST", "OTHER"]
-        for intent in valid_intents:
-            if intent in response:
-                return intent
-
-        return "OTHER"
-
-    except Exception as e:
-        # If GenAI call fails, fall back to heuristics
-        if os.environ.get("DEBUG_TEST_GENERATION"):
-            print(f"⚠️  GenAI intent classification failed: {e}", file=sys.stderr)
-        return _classify_intent_heuristic(user_prompt)
+    # Fallback to heuristics if GenAI unavailable or ambiguous
+    return _classify_intent_heuristic(user_prompt)
 
 
 def _classify_intent_heuristic(user_prompt: str) -> str:

@@ -34,6 +34,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from genai_utils import GenAIAnalyzer, parse_binary_response
+from genai_prompts import COMPLEXITY_ASSESSMENT_PROMPT
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -50,6 +53,11 @@ COMPLEX_THRESHOLD = {
     "breaking_changes": 0,  # ANY breaking change = complex
     "new_functions": 5,  # 6+ new functions = complex
 }
+
+# Initialize GenAI analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_DOC_UPDATE", "true").lower() == "true"
+)
 
 # ============================================================================
 # Data Structures
@@ -111,64 +119,36 @@ class AnalysisResult:
 def assess_complexity_with_genai(analysis: 'AnalysisResult') -> bool:
     """Use GenAI to assess if changes are simple or complex.
 
+    Delegates to shared GenAI utility with graceful fallback to heuristics.
+
     Returns:
         True if changes are complex (need doc-syncer), False if simple
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        # If SDK not available, fall back to heuristics
-        return analysis.is_complex()
+    # Call shared GenAI analyzer
+    response = analyzer.analyze(
+        COMPLEXITY_ASSESSMENT_PROMPT,
+        num_functions=len(analysis.new_functions),
+        function_names=', '.join([c.name for c in analysis.new_functions]) or 'None',
+        num_classes=len(analysis.new_classes),
+        class_names=', '.join([c.name for c in analysis.new_classes]) or 'None',
+        num_modified=len(analysis.modified_signatures),
+        modified_names=', '.join([c.name for c in analysis.modified_signatures]) or 'None',
+        num_breaking=len(analysis.breaking_changes),
+        breaking_names=', '.join([c.name for c in analysis.breaking_changes]) or 'None',
+    )
 
-    # Check if we should skip GenAI analysis
-    use_genai = os.environ.get("GENAI_DOC_UPDATE", "true").lower() == "true"
-    if not use_genai:
-        return analysis.is_complex()
-
-    try:
-        client = Anthropic()
-
-        # Format changes for analysis
-        changes_summary = f"""
-New Functions ({len(analysis.new_functions)}): {', '.join([c.name for c in analysis.new_functions]) or 'None'}
-New Classes ({len(analysis.new_classes)}): {', '.join([c.name for c in analysis.new_classes]) or 'None'}
-Modified Signatures ({len(analysis.modified_signatures)}): {', '.join([c.name for c in analysis.modified_signatures]) or 'None'}
-Breaking Changes ({len(analysis.breaking_changes)}): {', '.join([c.name for c in analysis.breaking_changes]) or 'None'}
-"""
-
-        prompt = f"""Assess the complexity of these API changes to documentation:
-
-{changes_summary}
-
-Consider:
-1. Are these small additions (1-3 new items)?
-2. Are these related/cohesive changes or scattered?
-3. Are there breaking changes that need careful documentation?
-4. Would these changes require narrative explanation or just API reference updates?
-
-Respond with ONLY: SIMPLE or COMPLEX
-
-SIMPLE = Few new items, straightforward additions, no breaking changes, no narrative needed
-COMPLEX = Many changes, breaking changes, scattered changes, needs careful narrative documentation"""
-
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+    # Parse response using shared utility
+    if response:
+        is_complex = parse_binary_response(
+            response,
+            true_keywords=["COMPLEX"],
+            false_keywords=["SIMPLE"]
         )
+        if is_complex is not None:
+            return is_complex
 
-        response = message.content[0].text.strip().upper()
-        is_complex = "COMPLEX" in response
-
-        return is_complex
-
-    except Exception as e:
-        # If GenAI call fails, fall back to heuristics
-        if os.environ.get("DEBUG_DOC_UPDATE"):
-            print(f"⚠️  GenAI complexity assessment failed: {e}", file=sys.stderr)
-        return analysis.is_complex()
+    # Fallback to heuristics if GenAI unavailable or ambiguous
+    return analysis.is_complex()
 
 
 # ============================================================================

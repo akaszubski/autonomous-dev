@@ -43,6 +43,14 @@ import os
 from pathlib import Path
 from typing import List, Tuple
 
+from genai_utils import GenAIAnalyzer, parse_binary_response
+from genai_prompts import DESCRIPTION_VALIDATION_PROMPT
+
+# Initialize GenAI analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_DOCS_VALIDATE", "true").lower() == "true"
+)
+
 
 def get_plugin_root() -> Path:
     """Find plugin root directory."""
@@ -229,6 +237,8 @@ def check_cross_document_consistency(plugin_root: Path, skill_count: int) -> Tup
 def validate_description_accuracy_with_genai(plugin_root: Path, entity_type: str) -> Tuple[bool, str]:
     """Use GenAI to validate if descriptions match actual implementation.
 
+    Delegates to shared GenAI utility with graceful fallback.
+
     Args:
         plugin_root: Root directory of plugin
         entity_type: 'agents', 'skills', or 'commands'
@@ -236,72 +246,47 @@ def validate_description_accuracy_with_genai(plugin_root: Path, entity_type: str
     Returns:
         (passed, message) tuple
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        # If SDK not available, skip GenAI validation
-        return True, "⏭️  Skipped GenAI description validation (SDK not available)"
+    # Get README.md section for the entity type
+    readme_path = plugin_root / "README.md"
+    if not readme_path.exists():
+        return True, f"⏭️  No README.md found"
 
-    # Check if we should skip GenAI analysis
-    use_genai = os.environ.get("GENAI_DOCS_VALIDATE", "true").lower() == "true"
-    if not use_genai:
-        return True, "⏭️  GenAI description validation disabled"
+    readme_content = readme_path.read_text()
 
-    try:
-        client = Anthropic()
+    # Extract the relevant section (simplified - looks for entity type mentions)
+    section_start = readme_content.lower().find(entity_type.lower())
+    if section_start == -1:
+        return True, f"⏭️  No {entity_type} section found in README.md"
 
-        # Get README.md section for the entity type
-        readme_path = plugin_root / "README.md"
-        readme_content = readme_path.read_text()
+    # Get a reasonable chunk of the section
+    section_end = min(section_start + 2000, len(readme_content))
+    section = readme_content[section_start:section_end]
 
-        # Extract the relevant section (simplified - looks for entity type mentions)
-        section_start = readme_content.lower().find(entity_type.lower())
-        if section_start == -1:
-            return True, f"⏭️  No {entity_type} section found in README.md"
+    # Call shared GenAI analyzer
+    response = analyzer.analyze(
+        DESCRIPTION_VALIDATION_PROMPT,
+        entity_type=entity_type,
+        section=section[:1000]
+    )
 
-        # Get a reasonable chunk of the section
-        section_end = min(section_start + 2000, len(readme_content))
-        section = readme_content[section_start:section_end]
-
-        prompt = f"""Review this documentation for {entity_type} and assess if descriptions are accurate.
-
-Documentation excerpt:
-{section[:1000]}
-
-Questions:
-1. Are the descriptions clear and accurate?
-2. Do the descriptions match typical implementation patterns?
-3. Are there any obviously misleading descriptions?
-
-Respond with ONLY: ACCURATE or MISLEADING
-
-If descriptions are clear, professional, and accurate: ACCURATE
-If descriptions seem misleading, vague, or inaccurate: MISLEADING"""
-
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+    # Parse response using shared utility
+    if response:
+        is_accurate = parse_binary_response(
+            response,
+            true_keywords=["ACCURATE"],
+            false_keywords=["MISLEADING"]
         )
+        if is_accurate is not None:
+            if is_accurate:
+                return True, f"✅ GenAI validated {entity_type} descriptions are accurate"
+            else:
+                return False, (
+                    f"⚠️  GenAI found potential inaccuracies in {entity_type} descriptions\n"
+                    f"Review README.md {entity_type} section for misleading or vague descriptions"
+                )
 
-        response = message.content[0].text.strip().upper()
-        is_accurate = "ACCURATE" in response and "MISLEADING" not in response
-
-        if is_accurate:
-            return True, f"✅ GenAI validated {entity_type} descriptions are accurate"
-        else:
-            return False, (
-                f"⚠️  GenAI found potential inaccuracies in {entity_type} descriptions\n"
-                f"Review README.md {entity_type} section for misleading or vague descriptions"
-            )
-
-    except Exception as e:
-        # If GenAI call fails, silently skip validation
-        if os.environ.get("DEBUG_DOCS_VALIDATE"):
-            print(f"⚠️  GenAI description validation failed: {e}", file=sys.stderr)
-        return True, "⏭️  GenAI validation skipped (call failed)"
+    # Fallback: if GenAI unavailable or ambiguous, skip validation
+    return True, "⏭️  GenAI validation skipped (call failed or ambiguous)"
 
 
 def main() -> int:

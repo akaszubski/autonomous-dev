@@ -21,6 +21,9 @@ import os
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+from genai_utils import GenAIAnalyzer, parse_binary_response
+from genai_prompts import SECRET_ANALYSIS_PROMPT
+
 # Secret patterns to detect
 SECRET_PATTERNS = [
     # API keys
@@ -50,6 +53,11 @@ IGNORE_PATTERNS = [
     r"test_.*\.py$",  # Test files often have fake secrets
     r".*_test\.go$",
 ]
+
+# Initialize GenAI analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
+)
 
 
 def should_scan_file(file_path: Path) -> bool:
@@ -81,63 +89,36 @@ def is_comment_or_docstring(line: str, language: str) -> bool:
 def analyze_secret_context(line: str, secret_type: str, variable_name: Optional[str] = None) -> bool:
     """Use GenAI to determine if a matched secret is real or test data.
 
+    Delegates to shared GenAI utility with graceful fallback to heuristics.
+
     Returns:
         True if it appears to be a real secret, False if likely test data
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        # If SDK not available, fall back to heuristics
-        return _heuristic_secret_check(line, secret_type, variable_name)
+    # Extract variable context from line
+    var_context = ""
+    if "=" in line:
+        var_context = line.split("=")[0].strip()
 
-    # Check if we should skip GenAI analysis
-    use_genai = os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
-    if not use_genai:
-        return _heuristic_secret_check(line, secret_type, variable_name)
+    # Call shared GenAI analyzer
+    response = analyzer.analyze(
+        SECRET_ANALYSIS_PROMPT,
+        line=line,
+        secret_type=secret_type,
+        variable_name=var_context or "N/A"
+    )
 
-    try:
-        client = Anthropic()
-
-        # Extract variable context
-        var_context = ""
-        if "=" in line:
-            var_context = line.split("=")[0].strip()
-
-        prompt = f"""Analyze this line of code and determine if it contains a REAL API key/secret or TEST DATA.
-
-Line of code:
-{line}
-
-Secret type detected: {secret_type}
-Variable name context: {var_context or 'N/A'}
-
-Consider:
-1. Variable naming: Does name suggest test data? (test_, fake_, mock_, example_)
-2. Context: Is this in a test file, fixture, or documentation?
-3. Value patterns: Common test patterns like "test123", "dummy", all zeros/same chars?
-
-Respond with ONLY: REAL or FAKE
-
-If unsure, respond: LIKELY_REAL (be conservative - false negatives are better than false positives)"""
-
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+    # Parse response using shared utility
+    if response:
+        is_real = parse_binary_response(
+            response,
+            true_keywords=["REAL", "LIKELY_REAL"],
+            false_keywords=["FAKE"]
         )
+        if is_real is not None:
+            return is_real
 
-        response = message.content[0].text.strip().upper()
-        is_real = "REAL" in response and "FAKE" not in response
-
-        return is_real
-
-    except Exception as e:
-        # If GenAI call fails, fall back to heuristics
-        if os.environ.get("DEBUG_SECURITY_SCAN"):
-            print(f"⚠️  GenAI analysis failed: {e}", file=sys.stderr)
-        return _heuristic_secret_check(line, secret_type, variable_name)
+    # Fallback to heuristics if GenAI unavailable or ambiguous
+    return _heuristic_secret_check(line, secret_type, variable_name)
 
 
 def _heuristic_secret_check(line: str, secret_type: str, variable_name: Optional[str] = None) -> bool:

@@ -46,6 +46,15 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 import re
 
+from genai_utils import GenAIAnalyzer
+from genai_prompts import DOC_GENERATION_PROMPT
+
+# Initialize GenAI analyzer (with feature flag support)
+analyzer = GenAIAnalyzer(
+    use_genai=os.environ.get("GENAI_DOC_AUTOFIX", "true").lower() == "true",
+    max_tokens=200  # More tokens for documentation generation
+)
+
 
 def get_plugin_root() -> Path:
     """Get the plugin root directory."""
@@ -60,6 +69,8 @@ def get_repo_root() -> Path:
 def generate_documentation_with_genai(item_name: str, item_type: str) -> Optional[str]:
     """Use GenAI to generate documentation for a new command or agent.
 
+    Delegates to shared GenAI utility with graceful fallback.
+
     Args:
         item_name: Name of the command or agent
         item_type: 'command' or 'agent'
@@ -67,49 +78,18 @@ def generate_documentation_with_genai(item_name: str, item_type: str) -> Optiona
     Returns:
         Generated documentation text, or None if generation fails
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return None
+    # Call shared GenAI analyzer
+    documentation = analyzer.analyze(
+        DOC_GENERATION_PROMPT,
+        item_type=item_type,
+        item_name=item_name
+    )
 
-    # Check if we should skip GenAI generation
-    use_genai = os.environ.get("GENAI_DOC_AUTOFIX", "true").lower() == "true"
-    if not use_genai:
-        return None
+    # Validate generated documentation
+    if documentation and len(documentation) > 10:
+        return documentation
 
-    try:
-        client = Anthropic()
-
-        prompt = f"""Generate professional documentation for a new {item_type}.
-
-{item_type.upper()} NAME: {item_name}
-
-Guidelines:
-- Write 1-2 sentences describing what this {item_type} does
-- Keep professional tone
-- Be specific about functionality, not generic
-- Focus on user benefit
-
-Return ONLY the documentation text (no markdown, no formatting, just plain text)."""
-
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        documentation = message.content[0].text.strip()
-        if documentation and len(documentation) > 10:
-            return documentation
-
-        return None
-
-    except Exception as e:
-        if os.environ.get("DEBUG_DOC_AUTOFIX"):
-            print(f"⚠️  GenAI documentation generation failed: {e}", file=sys.stderr)
-        return None
+    return None
 
 
 def can_auto_fix_with_genai(code_file: str, missing_docs: List[str]) -> bool:
