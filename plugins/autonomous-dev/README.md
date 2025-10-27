@@ -4,12 +4,49 @@
 [![Version](https://img.shields.io/badge/version-3.2.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.2.1
-**Last Updated**: 2025-10-26
+**Version**: v3.2.0
+**Last Updated**: 2025-10-27
+**Status**: GenAI Command Refactoring Release
 
-**Alignment Simplicity Release** - Find conflicts between PROJECT.md and reality. Ask one question per conflict: Is PROJECT.md correct? Auto-creates GitHub issues and synced todos based on your answers.
+Production-ready plugin with 8 GenAI-native commands, 16 specialist agents, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
+
+---
+
+## 🚀 Installation (6 Steps)
+
+**Step 1: Uninstall current version** (if you have it)
+```bash
+/plugin uninstall autonomous-dev
+```
+
+**Step 2: Exit Claude Code**
+- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
+
+**Step 3: Reopen Claude Code**
+- Launch Claude Code
+
+**Step 4: Add marketplace & install**
+```bash
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+```
+
+**Step 5: Exit and restart Claude Code**
+- Press **Cmd+Q** or **Ctrl+Q**
+
+**Step 6: Reopen Claude Code**
+- Launch Claude Code
+
+✅ **Done!** All 8 commands ready to use.
+
+### Verify Installation
+```bash
+/health-check
+```
+
+Should show: `Commands: 8/8 present` ✅
 
 ## ✨ What's New in v3.2.1
 

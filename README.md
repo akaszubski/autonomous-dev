@@ -1,11 +1,12 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-10-25
-**Version**: v2.4.0
+**Last Updated**: 2025-10-27
+**Version**: v3.2.0
+**Status**: Production-ready with GenAI command refactoring
 
-Production-ready plugin for autonomous development with **PROJECT.md-first architecture**.
+Production-ready plugin for autonomous development with **PROJECT.md-first architecture** and **8 GenAI-native commands**.
 
-🚀 **One-command install** • 📋 **PROJECT.md-first** • 🤖 **8-agent pipeline** • 📚 **Auto-format, auto-test** • 🔒 **Security scanning** • 🌍 **Multi-language**
+🚀 **Smart Installation** • 📋 **PROJECT.md-first** • 🧠 **GenAI Commands** • 🤖 **16 Specialist Agents** • 🔒 **Security Scanning** • 🌍 **Multi-language**
 
 ---
 
@@ -45,39 +46,68 @@ A single file at your project root that defines:
 
 ## Quick Start
 
-### Installation
+### Installation (4 Steps)
 
+**Step 1: Uninstall current version** (if you have it)
 ```bash
-# 1. Add marketplace (one time)
-/plugin marketplace add akaszubski/autonomous-dev
-
-# 2. Install plugin
-/plugin install autonomous-dev
-
-# 3. Exit and restart Claude Code (required!)
-# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+/plugin uninstall autonomous-dev
 ```
 
-**Done!** All 21 commands now work: `/test`, `/format`, `/commit`, etc.
+**Step 2: Exit Claude Code completely**
+- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
+- Wait for it to close
 
-Claude now autonomously handles formatting, testing, documentation, and security using **GenAI semantic validation** (95% accuracy).
+**Step 3: Reopen Claude Code**
+- Launch Claude Code
+
+**Step 4: Install from marketplace**
+```bash
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+```
+
+**Step 5: Exit and restart again** (required!)
+- Press **Cmd+Q** or **Ctrl+Q**
+
+**Step 6: Reopen Claude Code**
+- Launch Claude Code
+
+**Done!** All 8 commands now available.
+
+### What You Get (8 Commands)
+
+✅ `/auto-implement` - Describe a feature, Claude handles everything
+✅ `/align-project` - Find & fix misalignment between goals and code
+✅ `/status` - Track strategic goal progress with AI recommendations
+✅ `/setup` - Interactive project configuration
+✅ `/health-check` - Verify all components loaded
+✅ `/align-claude` - Check documentation drift
+✅ `/test` - Run automated tests
+✅ `/uninstall` - Remove or disable plugin
+
+### Verify Installation
+
+```bash
+/health-check
+```
+
+Should show all 8 commands loaded ✅
 
 ### Optional Setup (Advanced)
 
 **Only needed if you want automatic hooks** (auto-format on save, auto-test on commit):
 
 ```bash
-# Run the setup wizard
-python plugins/autonomous-dev/scripts/setup.py
-
-# This wizard helps you:
-# - Enable automatic formatting on file save
-# - Create PROJECT.md from template
-# - Configure GitHub integration (.env file)
-# - Asks before overwriting any existing files
+/setup
 ```
 
-**Note**: Most users don't need this! Use slash commands like `/format`, `/test` instead.
+This wizard helps you:
+- Enable automatic formatting on file save
+- Create PROJECT.md from template
+- Configure GitHub integration (.env file)
+- Choose between slash commands or automatic hooks
+
+**Note**: Most users don't need this! You can use slash commands manually or let hooks run automatically at commit.
 
 ### Updating
 
