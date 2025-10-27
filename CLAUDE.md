@@ -10,7 +10,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 16 AI agents, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 19 AI agents, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -101,7 +101,7 @@ git commit -m "docs: Update project goals"
 
 ## Architecture
 
-### Agents (16 specialists)
+### Agents (19 specialists)
 
 Located: `plugins/autonomous-dev/agents/`
 
@@ -117,13 +117,16 @@ Located: `plugins/autonomous-dev/agents/`
 - **advisor**: Critical thinking and validation (v3.0+)
 - **quality-validator**: GenAI-powered feature validation (v3.0+)
 
-**Utility Agents (6)**:
+**Utility Agents (9)**:
 - **alignment-validator**: PROJECT.md alignment checking
 - **commit-message-generator**: Conventional commit generation
 - **pr-description-generator**: Pull request descriptions
 - **project-progress-tracker**: Track progress against goals
 - **alignment-analyzer**: Detailed alignment analysis
 - **project-bootstrapper**: Tech stack detection and setup (v3.0+)
+- **setup-wizard**: Intelligent setup - analyzes tech stack, recommends hooks (v3.1+)
+- **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+)
+- **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+)
 
 ### Skills (0 - Removed)
 
@@ -175,7 +178,7 @@ python plugins/autonomous-dev/scripts/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 16, not 7)
+- Agent counts match reality (currently 19, not 7 or 16)
 - Command counts match installed commands (currently 8)
 - Documented features actually exist
 - Best practices are up-to-date
