@@ -7,13 +7,12 @@ Runs as pre-commit hook to prevent documentation drift.
 
 Features:
 - File count validation (agents, skills, commands, hooks)
-- GenAI semantic validation of descriptions
+- GenAI semantic validation of descriptions (uses Claude Code's built-in credentials)
 - Consistency checks across documentation
 - Auto-generation of audit reports
 - Optional auto-fix mode
 
-Environment:
-  ANTHROPIC_API_KEY - Required for GenAI validation
+Uses Claude Code's native Anthropic access - no API key configuration needed!
 
 Usage:
   # Manual run (detailed output)
@@ -22,8 +21,11 @@ Usage:
   # Pre-commit mode (concise output)
   python plugins/autonomous-dev/hooks/validate_readme_with_genai.py
 
-  # Auto-fix mode (attempts corrections)
-  python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --fix
+  # With GenAI validation
+  python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
+
+  # Full audit with GenAI
+  python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --audit --genai
 """
 
 import os
@@ -53,15 +55,10 @@ class ReadmeValidator:
         self.repo_root = repo_root
         self.readme_path = repo_root / "README.md"
         self.plugins_dir = repo_root / "plugins" / "autonomous-dev"
-        self.use_genai = use_genai and self.has_api_key()
+        self.use_genai = use_genai
         self.results: List[ValidationResult] = []
         self.errors: List[str] = []
         self.warnings: List[str] = []
-
-    @staticmethod
-    def has_api_key() -> bool:
-        """Check if API key is available."""
-        return bool(os.getenv("ANTHROPIC_API_KEY"))
 
     def read_readme(self) -> str:
         """Read README.md content."""
@@ -234,6 +231,7 @@ class ReadmeValidator:
             print("   Install with: pip install anthropic")
             return True
 
+        # Use Claude Code's built-in Anthropic credentials (no API key needed)
         client = Anthropic()
 
         # Get actual file listing for context

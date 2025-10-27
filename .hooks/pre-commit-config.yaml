@@ -28,7 +28,7 @@ repos:
 
       - id: validate-readme-genai
         name: GenAI semantic validation (README)
-        description: Validate README descriptions match implementation using Claude
+        description: Validate README descriptions match implementation using Claude Code's native AI
         entry: python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
         language: python
         stages: [commit]
@@ -37,6 +37,5 @@ repos:
         files: '^(plugins/autonomous-dev/(agents|skills|commands)/|README\.md)'
         verbose: false
         require_serial: true
-        # Only run if ANTHROPIC_API_KEY is set
-        # Remove this if you want it to run always
+        # Uses Claude Code's built-in Anthropic credentials (no API key needed)
         additional_dependencies: ['anthropic']

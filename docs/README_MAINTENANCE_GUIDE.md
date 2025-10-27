@@ -29,7 +29,7 @@ python plugins/autonomous-dev/hooks/validate_readme_accuracy.py
 # Detailed audit with report generation
 python plugins/autonomous-dev/hooks/validate_readme_accuracy.py --audit
 
-# GenAI semantic validation (requires ANTHROPIC_API_KEY)
+# GenAI semantic validation (uses Claude Code's built-in credentials)
 python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
 
 # Full audit with GenAI
@@ -277,18 +277,20 @@ python plugins/autonomous-dev/hooks/validate_readme_accuracy.py
 
 ### GenAI Validation Fails
 
-**Problem**: "ANTHROPIC_API_KEY not set" or GenAI reports issues
+**Problem**: GenAI validation reports issues or errors
 
 **Solution**:
 ```bash
-# Make sure API key is set
-export ANTHROPIC_API_KEY="sk-..."
-
-# Run validation with GenAI
+# Run validation with GenAI (uses Claude Code's built-in credentials)
 python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
+
+# If Anthropic SDK not installed:
+pip install anthropic
 
 # If issues found, read GenAI assessment and fix README accordingly
 ```
+
+**Note**: GenAI validation uses Claude Code's built-in Anthropic credentials. No separate API key configuration needed!
 
 ### Pre-commit Hook Blocks Commit
 
@@ -438,8 +440,6 @@ jobs:
         run: pip install anthropic
 
       - name: Validate README accuracy
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --genai
 
