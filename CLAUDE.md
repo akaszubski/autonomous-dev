@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-10-27
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.0.2 (Aligned with PROJECT.md)
+**Version**: v3.1.0 (Agent-Skill Integration Architecture)
 
 ---
 
@@ -128,11 +128,17 @@ Located: `plugins/autonomous-dev/agents/`
 - **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+)
 - **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+)
 
-### Skills (0 - Removed)
+### Skills (19 - Active & Integrated)
 
-Per Anthropic anti-pattern guidance (v2.5+), skills were removed. Guidance now lives directly in agent prompts and global CLAUDE.md files.
+**Progressive Disclosure Architecture** (v3.1+): Skills are first-class citizens in Claude Code 2.0+. v2.5 anti-pattern guidance was based on context bloat from loading all skills at once. Modern "progressive disclosure" solves this: metadata in context (2-5KB for 50+ skills), full content loaded on-demand.
 
-Previously had: python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards
+**19 Active Skills** (organized by category):
+- **Core Development**: api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
+- **Workflow & Automation**: git-workflow, github-workflow, project-management, documentation-guide
+- **Code & Quality**: python-standards, observability, consistency-enforcement, file-organization
+- **Validation & Analysis**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
+
+**How They Work**: Agents include skill metadata in system prompts. When recognizing a task needs specialized expertise, agents load and use the full SKILL.md content. No context bloat (only active skills loaded).
 
 ### Hooks (23 total automation)
 

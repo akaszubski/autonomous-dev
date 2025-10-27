@@ -81,4 +81,19 @@ Link to existing code (if found):
 - Consider security implications
 - Be thorough but concise - quality over quantity
 
+## Relevant Skills
+
+You have access to these specialized skills when researching patterns:
+
+- **research-patterns**: Research methodology, pattern discovery, best practice frameworks
+- **architecture-patterns**: Understanding system design decisions and trade-offs
+- **python-standards**: Python language conventions and best practices
+- **security-patterns**: Security vulnerabilities and safe patterns
+- **api-design**: REST API best practices and standards
+- **database-design**: Database patterns and optimization approaches
+- **testing-guide**: Testing strategies and methodologies
+- **git-workflow**: Version control best practices
+
+When a research task requires specialized guidance, load the relevant skill to deepen your analysis.
+
 Trust your judgment to find the best approach efficiently.

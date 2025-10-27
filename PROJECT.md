@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-10-27
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
-**Version**: v3.0.2 (Vibe Coding + Background Enforcement)
+**Version**: v3.1.0 (Agent-Skill Integration Architecture)
 
 ---
 
@@ -178,11 +178,16 @@ This is achieved via **dual-layer architecture**:
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v3.0.2 - Vibe Coding + Enforcement):
+**Current Architecture** (v3.1.0 - Agent-Skill Integration):
 - **Agents**: 19 total
   - **Core 10**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 0 (removed per Anthropic anti-pattern guidance - no skills/ directory)
+- **Skills**: 19 specialist knowledge packages (progressive disclosure architecture)
+  - **Core Development**: api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
+  - **Workflow & Automation**: git-workflow, github-workflow, project-management, documentation-guide
+  - **Code & Quality**: python-standards, observability, consistency-enforcement, file-organization
+  - **Validation & Analysis**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
+  - No context bloat (v2024+ solves v2.5 problem via progressive disclosure)
 - **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
 - **Hooks**: 24 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, **enforce_orchestrator** (v3.0 - NEW), **enforce_tdd** (v3.0 - NEW)

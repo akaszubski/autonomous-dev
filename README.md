@@ -322,6 +322,41 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 - **project-bootstrapper** `sonnet` - Analyze existing codebases and generate/update PROJECT.md
 - **sync-validator** `sonnet` - Smart development environment sync and conflict detection
 
+### 19 Specialist Skills (Progressive Disclosure Architecture)
+
+Agents leverage 19 specialized skill packages using **progressive disclosure** - metadata stays in context (minimal overhead), full skill content loads only when needed.
+
+**Organized by Category**:
+
+**Core Development Skills**:
+- **api-design** - REST API design, versioning, error handling, pagination, OpenAPI documentation
+- **architecture-patterns** - System architecture, ADRs, design patterns, tradeoff analysis
+- **code-review** - Code quality assessment, style checking, pattern detection
+- **database-design** - Schema design, migrations, query optimization, ORM patterns
+- **testing-guide** - TDD methodology, test patterns, coverage strategies, regression prevention
+- **security-patterns** - API key management, input validation, encryption, OWASP compliance
+
+**Workflow & Automation Skills**:
+- **git-workflow** - Commit conventions, branching strategies, PR workflows
+- **github-workflow** - Issues, PRs, milestones, auto-tracking
+- **project-management** - PROJECT.md creation, goal setting, sprint planning, scope definition
+- **documentation-guide** - Documentation standards, API docs, README patterns, consistency
+
+**Code & Quality Skills**:
+- **python-standards** - PEP 8, type hints, docstrings, black/isort formatting
+- **observability** - Logging, debugging, profiling, performance monitoring
+- **consistency-enforcement** - Documentation consistency, drift prevention
+- **file-organization** - Project structure enforcement, auto-fix mode
+
+**Validation & Analysis Skills**:
+- **research-patterns** - Research methodology, pattern discovery, best practices
+- **semantic-validation** - GenAI-powered semantic validation, drift detection
+- **cross-reference-validation** - Documentation reference validation, link checking
+- **documentation-currency** - Stale documentation detection, version lag detection
+- **advisor-triggers** - Critical analysis patterns, decision trade-offs
+
+**How Skills Work**: Each agent includes relevant skill metadata in its system prompt. When an agent recognizes a task needs specialized expertise, it loads the full skill content (SKILL.md) and supporting files on-demand. This "progressive disclosure" approach eliminates context bloat - you can scale to 50+ skills without exceeding token budgets.
+
 ### 8 Slash Commands
 
 All commands are independently discoverable with autocomplete:

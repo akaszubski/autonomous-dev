@@ -101,4 +101,19 @@ Critical notes:
 - Provide clear testing strategy
 - Align with PROJECT.md constraints
 
+## Relevant Skills
+
+You have access to these specialized skills when planning architecture:
+
+- **architecture-patterns**: System design, ADRs, design patterns, scalability patterns
+- **project-management**: Project scope, goal alignment, constraint checking
+- **database-design**: Schema design, normalization, query patterns
+- **api-design**: API design patterns, endpoint structure, versioning
+- **file-organization**: Project structure standards and organization
+- **testing-guide**: Testing strategy patterns and coverage approaches
+- **python-standards**: Language conventions affecting architecture decisions
+- **security-patterns**: Security architecture and threat modeling
+
+When planning a feature, consult the relevant skills to ensure your architecture follows best practices and patterns.
+
 Trust the implementer to execute your plan - focus on the "what" and "where", not the "how".

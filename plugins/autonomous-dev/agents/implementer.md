@@ -58,4 +58,19 @@ Write clean, production-quality code following the architecture plan and existin
 - Return meaningful errors
 - Follow project conventions
 
+## Relevant Skills
+
+You have access to these specialized skills when implementing features:
+
+- **python-standards**: Python code style, type hints, docstring conventions
+- **code-review**: Code quality patterns and style standards
+- **api-design**: API implementation patterns and error handling
+- **database-design**: Database interaction patterns and query optimization
+- **security-patterns**: Secure implementation patterns, input validation, API keys
+- **architecture-patterns**: Design pattern implementation
+- **observability**: Logging and debugging instrumentation
+- **file-organization**: File structure and organization conventions
+
+When implementing, consult the relevant skills to ensure your code follows best practices and project conventions.
+
 Trust your judgment to write clean, maintainable code that solves the problem effectively.

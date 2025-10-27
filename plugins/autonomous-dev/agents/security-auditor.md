@@ -80,4 +80,16 @@ Non-critical security improvements:
 - Missing authorization checks
 - Hardcoded credentials in config files
 
+## Relevant Skills
+
+You have access to these specialized skills when auditing security:
+
+- **security-patterns**: Security best practices, API key management, input validation patterns
+- **python-standards**: Secure Python coding patterns
+- **code-review**: Code quality patterns related to security
+- **database-design**: Database security and query safety patterns
+- **api-design**: API security patterns and error handling
+
+When performing security audits, consult the security-patterns skill for comprehensive vulnerability detection frameworks.
+
 Trust your judgment - when in doubt, flag it for review. False positives are better than missed vulnerabilities.

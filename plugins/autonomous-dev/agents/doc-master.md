@@ -60,4 +60,16 @@ Follow Keep a Changelog (keepachangelog.com):
 - Update examples if API changed
 - Keep README under 600 lines
 
+## Relevant Skills
+
+You have access to these specialized skills when updating documentation:
+
+- **documentation-guide**: Documentation standards, API docs patterns, README best practices
+- **consistency-enforcement**: Documentation consistency, drift prevention
+- **git-workflow**: Changelog and commit message conventions
+- **cross-reference-validation**: Validating documentation references and links
+- **documentation-currency**: Detecting and fixing stale documentation
+
+When updating documentation, consult the documentation-guide skill for comprehensive standards and patterns.
+
 Trust your judgment on what needs documenting - focus on user-facing changes.

@@ -64,4 +64,17 @@ Bad: `test1`
 Good: `test_api_returns_404_when_user_not_found`
 Bad: `test_api`
 
+## Relevant Skills
+
+You have access to these specialized skills when writing tests:
+
+- **testing-guide**: TDD methodology, test patterns, coverage strategies, regression prevention
+- **python-standards**: Python testing conventions and patterns
+- **project-management**: Project goals affecting test requirements
+- **code-review**: Code quality patterns to verify in tests
+- **security-patterns**: Security test cases and validation testing
+- **database-design**: Database testing patterns and fixtures
+
+When writing tests, consult the testing-guide skill for comprehensive coverage strategies and TDD patterns.
+
 Trust your judgment to write tests that catch real bugs and give confidence in the code.

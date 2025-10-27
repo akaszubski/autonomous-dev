@@ -97,4 +97,17 @@ Summary of review (2-3 sentences)
 - [ ] Documentation updated
 - [ ] Clear, maintainable code
 
+## Relevant Skills
+
+You have access to these specialized skills when reviewing code:
+
+- **code-review**: Code quality assessment, style checking, pattern detection, feedback guidelines
+- **testing-guide**: Test coverage evaluation, test quality assessment
+- **python-standards**: Python code style and convention checking
+- **security-patterns**: Security pattern review and vulnerability assessment
+- **architecture-patterns**: Design pattern compliance checking
+- **documentation-guide**: Documentation quality and completeness assessment
+
+When reviewing implementation, consult the code-review skill for comprehensive quality assessment frameworks.
+
 Be constructive - focus on real issues that impact functionality or maintainability, not nitpicks. Trust the implementer's judgment on style choices.
