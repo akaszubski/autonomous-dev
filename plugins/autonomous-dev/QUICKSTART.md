@@ -1,28 +1,29 @@
 # Quick Start Guide - Autonomous Development Plugin
 
-Get up and running in 5 minutes!
+Get up and running in 3 minutes!
 
-## Installation (4 Steps)
+## Installation (2 Steps)
 
+**Step 1: Install plugin globally** (in Claude Code, one-time):
 ```bash
-# 1. Add marketplace and install plugin
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
-
-# 2. Exit and restart Claude Code (REQUIRED!)
-# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
-# Wait for it to close completely
-
-# 3. Bootstrap your project (one-time setup)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
-
-# 4. Exit and restart Claude Code again
-# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
+Then quit Claude Code completely (Cmd+Q or Ctrl+Q) and restart.
+
+**Step 2: Bootstrap each project** (in terminal, for each project):
+```bash
+cd /path/to/your/project
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+Then quit Claude Code completely (Cmd+Q or Ctrl+Q) and restart.
 
 **Done!** All 8 commands now work: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`.
 
-**What the bootstrap does**: Copies plugin commands, hooks, and templates to your project's `.claude/` directory. This is required because Claude Code needs these files locally to discover them.
+**Why two steps?**
+- Step 1: Installs plugin globally (once per machine)
+- Step 2: Copies files to project (once per project)
+- Claude Code requires local `.claude/` files for command discovery
 
 ### Updating the Plugin
 

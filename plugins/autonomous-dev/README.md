@@ -14,36 +14,28 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 ---
 
-## 🚀 Installation (4 Simple Steps)
+## 🚀 Installation (2 Steps)
 
-**Step 1: Install plugin via marketplace**
+**Step 1: Install plugin globally** (one-time, in Claude Code):
 ```bash
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
+Then fully quit Claude Code (Cmd+Q or Ctrl+Q) and restart.
 
-**Step 2: Restart Claude Code**
-- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
-- **IMPORTANT**: Full quit required, NOT just `/exit`
-- Wait for application to close completely
-
-**Step 3: Bootstrap your project (one-time)**
+**Step 2: Bootstrap each project** (in terminal, for each project):
 ```bash
-# Run this in your project root
+cd /path/to/your/project
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
 ```
-
-Or download and run locally:
-```bash
-curl -O https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh
-bash install.sh
-```
-
-**Step 4: Restart Claude Code again**
-- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
-- Reopen Claude Code
+Then fully quit Claude Code (Cmd+Q or Ctrl+Q) and restart.
 
 ✅ **Done!** All 8 commands ready to use.
+
+**Why two steps?**
+- Step 1: Installs plugin globally (once per machine)
+- Step 2: Copies plugin files to project `.claude/` folder (once per project)
+- Required because Claude Code discovers commands from project-local files
 
 **Optional: Run setup wizard**
 ```bash

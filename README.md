@@ -123,7 +123,36 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 
 ## Quick Start
 
-### Installation (4 Simple Steps)
+### Installation (2 Steps)
+
+**Step 1: Install plugin globally** (one-time, in Claude Code):
+```bash
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+```
+Then fully quit (Cmd+Q) and restart Claude Code.
+
+**Step 2: Bootstrap each project** (run this in each project folder):
+```bash
+cd /path/to/your/project
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+Then fully quit (Cmd+Q) and restart Claude Code.
+
+**Done!** All 8 commands available.
+
+---
+
+**Why two steps?**
+- Step 1 installs the plugin globally (once per machine)
+- Step 2 copies plugin files to each project's `.claude/` folder (once per project)
+- Claude Code requires local files for command discovery
+
+---
+
+### Alternative: Manual Installation (4 steps)
+
+**If you prefer to install the plugin yourself first:**
 
 **Step 1: Install plugin via marketplace**
 ```bash
@@ -133,19 +162,12 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 
 **Step 2: Restart Claude Code**
 - Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
-- **IMPORTANT**: Full quit required, NOT just `/exit`
 - Wait for application to close completely
 
-**Step 3: Bootstrap your project (one-time)**
+**Step 3: Bootstrap your project**
 ```bash
-# Run this in your project root
+# In your project root
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
-```
-
-Or download and run locally:
-```bash
-curl -O https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh
-bash install.sh
 ```
 
 **Step 4: Restart Claude Code again**
@@ -667,26 +689,117 @@ If you're developing the plugin (not just using it), follow this critical workfl
 
 ### Development Workflow
 
+**Understanding the Four Locations:**
+
 ```
-1. EDIT SOURCE
-   └─> Make changes in: plugins/autonomous-dev/agents/, commands/, hooks/
-
-2. REINSTALL PLUGIN
-   └─> /plugin uninstall autonomous-dev
-   └─> Exit Claude Code (Cmd+Q or Ctrl+Q)
-   └─> Restart Claude Code
-   └─> /plugin install autonomous-dev
-   └─> Exit Claude Code again
-   └─> Restart Claude Code
-
-3. TEST LIKE USERS
-   └─> Test features in .claude/ environment
-   └─> This mirrors what users see after installation
-
-4. FIX & ITERATE
-   └─> Edit plugins/autonomous-dev/ again
-   └─> Repeat steps 2-3
+┌──────────────────────────────────────────────────────────┐
+│ 1. GITHUB (Remote - Source of Truth)                    │
+│    https://github.com/akaszubski/autonomous-dev         │
+│    - Public repo where code lives                       │
+│    - Users download from here                           │
+└──────────────────────────────────────────────────────────┘
+                    ↓ git clone/pull
+┌──────────────────────────────────────────────────────────┐
+│ 2. DEV FOLDER (Local - Where You Edit)                  │
+│    ~/Documents/GitHub/autonomous-dev/                   │
+│    - Your local git repo                                │
+│    - WHERE YOU EDIT CODE ← START HERE                   │
+│    - plugins/autonomous-dev/commands/                   │
+│    - plugins/autonomous-dev/hooks/                      │
+└──────────────────────────────────────────────────────────┘
+                    ↓ sync_to_installed.py
+┌──────────────────────────────────────────────────────────┐
+│ 3. INSTALLED PLUGIN (Global - Shared Across Projects)   │
+│    ~/.claude/plugins/marketplaces/autonomous-dev/       │
+│    - Installed once per machine                         │
+│    - Updated via sync_to_installed.py (dev)             │
+│    - Updated via /plugin update (users)                 │
+└──────────────────────────────────────────────────────────┘
+                    ↓ install.sh
+┌──────────────────────────────────────────────────────────┐
+│ 4. PROJECT .claude/ (Local - Per Project)               │
+│    /path/to/your-project/.claude/                       │
+│    - WHERE CLAUDE CODE READS FROM ← COMMANDS RUN HERE   │
+│    - One copy per project                               │
+│    - Updated via install.sh or /update-plugin           │
+└──────────────────────────────────────────────────────────┘
 ```
+
+**After You Edit Code:**
+
+```bash
+# 1. Edit files in DEV FOLDER
+vim ~/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/commands/setup.md
+
+# 2. Commit to git (DEV FOLDER → GITHUB)
+git add .
+git commit -m "fix: update setup command"
+git push
+
+# 3. Sync to INSTALLED PLUGIN (DEV FOLDER → INSTALLED PLUGIN)
+python plugins/autonomous-dev/hooks/sync_to_installed.py
+
+# 4. Update test project (INSTALLED PLUGIN → PROJECT .claude/)
+cd ~/path/to/test-project
+bash ~/Documents/GitHub/autonomous-dev/install.sh
+
+# 5. Restart Claude Code
+# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+# Reopen Claude Code
+
+# 6. Test your changes in the project
+/setup  # Or whatever command you changed
+```
+
+**Quick Reference:**
+
+| What Changed | What to Run | Where |
+|--------------|-------------|-------|
+| Edited code | `sync_to_installed.py` | In autonomous-dev repo |
+| Synced to installed | `install.sh` | In test project |
+| Bootstrapped project | Restart Claude Code | - |
+
+**IMPORTANT**: Nothing syncs automatically!
+- ❌ Pushing to GitHub doesn't update your installed plugin
+- ❌ Syncing to installed doesn't update project .claude/
+- ✅ You must manually run sync → bootstrap → restart
+
+---
+
+### User vs Developer Workflows
+
+**Users (Installing/Updating the Plugin):**
+```bash
+# First time install
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+# Restart Claude Code
+cd /path/to/project
+bash <(curl -sSL https://raw.githubusercontent.com/.../install.sh)
+# Restart Claude Code
+
+# Updating to new version
+/plugin update autonomous-dev
+# Restart Claude Code
+/update-plugin
+# Restart Claude Code
+```
+
+**Developers (You, Editing the Code):**
+```bash
+# After editing code
+git add . && git commit -m "fix: ..." && git push
+python plugins/autonomous-dev/hooks/sync_to_installed.py
+cd /path/to/test-project
+bash ~/Documents/GitHub/autonomous-dev/install.sh
+# Restart Claude Code
+```
+
+**Key Difference:**
+- **Users**: Get code from GitHub via `/plugin install/update`
+- **Developers**: Sync local changes via `sync_to_installed.py`
+
+---
 
 ### File Organization for Plugin Development
 
