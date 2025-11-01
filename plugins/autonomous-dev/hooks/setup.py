@@ -74,58 +74,80 @@ class SetupWizard:
 
     def verify_plugin_installation(self):
         """Verify the plugin is installed."""
-        if not self.plugin_dir.exists():
-            print("\n❌ Plugin not found!")
-            print(f"Expected at: {self.plugin_dir}")
+        # After /plugin install, files are in .claude/ not .claude/plugins/
+        # Check if essential files exist
+        hooks_dir = self.claude_dir / "hooks"
+        commands_dir = self.claude_dir / "commands"
+
+        if not hooks_dir.exists() and not commands_dir.exists():
+            print("\n❌ Plugin not installed!")
             print("\nPlease install first:")
             print("  /plugin marketplace add akaszubski/autonomous-dev")
             print("  /plugin install autonomous-dev")
+            print("  (then exit and restart Claude Code)")
             return False
 
         if not self.auto:
-            print(f"\n✅ Plugin found at: {self.plugin_dir}")
+            print(f"\n✅ Plugin installed in .claude/")
         return True
 
     def copy_plugin_files(self):
-        """Copy hooks, templates, and commands from plugin to project."""
-        # Copy hooks
-        src_hooks = self.plugin_dir / "hooks"
-        dest_hooks = self.claude_dir / "hooks"
+        """Verify or copy hooks, templates, and commands from plugin to project.
 
-        if src_hooks.exists():
-            if dest_hooks.exists():
-                if not self.auto:
-                    print(f"\nℹ️  Hooks directory already exists: {dest_hooks}")
-            else:
+        Note: After /plugin install, files are usually already in .claude/
+        This method verifies they exist and only copies if missing.
+        """
+        # Check if files already installed by /plugin install
+        dest_hooks = self.claude_dir / "hooks"
+        dest_templates = self.claude_dir / "templates"
+        dest_commands = self.claude_dir / "commands"
+
+        all_exist = (
+            dest_hooks.exists() and
+            dest_templates.exists() and
+            dest_commands.exists()
+        )
+
+        if all_exist:
+            if not self.auto:
+                print(f"\n✅ Plugin files already installed in .claude/")
+                print(f"   Hooks: {len(list(dest_hooks.glob('*.py')))} files")
+                print(f"   Commands: {len(list(dest_commands.glob('*.md')))} files")
+            return
+
+        # If not all exist, try to copy from plugin source (if available)
+        if not self.auto:
+            print(f"\n📦 Setting up plugin files...")
+
+        # Copy hooks if missing
+        if not dest_hooks.exists():
+            src_hooks = self.plugin_dir / "hooks"
+            if src_hooks.exists():
                 shutil.copytree(src_hooks, dest_hooks)
                 if not self.auto:
                     print(f"\n✅ Copied hooks to: {dest_hooks}")
-
-        # Copy templates
-        src_templates = self.plugin_dir / "templates"
-        dest_templates = self.claude_dir / "templates"
-
-        if src_templates.exists():
-            if dest_templates.exists():
-                if not self.auto:
-                    print(f"\nℹ️  Templates directory already exists: {dest_templates}")
             else:
+                print(f"\n⚠️  Warning: Hooks directory not found", file=sys.stderr)
+
+        # Copy templates if missing
+        if not dest_templates.exists():
+            src_templates = self.plugin_dir / "templates"
+            if src_templates.exists():
                 shutil.copytree(src_templates, dest_templates)
                 if not self.auto:
                     print(f"\n✅ Copied templates to: {dest_templates}")
-
-        # Copy commands
-        src_commands = self.plugin_dir / "commands"
-        dest_commands = self.claude_dir / "commands"
-
-        if src_commands.exists():
-            if dest_commands.exists():
-                if not self.auto:
-                    print(f"\nℹ️  Commands directory already exists: {dest_commands}")
             else:
+                print(f"\n⚠️  Warning: Templates directory not found", file=sys.stderr)
+
+        # Copy commands if missing
+        if not dest_commands.exists():
+            src_commands = self.plugin_dir / "commands"
+            if src_commands.exists():
                 shutil.copytree(src_commands, dest_commands)
                 if not self.auto:
                     print(f"\n✅ Copied commands to: {dest_commands}")
+            else:
+                print(f"\n⚠️  Warning: Commands directory not found", file=sys.stderr)
 
     def print_welcome(self):
         """Print welcome message."""
