@@ -9,6 +9,17 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **setup.py Installation Flow** - Fixed critical bug where setup.py expected `.claude/plugins/autonomous-dev/` but `/plugin install` copies files directly to `.claude/hooks/`, `.claude/commands/`, etc.
+  - Updated `verify_plugin_installation()` to check `.claude/hooks/` and `.claude/commands/` instead
+  - Updated `copy_plugin_files()` to detect already-installed files and skip copying
+  - Added graceful degradation with warnings if source directories not found
+  - Installation flow now works correctly: `/plugin marketplace add` → `/plugin install` → restart → `/setup`
+
+### Changed
+- **Installation Documentation** - Simplified installation steps from 6 to 3 (removed redundant uninstall/restart steps for new users)
+- **Updating Documentation** - Added note about re-running `/setup` after updates to get latest hook versions
+
 ## [2.5.0] - 2025-10-25
 
 ### Added

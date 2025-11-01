@@ -123,11 +123,12 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 
 ## Quick Start
 
-### Installation (4 Steps)
+### Installation (3 Simple Steps)
 
-**Step 1: Uninstall current version** (if you have it)
+**Step 1: Add marketplace and install**
 ```bash
-/plugin uninstall autonomous-dev
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
 ```
 
 **Step 2: Exit Claude Code completely**
@@ -137,19 +138,13 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 **Step 3: Reopen Claude Code**
 - Launch Claude Code
 
-**Step 4: Install from marketplace**
-```bash
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
-```
-
-**Step 5: Exit and restart again** (required!)
-- Press **Cmd+Q** or **Ctrl+Q**
-
-**Step 6: Reopen Claude Code**
-- Launch Claude Code
-
 **Done!** All 8 commands now available.
+
+**Optional: Run setup wizard**
+```bash
+/setup
+```
+This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
 ### What You Get (8 Commands)
 
@@ -204,10 +199,15 @@ This wizard helps you:
 /plugin install autonomous-dev
 
 # 4. Exit and restart again
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# 5. Reopen Claude Code
 # Done!
 ```
 
 **IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
+
+**Note**: If you're using automatic hooks, you may want to re-run `/setup` after updating to get the latest hook versions.
 
 ---
 

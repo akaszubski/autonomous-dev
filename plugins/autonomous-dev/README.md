@@ -14,32 +14,28 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 ---
 
-## 🚀 Installation (6 Steps)
+## 🚀 Installation (3 Simple Steps)
 
-**Step 1: Uninstall current version** (if you have it)
-```bash
-/plugin uninstall autonomous-dev
-```
-
-**Step 2: Exit Claude Code**
-- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
-
-**Step 3: Reopen Claude Code**
-- Launch Claude Code
-
-**Step 4: Add marketplace & install**
+**Step 1: Add marketplace and install**
 ```bash
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
-**Step 5: Exit and restart Claude Code**
-- Press **Cmd+Q** or **Ctrl+Q**
+**Step 2: Exit Claude Code completely**
+- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
+- Wait for it to close
 
-**Step 6: Reopen Claude Code**
+**Step 3: Reopen Claude Code**
 - Launch Claude Code
 
 ✅ **Done!** All 8 commands ready to use.
+
+**Optional: Run setup wizard**
+```bash
+/setup
+```
+This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
 ### Verify Installation
 ```bash

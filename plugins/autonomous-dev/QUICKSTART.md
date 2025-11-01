@@ -15,7 +15,7 @@ Get up and running in 3 minutes!
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All commands work immediately: `/test`, `/format`, `/commit`, etc.
+**Done!** All 8 commands work immediately: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`.
 
 ### Updating the Plugin
 
@@ -60,9 +60,8 @@ This wizard helps you:
 **For solo developers** (slash commands only - no setup needed!):
 ```bash
 # Just use the commands - no setup required
-/format
+/auto-implement "your feature description"
 /test
-/commit
 ```
 
 **For teams** (automatic hooks + GitHub):
@@ -84,17 +83,25 @@ This wizard helps you:
 ### Using Slash Commands (Default)
 
 ```bash
-# 1. Describe your feature
-"implement a hello world function with tests"
+# 1. Implement feature with autonomous pipeline
+/auto-implement "implement a hello world function with tests"
 
-# 2. Let Claude implement it
-/auto-implement
+# This automatically:
+# - Validates alignment with PROJECT.md
+# - Researches best practices
+# - Plans architecture
+# - Writes tests (TDD)
+# - Implements code
+# - Reviews quality
+# - Scans security
+# - Updates docs
 
-# 3. Before committing, run quality checks
-/full-check
+# 2. Optionally run tests manually
+/test
 
-# 4. Commit with smart message
-/commit
+# 3. Commit changes (hooks validate automatically)
+git add .
+git commit -m "feat: add hello world function"
 ```
 
 ### Using Automatic Hooks
