@@ -920,6 +920,38 @@ Resolution:
 
 **This is a feature, not a bug!** Blocking prevents scope creep and ensures work aligns with strategic goals.
 
+### Setup says "Plugin not installed or corrupted"
+
+**NEW in latest version**: Setup now shows exactly what's missing!
+
+**Example error message:**
+```
+❌ Plugin not installed or corrupted!
+
+Missing directories: templates
+
+To fix:
+  1. Reinstall plugin (recommended):
+     /plugin uninstall autonomous-dev
+     (exit and restart Claude Code)
+     /plugin install autonomous-dev
+     (exit and restart Claude Code)
+
+  2. Or verify you've restarted Claude Code after install
+```
+
+**What this means:**
+- The plugin is partially installed or corrupted
+- The error shows which directories are missing (hooks, commands, or templates)
+- Follow the reinstall instructions to fix
+
+**Common causes:**
+1. Didn't restart Claude Code after `/plugin install`
+2. Plugin install failed mid-way
+3. Accidentally deleted `.claude/` directories
+
+**Solution:** Follow the reinstall steps shown in the error message
+
 ### Still not working after restart?
 
 **Verify installation:**

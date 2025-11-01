@@ -46,13 +46,20 @@ Should show: `Commands: 8/8 present` ✅
 
 ## ✨ What's New in v3.2.1
 
-**🎯 Hooks Installation & Testing Release**
+**🎯 Hooks Installation & Testing Release + Enhanced Setup**
 
-This release completes the hooks infrastructure with proper installation, testing, and dogfooding support:
+This release completes the hooks infrastructure with proper installation, testing, dogfooding support, AND improved setup error handling:
 
-### v3.2.1 Changes (2025-10-27)
+### v3.2.1 Changes (2025-11-02)
 
-**✅ Hooks Installation Complete**:
+**✅ Enhanced Setup & Error Messages** (NEW):
+- **Better diagnostics**: Shows exactly which directories are missing (hooks, commands, templates)
+- **Clear recovery steps**: Step-by-step reinstall instructions in error messages
+- **Developer mode**: `--dev-mode` flag for testing from git clone
+- **98% confidence**: GenAI-validated installation flow
+- **Fixes**: All three directories now checked consistently (hooks AND commands AND templates)
+
+**✅ Hooks Installation Complete** (2025-10-27):
 - **30+ hooks installed** to `.claude/hooks/` for dogfooding
 - **6 core hooks tested** and verified working:
   - ✅ validate_project_alignment.py

@@ -148,6 +148,62 @@ Run comprehensive tests...
 
 ## Installation Issues
 
+### 1. "Plugin not installed or corrupted!" error
+
+**NEW in latest version**: Enhanced error messages show exactly what's missing!
+
+**Symptoms**:
+- Run `/setup` command
+- See error: "❌ Plugin not installed or corrupted!"
+- Error lists missing directories (e.g., "Missing directories: templates")
+
+**Example error:**
+```
+❌ Plugin not installed or corrupted!
+
+Missing directories: templates
+
+To fix:
+  1. Reinstall plugin (recommended):
+     /plugin uninstall autonomous-dev
+     (exit and restart Claude Code)
+     /plugin install autonomous-dev
+     (exit and restart Claude Code)
+
+  2. Or verify you've restarted Claude Code after install
+```
+
+**What this means**:
+The plugin installation is incomplete. Setup checks for three essential directories:
+- `.claude/hooks/` - Python hook scripts
+- `.claude/commands/` - Slash command markdown files
+- `.claude/templates/` - PROJECT.md and other templates
+
+If any are missing, the installation is corrupted or incomplete.
+
+**Common causes**:
+1. **Didn't restart Claude Code** after `/plugin install` (most common!)
+2. **Plugin install failed mid-way** (network issue, permissions)
+3. **Accidentally deleted** `.claude/` directories
+4. **Update went wrong** (didn't exit/restart between uninstall/install)
+
+**Solution**:
+Follow the reinstall instructions shown in the error message. Always remember to:
+- Exit Claude Code completely (Cmd+Q or Ctrl+Q)
+- Wait for it to fully close
+- Reopen Claude Code
+- Then run the next command
+
+**For developers** (testing from git clone):
+```bash
+python setup.py --dev-mode --auto --hooks=slash-commands
+```
+The `--dev-mode` flag skips plugin verification for testing.
+
+---
+
+## Installation Issues (Legacy)
+
 ### 1. "Plugin not found" after installation
 
 **Symptoms**:
