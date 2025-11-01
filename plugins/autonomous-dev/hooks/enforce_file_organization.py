@@ -104,24 +104,43 @@ def check_required_directories(project_root: Path, structure: Dict) -> List[str]
 
 
 def read_project_context(project_root: Path) -> str:
-    """Read PROJECT.md for project-specific organization standards."""
-    project_md = project_root / "PROJECT.md"
-
-    if not project_md.exists():
-        return "No PROJECT.md found - using standard conventions"
-
-    content = project_md.read_text()
-
-    # Extract file organization section if it exists
+    """Read PROJECT.md and CLAUDE.md for project-specific organization standards."""
     import re
-    org_match = re.search(
-        r'##\s*(File Organization|Directory Structure|Project Structure)\s*\n(.*?)(?=\n##\s|\Z)',
-        content,
-        re.DOTALL | re.IGNORECASE
-    )
+    context_parts = []
 
-    if org_match:
-        return org_match.group(2).strip()[:500]  # First 500 chars
+    # Read CLAUDE.md for root file policies
+    claude_md = project_root / "CLAUDE.md"
+    if claude_md.exists():
+        content = claude_md.read_text()
+
+        # Extract root directory section
+        root_match = re.search(
+            r'##\s*(Root Directory|Root Files|File Organization)\s*\n(.*?)(?=\n##\s|\Z)',
+            content,
+            re.DOTALL | re.IGNORECASE
+        )
+
+        if root_match:
+            context_parts.append("Project Standards (from CLAUDE.md):")
+            context_parts.append(root_match.group(2).strip()[:400])
+
+    # Read PROJECT.md for file organization section
+    project_md = project_root / "PROJECT.md"
+    if project_md.exists():
+        content = project_md.read_text()
+
+        org_match = re.search(
+            r'##\s*(File Organization|Directory Structure|Project Structure)\s*\n(.*?)(?=\n##\s|\Z)',
+            content,
+            re.DOTALL | re.IGNORECASE
+        )
+
+        if org_match:
+            context_parts.append("File Organization (from PROJECT.md):")
+            context_parts.append(org_match.group(2).strip()[:400])
+
+    if context_parts:
+        return "\n\n".join(context_parts)
 
     return "Standard project structure (src/, tests/, docs/, scripts/)"
 
@@ -183,9 +202,24 @@ def heuristic_file_location(file_path: Path) -> Tuple[str, str]:
     """
     filename = file_path.name
 
+    # Common root files (standard across most projects)
+    COMMON_ROOT_FILES = {
+        # Essential docs
+        "README.md", "CHANGELOG.md", "LICENSE", "LICENSE.md",
+        # Community docs
+        "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "SECURITY.md",
+        # Project standards
+        "CLAUDE.md", "PROJECT.md",
+        # Build/config
+        "setup.py", "conftest.py", "pyproject.toml", "package.json",
+        "tsconfig.json", "Makefile", "Dockerfile", ".gitignore",
+        ".dockerignore", "requirements.txt", "package-lock.json",
+        "poetry.lock", "Cargo.toml", "go.mod"
+    }
+
     # Allowed files in root
-    if filename in ["setup.py", "conftest.py", "README.md", "LICENSE.md", "CHANGELOG.md", "pyproject.toml", "package.json"]:
-        return ("root", "essential configuration or documentation file")
+    if filename in COMMON_ROOT_FILES:
+        return ("root", "allowed root file per project standards")
 
     # Test files
     if filename.startswith("test_") or filename.endswith("_test.py") or "_test." in filename:
@@ -195,7 +229,7 @@ def heuristic_file_location(file_path: Path) -> Tuple[str, str]:
     if filename in ["test.py", "debug.py"] or filename.startswith(("temp", "scratch")):
         return ("DELETE", "temporary or scratch file (heuristic)")
 
-    # Documentation
+    # Documentation (not in allowed root list)
     if file_path.suffix == ".md":
         return ("docs/", "markdown documentation (heuristic)")
 
@@ -211,13 +245,14 @@ def heuristic_file_location(file_path: Path) -> Tuple[str, str]:
     return ("root", "unknown file type - manual review needed")
 
 
-def find_misplaced_files(project_root: Path, use_genai: bool = True) -> List[Tuple[Path, str, str]]:
+def find_misplaced_files(project_root: Path, use_genai: bool = True, verbose: bool = False) -> List[Tuple[Path, str, str]]:
     """
     Find files in root that should be in subdirectories.
 
     Args:
         project_root: Project root directory
         use_genai: Whether to use GenAI analysis (default: True)
+        verbose: Show debug output about GenAI status
 
     Returns:
         List of (file_path, suggested_location, reason) tuples
@@ -226,8 +261,24 @@ def find_misplaced_files(project_root: Path, use_genai: bool = True) -> List[Tup
 
     # Initialize GenAI analyzer if enabled
     analyzer = None
-    if use_genai and should_use_genai("GENAI_FILE_ORGANIZATION"):
+    genai_enabled = use_genai and should_use_genai("GENAI_FILE_ORGANIZATION")
+
+    if verbose or os.environ.get("DEBUG_GENAI"):
+        print("\n🔧 GenAI File Organization Status:", file=sys.stderr)
+        print(f"   SDK Requested: {use_genai}", file=sys.stderr)
+        print(f"   Feature Flag: {should_use_genai('GENAI_FILE_ORGANIZATION')}", file=sys.stderr)
+        print(f"   Final Status: {'ENABLED' if genai_enabled else 'DISABLED (using heuristics)'}", file=sys.stderr)
+
+    if genai_enabled:
         analyzer = GenAIAnalyzer(max_tokens=50)  # Short responses
+
+        if verbose or os.environ.get("DEBUG_GENAI"):
+            try:
+                from anthropic import Anthropic
+                print(f"   Anthropic SDK: AVAILABLE", file=sys.stderr)
+            except ImportError:
+                print(f"   Anthropic SDK: NOT INSTALLED (will use heuristics)", file=sys.stderr)
+                analyzer = None
 
     # Scan root directory for files
     for file in project_root.iterdir():
