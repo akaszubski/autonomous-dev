@@ -6,7 +6,7 @@ argument-hint: Optional - skip argument to check current alignment
 ## Implementation
 
 ```bash
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 # CLAUDE.md Alignment Checker
@@ -30,7 +30,7 @@ This command:
 /align-claude
 
 # Or just run the validation script directly
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 ## What Gets Checked
@@ -190,10 +190,10 @@ Tests cover:
 
 ```bash
 # Try directly:
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 
 # If that fails, check path:
-ls plugins/autonomous-dev/scripts/
+ls .claude/hooks/
 ```
 
 ### "Shows warnings but I think they're wrong"
@@ -219,7 +219,7 @@ To temporarily skip (NOT recommended):
 ```bash
 git commit --no-verify
 # But then manually run validation later
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 ## See Also

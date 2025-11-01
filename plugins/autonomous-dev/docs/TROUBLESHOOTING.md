@@ -58,7 +58,7 @@ vim plugins/autonomous-dev/agents/implementer.md
 vim plugins/autonomous-dev/agents/implementer.md
 
 # 2. Run sync script
-python plugins/autonomous-dev/scripts/sync_to_installed.py
+python .claude/hooks/sync_to_installed.py
 
 # 3. Restart Claude Code
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)

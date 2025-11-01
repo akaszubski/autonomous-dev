@@ -516,7 +516,7 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 - Edit location: `/path/to/autonomous-dev/plugins/autonomous-dev/`
 - Runtime location: `~/.claude/plugins/autonomous-dev/`
 
-**Workflow**: Edit → `python plugins/autonomous-dev/scripts/sync_to_installed.py` → Restart → Test
+**Workflow**: Edit → `python .claude/hooks/sync_to_installed.py` → Restart → Test
 
 See `docs/TROUBLESHOOTING.md` section 0 for details.
 

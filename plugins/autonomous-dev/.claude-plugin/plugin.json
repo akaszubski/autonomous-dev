@@ -16,8 +16,7 @@
     "skills": "./skills",
     "commands": "./commands",
     "templates": "./templates",
-    "hooks": "./hooks",
-    "scripts": "./scripts"
+    "hooks": "./hooks"
   },
   "requirements": {
     "claude_code_version": ">=2.0.0",

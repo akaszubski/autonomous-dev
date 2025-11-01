@@ -195,7 +195,7 @@ Located: `plugins/autonomous-dev/hooks/`
 git commit -m "feature"  # Hook validates CLAUDE.md is in sync
 
 # Manual check
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 **What it validates**:
@@ -230,7 +230,7 @@ python plugins/autonomous-dev/scripts/validate_claude_alignment.py
 This means CLAUDE.md is outdated. Fix it:
 ```bash
 # See what's drifted
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 
 # Update CLAUDE.md based on findings
 vim CLAUDE.md  # Update version, counts, descriptions
@@ -288,7 +288,7 @@ For enhanced Claude Desktop integration, configure the MCP server:
 ### Optional Setup
 ```bash
 # Only if you want automatic hooks (auto-format on save, etc.)
-python plugins/autonomous-dev/scripts/setup.py
+python .claude/hooks/setup.py
 ```
 
 ### Updating

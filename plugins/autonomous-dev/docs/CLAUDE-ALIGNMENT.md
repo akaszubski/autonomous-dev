@@ -137,7 +137,7 @@ git commit -m "docs: update something"
 Run the validation script directly:
 
 ```bash
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 **Output Examples**:
@@ -283,12 +283,12 @@ pytest plugins/autonomous-dev/tests/test_claude_alignment.py -v
 
 ```bash
 # Test 1: Check current alignment
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 
 # Test 2: Simulate drift
 # Edit CLAUDE.md, change agent count to 7
 vim CLAUDE.md
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 # Should show warning about mismatch
 
 # Test 3: Hook validation
@@ -306,7 +306,7 @@ git commit -m "test: simulate drift"
 
 **Validation script**:
 ```
-plugins/autonomous-dev/scripts/validate_claude_alignment.py
+.claude/hooks/validate_claude_alignment.py
 ```
 - Main validation logic
 - Detects all drift types
@@ -382,7 +382,7 @@ Developer can:
 
 ```bash
 # Validate before major commits
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 
 # If issues found, fix them
 vim CLAUDE.md
@@ -416,10 +416,10 @@ git commit -m "docs: update CLAUDE.md alignment"
 
 ```bash
 # Check path:
-ls plugins/autonomous-dev/scripts/validate_claude_alignment.py
+ls .claude/hooks/validate_claude_alignment.py
 
 # Run directly:
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 
 # Or via command:
 /align-claude
@@ -449,7 +449,7 @@ To temporarily skip (NOT recommended):
 ```bash
 git commit --no-verify
 # But then manually run validation:
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 ### Issue: Too many warnings
@@ -486,7 +486,7 @@ Add to your CI pipeline:
 
 ```bash
 # In GitHub Actions, etc.
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py || exit 2
+python .claude/hooks/validate_claude_alignment.py || exit 2
 ```
 
 This fails the CI build if critical drift is detected.

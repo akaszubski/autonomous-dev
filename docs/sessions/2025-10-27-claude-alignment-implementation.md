@@ -30,7 +30,7 @@ No automated system to validate CLAUDE.md accuracy. As the codebase evolved (age
 ## Solution Implemented
 
 ### 1. Validation Script
-**File**: `plugins/autonomous-dev/scripts/validate_claude_alignment.py`
+**File**: `.claude/hooks/validate_claude_alignment.py`
 
 - Comprehensive validator class `ClaudeAlignmentValidator`
 - Checks 6 categories of drift:
@@ -48,7 +48,7 @@ No automated system to validate CLAUDE.md accuracy. As the codebase evolved (age
 
 **Usage**:
 ```bash
-python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+python .claude/hooks/validate_claude_alignment.py
 ```
 
 ### 2. Pre-Commit Hook
@@ -252,7 +252,7 @@ CLAUDE.md: Defines HOW (development standards, practices)
 Can be added to GitHub Actions:
 ```yaml
 - name: Validate CLAUDE.md alignment
-  run: python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+  run: python .claude/hooks/validate_claude_alignment.py
 ```
 
 ### With Pre-Commit Framework
@@ -314,7 +314,7 @@ pytest plugins/autonomous-dev/tests/test_claude_alignment.py -v
 
 ### New Files Created
 ```
-plugins/autonomous-dev/scripts/validate_claude_alignment.py      (378 lines)
+.claude/hooks/validate_claude_alignment.py      (378 lines)
 plugins/autonomous-dev/hooks/validate_claude_alignment.py        (156 lines)
 plugins/autonomous-dev/tests/test_claude_alignment.py            (180 lines)
 plugins/autonomous-dev/commands/align-claude.md                  (267 lines)
@@ -350,7 +350,7 @@ CLAUDE.md                                    (Updated: version, agents, commands
    - Files already created in `plugins/autonomous-dev/`
    - CLAUDE.md files already updated
    - No additional setup needed
-   - Run validation to verify: `python plugins/autonomous-dev/scripts/validate_claude_alignment.py`
+   - Run validation to verify: `python .claude/hooks/validate_claude_alignment.py`
 
 2. **For Users Installing Plugin**:
    ```bash

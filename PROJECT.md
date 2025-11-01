@@ -228,7 +228,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 **PLUGIN Level** (Distribution package - what users get):
 - `plugins/autonomous-dev/docs/` - User documentation (STRICT-MODE.md, QUICKSTART.md, etc.)
-- `plugins/autonomous-dev/scripts/` - User scripts (setup.py wizard) + Python infrastructure (~250KB)
+- `plugins/autonomous-dev/hooks/` - Automation hooks + utility scripts (setup.py wizard, validators, etc.)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
 - `plugins/autonomous-dev/agents/` - 19 AI agents (10 core + 9 utility)
 - `plugins/autonomous-dev/commands/` - 8 slash commands

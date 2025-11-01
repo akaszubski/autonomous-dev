@@ -115,7 +115,7 @@ plugins/autonomous-dev/
 
 **Examples:**
 - ✅ "How to use /test command" → `plugins/autonomous-dev/docs/COMMANDS.md`
-- ✅ "Setup wizard for users" → `plugins/autonomous-dev/scripts/setup.py`
+- ✅ "Setup wizard for users" → `plugins/autonomous-dev/hooks/setup.py`
 - ✅ "Test plugin features" → `plugins/autonomous-dev/tests/`
 
 ---
@@ -157,12 +157,14 @@ docs/CONTRIBUTING.md  ✅ (or root CONTRIBUTING.md)
 
 ### ❌ Wrong: Build scripts in PLUGIN
 ```bash
-# DON'T put build/sync scripts in plugin
-plugins/autonomous-dev/scripts/sync_docs.py  ❌
+# DON'T put build/sync scripts in plugin hooks directory
+# (User-facing scripts like setup.py are OK, but build/development scripts belong in root)
+plugins/autonomous-dev/hooks/sync_docs.py  ❌ (if it's a development build script)
 ```
 ✅ **Correct:**
 ```bash
-scripts/sync_docs.py  ✅
+scripts/sync_docs.py  ✅ (for development/build scripts)
+plugins/autonomous-dev/hooks/setup.py  ✅ (for user-facing scripts)
 ```
 
 ---

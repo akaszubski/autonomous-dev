@@ -2,7 +2,7 @@
   "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
   "permissions": {
     "allow": [
-      "WebFetch(domain:github.com)"
+      "Bash(gh issue list:*)"
     ],
     "deny": [],
     "ask": []

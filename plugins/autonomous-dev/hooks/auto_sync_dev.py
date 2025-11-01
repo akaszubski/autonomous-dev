@@ -66,7 +66,7 @@ def get_modified_plugin_files():
         # Filter to files that matter (not tests, not docs/dev)
         relevant_files = []
         for f in files:
-            if any(x in f for x in ["agents/", "commands/", "hooks/", "scripts/", "lib/"]):
+            if any(x in f for x in ["agents/", "commands/", "hooks/", "lib/"]):
                 relevant_files.append(f)
 
         return relevant_files
@@ -76,7 +76,7 @@ def get_modified_plugin_files():
 
 def auto_sync():
     """Automatically sync changes to installed plugin."""
-    sync_script = Path("plugins/autonomous-dev/scripts/sync_to_installed.py")
+    sync_script = Path("plugins/autonomous-dev/hooks/sync_to_installed.py")
 
     if not sync_script.exists():
         return False, "Sync script not found"
@@ -135,7 +135,7 @@ def main():
         print(message, file=sys.stderr)
         print(file=sys.stderr)
         print("Options:", file=sys.stderr)
-        print("  1. Run manually: python plugins/autonomous-dev/scripts/sync_to_installed.py", file=sys.stderr)
+        print("  1. Run manually: python plugins/autonomous-dev/hooks/sync_to_installed.py", file=sys.stderr)
         print("  2. Skip sync: git commit --no-verify", file=sys.stderr)
         sys.exit(2)  # Block commit
 
