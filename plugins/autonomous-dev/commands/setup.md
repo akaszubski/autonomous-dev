@@ -1,5 +1,5 @@
 ---
-description: Interactive setup wizard for autonomous-dev plugin (hooks, templates, GitHub)
+description: Intelligent setup wizard - analyzes tech stack and guides plugin configuration with setup-wizard agent
 ---
 
 # Setup Autonomous Development Plugin
@@ -55,11 +55,11 @@ Enables automatic execution:
 
 ### Phase 2: Template Setup
 
-Helps you create PROJECT.md from template:
+Helps you create PROJECT.md from template or codebase:
 ```
-1. Copies template to PROJECT.md
-2. Opens in editor for you to fill in
-3. Validates structure
+1. Analyzes existing codebase (README, structure, git history)
+2. Generates comprehensive PROJECT.md at root (or uses template)
+3. Validates structure and alignment
 ```
 
 ### Phase 3: GitHub Integration (Optional)
@@ -191,14 +191,14 @@ Without PROJECT.md:
   ❌ /align-project won't work
   ❌ File organization validation disabled
   ❌ Agents lack project context
-
 ```
 
 Check if PROJECT.md exists:
 
 ```bash
 if [ -f PROJECT.md ]; then
-  echo "✅ PROJECT.md exists - skipping creation"
+  echo "✅ PROJECT.md exists at root"
+  # Offer to update/maintain it
 else
   echo "⚠️ No PROJECT.md found!"
   # Show options menu
@@ -212,25 +212,25 @@ fi
 
 How would you like to create it?
 
-[1] Generate from codebase (recommended)
+[1] Generate from codebase (recommended for existing projects)
     → AI analyzes your repo and creates comprehensive PROJECT.md
+    → Analyzes: README, structure, git history, dependencies
     → 300-500 lines, 80-90% complete
     → Ready in 30-60 seconds
-    → Best for: existing projects with code
 
-[2] Create from template
+[2] Create from template (recommended for new projects)
     → Basic structure with examples and TODOs
     → You fill in all content manually
-    → Best for: new projects or non-standard structure
+    → Best for: greenfield projects
 
-[3] Interactive wizard
+[3] Interactive wizard (recommended for first-time users)
     → Answer questions, AI generates PROJECT.md
     → Guided experience, customized output
-    → Best for: first-time users
+    → Takes 2-3 minutes
 
 [4] Skip (not recommended)
-    → You can run /create-project-md later
-    → Many autonomous-dev features won't work until then
+    → Many autonomous-dev features won't work
+    → You can run /setup again later
 
 Your choice [1-4]:
 ```
@@ -241,42 +241,56 @@ Your choice [1-4]:
 🔍 Analyzing codebase...
 
 ✅ Found README.md (extracting project vision)
-✅ Found package.json (extracting tech stack)
-✅ Analyzing src/ structure (12 files)
+✅ Found package.json (extracting tech stack: Node.js, TypeScript)
+✅ Analyzing src/ structure (47 files, API + UI pattern detected)
 ✅ Analyzing tests/ structure (unit + integration detected)
-✅ Analyzing docs/ organization (4 categories)
+✅ Analyzing docs/ organization (5 categories)
+✅ Analyzing git history (213 commits, TDD workflow detected)
 
-🧠 Architecture pattern detected: {Pattern}
+🧠 Architecture pattern detected: Layered Architecture (API + Frontend)
 
-✅ Generated PROJECT.md (427 lines)
+✅ Generated PROJECT.md (427 lines) at project root
 
 📋 Sections Created:
-✅ Project Vision
+✅ Project Vision (from README.md)
+✅ Goals (inferred from roadmap + issues)
 ✅ Architecture Overview (with ASCII diagram)
-✅ File Organization Standards
-✅ Development Workflow
-✅ Testing Strategy
-✅ Documentation Map
+✅ Tech Stack (Node.js, TypeScript, React, PostgreSQL)
+✅ File Organization Standards (detected from existing structure)
+✅ Development Workflow (git flow, testing patterns)
+✅ Testing Strategy (unit, integration, coverage targets)
+✅ Documentation Map (links to existing docs)
 
-📝 Only 3 TODO sections need your input (10%)
+📝 Only 2 TODO sections need your input (5%):
+  - CONSTRAINTS section (please specify performance/scale limits)
+  - CURRENT SPRINT goals (please define active work)
 
 Next steps:
-1. Review PROJECT.md
-2. Fill in TODO sections (marked clearly)
-3. Continue with setup
+1. Review PROJECT.md at project root
+2. Fill in TODO sections (clearly marked)
+3. Verify auto-detected goals match your vision
+4. Save when ready
 
 ✅ PROJECT.md ready!
+Run /align-project to validate.
 ```
 
 #### Option 2: Template Mode
 
 ```
-✅ Created PROJECT.md from template (312 lines)
+✅ Created PROJECT.md from template at project root (312 lines)
 
 Each section includes:
 - TODO placeholder
 - Example of what to write
 - Explanation of why it matters
+
+Sections to fill in:
+  📝 GOALS - What success looks like
+  📝 SCOPE - What's in/out of scope
+  📝 CONSTRAINTS - Technical limits
+  📝 ARCHITECTURE - System design
+  📝 CURRENT SPRINT - Active work
 
 Next steps:
 1. Open PROJECT.md in your editor
@@ -291,17 +305,21 @@ Next steps:
 
 Uses AskUserQuestion to gather:
 - Primary project goal
-- Architecture type
+- Architecture type (monolith, microservices, library, etc.)
+- Tech stack (if not detected)
+- Team size and experience level
 - Detail level desired
 
 Then generates PROJECT.md based on responses + codebase analysis.
 
 ```
-✅ Generated PROJECT.md (365 lines)
+✅ Generated PROJECT.md (365 lines) at project root
 
 Based on your responses:
-  - Goal: Production application
-  - Architecture: Translation layer
+  - Goal: Production API for e-commerce
+  - Architecture: Microservices
+  - Tech Stack: Go, PostgreSQL, Redis
+  - Team: 3-5 developers
   - Detail: Comprehensive
 
 Next steps:
@@ -321,13 +339,29 @@ Important: Many features won't work without PROJECT.md:
   ❌ /align-project
   ❌ /auto-implement
   ❌ File organization validation
+  ❌ Agent context and alignment
 
-You can create it later:
-  → Run: /create-project-md
+You can create it later by running:
+  /setup
 
 Setup will continue, but with reduced functionality.
 
-Continue? [Y/n]
+Continue anyway? [y/N]
+```
+
+**If PROJECT.md exists**, user sees:
+
+```
+✅ PROJECT.md exists at project root
+
+Would you like to:
+
+[1] Keep existing PROJECT.md (no changes)
+[2] Update PROJECT.md (detect drift, suggest improvements)
+[3] Refactor PROJECT.md (regenerate from current codebase)
+[4] Validate PROJECT.md (check structure and alignment)
+
+Your choice [1-4]:
 ```
 
 **After any option completes**, setup continues to Step 5 (GitHub Integration).
@@ -479,7 +513,7 @@ Happy coding! 🚀
 
 ### If PROJECT.md Template Selected
 
-**File**: `PROJECT.md`
+**File**: `.claude/PROJECT.md`
 - Copied from `.claude/templates/PROJECT.md`
 - Ready for user to customize
 
@@ -516,8 +550,8 @@ Edit `.claude/settings.local.json`:
 ### Copy PROJECT.md Template
 
 ```bash
-cp .claude/templates/PROJECT.md PROJECT.md
-# Then edit PROJECT.md
+cp .claude/templates/PROJECT.md .claude/PROJECT.md
+# Then edit .claude/PROJECT.md
 ```
 
 ### Setup GitHub
@@ -564,14 +598,31 @@ After setup, use these commands:
 
 ---
 
+
+
 ## Implementation
 
-Run the interactive setup wizard to configure the plugin.
+Invoke the setup-wizard agent to intelligently configure your plugin.
 
-```bash
-python "$(dirname "$0")/../scripts/setup.py"
-```
+The setup-wizard agent will:
 
----
+1. **Analyze your codebase** - Detects tech stack, dependencies, architecture patterns
+2. **Generate PROJECT.md** - Creates comprehensive PROJECT.md from existing code or template
+3. **Configure hooks** - Recommends workflow based on your experience level
+4. **Setup GitHub integration** - Optional sprint tracking and issue management
+5. **Validate everything** - Tests all configurations work correctly
 
-**Pro Tip**: Start with slash commands, then enable hooks once comfortable with the workflow!
+The agent analyzes:
+- README.md, package.json, pyproject.toml, go.mod, Makefile
+- Directory structure and architecture patterns
+- Git history and development patterns
+- Existing documentation
+- Tech stack and testing frameworks
+
+Based on analysis, it recommends:
+- Python projects: black, isort, pytest, bandit
+- JavaScript/TypeScript: prettier, eslint, jest
+- Go projects: gofmt, go test, staticcheck
+- Multi-language: all relevant tools
+
+**Pro Tip**: The agent detects your tech stack and recommends the best workflow for your experience level!
