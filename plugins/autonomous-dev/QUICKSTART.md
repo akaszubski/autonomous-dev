@@ -1,38 +1,50 @@
 # Quick Start Guide - Autonomous Development Plugin
 
-Get up and running in 3 minutes!
+Get up and running in 5 minutes!
 
-## Installation
+## Installation (4 Steps)
 
 ```bash
-# 1. Add marketplace
+# 1. Add marketplace and install plugin
 /plugin marketplace add akaszubski/autonomous-dev
-
-# 2. Install plugin
 /plugin install autonomous-dev
 
-# 3. Exit and restart Claude Code (REQUIRED!)
+# 2. Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+# Wait for it to close completely
+
+# 3. Bootstrap your project (one-time setup)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+
+# 4. Exit and restart Claude Code again
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 ```
 
-**Done!** All 8 commands work immediately: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`.
+**Done!** All 8 commands now work: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`.
+
+**What the bootstrap does**: Copies plugin commands, hooks, and templates to your project's `.claude/` directory. This is required because Claude Code needs these files locally to discover them.
 
 ### Updating the Plugin
 
 ```bash
-# 1. Uninstall
-/plugin uninstall autonomous-dev
+# 1. Update plugin via marketplace
+/plugin update autonomous-dev
 
-# 2. Exit and restart Claude Code (REQUIRED!)
+# 2. Exit and restart Claude Code
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
 
-# 3. Reinstall
-/plugin install autonomous-dev
+# 3. Update your project files
+/update-plugin
 
 # 4. Exit and restart again
 ```
 
-**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
+**Or re-run bootstrap** to get latest files:
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+
+**IMPORTANT**: You must fully quit Claude Code (Cmd+Q), not just `/exit`!
 
 ---
 

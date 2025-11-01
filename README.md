@@ -123,22 +123,38 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 
 ## Quick Start
 
-### Installation (3 Simple Steps)
+### Installation (4 Simple Steps)
 
-**Step 1: Add marketplace and install**
+**Step 1: Install plugin via marketplace**
 ```bash
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
-**Step 2: Exit Claude Code completely**
+**Step 2: Restart Claude Code**
 - Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
-- Wait for it to close
+- **IMPORTANT**: Full quit required, NOT just `/exit`
+- Wait for application to close completely
 
-**Step 3: Reopen Claude Code**
-- Launch Claude Code
+**Step 3: Bootstrap your project (one-time)**
+```bash
+# Run this in your project root
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+
+Or download and run locally:
+```bash
+curl -O https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh
+bash install.sh
+```
+
+**Step 4: Restart Claude Code again**
+- Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
+- Reopen Claude Code
 
 **Done!** All 8 commands now available.
+
+**What the bootstrap does**: Copies plugin commands, hooks, and templates to your project's `.claude/` directory. This is required because Claude Code currently needs these files locally to discover them.
 
 **Optional: Run setup wizard**
 ```bash

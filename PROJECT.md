@@ -898,11 +898,22 @@ plugins/autonomous-dev/           # Plugin source code (what users get)
 **DEVELOPMENT WORKFLOW**:
 
 1. **Edit source**: Make changes in `plugins/autonomous-dev/`
-2. **Reinstall plugin**: `/plugin uninstall autonomous-dev` → Exit Claude Code → Restart → `/plugin install autonomous-dev` → Exit → Restart
-3. **Test like users**: Test features in `.claude/` environment
-4. **Fix bugs**: Edit `plugins/autonomous-dev/` and reinstall
+2. **Sync to installed plugin**: `python plugins/autonomous-dev/hooks/sync_to_installed.py`
+3. **Bootstrap test project**: `bash install.sh` (in test project to update `.claude/`)
+4. **Test like users**: Test features in `.claude/` environment
+5. **Fix bugs**: Edit `plugins/autonomous-dev/` and repeat sync → bootstrap
 
-**CRITICAL RULE**: `.claude/` is the TESTING environment. It mirrors what users get when they run `/plugin install autonomous-dev`. NEVER edit files in `.claude/agents/`, `.claude/commands/`, `.claude/hooks/`, or `.claude/skills/` directly. Always edit in `plugins/autonomous-dev/` and reinstall.
+**USER INSTALLATION WORKFLOW** (as of v3.2.2):
+
+1. **Install plugin**: `/plugin marketplace add akaszubski/autonomous-dev` → `/plugin install autonomous-dev`
+2. **Restart**: Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+3. **Bootstrap project**: `bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)`
+4. **Restart again**: Cmd+Q and reopen
+5. **Done**: All 8 commands available
+
+**Why bootstrap needed**: Claude Code requires plugin components in project's `.claude/` directory for discovery. Bootstrap script copies commands/hooks/templates from globally installed plugin to project. See docs/BOOTSTRAP_PARADOX_SOLUTION.md for details.
+
+**CRITICAL RULE**: `.claude/` is the TESTING environment. It mirrors what users get after running `install.sh`. NEVER edit files in `.claude/agents/`, `.claude/commands/`, `.claude/hooks/`, or `.claude/skills/` directly. Always edit in `plugins/autonomous-dev/`, sync to installed plugin, then bootstrap to `.claude/`.
 
 ---
 
