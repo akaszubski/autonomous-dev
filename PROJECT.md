@@ -903,15 +903,22 @@ plugins/autonomous-dev/           # Plugin source code (what users get)
 4. **Test like users**: Test features in `.claude/` environment
 5. **Fix bugs**: Edit `plugins/autonomous-dev/` and repeat sync → bootstrap
 
-**USER INSTALLATION WORKFLOW** (as of v3.2.2):
+**USER INSTALLATION WORKFLOW** (as of v3.2.3):
 
-1. **Install plugin**: `/plugin marketplace add akaszubski/autonomous-dev` → `/plugin install autonomous-dev`
-2. **Restart**: Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
-3. **Bootstrap project**: `bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)`
-4. **Restart again**: Cmd+Q and reopen
-5. **Done**: All 8 commands available
+**One command:**
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
 
-**Why bootstrap needed**: Claude Code requires plugin components in project's `.claude/` directory for discovery. Bootstrap script copies commands/hooks/templates from globally installed plugin to project. See docs/BOOTSTRAP_PARADOX_SOLUTION.md for details.
+**First time?** Script checks for plugin and guides you:
+1. If plugin missing: Install via `/plugin marketplace add` → `/plugin install` → Restart
+2. Run curl command again
+3. Restart Claude Code
+4. Done - all 8 commands available
+
+**Updates:** Same curl command always gets latest from GitHub.
+
+**Why this works**: Script downloads from GitHub, checks plugin exists, copies files to project's `.claude/`, guides through any missing steps. See docs/BOOTSTRAP_PARADOX_SOLUTION.md for architecture details.
 
 **CRITICAL RULE**: `.claude/` is the TESTING environment. It mirrors what users get after running `install.sh`. NEVER edit files in `.claude/agents/`, `.claude/commands/`, `.claude/hooks/`, or `.claude/skills/` directly. Always edit in `plugins/autonomous-dev/`, sync to installed plugin, then bootstrap to `.claude/`.
 
