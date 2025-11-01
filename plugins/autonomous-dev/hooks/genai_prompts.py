@@ -155,6 +155,66 @@ Validation: Generated content reviewed for accuracy before merging
 """
 
 # ============================================================================
+# File Organization - enforce_file_organization.py
+# ============================================================================
+
+FILE_ORGANIZATION_PROMPT = """Analyze this file and suggest the best location in the project structure.
+
+File name: {filename}
+File extension: {extension}
+Content preview (first 20 lines):
+{content_preview}
+
+Project context from PROJECT.md:
+{project_context}
+
+Standard project structure:
+- src/ - Source code (application logic, modules, libraries)
+- tests/ - Test files (unit, integration, UAT)
+- docs/ - Documentation (guides, API refs, architecture)
+- scripts/ - Automation scripts (build, deploy, utilities)
+- root - Essential files only (README, LICENSE, setup.py, pyproject.toml)
+
+Consider:
+1. File purpose: Is this source code, test, documentation, script, or configuration?
+2. File content: What does the code actually do? (not just extension)
+3. Project conventions: Does PROJECT.md specify custom organization?
+4. Common patterns: setup.py stays in root, conftest.py in tests/, etc.
+5. Shared utilities: Files used across multiple directories may belong in lib/ or root
+
+Respond with ONLY ONE of these exact locations:
+- src/ (for application source code)
+- tests/unit/ (for unit tests)
+- tests/integration/ (for integration tests)
+- tests/uat/ (for user acceptance tests)
+- docs/ (for documentation)
+- scripts/ (for automation scripts)
+- lib/ (for shared libraries/utilities)
+- root (keep in project root - ONLY if essential)
+- DELETE (temporary/scratch files like temp.py, test.py, debug.py)
+
+After the location, add a brief reason (max 10 words).
+
+Format: LOCATION | reason
+
+Example: src/ | main application logic
+Example: root | build configuration file
+Example: DELETE | temporary debug script"""
+
+"""
+Purpose: Intelligently determine where files should be located in project
+Used by: enforce_file_organization.py
+Expected output: "LOCATION | reason" (e.g., "src/ | main application code")
+Context: Replaces rigid pattern matching with semantic understanding
+Benefits:
+- Understands context (setup.py is config, not source)
+- Reads file content (test-data.json is test fixture, not source)
+- Respects project conventions from PROJECT.md
+- Handles edge cases (shared utilities, build files)
+- Explains reasoning for transparency
+"""
+
+# ============================================================================
 # Prompt Management & Configuration
 # ============================================================================
 
@@ -171,6 +231,7 @@ GENAI_FEATURES = {
     "doc_update": "GENAI_DOC_UPDATE",
     "docs_validate": "GENAI_DOCS_VALIDATE",
     "doc_autofix": "GENAI_DOC_AUTOFIX",
+    "file_organization": "GENAI_FILE_ORGANIZATION",
 }
 
 
@@ -188,6 +249,7 @@ def get_all_prompts():
         "complexity_assessment": COMPLEXITY_ASSESSMENT_PROMPT,
         "description_validation": DESCRIPTION_VALIDATION_PROMPT,
         "doc_generation": DOC_GENERATION_PROMPT,
+        "file_organization": FILE_ORGANIZATION_PROMPT,
     }
 
 
