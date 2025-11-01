@@ -2,9 +2,20 @@
   "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
   "permissions": {
     "allow": [
-      "Bash(gh issue list:*)"
+      "*"
     ],
-    "deny": [],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(**/.env)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)",
+      "Write(/etc/*)",
+      "Write(/usr/*)",
+      "Write(/System/*)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)"
+    ],
     "ask": []
   },
   "hooks": {

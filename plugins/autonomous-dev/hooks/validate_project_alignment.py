@@ -132,7 +132,7 @@ def check_scope_alignment(project_root: Path) -> Tuple[bool, str]:
 
     # Check if SCOPE section has content (not empty)
     scope_match = re.search(
-        r'^#+\s*SCOPE.*?$(.*?)(?=^#+|\Z)',
+        r'^\s*#+\s*SCOPE\s*\n(.*?)(?=\n#+\s|\Z)',
         content,
         re.MULTILINE | re.IGNORECASE | re.DOTALL
     )

@@ -87,7 +87,7 @@ class SetupWizard:
         return True
 
     def copy_plugin_files(self):
-        """Copy hooks and templates from plugin to project."""
+        """Copy hooks, templates, and commands from plugin to project."""
         # Copy hooks
         src_hooks = self.plugin_dir / "hooks"
         dest_hooks = self.claude_dir / "hooks"
@@ -113,6 +113,19 @@ class SetupWizard:
                 shutil.copytree(src_templates, dest_templates)
                 if not self.auto:
                     print(f"\n✅ Copied templates to: {dest_templates}")
+
+        # Copy commands
+        src_commands = self.plugin_dir / "commands"
+        dest_commands = self.claude_dir / "commands"
+
+        if src_commands.exists():
+            if dest_commands.exists():
+                if not self.auto:
+                    print(f"\nℹ️  Commands directory already exists: {dest_commands}")
+            else:
+                shutil.copytree(src_commands, dest_commands)
+                if not self.auto:
+                    print(f"\n✅ Copied commands to: {dest_commands}")
 
     def print_welcome(self):
         """Print welcome message."""
