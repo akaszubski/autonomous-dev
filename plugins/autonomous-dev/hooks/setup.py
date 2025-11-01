@@ -78,13 +78,27 @@ class SetupWizard:
         # Check if essential files exist
         hooks_dir = self.claude_dir / "hooks"
         commands_dir = self.claude_dir / "commands"
+        templates_dir = self.claude_dir / "templates"
 
-        if not hooks_dir.exists() and not commands_dir.exists():
-            print("\n❌ Plugin not installed!")
-            print("\nPlease install first:")
-            print("  /plugin marketplace add akaszubski/autonomous-dev")
-            print("  /plugin install autonomous-dev")
-            print("  (then exit and restart Claude Code)")
+        # All three directories must exist (consistent with copy_plugin_files logic)
+        missing = []
+        if not hooks_dir.exists():
+            missing.append("hooks")
+        if not commands_dir.exists():
+            missing.append("commands")
+        if not templates_dir.exists():
+            missing.append("templates")
+
+        if missing:
+            print("\n❌ Plugin not installed or corrupted!")
+            print(f"\nMissing directories: {', '.join(missing)}")
+            print("\nTo fix:")
+            print("  1. Reinstall plugin (recommended):")
+            print("     /plugin uninstall autonomous-dev")
+            print("     (exit and restart Claude Code)")
+            print("     /plugin install autonomous-dev")
+            print("     (exit and restart Claude Code)")
+            print("\n  2. Or verify you've restarted Claude Code after install")
             return False
 
         if not self.auto:
@@ -488,6 +502,12 @@ Presets:
         help="Setup GitHub integration (requires --auto)",
     )
 
+    parser.add_argument(
+        "--dev-mode",
+        action="store_true",
+        help="Developer mode: skip plugin install verification (for testing from git clone)",
+    )
+
     args = parser.parse_args()
 
     # Validation
@@ -496,6 +516,11 @@ Presets:
             parser.error("--auto requires --hooks or --preset")
 
     wizard = SetupWizard(auto=args.auto, preset=args.preset)
+
+    # Developer mode: skip verification
+    if args.dev_mode:
+        print("🔧 Developer mode enabled - skipping plugin verification")
+        wizard.verify_plugin_installation = lambda: True
 
     # Apply command-line arguments
     if args.hooks:
