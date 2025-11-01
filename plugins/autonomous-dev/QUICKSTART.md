@@ -7,7 +7,7 @@ Get up and running in 2 minutes!
 **In your project folder:**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **That's it!** The script does everything:
@@ -33,7 +33,7 @@ Restart Claude Code, then run this command again.
 **When new version released:**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **Same command!** Always gets latest. Or use:

@@ -67,7 +67,7 @@ CLAUDE_DIR="$PROJECT_DIR/.claude"
 
 if [ ! -d "$CLAUDE_DIR" ]; then
     echo "❌ No .claude directory found. Run bootstrap first:"
-    echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)"
+    echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)"
     exit 1
 fi
 
@@ -122,7 +122,7 @@ To check if updates are available without installing:
 cat ~/.claude/plugins/installed_plugins.json | grep -A 3 "autonomous-dev"
 
 # Check latest version
-curl -s https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/plugins/autonomous-dev/.claude-plugin/plugin.json | grep version
+curl -s https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/plugins/autonomous-dev/.claude-plugin/plugin.json | grep version
 ```
 
 ---

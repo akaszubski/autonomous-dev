@@ -46,7 +46,7 @@ After updating the plugin in marketplace:
 
 ```bash
 # Re-run install script (overwrites with latest)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # Restart Claude Code
 ```
@@ -93,7 +93,7 @@ cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks
 cat .claude/.autonomous-dev-bootstrapped
 
 # Check latest version
-curl -s https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/plugins/autonomous-dev/.claude-plugin/plugin.json | grep version
+curl -s https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/plugins/autonomous-dev/.claude-plugin/plugin.json | grep version
 ```
 
 ---
@@ -257,7 +257,7 @@ fi
 **Error**: "No .claude directory"
 ```bash
 # Run bootstrap first
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 ### Files Not Updating
@@ -276,7 +276,7 @@ cat ~/.claude/plugins/installed_plugins.json | grep -A 5 "autonomous-dev"
 /plugin install autonomous-dev
 
 # Bootstrap again
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 ### Commands Still Old After Update

@@ -27,7 +27,7 @@ If the file **doesn't exist**, you're on an older installation method and should
 
 ```bash
 # 1. Just run the bootstrap script
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # 2. Restart Claude Code
 # Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
@@ -59,7 +59,7 @@ rm -rf .claude/hooks/*.py 2>/dev/null
 rm -rf .claude/templates/* 2>/dev/null
 
 # 3. Run bootstrap
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # 4. Restart Claude Code
 ```
@@ -81,7 +81,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mai
 cp -r .claude .claude.backup.$(date +%Y%m%d)
 
 # 2. Download bootstrap script to review
-curl -O https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh
+curl -O https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh
 cat install.sh  # Review what it does
 
 # 3. Run it
@@ -152,7 +152,7 @@ ls .claude/commands/
 # Should see: autonomous-dev commands + realign's custom commands
 
 # Update to latest
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # Restart Claude Code
 ```
@@ -173,7 +173,7 @@ mkdir -p .claude/hooks.custom
 cp .claude/hooks/my_custom_*.py .claude/hooks.custom/
 
 # 2. Run bootstrap (overwrites hooks/)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # 3. Restore your custom hooks
 cp .claude/hooks.custom/my_custom_*.py .claude/hooks/
@@ -193,7 +193,7 @@ vim .claude/settings.json
 cp .claude/templates/PROJECT.md .claude/templates/PROJECT.md.custom
 
 # 2. Run bootstrap
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # 3. Restore or merge your customizations
 # Use your custom one:
@@ -315,7 +315,7 @@ rm -rf .claude
 # Restart
 
 # 3. Bootstrap
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 # Restart
 ```
 
@@ -339,7 +339,7 @@ Once migrated, use the new update workflow:
 
 **Or re-run bootstrap**:
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 ---
@@ -374,7 +374,7 @@ for project in ~/projects/*/; do
     cd "$project"
     if [ -d .claude ]; then
         echo "Migrating $project..."
-        bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+        bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
     fi
 done
 ```
@@ -385,7 +385,7 @@ done
 
 **For most users**: Just run the bootstrap script
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **Safe?** Yes - preserves your custom work

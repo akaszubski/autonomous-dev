@@ -19,7 +19,7 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 **In your project folder:**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **Done!** Script checks plugin, copies files, guides you through any missing steps.

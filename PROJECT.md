@@ -907,7 +907,7 @@ plugins/autonomous-dev/           # Plugin source code (what users get)
 
 **One command:**
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **First time?** Script checks for plugin and guides you:

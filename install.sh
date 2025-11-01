@@ -7,7 +7,7 @@
 # Usage:
 #   bash install.sh
 #   OR
-#   curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh | bash
 #
 
 set -e  # Exit on error
@@ -128,7 +128,7 @@ echo "💡 To update plugin files later:"
 echo "   /update-plugin"
 echo ""
 echo "   Or re-run this script:"
-echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)"
+echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)"
 echo ""
 echo "Happy coding! 🚀"
 echo ""

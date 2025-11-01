@@ -154,7 +154,7 @@ For the plugin to work, users need:
 /plugin install autonomous-dev
 
 # 2. Run one-time bootstrap (from plugin)
-curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh | bash
 # OR
 ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/install.sh
 
@@ -233,7 +233,7 @@ cd myproject
 
    2. Bootstrap your project (one-time):
       ```bash
-      curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh | bash
+      curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh | bash
       ```
 
    3. Restart Claude Code and run:

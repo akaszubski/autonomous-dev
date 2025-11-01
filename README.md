@@ -128,7 +128,7 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 **In your project folder, run:**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **That's it.** The script handles everything:
@@ -155,7 +155,7 @@ Restart Claude Code, then run this script again.
 
 ```bash
 # In your project
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **Same command!** Always gets latest from GitHub.
@@ -186,7 +186,7 @@ Both do the same thing - your choice!
 **Step 3: Bootstrap your project**
 ```bash
 # In your project root
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
 **Step 4: Restart Claude Code again**
