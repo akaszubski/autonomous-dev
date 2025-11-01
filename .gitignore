@@ -54,3 +54,6 @@ build/
 # Workspace instance: .claude/knowledge/ (bootstrapped from template + user additions)
 .claude/knowledge/
 .claude/cache/
+
+# Autonomous-dev plugin (gitignored)
+.claude/settings.local.json
