@@ -123,34 +123,53 @@ Both work! Vibe coding is an **optional convenience** (enabled via `customInstru
 
 ## Quick Start
 
-### Installation (2 Steps)
+### Installation (Copy-Paste One Command)
 
-**Step 1: Install plugin globally** (one-time, in Claude Code):
-```bash
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
-```
-Then fully quit (Cmd+Q) and restart Claude Code.
+**In your project folder, run:**
 
-**Step 2: Bootstrap each project** (run this in each project folder):
 ```bash
-cd /path/to/your/project
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
 ```
-Then fully quit (Cmd+Q) and restart Claude Code.
 
-**Done!** All 8 commands available.
+**That's it.** The script handles everything:
+- ✅ Checks if plugin installed (guides you if not)
+- ✅ Copies files to your project
+- ✅ Tells you next steps
+
+**First time?** Script will say:
+```
+❌ Plugin not found
+Run these commands in Claude Code:
+  /plugin marketplace add akaszubski/autonomous-dev
+  /plugin install autonomous-dev
+Restart Claude Code, then run this script again.
+```
+
+**After following those steps**, run the curl command again and you're done!
 
 ---
 
-**Why two steps?**
-- Step 1 installs the plugin globally (once per machine)
-- Step 2 copies plugin files to each project's `.claude/` folder (once per project)
-- Claude Code requires local files for command discovery
+### Keeping Updated (Easy)
+
+**When new version released:**
+
+```bash
+# In your project
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+
+**Same command!** Always gets latest from GitHub.
+
+Or use the built-in command:
+```bash
+/update-plugin  # Inside Claude Code
+```
+
+Both do the same thing - your choice!
 
 ---
 
-### Alternative: Manual Installation (4 steps)
+### Why This Works
 
 **If you prefer to install the plugin yourself first:**
 

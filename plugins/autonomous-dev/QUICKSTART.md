@@ -1,51 +1,48 @@
 # Quick Start Guide - Autonomous Development Plugin
 
-Get up and running in 3 minutes!
+Get up and running in 2 minutes!
 
-## Installation (2 Steps)
+## Installation (Copy-Paste This)
 
-**Step 1: Install plugin globally** (in Claude Code, one-time):
-```bash
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
-```
-Then quit Claude Code completely (Cmd+Q or Ctrl+Q) and restart.
+**In your project folder:**
 
-**Step 2: Bootstrap each project** (in terminal, for each project):
-```bash
-cd /path/to/your/project
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
-```
-Then quit Claude Code completely (Cmd+Q or Ctrl+Q) and restart.
-
-**Done!** All 8 commands now work: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`.
-
-**Why two steps?**
-- Step 1: Installs plugin globally (once per machine)
-- Step 2: Copies files to project (once per project)
-- Claude Code requires local `.claude/` files for command discovery
-
-### Updating the Plugin
-
-```bash
-# 1. Update plugin via marketplace
-/plugin update autonomous-dev
-
-# 2. Exit and restart Claude Code
-# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
-
-# 3. Update your project files
-/update-plugin
-
-# 4. Exit and restart again
-```
-
-**Or re-run bootstrap** to get latest files:
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
 ```
 
-**IMPORTANT**: You must fully quit Claude Code (Cmd+Q), not just `/exit`!
+**That's it!** The script does everything:
+- Checks if plugin is installed
+- Guides you to install if needed
+- Copies files to your project
+- Shows next steps
+
+**First run?** You'll see:
+```
+❌ Plugin not found
+Install: /plugin marketplace add akaszubski/autonomous-dev
+         /plugin install autonomous-dev
+Restart Claude Code, then run this command again.
+```
+
+**After installing plugin**, run the same curl command. Restart. Done!
+
+✅ All 8 commands work: `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`
+
+### Updating (Same Command!)
+
+**When new version released:**
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/main/install.sh)
+```
+
+**Same command!** Always gets latest. Or use:
+
+```bash
+/update-plugin  # Inside Claude Code
+```
+
+Both work. Always restart after (Cmd+Q, not `/exit`).
 
 ---
 
