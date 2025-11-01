@@ -182,16 +182,14 @@ This is achieved via **dual-layer architecture**:
 - **Agents**: 19 total
   - **Core 10**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 19 specialist knowledge packages (progressive disclosure architecture)
-  - **Core Development**: api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
-  - **Workflow & Automation**: git-workflow, github-workflow, project-management, documentation-guide
-  - **Code & Quality**: python-standards, observability, consistency-enforcement, file-organization
-  - **Validation & Analysis**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
-  - No context bloat (v2024+ solves v2.5 problem via progressive disclosure)
+- **Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+)
+  - Skills directory removed to eliminate context bloat
+  - Specialist knowledge now embedded directly in agent system prompts
+  - Previous 19 skills consolidated into agent capabilities
 - **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
-- **Hooks**: 24 total
-  - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, **enforce_orchestrator** (v3.0 - NEW), **enforce_tdd** (v3.0 - NEW)
-  - **Extended 15**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, **validate_documentation_alignment** (v3.0.3 - NEW), validate_session_quality
+- **Hooks**: 28 total
+  - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_orchestrator, enforce_tdd
+  - **Extended 19**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 4 others
 - **Plugin**: autonomous-dev (contains all components)
 - **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
 
@@ -232,7 +230,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 - `plugins/autonomous-dev/docs/` - User documentation (STRICT-MODE.md, QUICKSTART.md, etc.)
 - `plugins/autonomous-dev/scripts/` - User scripts (setup.py wizard) + Python infrastructure (~250KB)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
-- `plugins/autonomous-dev/agents/` - 12 AI agents (8 core + 4 utility)
+- `plugins/autonomous-dev/agents/` - 19 AI agents (10 core + 9 utility)
 - `plugins/autonomous-dev/commands/` - 8 slash commands
 - `plugins/autonomous-dev/hooks/` - 15 automation hooks (7 core + 8 optional)
 - `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json, PROJECT.md)

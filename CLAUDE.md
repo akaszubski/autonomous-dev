@@ -128,19 +128,24 @@ Located: `plugins/autonomous-dev/agents/`
 - **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+)
 - **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+)
 
-### Skills (19 - Active & Integrated)
+### Skills (0 - Removed Per Anti-Pattern Guidance)
 
-**Progressive Disclosure Architecture** (v3.1+): Skills are first-class citizens in Claude Code 2.0+. v2.5 anti-pattern guidance was based on context bloat from loading all skills at once. Modern "progressive disclosure" solves this: metadata in context (2-5KB for 50+ skills), full content loaded on-demand.
+**Status**: Skills directory removed per Anthropic anti-pattern guidance (v2.5+)
 
-**19 Active Skills** (organized by category):
+**Why Removed**:
+- Skills caused context bloat in Claude Code plugins
+- Anthropic recommended consolidating specialist knowledge into agent system prompts
+- Progressive disclosure (loading skills on-demand) was considered but ultimately removed for simplicity
+
+**Previous 19 Skills** (now consolidated into agents):
 - **Core Development**: api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
 - **Workflow & Automation**: git-workflow, github-workflow, project-management, documentation-guide
 - **Code & Quality**: python-standards, observability, consistency-enforcement, file-organization
 - **Validation & Analysis**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
-**How They Work**: Agents include skill metadata in system prompts. When recognizing a task needs specialized expertise, agents load and use the full SKILL.md content. No context bloat (only active skills loaded).
+**How It Works Now**: Specialist knowledge embedded directly in agent system prompts (no separate skills/ directory).
 
-### Hooks (23 total automation)
+### Hooks (28 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`
 
@@ -153,13 +158,24 @@ Located: `plugins/autonomous-dev/hooks/`
 - `enforce_file_organization.py`: Standard structure enforcement
 - `enforce_orchestrator.py`: Validates orchestrator ran (v3.0+)
 - `enforce_tdd.py`: Validates tests written before code (v3.0+)
+- `detect_feature_request.py`: Auto-detect feature requests
 
-**Optional/Extended Hooks (14+)**:
+**Optional/Extended Hooks (19)**:
 - `auto_enforce_coverage.py`: 80% minimum coverage
 - `auto_fix_docs.py`: Documentation consistency
 - `auto_add_to_regression.py`: Regression test tracking
 - `auto_track_issues.py`: GitHub issue tracking
-- Plus 10+ others for extended enforcement and validation
+- `auto_generate_tests.py`: Auto-generate test boilerplate
+- `auto_sync_dev.py`: Sync development changes
+- `auto_tdd_enforcer.py`: Strict TDD enforcement
+- `auto_update_docs.py`: Auto-update documentation
+- `detect_doc_changes.py`: Detect documentation changes
+- `enforce_bloat_prevention.py`: Prevent context bloat
+- `enforce_command_limit.py`: Command count limits
+- `post_file_move.py`: Post-move validation
+- `validate_documentation_alignment.py`: Doc alignment checking
+- `validate_session_quality.py`: Session quality validation
+- Plus 5 others for extended enforcement and validation
 
 **Lifecycle Hooks**:
 - `UserPromptSubmit`: Display project context
