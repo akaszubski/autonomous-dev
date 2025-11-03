@@ -360,7 +360,7 @@ This wizard helps you:
 
 # 4. Start developing
 /auto-implement "implement user authentication"
-# Orchestrator validates against PROJECT.md, then runs 8-agent pipeline
+# Command validates against PROJECT.md, then runs 7-agent pipeline
 
 # Done! You now have:
 # ✅ PROJECT.md defining strategic direction
@@ -573,7 +573,7 @@ RESULT:
 
 ### Validation Logic & Feature Blocking
 
-The orchestrator validates every feature request using a **4-check system**:
+The `/auto-implement` command validates every feature request using a **4-check system**:
 
 ```python
 def validate_feature(feature_request, project_md):
@@ -929,7 +929,7 @@ The plugin's success is measured by these concrete metrics:
 | Metric | Target | How to Check |
 |--------|--------|-------------|
 | **Feature time** | 20-30 min per feature (vs 7+ hrs manual) | Time feature from request to merged PR |
-| **SDLC compliance** | 100% of features follow all 7 steps | orchestrator validates before proceeding |
+| **SDLC compliance** | 100% of features follow all 7 steps | /auto-implement enforces all steps |
 | **Scope drift** | 0% (zero features outside SCOPE) | Pre-commit hook blocks misaligned work |
 | **Test coverage** | 80%+ (enforced minimum) | Coverage report in test output |
 | **Security scans** | 100% pass rate | Security-auditor completes successfully |
@@ -1086,7 +1086,7 @@ Claude Code needs a restart to load the plugin commands. After restarting:
 
 ### Feature request was BLOCKED
 
-**This is intentional!** The orchestrator validates alignment with PROJECT.md.
+**This is intentional!** The `/auto-implement` command validates alignment with PROJECT.md.
 
 **Example block:**
 ```
