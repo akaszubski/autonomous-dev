@@ -6,11 +6,13 @@
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 
-Production-ready plugin for **autonomous development teams** with **dual-layer architecture** (Vibe Coding + Background Enforcement), **PROJECT.md-first enforcement**, and **automatic agent orchestration**.
+Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Agent Intelligence), **PROJECT.md-first alignment**, and **GenAI-native orchestration**.
 
-**What it does**: You describe a feature in natural language → plugin automatically researches, plans, writes tests, implements, reviews, audits security, updates docs, and commits — all while validating alignment with your PROJECT.md goals.
+**What it does**:
+- **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
+- **Layer 2 (Agents)**: Optionally provides AI assistance via `/auto-implement` — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🧠 **Vibe Coding** • 🛑 **PROJECT.md Gatekeeper** • 🤖 **19 Specialist Agents** • ✅ **Auto-Orchestration** • 🔒 **Security Enforcement** • 📋 **8 Core Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **19 AI Specialists** • 🧠 **GenAI Orchestration** • 🔒 **Security Scanning** • 📋 **8 Commands**
 
 ---
 
@@ -86,38 +88,79 @@ How the system works. Examples:
 
 ---
 
-## 🧠 Vibe Coding: Natural Language Feature Development
+## 🏗️ How It Works: Two-Layer Architecture
 
-**Vibe Coding** is the core innovation: describe what you want in natural language, and the plugin automatically orchestrates the entire development pipeline.
+autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent assistance** (agents):
 
-### How Vibe Coding Works
+### Layer 1: Hook-Based Enforcement (Automatic, 100% Reliable)
 
-After installation, the plugin configures `customInstructions` in Claude Code to monitor for feature requests. When you write something like:
+**28 Python hooks** run on every commit to enforce quality gates:
 
 ```
-"Add user authentication with JWT tokens"
-"Implement Redis caching for API responses"
-"Create admin dashboard for user management"
+Developer commits code
+    ↓
+Pre-commit hooks execute (AUTOMATIC)
+    ├─ validate_project_alignment.py → Checks PROJECT.md alignment
+    ├─ security_scan.py → Scans for secrets/vulnerabilities
+    ├─ auto_generate_tests.py → Generates missing tests
+    ├─ auto_update_docs.py → Updates documentation
+    ├─ validate_docs_consistency.py → Validates docs accuracy
+    └─ auto_fix_docs.py → Fixes documentation issues
+    ↓
+If ALL pass → Commit allowed ✅
+If ANY fail → Commit blocked ❌ (Claude sees errors and fixes)
 ```
 
-The system automatically:
-1. **Detects** the feature request (via `detect-feature-request` hook)
-2. **Auto-invokes** `/auto-implement` (you don't need to type the command)
-3. **Validates** alignment with PROJECT.md (orchestrator gatekeeper)
-4. **Executes** the 7-agent pipeline automatically
-5. **Commits** the feature automatically
+**What's guaranteed:**
+- ✅ PROJECT.md alignment enforced
+- ✅ Security validated (no secrets, no vulnerabilities)
+- ✅ Tests exist (auto-generated if missing)
+- ✅ Documentation synchronized
+- ✅ File organization enforced
+- ✅ Code quality validated
 
-**Result**: You speak requirements, the plugin delivers production-ready code in ~30 minutes.
+**Hooks run 100% of the time.** No exceptions.
 
-### Without Vibe Coding (Manual Mode)
+### Layer 2: Agent-Based Intelligence (Optional, AI-Enhanced)
 
-If you prefer not to use vibe coding:
-```bash
-# You manually type this after installation
-/auto-implement "Add user authentication"
+**19 specialist agents** provide expert assistance when invoked via `/auto-implement`:
+
+```
+User: /auto-implement "implement JWT authentication"
+    ↓
+orchestrator agent
+    ├─ Validates PROJECT.md alignment (required)
+    ├─ MAY invoke researcher (finds JWT best practices)
+    ├─ MAY invoke planner (designs auth architecture)
+    ├─ MAY invoke test-master (creates test strategies)
+    ├─ MAY invoke implementer (writes code)
+    ├─ MAY invoke reviewer (reviews quality)
+    ├─ MAY invoke security-auditor (checks vulnerabilities)
+    └─ MAY invoke doc-master (updates documentation)
+    ↓
+Claude implements feature (with AI guidance)
+    ↓
+Pre-commit hooks validate (AUTOMATIC, GUARANTEED)
+    ↓
+Professional-quality code with AI enhancement
 ```
 
-Both work! Vibe coding is an **optional convenience** (enabled via `customInstructions` in `.claude/settings.local.json`).
+**What's enhanced:**
+- 🤖 AI-researched best practices (when invoked)
+- 🤖 AI-designed architectures (when invoked)
+- 🤖 AI-generated test strategies (when invoked)
+- 🤖 AI-enhanced code quality (when invoked)
+
+**Agents run conditionally** — Claude decides which agents to invoke based on feature complexity.
+
+### Key Distinction
+
+| What | How | Reliability |
+|------|-----|-------------|
+| **Hooks** | Automatic validation on every commit | 100% guaranteed |
+| **Agents** | Optional AI assistance when invoked | Conditional (adaptive) |
+
+**Result**: Professional quality (hooks) + Expert intelligence (agents)
 
 ---
 

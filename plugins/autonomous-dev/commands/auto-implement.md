@@ -13,18 +13,25 @@ Autonomously implement a feature by invoking the orchestrator agent.
 
 ## What This Does
 
-You describe what you want. The orchestrator agent:
+You describe what you want. This command provides **AI-assisted feature implementation**:
 
-1. **Validates alignment** - Checks PROJECT.md to ensure feature is aligned
-2. **Researches** - Finds patterns and best practices (5 min)
-3. **Plans** - Designs implementation approach (5 min)
-4. **Tests first** - Writes failing tests (TDD red phase) (5 min)
-5. **Implements** - Makes tests pass (10 min)
-6. **Reviews** - Quality gate check (2 min)
-7. **Secures** - Vulnerability scanning (2 min)
-8. **Documents** - Updates all docs (1 min)
+1. **Claude validates alignment** - Checks PROJECT.md to ensure feature aligns (REQUIRED)
+2. **Claude MAY invoke specialist agents** for help (conditional based on complexity):
+   - researcher → Finds patterns and best practices
+   - planner → Designs implementation approach
+   - test-master → Writes failing tests (TDD)
+   - implementer → Implements code
+   - reviewer → Quality gate check
+   - security-auditor → Vulnerability scanning
+   - doc-master → Updates documentation
+3. **Claude implements the feature** with or without agent assistance
+4. **Pre-commit hooks validate** (AUTOMATIC, GUARANTEED):
+   - PROJECT.md alignment ✅
+   - Security scanning ✅
+   - Test coverage ✅
+   - Documentation sync ✅
 
-**Total**: ~30 minutes for production-ready feature with all steps completed.
+**Total**: ~20-40 minutes for professional-quality feature with quality gates enforced.
 
 ## Usage
 
@@ -42,21 +49,31 @@ That's it. The orchestrator handles everything.
 
 ## How It Works
 
-The orchestrator agent will:
+This command uses **GenAI-native orchestration** (not rigid Python scripts):
 
-1. Read your `.claude/PROJECT.md` to understand project goals/scope/constraints
-2. Validate your request aligns with PROJECT.md
-3. If aligned: Invoke specialist agents in sequence
-4. If not aligned: Block work and explain why
+1. Claude reads `.claude/PROJECT.md` to understand goals/scope/constraints
+2. Claude validates your request aligns with PROJECT.md (BLOCKS if misaligned)
+3. If aligned: Claude **may invoke specialist agents** for expert assistance
+   - Simple features: May skip some agents
+   - Complex features: May use all agents
+   - Claude decides adaptively
+4. Claude implements the feature (with or without agent help)
+5. Pre-commit hooks enforce quality gates (AUTOMATIC, GUARANTEED)
 
-**The key difference**: Instead of rigid Python sequences, Claude's reasoning adapts based on what it discovers:
+**The key distinction**:
+- **Hooks** = enforcement (100% reliable, always run)
+- **Agents** = intelligence (conditional, invoked when helpful)
 
-- Finds unexpected patterns? → Adjusts approach
-- Discovers missing test coverage? → Adds tests
-- Realizes docs are incomplete? → Updates them more thoroughly
-- Encounters edge cases? → Handles them intelligently
+**Why GenAI orchestration over Python?**
 
-This is why it works better than Python orchestration.
+| Python-Based | GenAI-Based (This) |
+|--------------|-------------------|
+| Fixed sequence | Adapts to discoveries |
+| Predefined cases | Intelligent reasoning |
+| Coded edge cases | Handles naturally |
+| Rigid automation | Flexible intelligence |
+
+See PROJECT.md lines 213-221 for full rationale.
 
 ## Prerequisites
 
@@ -158,6 +175,30 @@ vim .claude/PROJECT.md
 - Security: Input validation, authorization checks
 - Docs: API documentation with examples
 
+## What's Guaranteed vs What's Conditional
+
+### ✅ Guaranteed (via Hooks - 100% Reliable)
+
+Every commit is validated for:
+- PROJECT.md alignment
+- Security (no secrets, no vulnerabilities)
+- Tests exist and pass
+- Documentation synchronized
+- File organization
+- Code quality
+
+**Hooks run automatically. Always.**
+
+### 🤖 Conditional (via Agents - Adaptive)
+
+Agents **may** be invoked when:
+- Feature is complex enough to warrant research
+- Architecture decisions needed
+- Security-sensitive operations
+- Claude determines assistance would help
+
+**Agents run conditionally. Not guaranteed.**
+
 ## What Happens If Misaligned
 
 ```bash
@@ -176,8 +217,8 @@ Your request: "add GraphQL API"
 This conflicts with project scope.
 
 Options:
-1. Modify request: "Convert REST API to GraphQL" (update SCOPE first)
-2. Update PROJECT.md if strategy changed
+1. Update PROJECT.md if strategy changed
+2. Modify request to align with current SCOPE
 3. Don't implement
 ```
 
