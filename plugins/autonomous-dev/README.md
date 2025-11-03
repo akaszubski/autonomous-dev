@@ -716,7 +716,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | **advisor** | Critical thinking/"devils advocate" - analyzes proposals | sonnet | 600+ lines |
 | **quality-validator** | GenAI-powered feature validation | sonnet | 400+ lines |
 
-**Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+ - skills directory empty, knowledge embedded in agent prompts)
+**Skills**: 19+ active skills (progressive disclosure architecture - Claude Code 2.0+ native support)
 
 ---
 
@@ -1048,11 +1048,21 @@ Bring existing projects into alignment with `/align-project`:
 
 Claude coordinates the 7-agent pipeline when you run `/auto-implement <feature>` or use individual agent commands.
 
-### Skills (Removed)
+### Skills (19 Active - Progressive Disclosure)
 
-**Status**: Skills directory empty per Anthropic anti-pattern guidance v2.5+
-- Specialist knowledge now embedded in agent system prompts
-- No separate skills/ directory or auto-activation
+**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
+
+**How it works**:
+- Skills are first-class citizens in Claude Code 2.0+ (not anti-pattern)
+- Progressive disclosure: Metadata in context, full content loaded when needed
+- Auto-activate based on task keywords and patterns
+- Eliminates context bloat while providing specialist knowledge
+
+**Categories**:
+- **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
+- **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
+- **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
+- **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
 ### Hooks (Two Modes)
 
