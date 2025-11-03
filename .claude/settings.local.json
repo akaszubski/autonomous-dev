@@ -62,11 +62,11 @@
     ],
     "SubagentStop": [
       {
-        "description": "Log agent completion to session",
+        "description": "Log agent completion to structured pipeline file",
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/session_tracker.py subagent 'Subagent completed task'"
+            "command": "python .claude/hooks/log_agent_completion.py"
           }
         ]
       }

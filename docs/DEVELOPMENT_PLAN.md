@@ -29,7 +29,7 @@ Build an autonomous development team (not a toolkit) that executes on PROJECT.md
 
 **Key Issues**:
 - ✅ #37 - Enable auto-orchestration (COMPLETED 2025-11-03)
-- 🔄 #38 - Update global ~/.claude/CLAUDE.md
+- ✅ #38 - Update global ~/.claude/CLAUDE.md (COMPLETED 2025-11-03)
 - 🔄 #29 - Add agent pipeline execution verification and logging
 - 🔄 #32 - Enhance orchestrator agent prompt to more reliably invoke specialist agents
 
@@ -39,7 +39,7 @@ Build an autonomous development team (not a toolkit) that executes on PROJECT.md
 - 🔄 Session logs show what happened
 - 🔄 User can see workflow execution
 
-**Status**: 1/4 complete (25%)
+**Status**: 2/4 complete (50%)
 
 **View all Phase 1 issues**: [GitHub - label:Tier-1](https://github.com/akaszubski/autonomous-dev/issues?q=is%3Aissue+is%3Aopen+label%3ATier-1)
 

@@ -49,21 +49,191 @@ Options:
 Strict mode requires alignment before work begins.
 ```
 
-## Agent Coordination
+## Agent Coordination (REQUIRED STEPS)
 
-If feature is aligned, coordinate agents sequentially:
+⚠️ **CRITICAL**: You are a COORDINATOR, not an implementer. Your job is to INVOKE specialist agents via the Task tool, NOT to implement features yourself.
+
+**DO NOT**:
+- Write implementation code directly
+- Plan architecture yourself
+- Research patterns yourself
+- Write tests yourself
+- Review code yourself
+
+**DO**:
+- Use the Task tool to invoke each specialist agent
+- Wait for agent completion before proceeding
+- Report progress after each step
+- Log agent invocations to session file
+
+---
+
+### Agent Pipeline (Invoke All 7 Sequentially)
+
+After validating alignment, you MUST invoke all specialist agents using the Task tool. Follow this sequence:
+
+#### **STEP 1: Invoke Researcher**
+
+Use the Task tool RIGHT NOW with these parameters:
 
 ```
-Task tool: researcher agent → analyze patterns
-Task tool: planner agent → create implementation plan
-Task tool: test-master agent → write failing tests
-Task tool: implementer agent → make tests pass
-Task tool: reviewer agent → quality check
-Task tool: security-auditor agent → security scan
-Task tool: doc-master agent → update documentation
+subagent_type: "researcher"
+description: "Research [feature name]"
+prompt: "Research patterns, best practices, and security for: [user's feature description].
+        Find: existing implementations in codebase, industry best practices, security considerations,
+        common pitfalls. Output: Summary of findings with recommendations."
+model: "sonnet"  # or "haiku" for simple features
 ```
 
-Wait for each agent to complete before invoking next. Report progress after each step.
+**After researcher completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Researcher completed - findings: [brief summary]"
+```
+
+---
+
+#### **STEP 2: Invoke Planner**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "planner"
+description: "Plan [feature name]"
+prompt: "Based on research findings: [summarize key points from researcher],
+        create detailed implementation plan. Include: file structure, dependencies,
+        integration points, edge cases, security considerations.
+        Output: Step-by-step implementation plan."
+model: "sonnet"
+```
+
+**After planner completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Planner completed - plan: [brief summary]"
+```
+
+---
+
+#### **STEP 3: Invoke Test-Master**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "test-master"
+description: "Write tests for [feature name]"
+prompt: "Based on implementation plan: [summarize plan],
+        write failing tests FIRST (TDD red phase).
+        Include: unit tests, integration tests, edge cases.
+        Output: Test files that currently fail."
+model: "sonnet"
+```
+
+**After test-master completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Test-master completed - tests: [count] tests written (all failing)"
+```
+
+---
+
+#### **STEP 4: Invoke Implementer**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "implementer"
+description: "Implement [feature name]"
+prompt: "Based on plan: [summarize plan] and failing tests: [list test files],
+        implement the feature to make tests pass.
+        Follow: existing code patterns, style guidelines, best practices from research.
+        Output: Implementation that makes all tests pass."
+model: "sonnet"
+```
+
+**After implementer completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Implementer completed - files: [list modified files]"
+```
+
+---
+
+#### **STEP 5: Invoke Reviewer**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "reviewer"
+description: "Review [feature name]"
+prompt: "Review implementation in: [list files].
+        Check: code quality, pattern consistency, test coverage, error handling, edge cases.
+        Output: Approval or list of issues to fix."
+model: "sonnet"
+```
+
+**After reviewer completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Reviewer completed - status: [approved/issues found]"
+```
+
+---
+
+#### **STEP 6: Invoke Security-Auditor**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "security-auditor"
+description: "Security scan [feature name]"
+prompt: "Scan implementation in: [list files].
+        Check: hardcoded secrets, SQL injection, XSS, insecure dependencies,
+               authentication/authorization, input validation, OWASP compliance.
+        Output: Security approval or vulnerabilities found."
+model: "haiku"  # fast security scans
+```
+
+**After security-auditor completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Security-auditor completed - status: [no issues/issues found]"
+```
+
+---
+
+#### **STEP 7: Invoke Doc-Master**
+
+Use the Task tool with these parameters:
+
+```
+subagent_type: "doc-master"
+description: "Update docs for [feature name]"
+prompt: "Update documentation for feature: [feature name].
+        Changed files: [list files].
+        Update: README.md, API docs, CHANGELOG.md, inline code comments.
+        Output: Updated documentation files."
+model: "haiku"  # fast doc updates
+```
+
+**After doc-master completes**, log to session:
+```bash
+python scripts/session_tracker.py orchestrator "Doc-master completed - docs: [list updated files]"
+```
+
+---
+
+### Progressive Disclosure (Adapt Based on Complexity)
+
+**For simple features** (< 50 lines, no architecture changes):
+- ALWAYS invoke: researcher, implementer, doc-master
+- OPTIONAL: planner, test-master, reviewer, security-auditor (if tests/security not needed)
+
+**For medium features** (50-200 lines, some complexity):
+- ALWAYS invoke: researcher, planner, test-master, implementer, reviewer, doc-master
+- OPTIONAL: security-auditor (if not handling auth/data/external APIs)
+
+**For complex features** (200+ lines, architecture changes):
+- ALWAYS invoke: ALL 7 agents (full pipeline required)
+
+**For security-sensitive features** (auth, data handling, external APIs):
+- ALWAYS invoke: ALL 7 agents (security-auditor is MANDATORY)
+
+**Decision criteria**: Use your reasoning to determine complexity. When in doubt, invoke all 7 agents.
 
 ## Context Management
 
