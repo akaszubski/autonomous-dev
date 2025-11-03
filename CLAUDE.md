@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-03
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.1.0 (Agent-Skill Integration Architecture)
+**Version**: v3.2.1 (Sync-Dev & GitHub Integration)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -19,10 +19,18 @@
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status, /uninstall
 ```
 
-**Note**: Commands `/test`, `/format`, `/commit` were archived in v3.1.0. Use `/auto-implement` for full feature development.
+**Commands (8 active)**:
+- `/auto-implement` - Autonomous feature development (orchestrator agent)
+- `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
+- `/align-claude` - Fix documentation drift (validation script)
+- `/setup` - Interactive setup wizard (project-bootstrapper agent)
+- `/sync-dev` - Sync development environment (sync-validator agent)
+- `/status` - Track project progress (project-progress-tracker agent)
+- `/health-check` - Validate plugin integrity (Python validation)
+- `/pipeline-status` - Track /auto-implement workflow (Python script)
 
 ---
 
@@ -202,9 +210,10 @@ python .claude/hooks/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 19, not 7 or 16)
-- Command counts match installed commands (currently 9 main + 2 utility = 11 total)
+- Agent counts match reality (currently 19 agents)
+- Command counts match installed commands (currently 8 active commands)
 - Documented features actually exist
+- Security requirements documented
 - Best practices are up-to-date
 
 **If drift detected**:
@@ -357,4 +366,6 @@ vim .claude/PROJECT.md
 
 **For code standards**: See CLAUDE.md best practices and agent prompts for guidance (skills directory removed per Anthropic anti-pattern guidance v2.5+)
 
-**Last Updated**: 2025-10-27
+**For security**: See `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md` for `/sync-dev` command security audit findings and remediation guidance
+
+**Last Updated**: 2025-11-03

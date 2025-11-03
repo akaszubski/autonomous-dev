@@ -365,6 +365,32 @@ This requires manual resolution:
 
 ---
 
+## Security Considerations
+
+### Important Notes on Development Environment Sync
+
+**Configuration Trust**: This command reads Claude Code's plugin configuration from `~/.claude/plugins/installed_plugins.json` to determine where the autonomous-dev plugin is installed. Ensure this file is protected with appropriate file permissions (mode 600: owner read/write only).
+
+**Path Validation**: The sync-validator agent validates all paths before performing destructive operations (deletions, overwrites). Operations are never executed without explicit confirmation.
+
+**Shared Systems**: If using a shared development machine, ensure:
+- Your `~/.claude` directory has restrictive permissions (700)
+- Environment files (.env) contain only placeholders until configured locally
+- Never commit real credentials or API keys to version control
+
+**Rollback Support**: All synchronization operations support rollback:
+- If conflicts are detected, sync can be aborted before making changes
+- Critical operations create backups before modifying files
+- Use `git status` to verify changes before committing
+
+**Audit Trail**: All sync operations are logged in your git history. Review changes:
+```bash
+git log --oneline | head -10  # See recent sync activity
+git diff HEAD~1 HEAD          # Inspect last sync changes
+```
+
+---
+
 ## Related Commands
 
 - `/health-check` - Validate plugin component integrity after sync
@@ -387,3 +413,7 @@ The agent will:
 6. Validate results
 
 **Use this command to keep your development environment synchronized, detect conflicts early, and ensure compatibility after upstream changes.**
+
+---
+
+**For detailed security audit findings**: See `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md` for comprehensive security analysis, vulnerability assessment, and remediation guidance.

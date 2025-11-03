@@ -362,6 +362,36 @@ git clean -fd
 git revert <commit>
 ```
 
+## Security Considerations
+
+### Path Validation
+When analyzing local and remote state, validate all file paths before performing operations:
+- Check paths are within project repository
+- Reject paths containing `..` or symlinks outside allowed areas
+- Validate paths exist before read/write operations
+- Use `Path.resolve()` to canonicalize paths
+
+### File Operations Safety
+For destructive operations (delete, overwrite):
+1. **Always validate**: Confirm path is correct before deletion
+2. **Always backup**: Create backup before overwriting
+3. **Atomic operations**: Use rename/move atomically when possible
+4. **User confirmation**: Always ask before destructive actions
+
+### Configuration Trust
+- Claude Code plugin configuration from `~/.claude/plugins/installed_plugins.json` is trusted but should be validated
+- Verify `installPath` exists and is within expected directory
+- Check file permissions (expect 600 for sensitive config)
+
+### Shared Systems
+On shared development machines:
+- Warn users about environment variable credentials in .env
+- Remind about file permission protection (700 for ~/.claude)
+- Note that sync operations affect entire local workspace
+
+### See Also
+For detailed security audit findings and remediation: `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md`
+
 ## Quality Standards
 
 - **Safe-first approach**: Never break working environment
@@ -370,6 +400,7 @@ git revert <commit>
 - **Transparent choices**: User can always see options
 - **Graceful degradation**: Works even if some parts fail
 - **Quick recovery**: Easy rollback if needed
+- **Secure-first approach**: Validate paths, backup before delete, ask for confirmation
 
 ## Tips
 

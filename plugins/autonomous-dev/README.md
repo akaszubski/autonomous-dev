@@ -5,8 +5,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
 **Version**: v3.2.1
-**Last Updated**: 2025-10-27
-**Status**: Hooks Installation & Testing Complete
+**Last Updated**: 2025-11-03
+**Status**: Sync-Dev & GitHub Integration + Security Audit Complete
 
 Production-ready plugin with 8 GenAI-native commands, 19 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
 
@@ -255,18 +255,36 @@ This release replaces traditional testing with GenAI-powered validation and adds
 
 ---
 
-## ✨ What's New in v3.1.0
+## ✨ What's New in v3.2.1
 
-**🎯 Simplicity Release - Philosophy Alignment Through Command Reduction**
+**Latest Release - Sync-Dev Restoration & GitHub Integration (2025-11-03)**
 
-This release achieves true "vibe coding with background enforcement" by eliminating manual quality commands:
+This release restores the `/sync-dev` command with comprehensive security audit and adds automatic GitHub issue tracking to the `/auto-implement` workflow:
+
+### v3.2.1 Features (2025-11-03)
+
+- ✅ **`/sync-dev` Restored** - Development environment synchronization with security audit
+  - Smart conflict detection via sync-validator agent
+  - Dependency mismatch detection (package.json, requirements.txt, Cargo.toml, etc.)
+  - Environment variable drift detection (.env files)
+  - Pending database migration identification
+  - Build artifact validation and cleanup
+  - Comprehensive security audit: `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md`
+  - Security considerations documented in command help
+  - Use after git pulls, plugin updates, or environment issues
+
+- ✅ **GitHub Issue Auto-Integration** - Automatic issue creation/closure for `/auto-implement`
+  - Creates issue at workflow start with feature description
+  - Tracks issue in pipeline JSON for reference
+  - Auto-closes on completion with execution summary
+  - Graceful degradation if `gh` CLI unavailable
+  - Labels: automated, feature, in-progress (created) → completed (closed)
 
 ### v3.2.0 Features (2025-10-27)
 
 - 🧠 **GenAI Command Refactoring**: Replaced Python orchestration with intelligent agents
   - ✅ Refactored `/align-project` → GenAI-native (alignment-analyzer agent)
   - ✅ Refactored `/status` → GenAI-native (project-progress-tracker agent)
-  - 🗑️ Removed `/sync-dev` → Dev utility with limited value
   - **Result**: 8 commands, all with intelligent GenAI reasoning
 
 ### v3.1.0 Features (2025-10-26)
