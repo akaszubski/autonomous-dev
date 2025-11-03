@@ -72,6 +72,26 @@ def get_missing_agents(completed_agents):
     return [a for a in expected_agents if a not in completed_agents]
 
 
+def is_feature_commit():
+    """Check if this is a feature commit based on commit message."""
+    import subprocess
+
+    try:
+        # Get the commit message
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=%B"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        commit_msg = result.stdout.strip()
+
+        # Check if it's a feature commit
+        return commit_msg.startswith(("feat:", "feature:", "feat(", "feature("))
+    except subprocess.CalledProcessError:
+        return False
+
+
 def is_auto_implement_commit():
     """Check if this is a commit from /auto-implement workflow."""
     # Check if pipeline file exists for today
@@ -82,12 +102,57 @@ def is_auto_implement_commit():
 def main():
     """Main enforcement logic."""
 
-    # Only enforce for /auto-implement commits
-    if not is_auto_implement_commit():
-        # No pipeline file = not an /auto-implement commit
-        # Allow commit (manual changes are OK)
+    # Check if this is a feature commit
+    if not is_feature_commit():
+        # Not a feature commit - allow it (docs, chore, fix, etc.)
         sys.exit(0)
 
+    # This is a feature commit - enforce pipeline
+    if not is_auto_implement_commit():
+        # Feature commit but no pipeline file = manual implementation!
+        print("=" * 70)
+        print("❌ FEATURE COMMIT WITHOUT PIPELINE - COMMIT BLOCKED")
+        print("=" * 70)
+        print()
+        print("This is a feature commit (starts with 'feat:' or 'feature:')")
+        print("but no /auto-implement pipeline was detected.")
+        print()
+        print("=" * 70)
+        print("Why this matters:")
+        print("=" * 70)
+        print()
+        print("Feature commits MUST use /auto-implement to ensure:")
+        print("  ✓ Research done (researcher)")
+        print("  ✓ Architecture planned (planner)")
+        print("  ✓ Tests written FIRST (test-master)")
+        print("  ✓ Implementation follows TDD (implementer)")
+        print("  ✓ Code reviewed (reviewer)")
+        print("  ✓ Security scanned (security-auditor)")
+        print("  ✓ Documentation updated (doc-master)")
+        print()
+        print("=" * 70)
+        print("How to fix:")
+        print("=" * 70)
+        print()
+        print("Option 1: Use /auto-implement (REQUIRED for features)")
+        print("  Run: /auto-implement <your feature description>")
+        print("  Wait for all 7 agents to complete")
+        print("  Then commit")
+        print()
+        print("Option 2: Change commit type (if not a feature)")
+        print("  If this is a:")
+        print("    - Bug fix: Use 'fix:' instead of 'feat:'")
+        print("    - Documentation: Use 'docs:' instead of 'feat:'")
+        print("    - Chore: Use 'chore:' instead of 'feat:'")
+        print()
+        print("Option 3: Skip enforcement (STRONGLY NOT RECOMMENDED)")
+        print("  git commit --no-verify")
+        print("  WARNING: This bypasses ALL quality gates")
+        print()
+        print("=" * 70)
+        sys.exit(1)
+
+    # Pipeline file exists - check if complete
     pipeline_file = get_today_pipeline_file()
     agent_count, completed_agents = get_agent_count(pipeline_file)
 
