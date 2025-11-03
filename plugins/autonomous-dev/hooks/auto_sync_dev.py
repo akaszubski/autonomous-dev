@@ -45,7 +45,7 @@ def is_plugin_installed():
         for plugin_key in config.get("plugins", {}).keys():
             if plugin_key.startswith("autonomous-dev@"):
                 return True
-    except Exception:
+    except (json.JSONDecodeError, PermissionError, FileNotFoundError):
         return False
 
     return False

@@ -33,9 +33,38 @@ def find_installed_plugin_path():
         # Look for autonomous-dev plugin
         for plugin_key, plugin_info in config.get("plugins", {}).items():
             if plugin_key.startswith("autonomous-dev@"):
-                return Path(plugin_info["installPath"])
+                # SECURITY: Validate path before returning
+                install_path = Path(plugin_info["installPath"])
+
+                # Resolve to canonical path (prevents path traversal)
+                try:
+                    canonical_path = install_path.resolve()
+                except (OSError, RuntimeError) as e:
+                    print(f"❌ Invalid install path: {e}")
+                    return None
+
+                # Verify it's within .claude/plugins/
+                plugins_dir = Path.home() / ".claude" / "plugins"
+                try:
+                    canonical_path.relative_to(plugins_dir)
+                except ValueError:
+                    print(f"❌ Install path outside .claude/plugins/: {canonical_path}")
+                    return None
+
+                # Verify directory exists
+                if not canonical_path.exists():
+                    print(f"❌ Install path doesn't exist: {canonical_path}")
+                    return None
+
+                return canonical_path
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in plugin config: {e}")
+        return None
+    except PermissionError as e:
+        print(f"❌ Permission denied reading plugin config: {e}")
+        return None
     except Exception as e:
-        print(f"Error reading plugin config: {e}")
+        print(f"❌ Error reading plugin config: {e}")
         return None
 
     return None
