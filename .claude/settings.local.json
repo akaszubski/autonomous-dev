@@ -1,8 +1,10 @@
 {
-  "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
+  "description": "Strict Mode Configuration - Fast Autonomous Execution (v3.2.0+)",
   "permissions": {
     "allow": [
-      "Read(//Users/akaszubski/.claude/**)"
+      "Bash(while read f)",
+      "Bash(do python3 -m py_compile \"$f\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

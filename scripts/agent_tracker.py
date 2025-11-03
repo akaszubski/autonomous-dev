@@ -43,7 +43,51 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
+
+
+# Agent display metadata
+AGENT_METADATA = {
+    "researcher": {
+        "description": "Research patterns and best practices",
+        "emoji": "🔍"
+    },
+    "planner": {
+        "description": "Create architecture plan and design",
+        "emoji": "📋"
+    },
+    "test-master": {
+        "description": "Write tests first (TDD)",
+        "emoji": "🧪"
+    },
+    "implementer": {
+        "description": "Implement code to make tests pass",
+        "emoji": "⚙️"
+    },
+    "reviewer": {
+        "description": "Code review and quality check",
+        "emoji": "👀"
+    },
+    "security-auditor": {
+        "description": "Security scan and vulnerability detection",
+        "emoji": "🔒"
+    },
+    "doc-master": {
+        "description": "Update documentation",
+        "emoji": "📝"
+    }
+}
+
+# Expected agent execution order
+EXPECTED_AGENTS = [
+    "researcher",
+    "planner",
+    "test-master",
+    "implementer",
+    "reviewer",
+    "security-auditor",
+    "doc-master"
+]
 
 
 class AgentTracker:
@@ -169,6 +213,214 @@ class AgentTracker:
         self._save()
         print(f"🔗 Linked GitHub issue #{issue_number}")
         print(f"📄 Session: {self.session_file.name}")
+
+    def get_expected_agents(self) -> List[str]:
+        """Get list of expected agents in execution order."""
+        return EXPECTED_AGENTS.copy()
+
+    def calculate_progress(self) -> int:
+        """Calculate overall progress percentage (0-100).
+
+        Returns:
+            Progress percentage based on completed/failed agents
+        """
+        if not self.session_data["agents"]:
+            return 0
+
+        total_expected = len(EXPECTED_AGENTS)
+
+        # Count completed and failed agents (both count as "done")
+        done_agents = set()
+        for entry in self.session_data["agents"]:
+            if entry["status"] in ["completed", "failed"]:
+                done_agents.add(entry["agent"])
+
+        progress = (len(done_agents) / total_expected) * 100
+        return int(progress)
+
+    def get_average_agent_duration(self) -> Optional[int]:
+        """Calculate average duration of completed agents.
+
+        Returns:
+            Average duration in seconds, or None if no completed agents
+        """
+        durations = []
+        for entry in self.session_data["agents"]:
+            if entry["status"] in ["completed", "failed"] and "duration_seconds" in entry:
+                durations.append(entry["duration_seconds"])
+
+        if not durations:
+            return None
+
+        return sum(durations) // len(durations)
+
+    def estimate_remaining_time(self) -> Optional[int]:
+        """Estimate remaining time in seconds based on average agent duration.
+
+        Returns:
+            Estimated seconds remaining, or None if cannot estimate
+        """
+        avg_duration = self.get_average_agent_duration()
+        if avg_duration is None:
+            return None
+
+        # Count remaining agents
+        completed_agents = {
+            entry["agent"] for entry in self.session_data["agents"]
+            if entry["status"] in ["completed", "failed"]
+        }
+        remaining = len(EXPECTED_AGENTS) - len(completed_agents)
+
+        # Account for currently running agent's elapsed time
+        running_agent = self.get_running_agent()
+        if running_agent:
+            for entry in reversed(self.session_data["agents"]):
+                if entry["agent"] == running_agent and entry["status"] == "started":
+                    if "started_at" in entry:
+                        started = datetime.fromisoformat(entry["started_at"])
+                        elapsed = (datetime.now() - started).total_seconds()
+                        # Estimate this agent still needs avg_duration - elapsed
+                        remaining_for_current = max(0, avg_duration - elapsed)
+                        return int(remaining_for_current + (remaining - 1) * avg_duration)
+
+        return remaining * avg_duration
+
+    def get_pending_agents(self) -> List[str]:
+        """Get list of agents that haven't started yet."""
+        started_agents = {entry["agent"] for entry in self.session_data["agents"]}
+        return [agent for agent in EXPECTED_AGENTS if agent not in started_agents]
+
+    def get_running_agent(self) -> Optional[str]:
+        """Get currently running agent, if any."""
+        for entry in reversed(self.session_data["agents"]):
+            if entry["status"] == "started":
+                return entry["agent"]
+        return None
+
+    def is_pipeline_complete(self) -> bool:
+        """Check if all expected agents have completed."""
+        completed_agents = {
+            entry["agent"] for entry in self.session_data["agents"]
+            if entry["status"] in ["completed", "failed"]
+        }
+        return set(EXPECTED_AGENTS).issubset(completed_agents)
+
+    def get_agent_emoji(self, status: str) -> str:
+        """Get emoji for agent status."""
+        emoji_map = {
+            "completed": "✅",
+            "started": "⏳",
+            "failed": "❌",
+            "pending": "⬜"
+        }
+        return emoji_map.get(status, "⬜")
+
+    def get_agent_color(self, status: str) -> str:
+        """Get color name for agent status."""
+        color_map = {
+            "completed": "green",
+            "started": "green",
+            "failed": "red",
+            "pending": "green"
+        }
+        return color_map.get(status, "green")
+
+    def format_agent_name(self, agent_name: str) -> str:
+        """Format agent name for display (e.g., test-master -> Test Master)."""
+        return " ".join(word.capitalize() for word in agent_name.split("-"))
+
+    def get_display_metadata(self) -> Dict[str, Any]:
+        """Get comprehensive metadata for display purposes.
+
+        Returns:
+            Dictionary containing:
+            - agents: List of all agents with display metadata
+            - progress_percentage: Overall progress (0-100)
+            - estimated_time_remaining: Seconds remaining (or 0)
+            - github_issue: Linked issue number (or None)
+        """
+        agents_display = []
+
+        # Create a map of agent status from session data
+        agent_status_map = {}
+        for entry in self.session_data["agents"]:
+            agent_name = entry["agent"]
+            agent_status_map[agent_name] = entry
+
+        # Build display data for all expected agents
+        for agent_name in EXPECTED_AGENTS:
+            meta = AGENT_METADATA.get(agent_name, {})
+
+            if agent_name in agent_status_map:
+                entry = agent_status_map[agent_name]
+                status = entry["status"]
+                agent_data = {
+                    "name": agent_name,
+                    "status": status,
+                    "description": meta.get("description", ""),
+                    "emoji": self.get_agent_emoji(status),
+                    "agent_emoji": meta.get("emoji", ""),
+                    "message": entry.get("message", entry.get("error", "")),
+                }
+
+                if "duration_seconds" in entry:
+                    agent_data["duration_seconds"] = entry["duration_seconds"]
+                if "tools_used" in entry:
+                    agent_data["tools"] = entry["tools_used"]
+                if "started_at" in entry:
+                    agent_data["started_at"] = entry["started_at"]
+                if "completed_at" in entry:
+                    agent_data["completed_at"] = entry["completed_at"]
+            else:
+                # Pending agent
+                agent_data = {
+                    "name": agent_name,
+                    "status": "pending",
+                    "description": meta.get("description", ""),
+                    "emoji": self.get_agent_emoji("pending"),
+                    "agent_emoji": meta.get("emoji", ""),
+                    "message": ""
+                }
+
+            agents_display.append(agent_data)
+
+        return {
+            "agents": agents_display,
+            "progress_percentage": self.calculate_progress(),
+            "estimated_time_remaining": self.estimate_remaining_time() or 0,
+            "github_issue": self.session_data.get("github_issue")
+        }
+
+    def get_tree_view_data(self) -> Dict[str, Any]:
+        """Get data structured for tree view display.
+
+        Returns:
+            Dictionary with agents, progress, and metadata for tree rendering
+        """
+        metadata = self.get_display_metadata()
+
+        # Add tree structure information
+        agents_with_levels = []
+        for agent in metadata["agents"]:
+            agent_with_level = agent.copy()
+            agent_with_level["indent_level"] = 1  # All agents at level 1 under pipeline
+
+            # If agent has tools, they go at level 2
+            if "tools" in agent and agent["tools"]:
+                agent_with_level["has_children"] = True
+            else:
+                agent_with_level["has_children"] = False
+
+            agents_with_levels.append(agent_with_level)
+
+        return {
+            "agents": agents_with_levels,
+            "progress": metadata["progress_percentage"],
+            "estimated_remaining": metadata["estimated_time_remaining"],
+            "github_issue": metadata["github_issue"],
+            "session_id": self.session_data.get("session_id"),
+            "started": self.session_data.get("started")
+        }
 
     def show_status(self):
         """Show pipeline status"""
