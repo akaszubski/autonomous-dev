@@ -23,23 +23,23 @@ Build an autonomous development team (not a toolkit) that executes on PROJECT.md
 
 ---
 
-## Phase 1: Foundation (In Progress)
+## Phase 1: Foundation (COMPLETED ✅)
 
 **Goal**: Make autonomous workflow actually work and be visible
 
 **Key Issues**:
 - ✅ #37 - Enable auto-orchestration (COMPLETED 2025-11-03)
 - ✅ #38 - Update global ~/.claude/CLAUDE.md (COMPLETED 2025-11-03)
-- 🔄 #29 - Add agent pipeline execution verification and logging
-- 🔄 #32 - Enhance orchestrator agent prompt to more reliably invoke specialist agents
+- ✅ #29 - Add agent pipeline execution verification and logging (COMPLETED 2025-11-03)
+- ✅ #32 - Enhance orchestrator agent prompt to more reliably invoke specialist agents (COMPLETED 2025-11-03)
 
 **Success Criteria**:
 - ✅ Feature detection triggers automatically
-- 🔄 Agents invoke reliably
-- 🔄 Session logs show what happened
-- 🔄 User can see workflow execution
+- ✅ Agents invoke reliably (enhanced orchestrator with explicit directives)
+- ✅ Session logs show what happened (structured JSON pipeline logs)
+- ✅ User can see workflow execution (/pipeline-status command)
 
-**Status**: 2/4 complete (50%)
+**Status**: 4/4 complete (100%) ✅
 
 **View all Phase 1 issues**: [GitHub - label:Tier-1](https://github.com/akaszubski/autonomous-dev/issues?q=is%3Aissue+is%3Aopen+label%3ATier-1)
 
