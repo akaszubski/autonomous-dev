@@ -1,20 +1,20 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-11-03
-**Version**: v3.1.0 (Agent-Skill Integration Architecture)
-**Status**: Production-ready with Vibe Coding + Agent-Skill Integration
+**Last Updated**: 2025-11-04
+**Version**: v3.2.2 (Command-Driven Workflow - Orchestrator Removed)
+**Status**: Production-ready with Command-Driven SDLC + Enforcement
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 >
 > **📘 Maintenance**: See `docs/MAINTAINING-PHILOSOPHY.md` for keeping the core philosophy active as you iterate
 
-Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Agent Intelligence), **PROJECT.md-first alignment**, and **GenAI-native orchestration**.
+Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Agent Intelligence), **PROJECT.md-first alignment**, and **command-driven workflow**.
 
 **What it does**:
 - **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
-- **Layer 2 (Agents)**: Optionally provides AI assistance via `/auto-implement` — researches patterns, plans architecture, reviews code — **intelligent enhancement**
+- **Layer 2 (Agents)**: Provides AI assistance via explicit commands (`/auto-implement` or individual agents) — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🛡️ **Hook-Based Enforcement** • 🤖 **19 AI Specialists** • 📚 **19 Skills Library** • 🧠 **GenAI Orchestration** • 🔒 **Security Scanning** • 📋 **8 Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **0 Skills** (removed v2.5+) • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **18 Commands**
 
 ---
 
@@ -68,10 +68,10 @@ How the system works. Examples:
 1. Create PROJECT.md (at project root)
    └─> Define GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
 
-2. Use /auto-implement for features
-   └─> Example: "Add user authentication"
+2. Run /auto-implement command
+   └─> Example: /auto-implement "Add user authentication"
 
-3. orchestrator validates alignment
+3. Command validates alignment
    ├─> Does feature serve GOALS? ✓
    ├─> Is feature IN SCOPE? ✓
    ├─> Respects CONSTRAINTS? ✓
@@ -125,22 +125,22 @@ If ANY fail → Commit blocked ❌ (Claude sees errors and fixes)
 
 ### Layer 2: Agent-Based Intelligence (Optional, AI-Enhanced)
 
-**19 specialist agents** provide expert assistance when invoked via `/auto-implement`:
+**18 specialist agents** (orchestrator removed v3.2.2) provide expert assistance when invoked via `/auto-implement`:
 
 ```
 User: /auto-implement "implement JWT authentication"
     ↓
-orchestrator agent
+/auto-implement command
     ├─ Validates PROJECT.md alignment (required)
-    ├─ MAY invoke researcher (finds JWT best practices)
-    ├─ MAY invoke planner (designs auth architecture)
-    ├─ MAY invoke test-master (creates test strategies)
-    ├─ MAY invoke implementer (writes code)
-    ├─ MAY invoke reviewer (reviews quality)
-    ├─ MAY invoke security-auditor (checks vulnerabilities)
-    └─ MAY invoke doc-master (updates documentation)
+    ├─ Invokes researcher (finds JWT best practices)
+    ├─ Invokes planner (designs auth architecture)
+    ├─ Invokes test-master (creates test strategies)
+    ├─ Invokes implementer (writes code)
+    ├─ Invokes reviewer (reviews quality)
+    ├─ Invokes security-auditor (checks vulnerabilities)
+    └─ Invokes doc-master (updates documentation)
     ↓
-Claude implements feature (with AI guidance)
+Claude coordinates 7-agent workflow
     ↓
 Pre-commit hooks validate (AUTOMATIC, GUARANTEED)
     ↓
@@ -164,64 +164,19 @@ Professional-quality code with AI enhancement
 
 **Result**: Professional quality (hooks) + Expert intelligence (agents)
 
-### Layer 3: Skills-Based Knowledge (Progressive Disclosure)
+### Layer 3: Skills (Removed per Anthropic Guidance)
 
-**19 knowledge packages** provide codified best practices that agents use:
+**Status**: Skills directory empty (removed v2.5+)
 
-```
-Agent needs to implement API endpoint
-    ↓
-Agent loads `api-design` skill
-    ├─ REST conventions
-    ├─ Error handling patterns
-    ├─ Versioning strategies
-    └─ OpenAPI documentation
-    ↓
-Agent applies skill patterns to implementation
-    ↓
-Result: API follows industry best practices
-```
+**Why removed**:
+- Caused context bloat in Claude Code plugins
+- Anthropic recommended consolidating knowledge into agent system prompts
+- Progressive disclosure approach was considered but ultimately removed for simplicity
 
-**Available Skills (auto-activate via keywords)**:
-
-**Core Development (6)**:
-- 🎯 `api-design` - REST API patterns, versioning, error handling
-- 🏗️ `architecture-patterns` - System design, ADRs, trade-offs
-- 👀 `code-review` - Quality assessment, feedback guidelines
-- 🗄️ `database-design` - Schema, migrations, ORM patterns
-- ✅ `testing-guide` - TDD methodology, coverage, regression
-- 🔒 `security-patterns` - API keys, validation, OWASP
-
-**Workflow & Automation (4)**:
-- 🔀 `git-workflow` - Commit conventions, branching, PRs
-- 🐙 `github-workflow` - Issues, milestones, automation
-- 📋 `project-management` - PROJECT.md, goals, sprints
-- 📖 `documentation-guide` - Docs standards, consistency
-
-**Code & Quality (4)**:
-- 🐍 `python-standards` - PEP 8, type hints, formatting
-- 📊 `observability` - Logging, debugging, profiling
-- ⚖️ `consistency-enforcement` - Documentation drift prevention
-- 📁 `file-organization` - Project structure standards
-
-**Validation & Analysis (5)**:
-- 🔍 `research-patterns` - Research methodology
-- 🧠 `semantic-validation` - GenAI-powered validation
-- 🔗 `cross-reference-validation` - Link checking
-- ⏰ `documentation-currency` - Stale doc detection
-- 💡 `advisor-triggers` - Critical analysis patterns
-
-**How skills work:**
-- Auto-activate when keywords detected (e.g., "security", "test", "api")
-- Progressive disclosure (metadata in context, full content loaded when needed)
-- No context bloat (only active skills loaded)
-- Agents explicitly invoke skills for domain expertise
-
-**Example**: When implementing JWT authentication:
-1. Agent invokes `security-patterns` skill → learns API key best practices
-2. Agent invokes `api-design` skill → learns RESTful auth endpoints
-3. Agent invokes `testing-guide` skill → learns TDD approach for auth
-4. Result: Secure, well-designed, tested authentication
+**How it works now**:
+- Specialist knowledge embedded directly in agent prompts
+- No separate skills directory or auto-activation
+- Agents have domain expertise built-in
 
 ---
 
@@ -307,19 +262,31 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
-### What You Get (8 Commands)
+### What You Get (18 Commands)
 
-**Core Commands**:
-✅ `/auto-implement` - Describe a feature, Claude handles everything autonomously
+**Core Commands (8)**:
+✅ `/auto-implement` - Full 7-agent SDLC workflow
 ✅ `/align-project` - Find & fix misalignment between goals and code
+✅ `/align-claude` - Check/fix documentation drift
 ✅ `/status` - Track strategic goal progress with AI recommendations
 ✅ `/setup` - Interactive project configuration
-✅ `/test` - Run all automated tests (unit + integration + UAT)
-
-**Utility Commands**:
-✅ `/health-check` - Verify all components loaded and working
 ✅ `/sync-dev` - Intelligent development sync with conflict detection
+✅ `/health-check` - Verify all components loaded and working
+✅ `/pipeline-status` - Track /auto-implement workflow progress
+
+**Individual Agent Commands (7)** - Per GitHub #44:
+✅ `/research` - Research patterns and best practices
+✅ `/plan` - Architecture and implementation planning
+✅ `/test-feature` - TDD test generation
+✅ `/implement` - Code implementation
+✅ `/review` - Code quality review
+✅ `/security-scan` - Security vulnerability scan
+✅ `/update-docs` - Documentation synchronization
+
+**Utility Commands (3)**:
+✅ `/test` - Run all automated tests (pytest wrapper)
 ✅ `/uninstall` - Remove or disable plugin
+✅ `/update-plugin` - Update from marketplace
 
 ### Verify Installation
 
@@ -454,10 +421,10 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 ## What You Get
 
-### 19 Specialized Agents
+### 18 Specialized Agents (Orchestrator Removed v3.2.2)
 
-**Core Workflow Agents (8)** - Execute the main SDLC pipeline in sequence:
-- **orchestrator** `sonnet` - PROJECT.md gatekeeper, validates alignment before any work begins
+**Core Workflow Agents (9)** - Execute the main SDLC pipeline (orchestrator removed v3.2.2, Claude coordinates directly):
+- **advisor** `sonnet` - Critical thinking and risk validation before decisions
 - **researcher** `sonnet` - Web research for patterns, best practices, and existing solutions
 - **planner** `opus` - Architecture & implementation planning (complex analysis)
 - **test-master** `sonnet` - TDD specialist (writes failing tests first)
@@ -465,75 +432,52 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 - **reviewer** `sonnet` - Quality gate checks (code review)
 - **security-auditor** `haiku` - Security scanning and vulnerability detection
 - **doc-master** `haiku` - Documentation sync and CHANGELOG updates
-
-> **Model Strategy**: Opus for complex planning (1 step), Sonnet for general work (6 steps), Haiku for simple checks (2 steps) = optimized cost/quality
-
-**Analysis & Validation Agents (6)** - Validate quality and PROJECT.md alignment:
-- **advisor** `sonnet` - Critical thinking and risk validation before decisions
 - **quality-validator** `sonnet` - GenAI-powered feature quality and standards validation
+
+> **Model Strategy**: Opus for complex planning (1 step), Sonnet for general work (7 steps), Haiku for simple checks (2 steps) = optimized cost/quality
+
+**Utility Agents (9)** - Support core workflow with validation, setup, and automation:
 - **alignment-validator** `sonnet` - PROJECT.md alignment validation (features vs goals/scope/constraints)
 - **alignment-analyzer** `sonnet` - Detailed conflict analysis (PROJECT.md vs reality/code/docs)
 - **project-progress-tracker** `sonnet` - Track and update PROJECT.md goal completion metrics
 - **project-status-analyzer** `sonnet` - Real-time project health monitoring and recommendations
-
-**Automation & Setup Agents (5)** - Configure workflows and automate routine tasks:
 - **commit-message-generator** `sonnet` - Conventional commit message generation
 - **pr-description-generator** `sonnet` - Comprehensive PR descriptions from implementation artifacts
 - **setup-wizard** `sonnet` - Intelligent setup and tech stack detection/configuration
 - **project-bootstrapper** `sonnet` - Analyze existing codebases and generate/update PROJECT.md
 - **sync-validator** `sonnet` - Smart development environment sync and conflict detection
 
-### 19 Specialist Skills (Progressive Disclosure Architecture)
+### Skills (Removed per Anthropic Guidance v2.5+)
 
-Agents leverage 19 specialized skill packages using **progressive disclosure** - metadata stays in context (minimal overhead), full skill content loads only when needed.
+**Status**: Skills directory empty - specialist knowledge now embedded in agent prompts.
 
-**Organized by Category**:
-
-**Core Development Skills**:
-- **api-design** - REST API design, versioning, error handling, pagination, OpenAPI documentation
-- **architecture-patterns** - System architecture, ADRs, design patterns, tradeoff analysis
-- **code-review** - Code quality assessment, style checking, pattern detection
-- **database-design** - Schema design, migrations, query optimization, ORM patterns
-- **testing-guide** - TDD methodology, test patterns, coverage strategies, regression prevention
-- **security-patterns** - API key management, input validation, encryption, OWASP compliance
-
-**Workflow & Automation Skills**:
-- **git-workflow** - Commit conventions, branching strategies, PR workflows
-- **github-workflow** - Issues, PRs, milestones, auto-tracking
-- **project-management** - PROJECT.md creation, goal setting, sprint planning, scope definition
-- **documentation-guide** - Documentation standards, API docs, README patterns, consistency
-
-**Code & Quality Skills**:
-- **python-standards** - PEP 8, type hints, docstrings, black/isort formatting
-- **observability** - Logging, debugging, profiling, performance monitoring
-- **consistency-enforcement** - Documentation consistency, drift prevention
-- **file-organization** - Project structure enforcement, auto-fix mode
-
-**Validation & Analysis Skills**:
-- **research-patterns** - Research methodology, pattern discovery, best practices
-- **semantic-validation** - GenAI-powered semantic validation, drift detection
-- **cross-reference-validation** - Documentation reference validation, link checking
-- **documentation-currency** - Stale documentation detection, version lag detection
-- **advisor-triggers** - Critical analysis patterns, decision trade-offs
-
-**How Skills Work**: Each agent includes relevant skill metadata in its system prompt. When an agent recognizes a task needs specialized expertise, it loads the full skill content (SKILL.md) and supporting files on-demand. This "progressive disclosure" approach eliminates context bloat - you can scale to 50+ skills without exceeding token budgets.
-
-### 9 Slash Commands
+### 18 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
-**Core Commands** (6):
-- `/auto-implement` - Describe feature, Claude handles everything autonomously
+**Core Commands** (8):
+- `/auto-implement` - Full 7-agent SDLC workflow
 - `/align-project` - Analyze & fix PROJECT.md alignment (menu: report/fix/preview/cancel)
 - `/align-claude` - Check and fix CLAUDE.md alignment with codebase
 - `/setup` - Interactive project setup wizard
-- `/test` - Run all automated tests (unit + integration + UAT)
+- `/sync-dev` - Intelligent development sync with conflict detection
 - `/status` - Track strategic goal progress with AI recommendations
+- `/health-check` - Verify all components loaded and working
+- `/pipeline-status` - Track /auto-implement workflow progress
+
+**Individual Agent Commands** (7) - Per GitHub #44:
+- `/research` - Research patterns and best practices
+- `/plan` - Architecture and implementation planning
+- `/test-feature` - TDD test generation
+- `/implement` - Code implementation
+- `/review` - Code quality review
+- `/security-scan` - Security vulnerability scan
+- `/update-docs` - Documentation synchronization
 
 **Utility Commands** (3):
-- `/health-check` - Verify all components loaded and working
-- `/sync-dev` - Intelligent development sync with conflict detection
+- `/test` - Run all automated tests (pytest wrapper)
 - `/uninstall` - Remove or disable plugin
+- `/update-plugin` - Update from marketplace
 
 See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
 
@@ -542,9 +486,8 @@ See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMAN
 All hooks are **pre-commit** (run before code is committed). They validate quality automatically.
 
 **Core Blocking Hooks (9)** - Run by default, block commits if failed:
-- **detect-feature-request** - Auto-invokes `/auto-implement` when feature requests detected (vibe coding)
 - **validate-project-alignment** - PROJECT.md must exist with GOALS/SCOPE/CONSTRAINTS before committing
-- **enforce-orchestrator** - Validates orchestrator ran and made alignment decision (v3.0+)
+- **enforce-pipeline-complete** - Validates 7 agents ran when using /auto-implement (v3.2.2+)
 - **enforce-tdd** - Validates tests written BEFORE code (test-first development required)
 - **auto-test** - pytest (Python), jest (JS/TS) - tests must pass
 - **security-scan** - Secrets detection, vulnerability scanning - must pass security checks
@@ -564,7 +507,7 @@ All hooks are **pre-commit** (run before code is committed). They validate quali
 - **detect-doc-changes** - Detects undocumented code changes
 - **post-file-move** - Updates imports/references after file moves
 - **enforce-bloat-prevention** - Prevents documentation/code sprawl
-- **enforce-command-limit** - Ensures command count stays ≤ 8
+- **enforce-command-limit** - Monitors command count growth
 - **validate-claude-alignment** - CLAUDE.md alignment checking
 - **validate-documentation-alignment** - Detects docs drift vs code
 - **validate-session-quality** - Quality checks for session logs
