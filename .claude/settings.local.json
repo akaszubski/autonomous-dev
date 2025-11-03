@@ -2,7 +2,7 @@
   "description": "Strict Mode Configuration - Dogfooding autonomous-dev plugin (v2.3.0+)",
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(gh issue create:*)"
     ],
     "deny": [],
     "ask": []
@@ -19,12 +19,11 @@
         ]
       },
       {
-        "description": "Auto-detect feature requests (DISABLED - manual invocation for now)",
+        "description": "Auto-detect feature requests and trigger orchestrator",
         "hooks": [
           {
             "type": "command",
-            "comment": "Feature detection disabled during development - use manual /auto-implement when ready",
-            "command": "true"
+            "command": "python .claude/hooks/detect_feature_request.py"
           }
         ]
       }

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-03
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
-**Version**: v3.1.0 (Agent-Skill Integration Architecture)
+**Version**: v3.2.0 (Anti-Bloat Architecture - "Less is More" Design Requirement)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
@@ -46,6 +46,7 @@ This is achieved via **dual-layer architecture**:
 - **GenAI-native orchestration** - Agent coordination via Claude reasoning (flexible, adaptive)
 - **PROJECT.md is the gatekeeper** - Hooks enforce alignment, agents respect it
 - **No Python orchestration** - GenAI reasoning > rigid automation (per PROJECT.md lines 213-221)
+- **Less is more** - Every feature serves the primary mission; bloat prevention is a design requirement (see CONSTRAINTS → Design Principles)
 
 **What success looks like**:
 
@@ -184,6 +185,56 @@ This is achieved via **dual-layer architecture**:
 ---
 
 ## CONSTRAINTS
+
+### Design Principles (Anti-Bloat Requirements)
+
+**Philosophy**: "Less is more" - Use all elements to make dev life simple and automated, but only build what's necessary.
+
+**Every feature must pass these gates before implementation**:
+
+1. **Alignment Gate** - Does it serve primary mission?
+   - ✅ Advances autonomous execution
+   - ✅ Improves SDLC enforcement
+   - ✅ Enhances AI-powered speed
+   - ❌ REJECT if not aligned with GOALS
+
+2. **Constraint Gate** - Does it respect boundaries?
+   - ✅ Keeps commands ≤ 8 total (currently: 7)
+   - ✅ Uses GenAI reasoning over Python automation
+   - ✅ Hooks enforce, agents enhance (not reversed)
+   - ❌ REJECT if violates constraints
+
+3. **Minimalism Gate** - Is this the simplest solution?
+   - ✅ Solves observed problem (not hypothetical)
+   - ✅ Can't be solved by existing features
+   - ✅ Can't be solved by documentation/config
+   - ✅ Implementation ≤ 200 LOC per feature
+   - ❌ REJECT if over-engineered
+
+4. **Value Gate** - Does benefit outweigh complexity?
+   - ✅ Saves developer time/effort measurably
+   - ✅ Makes automation more reliable
+   - ✅ Makes workflow more observable
+   - ❌ REJECT if maintenance burden > value delivered
+
+**Red Flags** (immediate bloat indicators):
+- 🚩 "This will be useful in the future" (hypothetical)
+- 🚩 "We should also handle X, Y, Z" (scope creep)
+- 🚩 "Let's create a framework for..." (over-abstraction)
+- 🚩 "This needs a new command" (approaching 8-command limit)
+- 🚩 "We need to automate..." (before trying observability)
+- 🚩 File count growing >5% per feature
+- 🚩 Test time increasing >10% per feature
+
+**Bloat Prevention Enforcement**:
+- Pre-implementation: Review against 4 gates (documented in `docs/BLOAT-DETECTION-CHECKLIST.md`)
+- During implementation: Monitor red flags, stop if detected
+- Post-implementation: Validate value delivered vs complexity added
+- Quarterly: Audit all features, remove unused/low-value code
+
+**Result**: Developer experience is simple and automated BY DESIGN, not by accident. Every element serves the mission.
+
+---
 
 ### Technical Constraints
 

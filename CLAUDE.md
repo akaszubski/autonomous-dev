@@ -351,7 +351,9 @@ vim .claude/PROJECT.md
 
 ---
 
-**For detailed guides**: See `docs/UPDATES.md` and `plugins/autonomous-dev/README.md`
+**For detailed guides**:
+- **Users**: See `plugins/autonomous-dev/README.md` for installation and usage
+- **Contributors**: See `docs/DEVELOPMENT.md` for dogfooding setup and development workflow
 
 **For code standards**: See CLAUDE.md best practices and agent prompts for guidance (skills directory removed per Anthropic anti-pattern guidance v2.5+)
 
