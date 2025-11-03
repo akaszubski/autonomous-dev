@@ -22,7 +22,9 @@
 # Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status, /uninstall
 ```
 
-**Commands (8 active)**:
+**Commands (15 active, expanded per GitHub #44)**:
+
+**Core Workflow (8)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
@@ -31,6 +33,15 @@
 - `/status` - Track project progress (project-progress-tracker agent)
 - `/health-check` - Validate plugin integrity (Python validation)
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
+
+**Individual Agents (7)** - GitHub #44:
+- `/research <feature>` - Research patterns and best practices (2-5 min)
+- `/plan <feature>` - Architecture and implementation planning (3-5 min)
+- `/test-feature <feature>` - TDD test generation (2-5 min)
+- `/implement <feature>` - Code implementation to make tests pass (5-10 min)
+- `/review` - Code quality review and feedback (2-3 min)
+- `/security-scan` - Security vulnerability scan and OWASP compliance (1-2 min)
+- `/update-docs` - Documentation synchronization (1-2 min)
 
 ---
 
@@ -215,7 +226,7 @@ python .claude/hooks/validate_claude_alignment.py
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
 - Agent counts match reality (currently 19 agents)
-- Command counts match installed commands (currently 8 active commands)
+- Command counts match installed commands (currently 15 active commands per GitHub #44)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date
