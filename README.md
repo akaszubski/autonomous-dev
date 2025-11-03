@@ -12,7 +12,7 @@ Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Age
 - **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
 - **Layer 2 (Agents)**: Optionally provides AI assistance via `/auto-implement` — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🛡️ **Hook-Based Enforcement** • 🤖 **19 AI Specialists** • 🧠 **GenAI Orchestration** • 🔒 **Security Scanning** • 📋 **8 Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **19 AI Specialists** • 📚 **19 Skills Library** • 🧠 **GenAI Orchestration** • 🔒 **Security Scanning** • 📋 **8 Commands**
 
 ---
 
@@ -161,6 +161,65 @@ Professional-quality code with AI enhancement
 | **Agents** | Optional AI assistance when invoked | Conditional (adaptive) |
 
 **Result**: Professional quality (hooks) + Expert intelligence (agents)
+
+### Layer 3: Skills-Based Knowledge (Progressive Disclosure)
+
+**19 knowledge packages** provide codified best practices that agents use:
+
+```
+Agent needs to implement API endpoint
+    ↓
+Agent loads `api-design` skill
+    ├─ REST conventions
+    ├─ Error handling patterns
+    ├─ Versioning strategies
+    └─ OpenAPI documentation
+    ↓
+Agent applies skill patterns to implementation
+    ↓
+Result: API follows industry best practices
+```
+
+**Available Skills (auto-activate via keywords)**:
+
+**Core Development (6)**:
+- 🎯 `api-design` - REST API patterns, versioning, error handling
+- 🏗️ `architecture-patterns` - System design, ADRs, trade-offs
+- 👀 `code-review` - Quality assessment, feedback guidelines
+- 🗄️ `database-design` - Schema, migrations, ORM patterns
+- ✅ `testing-guide` - TDD methodology, coverage, regression
+- 🔒 `security-patterns` - API keys, validation, OWASP
+
+**Workflow & Automation (4)**:
+- 🔀 `git-workflow` - Commit conventions, branching, PRs
+- 🐙 `github-workflow` - Issues, milestones, automation
+- 📋 `project-management` - PROJECT.md, goals, sprints
+- 📖 `documentation-guide` - Docs standards, consistency
+
+**Code & Quality (4)**:
+- 🐍 `python-standards` - PEP 8, type hints, formatting
+- 📊 `observability` - Logging, debugging, profiling
+- ⚖️ `consistency-enforcement` - Documentation drift prevention
+- 📁 `file-organization` - Project structure standards
+
+**Validation & Analysis (5)**:
+- 🔍 `research-patterns` - Research methodology
+- 🧠 `semantic-validation` - GenAI-powered validation
+- 🔗 `cross-reference-validation` - Link checking
+- ⏰ `documentation-currency` - Stale doc detection
+- 💡 `advisor-triggers` - Critical analysis patterns
+
+**How skills work:**
+- Auto-activate when keywords detected (e.g., "security", "test", "api")
+- Progressive disclosure (metadata in context, full content loaded when needed)
+- No context bloat (only active skills loaded)
+- Agents explicitly invoke skills for domain expertise
+
+**Example**: When implementing JWT authentication:
+1. Agent invokes `security-patterns` skill → learns API key best practices
+2. Agent invokes `api-design` skill → learns RESTful auth endpoints
+3. Agent invokes `testing-guide` skill → learns TDD approach for auth
+4. Result: Secure, well-designed, tested authentication
 
 ---
 
