@@ -203,7 +203,7 @@ python .claude/hooks/validate_claude_alignment.py
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
 - Agent counts match reality (currently 19, not 7 or 16)
-- Command counts match installed commands (currently 8)
+- Command counts match installed commands (currently 9 main + 2 utility = 11 total)
 - Documented features actually exist
 - Best practices are up-to-date
 

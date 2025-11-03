@@ -705,6 +705,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | `/auto-implement` | Autonomous feature development | orchestrator | Every feature - describe what you want |
 | `/align-project` | Find/fix conflicts between goals and code | alignment-analyzer | After major changes, before releases |
 | `/status` | Track strategic progress, get recommendations | project-progress-tracker | Check goal progress, decide next priorities |
+| `/sync-dev` | Synchronize development environment | sync-validator | After git pull, plugin updates, environment issues |
 | `/setup` | Interactive setup wizard | project-bootstrapper | Once per project during installation |
 | `/health-check` | Validate plugin component integrity | (Python validation) | After installation, when debugging issues |
 | `/align-claude` | Check/fix documentation drift | (Validation + script) | Automated via hook, manual check optional |
@@ -736,7 +737,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 **Key Changes**:
 - ✅ **All commands are GenAI-native**: Every command uses intelligent agents
 - ✅ **Commands are cooperative**: `/status` → `/auto-implement` → `/align-project` → `/test`
-- ✅ **Removed `/sync-dev`**: Dev-only utility with limited value
+- ✅ **Added `/sync-dev`**: Smart environment sync after git pull or plugin updates
 - ✅ **Kept `/test`**: Simple bash wrapper for pytest (no GenAI needed)
 
 See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration guide.
@@ -753,7 +754,6 @@ The following commands have been **moved to `commands/archived/`** to align with
 - `/advise` → orchestrator agent validates PROJECT.md alignment automatically
 - `/bootstrap` → Merged into `/setup` (auto-detection included)
 - `/create-project-md` → Merged into `/setup` (PROJECT.md creation included)
-- `/sync-dev` → Developer tool moved to `scripts/sync_to_installed.py`
 - `/health-check` → Developer tool moved to `scripts/health_check.py`
 
 **v2.5.0 Archived** (Granular workflow commands):

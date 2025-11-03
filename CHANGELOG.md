@@ -9,6 +9,31 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **`/sync-dev` Command** - Restores development environment synchronization (Issue #43)
+  - Invokes `sync-validator` agent for smart conflict detection
+  - Detects dependency mismatches (package.json, requirements.txt, etc.)
+  - Identifies environment variable drift (.env files)
+  - Checks for pending database migrations
+  - Validates build artifacts and configuration
+  - Provides intelligent fix recommendations
+  - Optional auto-fix with user confirmation
+  - Location: `plugins/autonomous-dev/commands/sync-dev.md` (350+ lines)
+  - Usage: `/sync-dev` for analysis, `/sync-dev --fix` for auto-resolution
+  - Documented in README.md with full usage examples
+  - Updates command count: 8 → 9 main commands (11 total with utilities)
+- **GitHub Issue Integration** - Automatic issue creation and closure for `/auto-implement` workflow
+  - Creates GitHub issue at start of pipeline with feature description
+  - Tracks issue number in pipeline JSON (`github_issue` field)
+  - Auto-closes issue when pipeline completes with agent execution summary
+  - Gracefully degrades if `gh` CLI not available or not in git repository
+  - Labels: `automated`, `feature`, `in-progress` (created) → `completed` (closed)
+  - New module: `plugins/autonomous-dev/hooks/github_issue_manager.py` (265 lines)
+  - Enhanced: `scripts/agent_tracker.py` with `set-github-issue` command
+  - Enhanced: `/pipeline-status` now shows linked GitHub issue
+  - Documentation: Updated `orchestrator.md` with issue-driven workflow
+  - Tests: 10 test cases covering creation, closure, timeouts, and error handling
+
 ### Fixed
 - **setup.py Installation Flow** - Fixed critical bug where setup.py expected `.claude/plugins/autonomous-dev/` but `/plugin install` copies files directly to `.claude/hooks/`, `.claude/commands/`, etc.
   - Updated `verify_plugin_installation()` to check `.claude/hooks/` and `.claude/commands/` instead
