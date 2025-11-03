@@ -14,7 +14,7 @@ Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Age
 - **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
 - **Layer 2 (Agents)**: Provides AI assistance via explicit commands (`/auto-implement` or individual agents) — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **0 Skills** (removed v2.5+) • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **18 Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **19 Active Skills** • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **18 Commands**
 
 ---
 
@@ -164,19 +164,44 @@ Professional-quality code with AI enhancement
 
 **Result**: Professional quality (hooks) + Expert intelligence (agents)
 
-### Layer 3: Skills (Removed per Anthropic Guidance)
+### Layer 3: Skills-Based Knowledge (19 Active Skills)
 
-**Status**: Skills directory empty (removed v2.5+)
+**Status**: 19 active skill packages using progressive disclosure architecture
 
-**Why removed**:
-- Caused context bloat in Claude Code plugins
-- Anthropic recommended consolidating knowledge into agent system prompts
-- Progressive disclosure approach was considered but ultimately removed for simplicity
+**How it works**:
+- Skills are **first-class citizens** in Claude Code 2.0+ (not anti-pattern)
+- **Progressive disclosure**: Metadata stays in context, full content loaded only when needed
+- **Auto-activate**: Based on task keywords and patterns
+- **Eliminates context bloat**: Only loads relevant skills, can scale to 100+ skills
 
-**How it works now**:
-- Specialist knowledge embedded directly in agent prompts
-- No separate skills directory or auto-activation
-- Agents have domain expertise built-in
+**Available Skills by Category**:
+
+**Core Development (6)**:
+- 🎯 **api-design** - REST API patterns, versioning, error handling
+- 🏗️ **architecture-patterns** - System design, ADRs, trade-offs
+- 👀 **code-review** - Quality assessment, feedback guidelines
+- 🗄️ **database-design** - Schema, migrations, ORM patterns
+- ✅ **testing-guide** - TDD methodology, coverage, regression
+- 🔒 **security-patterns** - API keys, validation, OWASP
+
+**Workflow & Automation (4)**:
+- 🔀 **git-workflow** - Commit conventions, branching, PRs
+- 🐙 **github-workflow** - Issues, milestones, automation
+- 📋 **project-management** - PROJECT.md, goals, sprints
+- 📖 **documentation-guide** - Docs standards, consistency
+
+**Code & Quality (4)**:
+- 🐍 **python-standards** - PEP 8, type hints, formatting
+- 📊 **observability** - Logging, debugging, profiling
+- ⚖️ **consistency-enforcement** - Documentation drift prevention
+- 📁 **file-organization** - Project structure standards
+
+**Validation & Analysis (5)**:
+- 🔍 **research-patterns** - Research methodology
+- 🧠 **semantic-validation** - GenAI-powered validation
+- 🔗 **cross-reference-validation** - Link checking
+- ⏰ **documentation-currency** - Stale doc detection
+- 💡 **advisor-triggers** - Critical analysis patterns
 
 ---
 
@@ -447,9 +472,13 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 - **project-bootstrapper** `sonnet` - Analyze existing codebases and generate/update PROJECT.md
 - **sync-validator** `sonnet` - Smart development environment sync and conflict detection
 
-### Skills (Removed per Anthropic Guidance v2.5+)
+### 19 Active Skills (Progressive Disclosure Architecture)
 
-**Status**: Skills directory empty - specialist knowledge now embedded in agent prompts.
+**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure
+
+**How it works**: Skills use progressive disclosure - metadata stays in context (minimal overhead), full skill content loads only when needed. This architecture allows scaling to 100+ skills without context bloat.
+
+**Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
 
 ### 18 Slash Commands
 

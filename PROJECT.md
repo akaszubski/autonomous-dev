@@ -250,10 +250,12 @@ This is achieved via **dual-layer architecture**:
 - **Agents**: 18 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
   - **Core 9**: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+)
-  - **Status**: Skills directory exists but empty (no .md files)
-  - **Why Removed**: Context bloat, Anthropic recommended consolidating knowledge into agent prompts
-  - **How It Works Now**: Specialist knowledge embedded directly in agent system prompts
+- **Skills**: 19 (active with progressive disclosure architecture)
+  - **Status**: 19 active skill packages in plugins/autonomous-dev/skills/
+  - **Architecture**: Progressive disclosure (metadata in context, full content loaded when needed)
+  - **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
+  - **How It Works**: Skills auto-activate based on keywords, Claude Code 2.0+ native support
+  - **Reference**: See docs/SKILLS-AGENTS-INTEGRATION.md for full architecture
 - **Commands**: 18 total (expanded per GitHub #44)
   - **Core (8)**: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status
   - **Agent (7)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs

@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 18 AI agents, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 18 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -158,22 +158,25 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 **Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
 
-### Skills (0 - Removed Per Anti-Pattern Guidance)
+### Skills (19 Active - Progressive Disclosure)
 
-**Status**: Skills directory removed per Anthropic anti-pattern guidance (v2.5+)
+**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
 
-**Why Removed**:
-- Skills caused context bloat in Claude Code plugins
-- Anthropic recommended consolidating specialist knowledge into agent system prompts
-- Progressive disclosure (loading skills on-demand) was considered but ultimately removed for simplicity
+**Why Active**:
+- Skills are **first-class citizens** in Claude Code 2.0+ (not anti-pattern)
+- Progressive disclosure solves context bloat elegantly
+- Metadata stays in context, full content loads only when needed
+- Can scale to 100+ skills without performance issues
 
-**Previous 19 Skills** (now consolidated into agents):
-- **Core Development**: api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
-- **Workflow & Automation**: git-workflow, github-workflow, project-management, documentation-guide
-- **Code & Quality**: python-standards, observability, consistency-enforcement, file-organization
-- **Validation & Analysis**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
+**19 Active Skills** (organized by category):
+- **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
+- **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
+- **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
+- **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
-**How It Works Now**: Specialist knowledge embedded directly in agent system prompts (no separate skills/ directory).
+**How It Works**: Skills auto-activate based on task keywords. Claude loads full SKILL.md content only when relevant, keeping context efficient.
+
+See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details.
 
 ### Hooks (28 total automation)
 
