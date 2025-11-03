@@ -14,38 +14,76 @@ Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
 ---
 
-## 🚀 Installation (One Command)
+## 🚀 Installation
 
-**In your project folder:**
+### Quick Install (One Command)
+
+**For first-time users:**
 
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-**Done!** Script checks plugin, copies files, guides you through any missing steps.
+This will guide you through plugin installation and bootstrap.
 
-**First time?** It will tell you:
+---
+
+### Recommended: Fresh Install (Most Reliable)
+
+**For guaranteed latest version or when updating:**
+
+```bash
+# STEP 1: Nuclear clean (removes old plugin completely)
+rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
+
+# STEP 2: Exit Claude Code completely
+# Mac: Cmd+Q | Linux/Windows: Ctrl+Q
+
+# STEP 3: Reopen Claude Code
+
+# STEP 4: Fresh install from GitHub
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+
+# STEP 5: Exit and restart Claude Code again
+
+# STEP 6: Bootstrap (copies plugin files to your project)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+# OR if you cloned the repo:
+# cd /path/to/autonomous-dev && ./scripts/resync-dogfood.sh
+
+# STEP 7: Exit and restart Claude Code one final time
+
+# STEP 8: Verify installation
+/health-check  # Should show: Commands: 10/10 present ✅
 ```
-❌ Plugin not found
-Install with: /plugin marketplace add akaszubski/autonomous-dev
-              /plugin install autonomous-dev
-Then restart and run this again.
-```
 
-**After plugin install**, run same command again. Restart Claude Code. Ready!
+**Why this approach?**
+- ✅ Guarantees fresh clone from GitHub (no stale files)
+- ✅ Ensures you have the latest agents, hooks, and commands
+- ✅ Verifiable (can check file timestamps)
+- ✅ Recommended when updating or troubleshooting
 
-✅ All 8 commands available: `/auto-implement`, `/setup`, `/align-project`, `/test`, `/status`, `/health-check`, `/align-claude`, `/uninstall`
+**What gets installed:**
+- 10 slash commands (`/auto-implement`, `/pipeline-status`, etc.)
+- 19 specialist agents (orchestrator, researcher, planner, etc.)
+- 35+ automation hooks (validation, security, testing, docs)
+- Templates and project scaffolding
 
-**Optional: Run setup wizard**
+---
+
+### Optional: Run Setup Wizard
+
+After installation, configure automatic hooks:
+
 ```bash
 /setup
 ```
-This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
-### Verify Installation
-```bash
-/health-check  # Should show: Commands: 8/8 present ✅
-```
+This:
+- Creates PROJECT.md from template
+- Configures automatic hooks (auto-format, auto-test, etc.)
+- Sets up file organization enforcement
 
 ### What the Bootstrap Script Does
 
