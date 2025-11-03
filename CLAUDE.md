@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 19 AI agents, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 18 AI agents, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -22,7 +22,7 @@
 # Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status, /uninstall
 ```
 
-**Commands (15 active, expanded per GitHub #44)**:
+**Commands (18 active, expanded per GitHub #44)**:
 
 **Core Workflow (8)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
@@ -43,6 +43,11 @@
 - `/security-scan` - Security vulnerability scan and OWASP compliance (1-2 min)
 - `/update-docs` - Documentation synchronization (1-2 min)
 
+**Utility Commands (3)**:
+- `/test` - Run automated tests (pytest wrapper)
+- `/uninstall` - Remove or disable plugin features
+- `/update-plugin` - Update plugin from marketplace
+
 ---
 
 ## Context Management (CRITICAL!)
@@ -61,7 +66,7 @@
 **What this does**: Clears conversation (not files!), resets context budget, maintains performance
 
 **When to clear**:
-- ✅ After each feature completes (mandatory)
+- ✅ After each feature completes (recommended for optimal performance)
 - ✅ Before starting unrelated feature
 - ✅ If responses feel slow
 
@@ -116,17 +121,17 @@ git commit -m "docs: Update project goals"
 6. **Review**: reviewer checks quality
 7. **Security**: security-auditor scans
 8. **Documentation**: doc-master updates docs
-9. **Context Clear**: `/clear` for next feature
+9. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
 ---
 
 ## Architecture
 
-### Agents (19 specialists)
+### Agents (18 specialists)
 
 Located: `plugins/autonomous-dev/agents/`
 
-**Core Workflow Agents (9)** (orchestrator removed - see v3.2.2 notes):
+**Core Workflow Agents (9)** (orchestrator removed v3.2.2 - Claude coordinates directly):
 - **researcher**: Web research for patterns and best practices
 - **planner**: Architecture planning and design
 - **test-master**: TDD specialist (writes tests first)
@@ -225,8 +230,8 @@ python .claude/hooks/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 19 agents)
-- Command counts match installed commands (currently 15 active commands per GitHub #44)
+- Agent counts match reality (currently 18 agents, orchestrator removed v3.2.2)
+- Command counts match installed commands (currently 18 active commands per GitHub #44)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date
@@ -335,7 +340,7 @@ python .claude/hooks/setup.py
 # Start feature
 # (describe feature to Claude)
 
-# After feature completes
+# After feature completes (optional - for optimal performance)
 /clear
 ```
 
@@ -368,7 +373,7 @@ vim .claude/PROJECT.md
 
 **Context is Precious**
 
-- Clear context after features (`/clear`)
+- Clear context after features (`/clear` - recommended for optimal performance)
 - Use session files for communication
 - Stay under 8K tokens per feature
 - Scale to 100+ features

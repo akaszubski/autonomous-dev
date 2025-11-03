@@ -31,7 +31,7 @@ This is achieved via **dual-layer architecture**:
 
 **Layer 2: Agent-Based Intelligence** (Optional, AI-Enhanced)
 - User invokes `/auto-implement` for AI assistance
-- orchestrator MAY invoke specialist agents (researcher, planner, etc.)
+- Claude coordinates specialist agents (researcher, planner, implementer, reviewer, etc.)
 - Provides intelligent guidance and implementation help
 - **Conditional execution** - Claude decides which agents to invoke based on feature complexity
 
@@ -67,7 +67,7 @@ This is achieved via **dual-layer architecture**:
    - Security: 15 minutes → 2 minutes (AI vulnerability scan)
    - Docs: 20 minutes → 1 minute (AI doc generation)
 
-6. **Minimal User Intervention** - 8 commands total (5 core + 3 utilities, down from 40) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
+6. **Minimal User Intervention** - 15 commands total (8 core workflow + 7 individual agents, expanded per GitHub #44) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
 
 **Success Metrics**:
 
@@ -84,7 +84,7 @@ This is achieved via **dual-layer architecture**:
 - **Professional quality**: Guaranteed by automated validation, not hope
 
 **What's Enhanced (via Agents):**
-- **AI assistance**: orchestrator MAY invoke specialist agents when `/auto-implement` is used
+- **AI assistance**: Claude coordinates specialist agents when `/auto-implement` is used
   - researcher → best practices and patterns (conditional)
   - planner → architecture design (conditional)
   - test-master → test strategies (conditional)
@@ -109,9 +109,9 @@ This is achieved via **dual-layer architecture**:
    PROJECT.md: "Performance" goal → 60% complete
 ```
 
-**Command Structure** (8 total):
-- **Core Commands (5)**: auto-implement, align-project, setup, test, status
-- **Utility Commands (3)**: health-check (diagnostics), sync-dev (development sync), uninstall (cleanup)
+**Command Structure** (15 total, expanded per GitHub #44):
+- **Core Workflow Commands (8)**: auto-implement (full pipeline), align-project, align-claude, setup, test, status, health-check, sync-dev, uninstall
+- **Individual Agent Commands (7)**: research, plan, test-feature, implement, review, security-scan, update-docs
 - **Archived (32)**: Redundant manual commands moved to commands/archive/ (commit variants, format, sync-docs, granular test commands, etc.)
 
 **Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
@@ -124,7 +124,7 @@ This is achieved via **dual-layer architecture**:
 
 **Core Auto-Orchestration** (PRIMARY FOCUS):
 - ✅ **Feature request detection** - Automatic triggers on "implement", "add", "create", "build", etc.
-- ✅ **Orchestrator auto-invocation** - No manual `/auto-implement` needed → Natural language triggers agents
+- ✅ **Agent coordination** - `/auto-implement` command coordinates 7-agent workflow directly
 - ✅ **PROJECT.md gatekeeper** - Validates alignment BEFORE any work begins → Blocks if misaligned
 - ✅ **Strict mode configuration** - Pre-configured hooks that enforce all best practices
 - ✅ **SDLC step enforcement** - Can't skip tests, security, docs → Each checkpoint required
@@ -150,7 +150,7 @@ This is achieved via **dual-layer architecture**:
 - ✅ **Preserves existing** - Doesn't break what's working → Enhances incrementally
 
 **Autonomous Development Pipeline** (Existing):
-- ✅ **8-agent coordination** - orchestrator validates PROJECT.md, then coordinates specialist agents
+- ✅ **7-agent coordination** - Claude validates PROJECT.md, then coordinates specialist agents
 - ✅ **Model optimization** - opus (complex planning), sonnet (balanced), haiku (fast scans)
 - ✅ **Context management** - Session files, /clear prompts, scales to 100+ features
 - ✅ **TDD enforced** - Tests written before code (test-master → implementer flow)
@@ -199,7 +199,7 @@ This is achieved via **dual-layer architecture**:
    - ❌ REJECT if not aligned with GOALS
 
 2. **Constraint Gate** - Does it respect boundaries?
-   - ✅ Keeps commands ≤ 8 total (currently: 7)
+   - ✅ Keeps commands ≤ 15 total (currently: 8, expanded for individual agent commands per GitHub issue #44)
    - ✅ Uses GenAI reasoning over Python automation
    - ✅ Hooks enforce, agents enhance (not reversed)
    - ❌ REJECT if violates constraints
@@ -221,7 +221,7 @@ This is achieved via **dual-layer architecture**:
 - 🚩 "This will be useful in the future" (hypothetical)
 - 🚩 "We should also handle X, Y, Z" (scope creep)
 - 🚩 "Let's create a framework for..." (over-abstraction)
-- 🚩 "This needs a new command" (approaching 8-command limit)
+- 🚩 "This needs a new command" (approaching 15-command limit)
 - 🚩 "We need to automate..." (before trying observability)
 - 🚩 File count growing >5% per feature
 - 🚩 Test time increasing >10% per feature
@@ -246,19 +246,18 @@ This is achieved via **dual-layer architecture**:
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v3.1.0 - Agent-Skill Integration):
-- **Agents**: 19 total
-  - **Core 10**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+**Current Architecture** (v3.2.2 - Orchestrator Removed):
+- **Agents**: 18 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
+  - **Core 9**: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 19 (active knowledge packages with progressive disclosure)
-  - **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
-  - **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
-  - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
-  - **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
-  - Progressive disclosure pattern: Metadata in context, full content loaded when needed
-  - Auto-activation via keywords and trigger patterns
-  - First-class citizens in Claude Code 2.0+ (not anti-pattern)
-- **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
+- **Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+)
+  - **Status**: Skills directory exists but empty (no .md files)
+  - **Why Removed**: Context bloat, Anthropic recommended consolidating knowledge into agent prompts
+  - **How It Works Now**: Specialist knowledge embedded directly in agent system prompts
+- **Commands**: 18 total (expanded per GitHub #44)
+  - **Core (8)**: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status
+  - **Agent (7)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs
+  - **Utility (3)**: /test, /uninstall, /update-plugin
 - **Hooks**: 28 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_orchestrator, enforce_tdd
   - **Extended 19**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 4 others
@@ -302,8 +301,8 @@ This repository serves TWO audiences - contributors building the plugin AND user
 - `plugins/autonomous-dev/docs/` - User documentation (STRICT-MODE.md, QUICKSTART.md, etc.)
 - `plugins/autonomous-dev/hooks/` - Automation hooks + utility scripts (setup.py wizard, validators, etc.)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
-- `plugins/autonomous-dev/agents/` - 19 AI agents (10 core + 9 utility)
-- `plugins/autonomous-dev/commands/` - 8 slash commands
+- `plugins/autonomous-dev/agents/` - 18 AI agents (9 core + 9 utility, orchestrator removed v3.2.2)
+- `plugins/autonomous-dev/commands/` - 18 slash commands (8 core + 7 agent + 3 utility)
 - `plugins/autonomous-dev/hooks/` - 15 automation hooks (7 core + 8 optional)
 - `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json, PROJECT.md)
 
@@ -313,7 +312,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 - **Feature Time**: Target 20-30 minutes per feature (autonomous)
 - **Test Execution**: Auto-tests should run in < 60 seconds
 - **Session Management**: Use session files (log paths, not content) to prevent context bloat
-- **Context Clearing**: MUST use `/clear` after each feature to maintain performance
+- **Context Clearing**: Recommended to use `/clear` after each feature to maintain performance (optional but helpful for 100+ features)
 - **Validation Speed**: All pre-commit hooks must complete in < 10 seconds
 
 ### Security Constraints
@@ -347,14 +346,14 @@ User: "implement user authentication"  [VIBE CODING - Layer 1]
      ├─> detect_feature_request.py: Reinforces "run /auto-implement"
      └─> Result: /auto-implement automatically invoked
      ↓
-orchestrator (GATEKEEPER - PRIMARY MISSION)
+/auto-implement command (GATEKEEPER - PRIMARY MISSION)
      │
      ├─> 1. Read PROJECT.md (GOALS, SCOPE, CONSTRAINTS)
      ├─> 2. Validate: Does feature serve GOALS?
      ├─> 3. Validate: Is feature IN SCOPE?
      ├─> 4. Validate: Respects CONSTRAINTS?
      ├─> 5. DECISION:
-     │      ✅ Aligned → Proceed with agent pipeline
+     │      ✅ Aligned → Proceed with 7-agent pipeline
      │      ❌ NOT Aligned → BLOCK work
      │                       → User must update PROJECT.md OR modify request
      └─> 6. Log alignment decision to session
@@ -380,7 +379,7 @@ orchestrator (GATEKEEPER - PRIMARY MISSION)
 Total: ~30 minutes (vs 7+ hours manually)
 All 7 steps completed, no shortcuts taken
      ↓
-Prompt: "Run /clear for next feature"
+Recommended: "Run /clear for next feature" (optional for performance)
      ↓
 [Pre-Commit Hooks] (BLOCKING - Strict Mode) [v3.0 - ENHANCED]
      ├─> validate_project_alignment.py  [PROJECT.md GATEKEEPER]
@@ -402,24 +401,19 @@ Production Code (Professional Quality Guaranteed)
 3. **TERTIARY**: File organization enforcement
 4. **SUPPORTING**: SDLC step enforcement
 
-### Agent Responsibilities (v2.4.0)
+### Agent Responsibilities (v3.2.2 - Orchestrator Removed)
 
-**Core Workflow Agents (8)**:
+**Core Workflow Agents (7)** - Coordinated by Claude via `/auto-implement`:
 
-1. **orchestrator** (ENHANCED):
-   - **PRIMARY MISSION**: PROJECT.md gatekeeper
-   - **Strict Mode**: Validates alignment BEFORE proceeding
-   - **Blocks work**: If feature not in SCOPE
-   - **Auto-invoked**: By detect_feature_request.py hook
-   - Tools: Task, Read, Bash | Model: sonnet
+1. **researcher**: Web research, best practices (sonnet, read-only)
+2. **planner**: Implementation plans (opus, read-only)
+3. **test-master**: TDD tests (sonnet, write tests)
+4. **implementer**: Make tests pass (sonnet, write code)
+5. **reviewer**: Quality gate (sonnet, read-only)
+6. **security-auditor**: Security scan (haiku, read-only)
+7. **doc-master**: Documentation sync (haiku, write docs)
 
-2. **researcher**: Web research, best practices (sonnet, read-only)
-3. **planner**: Implementation plans (opus, read-only)
-4. **test-master**: TDD tests (sonnet, write tests)
-5. **implementer**: Make tests pass (sonnet, write code)
-6. **reviewer**: Quality gate (sonnet, read-only)
-7. **security-auditor**: Security scan (haiku, read-only)
-8. **doc-master**: Documentation sync (haiku, write docs)
+**Note**: PROJECT.md alignment validation happens in `/auto-implement` command directly (not separate agent)
 
 **Utility Agents (4)**:
 
@@ -428,13 +422,13 @@ Production Code (Professional Quality Guaranteed)
 11. **pr-description-generator**: Generate comprehensive PR descriptions (sonnet)
 12. **project-progress-tracker**: Track progress against PROJECT.md goals (sonnet)
 
-**Note**: Utility agents support core workflow but are not part of main pipeline. Consider consolidating alignment-validator into orchestrator (duplicate functionality).
+**Note**: Utility agents support core workflow but are not part of main pipeline.
 
 ### Strict Mode Components
 
 **Auto-Orchestration**:
-- `hooks/detect_feature_request.py` - Detects vibe coding, auto-invokes orchestrator
-- `agents/orchestrator.md` - Enhanced with STRICT MODE gatekeeper logic
+- `hooks/detect_feature_request.py` - Detects vibe coding patterns
+- `commands/auto-implement.md` - Coordinates 7-agent workflow with PROJECT.md validation
 - `templates/settings.strict-mode.json` - Pre-configured hooks
 
 **PROJECT.md Enforcement**:
@@ -784,7 +778,7 @@ Follow a systematic 7-phase approach with user checkpoints:
 - ✅ **Keep agents short** - 50-100 lines = minimal context usage
 - ✅ **No artifact protocols** - Don't create complex `.claude/artifacts/` systems
 - ✅ **Session logging** - Log to files, reference paths (not full content)
-- ✅ **Clear after features** - Use `/clear` after each feature completes
+- ✅ **Clear after features** - Recommended to use `/clear` after each feature (optional for performance)
 - ✅ **Minimal prompts** - Trust model > detailed instructions
 
 **Context Budget**:
@@ -897,9 +891,9 @@ vim PROJECT.md  # Define GOALS, SCOPE, CONSTRAINTS
 
 # Auto-orchestration activates:
 → detect_feature_request.py detects feature request
-→ Orchestrator auto-invokes
+→ /auto-implement command invokes
 → Checks PROJECT.md alignment
-→ If aligned: Agent pipeline executes
+→ If aligned: 7-agent pipeline executes
 → If NOT aligned: Work BLOCKED
 ```
 
@@ -922,9 +916,9 @@ git commit -m "feat: add JWT authentication"
 # Commit succeeds only if all pass
 ```
 
-**Step 5: Context Clearing**
+**Step 5: Context Clearing (Optional)**
 ```bash
-/clear  # After each feature (mandatory for performance)
+/clear  # Recommended after each feature for optimal performance (helps with 100+ features)
 ```
 
 ### Standard Feature Development Flow (Existing)
@@ -937,7 +931,7 @@ git commit -m "feat: add JWT authentication"
 6. **Review**: Reviewer checks quality
 7. **Security**: Security-auditor scans for issues
 8. **Documentation**: Doc-master updates docs
-9. **Context Clear**: Use `/clear` to reset for next feature
+9. **Context Clear (Optional)**: Use `/clear` to reset for next feature (recommended for optimal performance)
 
 ### File Locations (CRITICAL for Plugin Development)
 
@@ -986,7 +980,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 1. If plugin missing: Install via `/plugin marketplace add` → `/plugin install` → Restart
 2. Run curl command again
 3. Restart Claude Code
-4. Done - all 8 commands available
+4. Done - all 15 commands available (8 core + 7 individual agents)
 
 **Updates:** Same curl command always gets latest from GitHub.
 

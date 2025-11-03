@@ -8,7 +8,7 @@
 **Last Updated**: 2025-11-03
 **Status**: Sync-Dev & GitHub Integration + Security Audit Complete
 
-Production-ready plugin with 8 GenAI-native commands, 19 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -77,8 +77,8 @@ grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-de
 - ✅ Recommended when updating or troubleshooting
 
 **What gets installed:**
-- 10 slash commands (`/auto-implement`, `/pipeline-status`, etc.)
-- 19 specialist agents (orchestrator, researcher, planner, etc.)
+- 18 slash commands (8 core + 7 agent + 3 utility: `/auto-implement`, `/pipeline-status`, etc.)
+- 18 specialist agents (researcher, planner, implementer, etc. - orchestrator removed v3.2.2)
 - 35+ automation hooks (validation, security, testing, docs)
 - Templates and project scaffolding
 
@@ -100,10 +100,10 @@ This:
 ### What the Bootstrap Script Does
 
 The install.sh script copies plugin files to your project's `.claude/` directory:
-- **Commands** → `.claude/commands/` (8 slash commands)
+- **Commands** → `.claude/commands/` (18 slash commands: 8 core + 7 agent + 3 utility)
 - **Hooks** → `.claude/hooks/` (30+ automation hooks)
 - **Templates** → `.claude/templates/` (PROJECT.md templates)
-- **Agents** → `.claude/agents/` (19 specialist agents)
+- **Agents** → `.claude/agents/` (18 specialist agents, orchestrator removed v3.2.2)
 - **Skills** → `.claude/skills/` (optional capabilities)
 
 **Why is this needed?** Claude Code currently requires plugin commands to be in your project's `.claude/` directory to be discoverable. The bootstrap script handles this one-time setup automatically.
@@ -285,7 +285,7 @@ This release restores the `/sync-dev` command with comprehensive security audit 
 - 🧠 **GenAI Command Refactoring**: Replaced Python orchestration with intelligent agents
   - ✅ Refactored `/align-project` → GenAI-native (alignment-analyzer agent)
   - ✅ Refactored `/status` → GenAI-native (project-progress-tracker agent)
-  - **Result**: 8 commands, all with intelligent GenAI reasoning
+  - **Result**: All commands use intelligent GenAI reasoning (expanded to 18 total per GitHub #44)
 
 ### v3.1.0 Features (2025-10-26)
 
@@ -384,7 +384,7 @@ This release focuses on **automatic quality gates** and **intelligent project co
 
 ## 📋 PROJECT.md-First Philosophy
 
-Everything starts with `PROJECT.md` at your project root - defining goals, scope, and constraints. The orchestrator validates every feature against PROJECT.md before work begins, ensuring zero tolerance for scope drift.
+Everything starts with `PROJECT.md` at your project root - defining goals, scope, and constraints. Claude validates every feature against PROJECT.md before work begins (via `/auto-implement` command), ensuring zero tolerance for scope drift.
 
 **Learn more**: See main [README.md](../../README.md#-the-projectmd-first-philosophy)
 
@@ -679,13 +679,12 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ## What You Get
 
-### 🤖 19 Specialized Agents
+### 🤖 18 Specialized Agents
 
-**Core Workflow Agents (9)**:
+**Core Workflow Agents (9)** (orchestrator removed v3.2.2 - Claude coordinates directly via `/auto-implement`):
 
 | Agent | Purpose | Model | Size |
 |-------|---------|-------|------|
-| **orchestrator** | Master coordinator - validates PROJECT.md alignment, manages context, auto-invokes advisor | sonnet | 335 lines |
 | **advisor** | Critical thinking/"devils advocate" - analyzes proposals before implementation | sonnet | 600+ lines |
 | **planner** | Architecture & design planning for complex features | opus | 74 lines |
 | **researcher** | Research patterns, best practices, security considerations | sonnet | 66 lines |
@@ -710,17 +709,17 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | **advisor** | Critical thinking/"devils advocate" - analyzes proposals | sonnet | 600+ lines |
 | **quality-validator** | GenAI-powered feature validation | sonnet | 400+ lines |
 
-**Skills**: 19+ active skills including api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, git-workflow, python-standards, observability, and more.
+**Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+ - skills directory empty, knowledge embedded in agent prompts)
 
 ---
 
-### ⚙️ 8 Commands (All GenAI-Native)
+### ⚙️ 18 Commands (All GenAI-Native)
 
 **Philosophy**: "Vibe coding with background enforcement" - Natural language input → Professional engineering output
 
 | Command | Purpose | Agent | When to Use |
 |---------|---------|-------|------------|
-| `/auto-implement` | Autonomous feature development | orchestrator | Every feature - describe what you want |
+| `/auto-implement` | Autonomous feature development | Claude coordinates 7 agents | Every feature - describe what you want |
 | `/align-project` | Find/fix conflicts between goals and code | alignment-analyzer | After major changes, before releases |
 | `/status` | Track strategic progress, get recommendations | project-progress-tracker | Check goal progress, decide next priorities |
 | `/sync-dev` | Synchronize development environment | sync-validator | After git pull, plugin updates, environment issues |
@@ -729,6 +728,8 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | `/align-claude` | Check/fix documentation drift | (Validation + script) | Automated via hook, manual check optional |
 | `/test` | Run all automated tests | (Pytest wrapper) | Validate quality before commit |
 | `/uninstall` | Remove or disable plugin | (Interactive menu) | When cleaning up |
+
+**Additional Commands** (18 total): The table above shows 9 core commands. Also available: 7 individual agent commands (`/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`) and 2 utility commands (`/pipeline-status`, `/update-plugin`). See GitHub #44 for details.
 
 **Workflow**:
 ```bash
@@ -740,7 +741,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 # 3. Implement feature (repeat)
 /auto-implement "Add user authentication"  # Natural language
-# → Orchestrator coordinates agents
+# → Claude coordinates 7-agent workflow
 # → All SDLC steps automated
 # → Hooks validate at commit
 
