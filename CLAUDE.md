@@ -1,8 +1,10 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-10-27
+**Last Updated**: 2025-11-03
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.1.0 (Agent-Skill Integration Architecture)
+
+> **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
 ---
 

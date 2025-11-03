@@ -1,8 +1,10 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-10-27
+**Last Updated**: 2025-11-03
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
 **Version**: v3.1.0 (Agent-Skill Integration Architecture)
+
+> **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
 ---
 
@@ -21,25 +23,29 @@
 
 This is achieved via **dual-layer architecture**:
 
-**Layer 1: Vibe Coding** (User Experience)
-- User describes feature in natural language ("add Redis caching")
-- customInstructions auto-invoke /auto-implement
-- No manual command typing required
-- Natural conversation triggers autonomous workflow
-
-**Layer 2: Background Enforcement** (Quality Assurance)
-- PreCommit hooks validate workflow compliance
-- Enforces: orchestrator ran, TDD followed, all agents executed
+**Layer 1: Hook-Based Enforcement** (Automatic, 100% Reliable)
+- PreCommit hooks validate ALL quality gates
+- Enforces: PROJECT.md alignment, security, tests, docs, file organization
 - Blocks commits if violations detected
-- User never sees this - it just works in background
+- **Guaranteed execution** - hooks run on every commit
+
+**Layer 2: Agent-Based Intelligence** (Optional, AI-Enhanced)
+- User invokes `/auto-implement` for AI assistance
+- orchestrator MAY invoke specialist agents (researcher, planner, etc.)
+- Provides intelligent guidance and implementation help
+- **Conditional execution** - Claude decides which agents to invoke based on feature complexity
+
+**Key Distinction:**
+- **Hooks = enforcement** (quality gates, always active, blocking)
+- **Agents = intelligence** (expert assistance, conditionally invoked, advisory)
 
 **Core Philosophy**:
-- **Vibe coding that enforces strict workflow** - Natural input + background validation
-- **Team, not toolkit** - Autonomous agents work together, hooks validate they did
-- **WHAT, not HOW** - User specifies goals in natural language, team + hooks ensure quality
-- **Autonomous git operations** - Team auto-commits, hooks validate before allowing
-- **PROJECT.md is the mission** - Team executes on goals, hooks block misaligned work
-- **No micromanagement** - User doesn't manage workflow, hooks enforce it automatically
+- **Hooks enforce, agents enhance** - Quality guaranteed by hooks, intelligence added by agents
+- **Trust the model** - Claude's reasoning determines which agents to invoke (not rigid Python sequences)
+- **WHAT, not HOW** - User specifies goals, hooks ensure quality gates, agents provide intelligence
+- **GenAI-native orchestration** - Agent coordination via Claude reasoning (flexible, adaptive)
+- **PROJECT.md is the gatekeeper** - Hooks enforce alignment, agents respect it
+- **No Python orchestration** - GenAI reasoning > rigid automation (per PROJECT.md lines 213-221)
 
 **What success looks like**:
 
@@ -63,22 +69,33 @@ This is achieved via **dual-layer architecture**:
 6. **Minimal User Intervention** - 8 commands total (5 core + 3 utilities, down from 40) → `/auto-implement <feature>` does everything → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
 
 **Success Metrics**:
-- **Vibe coding**: 100% of features triggered by natural language (no manual /auto-implement typing)
-- **SDLC compliance**: 100% of features follow ALL 7 steps (research → plan → TDD → implement → review → security → docs)
-  - **No shortcuts**: Hooks block commits if any step skipped
-  - **Professional quality**: Every step required, just AI-accelerated (5-10 min per step vs hours)
-- **Background enforcement**: 100% of commits validated by 6 PreCommit hooks
-  - Orchestrator ran (validate PROJECT.md alignment)
-  - TDD followed (tests before code)
-  - All agents executed (complete pipeline)
-  - Tests pass (80%+ coverage)
-  - Security validated (no secrets, no vulnerabilities)
-  - Docs synchronized (congruence validated)
-- **Autonomous execution**: 100% of features auto-commit, auto-push, auto-PR (zero manual git)
-- **Alignment enforcement**: 0% of work proceeds without PROJECT.md validation (enforced by hooks)
-- **Hook reliability**: Hooks always fire (100%), agents sometimes don't (hooks catch violations)
-- **Context efficiency**: < 8K tokens per feature (team uses agents, not context)
-- **User effort**: 0 commands per feature (just describe, it works) → AI + hooks handle all professional steps
+
+**What's Guaranteed (via Hooks):**
+- **Quality enforcement**: 100% of commits validated by PreCommit hooks
+  - PROJECT.md alignment ✅ (validate_project_alignment.py)
+  - Security validated ✅ (security_scan.py - no secrets, no vulnerabilities)
+  - Tests exist ✅ (auto_generate_tests.py - generates if missing)
+  - Docs synchronized ✅ (auto_update_docs.py + validate_docs_consistency.py)
+  - File organization ✅ (enforce_file_organization.py)
+  - Code quality ✅ (auto_format.py + auto_fix_docs.py)
+- **Hook reliability**: Hooks always fire (100% execution rate)
+- **Blocking enforcement**: Commits blocked if any hook fails
+- **Professional quality**: Guaranteed by automated validation, not hope
+
+**What's Enhanced (via Agents):**
+- **AI assistance**: orchestrator MAY invoke specialist agents when `/auto-implement` is used
+  - researcher → best practices and patterns (conditional)
+  - planner → architecture design (conditional)
+  - test-master → test strategies (conditional)
+  - implementer → code generation (conditional)
+  - reviewer → quality review (conditional)
+  - security-auditor → security analysis (conditional)
+  - doc-master → documentation (conditional)
+- **Agent invocation**: Conditional based on Claude's reasoning (not guaranteed)
+- **Adaptive workflow**: Claude decides which agents are needed (flexible, not rigid)
+- **Intelligence layer**: Agents provide expertise when invoked (advisory, not enforcement)
+
+**Result**: Professional quality (hooks) + Expert intelligence (agents when invoked)
 
 **Success Example**:
 ```bash
@@ -182,10 +199,14 @@ This is achieved via **dual-layer architecture**:
 - **Agents**: 19 total
   - **Core 10**: orchestrator (gatekeeper), planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 0 (removed per Anthropic anti-pattern guidance v2.5+)
-  - Skills directory removed to eliminate context bloat
-  - Specialist knowledge now embedded directly in agent system prompts
-  - Previous 19 skills consolidated into agent capabilities
+- **Skills**: 19 (active knowledge packages with progressive disclosure)
+  - **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
+  - **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
+  - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
+  - **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
+  - Progressive disclosure pattern: Metadata in context, full content loaded when needed
+  - Auto-activation via keywords and trigger patterns
+  - First-class citizens in Claude Code 2.0+ (not anti-pattern)
 - **Commands**: 8 total - /auto-implement, /align-project, /align-claude, /setup, /test, /status, /health-check, /uninstall
 - **Hooks**: 28 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_orchestrator, enforce_tdd

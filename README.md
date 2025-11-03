@@ -1,10 +1,12 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-10-27
+**Last Updated**: 2025-11-03
 **Version**: v3.1.0 (Agent-Skill Integration Architecture)
 **Status**: Production-ready with Vibe Coding + Agent-Skill Integration
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
+>
+> **📘 Maintenance**: See `docs/MAINTAINING-PHILOSOPHY.md` for keeping the core philosophy active as you iterate
 
 Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Agent Intelligence), **PROJECT.md-first alignment**, and **GenAI-native orchestration**.
 
