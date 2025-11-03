@@ -309,8 +309,8 @@ This release restores the `/sync-dev` command with comprehensive security audit 
   - Restoration instructions if needed
 
 **Impact**:
-- ✅ Cognitive overhead reduced (4 commands vs 11)
-- ✅ Pure vibe coding UX (natural language → professional result)
+- ✅ Cognitive overhead reduced (18 commands organized in 3 tiers)
+- ✅ Explicit command workflow (run `/auto-implement` or individual agents)
 - ✅ All quality enforcement automatic (hooks validate at commit)
 - ✅ Philosophy-driven architecture (aligned with stated goals)
 - ✅ Professional practices documented (methodology guide)
@@ -390,20 +390,27 @@ Everything starts with `PROJECT.md` at your project root - defining goals, scope
 
 ## 🔒 Strict Mode - SDLC Automation
 
-**"Vibe coding" that enforces professional best practices automatically**
+**Professional SDLC enforcement with explicit command workflow**
 
-Strict Mode turns natural language requests into complete SDLC workflows:
+Strict Mode provides professional development workflow through explicit commands:
 
 ```bash
-# Just describe what you want
-"implement user authentication with JWT"
+# Run the full SDLC workflow with one command
+/auto-implement "implement user authentication with JWT"
 
-# System automatically:
-→ Detects feature request (auto-orchestration)
-→ Checks PROJECT.md alignment (gatekeeper)
-→ Runs full agent pipeline if aligned
-→ Enforces all SDLC steps (Research → Plan → Test → Implement → Review → Security → Docs)
-→ Validates before commit (blocking hooks)
+# OR use individual agent commands for granular control
+/research "user authentication with JWT"
+/plan "user authentication with JWT"
+/test-feature "user authentication with JWT"
+/implement "user authentication with JWT"
+/review
+/security-scan
+/update-docs
+
+# System enforces:
+→ PROJECT.md alignment validation (gatekeeper)
+→ All SDLC steps required (Research → Plan → Test → Implement → Review → Security → Docs)
+→ Quality gates before commit (blocking hooks)
 ```
 
 **Enable Strict Mode**:
@@ -419,7 +426,7 @@ cp plugins/autonomous-dev/templates/PROJECT.md .claude/PROJECT.md
 
 **What it enforces**:
 - ✅ PROJECT.md gatekeeper - Work BLOCKED if not aligned with strategic direction
-- ✅ Auto-orchestration - "implement X" auto-triggers full agent pipeline
+- ✅ Explicit command workflow - Run `/auto-implement` or individual agent commands
 - ✅ File organization - Standard structure enforced (src/, tests/, docs/, scripts/)
 - ✅ Commit validation - All commits checked for alignment + tests + security + docs (BLOCKING)
 
@@ -546,7 +553,7 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 ```
 
 **Done!** All 4 core commands work immediately:
-- `/auto-implement` - Autonomous feature development (vibe coding entry point)
+- `/auto-implement` - Autonomous feature development (full SDLC workflow)
 - `/setup` - Configuration wizard (creates PROJECT.md, configures hooks)
 - `/status` - View PROJECT.md goal progress
 - `/uninstall` - Remove plugin
@@ -557,9 +564,9 @@ cp plugins/autonomous-dev/templates/settings.strict-mode.json .claude/settings.l
 /setup
 # → Auto-detects tech stack, creates PROJECT.md, installs hooks
 
-# 2. Start building with vibe coding
-"Add user authentication"
-# → /auto-implement runs automatically in strict mode
+# 2. Start building with explicit commands
+/auto-implement "Add user authentication"
+# → Runs full 7-agent SDLC workflow
 ```
 
 **Philosophy**: 4 commands (64% reduction from v3.0.2). Manual quality commands archived - hooks enforce automatically in background.
@@ -715,7 +722,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ### ⚙️ 18 Commands (All GenAI-Native)
 
-**Philosophy**: "Vibe coding with background enforcement" - Natural language input → Professional engineering output
+**Philosophy**: "Explicit commands with background enforcement" - Command-driven workflow → Professional engineering output
 
 | Command | Purpose | Agent | When to Use |
 |---------|---------|-------|------------|
@@ -765,7 +772,7 @@ See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration g
 
 ### 📦 Archived Commands
 
-The following commands have been **moved to `commands/archived/`** to align with the "vibe coding with background enforcement" philosophy:
+The following commands have been **moved to `commands/archived/`** to align with the "explicit commands with background enforcement" philosophy:
 
 **v3.1.0 Archived** (Philosophy alignment):
 - `/test` → `hooks/auto_test.py` runs tests automatically at commit
@@ -1037,15 +1044,15 @@ Bring existing projects into alignment with `/align-project`:
 6. Undo Stack - visual history with rollback
 7. Simulation Mode - risk-free sandbox
 
-### Agents Auto-Invoke
+### Agent Coordination
 
-The orchestrator manages the entire pipeline automatically - you just describe what you want.
+Claude coordinates the 7-agent pipeline when you run `/auto-implement <feature>` or use individual agent commands.
 
-### Skills Auto-Activate
+### Skills (Removed)
 
-- Write Python → python-standards activates
-- Write tests → testing-guide activates
-- Handle secrets → security-patterns activates
+**Status**: Skills directory empty per Anthropic anti-pattern guidance v2.5+
+- Specialist knowledge now embedded in agent system prompts
+- No separate skills/ directory or auto-activation
 
 ### Hooks (Two Modes)
 

@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
 **Last Updated**: 2025-11-03
-**Project**: Software Engineering Operating System - Auto-SDLC Enforcement via "Vibe Coding"
+**Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
 **Version**: v3.2.0 (Anti-Bloat Architecture - "Less is More" Design Requirement)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
@@ -336,15 +336,12 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 ## ARCHITECTURE
 
-### System Architecture (v3.0 - Dual-Layer: Vibe Coding + Enforcement)
+### System Architecture (v3.2.2 - Command-Driven SDLC + Enforcement)
 
 ```
-User: "implement user authentication"  [VIBE CODING - Layer 1]
+User: /auto-implement "implement user authentication"  [EXPLICIT COMMAND]
      ↓
-[customInstructions] + [Feature Detection Hook]
-     ├─> customInstructions: "Auto-run /auto-implement for feature requests"
-     ├─> detect_feature_request.py: Reinforces "run /auto-implement"
-     └─> Result: /auto-implement automatically invoked
+[Command execution - explicit user action required]
      ↓
 /auto-implement command (GATEKEEPER - PRIMARY MISSION)
      │
@@ -397,7 +394,7 @@ Production Code (Professional Quality Guaranteed)
 
 **Priority Hierarchy**:
 1. **PRIMARY**: PROJECT.md alignment (GATEKEEPER - MOST IMPORTANT)
-2. **SECONDARY**: Auto-orchestration (enables vibe coding)
+2. **SECONDARY**: Command-driven workflow (explicit `/auto-implement` or individual agents)
 3. **TERTIARY**: File organization enforcement
 4. **SUPPORTING**: SDLC step enforcement
 
@@ -426,9 +423,9 @@ Production Code (Professional Quality Guaranteed)
 
 ### Strict Mode Components
 
-**Auto-Orchestration**:
-- `hooks/detect_feature_request.py` - Detects vibe coding patterns
+**Command Workflow**:
 - `commands/auto-implement.md` - Coordinates 7-agent workflow with PROJECT.md validation
+- `commands/research.md`, `plan.md`, `test-feature.md`, etc. - Individual agent commands
 - `templates/settings.strict-mode.json` - Pre-configured hooks
 
 **PROJECT.md Enforcement**:
@@ -821,7 +818,7 @@ Follow a systematic 7-phase approach with user checkpoints:
 **Status**: In Progress (85% complete) - v3.0.2 Released
 
 **Sprint Goals**:
-1. ✅ **Auto-orchestration engine** - "Vibe coding" triggers full agent pipeline
+1. ✅ **Command-driven workflow** - `/auto-implement` and individual agent commands
 2. ✅ **PROJECT.md gatekeeper** - Blocks work if not aligned
 3. ✅ **File organization enforcement** - Standard structure enforced
 4. ✅ **Strict mode configuration** - Pre-configured templates
@@ -830,23 +827,20 @@ Follow a systematic 7-phase approach with user checkpoints:
 7. 🚧 **Documentation** - Complete strict mode guide
 
 **Completed in This Sprint**:
-- ✅ Feature detection hook (detect_feature_request.py)
 - ✅ PROJECT.md gatekeeper hook (validate_project_alignment.py)
 - ✅ File organization enforcer (enforce_file_organization.py)
 - ✅ Strict mode settings template
 - ✅ Standard project structure template
-- ✅ Orchestrator enhancement (gatekeeper logic)
 - ✅ Comprehensive validation system (12 checks)
 - ✅ Strict mode documentation (STRICT-MODE.md)
-- ✅ **customInstructions auto-invocation** (v3.0.2 - vibe coding enabled)
-- ✅ **enforce_orchestrator.py hook** (v3.0.2 - blocks commits without orchestrator)
+- ✅ **enforce_pipeline_complete.py hook** (v3.2.2 - validates 7 agents ran)
 - ✅ **enforce_tdd.py hook** (v3.0.2 - enforces tests-before-code)
 - ✅ **Documentation congruence validation** (auto_fix_docs.py enhanced)
-- ✅ **Dual-layer architecture** (Layer 1: Vibe Coding + Layer 2: Enforcement)
+- ✅ **Command-driven architecture** (Explicit commands + Enforcement hooks)
 
 **Next Tasks**:
 - 🚧 Build `/align-project-retrofit` command
-- 🚧 Test auto-orchestration with real projects
+- 🚧 Test command workflow with real projects
 - 🚧 Create brownfield migration examples
 - 🚧 Update README with strict mode section
 
@@ -884,14 +878,12 @@ cp plugins/autonomous-dev/templates/PROJECT.md PROJECT.md
 vim PROJECT.md  # Define GOALS, SCOPE, CONSTRAINTS
 ```
 
-**Step 2: Vibe Coding**
+**Step 2: Run Command**
 ```bash
-# Just describe what you want in natural language
-"implement user authentication with JWT tokens"
+# Explicitly run the command with your feature description
+/auto-implement "implement user authentication with JWT tokens"
 
-# Auto-orchestration activates:
-→ detect_feature_request.py detects feature request
-→ /auto-implement command invokes
+# Command workflow executes:
 → Checks PROJECT.md alignment
 → If aligned: 7-agent pipeline executes
 → If NOT aligned: Work BLOCKED
