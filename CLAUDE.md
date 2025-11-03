@@ -23,7 +23,7 @@
 ```
 
 **Commands (8 active)**:
-- `/auto-implement` - Autonomous feature development (orchestrator agent)
+- `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
@@ -115,8 +115,7 @@ git commit -m "docs: Update project goals"
 
 Located: `plugins/autonomous-dev/agents/`
 
-**Core Workflow Agents (10)**:
-- **orchestrator**: PROJECT.md gatekeeper, validates alignment before proceeding
+**Core Workflow Agents (9)** (orchestrator removed - see v3.2.2 notes):
 - **researcher**: Web research for patterns and best practices
 - **planner**: Architecture planning and design
 - **test-master**: TDD specialist (writes tests first)
@@ -137,6 +136,11 @@ Located: `plugins/autonomous-dev/agents/`
 - **setup-wizard**: Intelligent setup - analyzes tech stack, recommends hooks (v3.1+)
 - **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+)
 - **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+)
+
+**Note on Orchestrator Removal (v3.2.2)**:
+The "orchestrator" agent was removed because it created a logical impossibility - it was Claude coordinating Claude. When `/auto-implement` invoked the orchestrator agent, it just loaded orchestrator.md as Claude's system prompt, but it was still the same Claude instance making decisions. This allowed Claude to skip agents by reasoning they weren't needed.
+
+**Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
 
 ### Skills (0 - Removed Per Anti-Pattern Guidance)
 
@@ -166,7 +170,7 @@ Located: `plugins/autonomous-dev/hooks/`
 - `validate_project_alignment.py`: PROJECT.md validation
 - `validate_claude_alignment.py`: CLAUDE.md alignment checking (v3.0.2+)
 - `enforce_file_organization.py`: Standard structure enforcement
-- `enforce_orchestrator.py`: Validates orchestrator ran (v3.0+)
+- `enforce_pipeline_complete.py`: Validates all 7 agents ran (v3.2.2+)
 - `enforce_tdd.py`: Validates tests written before code (v3.0+)
 - `detect_feature_request.py`: Auto-detect feature requests
 

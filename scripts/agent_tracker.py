@@ -66,6 +66,7 @@ class AgentTracker:
             self.session_data = {
                 "session_id": timestamp,
                 "started": datetime.now().isoformat(),
+                "github_issue": None,  # Track linked GitHub issue
                 "agents": []
             }
             self._save()
@@ -162,11 +163,24 @@ class AgentTracker:
         print(f"❌ Failed: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
 
+    def set_github_issue(self, issue_number: int):
+        """Link GitHub issue to this session."""
+        self.session_data["github_issue"] = issue_number
+        self._save()
+        print(f"🔗 Linked GitHub issue #{issue_number}")
+        print(f"📄 Session: {self.session_file.name}")
+
     def show_status(self):
         """Show pipeline status"""
         print(f"\n📊 Agent Pipeline Status ({self.session_data['session_id']})\n")
         print(f"Session started: {self.session_data['started']}")
-        print(f"Session file: {self.session_file.name}\n")
+        print(f"Session file: {self.session_file.name}")
+
+        # Show GitHub issue if linked
+        github_issue = self.session_data.get("github_issue")
+        if github_issue:
+            print(f"GitHub issue: #{github_issue}")
+        print()
 
         if not self.session_data["agents"]:
             print("No agents have run yet.\n")
@@ -232,11 +246,13 @@ def main():
         print("  start <agent> <message>                   - Log agent start")
         print("  complete <agent> <message> [--tools T1,T2] - Log agent completion")
         print("  fail <agent> <message>                     - Log agent failure")
+        print("  set-github-issue <number>                  - Link GitHub issue to session")
         print("  status                                     - Show pipeline status")
         print("\nExamples:")
         print('  agent_tracker.py start researcher "Researching JWT patterns"')
         print('  agent_tracker.py complete researcher "Found 3 patterns" --tools "WebSearch,Grep"')
         print('  agent_tracker.py fail researcher "No patterns found"')
+        print('  agent_tracker.py set-github-issue 123')
         print('  agent_tracker.py status')
         sys.exit(1)
 
@@ -276,12 +292,19 @@ def main():
         message = " ".join(sys.argv[3:])
         tracker.fail_agent(agent_name, message)
 
+    elif command == "set-github-issue":
+        if len(sys.argv) < 3:
+            print("Usage: agent_tracker.py set-github-issue <number>")
+            sys.exit(1)
+        issue_number = int(sys.argv[2])
+        tracker.set_github_issue(issue_number)
+
     elif command == "status":
         tracker.show_status()
 
     else:
         print(f"Unknown command: {command}")
-        print("Valid commands: start, complete, fail, status")
+        print("Valid commands: start, complete, fail, set-github-issue, status")
         sys.exit(1)
 
 
