@@ -6,56 +6,48 @@
 
 ---
 
-## Step 1: Exit Claude Code
+## Step 1: Nuclear Clean - Remove Old Plugin
 
-**Action**: Completely quit Claude Code
-
-- **Mac**: Press `Cmd + Q`
-- **Linux/Windows**: Press `Ctrl + Q`
-
-**Important**: Don't just close the window - actually QUIT the application.
-
----
-
-## Step 2: Restart Claude Code
-
-**Action**: Open Claude Code again
-
-Wait for it to fully load.
-
----
-
-## Step 3: Uninstall Current Plugin
-
-**Action**: Run this command in Claude Code:
+**Action**: Remove the old plugin completely
 
 ```bash
-/plugin uninstall autonomous-dev
+rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
 ```
 
-**Expected output**:
-```
-✓ Uninstalled plugin: autonomous-dev
-```
+**Why**: Ensures you get a fresh clone from GitHub, no stale files.
 
 ---
 
-## Step 4: Exit and Restart Again
+## Step 2: Kill All Claude Code Sessions
 
-**Action**:
-- Quit Claude Code (`Cmd + Q` or `Ctrl + Q`)
-- Wait 5 seconds
-- Reopen Claude Code
-
-**Why**: Plugin uninstall requires restart to clear from memory.
-
----
-
-## Step 5: Reinstall Plugin from GitHub
-
-**Action**: Run this command:
+**Action**: Kill ALL running Claude sessions (not just current terminal)
 
 ```bash
+pkill -9 claude
+```
+
+**Why pkill instead of /exit or Cmd+Q?**
+- `/exit` only exits the current terminal session
+- `Cmd+Q` may not fully kill the process
+- `pkill -9 claude` ensures ALL Claude sessions are terminated (important if multiple terminals)
+- Forces fresh agent reload from disk
+
+**Verify all killed**:
+```bash
+ps aux | grep claude | grep -v grep
+```
+Should show nothing (or just your grep command).
+
+**Wait 2 seconds**, then reopen Claude Code.
+
+---
+
+## Step 3: Fresh Install from GitHub
+
+**Action**: Run these commands in Claude Code:
+
+```bash
+/plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
@@ -67,11 +59,26 @@ Wait for it to fully load.
 **This will**:
 - Pull latest code from GitHub (includes enhanced orchestrator)
 - Install to `~/.claude/plugins/marketplaces/.../autonomous-dev/`
-- Load new agents, commands, hooks
 
-### ⚠️ How to Verify Plugin Actually Updated
+---
 
-After reinstall, check if the new orchestrator was pulled:
+## Step 4: Kill and Restart Again
+
+**Action**: Kill Claude and restart to load new agents
+
+```bash
+pkill -9 claude
+```
+
+**Wait 2 seconds**, then reopen Claude Code.
+
+**Why**: Agents are loaded at startup, so we need to restart to pick up the new orchestrator.
+
+---
+
+## Step 5: Verify Plugin Updated from GitHub
+
+**Action**: Check if the new orchestrator was pulled
 
 ```bash
 grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents/orchestrator.md
@@ -122,14 +129,17 @@ Should show: `10` (or similar - number of commands)
 
 ---
 
-## Step 7: Exit and Restart One More Time
+## Step 7: Kill and Restart One More Time
 
-**Action**:
-- Quit Claude Code (`Cmd + Q` or `Ctrl + Q`)
-- Wait 5 seconds
-- Reopen Claude Code
+**Action**: Final restart to ensure everything loaded
 
-**Why**: Agents are loaded at startup, so restart picks up new orchestrator.
+```bash
+pkill -9 claude
+```
+
+**Wait 2 seconds**, then reopen Claude Code.
+
+**Why**: Ensures all components (agents, hooks, commands) are loaded fresh.
 
 ---
 
@@ -276,20 +286,46 @@ cat docs/sessions/$(ls -t docs/sessions/ | grep pipeline | head -1)
 
 ## Quick Reference Card
 
-```
+```bash
 # Complete Flow (copy-paste ready)
 
-1. Cmd+Q (quit Claude Code)
-2. Reopen Claude Code
-3. /plugin uninstall autonomous-dev
-4. Cmd+Q and reopen
-5. /plugin install autonomous-dev
-6. Cmd+Q and reopen
-7. cd /Users/akaszubski/Documents/GitHub/autonomous-dev
-8. /auto-implement "Add a simple greeting function"
-9. /pipeline-status
-10. cat docs/sessions/$(ls -t docs/sessions/ | grep pipeline | head -1)
+# 1. Nuclear clean
+rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
+
+# 2. Kill all Claude sessions
+pkill -9 claude
+# Wait 2 seconds, reopen Claude Code
+
+# 3. Fresh install
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+
+# 4. Kill and restart
+pkill -9 claude
+# Wait 2 seconds, reopen Claude Code
+
+# 5. Verify new orchestrator
+grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents/orchestrator.md
+
+# 6. Bootstrap
+cd /Users/akaszubski/Documents/GitHub/autonomous-dev
+./scripts/resync-dogfood.sh
+
+# 7. Kill and restart again
+pkill -9 claude
+# Wait 2 seconds, reopen Claude Code
+
+# 8. Test workflow
+/auto-implement "Add a simple greeting function"
+
+# 9. Check results
+/pipeline-status
+
+# 10. View JSON logs
+cat docs/sessions/$(ls -t docs/sessions/ | grep pipeline | head -1)
 ```
+
+**Key**: Use `pkill -9 claude` (not `/exit` or `Cmd+Q`) to ensure ALL Claude sessions restart and reload agents from disk.
 
 ---
 

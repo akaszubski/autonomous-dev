@@ -36,27 +36,39 @@ This will guide you through plugin installation and bootstrap.
 # STEP 1: Nuclear clean (removes old plugin completely)
 rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
 
-# STEP 2: Exit Claude Code completely
-# Mac: Cmd+Q | Linux/Windows: Ctrl+Q
+# STEP 2: Kill ALL Claude Code sessions (important if you have multiple terminals)
+pkill -9 claude
+# Wait 2 seconds, then reopen Claude Code
 
-# STEP 3: Reopen Claude Code
-
-# STEP 4: Fresh install from GitHub
+# STEP 3: Fresh install from GitHub
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 
-# STEP 5: Exit and restart Claude Code again
+# STEP 4: Kill and restart Claude Code again
+pkill -9 claude
+# Wait 2 seconds, then reopen Claude Code
 
-# STEP 6: Bootstrap (copies plugin files to your project)
+# STEP 5: Bootstrap (copies plugin files to your project)
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 # OR if you cloned the repo:
 # cd /path/to/autonomous-dev && ./scripts/resync-dogfood.sh
 
-# STEP 7: Exit and restart Claude Code one final time
+# STEP 6: Kill and restart Claude Code one final time
+pkill -9 claude
+# Wait 2 seconds, then reopen Claude Code
 
-# STEP 8: Verify installation
+# STEP 7: Verify installation
 /health-check  # Should show: Commands: 10/10 present ✅
+
+# STEP 8: Verify new agents loaded (optional)
+grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents/orchestrator.md
+# Should show: 75:#### **STEP 1: Invoke Researcher**
 ```
+
+**Important Notes:**
+- Use `pkill -9 claude` instead of `/exit` or `Cmd+Q` to ensure all Claude sessions restart
+- This is especially important if you have Claude running in multiple terminals
+- `pkill` kills ALL Claude processes, ensuring fresh agent reload from disk
 
 **Why this approach?**
 - ✅ Guarantees fresh clone from GitHub (no stale files)
