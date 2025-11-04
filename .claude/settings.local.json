@@ -2,9 +2,7 @@
   "description": "Strict Mode Configuration - Fast Autonomous Execution (v3.2.0+)",
   "permissions": {
     "allow": [
-      "Bash(while read f)",
-      "Bash(do python3 -m py_compile \"$f\")",
-      "Bash(done)"
+      "Bash(./venv/bin/python -m pytest:*)"
     ],
     "deny": [],
     "ask": []
