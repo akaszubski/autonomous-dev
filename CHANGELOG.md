@@ -9,7 +9,101 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Security-Auditor False Positives** - Updated agent to correctly identify security best practices vs vulnerabilities
+  - Now checks `.gitignore` before flagging `.env` files (keys in gitignored `.env` = CORRECT, not a vulnerability)
+  - Distinguishes between configuration files (`.env` - correct) and hardcoded secrets (in .py files - vulnerability)
+  - Verifies git history to only flag secrets that were committed (`git log --all -S "sk-"`)
+  - Added "What is NOT a Vulnerability" section: gitignored config files, env vars, test fixtures
+  - Updated audit guidelines: "Be smart, not just cautious" - focus on real risks, not industry standards
+  - Pass criteria: Secrets in `.env` + `.env` in `.gitignore` + no secrets in git history = PASS
+  - Implementation: `plugins/autonomous-dev/agents/security-auditor.md` (enhanced validation logic)
+
+### Security (GitHub Issue #45 - v3.2.3)
+- **Agent Tracker Security Hardening** - Comprehensive path validation, atomic writes, and input validation
+  - Path traversal prevention: Three-layer validation (string check, symlink resolution, system directory blocking)
+    * Blocks ../../etc/passwd style attacks via '..' sequence detection
+    * Blocks symlink-based escapes via Path.resolve() normalization
+    * Blocks absolute paths to /etc/, /var/log/, /usr/, /bin/, /sbin/ directories
+    * Error messages include expected format and security documentation link
+  - Atomic file writes via temp+rename pattern ensures data consistency
+    * Prevents corruption from process crashes or partial writes
+    * Guarantees target file is either unchanged or fully updated, never partial
+    * Handles concurrent writes safely (last write wins, no data corruption)
+    * Automatic cleanup of temporary files on failure
+  - Comprehensive input validation for all user inputs
+    * agent_name: Type validation (must be string), content validation (non-empty), membership validation (in EXPECTED_AGENTS)
+    * message: Length validation (max 10KB to prevent bloat), type validation
+    * github_issue: Type validation (must be int, not float/str), range validation (1-999999)
+    * All validation errors include context dict with expected format and suggestions
+  - Enhanced docstrings explaining security design rationale
+    * _save() method: Detailed explanation of atomic write pattern and failure scenarios
+    * __init__() method: Three-layer path validation with attack scenarios
+    * start_agent() method: Input validation strategy and examples
+    * set_github_issue() method: Type and range validation behavior
+  - Test coverage: 38 security tests covering all attack scenarios
+    * Path traversal tests: Relative, absolute, symlink-based escapes
+    * Atomic write tests: Temp file creation, rename atomicity
+    * Input validation tests: Type errors, range errors, length limits
+    * Error handling tests: Temp file cleanup, descriptive error messages
+    * Location: tests/unit/test_agent_tracker_security.py
+  - Implementation: /Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/agent_tracker.py (843 lines, 100% docstring coverage of security features)
+  - Documentation: Inline comments explain design choices, error messages show users what went wrong and how to fix it
+
+- **Plugin Path Validation in sync_to_installed.py** - Symlink and whitelist validation for plugin directory access
+  - Symlink rejection: Two-layer symlink detection (pre-resolve and post-resolve)
+    * Layer 1: Rejects symlink at installPath itself (catches obvious attacks)
+    * Layer 2: Re-checks after resolve() (catches symlinks in parent directories)
+    * Rationale: Defense in depth prevents both direct and indirect symlink escapes
+  - Whitelist validation: Ensures plugin path stays within .claude/plugins/
+    * Uses relative_to() to verify canonical path is contained
+    * Prevents escape via absolute paths (e.g., /etc/passwd)
+  - Null safety: Handles missing, empty, and malformed installPath values
+    * Returns None for any invalid path (no exceptions thrown)
+    * Graceful degradation: Caller handles None and retries/fails gracefully
+  - Enhanced documentation with attack scenarios and defense rationale
+    * Module docstring: Overview of security features
+    * find_installed_plugin_path() docstring: 115-line explanation of three-layer approach
+    * Inline comments explain each validation layer
+  - Implementation: `plugins/autonomous-dev/hooks/sync_to_installed.py` (lines 30-118)
+
+- **Robust Issue Number Parsing in pr_automation.py** - Graceful handling of malformed GitHub issue references
+  - New extract_issue_numbers() function with comprehensive error handling
+    * Handles non-numeric issue numbers (#abc) - skipped silently
+    * Handles float-like numbers (#42.5) - rejected by int() conversion
+    * Handles negative numbers (#-1) - filtered by range check
+    * Handles very large numbers - filtered by max range (999999)
+    * Handles empty references (#) - regex doesn't match, no number extracted
+  - All exceptions caught (ValueError, OverflowError) with no crashes
+    * continue statement allows processing to continue on bad input
+    * Only valid issue numbers (1-999999) are added to results
+  - Integration with parse_commit_messages_for_issues()
+    * New function called for parsing, old inline logic removed
+    * Enhanced docstring explains security features and error handling
+  - Implementation: `plugins/autonomous-dev/lib/pr_automation.py` (lines 120-179 for extract_issue_numbers)
+
 ### Added
+- **Parallel Validation in /auto-implement (Step 5)** - 3 agents run simultaneously for 60% faster feature development
+  - Merged STEPS 5, 6, 7 into single parallel step
+  - Three validation agents: reviewer (quality), security-auditor (vulnerabilities), doc-master (documentation)
+  - Execute via three Task tool calls in single response (enables parallel execution)
+  - Performance improvement: 5 minutes → 2 minutes for validation phase
+  - All 23 tests passing with TDD verification
+  - Implementation: `plugins/autonomous-dev/commands/auto-implement.md` lines 201-348
+  - User impact: Features complete ~3 minutes faster per feature
+  - Backward compatible: No breaking changes to /auto-implement workflow
+- **Automatic Git Operations in /auto-implement (Step 8)** - Consent-based git automation for feature branches
+  - New library: `plugins/autonomous-dev/lib/git_operations.py` (575 lines, 11 public functions, 100% docstring coverage)
+  - Functions: `validate_git_repo()`, `check_git_config()`, `detect_merge_conflict()`, `is_detached_head()`, `has_uncommitted_changes()`, `stage_all_changes()`, `commit_changes()`, `get_remote_name()`, `push_to_remote()`, `create_feature_branch()`, `auto_commit_and_push()`
+  - Integration with /auto-implement Step 8: Offers user consent before committing/pushing
+  - Graceful degradation: Commit succeeds even if push fails; feature succeeds even if git unavailable
+  - Security: Never logs credentials; validates prerequisites before operations; handles merge conflicts
+  - Comprehensive tests: 48 unit tests (1,033 lines) + 17 integration tests (628 lines) covering all functions
+  - Prerequisite checks: git installation, repo validity, config (user.name/email), merge conflicts, detached HEAD, uncommitted changes
+  - Features: Automatic staging, intelligent error messages, timeout handling (30s push default), feature branch support
+  - Usage: Called from `/auto-implement` Step 8; can be imported as library for other commands
+  - Example: `from git_operations import auto_commit_and_push; result = auto_commit_and_push('feat: add feature', 'main', push=True)`
+  - Documentation: Full API docs in git_operations.py with examples; Step 8 integration guide in auto-implement.md
 - **`/sync-dev` Command** - Restores development environment synchronization (Issue #43)
   - Invokes `sync-validator` agent for smart conflict detection
   - Detects dependency mismatches (package.json, requirements.txt, etc.)

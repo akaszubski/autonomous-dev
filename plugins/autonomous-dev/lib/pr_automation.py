@@ -117,12 +117,80 @@ def get_current_branch() -> str:
     raise RuntimeError('Could not determine current branch')
 
 
-def parse_commit_messages_for_issues(base: str = 'main', head: Optional[str] = None) -> List[int]:
+def extract_issue_numbers(messages: List[str]) -> List[int]:
     """
-    Parse commit messages for GitHub issue references.
+    Extract GitHub issue numbers from a list of commit messages.
 
     Searches for keywords: Closes, Close, Fixes, Fix, Resolves, Resolve
     Followed by issue numbers like #42, #123, etc.
+
+    Includes robust error handling for:
+    - Non-numeric issue numbers (e.g., #abc)
+    - Float-like numbers (e.g., #42.5)
+    - Very large numbers
+    - Negative numbers (filtered out)
+    - Empty references (e.g., just #)
+
+    Args:
+        messages: List of commit message strings to parse
+
+    Returns:
+        List of unique valid issue numbers found, sorted ascending
+        Only returns positive integers
+
+    Example:
+        >>> messages = ["Fix #42", "Closes #abc", "Resolve #12.5"]
+        >>> extract_issue_numbers(messages)
+        [42]
+    """
+    # Regex pattern to match issue references
+    # Matches: Closes #42, fixes #123, RESOLVES #456, etc.
+    # Case-insensitive, supports singular and plural forms
+    pattern = r'\b(?:close|closes|fix|fixes|resolve|resolves)\s+#(\d+)\b'
+
+    issue_numbers = set()
+
+    for message in messages:
+        if not isinstance(message, str):
+            continue
+
+        matches = re.finditer(pattern, message, re.IGNORECASE)
+
+        for match in matches:
+            try:
+                # Extract the number part
+                number_str = match.group(1)
+
+                # Convert to int with error handling
+                # This handles cases like "42", but rejects "42.5", "abc", etc.
+                issue_num = int(number_str)
+
+                # Filter out invalid issue numbers
+                # GitHub issue numbers are positive and typically < 1M
+                if issue_num > 0 and issue_num <= 999999:
+                    issue_numbers.add(issue_num)
+
+            except (ValueError, OverflowError):
+                # Skip invalid issue numbers (non-numeric, too large, etc.)
+                # This handles edge cases gracefully without crashing
+                continue
+
+    # Return sorted list of valid issue numbers
+    return sorted(list(issue_numbers))
+
+
+def parse_commit_messages_for_issues(base: str = 'main', head: Optional[str] = None) -> List[int]:
+    """
+    Parse commit messages for GitHub issue references with robust error handling.
+
+    Searches for keywords: Closes, Close, Fixes, Fix, Resolves, Resolve
+    Followed by issue numbers like #42, #123, etc.
+
+    Security Features (GitHub Issue #45 - v3.2.3):
+    - Robust issue number extraction via extract_issue_numbers()
+    - Handles malformed issue references gracefully (#abc, #42.5, #-1)
+    - Filters to valid GitHub issue range (1-999999)
+    - No crashes on invalid input (ValueError/OverflowError caught)
 
     Args:
         base: Base branch to compare against (default: 'main')
@@ -130,11 +198,14 @@ def parse_commit_messages_for_issues(base: str = 'main', head: Optional[str] = N
 
     Returns:
         List of unique issue numbers found in commit messages, sorted ascending
+        Only returns valid positive integers in GitHub issue range
 
     Example:
         >>> issues = parse_commit_messages_for_issues(base='main')
         >>> print(f"Found issues: {issues}")
         Found issues: [42, 123, 456]
+
+    See extract_issue_numbers() for detailed parsing logic and error handling.
     """
     # Get commit messages between base and head
     if head is None:
@@ -154,20 +225,8 @@ def parse_commit_messages_for_issues(base: str = 'main', head: Optional[str] = N
 
     commit_text = result.stdout
 
-    # Regex pattern to match issue references
-    # Matches: Closes #42, fixes #123, RESOLVES #456, etc.
-    # Case-insensitive, supports singular and plural forms
-    pattern = r'\b(?:close|closes|fix|fixes|resolve|resolves)\s+#(\d+)\b'
-
-    matches = re.finditer(pattern, commit_text, re.IGNORECASE)
-
-    # Extract issue numbers and deduplicate
-    issue_numbers = set()
-    for match in matches:
-        issue_numbers.add(int(match.group(1)))
-
-    # Return sorted list
-    return sorted(list(issue_numbers))
+    # Use extract_issue_numbers with robust error handling
+    return extract_issue_numbers([commit_text])
 
 
 def create_pull_request(

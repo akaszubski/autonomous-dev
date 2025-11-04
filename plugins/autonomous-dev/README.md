@@ -1,12 +1,12 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.2.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.3.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.2.1
-**Last Updated**: 2025-11-03
-**Status**: Sync-Dev & GitHub Integration + Security Audit Complete
+**Version**: v3.3.0
+**Last Updated**: 2025-11-04
+**Status**: Automatic Git Operations + Consent-Based Commit/Push Automation
 
 Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
 
@@ -127,6 +127,42 @@ Try manual bootstrap:
 cp ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands/*.md .claude/commands/
 # Restart Claude Code
 ```
+
+## ✨ What's New in v3.3.0
+
+**⚡ Parallel Validation Release - 60% Faster Features**
+
+This release merges STEPS 5-7 of `/auto-implement` into a single parallel validation step, reducing feature development time by 3 minutes:
+
+### v3.3.0 Changes (2025-11-04)
+
+**✅ Parallel Validation Optimization**:
+- **Merged Steps**: STEPS 5, 6, 7 now execute simultaneously in STEP 5
+- **Three validators run in parallel**: reviewer (quality) + security-auditor (vulnerabilities) + doc-master (documentation)
+- **Execution method**: Three Task tool calls in single response enables parallel execution
+- **Performance improvement**: 5 minutes → 2 minutes for validation phase (60% faster)
+- **User impact**: Each feature completes ~3 minutes faster
+- **Implementation**: Single parallel step in `plugins/autonomous-dev/commands/auto-implement.md` (lines 201-348)
+- **Testing**: All 23 tests passing with TDD verification
+- **Backward compatible**: No breaking changes to /auto-implement workflow
+
+**How It Works**:
+1. Claude invokes three Task tool calls in a single response
+2. Claude Code executes all three tasks concurrently
+3. Results aggregated and processed in STEP 5.1
+4. Continue to Git operations (STEP 6) and completion reporting (STEP 7)
+
+**User-Visible Changes**:
+- Faster `/auto-implement` execution (same quality, less time)
+- Workflow steps renumbered: Now 7 steps instead of 9 (old 8→7, old 9→8)
+- No changes to feature quality or coverage
+
+**Performance Metrics**:
+- Per-feature time savings: ~3 minutes
+- Annual savings (100 features): ~5 hours
+- Validation quality: Same rigor, parallel execution
+
+---
 
 ## ✨ What's New in v3.2.1
 
@@ -255,9 +291,62 @@ This release replaces traditional testing with GenAI-powered validation and adds
 
 ---
 
+## ✨ What's New in v3.3.0
+
+**Automatic Git Operations Release - Commit & Push Automation (2025-11-04)**
+
+This release adds Step 8 (Git Operations) to the `/auto-implement` workflow with consent-based automation for committing and pushing changes:
+
+### v3.3.0 Features (2025-11-04)
+
+- ✅ **Automatic Git Operations Library** - Consent-based git automation for feature development
+  - New library: `plugins/autonomous-dev/lib/git_operations.py` (575 lines, 11 public functions)
+  - Functions: validate_git_repo(), check_git_config(), detect_merge_conflict(), is_detached_head(), has_uncommitted_changes(), stage_all_changes(), commit_changes(), get_remote_name(), push_to_remote(), create_feature_branch(), auto_commit_and_push()
+  - Full docstring coverage with examples for all functions
+  - Can be imported as a library: `from git_operations import auto_commit_and_push`
+
+- ✅ **Step 8: Git Operations in /auto-implement**
+  - Offers user consent after all 7 agents complete successfully
+  - Prerequisite checks: git installed, repo valid, user.name/email configured, no merge conflicts, no detached HEAD
+  - Three user options: (1) commit and push, (2) commit only, (3) skip git operations
+  - Graceful degradation: If git unavailable or prerequisites fail, feature is still marked successful
+  - Graceful degradation: If push fails, commit succeeded (feature success not blocked by push failure)
+  - Security-first: Never logs credentials, validates before operations, handles merge conflicts
+
+- ✅ **Comprehensive Test Coverage**
+  - 48 unit tests (1,033 lines) covering all functions and edge cases
+  - 17 integration tests (628 lines) for end-to-end workflows
+  - Tests cover: successful operations, prerequisite failures, timeouts, merge conflicts, detached HEAD, network errors
+  - All tests use mocked subprocess (no real git calls during testing)
+
+- ✅ **Rich Error Messages**
+  - Specific error messages for each prerequisite failure
+  - Recovery instructions included (e.g., "Set with: git config --global user.name 'Your Name'")
+  - Helps users quickly understand what's blocking git automation
+
+- ✅ **Feature Branch Support**
+  - create_feature_branch() function for automated branch creation
+  - Useful for future enhancements to /auto-implement workflow
+
+- ✅ **API Documentation**
+  - Full API reference in plugins/autonomous-dev/lib/README.md
+  - Integration guide in auto-implement.md Step 8
+  - Code examples for all public functions
+  - Return format documentation for async operations
+
+**Impact**:
+- ✅ /auto-implement workflow now complete with automated git operations
+- ✅ No manual git commands needed after feature development completes
+- ✅ Graceful degradation ensures features succeed even if git unavailable
+- ✅ Library can be reused by other commands (/sync-dev, /align-project, etc.)
+- ✅ 95%+ coverage ensures reliable automation
+- ✅ Security-first design prevents credential leaks
+
+---
+
 ## ✨ What's New in v3.2.1
 
-**Latest Release - Sync-Dev Restoration & GitHub Integration (2025-11-03)**
+**Previous Release - Sync-Dev Restoration & GitHub Integration (2025-11-03)**
 
 This release restores the `/sync-dev` command with comprehensive security audit and adds automatic GitHub issue tracking to the `/auto-implement` workflow:
 

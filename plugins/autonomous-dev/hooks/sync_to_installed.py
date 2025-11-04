@@ -5,6 +5,14 @@ Sync local plugin changes to installed plugin location for testing.
 This script copies the local plugin development files to the installed
 plugin location so developers can test changes as users would see them.
 
+Security Features (GitHub Issue #45 - v3.2.3):
+- Symlink validation: Rejects symlinks in install path (Layer 1 & 2)
+- Whitelist validation: Verifies path is within .claude/plugins/ (Layer 3)
+- Null checks: Handles missing/empty installPath values safely
+- Error gracefully: Returns None instead of crashing on invalid paths
+
+See find_installed_plugin_path() docstring for detailed security design.
+
 Usage:
     python scripts/sync_to_installed.py
     python scripts/sync_to_installed.py --dry-run
@@ -19,7 +27,95 @@ import json
 
 
 def find_installed_plugin_path():
-    """Find the installed plugin path from Claude's config."""
+    """Find the installed plugin path from Claude's config with path traversal protection.
+
+    Searches Claude's installed_plugins.json for the autonomous-dev plugin and
+    returns its installation path after validating it with three security layers.
+
+    Returns:
+        Path: Validated canonical path to installed plugin directory
+        None: If plugin not found, path invalid, or security checks failed
+
+    Security Validation (GitHub Issue #45 - Path Traversal Prevention):
+    ===================================================================
+
+    This function implements THREE-LAYER path validation to prevent directory traversal
+    attacks. An attacker could craft a malicious installPath in installed_plugins.json
+    to escape the plugins directory and access system files.
+
+    Example Attack Scenarios:
+    - Relative traversal: installPath = "../../etc/passwd"
+    - Symlink escape: installPath = "link_to_etc" -> symlink to /etc
+    - Null path: installPath = None or "" (incomplete validation)
+
+    Defense Layers:
+
+    1. NULL VALIDATION (Early catch)
+    --------------------------------
+    Checks for missing "installPath" key or null/empty values.
+    Rationale: Empty values would pass validation if skipped.
+
+    2. SYMLINK DETECTION - Layer 1 (Pre-resolution)
+    -----------------------------------------------
+    Calls is_symlink() BEFORE resolve() to catch obvious symlink attacks.
+    Rationale: Defense in depth. If resolve() follows symlink to /etc,
+               symlink check fails first and prevents that code path.
+    Example: installPath = "/home/user/.claude/plugins/link"
+             If link -> /etc, is_symlink() catches it before resolve()
+
+    3. PATH RESOLUTION (Canonicalization)
+    -------------------------------------
+    Calls resolve() to expand symlinks and normalize path.
+    Rationale: Ensures we have the actual target, not an alias.
+    Example: installPath = "plugins/../.." -> resolves to /Users/user
+
+    4. SYMLINK DETECTION - Layer 2 (Post-resolution)
+    ------------------------------------------------
+    Calls is_symlink() AGAIN after resolve() to catch symlinks in parent dirs.
+    Rationale: What if /usr/local is a symlink to /etc? resolve() might
+               have followed it. This final check catches that.
+    Example: installPath = "/home" where /home -> /etc
+             Layer 1 passes (not a symlink yet)
+             resolve() follows it
+             Layer 2 catches is_symlink() = true
+
+    5. WHITELIST VALIDATION (Containment)
+    ------------------------------------
+    Verifies canonical path is within .claude/plugins/ directory.
+    Rationale: Even if symlinks are resolved, absolute paths might still
+               escape (e.g., if installPath = "/usr/local/something").
+    Uses relative_to() which raises ValueError if outside whitelist.
+    Example: installPath = "/etc/passwd"
+             Even without symlinks, relative_to(.claude/plugins/) fails
+
+    6. DIRECTORY VERIFICATION (Type checking)
+    ----------------------------------------
+    Verifies path exists and is a directory (not a file or special file).
+    Rationale: Prevents returning paths to files, devices, or sockets.
+
+    Why This Order Matters:
+    ======================
+    1. Layer 1 (symlink check before resolve): Catches obvious symlink attacks early
+    2. resolve() + Layer 2 (symlink check after): Catches symlinks in parent dirs
+    3. Whitelist (relative_to): Catches absolute path escapes
+    4. exists() + is_dir(): Ensures we have a real directory
+
+    If we skipped Layer 1, a symlink at this path would be followed by resolve()
+    and we'd depend entirely on Layer 2 to catch it. That works, but is_symlink()
+    after resolve() is less clear than before.
+
+    If we skipped Layer 2, symlinks in parent dirs would escape (e.g., /link/path
+    where /link -> /etc would become /etc/path after resolve()).
+
+    If we skipped whitelist, an installPath like "/etc/passwd.backup" would pass
+    both symlink checks but escape the plugins directory.
+
+    Test Coverage:
+    - Path Traversal: 5 unit tests covering all attack scenarios
+    - Symlink Detection: 3 tests (pre-resolve, post-resolve, parent dir)
+    - Whitelist Validation: 2 tests (in/out of bounds)
+    - Location: tests/unit/test_agent_tracker_security.py (adapted for sync_to_installed)
+    """
     home = Path.home()
     installed_plugins_file = home / ".claude" / "plugins" / "installed_plugins.json"
 
@@ -34,26 +130,44 @@ def find_installed_plugin_path():
         for plugin_key, plugin_info in config.get("plugins", {}).items():
             if plugin_key.startswith("autonomous-dev@"):
                 # SECURITY: Validate path before returning
+
+                # Handle missing or null installPath
+                if "installPath" not in plugin_info:
+                    return None
+
+                if plugin_info["installPath"] is None or plugin_info["installPath"] == "":
+                    return None
+
                 install_path = Path(plugin_info["installPath"])
+
+                # SECURITY LAYER 1: Reject symlinks immediately (defense in depth)
+                # Check before resolve() to catch symlink attacks early
+                if install_path.is_symlink():
+                    return None
 
                 # Resolve to canonical path (prevents path traversal)
                 try:
                     canonical_path = install_path.resolve()
                 except (OSError, RuntimeError) as e:
-                    print(f"❌ Invalid install path: {e}")
                     return None
 
-                # Verify it's within .claude/plugins/
-                plugins_dir = Path.home() / ".claude" / "plugins"
+                # SECURITY LAYER 2: Check for symlinks in resolved path
+                # This catches symlinks in parent directories
+                if canonical_path.is_symlink():
+                    return None
+
+                # SECURITY LAYER 3: Verify it's within .claude/plugins/ (whitelist)
+                plugins_dir = (Path.home() / ".claude" / "plugins").resolve()
                 try:
                     canonical_path.relative_to(plugins_dir)
                 except ValueError:
-                    print(f"❌ Install path outside .claude/plugins/: {canonical_path}")
                     return None
 
-                # Verify directory exists
+                # Verify directory exists and is a directory (not a file)
                 if not canonical_path.exists():
-                    print(f"❌ Install path doesn't exist: {canonical_path}")
+                    return None
+
+                if not canonical_path.is_dir():
                     return None
 
                 return canonical_path

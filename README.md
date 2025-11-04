@@ -1,8 +1,8 @@
 # Claude Code Autonomous Development Plugin
 
 **Last Updated**: 2025-11-04
-**Version**: v3.2.2 (Command-Driven Workflow - Orchestrator Removed)
-**Status**: Production-ready with Command-Driven SDLC + Enforcement
+**Version**: v3.3.0 (Automatic Git Operations - Commit & Push Automation)
+**Status**: Production-ready with Command-Driven SDLC + Enforcement + Git Automation
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 >
@@ -957,7 +957,7 @@ The plugin's success is measured by these concrete metrics:
 
 | Metric | Target | How to Check |
 |--------|--------|-------------|
-| **Feature time** | 20-30 min per feature (vs 7+ hrs manual) | Time feature from request to merged PR |
+| **Feature time** | 17-27 min per feature (vs 7+ hrs manual) | Time feature from request to merged PR (parallel validation saves 3 min) |
 | **SDLC compliance** | 100% of features follow all 7 steps | /auto-implement enforces all steps |
 | **Scope drift** | 0% (zero features outside SCOPE) | Pre-commit hook blocks misaligned work |
 | **Test coverage** | 80%+ (enforced minimum) | Coverage report in test output |

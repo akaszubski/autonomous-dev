@@ -177,6 +177,92 @@ python plugins/autonomous-dev/lib/test_workflow_v2.py
 # ✅ Test 4: Logging
 ```
 
+### `git_operations.py` (v3.3.0+)
+**Purpose**: Consent-based git automation for /auto-implement Step 8
+
+**Features**:
+- Prerequisite validation (git installed, repo exists, config set)
+- Merge conflict detection
+- Detached HEAD state checking
+- Automatic change staging and committing
+- Feature branch creation and pushing
+- Graceful degradation (commit succeeds even if push fails)
+- Security-first (no credential logging, validates before operations)
+
+**Public Functions**:
+- `validate_git_repo()` - Check git availability and repository validity
+- `check_git_config()` - Verify user.name and user.email are configured
+- `detect_merge_conflict()` - Detect unresolved merge conflicts
+- `is_detached_head()` - Check for detached HEAD state
+- `has_uncommitted_changes()` - Check for uncommitted changes
+- `stage_all_changes()` - Stage all modified files
+- `commit_changes(message)` - Commit staged changes with message
+- `get_remote_name()` - Get default remote name
+- `push_to_remote(branch, remote)` - Push to remote with timeout handling
+- `create_feature_branch(branch_name)` - Create and switch to feature branch
+- `auto_commit_and_push(commit_message, branch, push=True)` - High-level orchestration function
+
+**Usage**:
+```python
+from git_operations import auto_commit_and_push
+
+# Commit and push (with user consent)
+result = auto_commit_and_push(
+    commit_message='feat: add authentication',
+    branch='main',
+    push=True  # Set False to commit-only
+)
+
+if result['success']:
+    print(f"Committed: {result['commit_sha']}")
+    if result['pushed']:
+        print("Pushed to remote")
+else:
+    print(f"Error: {result['error']}")
+
+# Or use individual functions for fine-grained control
+from git_operations import validate_git_repo, check_git_config, stage_all_changes
+
+is_valid, error = validate_git_repo()
+is_configured, error = check_git_config()
+success, error = stage_all_changes()
+```
+
+**Integration with /auto-implement**:
+- Called from Step 8 (Git Operations)
+- Offers user consent before operations
+- Prerequisite checks before offering git automation
+- Graceful degradation if git unavailable or prerequisites not met
+- Example from auto-implement.md Step 8:
+  ```python
+  from git_operations import auto_commit_and_push
+
+  # User agreed to commit and push
+  result = auto_commit_and_push(commit_msg, current_branch, push=True)
+  if result['success'] and result['pushed']:
+      print(f"Committed and pushed")
+  elif result['success']:
+      print(f"Committed but push failed: {result['error']}")
+  ```
+
+**Return Format** (auto_commit_and_push):
+```python
+{
+    'success': bool,        # True if commit succeeded (push failure is graceful)
+    'commit_sha': str,      # Commit SHA if successful, empty string otherwise
+    'pushed': bool,         # True if push succeeded
+    'error': str            # Error message if any, empty string otherwise
+}
+```
+
+**Error Handling**:
+- Returns descriptive error messages
+- Validates prerequisites before attempting operations
+- Handles subprocess timeouts (30s default for push)
+- Detects and reports merge conflicts, detached HEAD, missing config
+- Never logs credentials or sensitive data
+- Gracefully degrades (commit success not blocked by push failure)
+
 ## Architecture
 
 These modules implement the **foundation** for autonomous-dev v2.0:

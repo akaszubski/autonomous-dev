@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-04
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.2.1 (Sync-Dev & GitHub Integration)
+**Version**: v3.3.0 (Automatic Git Operations - Commit & Push Automation)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -118,10 +118,14 @@ git commit -m "docs: Update project goals"
 3. **Planning**: planner agent creates plan
 4. **TDD Tests**: test-master writes failing tests FIRST
 5. **Implementation**: implementer makes tests pass
-6. **Review**: reviewer checks quality
-7. **Security**: security-auditor scans
-8. **Documentation**: doc-master updates docs
-9. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
+6. **Parallel Validation (3 agents simultaneously)**:
+   - reviewer checks code quality
+   - security-auditor scans for vulnerabilities
+   - doc-master updates documentation
+   - Execution: Three Task tool calls in single response enables parallel execution
+   - Performance: 5 minutes → 2 minutes (60% faster)
+7. **Git Operations**: Auto-commit and push to feature branch (consent-based)
+8. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
 ---
 

@@ -198,11 +198,17 @@ python scripts/agent_tracker.py status
 
 ---
 
-### STEP 5: Invoke Reviewer Agent
+### STEP 5: Parallel Validation (3 Agents Simultaneously)
 
-⚠️ **ACTION REQUIRED**: Quality gate - independent code review.
+⚠️ **ACTION REQUIRED**: Invoke THREE validation agents in PARALLEL (single response).
 
-**CORRECT** ✅: Call Task tool with:
+**CRITICAL**: You MUST call Task tool THREE TIMES in a single response. This enables parallel execution and reduces validation time from 5 minutes to 2 minutes.
+
+**DO NOT** invoke agents sequentially. **DO NOT** wait between invocations. Call all three NOW:
+
+#### Validator 1: Reviewer (Quality Gate)
+
+**Call Task tool with**:
 
 ```
 subagent_type: "reviewer"
@@ -222,25 +228,9 @@ Output: APPROVAL or list of issues to fix with specific recommendations."
 model: "sonnet"
 ```
 
-**DO IT NOW**.
+#### Validator 2: Security-Auditor (Security Scan)
 
-**After reviewer completes**, VERIFY invocation succeeded:
-```bash
-python scripts/session_tracker.py auto-implement "Reviewer completed - verdict: [APPROVED/CHANGES REQUESTED]"
-python scripts/agent_tracker.py status
-```
-
-⚠️ **CHECKPOINT 5**: Verify 5 agents ran. If not, invoke missing agents before continuing.
-
-**If reviewer requests changes**: Fix them now, then re-run reviewer.
-
----
-
-### STEP 6: Invoke Security-Auditor Agent
-
-⚠️ **ACTION REQUIRED**: Security scan - catch vulnerabilities BEFORE shipping.
-
-**CORRECT** ✅: Call Task tool with:
+**Call Task tool with**:
 
 ```
 subagent_type: "security-auditor"
@@ -261,25 +251,9 @@ Output: Security PASS/FAIL with any vulnerabilities found (severity, location, f
 model: "haiku"
 ```
 
-**DO IT NOW**.
+#### Validator 3: Doc-Master (Documentation)
 
-**After security-auditor completes**, VERIFY invocation succeeded:
-```bash
-python scripts/session_tracker.py auto-implement "Security-auditor completed - status: [PASS/FAIL + findings]"
-python scripts/agent_tracker.py status
-```
-
-⚠️ **CHECKPOINT 6**: Verify 6 agents ran. If not, invoke missing agents before continuing.
-
-**If security issues found**: Fix them NOW before proceeding.
-
----
-
-### STEP 7: Invoke Doc-Master Agent
-
-⚠️ **FINAL STEP**: Update all documentation.
-
-**CORRECT** ✅: Call Task tool with:
+**Call Task tool with**:
 
 ```
 subagent_type: "doc-master"
@@ -300,15 +274,55 @@ Output: All documentation files updated and synchronized."
 model: "haiku"
 ```
 
-**DO IT NOW**.
+**DO ALL THREE NOW IN ONE RESPONSE**.
 
-**After doc-master completes**, PERFORM FINAL VERIFICATION:
+---
+
+### STEP 5.1: Handle Validation Results
+
+**After all three validators complete**, analyze combined results:
+
 ```bash
-python scripts/session_tracker.py auto-implement "Doc-master completed - docs: [list files updated]"
+python scripts/session_tracker.py auto-implement "Parallel validation completed - processing results"
 python scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 7 - FINAL VERIFICATION**: Verify ALL 7 agents ran successfully:
+#### Check for Critical Issues (Blocking)
+
+**Security-auditor found CRITICAL vulnerabilities?**
+- ❌ BLOCK: Must fix before git operations
+- Fix vulnerabilities immediately
+- Re-run security-auditor to verify fix
+- Continue to next check
+
+**Security passed or no critical issues?**
+- ✅ Continue to reviewer results
+
+#### Check for Code Quality Issues (Non-Blocking)
+
+**Reviewer requested changes?**
+- ⚠️ INFORM USER: "Code review suggested improvements: [list]"
+- ASK USER: "Fix now? (yes/no/later)"
+  - If "yes": Fix issues, re-run reviewer
+  - If "no" or "later": Continue (non-blocking)
+
+**Reviewer approved?**
+- ✅ Continue to doc-master results
+
+#### Check Documentation Updates
+
+**Doc-master failed to update docs?**
+- ⚠️ LOG WARNING: "Documentation sync incomplete: [reason]"
+- Continue (non-blocking - can fix later)
+
+**Doc-master completed successfully?**
+- ✅ All validators passed
+
+---
+
+### STEP 5.2: Final Agent Verification
+
+⚠️ **CHECKPOINT 5 - VERIFY ALL 7 AGENTS RAN**:
 
 Expected agents:
 1. researcher ✅
@@ -319,20 +333,197 @@ Expected agents:
 6. security-auditor ✅
 7. doc-master ✅
 
-**If count != 7, YOU HAVE FAILED THE WORKFLOW.**
-
-Identify which agents are missing:
+**Verify all 7 agents completed**:
 ```bash
 python scripts/agent_tracker.py status
 ```
 
-Invoke missing agents NOW before telling user you're done.
+**If count != 7, YOU HAVE FAILED THE WORKFLOW.**
+
+Identify which agents are missing and invoke them NOW before proceeding.
+
+**If count == 7**: Proceed to STEP 6 (Git Operations).
 
 ---
 
-### STEP 8: Report Completion
+### STEP 6: Git Operations (Consent-Based Automation)
 
-**ONLY AFTER** confirming all 7 agents ran (checkpoint 7 passed), tell the user:
+**AFTER** all 7 agents complete successfully, offer to commit and push changes.
+
+**IMPORTANT**: This step is OPTIONAL and consent-based. If user declines or prerequisites fail, feature is still successful (graceful degradation).
+
+#### Check Prerequisites
+
+Before offering git automation, verify:
+
+```python
+from git_operations import validate_git_repo, check_git_config
+
+# Check git is available
+is_valid, error = validate_git_repo()
+if not is_valid:
+    # Log warning but continue
+    print(f"⚠️  Git automation unavailable: {error}")
+    print("✅ Feature complete! Commit manually when ready.")
+    # SKIP to Step 9
+
+# Check git config
+is_configured, error = check_git_config()
+if not is_configured:
+    # Log warning but continue
+    print(f"⚠️  Git config incomplete: {error}")
+    print("Set with: git config --global user.name 'Your Name'")
+    print("         git config --global user.email 'your@email.com'")
+    print("✅ Feature complete! Commit manually when ready.")
+    # SKIP to Step 9
+```
+
+#### Offer Commit and Push (User Consent Required)
+
+If prerequisites passed, ask user for consent:
+
+```
+✅ Feature implementation complete!
+
+Would you like me to commit and push these changes?
+
+📝 Commit message: "feat: [feature name]
+
+Implemented by /auto-implement pipeline:
+- [1-line summary of what changed]
+- Tests: [count] tests added/updated
+- Security: Passed audit
+- Docs: Updated [list]"
+
+🔄 Actions:
+1. Stage all changes (git add .)
+2. Commit with message above
+3. Push to remote (branch: [current_branch])
+
+Reply 'yes' to commit and push, 'commit-only' to commit without push, or 'no' to skip git operations.
+```
+
+#### Execute Based on User Response
+
+**If user says "yes" or "y"**:
+```python
+from git_operations import auto_commit_and_push
+
+result = auto_commit_and_push(
+    commit_message=commit_msg,
+    branch=current_branch,
+    push=True
+)
+
+if result['success'] and result['pushed']:
+    print(f"✅ Committed ({result['commit_sha']}) and pushed to {current_branch}")
+elif result['success']:
+    print(f"✅ Committed ({result['commit_sha']})")
+    print(f"⚠️  Push failed: {result['error']}")
+    print("Push manually with: git push")
+else:
+    print(f"❌ Commit failed: {result['error']}")
+    print("Commit manually when ready")
+```
+
+**If user says "commit-only" or "commit"**:
+```python
+from git_operations import auto_commit_and_push
+
+result = auto_commit_and_push(
+    commit_message=commit_msg,
+    branch=current_branch,
+    push=False  # Don't push
+)
+
+if result['success']:
+    print(f"✅ Committed ({result['commit_sha']})")
+    print("Push manually with: git push")
+else:
+    print(f"❌ Commit failed: {result['error']}")
+    print("Commit manually when ready")
+```
+
+**If user says "no" or "n"**:
+```
+✅ Feature complete! Changes ready to commit.
+
+Commit manually when ready:
+  git add .
+  git commit -m "feat: [feature name]"
+  git push
+```
+
+#### Error Handling (Graceful Degradation)
+
+Handle common errors gracefully:
+
+**Merge conflict detected**:
+```
+❌ Cannot commit: Merge conflict detected in: [files]
+
+Resolve conflicts first:
+1. Edit conflicted files
+2. Run: git add .
+3. Run: git commit
+
+Feature implementation is complete - just needs manual conflict resolution.
+```
+
+**Detached HEAD state**:
+```
+❌ Cannot commit: Repository is in detached HEAD state
+
+Create a branch first:
+  git checkout -b [branch-name]
+
+Feature implementation is complete - just needs to be on a branch.
+```
+
+**Network timeout during push**:
+```
+✅ Committed successfully: [sha]
+❌ Push failed: Network timeout
+
+Try pushing manually:
+  git push
+
+Feature is committed locally - just needs to reach remote.
+```
+
+**Protected branch**:
+```
+✅ Committed successfully: [sha]
+❌ Push failed: Branch '[branch]' is protected
+
+Create a feature branch and push there:
+  git checkout -b feature/[name]
+  git cherry-pick [sha]
+  git push -u origin feature/[name]
+
+Or push manually if you have override permissions.
+```
+
+#### Philosophy: Always Succeed
+
+Git operations are a **convenience, not a requirement**.
+
+- Feature implemented? ✅ SUCCESS
+- Tests passing? ✅ SUCCESS
+- Security audited? ✅ SUCCESS
+- Docs updated? ✅ SUCCESS
+
+**Commit fails?** Still SUCCESS - user commits manually.
+**Push fails?** Still SUCCESS - commit worked, push manually.
+**Git not available?** Still SUCCESS - feature is done.
+
+This is **graceful degradation** - automate where possible, but never block success on automation.
+
+---
+
+### STEP 7: Report Completion
+
+**ONLY AFTER** confirming all 7 agents ran (checkpoint 5 passed), tell the user:
 
 ```
 ✅ Feature complete! All 7 agents executed successfully.
