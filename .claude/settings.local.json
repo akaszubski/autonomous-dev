@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔒 STRICT MODE ENABLED (v2.2.0 - Auto-Orchestration)\\n\\n📊 System Status:\\n- 8 Agents active (orchestrator, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master)\\n- 9 Skills loaded (engineering, docs, research, security, python, testing, plus 3 managed)\\n- 21 Commands available (/test, /commit, /format, /auto-implement, etc.)\\n\\n🎯 Strict Mode Enforcement:\\n- PROJECT.md alignment REQUIRED before any feature work\\n- Vibe coding enabled: \"implement X\" auto-triggers full SDLC pipeline\\n- File organization enforced: src/, docs/, tests/, scripts/\\n- All commits validated: alignment + tests + security + docs (BLOCKING)\\n'"
+            "command": "echo '🔒 STRICT MODE ENABLED (v3.2.2 - Claude Coordination)\\n\\n📊 System Status:\\n- 18 Agents active (orchestrator removed in v3.2.2 - Claude coordinates directly)\\n- 19 Skills loaded (using progressive disclosure architecture)\\n- 18 Commands available (/auto-implement, /research, /plan, /test-feature, etc.)\\n\\n🎯 Autonomous Development:\\n- PROJECT.md alignment REQUIRED before any feature work\\n- Full SDLC pipeline: research → plan → test → implement → review → security → docs\\n- File organization enforced: src/, docs/, tests/, scripts/\\n- All commits validated: alignment + tests + security + docs (BLOCKING)\\n'"
           }
         ]
       },
