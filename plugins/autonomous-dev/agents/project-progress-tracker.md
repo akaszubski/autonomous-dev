@@ -50,7 +50,17 @@ Update PROJECT.md to reflect feature completion progress, map completed features
 
 ## Output Format
 
-Return JSON with update details and suggestions:
+**For automated hooks (SubagentStop)**: Return YAML format for easy parsing:
+
+```yaml
+assessment:
+  goal_1: 25
+  goal_2: 50
+  goal_3: 75
+  features_completed: 3
+```
+
+**For interactive use**: Return detailed JSON with update details and suggestions:
 
 ```json
 {
@@ -89,6 +99,8 @@ Return JSON with update details and suggestions:
   "summary": "Feature 'Add dark mode' advances 'Enhanced UX' goal to 60% (3/5). Recommend focusing on UX completion or addressing Performance goal next."
 }
 ```
+
+**Note**: When invoked from SubagentStop hook, use YAML format. When invoked by user via `/status` command, use detailed JSON format.
 
 ## PROJECT.md Update Strategy
 

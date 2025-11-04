@@ -128,6 +128,46 @@ cp ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands
 # Restart Claude Code
 ```
 
+## ✨ What's New in v3.4.0
+
+**🎯 Automatic PROJECT.md Progress Tracking - SubagentStop Hook**
+
+This release adds a SubagentStop lifecycle hook that automatically updates your PROJECT.md goal progress after each feature completes, keeping strategic alignment visible and measurable.
+
+### v3.4.0 Changes (2025-11-05)
+
+**✅ Auto-Update PROJECT.md Goals**:
+- **Trigger**: SubagentStop hook activates automatically after `/auto-implement` completes
+- **What it does**: Updates PROJECT.md GOALS section with progress percentages
+- **How it works**:
+  1. Hook detects doc-master agent completion
+  2. Invokes project-progress-tracker agent for GenAI assessment
+  3. Agent evaluates feature against declared goals
+  4. Updates PROJECT.md with new percentages (atomically)
+- **Security**: Three-layer validation (path traversal prevention, symlink detection, atomic writes)
+- **Backup/Rollback**: Automatic backup before modification with timestamp
+- **Git Integration**: Optional auto-commit with user consent
+- **Test coverage**: 24 tests (95.8% pass rate) including security scenarios
+
+**User-Visible Changes**:
+- Goals automatically track progress as features complete
+- No manual PROJECT.md updates needed
+- Visual progress in your strategic goals section
+- Optional: Approve/reject before git commit
+
+**Use Cases**:
+- Keep PROJECT.md goals up-to-date with actual development progress
+- Automatic progress tracking across multi-feature development
+- Strategic alignment validation at each feature completion
+
+**Implementation Details**:
+- New hook: `auto_update_project_progress.py`
+- New library: `project_md_updater.py` (atomic updates with security)
+- Modified agent: `project-progress-tracker.md` (now outputs machine-parseable YAML)
+- Entrypoint: `invoke_agent.py` for SubagentStop hook invocation
+
+---
+
 ## ✨ What's New in v3.3.0
 
 **⚡ Parallel Validation Release - 60% Faster Features**

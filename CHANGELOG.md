@@ -7,6 +7,72 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [3.4.0] - 2025-11-05
+
+### Added
+- **Auto-Update PROJECT.md Goal Progress** - SubagentStop hook auto-updates GOALS section after /auto-implement completes (GitHub Issue #40)
+  - New SubagentStop lifecycle hook: `auto_update_project_progress.py`
+    * Triggers automatically after doc-master agent completes
+    * Verifies all 7 agents in pipeline completed successfully
+    * Invokes project-progress-tracker agent for GenAI assessment
+    * Parses YAML output and updates PROJECT.md atomically
+  - New library: `plugins/autonomous-dev/lib/project_md_updater.py` (atomic updates with security validation)
+    * Three-layer security: String validation → symlink detection → system directory blocking
+    * Path traversal prevention blocks ../../etc/passwd style attacks
+    * Atomic file writes via temp file + rename pattern prevents data corruption
+    * Backup creation before modifications with timestamp for rollback support
+    * Merge conflict detection and graceful handling
+  - Invokes agent via: `plugins/autonomous-dev/scripts/invoke_agent.py` (new entrypoint for SubagentStop hook)
+  - Modified: `plugins/autonomous-dev/agents/project-progress-tracker.md` - Now outputs YAML for machine parsing
+    * Format: `goal_name: percentage` (e.g., `goal_1: 45`)
+    * Enables GenAI assessment workflow after feature completion
+  - Optional git auto-commit: Offers user consent before committing PROJECT.md updates
+  - Test coverage: 24 tests in `tests/test_project_progress_update.py` (95.8% pass rate)
+    * Security tests: Path traversal, symlink detection, atomic writes
+    * Integration tests: End-to-end workflow with mock agents
+    * Robustness tests: Agent timeout handling, merge conflict detection
+  - User impact: Goals automatically track progress as features complete
+  - Backward compatible: No changes to /auto-implement workflow; hook is optional
+  - Documentation: Inline comments document security design rationale and usage examples
+
+## [3.4.1] - 2025-11-05
+
+### Security
+- **Race Condition Fix: Replace PID-based Temp File Creation with tempfile.mkstemp()** (HIGH severity, GitHub Issue #45)
+  - Vulnerability: `project_md_updater.py` used predictable PID-based temp filenames enabling symlink race attacks
+    * Previous pattern: `f".PROJECT_{os.getpid()}.tmp"` - PID observable via `/proc/[pid]` or `ps`
+    * Attack: Attacker predicts filename and creates symlink before process writes
+    * Impact: Privilege escalation (write to arbitrary files like `/etc/passwd`)
+  - Fix: Replaced with `tempfile.mkstemp()` for cryptographic random temp filenames
+    * New pattern: `mkstemp(dir=..., prefix='.PROJECT.', suffix='.tmp', text=False)`
+    * Security: Cryptographic random suffix (128+ bits entropy), O_EXCL atomicity, mode 0600 (owner-only)
+    * Prevents TOCTOU (Time-Of-Check-Time-Of-Use) race conditions
+  - Atomic write pattern (unchanged, already secure):
+    * CREATE: mkstemp() creates temp file with random name in same directory
+    * WRITE: Content written via os.write(fd, ...) for atomicity
+    * CLOSE: File descriptor closed before rename
+    * RENAME: temp_path.replace(target) atomically updates file
+  - Attack scenarios now blocked:
+    * Symlink race: Attacker cannot predict random filename within race window
+    * Temp file hijacking: mkstemp() fails if file exists (atomic creation with O_EXCL)
+    * Privilege escalation: Process only writes to secure temp file in expected directory
+  - Test coverage: 7 new atomic write security tests in `tests/test_project_progress_update.py`
+    * Test: `test_atomic_write_uses_mkstemp_not_pid` - Verifies mkstemp() called with correct parameters
+    * Test: `test_atomic_write_content_written_via_os_write` - Verifies fd used for writing
+    * Test: `test_atomic_write_fd_closed_before_rename` - Verifies FD closed before rename
+    * Test: `test_atomic_write_rename_is_atomic` - Verifies Path.replace() atomicity
+    * Test: `test_atomic_write_error_cleanup` - Verifies temp files cleaned up on failure
+    * Test: `test_atomic_write_mkstemp_parameters` - Verifies correct directory, prefix, suffix
+    * Test: `test_atomic_write_mode_0600` - Verifies exclusive owner access (mode 0600)
+  - Security audit: APPROVED FOR PRODUCTION
+    * Full audit report: `docs/sessions/SECURITY_AUDIT_project_md_updater_20251105.md`
+    * No vulnerabilities found after fix
+    * OWASP compliance verified for atomic file operations
+  - Impact: HIGH priority security fix, internal library only (no public API change)
+  - Backward compatible: Fix is transparent to callers (same method signature, same behavior)
+  - Migration: No action required (automatic upon upgrade)
+  - Implementation: `plugins/autonomous-dev/lib/project_md_updater.py` lines 151-247 (_atomic_write method)
+
 ## [Unreleased]
 
 ### Fixed

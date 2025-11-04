@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-04
+**Last Updated**: 2025-11-05
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.3.0 (Automatic Git Operations - Commit & Push Automation)
+**Version**: v3.4.0 (Auto-Update PROJECT.md Goal Progress - SubagentStop Hook)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -182,7 +182,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details.
 
-### Hooks (28 total automation)
+### Hooks (29 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`
 
@@ -197,7 +197,7 @@ Located: `plugins/autonomous-dev/hooks/`
 - `enforce_tdd.py`: Validates tests written before code (v3.0+)
 - `detect_feature_request.py`: Auto-detect feature requests
 
-**Optional/Extended Hooks (19)**:
+**Optional/Extended Hooks (20)**:
 - `auto_enforce_coverage.py`: 80% minimum coverage
 - `auto_fix_docs.py`: Documentation consistency
 - `auto_add_to_regression.py`: Regression test tracking
@@ -206,6 +206,7 @@ Located: `plugins/autonomous-dev/hooks/`
 - `auto_sync_dev.py`: Sync development changes
 - `auto_tdd_enforcer.py`: Strict TDD enforcement
 - `auto_update_docs.py`: Auto-update documentation
+- `auto_update_project_progress.py`: Auto-update PROJECT.md goals after /auto-implement (v3.4.0+)
 - `detect_doc_changes.py`: Detect documentation changes
 - `enforce_bloat_prevention.py`: Prevent context bloat
 - `enforce_command_limit.py`: Command count limits
@@ -216,7 +217,7 @@ Located: `plugins/autonomous-dev/hooks/`
 
 **Lifecycle Hooks**:
 - `UserPromptSubmit`: Display project context
-- `SubagentStop`: Log agent completion to session
+- `SubagentStop`: Log agent completion to session; auto-update PROJECT.md progress (v3.4.0+)
 
 ---
 
@@ -395,4 +396,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md` for `/sync-dev` command security audit findings and remediation guidance
 
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-05
