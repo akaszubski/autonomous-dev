@@ -2,10 +2,33 @@
   "description": "Strict Mode Configuration - Fast Autonomous Execution (v3.2.0+)",
   "permissions": {
     "allow": [
-      "Bash(./venv/bin/python -m pytest:*)"
+      "Bash:*",
+      "Read:*",
+      "Write:*",
+      "Edit:*",
+      "Glob:*",
+      "Grep:*",
+      "WebSearch:*",
+      "WebFetch:*",
+      "Task(.*researcher.*):*",
+      "Task(.*test-master.*):*",
+      "Task(.*implementer.*):*",
+      "Task(.*reviewer.*):*",
+      "Task(.*security-auditor.*):*",
+      "Task(.*doc-master.*):*",
+      "Task(.*advisor.*):*",
+      "Task(.*alignment-.*):*",
+      "Task(.*commit-message.*):*",
+      "Task(.*pr-description.*):*",
+      "Task(.*project-.*):*",
+      "Task(.*quality-validator.*):*",
+      "Task(.*setup-wizard.*):*",
+      "Task(.*sync-validator.*):*"
     ],
     "deny": [],
-    "ask": []
+    "ask": [
+      "Task(.*planner.*):*"
+    ]
   },
   "hooks": {
     "UserPromptSubmit": [

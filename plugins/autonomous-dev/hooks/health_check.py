@@ -3,9 +3,9 @@
 Plugin health check utility.
 
 Validates all autonomous-dev plugin components:
-- Agents (8 specialist agents)
+- Agents (18 specialist agents - orchestrator removed in v3.2.2)
 - Hooks (8 automation hooks)
-- Commands (8 core commands)
+- Commands (18 active commands)
 
 Note: Skills removed per Issue #5 (PROJECT.md: "No skills/ directory - anti-pattern")
 
@@ -29,15 +29,26 @@ class PluginHealthCheck:
     """Validates autonomous-dev plugin component integrity."""
 
     # Expected components (from PROJECT.md)
+    # 18 agents total (orchestrator removed in v3.2.2 - Claude coordinates directly)
     EXPECTED_AGENTS = [
-        "orchestrator",
-        "planner",
-        "researcher",
-        "test-master",
+        "advisor",
+        "alignment-analyzer",
+        "alignment-validator",
+        "commit-message-generator",
+        "doc-master",
         "implementer",
+        "planner",
+        "pr-description-generator",
+        "project-bootstrapper",
+        "project-progress-tracker",
+        "project-status-analyzer",
+        "quality-validator",
+        "researcher",
         "reviewer",
         "security-auditor",
-        "doc-master",
+        "setup-wizard",
+        "sync-validator",
+        "test-master",
     ]
 
     # Skills removed per Issue #5 - PROJECT.md: "No skills/ directory - anti-pattern"
