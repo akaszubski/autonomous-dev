@@ -20,11 +20,14 @@ Usage:
   Args from hook: file_paths, user_prompt
 """
 
+import html
 import json
+import keyword
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from string import Template
 from typing import Optional, Tuple
 
 # ============================================================================
@@ -45,6 +48,102 @@ FEATURE_KEYWORDS = ["implement", "add feature", "new", "create"]
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def validate_python_identifier(identifier: str) -> str:
+    """
+    Validate that a string is a safe Python identifier.
+
+    Security: Prevents code injection via malicious module/class names.
+    Validates:
+    - Not empty
+    - Not a Python keyword
+    - Not a dangerous built-in (exec, eval, etc.)
+    - Valid Python identifier (alphanumeric + underscore)
+    - Doesn't start with digit
+    - No dunder methods (security risk)
+    - Length <= 100 characters
+    - No special characters (XSS attack vectors)
+
+    Args:
+        identifier: String to validate as Python identifier
+
+    Returns:
+        The validated identifier (unchanged if valid)
+
+    Raises:
+        ValueError: If identifier is invalid or unsafe
+    """
+    # Check for empty string
+    if not identifier:
+        raise ValueError("Identifier cannot be empty")
+
+    # Check length
+    if len(identifier) > 100:
+        raise ValueError(f"Identifier too long (max 100 characters): {len(identifier)}")
+
+    # Check for Python keywords
+    if keyword.iskeyword(identifier):
+        raise ValueError(f"Cannot use Python keyword as identifier: {identifier}")
+
+    # Check for dangerous built-in functions (security risk)
+    dangerous_builtins = ["exec", "eval", "compile", "__import__", "open", "input"]
+    if identifier in dangerous_builtins:
+        raise ValueError(f"Invalid identifier: dangerous built-in not allowed: {identifier}")
+
+    # Check for dunder methods (security risk)
+    if identifier.startswith("__") and identifier.endswith("__"):
+        raise ValueError(f"Invalid identifier: dunder methods not allowed: {identifier}")
+
+    # Check if valid Python identifier (alphanumeric + underscore only)
+    if not identifier.isidentifier():
+        raise ValueError(f"Invalid identifier: must be valid Python identifier: {identifier}")
+
+    return identifier
+
+
+def sanitize_user_description(description: str) -> str:
+    """
+    Sanitize user description to prevent XSS attacks.
+
+    Security: Prevents XSS via HTML entity encoding.
+    Operations:
+    - Escape backslashes FIRST (critical order!)
+    - HTML entity encoding (< > & " ')
+    - Remove control characters (except \n \t)
+    - Truncate to 500 characters max
+
+    Args:
+        description: User-provided description string
+
+    Returns:
+        Sanitized description safe for embedding in generated code
+    """
+    # Handle empty string
+    if not description:
+        return ""
+
+    # Step 1: Escape backslashes FIRST (before other escaping)
+    # This prevents double-escaping issues
+    sanitized = description.replace("\\", "\\\\")
+
+    # Step 2: HTML entity encoding (escapes < > & " ')
+    # This prevents XSS attacks via HTML/script injection
+    sanitized = html.escape(sanitized, quote=True)
+
+    # Step 3: Remove control characters (except newline and tab)
+    # This prevents terminal injection and other control character attacks
+    sanitized = "".join(
+        char for char in sanitized
+        if char >= " " or char in ["\n", "\t"]
+    )
+
+    # Step 4: Truncate to max length
+    max_length = 500
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length - 3] + "..."
+
+    return sanitized
 
 
 def detect_commit_type(user_prompt: str) -> str:
@@ -87,6 +186,12 @@ def check_tests_passing(file_path: Path) -> Tuple[bool, str]:
         else:
             return (False, f"Tests failing:\n{result.stdout}")
 
+    except subprocess.TimeoutExpired:
+        return (False, "Error running tests: TimeoutExpired - tests took longer than 60 seconds")
+    except FileNotFoundError as e:
+        return (False, f"Error running tests: FileNotFoundError - {e}")
+    except subprocess.CalledProcessError as e:
+        return (False, f"Error running tests: CalledProcessError - {e}")
     except Exception as e:
         return (False, f"Error running tests: {e}")
 
@@ -96,21 +201,35 @@ def generate_feature_regression_test(file_path: Path, user_prompt: str) -> Tuple
     Generate regression test for a new feature.
 
     Ensures the feature keeps working in future.
+
+    Security: Uses validation + sanitization + Template to prevent code injection.
     """
-    module_name = file_path.stem
+    # SECURITY: Check for path traversal in raw path before normalization
+    if ".." in str(file_path):
+        raise ValueError(f"Invalid identifier: path traversal detected in {file_path}")
+
+    # SECURITY: Validate module name is safe Python identifier
+    module_name = validate_python_identifier(file_path.stem)
+    parent_name = validate_python_identifier(file_path.parent.name)
+
     timestamp = datetime.now().strftime("%Y%m%d")
 
     test_file = REGRESSION_DIR / f"test_feature_{module_name}_{timestamp}.py"
 
-    # Extract feature description
-    feature_desc = user_prompt[:200]
+    # SECURITY: Sanitize user description (XSS prevention)
+    # Truncate to 200 chars, add indicator if truncated
+    desc_to_sanitize = user_prompt[:200]
+    if len(user_prompt) > 200:
+        desc_to_sanitize += "..."
+    feature_desc = sanitize_user_description(desc_to_sanitize)
 
-    test_content = f'''"""
+    # SECURITY: Use Template instead of f-string (prevents code injection)
+    template = Template('''"""
 Regression test: Feature should continue to work.
 
-Feature: {feature_desc}
-Implementation: {file_path}
-Created: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Feature: $feature_desc
+Implementation: $file_path
+Created: $created_time
 
 Purpose:
 Ensures this feature continues to work as implemented.
@@ -119,7 +238,7 @@ If this test fails in future, the feature has regressed.
 
 import pytest
 from pathlib import Path
-from {file_path.parent.name}.{module_name} import *
+from $parent_name.$module_name import *
 
 
 def test_feature_baseline():
@@ -152,7 +271,15 @@ def test_feature_edge_cases():
 
 # Mark as regression test
 pytestmark = pytest.mark.regression
-'''
+''')
+
+    test_content = template.safe_substitute(
+        feature_desc=feature_desc,
+        file_path=file_path,
+        created_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        parent_name=parent_name,
+        module_name=module_name,
+    )
 
     return (test_file, test_content)
 
@@ -162,20 +289,35 @@ def generate_bugfix_regression_test(file_path: Path, user_prompt: str) -> Tuple[
     Generate regression test for a bug fix.
 
     Ensures the specific bug never returns.
+
+    Security: Uses validation + sanitization + Template to prevent code injection.
     """
-    module_name = file_path.stem
+    # SECURITY: Check for path traversal in raw path before normalization
+    if ".." in str(file_path):
+        raise ValueError(f"Invalid identifier: path traversal detected in {file_path}")
+
+    # SECURITY: Validate module name is safe Python identifier
+    module_name = validate_python_identifier(file_path.stem)
+    parent_name = validate_python_identifier(file_path.parent.name)
+
     timestamp = datetime.now().strftime("%Y%m%d")
 
     test_file = REGRESSION_DIR / f"test_bugfix_{module_name}_{timestamp}.py"
 
-    bug_desc = user_prompt[:200]
+    # SECURITY: Sanitize user description (XSS prevention)
+    # Truncate to 200 chars, add indicator if truncated
+    desc_to_sanitize = user_prompt[:200]
+    if len(user_prompt) > 200:
+        desc_to_sanitize += "..."
+    bug_desc = sanitize_user_description(desc_to_sanitize)
 
-    test_content = f'''"""
+    # SECURITY: Use Template instead of f-string (prevents code injection)
+    template = Template('''"""
 Regression test: Bug should never return.
 
-Bug: {bug_desc}
-Fixed in: {file_path}
-Fixed on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Bug: $bug_desc
+Fixed in: $file_path
+Fixed on: $fixed_time
 
 Purpose:
 Ensures this specific bug never happens again.
@@ -184,7 +326,7 @@ If this test fails, the bug has returned.
 
 import pytest
 from pathlib import Path
-from {file_path.parent.name}.{module_name} import *
+from $parent_name.$module_name import *
 
 
 def test_bug_reproduction():
@@ -218,7 +360,15 @@ def test_bug_related_edge_cases():
 
 # Mark as regression test
 pytestmark = pytest.mark.regression
-'''
+''')
+
+    test_content = template.safe_substitute(
+        bug_desc=bug_desc,
+        file_path=file_path,
+        fixed_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        parent_name=parent_name,
+        module_name=module_name,
+    )
 
     return (test_file, test_content)
 
@@ -228,20 +378,35 @@ def generate_performance_baseline_test(file_path: Path, user_prompt: str) -> Tup
     Generate performance baseline test for an optimization.
 
     Prevents performance regression below current baseline.
+
+    Security: Uses validation + sanitization + Template to prevent code injection.
     """
-    module_name = file_path.stem
+    # SECURITY: Check for path traversal in raw path before normalization
+    if ".." in str(file_path):
+        raise ValueError(f"Invalid identifier: path traversal detected in {file_path}")
+
+    # SECURITY: Validate module name is safe Python identifier
+    module_name = validate_python_identifier(file_path.stem)
+    parent_name = validate_python_identifier(file_path.parent.name)
+
     timestamp = datetime.now().strftime("%Y%m%d")
 
     test_file = PROGRESSION_DIR / f"test_perf_{module_name}_{timestamp}.py"
 
-    optimization_desc = user_prompt[:200]
+    # SECURITY: Sanitize user description (XSS prevention)
+    # Truncate to 200 chars, add indicator if truncated
+    desc_to_sanitize = user_prompt[:200]
+    if len(user_prompt) > 200:
+        desc_to_sanitize += "..."
+    optimization_desc = sanitize_user_description(desc_to_sanitize)
 
-    test_content = f'''"""
+    # SECURITY: Use Template instead of f-string (prevents code injection)
+    template = Template('''"""
 Performance baseline test: Prevent performance regression.
 
-Optimization: {optimization_desc}
-Optimized file: {file_path}
-Baseline set: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Optimization: $optimization_desc
+Optimized file: $file_path
+Baseline set: $baseline_time
 
 Purpose:
 Captures current performance as baseline.
@@ -251,15 +416,15 @@ Future changes should not degrade performance below this baseline.
 import pytest
 import time
 from pathlib import Path
-from {file_path.parent.name}.{module_name} import *
+from $parent_name.$module_name import *
 
 
 # Store baseline metrics
-BASELINE_METRICS = {{
+BASELINE_METRICS = {
     "execution_time_seconds": None,  # Will be set after first run
     "memory_usage_mb": None,
     "tolerance_percent": 10,  # Allow 10% variance
-}}
+}
 
 
 def test_performance_baseline():
@@ -285,7 +450,7 @@ def test_performance_baseline():
     # First run: establish baseline
     if BASELINE_METRICS["execution_time_seconds"] is None:
         BASELINE_METRICS["execution_time_seconds"] = elapsed
-        print(f"Baseline established: {{elapsed:.3f}}s")
+        print(f"Baseline established: {elapsed:.3f}s")
 
     # Subsequent runs: check regression
     else:
@@ -295,18 +460,26 @@ def test_performance_baseline():
 
         assert elapsed <= max_allowed, (
             f"Performance regression detected! "
-            f"Current: {{elapsed:.3f}}s > Baseline: {{baseline:.3f}}s "
-            f"(+{{tolerance:.3f}}s tolerance)"
+            f"Current: {elapsed:.3f}s > Baseline: {baseline:.3f}s "
+            f"(+{tolerance:.3f}s tolerance)"
         )
 
-        print(f"Performance OK: {{elapsed:.3f}}s (baseline: {{baseline:.3f}}s)")
+        print(f"Performance OK: {elapsed:.3f}s (baseline: {baseline:.3f}s)")
 
     pass  # Placeholder
 
 
 # Mark as progression test
 pytestmark = pytest.mark.progression
-'''
+''')
+
+    test_content = template.safe_substitute(
+        optimization_desc=optimization_desc,
+        file_path=file_path,
+        baseline_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        parent_name=parent_name,
+        module_name=module_name,
+    )
 
     return (test_file, test_content)
 
@@ -356,6 +529,12 @@ def run_regression_test(test_file: Path) -> Tuple[bool, str]:
         else:
             return (False, output)
 
+    except subprocess.TimeoutExpired:
+        return (False, "Error running regression test: TimeoutExpired - test took longer than 60 seconds")
+    except FileNotFoundError as e:
+        return (False, f"Error running regression test: FileNotFoundError - {e}")
+    except subprocess.CalledProcessError as e:
+        return (False, f"Error running regression test: CalledProcessError - {e}")
     except Exception as e:
         return (False, f"Error running regression test: {e}")
 
@@ -368,8 +547,45 @@ def run_regression_test(test_file: Path) -> Tuple[bool, str]:
 def main():
     """Main hook logic."""
 
+    # Check for --dry-run mode (for testing)
+    dry_run = '--dry-run' in sys.argv
+    tier = None
+
+    # Parse --tier argument
+    for arg in sys.argv:
+        if arg.startswith('--tier='):
+            tier = arg.split('=')[1]
+
+    # Dry-run mode: generate test template and print to stdout
+    if dry_run:
+        # Default to regression tier if not specified
+        if not tier:
+            tier = 'regression'
+
+        # Generate sample test content based on tier
+        test_content = f'''"""
+Regression test for {tier} tier.
+
+Generated by auto_add_to_regression.py hook.
+"""
+
+import pytest
+
+
+@pytest.mark.{tier}
+class Test{tier.capitalize()}Feature:
+    """Test class for {tier} tier regression."""
+
+    def test_feature_works(self):
+        """Test that feature continues to work."""
+        assert True
+'''
+        print(test_content)
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print("Usage: auto_add_to_regression.py <file_path> [user_prompt]")
+        print("       auto_add_to_regression.py --dry-run --tier=<smoke|regression|extended>")
         sys.exit(0)
 
     file_path = Path(sys.argv[1])

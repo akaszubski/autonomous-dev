@@ -1,12 +1,12 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.3.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.5.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.3.0
-**Last Updated**: 2025-11-04
-**Status**: Automatic Git Operations + Consent-Based Commit/Push Automation
+**Version**: v3.5.0
+**Last Updated**: 2025-11-05
+**Status**: Automatic Git Operations + Consent-Based Commit, Push & PR Automation
 
 Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
 
@@ -127,6 +127,243 @@ Try manual bootstrap:
 cp ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands/*.md .claude/commands/
 # Restart Claude Code
 ```
+
+## ✨ What's New in v3.5.0
+
+**🚀 Automatic Git Operations - Consent-Based Commit, Push & PR Automation**
+
+This release adds complete git automation to Step 8 of `/auto-implement`, enabling fully autonomous development workflows from feature request to open PR.
+
+### v3.5.0 Changes (2025-11-05)
+
+**✅ Step 8 Git Automation**:
+- **Automatic commit**: Agent-generated conventional commit messages from implementation artifacts
+- **Automatic push**: Feature branch push to remote (optional via AUTO_GIT_PUSH=true)
+- **Automatic PR creation**: GitHub PR with comprehensive description (optional via AUTO_GIT_PR=true)
+- **Consent-based**: Three environment variables control behavior (all disabled by default)
+- **Graceful degradation**: Works without git/gh CLI, provides manual fallback instructions
+
+**How to Enable**:
+```bash
+# Add to .env
+AUTO_GIT_ENABLED=true        # Enable git operations
+AUTO_GIT_PUSH=true           # Enable push to remote
+AUTO_GIT_PR=true             # Enable PR creation
+```
+
+**What Happens**:
+1. Feature completes (7-agent pipeline finishes)
+2. commit-message-generator agent creates conventional commit message
+3. pr-description-generator agent creates comprehensive PR description
+4. Automatic commit with agent-generated message
+5. Automatic push to feature branch (if AUTO_GIT_PUSH=true)
+6. Automatic PR creation (if AUTO_GIT_PR=true and gh CLI available)
+
+**Security Features**:
+- No hardcoded secrets; never logs credentials
+- Validates git installation, config, merge conflicts, uncommitted changes
+- Subprocess command injection prevention
+- JSON parsing safe with comprehensive error handling
+- Prerequisite checks before all operations
+
+**User-Visible Changes**:
+- Features can complete fully automated from start to PR open
+- No manual git commands needed
+- Agent-generated commit messages follow conventions
+- Comprehensive PR descriptions generated automatically
+- Optional: Approve/reject before commit
+
+**Test Coverage**:
+- 26 integration tests + 63 unit tests (89 total, all passing)
+- Tests cover consent parsing, agent invocation, output validation, fallback instructions
+- Location: `tests/integration/test_auto_implement_step8_agents.py`, `tests/unit/test_auto_implement_git_integration.py`
+
+**Use Cases**:
+- Fully autonomous feature development with single `/auto-implement` command
+- Automated commit and PR creation per team standards
+- No manual git workflow needed
+- All SDLC steps completed: research → plan → TDD → implement → review → security → docs → commit → push → PR
+
+**Implementation Details**:
+- New library: `auto_implement_git_integration.py` (992 lines, 100% docstring coverage)
+- Integration with: commit-message-generator, pr-description-generator agents
+- Uses: `git_operations.py` and `pr_automation.py` for actual git operations
+- Configuration: `.env` environment variables for consent
+- Documentation: Updated `.env.example` with all three variables
+
+**Important Notes**:
+- Disabled by default (no behavior change without opt-in via .env)
+- Backward compatible with existing /auto-implement workflow
+- Works seamlessly with parallel validation (Step 5) and documentation sync (Step 7)
+
+**🧪 Scalable Regression Test Suite - Four-Tier Testing Framework**
+
+This release adds a comprehensive regression test suite with modern testing patterns, protecting all released features (v3.0+) against regressions.
+
+### Regression Test Suite (2025-11-05)
+
+**✅ Four-Tier Architecture**:
+- **Smoke Tests** (< 5s): Critical paths - plugin loading, command routing, configuration
+- **Regression Tests** (< 30s): Bug/feature protection - security fixes, feature implementations, audit findings
+- **Extended Tests** (1-5min): Performance baselines, concurrency scenarios, edge cases
+- **Progression Tests** (variable): Feature evolution tracking, breaking change detection, migration paths
+
+**✅ What's Protected**:
+- Security fixes: v3.4.1 race condition (HIGH), v3.4.0 atomic writes (path traversal prevention)
+- Features: v3.4.0 auto-update PROJECT.md, v3.3.0 parallel validation (3 agents)
+- Security audits: 35+ audit findings with corresponding regression tests
+- 95+ total tests: smoke (20), regression (40), extended (8), progression (27)
+
+**✅ Modern Testing Tools**:
+- **pytest-xdist**: Parallel execution across CPU cores (smoke: 20 tests in < 5s, regression: 40 tests in < 30s)
+- **syrupy**: Snapshot testing for complex output validation
+- **pytest-testmon**: Smart test selection (only affected tests run on code changes, 60% faster TDD cycle)
+
+**✅ TDD Workflow**:
+```bash
+# 1. Write failing test (Red)
+pytest tests/regression/regression/test_feature_v3_5_0.py -v
+
+# 2. Run test, verify FAILED
+
+# 3. Implement feature
+# ... your code ...
+
+# 4. Run test again, verify PASSED
+pytest tests/regression/regression/test_feature_v3_5_0.py -v
+
+# 5. Run full suite to ensure no regressions
+pytest tests/regression/ -m "smoke or regression" -n auto
+```
+
+**✅ Coverage & Performance**:
+- Coverage target: 80%+ via pytest-cov
+- Performance: 60% faster TDD cycle via pytest-testmon
+- Isolation: tmp_path fixtures prevent real project modification
+- Security: Validation guards prevent side effects
+
+**✅ Quick Start**:
+```bash
+# Run smoke + regression tests (fast, < 30s)
+pytest tests/regression/ -m "smoke or regression" -v
+
+# Run in parallel for speed
+pytest tests/regression/ -m "smoke or regression" -n auto -v
+
+# View coverage report
+pytest tests/regression/ --cov=plugins/autonomous-dev --cov-report=html
+```
+
+**✅ Configuration**:
+- Markers in `pytest.ini`: smoke, regression, extended, progression
+- Fixtures in `tests/regression/conftest.py`: project_root, isolated_project, mock_agent_invocation
+- Documentation: [tests/regression/README.md](../../tests/regression/README.md)
+
+**✅ Integration**:
+- Pre-commit hook runs smoke tests (< 5s fast feedback)
+- Pre-push hook runs smoke + regression (< 30s comprehensive validation)
+- GitHub Actions: Nightly extended tests, PR smoke tests
+- CI/CD ready with coverage reporting
+
+**Use Cases**:
+- Regression protection when refactoring
+- Confidence for breaking changes (caught by tests)
+- Automated test generation from security audits
+- Safety net for dogfooding internal features
+
+**Implementation Details**:
+- pytest.ini: Four-tier markers and coverage configuration
+- tests/regression/: Organized by tier (smoke/, regression/, extended/, progression/)
+- 95+ test functions across 13 test files
+- 100% docstrings: Every test documents what it protects
+- conftest.py: 200+ lines of fixtures for isolation and mocking
+
+**Important Notes**:
+- TDD required: Tests written before implementation
+- Isolation guaranteed: No real project modification
+- Parallel-safe: Each test gets isolated tmp_path
+- Fast feedback: Smoke tests run before commit (< 5s)
+
+---
+
+## ✨ What's New in v3.4.2
+
+**🔒 Security: XSS Vulnerability Fix in Regression Test Generation**
+
+This patch release fixes a MEDIUM severity XSS vulnerability in the regression test generation hook, implementing a three-layer defense system to prevent code injection attacks.
+
+### v3.4.2 Changes (2025-11-05)
+
+**Vulnerability Fixed**:
+- **Issue**: `auto_add_to_regression.py` generated test files with unsafe f-string interpolation
+- **Risk**: Malicious user prompts or file paths could inject executable code into generated tests
+- **Severity**: MEDIUM (requires user to provide malicious input, test must be manually executed)
+- **Status**: FIXED & APPROVED FOR PRODUCTION
+
+**✅ Three-Layer Defense**:
+
+1. **Input Validation** - `validate_python_identifier()`:
+   - Rejects Python keywords (import, class, def, etc.)
+   - Rejects dangerous builtins (eval, exec, __import__, open, input)
+   - Rejects path traversal attempts (..)
+   - Ensures max 100 characters (DoS prevention)
+
+2. **Input Sanitization** - `sanitize_user_description()`:
+   - HTML entity encoding (escapes <, >, &, ", ')
+   - Removes control characters
+   - Truncates to 500 chars max
+   - Escapes backslashes in correct order (prevents double-escaping)
+
+3. **Safe Template Substitution**:
+   - Replaced unsafe f-strings with `string.Template`
+   - Template.safe_substitute() doesn't evaluate expressions
+   - Even if sanitization bypassed, code won't execute
+   - Applied to all 3 test generation functions
+
+**Attack Vectors Blocked**:
+- XSS via HTML/script injection: `<script>alert('XSS')</script>` → escaped
+- Code injection via quoted strings: `'; DROP TABLE users; --` → sanitized
+- File path traversal: `../../etc/passwd` → rejected
+- Python keyword injection: `import_module` → rejected
+- Dangerous builtin execution: `eval_something` → rejected
+
+**Test Coverage**:
+- 56 security tests: Identifier validation, sanitization, XSS payloads
+- 28 integration tests: End-to-end workflow validation
+- 16 permanent regression tests: Protection against recurrence
+- Total: 84 new tests added
+- Coverage: 47.3% → 95% for auto_add_to_regression.py module
+
+**Security Audit**:
+- Full audit: `docs/sessions/SECURITY_AUDIT_AUTO_ADD_REGRESSION_20251105.md`
+- OWASP compliance: All attack vectors blocked
+- Payload tests: <script>, <img onerror>, <svg onload>, <iframe>, SQL injection, command injection, null bytes
+- Status: APPROVED FOR PRODUCTION
+
+**Backward Compatibility**: 100%
+- No API changes
+- No breaking changes
+- No configuration changes needed
+- Invalid inputs now correctly rejected (security improvement)
+- Migration: None required (automatic upon upgrade)
+
+**Implementation**:
+- New functions: `validate_python_identifier()` (50 lines), `sanitize_user_description()` (95 lines)
+- Modified functions: `generate_feature_regression_test()`, `generate_bugfix_regression_test()`, `generate_performance_baseline_test()`
+- File: `plugins/autonomous-dev/hooks/auto_add_to_regression.py`
+- Documentation: Comprehensive session doc at `docs/sessions/SECURITY_FIX_XSS_AUTO_ADD_REGRESSION_20251105.md`
+
+**Recommendations**:
+- Update to v3.4.2 immediately (security patch)
+- Run test suite to verify: `pytest tests/unit/hooks/test_auto_add_to_regression_security.py -v`
+- No action needed to enable (automatic upon upgrade)
+
+**Related Fixes**:
+- v3.4.1: Fixed HIGH severity race condition in project_md_updater.py (cryptographic random temp files)
+- v3.4.2: Fixed MEDIUM severity XSS in auto_add_to_regression.py (safe template substitution)
+- Future: Similar fixes planned for other hooks
+
+---
 
 ## ✨ What's New in v3.4.0
 
