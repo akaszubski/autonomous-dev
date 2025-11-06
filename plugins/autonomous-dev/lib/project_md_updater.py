@@ -216,12 +216,7 @@ class ProjectMdUpdater:
             # Path.replace() on Windows 3.8+ also atomic
             # After this line: target file has new content OR is unchanged
             # Never in a partially-written state
-            #
-            # Note: In test environments where mkstemp/os.write/os.close are mocked,
-            # the temp file may not actually exist. Check before renaming to support
-            # partial mocking in tests (where rename is not mocked but other ops are).
-            if temp_path.exists():
-                temp_path.replace(self.project_file)
+            temp_path.replace(self.project_file)
 
         except Exception as e:
             # Cleanup file descriptor on any error
@@ -234,76 +229,31 @@ class ProjectMdUpdater:
 
             # Cleanup temp file on error
             # This prevents orphaned .tmp files accumulating
-            # Use os.unlink instead of Path.unlink for better testability
-            # (allows mocking os.unlink directly without checking existence)
             if temp_path:
                 try:
-                    os.unlink(str(temp_path))
+                    temp_path.unlink()
                 except:
                     # Ignore errors during cleanup (file might not exist)
                     pass
 
             raise IOError(f"Failed to write PROJECT.md: {e}") from e
 
-    def update_goal_progress(self, goal_name: str, percentage: int) -> bool:
-        """Update goal progress percentage.
+    def update_goal_progress(self, updates: Dict[str, int]) -> bool:
+        """Update goal progress percentages.
 
         Args:
-            goal_name: Name of the goal (e.g., "Goal 1")
-            percentage: New progress percentage (0-100)
+            updates: Dict mapping goal names to progress percentages
+                    e.g., {"goal_1": 45, "goal_2": 30}
 
         Returns:
-            True if updated, False if goal not found
+            True if any goals were updated, False if none found
 
         Raises:
             ValueError: If percentage invalid or merge conflict detected
             FileNotFoundError: If PROJECT.md doesn't exist
         """
-        # Validate percentage
-        if not isinstance(percentage, int) or percentage < 0 or percentage > 100:
-            raise ValueError(
-                f"Invalid progress percentage: {percentage}\n"
-                f"Expected: Integer 0-100\n"
-                f"Got: {percentage}"
-            )
-
-        # Check file exists
-        if not self.project_file.exists():
-            raise FileNotFoundError(
-                f"PROJECT.md not found: {self.project_file}\n"
-                f"Cannot update non-existent file"
-            )
-
-        # Read current content
-        content = self.project_file.read_text()
-
-        # Check for merge conflicts
-        if self._detect_merge_conflict(content):
-            raise ValueError(
-                f"Merge conflict detected in {self.project_file}\n"
-                f"Cannot update PROJECT.md with unresolved conflicts.\n"
-                f"Please resolve conflicts first."
-            )
-
-        # Create backup before modification
-        self._create_backup()
-
-        # Find and update goal progress
-        # Pattern: "- Goal X: [Y%]" -> "- Goal X: [Z%]"
-        pattern = rf"(- {re.escape(goal_name)}:\s*\[)\d+(%\])"
-        replacement = rf"\g<1>{percentage}\g<2>"
-
-        updated_content = re.sub(pattern, replacement, content)
-
-        # Check if anything was updated
-        if updated_content == content:
-            # Goal not found - don't fail, just return False
-            return False
-
-        # Write updated content atomically
-        self._atomic_write(updated_content)
-
-        return True
+        # If single goal, delegate to update_multiple_goals for consistency
+        return self.update_multiple_goals(updates)
 
     def update_metric(self, metric_name: str, value: int) -> bool:
         """Update metric value in PROJECT.md.
@@ -332,7 +282,7 @@ class ProjectMdUpdater:
         # Check for merge conflicts
         if self._detect_merge_conflict(content):
             raise ValueError(
-                f"Merge conflict detected in {self.project_file}\n"
+                f"merge conflict detected in {self.project_file}\n"
                 f"Cannot update PROJECT.md with unresolved conflicts."
             )
 
@@ -354,11 +304,14 @@ class ProjectMdUpdater:
 
         return True
 
-    def update_multiple_goals(self, updates: Dict[str, int]):
+    def update_multiple_goals(self, updates: Dict[str, int]) -> bool:
         """Update multiple goals in a single atomic operation.
 
         Args:
             updates: Dict mapping goal names to progress percentages
+
+        Returns:
+            True if any goals were updated, False if none found
 
         Raises:
             ValueError: If any percentage invalid or merge conflict detected
@@ -385,7 +338,7 @@ class ProjectMdUpdater:
         # Check for merge conflicts
         if self._detect_merge_conflict(content):
             raise ValueError(
-                f"Merge conflict detected in {self.project_file}\n"
+                f"merge conflict detected in {self.project_file}\n"
                 f"Cannot update PROJECT.md with unresolved conflicts."
             )
 
@@ -394,13 +347,30 @@ class ProjectMdUpdater:
 
         # Apply all updates
         updated_content = content
+        any_updated = False
         for goal_name, percentage in updates.items():
-            pattern = rf"(- {re.escape(goal_name)}:\s*\[)\d+(%\])"
-            replacement = rf"\g<1>{percentage}\g<2>"
-            updated_content = re.sub(pattern, replacement, updated_content)
+            # Match format: "- goal_name: Description (Target: XX%)"
+            # Update to: "- goal_name: Description (Target: XX%, Current: YY%)"
 
-        # Write atomically
-        self._atomic_write(updated_content)
+            # First check if Current already exists
+            current_pattern = rf"(- {re.escape(goal_name)}:.*?Target:\s*\d+%,\s*Current:\s*)\d+(%\))"
+            if re.search(current_pattern, updated_content):
+                # Update existing Current value
+                new_content = re.sub(current_pattern, rf"\g<1>{percentage}\g<2>", updated_content)
+            else:
+                # Add Current value after Target
+                add_current_pattern = rf"(- {re.escape(goal_name)}:.*?Target:\s*\d+%)(\))"
+                new_content = re.sub(add_current_pattern, rf"\g<1>, Current: {percentage}%\g<2>", updated_content)
+
+            if new_content != updated_content:
+                any_updated = True
+            updated_content = new_content
+
+        # Write atomically only if something changed
+        if any_updated:
+            self._atomic_write(updated_content)
+
+        return any_updated
 
     def validate_syntax(self) -> Dict[str, Any]:
         """Validate PROJECT.md syntax after updates.

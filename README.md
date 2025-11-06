@@ -1,8 +1,8 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-11-04
-**Version**: v3.3.0 (Automatic Git Operations - Commit & Push Automation)
-**Status**: Production-ready with Command-Driven SDLC + Enforcement + Git Automation
+**Last Updated**: 2025-11-05
+**Version**: v3.5.0 (Automatic Git Operations - Consent-Based Commit, Push & PR Automation)
+**Status**: Production-ready with Command-Driven SDLC + Enforcement + Automated Git Workflow
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 >
@@ -339,6 +339,47 @@ This wizard helps you:
 
 **Note**: Most users don't need this! You can use slash commands manually or let hooks run automatically at commit.
 
+### Git Automation Configuration (Optional)
+
+**Enable automatic git operations in /auto-implement workflow:**
+
+By default, `/auto-implement` stops after documentation sync (Step 7). You can optionally enable Step 8 to automatically commit, push, and create PRs.
+
+**Setup:**
+
+```bash
+# 1. Open .env file in your project
+vim .env
+
+# 2. Add these lines (copy from .env.example)
+AUTO_GIT_ENABLED=true        # Enable git operations
+AUTO_GIT_PUSH=true           # Enable push to remote
+AUTO_GIT_PR=true             # Enable PR creation
+```
+
+**What happens:**
+- ✅ Step 8 invokes commit-message-generator agent (creates conventional commit message)
+- ✅ Automatic commit with agent-generated message
+- ✅ Automatic push to feature branch (if AUTO_GIT_PUSH=true)
+- ✅ Automatic PR creation (if AUTO_GIT_PR=true + gh CLI installed)
+
+**Safety features:**
+- Consent-based: Disabled by default (no behavior change without opt-in)
+- Graceful degradation: Works without git/gh CLI (provides manual fallback instructions)
+- Prerequisite checks: Validates git installation, config, merge conflicts, uncommitted changes
+- No credential logging: Never logs API keys or passwords
+- Security validated: Subprocess calls prevent command injection, JSON parsing is safe
+
+**Prerequisites:**
+- git CLI installed and configured (user.name and user.email)
+- Optional: gh CLI for PR creation (install from https://github.com/cli/cli)
+- Optional: GitHub token in .env if gh CLI not in $PATH (GITHUB_TOKEN)
+
+**Troubleshooting:**
+- If push fails: Commit still succeeds (graceful degradation)
+- If gh not available: PR creation skipped (manual instructions provided)
+- If git config missing: Error message shows how to fix (`git config user.name "Your Name"`)
+
 ### Updating
 
 ```bash
@@ -582,8 +623,23 @@ orchestrator (PROJECT.md GATEKEEPER)
    └─> doc-master (1 min)     Documentation sync
    ↓
 
-Total Time: ~30 minutes (vs 7+ hours manual)
-All SDLC steps completed, no shortcuts taken
+STEP 8: OPTIONAL GIT AUTOMATION (if enabled):
+   │
+   ├─> commit-message-generator - Conventional commit message from artifacts
+   ├─> pr-description-generator - Comprehensive PR description with architecture/testing/security
+   ├─> Automatic commit with agent-generated message (requires git)
+   ├─> Automatic push to feature branch (requires AUTO_GIT_PUSH=true)
+   └─> Automatic PR creation (requires AUTO_GIT_PR=true + gh CLI)
+
+   └─> Features:
+       * Consent-based: Only runs if AUTO_GIT_ENABLED=true in .env
+       * Graceful degradation: Commits without pushing, PRs without gh CLI
+       * No manual git commands needed
+       * Safe: Validates prerequisites (git config, merge conflicts, uncommitted changes)
+   ↓
+
+Total Time: ~30 minutes + optional 2-3 minutes for git automation
+All SDLC steps completed, code committed and pushed (if enabled)
    ↓
 
 PRE-COMMIT VALIDATION (Automatic & Blocking):
@@ -597,6 +653,8 @@ PRE-COMMIT VALIDATION (Automatic & Blocking):
 
 RESULT:
    ✅ Code committed (professional quality guaranteed)
+   ✅ Code pushed to feature branch (if AUTO_GIT_PUSH=true)
+   ✅ GitHub PR created (if AUTO_GIT_PR=true)
    ❌ If any check fails → Commit blocked (Claude can fix)
 ```
 
@@ -1253,6 +1311,77 @@ cp .claude/settings.local.json PROJECT.md  # Copy template
 4. Run `git add .` and try committing again
 
 **Hooks cannot be bypassed** (unless you edit `.claude/settings.local.json` to disable)
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+### Regression Test Suite (v3.5.0+)
+
+The plugin includes a comprehensive, four-tier regression test suite protecting against regressions across all released versions (v3.0+).
+
+**Quick Start**:
+```bash
+# Run all tests
+pytest tests/regression/ -v
+
+# Run only fast tests (smoke + regression, < 30s)
+pytest tests/regression/ -m "smoke or regression" -v
+
+# Run in parallel (faster)
+pytest tests/regression/ -m "smoke or regression" -n auto -v
+
+# Run with coverage
+pytest tests/regression/ --cov=plugins/autonomous-dev --cov-report=html
+```
+
+**Four-Tier Architecture**:
+
+| Tier | Speed | Purpose | Count | Run |
+|------|-------|---------|-------|-----|
+| **Smoke** | < 5s | Critical paths only | 20 | Pre-commit |
+| **Regression** | < 30s | Bug/feature protection | 40 | Pre-push |
+| **Extended** | 1-5min | Performance, edge cases | 8 | Nightly |
+| **Progression** | Variable | Feature evolution tracking | 27 | Optional |
+
+**What's Tested**:
+- ✅ Plugin loading & command routing
+- ✅ v3.4.1 race condition fix (security)
+- ✅ v3.4.0 auto-update PROJECT.md (atomic writes)
+- ✅ v3.3.0 parallel validation (3 agents)
+- ✅ 35+ security audit findings
+- ✅ All public APIs and integrations
+
+**Tools**:
+- **pytest-xdist**: Parallel execution across CPU cores (smoke: 25 tests in < 5s)
+- **syrupy**: Snapshot testing for output validation
+- **pytest-testmon**: Smart test selection (only affected tests run on code changes)
+
+**TDD Workflow**:
+```bash
+# 1. Write failing test (Red)
+pytest tests/regression/regression/test_feature_v3_5_0.py -v
+# EXPECTED: FAILED - feature not implemented
+
+# 2. Implement feature (Green)
+# ... write code ...
+
+# 3. Run test again (verify pass)
+pytest tests/regression/regression/test_feature_v3_5_0.py -v
+# EXPECTED: PASSED
+
+# 4. Run full suite (ensure no regressions)
+pytest tests/regression/ -m regression -n auto
+```
+
+**Coverage Target**: 80%+ across all tiers
+- View report: `pytest tests/regression/ --cov-report=html && open htmlcov/index.html`
+
+**More Info**: See [tests/regression/README.md](tests/regression/README.md) for:
+- Fixture reference (isolated_project, timing_validator, mocks)
+- Writing custom tests
+- Troubleshooting & debugging
+- Backfill strategy for new features
 
 ---
 

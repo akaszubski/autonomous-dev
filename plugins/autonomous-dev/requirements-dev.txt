@@ -1,3 +1,7 @@
 # Development dependencies for autonomous-dev plugin
 pytest>=7.0.0
 pytest-cov>=4.0.0
+pytest-xdist>=3.0.0
+syrupy>=4.0.0
+pytest-testmon>=2.0.0
+PyYAML>=6.0.0

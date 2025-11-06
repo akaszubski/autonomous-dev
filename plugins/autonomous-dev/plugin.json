@@ -1,0 +1,49 @@
+{
+  "name": "autonomous-dev",
+  "version": "3.4.1",
+  "description": "Autonomous development plugin for Claude Code - 18 AI agents, 19 skills, automation hooks",
+  "author": "akaszubski",
+  "repository": "https://github.com/akaszubski/autonomous-dev",
+  "agents": 18,
+  "skills": 19,
+  "commands": [
+    "/auto-implement",
+    "/align-project",
+    "/align-claude",
+    "/setup",
+    "/sync-dev",
+    "/status",
+    "/health-check",
+    "/pipeline-status",
+    "/research",
+    "/plan",
+    "/test-feature",
+    "/implement",
+    "/review",
+    "/security-scan",
+    "/update-docs",
+    "/test",
+    "/uninstall",
+    "/update-plugin"
+  ],
+  "hooks": {
+    "core": 9,
+    "optional": 20,
+    "lifecycle": 2
+  },
+  "dependencies": {
+    "python": ">=3.9",
+    "pytest": ">=7.0.0",
+    "pytest-cov": ">=4.0.0",
+    "pytest-xdist": ">=3.0.0",
+    "syrupy": ">=4.0.0",
+    "pytest-testmon": ">=2.0.0",
+    "PyYAML": ">=6.0.0"
+  },
+  "testing": {
+    "framework": "pytest",
+    "tiers": ["smoke", "regression", "extended", "progression"],
+    "coverage_target": "80%",
+    "features": ["parallel execution", "snapshot testing", "smart test selection"]
+  }
+}

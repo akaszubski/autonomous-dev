@@ -422,3 +422,44 @@ def create_pull_request(
             'draft': draft,
             'linked_issues': linked_issues
         }
+
+
+class PrAutomation:
+    """
+    Object-oriented wrapper for PR automation functions.
+
+    Provides a class-based interface to pull request automation.
+    All methods are static/class methods that delegate to module functions.
+    """
+
+    @staticmethod
+    def validate_prerequisites() -> Tuple[bool, str]:
+        """Validate GitHub CLI and repository prerequisites."""
+        return validate_gh_prerequisites()
+
+    @staticmethod
+    def get_branch() -> str:
+        """Get current git branch name."""
+        return get_current_branch()
+
+    @staticmethod
+    def extract_issues(messages: List[str]) -> List[int]:
+        """Extract issue numbers from commit messages."""
+        return extract_issue_numbers(messages)
+
+    @staticmethod
+    def parse_commits(base: str = 'main', head: Optional[str] = None) -> List[int]:
+        """Parse commit messages for issue references."""
+        return parse_commit_messages_for_issues(base, head)
+
+    @staticmethod
+    def create_pr(
+        title: str,
+        body: str,
+        base: str = 'main',
+        head: Optional[str] = None,
+        draft: bool = False,
+        auto_link_issues: bool = True
+    ) -> Dict[str, Any]:
+        """Create pull request using GitHub CLI."""
+        return create_pull_request(title, body, base, head, draft, auto_link_issues)

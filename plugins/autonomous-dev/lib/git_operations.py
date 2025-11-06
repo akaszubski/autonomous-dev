@@ -573,3 +573,63 @@ def auto_commit_and_push(
             result['error'] = error
 
     return result
+
+
+class GitOperations:
+    """
+    Object-oriented wrapper for git operations functions.
+
+    Provides a class-based interface to git automation functions.
+    All methods are static/class methods that delegate to module functions.
+    """
+
+    @staticmethod
+    def validate_repo() -> Tuple[bool, str]:
+        """Validate if current directory is a git repository."""
+        return validate_git_repo()
+
+    @staticmethod
+    def check_config() -> Tuple[bool, str]:
+        """Validate git user.name and user.email are configured."""
+        return check_git_config()
+
+    @staticmethod
+    def detect_conflicts() -> Tuple[bool, List[str]]:
+        """Detect merge conflicts in repository."""
+        return detect_merge_conflict()
+
+    @staticmethod
+    def is_detached() -> bool:
+        """Check if repository is in detached HEAD state."""
+        return is_detached_head()
+
+    @staticmethod
+    def has_changes() -> bool:
+        """Check if repository has uncommitted changes."""
+        return has_uncommitted_changes()
+
+    @staticmethod
+    def stage_all() -> Tuple[bool, str]:
+        """Stage all changes for commit."""
+        return stage_all_changes()
+
+    @staticmethod
+    def commit(message: str) -> Tuple[bool, str, str]:
+        """Commit staged changes with given message."""
+        return commit_changes(message)
+
+    @staticmethod
+    def push(branch: str = 'main', remote: str = None) -> Tuple[bool, str]:
+        """Push commits to remote repository."""
+        if remote is None:
+            remote = get_remote_name()
+        return push_to_remote(branch, remote)
+
+    @staticmethod
+    def auto_commit_push(
+        commit_message: str,
+        branch: str = 'main',
+        push: bool = True
+    ) -> Dict[str, Any]:
+        """Automated commit and push workflow."""
+        return auto_commit_and_push(commit_message, branch, push)
