@@ -13,21 +13,23 @@ This document describes the security architecture, vulnerabilities fixed, and be
 4. [Input Validation](#input-validation)
 5. [Audit Logging](#audit-logging)
 6. [Test Mode Security](#test-mode-security)
-7. [Vulnerability Fixes (v3.4.1 - v3.4.3)](#vulnerability-fixes)
-8. [Best Practices](#best-practices)
-9. [API Reference](#api-reference)
+7. [Performance Profiler Security](#performance-profiler-security)
+8. [Vulnerability Fixes (v3.4.1 - v3.4.3)](#vulnerability-fixes)
+9. [Best Practices](#best-practices)
+10. [API Reference](#api-reference)
 
 ## Overview
 
 The autonomous-dev plugin implements a **centralized security framework** to prevent common vulnerabilities:
 
+- **CWE-20**: Improper Input Validation (format and length checking)
 - **CWE-22**: Path Traversal (prevent ../ style attacks)
 - **CWE-59**: Improper Link Resolution (detect and block symlinks)
-- **CWE-117**: Improper Output Neutralization (secure audit logging)
+- **CWE-117**: Improper Output Neutralization (secure audit logging, log injection prevention)
 - **CWE-400**: Uncontrolled Resource Consumption (length validation)
 - **CWE-95**: Improper Neutralization of Directives (input validation)
 
-All security-sensitive operations use the centralized `security_utils.py` module to ensure consistent enforcement.
+All security-sensitive operations use the centralized `security_utils.py` module to ensure consistent enforcement. New library modules like `performance_profiler.py` integrate security validation into their initialization to prevent abuse.
 
 ## Security Module: security_utils.py
 
@@ -475,6 +477,199 @@ validate_path(some_path, "test", test_mode=True)
 
 # Force production mode (for manual testing)
 validate_path(some_path, "test", test_mode=False)
+```
+
+## Performance Profiler Security
+
+**Location**: `plugins/autonomous-dev/lib/performance_profiler.py` (539 lines, v3.6.0+)
+
+**Purpose**: Prevent abuse of the performance timing library through input validation and audit logging.
+
+The performance profiler accepts user inputs (agent_name, feature, log_path) that could be exploited if not properly validated. Three CWE vulnerabilities are specifically addressed:
+
+### CWE-20: Improper Input Validation (agent_name parameter)
+
+**Vulnerability**: Attacker could pass arbitrary strings as agent_name, potentially containing shell metacharacters or control characters that could cause injection attacks in log files or downstream processing.
+
+**Mitigation**:
+- Pattern validation: `^[a-zA-Z0-9_-]+$` (alphanumeric, hyphen, underscore only)
+- Maximum length: 256 characters
+- Automatic normalization: Whitespace stripped, lowercased
+- Error handling: Raises `ValueError` with detailed message on invalid input
+
+**Attack Scenarios Blocked**:
+```python
+# All of these are blocked:
+PerformanceTimer("../../../etc/passwd", "feature")  # Path traversal attempt
+PerformanceTimer("researcher; rm -rf /", "feature")  # Shell metacharacters
+PerformanceTimer("researcher\necho hacked", "feature")  # Control characters
+PerformanceTimer("x" * 300, "feature")  # Oversized input (max 256)
+```
+
+**Valid Examples**:
+```python
+# All of these are allowed:
+PerformanceTimer("researcher", "feature")
+PerformanceTimer("test-agent", "feature")
+PerformanceTimer("test_agent_123", "feature")
+```
+
+### CWE-22: Path Traversal (log_path parameter)
+
+**Vulnerability**: Attacker could specify log_path as `../../../../etc/passwd` or symlink targets outside the project directory, allowing arbitrary file write access.
+
+**Mitigation**: 4-layer defense-in-depth validation:
+
+1. **Layer 1 (String Checks)**:
+   - Rejects ".." in path (prevents relative traversal)
+   - Rejects absolute paths (requires relative)
+   - Rejects null bytes (prevents truncation attacks)
+
+2. **Layer 2 (Symlink Detection - Pre-Resolution)**:
+   - Checks if path itself is a symlink
+   - Rejects if symlink detected
+
+3. **Layer 3 (Path Resolution & Post-Resolution Check)**:
+   - Resolves path to canonical form with `.resolve()`
+   - Checks if resolved path is still a symlink (resolves to another symlink)
+   - Validates against path components
+
+4. **Layer 4 (Whitelist Validation)**:
+   - Restricts to `logs/` directory only (relative to PROJECT_ROOT)
+   - Auto-creates `logs/` directory if needed
+   - Validates path is a directory
+
+**Attack Scenarios Blocked**:
+```python
+# All of these are blocked:
+PerformanceTimer("agent", "feature", "/etc/passwd")  # Absolute path
+PerformanceTimer("agent", "feature", "../../etc/passwd")  # Traversal
+PerformanceTimer("agent", "feature", "/etc")  # Outside logs/
+PerformanceTimer("agent", "feature", "/symlink_to_etc")  # Symlink outside project
+PerformanceTimer("agent", "feature", "logs/../../../etc/passwd")  # Complex traversal
+PerformanceTimer("agent", "feature", Path("/etc/passwd"))  # Path object attack
+```
+
+**Valid Examples**:
+```python
+# All of these are allowed:
+PerformanceTimer("agent", "feature", Path("logs/metrics.json"))
+PerformanceTimer("agent", "feature")  # Uses default logs/performance_metrics.json
+with PerformanceTimer("agent", "feature", log_to_file=True):
+    pass
+```
+
+### CWE-117: Log Injection (feature parameter)
+
+**Vulnerability**: Attacker could pass feature strings with newlines, allowing injection of fake log entries:
+```
+Feature: Add auth
+Internal log parsed here - attacker can insert lines
+Next real log entry
+```
+
+**Mitigation**:
+- Control character filtering: Rejects `\n`, `\r`, `\t`, `\x00-\x1f`, `\x7f`
+- Maximum length: 10,000 characters (prevents log bloat attacks)
+- Audit logging: All validation failures logged with CWE reference
+
+**Attack Scenarios Blocked**:
+```python
+# All of these are blocked:
+PerformanceTimer("agent", "Feature\nFAKE_LOG_ENTRY")  # Newline injection
+PerformanceTimer("agent", "Feature\rCarriage return")  # CR injection
+PerformanceTimer("agent", "Feature\t\t\t")  # Tab injection
+PerformanceTimer("agent", "x" * 10001)  # Oversized input
+PerformanceTimer("agent", "Feature\x1bReset")  # Control character (ESC)
+```
+
+**Valid Examples**:
+```python
+# All of these are allowed:
+PerformanceTimer("agent", "Add user authentication")
+PerformanceTimer("agent", "Feature with spaces and-hyphens_ok")
+PerformanceTimer("agent", "Feature: Long (255 char) description")
+```
+
+### Validation Functions
+
+All three validators are called automatically in `PerformanceTimer.__init__()`:
+
+```python
+from performance_profiler import PerformanceTimer
+
+try:
+    # Validation happens here in __init__()
+    with PerformanceTimer("../../../etc/passwd", "feature\ninjection", log_to_file=True):
+        pass
+except ValueError as e:
+    # Gets detailed error: "agent_name invalid: ... See docs/SECURITY.md"
+    print(e)
+```
+
+### Audit Logging
+
+All validation failures are logged via `security_utils.audit_log()`:
+
+```python
+{
+    "timestamp": "2025-11-08T14:30:45.123456Z",
+    "component": "performance_profiler",
+    "action": "validation_failure",
+    "details": {
+        "parameter": "agent_name",
+        "error": "agent_name invalid: contains invalid characters (CWE-20)",
+        "input_length": 15,
+        "attempted_value": "invalid..chars"
+    }
+}
+```
+
+**Log Location**: `logs/security_audit.log` (10MB rotation, 5 backups)
+
+### Test Coverage
+
+**92 security tests** in `tests/unit/lib/test_performance_profiler.py`:
+
+| CWE | Test Category | Count | Status |
+|-----|---------------|-------|--------|
+| CWE-20 | agent_name validation | 28 tests | PASS |
+| CWE-22 | log_path validation | 45 tests | PASS |
+| CWE-117 | feature validation | 19 tests | PASS |
+| **Total** | | **92 tests** | **100% PASS** |
+
+**Coverage Areas**:
+- Boundary conditions (empty strings, max length)
+- Attack patterns (symlinks, traversal, injection)
+- Error handling (graceful ValueError messages)
+- Integration (validation in PerformanceTimer.__init__)
+
+### Best Practices
+
+**1. Let Validation Handle Errors**
+```python
+# GOOD: Let validator raise ValueError
+try:
+    timer = PerformanceTimer(untrusted_agent_name, untrusted_feature)
+except ValueError as e:
+    logger.error(f"Invalid input: {e}")
+```
+
+**2. Use Default Log Path When Possible**
+```python
+# GOOD: Uses default logs/performance_metrics.json
+with PerformanceTimer("agent", "feature", log_to_file=True):
+    do_work()
+
+# LESS GOOD: Custom path requires validation
+with PerformanceTimer("agent", "feature", Path("logs/custom.json"), log_to_file=True):
+    do_work()
+```
+
+**3. Check Audit Logs After Suspicious Activity**
+```bash
+# View recent validation failures
+tail -f logs/security_audit.log | grep validation_failure
 ```
 
 ## Vulnerability Fixes

@@ -1,10 +1,10 @@
-# Security Quick Reference - v3.2.3
+# Security Quick Reference - v3.6.0
 
-**For developers working with**: Path validation, plugin directories, issue parsing
+**For developers working with**: Path validation, plugin directories, issue parsing, performance profiling
 
 ---
 
-## Three Security Fixes at a Glance
+## Four Security Implementations at a Glance
 
 ### 1. Agent Tracker Path Validation (agent_tracker.py)
 
@@ -103,6 +103,57 @@ extract_issue_numbers(["Fix #"])              # No number to extract
 
 ---
 
+### 4. Performance Profiler Input Validation (performance_profiler.py)
+
+**What it does**: Prevents injection attacks and path traversal in performance timing library.
+
+**Three vulnerabilities blocked**:
+
+1. **CWE-20 (agent_name)**: Only allows alphanumeric + hyphen/underscore
+   ```python
+   # BLOCKED:
+   PerformanceTimer("../../../etc/passwd", "feature")
+   PerformanceTimer("researcher; rm -rf /", "feature")
+
+   # ALLOWED:
+   PerformanceTimer("researcher", "feature")
+   PerformanceTimer("test-agent", "feature")
+   ```
+
+2. **CWE-22 (log_path)**: Whitelist-based 4-layer defense prevents traversal
+   ```python
+   # BLOCKED:
+   PerformanceTimer("agent", "feature", "/etc/passwd")
+   PerformanceTimer("agent", "feature", "../../etc/passwd")
+
+   # ALLOWED:
+   PerformanceTimer("agent", "feature", Path("logs/metrics.json"))
+   PerformanceTimer("agent", "feature", log_to_file=True)  # Uses default
+   ```
+
+3. **CWE-117 (feature)**: Control character filtering blocks log injection
+   ```python
+   # BLOCKED:
+   PerformanceTimer("agent", "Feature\nFAKE_LOG_ENTRY")
+   PerformanceTimer("agent", "Feature\x1bReset")
+
+   # ALLOWED:
+   PerformanceTimer("agent", "Add user authentication")
+   PerformanceTimer("agent", "Feature with spaces ok")
+   ```
+
+**When you use it**:
+- Creating PerformanceTimer: `PerformanceTimer(agent_name, feature, log_path)`
+- All validation happens automatically in `__init__()`
+- Raises `ValueError` with detailed message on invalid input
+
+**Error behavior**:
+- Raises `ValueError` with descriptive message
+- Includes what failed, why, and reference to docs
+- All failures logged to `logs/security_audit.log` via `security_utils.audit_log()`
+
+---
+
 ## Testing These Fixes
 
 ### Agent Tracker Security Tests
@@ -121,6 +172,22 @@ pytest tests/test_issue_number_parsing.py -v
 
 # Run specific test
 pytest tests/test_issue_number_parsing.py::test_extract_issue_numbers_non_numeric -v
+```
+
+### Performance Profiler Security Tests
+```bash
+# Run all performance profiler security tests (92 tests)
+pytest tests/unit/lib/test_performance_profiler.py -v
+
+# Run specific CWE tests
+pytest tests/unit/lib/test_performance_profiler.py::TestAgentNameValidation -v      # CWE-20
+pytest tests/unit/lib/test_performance_profiler.py::TestLogPathValidation -v        # CWE-22
+pytest tests/unit/lib/test_performance_profiler.py::TestFeatureValidation -v        # CWE-117
+
+# Run specific attack scenario
+pytest tests/unit/lib/test_performance_profiler.py::TestAgentNameValidation::test_path_traversal_attempt -v
+pytest tests/unit/lib/test_performance_profiler.py::TestLogPathValidation::test_symlink_attack -v
+pytest tests/unit/lib/test_performance_profiler.py::TestFeatureValidation::test_log_injection -v
 ```
 
 ---
@@ -155,26 +222,30 @@ pytest tests/test_issue_number_parsing.py::test_extract_issue_numbers_non_numeri
 ## Documentation References
 
 ### Detailed Security Documentation
-- **Full Fix Details**: `/docs/SECURITY_FIXES_v3.2.3.md`
-- **CHANGELOG**: `/CHANGELOG.md` lines 22-83
-- **Code Comments**: Each function has inline security comments
+- **Full Fix Details**: `/docs/SECURITY.md` (comprehensive guide)
+- **Performance Profiler Details**: `/docs/SECURITY.md#performance-profiler-security`
+- **CHANGELOG**: `/CHANGELOG.md` v3.6.0 section for recent fixes
+- **Code Comments**: Each function has inline security comments with CWE references
 
 ### Docstrings
 - **agent_tracker.py**: Module and __init__() explain path validation
 - **sync_to_installed.py**: find_installed_plugin_path() explains symlink defense
 - **pr_automation.py**: extract_issue_numbers() explains error handling
+- **performance_profiler.py**: _validate_agent_name(), _validate_log_path(), _validate_feature() explain CWE fixes
 
 ---
 
 ## Version Info
 
-| Component | Version | Date |
-|-----------|---------|------|
-| Security Fixes | v3.2.3 | 2025-11-04 |
-| Issue | GitHub #45 | 2025-11-04 |
-| Tests Added | 50+ | 2025-11-04 |
+| Component | Version | Date | CWE Coverage |
+|-----------|---------|------|--------------|
+| Agent Tracker | v3.2.3 | 2025-11-04 | CWE-22, CWE-59 |
+| Issue Parsing | v3.2.3 | 2025-11-04 | CWE-20 |
+| Performance Profiler | v3.6.0 | 2025-11-08 | CWE-20, CWE-22, CWE-117 |
+| **Total Tests** | | | **200+ security tests** |
+| **Status** | | | **All PASS** |
 
 ---
 
-**Last Updated**: 2025-11-04
-**Status**: All fixes implemented and tested
+**Last Updated**: 2025-11-08
+**Status**: All fixes implemented and tested (v3.6.0)

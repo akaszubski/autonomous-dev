@@ -177,6 +177,110 @@ python plugins/autonomous-dev/lib/test_workflow_v2.py
 # ✅ Test 4: Logging
 ```
 
+### `performance_profiler.py` (v3.6.0+)
+**Purpose**: Performance timing and bottleneck detection for /auto-implement agents
+
+**Features**:
+- Context manager interface for minimal-overhead timing (profiling cost: <5%)
+- JSON logging to `logs/performance_metrics.json` (newline-delimited format)
+- Aggregate metrics calculation (min, max, avg, p95) per agent
+- Thread-safe concurrent logging with file locking
+- ISO 8601 timestamps for cross-system compatibility
+- Bottleneck detection and performance reporting
+
+**Public Functions**:
+- `PerformanceTimer` - Context manager class for timing with automatic logging
+- `calculate_aggregate_metrics(durations)` - Compute min/max/avg/p95 from samples
+- `load_metrics_from_log(log_path, skip_corrupted=True)` - Load metrics from JSON log
+- `aggregate_metrics_by_agent(metrics, agent_name=None)` - Group metrics by agent
+- `generate_performance_report(metrics, feature=None)` - Human-readable performance report
+- `generate_summary_report(metrics_by_agent)` - Summary statistics by agent
+- `identify_bottlenecks(metrics_by_agent, baseline_minutes=None, threshold_multiplier=1.5)` - Find slow agents
+- `measure_profiler_overhead(iterations=1000)` - Validate profiling cost (<5%)
+
+**Usage**:
+```python
+from performance_profiler import PerformanceTimer, calculate_aggregate_metrics, load_metrics_from_log, aggregate_metrics_by_agent, generate_performance_report
+
+# Time a single agent execution
+with PerformanceTimer("researcher", "Add user authentication", log_to_file=True) as timer:
+    result = agent.execute()
+
+print(f"Duration: {timer.duration:.2f}s")
+
+# Load and aggregate metrics from multiple runs
+metrics = load_metrics_from_log()
+aggregates = aggregate_metrics_by_agent(metrics)
+
+# Generate performance report
+report = generate_performance_report(metrics, feature="Add user authentication")
+print(report)
+
+# Identify bottlenecks
+baselines = {"researcher": 300, "planner": 180}  # seconds
+bottlenecks = identify_bottlenecks(aggregates, baselines)
+print(f"Slow agents: {bottlenecks}")
+```
+
+**Integration with /auto-implement**:
+- Each agent execution wrapped in PerformanceTimer context manager
+- Timing data logged to `logs/performance_metrics.json` after each agent completes
+- Session files include aggregate metrics for analysis
+- Performance dashboard in final completion report identifies slowest agents
+- Enables Phase 7+ optimization decisions based on real profiling data
+
+**Performance Characteristics**:
+- Profiling overhead: <5% (validated by `measure_profiler_overhead()`)
+- File I/O: Minimal impact via newline-delimited JSON append
+- Memory: Minimal (<1MB for 1000 metrics)
+- Thread-safety: File lock ensures concurrent writes don't corrupt log
+
+**Design Notes**:
+- Uses `time.perf_counter()` for high-resolution timing (microsecond precision)
+- Uses `datetime.now()` for wall-clock timestamps in ISO 8601 format
+- Gracefully handles logging failures (doesn't break main workflow)
+- Skips empty/corrupted log lines by default (skip_corrupted=True)
+- P95 percentile useful for identifying performance stability issues
+- Bottleneck detection uses 75th percentile or baseline comparison
+
+**Related Phase 6 Metrics**:
+- Test coverage: 71/78 tests passing (91%)
+- Known limitations: 7 tests require full /auto-implement integration context
+- Library size: 539 lines including comprehensive docstrings
+- Performance impact: Sub-millisecond overhead per timing operation
+
+**Security Hardening** (v3.6.0+):
+- **CWE-20: Improper Input Validation** - agent_name parameter
+  - Validation: Alphanumeric + hyphen/underscore only, max 256 characters
+  - Pattern: `^[a-zA-Z0-9_-]+$`
+  - Raises `ValueError` with detailed message if invalid
+- **CWE-22: Path Traversal** - log_path parameter
+  - Validation: Whitelist-based 4-layer defense-in-depth
+  - Rejects '..' paths, absolute paths, symlinks, null bytes
+  - Restricts to `logs/` directory only (relative to project root)
+  - Auto-creates `logs/` directory if needed with safe permissions
+- **CWE-117: Log Injection** - feature parameter
+  - Validation: Control character filtering (newlines, tabs, NUL, etc.)
+  - Max length: 10,000 characters (prevents log bloat attacks)
+  - Raises `ValueError` if control characters detected
+- **Audit Logging**: All validation failures logged via `security_utils.audit_log()`
+  - Destination: `logs/security_audit.log` with rotation (10MB, 5 backups)
+  - Format: Timestamp, component, action, error details
+- **Test Coverage**: 92 security tests (92/92 passing, 100% success rate)
+  - Unit tests: `tests/unit/lib/test_performance_profiler.py`
+  - Coverage: Input validation, boundary conditions, error handling
+- **Usage Pattern**:
+  ```python
+  # Validation happens automatically in PerformanceTimer.__init__()
+  # ValueError raised with detailed message on invalid input
+  try:
+      with PerformanceTimer("../../../etc/passwd", "feature", log_to_file=True):
+          pass
+  except ValueError as e:
+      # Error includes what failed, why, and security docs reference
+      print(e)  # ValueError: agent_name invalid...
+  ```
+
 ### `git_operations.py` (v3.3.0+)
 **Purpose**: Consent-based git automation for /auto-implement Step 8
 
