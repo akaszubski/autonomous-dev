@@ -67,7 +67,7 @@ This is achieved via **dual-layer architecture**:
    - Security: 15 minutes → 2 minutes (AI vulnerability scan)
    - Docs: 20 minutes → 1 minute (AI doc generation)
 
-6. **Minimal User Intervention** - 15 commands total (8 core workflow + 7 individual agents, expanded per GitHub #44) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync-dev` dev sync → `/uninstall` cleanup
+6. **Minimal User Intervention** - 17 commands total (8 core workflow + 7 individual agents, 2 utility, unified /sync per GitHub #47) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync` smart sync → `/uninstall` cleanup
 
 **Success Metrics**:
 
@@ -109,10 +109,11 @@ This is achieved via **dual-layer architecture**:
    PROJECT.md: "Performance" goal → 60% complete
 ```
 
-**Command Structure** (15 total, expanded per GitHub #44):
-- **Core Workflow Commands (8)**: auto-implement (full pipeline), align-project, align-claude, setup, test, status, health-check, sync-dev, uninstall
+**Command Structure** (17 total, unified /sync per GitHub #47):
+- **Core Workflow Commands (8)**: auto-implement (full pipeline), align-project, align-claude, setup, sync (unified auto-detection), status, health-check, pipeline-status
 - **Individual Agent Commands (7)**: research, plan, test-feature, implement, review, security-scan, update-docs
-- **Archived (32)**: Redundant manual commands moved to commands/archive/ (commit variants, format, sync-docs, granular test commands, etc.)
+- **Utility Commands (2)**: test (pytest wrapper), uninstall
+- **Archived (32)**: Redundant manual commands moved to commands/archive/ (sync-dev, update-plugin, commit variants, format, sync-docs, granular test commands, etc.)
 
 **Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
 
@@ -199,7 +200,7 @@ This is achieved via **dual-layer architecture**:
    - ❌ REJECT if not aligned with GOALS
 
 2. **Constraint Gate** - Does it respect boundaries?
-   - ✅ Keeps commands ≤ 15 total (currently: 8, expanded for individual agent commands per GitHub issue #44)
+   - ✅ Keeps commands ≤ 20 total (currently: 17, unified /sync per GitHub #47)
    - ✅ Uses GenAI reasoning over Python automation
    - ✅ Hooks enforce, agents enhance (not reversed)
    - ❌ REJECT if violates constraints
@@ -246,7 +247,7 @@ This is achieved via **dual-layer architecture**:
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v3.2.2 - Orchestrator Removed):
+**Current Architecture** (v3.7.0 - Unified /sync Command):
 - **Agents**: 18 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
   - **Core 9**: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
   - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
@@ -256,15 +257,16 @@ This is achieved via **dual-layer architecture**:
   - **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
   - **How It Works**: Skills auto-activate based on keywords, Claude Code 2.0+ native support
   - **Reference**: See docs/SKILLS-AGENTS-INTEGRATION.md for full architecture
-- **Commands**: 18 total (expanded per GitHub #44)
-  - **Core (8)**: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status
+- **Commands**: 17 total (unified /sync per GitHub #47)
+  - **Core (8)**: /auto-implement, /align-project, /align-claude, /setup, /sync (auto-detection), /status, /health-check, /pipeline-status
   - **Agent (7)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs
-  - **Utility (3)**: /test, /uninstall, /update-plugin
-- **Hooks**: 28 total
-  - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_orchestrator, enforce_tdd
-  - **Extended 19**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 4 others
+  - **Utility (2)**: /test, /uninstall
+- **Hooks**: 29 total
+  - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_pipeline_complete, enforce_tdd
+  - **Lifecycle 2**: UserPromptSubmit, SubagentStop
+  - **Extended 18**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 3 others
 - **Plugin**: autonomous-dev (contains all components)
-- **Python Infrastructure**: ~250KB supporting scripts (genai_validate.py, workflow_coordinator.py, pr_automation.py, etc.)
+- **Python Infrastructure**: New libraries - sync_mode_detector.py, sync_dispatcher.py (intelligent sync coordination)
 
 **Standard Project Structure** (ENFORCED in strict mode):
 ```

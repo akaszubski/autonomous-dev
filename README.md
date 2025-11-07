@@ -1,8 +1,8 @@
 # Claude Code Autonomous Development Plugin
 
-**Last Updated**: 2025-11-05
-**Version**: v3.5.0 (Automatic Git Operations - Consent-Based Commit, Push & PR Automation)
-**Status**: Production-ready with Command-Driven SDLC + Enforcement + Automated Git Workflow
+**Last Updated**: 2025-11-08
+**Version**: v3.7.0 (Unified /sync Command)
+**Status**: Production-ready with Command-Driven SDLC + Unified Sync + Performance Optimization + Security Hardening
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 >
@@ -14,7 +14,7 @@ Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Age
 - **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
 - **Layer 2 (Agents)**: Provides AI assistance via explicit commands (`/auto-implement` or individual agents) — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **19 Active Skills** • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **18 Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **19 Active Skills** • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **17 Commands**
 
 ---
 
@@ -289,7 +289,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
-### What You Get (18 Commands)
+### What You Get (17 Commands)
 
 **Core Commands (8)**:
 ✅ `/auto-implement` - Full 7-agent SDLC workflow
@@ -297,7 +297,7 @@ This configures automatic hooks (auto-format on save, auto-test on commit) and c
 ✅ `/align-claude` - Check/fix documentation drift
 ✅ `/status` - Track strategic goal progress with AI recommendations
 ✅ `/setup` - Interactive project configuration
-✅ `/sync-dev` - Intelligent development sync with conflict detection
+✅ `/sync` - Unified sync (auto-detects: dev environment, marketplace, or plugin dev) - GitHub #47
 ✅ `/health-check` - Verify all components loaded and working
 ✅ `/pipeline-status` - Track /auto-implement workflow progress
 
@@ -310,10 +310,9 @@ This configures automatic hooks (auto-format on save, auto-test on commit) and c
 ✅ `/security-scan` - Security vulnerability scan
 ✅ `/update-docs` - Documentation synchronization
 
-**Utility Commands (3)**:
+**Utility Commands (2)**:
 ✅ `/test` - Run all automated tests (pytest wrapper)
 ✅ `/uninstall` - Remove or disable plugin
-✅ `/update-plugin` - Update from marketplace
 
 ### Verify Installation
 
@@ -323,7 +322,7 @@ This configures automatic hooks (auto-format on save, auto-test on commit) and c
 
 Should show all 8 commands loaded and working ✅:
 - `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`
-- `/health-check`, `/sync-dev`, `/uninstall`
+- `/health-check`, `/sync`, `/uninstall`
 
 ### Optional Setup (Advanced)
 
@@ -523,7 +522,7 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
 
-### 18 Slash Commands
+### 17 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
@@ -532,7 +531,7 @@ All commands are independently discoverable with autocomplete:
 - `/align-project` - Analyze & fix PROJECT.md alignment (menu: report/fix/preview/cancel)
 - `/align-claude` - Check and fix CLAUDE.md alignment with codebase
 - `/setup` - Interactive project setup wizard
-- `/sync-dev` - Intelligent development sync with conflict detection
+- `/sync` - Unified sync (auto-detects: dev environment, marketplace, or plugin dev) - GitHub #47
 - `/status` - Track strategic goal progress with AI recommendations
 - `/health-check` - Verify all components loaded and working
 - `/pipeline-status` - Track /auto-implement workflow progress
@@ -546,10 +545,9 @@ All commands are independently discoverable with autocomplete:
 - `/security-scan` - Security vulnerability scan
 - `/update-docs` - Documentation synchronization
 
-**Utility Commands** (3):
+**Utility Commands** (2):
 - `/test` - Run all automated tests (pytest wrapper)
 - `/uninstall` - Remove or disable plugin
-- `/update-plugin` - Update from marketplace
 
 See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
 

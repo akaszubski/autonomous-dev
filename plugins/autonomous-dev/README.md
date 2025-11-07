@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.5.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.7.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.5.0
-**Last Updated**: 2025-11-05
-**Status**: Automatic Git Operations + Consent-Based Commit, Push & PR Automation
+**Version**: v3.7.0
+**Last Updated**: 2025-11-08
+**Status**: Unified /sync Command + Performance Optimization (Phases 4-6) + Security Hardening
 
-Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 AI specialists, 19 active skills, 30+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 17 commands (8 core + 7 agent + 2 utility), 18 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -77,7 +77,7 @@ grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-de
 - ✅ Recommended when updating or troubleshooting
 
 **What gets installed:**
-- 18 slash commands (8 core + 7 agent + 3 utility: `/auto-implement`, `/pipeline-status`, etc.)
+- 17 slash commands (8 core + 7 agent + 2 utility: `/auto-implement`, `/sync`, `/research`, etc.)
 - 18 specialist agents (researcher, planner, implementer, etc. - orchestrator removed v3.2.2)
 - 35+ automation hooks (validation, security, testing, docs)
 - Templates and project scaffolding
@@ -100,11 +100,11 @@ This:
 ### What the Bootstrap Script Does
 
 The install.sh script copies plugin files to your project's `.claude/` directory:
-- **Commands** → `.claude/commands/` (18 slash commands: 8 core + 7 agent + 3 utility)
-- **Hooks** → `.claude/hooks/` (30+ automation hooks)
+- **Commands** → `.claude/commands/` (17 slash commands: 8 core + 7 agent + 2 utility)
+- **Hooks** → `.claude/hooks/` (29+ automation hooks)
 - **Templates** → `.claude/templates/` (PROJECT.md templates)
 - **Agents** → `.claude/agents/` (18 specialist agents, orchestrator removed v3.2.2)
-- **Skills** → `.claude/skills/` (optional capabilities)
+- **Skills** → `.claude/skills/` (19 active capabilities with progressive disclosure)
 
 **Why is this needed?** Claude Code currently requires plugin commands to be in your project's `.claude/` directory to be discoverable. The bootstrap script handles this one-time setup automatically.
 
@@ -1086,7 +1086,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ---
 
-### ⚙️ 18 Commands (All GenAI-Native)
+### ⚙️ 17 Commands (All GenAI-Native)
 
 **Philosophy**: "Explicit commands with background enforcement" - Command-driven workflow → Professional engineering output
 
@@ -1095,14 +1095,15 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | `/auto-implement` | Autonomous feature development | Claude coordinates 7 agents | Every feature - describe what you want |
 | `/align-project` | Find/fix conflicts between goals and code | alignment-analyzer | After major changes, before releases |
 | `/status` | Track strategic progress, get recommendations | project-progress-tracker | Check goal progress, decide next priorities |
-| `/sync-dev` | Synchronize development environment | sync-validator | After git pull, plugin updates, environment issues |
+| `/sync` | Unified sync (auto-detects: dev env, marketplace, plugin dev) | sync-validator | After git pull, plugin updates, or plugin dev work |
 | `/setup` | Interactive setup wizard | project-bootstrapper | Once per project during installation |
 | `/health-check` | Validate plugin component integrity | (Python validation) | After installation, when debugging issues |
 | `/align-claude` | Check/fix documentation drift | (Validation + script) | Automated via hook, manual check optional |
 | `/test` | Run all automated tests | (Pytest wrapper) | Validate quality before commit |
+| `/pipeline-status` | Track /auto-implement workflow progress | (Python script) | Monitor feature implementation status |
 | `/uninstall` | Remove or disable plugin | (Interactive menu) | When cleaning up |
 
-**Additional Commands** (18 total): The table above shows 9 core commands. Also available: 7 individual agent commands (`/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`) and 2 utility commands (`/pipeline-status`, `/update-plugin`). See GitHub #44 for details.
+**Additional Commands** (17 total): The table above shows 10 core commands. Also available: 7 individual agent commands (`/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`). See GitHub #47 for details on unified /sync command.
 
 **Workflow**:
 ```bash
@@ -1139,6 +1140,11 @@ See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration g
 ### 📦 Archived Commands
 
 The following commands have been **moved to `commands/archived/`** to align with the "explicit commands with background enforcement" philosophy:
+
+**v3.7.0 Archived** (Command consolidation - GitHub #47):
+- `/sync-dev` → Merged into `/sync` (unified auto-detection for dev, marketplace, plugin-dev modes)
+- `/update-plugin` → Merged into `/sync` (unified auto-detection for marketplace updates)
+- **Migration**: Use `/sync` instead (auto-detects context, use `--env`, `--marketplace`, `--plugin-dev` flags for explicit control)
 
 **v3.1.0 Archived** (Philosophy alignment):
 - `/test` → `hooks/auto_test.py` runs tests automatically at commit

@@ -1,6 +1,6 @@
 {
   "name": "autonomous-dev",
-  "version": "3.4.1",
+  "version": "3.7.0",
   "description": "Autonomous development plugin for Claude Code - 18 AI agents, 19 skills, automation hooks",
   "author": "akaszubski",
   "repository": "https://github.com/akaszubski/autonomous-dev",
@@ -11,7 +11,7 @@
     "/align-project",
     "/align-claude",
     "/setup",
-    "/sync-dev",
+    "/sync",
     "/status",
     "/health-check",
     "/pipeline-status",
@@ -23,8 +23,7 @@
     "/security-scan",
     "/update-docs",
     "/test",
-    "/uninstall",
-    "/update-plugin"
+    "/uninstall"
   ],
   "hooks": {
     "core": 9,

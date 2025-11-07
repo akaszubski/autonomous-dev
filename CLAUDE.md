@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-08
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.6.0 (Performance Optimization - Phases 4, 5, 6 Complete)
+**Version**: v3.7.0 (Unified /sync Command)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -19,17 +19,17 @@
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync-dev, /status, /health-check, /pipeline-status, /uninstall
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /uninstall
 ```
 
-**Commands (18 active, expanded per GitHub #44)**:
+**Commands (17 active, unified /sync command per GitHub #44)**:
 
 **Core Workflow (8)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
-- `/sync-dev` - Sync development environment (sync-validator agent)
+- `/sync` - Unified sync command (smart auto-detection: dev environment, marketplace, or plugin dev) - GitHub #47
 - `/status` - Track project progress (project-progress-tracker agent)
 - `/health-check` - Validate plugin integrity (Python validation)
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
@@ -43,10 +43,9 @@
 - `/security-scan` - Security vulnerability scan and OWASP compliance (1-2 min)
 - `/update-docs` - Documentation synchronization (1-2 min)
 
-**Utility Commands (3)**:
+**Utility Commands (2)**:
 - `/test` - Run automated tests (pytest wrapper)
 - `/uninstall` - Remove or disable plugin features
-- `/update-plugin` - Update plugin from marketplace
 
 ---
 
@@ -291,7 +290,7 @@ python .claude/hooks/validate_claude_alignment.py
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
 - Agent counts match reality (currently 18 agents, orchestrator removed v3.2.2)
-- Command counts match installed commands (currently 18 active commands per GitHub #44)
+- Command counts match installed commands (currently 17 active commands per GitHub #47 /sync unification)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date
@@ -446,6 +445,6 @@ vim .claude/PROJECT.md
 
 **For code standards**: See CLAUDE.md best practices, agent prompts, and skills for guidance
 
-**For security**: See `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md` for `/sync-dev` command security audit findings and remediation guidance
+**For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-07
+**Last Updated**: 2025-11-08

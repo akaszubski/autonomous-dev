@@ -2,8 +2,44 @@
 
 All notable changes to the autonomous-dev plugin documented here.
 
+**Last Updated**: 2025-11-08
+**Current Version**: v3.7.0 (Unified /sync Command)
+
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
+
+---
+
+## [3.7.0] - 2025-11-08
+
+### Changed
+- **Command Consolidation: Unified /sync Command** - GitHub #47
+  - Consolidated `/sync-dev` (development sync) and `/update-plugin` (marketplace updates) into single `/sync` command
+  - New intelligent auto-detection: Analyzes project structure to determine appropriate sync mode
+  - Auto-detection modes (priority order):
+    1. **Plugin Development** → Sync plugin files to `.claude/` directory (detected: `plugins/autonomous-dev/plugin.json` exists)
+    2. **Environment Sync** → Sync development environment (detected: `.claude/PROJECT.md` exists)
+    3. **Marketplace Update** → Update from Claude marketplace (detected: `~/.claude/installed_plugins.json` exists)
+  - Manual override via flags: `--env`, `--marketplace`, `--plugin-dev`, `--all`
+  - New libraries for sync coordination:
+    - `sync_mode_detector.py` - Intelligent context detection with security validation (CWE-22, CWE-59 protection)
+    - `sync_dispatcher.py` - Executes sync operations with backup/rollback support
+  - Benefits:
+    - Simpler user experience (one command vs two)
+    - Intelligent defaults (auto-detects context)
+    - Explicit control when needed (override flags)
+    - Consistent with unified plugin architecture
+  - Backward compatible: `/sync` replaces both `/sync-dev` and `/update-plugin`
+  - Documentation: Comprehensive sync.md command file with examples and migration guide
+  - Command count: 18 → 17 (9 fewer commands per GitHub #44 direction)
+
+### Deprecated
+- `/sync-dev` - Replaced by `/sync` command (unified)
+- `/update-plugin` - Replaced by `/sync` command (unified)
+
+### Archive
+- Moved to `commands/archived/sync-dev.md` - Reference implementation
+- Moved to `commands/archived/update-plugin.md` - Reference implementation
 
 ---
 
