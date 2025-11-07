@@ -231,9 +231,8 @@ def update_project_with_rollback(
     try:
         updater = ProjectMdUpdater(project_file)
 
-        # Update each goal individually (makes mocking easier for tests)
-        for goal_name, percentage in updates.items():
-            updater.update_goal_progress(goal_name, percentage)
+        # Update all goals in a single operation
+        updater.update_goal_progress(updates)
 
         return True
 

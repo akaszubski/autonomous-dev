@@ -68,7 +68,7 @@ class TestProjectMdUpdaterAtomicWrites:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Build feature X\n")
+            project_file.write_text("## GOALS\n- Goal 1: Build feature X (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -83,11 +83,12 @@ class TestProjectMdUpdaterAtomicWrites:
                 mock_path = str(Path(tmpdir) / ".PROJECT.abc123.tmp")
                 mock_mkstemp.return_value = (mock_fd, mock_path)
 
-                # Mock os.write and os.close
+                # Mock os.write and os.close, plus Path.replace
                 with patch('os.write') as mock_write, \
-                     patch('os.close') as mock_close:
+                     patch('os.close') as mock_close, \
+                     patch('pathlib.Path.replace') as mock_replace:
 
-                    updater.update_goal_progress("Goal 1", 25)
+                    updater.update_goal_progress({"Goal 1": 25})
 
                     # Assert: mkstemp called with correct parameters
                     mock_mkstemp.assert_called_once()
@@ -102,7 +103,7 @@ class TestProjectMdUpdaterAtomicWrites:
                         "mkstemp should use binary mode for cross-platform compatibility"
 
                     # Assert: Content written via os.write (not Path.write_text)
-                    mock_write.assert_called_once_with(mock_fd, b"## GOALS\n- Goal 1: [25%] Build feature X\n")
+                    mock_write.assert_called_once_with(mock_fd, b"## GOALS\n- Goal 1: Build feature X (Target: 100%, Current: 25%)\n")
 
                     # Assert: FD closed before rename
                     mock_close.assert_called_once_with(mock_fd)
@@ -119,7 +120,7 @@ class TestProjectMdUpdaterAtomicWrites:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Build feature X\n")
+            project_file.write_text("## GOALS\n- Goal 1: Build feature X (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -142,14 +143,16 @@ class TestProjectMdUpdaterAtomicWrites:
 
                     # Act: Try to update (should fail)
                     with pytest.raises(IOError, match="Failed to write"):
-                        updater.update_goal_progress("Goal 1", 25)
+                        updater.update_goal_progress({"Goal 1": 25})
 
                     # Assert: FD was closed despite error
                     mock_close.assert_called_once_with(mock_fd), \
                         "File descriptor MUST be closed even on error (prevents FD leak)"
 
                     # Assert: Temp file was cleaned up
-                    mock_unlink.assert_called_once_with(mock_path), \
+                    mock_unlink.assert_called_once()
+                    call_args = mock_unlink.call_args[0][0]
+                    assert str(call_args) == mock_path, \
                         "Temp file MUST be deleted on error (prevents temp file accumulation)"
 
     def test_atomic_write_encodes_utf8_correctly(self):
@@ -166,7 +169,7 @@ class TestProjectMdUpdaterAtomicWrites:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
             # Use unicode characters to test encoding
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Build 🔒 security system\n")
+            project_file.write_text("## GOALS\n- Goal 1: Build 🔒 security system (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -180,9 +183,10 @@ class TestProjectMdUpdaterAtomicWrites:
                 mock_mkstemp.return_value = (mock_fd, mock_path)
 
                 with patch('os.write') as mock_write, \
-                     patch('os.close') as mock_close:
+                     patch('os.close') as mock_close, \
+                     patch('pathlib.Path.replace') as mock_replace:
 
-                    updater.update_goal_progress("Goal 1", 50)
+                    updater.update_goal_progress({"Goal 1": 50})
 
                     # Assert: Content passed to os.write is bytes (encoded)
                     mock_write.assert_called_once()
@@ -191,7 +195,7 @@ class TestProjectMdUpdaterAtomicWrites:
                         "os.write requires bytes, not str"
 
                     # Assert: UTF-8 encoding preserves unicode
-                    expected_content = "## GOALS\n- Goal 1: [50%] Build 🔒 security system\n"
+                    expected_content = "## GOALS\n- Goal 1: Build 🔒 security system (Target: 100%, Current: 50%)\n"
                     assert written_data == expected_content.encode('utf-8'), \
                         "Content must be UTF-8 encoded (preserves unicode characters)"
 
@@ -204,7 +208,7 @@ class TestProjectMdUpdaterAtomicWrites:
         # Arrange: Create test PROJECT.md
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Build feature X\n")
+            project_file.write_text("## GOALS\n- Goal 1: Build feature X (Target: 100%)\n")
 
             # Act: Import and use ProjectMdUpdater (will fail - not implemented)
             import sys
@@ -219,8 +223,9 @@ class TestProjectMdUpdaterAtomicWrites:
                 mock_path = str(Path(tmpdir) / ".PROJECT.test.tmp")
                 mock_mkstemp.return_value = (mock_fd, mock_path)
 
-                with patch('os.write'), patch('os.close'):
-                    updater.update_goal_progress("Goal 1", 25)
+                with patch('os.write'), patch('os.close'), \
+                     patch('pathlib.Path.replace'):
+                    updater.update_goal_progress({"Goal 1": 25})
 
                     # Assert: mkstemp was called (temp file created)
                     mock_mkstemp.assert_called_once(), \
@@ -234,7 +239,7 @@ class TestProjectMdUpdaterAtomicWrites:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Build feature X\n")
+            project_file.write_text("## GOALS\n- Goal 1: Build feature X (Target: 100%)\n")
 
             # Act: Update PROJECT.md
             import sys
@@ -242,7 +247,7 @@ class TestProjectMdUpdaterAtomicWrites:
             from project_md_updater import ProjectMdUpdater
 
             updater = ProjectMdUpdater(project_file)
-            updater.update_goal_progress("Goal 1", 50)
+            updater.update_goal_progress({"Goal 1": 50})
 
             # Assert: Backup file created with timestamp
             backup_files = list(Path(tmpdir).glob("PROJECT.md.backup.*"))
@@ -308,8 +313,8 @@ class TestProjectMdUpdaterGoalUpdates:
             project_file = Path(tmpdir) / "PROJECT.md"
             original_content = """## GOALS
 
-- Goal 1: [0%] Build authentication system
-- Goal 2: [50%] Implement user dashboard
+- Goal 1: Build authentication system (Target: 100%)
+- Goal 2: Implement user dashboard (Target: 100%, Current: 50%)
 """
             project_file.write_text(original_content)
 
@@ -319,16 +324,14 @@ class TestProjectMdUpdaterGoalUpdates:
             from project_md_updater import ProjectMdUpdater
 
             updater = ProjectMdUpdater(project_file)
-            updater.update_goal_progress("Goal 1", 25)
+            updater.update_goal_progress({"Goal 1": 25})
 
             # Assert: Goal 1 updated, Goal 2 unchanged
             updated_content = project_file.read_text()
-            assert "[25%] Build authentication" in updated_content, \
+            assert "Current: 25%" in updated_content, \
                 "Goal 1 progress should be updated to 25%"
-            assert "[50%] Implement user dashboard" in updated_content, \
+            assert "Current: 50%" in updated_content, \
                 "Goal 2 progress should remain unchanged"
-            assert "[0%]" not in updated_content, \
-                "Old progress value should be replaced"
 
     def test_metric_value_update(self):
         """Test that metric values are updated correctly.
@@ -373,9 +376,9 @@ class TestProjectMdUpdaterGoalUpdates:
             project_file = Path(tmpdir) / "PROJECT.md"
             original_content = """## GOALS
 
-- Goal 1: [0%] Authentication
-- Goal 2: [25%] Dashboard
-- Goal 3: [50%] Reporting
+- Goal 1: Authentication (Target: 100%)
+- Goal 2: Dashboard (Target: 100%, Current: 25%)
+- Goal 3: Reporting (Target: 100%, Current: 50%)
 """
             project_file.write_text(original_content)
 
@@ -389,13 +392,13 @@ class TestProjectMdUpdaterGoalUpdates:
                 "Goal 1": 30,
                 "Goal 3": 75
             }
-            updater.update_multiple_goals(updates)
+            updater.update_goal_progress(updates)
 
             # Assert: Both goals updated, Goal 2 unchanged
             updated_content = project_file.read_text()
-            assert "[30%] Authentication" in updated_content
-            assert "[25%] Dashboard" in updated_content  # Unchanged
-            assert "[75%] Reporting" in updated_content
+            assert "Goal 1: Authentication (Target: 100%, Current: 30%)" in updated_content
+            assert "Goal 2: Dashboard (Target: 100%, Current: 25%)" in updated_content  # Unchanged
+            assert "Goal 3: Reporting (Target: 100%, Current: 75%)" in updated_content
 
     def test_project_md_syntax_validation(self):
         """Test that PROJECT.md syntax is validated after updates.
@@ -409,7 +412,7 @@ class TestProjectMdUpdaterGoalUpdates:
 
 ## GOALS
 
-- Goal 1: [0%] Test
+- Goal 1: Test (Target: 100%)
 """
             project_file.write_text(original_content)
 
@@ -419,7 +422,7 @@ class TestProjectMdUpdaterGoalUpdates:
             from project_md_updater import ProjectMdUpdater
 
             updater = ProjectMdUpdater(project_file)
-            updater.update_goal_progress("Goal 1", 50)
+            updater.update_goal_progress({"Goal 1": 50})
 
             # Assert: Syntax validation passes
             result = updater.validate_syntax()
@@ -438,9 +441,9 @@ class TestProjectMdUpdaterGoalUpdates:
             conflicted_content = """## GOALS
 
 <<<<<<< HEAD
-- Goal 1: [25%] Feature A
+- Goal 1: Feature A (Target: 100%, Current: 25%)
 =======
-- Goal 1: [30%] Feature A
+- Goal 1: Feature A (Target: 100%, Current: 30%)
 >>>>>>> branch-b
 """
             project_file.write_text(conflicted_content)
@@ -452,8 +455,8 @@ class TestProjectMdUpdaterGoalUpdates:
 
             updater = ProjectMdUpdater(project_file)
 
-            with pytest.raises(ValueError, match="Merge conflict detected"):
-                updater.update_goal_progress("Goal 1", 50)
+            with pytest.raises(ValueError, match="merge conflict detected"):
+                updater.update_goal_progress({"Goal 1": 50})
 
 
 # ============================================================================
@@ -649,7 +652,7 @@ class TestProjectProgressUpdateIntegration:
             project_file = Path(tmpdir) / "PROJECT.md"
             project_file.write_text("""## GOALS
 
-- Goal 1: [0%] Build authentication system
+- Goal 1: Build authentication system (Target: 100%)
 """)
 
             session_file = Path(tmpdir) / "session.json"
@@ -687,7 +690,7 @@ class TestProjectProgressUpdateIntegration:
 
             # Assert: PROJECT.md updated
             updated_content = project_file.read_text()
-            assert "[25%] Build authentication" in updated_content, \
+            assert "Current: 25%" in updated_content, \
                 "Goal progress should be updated"
 
             # Assert: Backup created
@@ -696,7 +699,7 @@ class TestProjectProgressUpdateIntegration:
 
             # Original content preserved in backup
             assert backups[0].read_text() == \
-                "## GOALS\n\n- Goal 1: [0%] Build authentication system\n", \
+                "## GOALS\n\n- Goal 1: Build authentication system (Target: 100%)\n", \
                 "Backup should contain original content"
 
     def test_handles_missing_project_md(self):
@@ -794,7 +797,7 @@ class TestProjectProgressEdgeCases:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -809,12 +812,12 @@ class TestProjectProgressEdgeCases:
                 mock_mkstemp.return_value = (mock_fd, str(mock_temp))
 
                 # Create actual temp file for replace() to work
-                mock_temp.write_text("## GOALS\n- Goal 1: [25%] Test\n")
+                mock_temp.write_text("## GOALS\n- Goal 1: Test (Target: 100%, Current: 25%)\n")
 
                 with patch('os.write'), patch('os.close'):
                     # Spy on Path.replace (Windows-compatible)
                     with patch.object(Path, 'replace', wraps=mock_temp.replace) as mock_replace:
-                        updater.update_goal_progress("Goal 1", 25)
+                        updater.update_goal_progress({"Goal 1": 25})
 
                         # Assert: Used Path.replace() not os.rename()
                         mock_replace.assert_called_once(), \
@@ -831,7 +834,7 @@ class TestProjectProgressEdgeCases:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -875,7 +878,7 @@ class TestProjectProgressEdgeCases:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -905,7 +908,9 @@ class TestProjectProgressEdgeCases:
                         "Must close FD on ENOSPC to free resources"
 
                     # Assert: Temp file deleted (frees disk space)
-                    mock_unlink.assert_called_once_with(mock_path), \
+                    mock_unlink.assert_called_once()
+                    call_args = mock_unlink.call_args[0][0]
+                    assert str(call_args) == mock_path, \
                         "Must delete temp file on ENOSPC to free space"
 
     def test_invalid_yaml_from_agent(self):
@@ -925,7 +930,7 @@ class TestProjectProgressEdgeCases:
         """Test rejection of negative progress percentages."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -934,13 +939,13 @@ class TestProjectProgressEdgeCases:
             updater = ProjectMdUpdater(project_file)
 
             with pytest.raises(ValueError, match="Invalid progress|percentage"):
-                updater.update_goal_progress("Goal 1", -10)
+                updater.update_goal_progress({"Goal 1": -10})
 
     def test_progress_percentage_over_100(self):
         """Test rejection of progress percentages over 100%."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -949,7 +954,7 @@ class TestProjectProgressEdgeCases:
             updater = ProjectMdUpdater(project_file)
 
             with pytest.raises(ValueError, match="Invalid progress|percentage"):
-                updater.update_goal_progress("Goal 1", 150)
+                updater.update_goal_progress({"Goal 1": 150})
 
     def test_concurrent_updates_to_project_md(self):
         """Test handling of concurrent updates to PROJECT.md.
@@ -959,7 +964,7 @@ class TestProjectProgressEdgeCases:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_file = Path(tmpdir) / "PROJECT.md"
-            project_file.write_text("## GOALS\n- Goal 1: [0%] Test\n")
+            project_file.write_text("## GOALS\n- Goal 1: Test (Target: 100%)\n")
 
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
@@ -970,14 +975,14 @@ class TestProjectProgressEdgeCases:
             updater2 = ProjectMdUpdater(project_file)
 
             # Both try to update
-            updater1.update_goal_progress("Goal 1", 25)
-            updater2.update_goal_progress("Goal 1", 50)
+            updater1.update_goal_progress({"Goal 1": 25})
+            updater2.update_goal_progress({"Goal 1": 50})
 
             # Last write should win (atomic rename ensures consistency)
             content = project_file.read_text()
-            assert "[50%]" in content or "[25%]" in content, \
+            assert "Current: 50%" in content or "Current: 25%" in content, \
                 "One update should succeed"
-            assert not ("[50%]" in content and "[25%]" in content), \
+            assert not ("Current: 50%" in content and "Current: 25%" in content), \
                 "Should not have both values (corruption)"
 
     def test_empty_goals_section(self):
@@ -993,7 +998,7 @@ class TestProjectProgressEdgeCases:
             updater = ProjectMdUpdater(project_file)
 
             # Should handle empty section gracefully
-            result = updater.update_goal_progress("Goal 1", 25)
+            result = updater.update_goal_progress({"Goal 1": 25})
             assert result is False or result is None, \
                 "Should handle empty GOALS section gracefully"
 
@@ -1015,7 +1020,7 @@ class TestProjectProgressEdgeCases:
             updater = ProjectMdUpdater(project_file)
 
             # Should skip malformed goals
-            result = updater.update_goal_progress("Goal 1", 25)
+            result = updater.update_goal_progress({"Goal 1": 25})
             assert result is False or result is None, \
                 "Should skip malformed goal formats"
 
