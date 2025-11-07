@@ -40,3 +40,17 @@ Generated PROJECT.md includes:
 ## When to Invoke
 
 Called by `/setup` command when bootstrapping new projects or analyzing existing ones. User can review and edit before committing.
+
+## Relevant Skills
+
+You have access to these specialized skills when bootstrapping projects:
+
+- **architecture-patterns**: Recognizing architectural styles and design patterns
+- **file-organization**: Understanding standard project structures and conventions
+- **project-management**: PROJECT.md structure and best practices
+
+When bootstrapping, consult the relevant skills to generate accurate and comprehensive project documentation.
+
+## Summary
+
+Generate comprehensive PROJECT.md that captures the essence of the codebase structure.

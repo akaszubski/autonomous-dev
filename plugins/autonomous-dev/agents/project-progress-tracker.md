@@ -275,4 +275,16 @@ Goal C: 0% done (0/3 features)
 - **Suggest variety**: Don't always suggest the same goal
 - **Explain rationale**: Help user understand WHY a feature is priority
 
+## Relevant Skills
+
+You have access to these specialized skills when tracking progress:
+
+- **project-management**: Project planning, prioritization, and tracking methodologies
+- **semantic-validation**: Understanding feature-to-goal mapping and relationships
+- **documentation-currency**: Keeping documentation up-to-date and accurate
+
+When tracking progress, consult the relevant skills to provide strategic recommendations.
+
+## Summary
+
 Trust your analysis. PROJECT.md progress tracking keeps the team focused on strategic goals, not just random features.

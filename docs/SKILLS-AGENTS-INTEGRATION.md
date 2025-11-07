@@ -216,6 +216,113 @@ Minimal tool access:
 
 ---
 
+## Part 3.5: Agent-to-Skill Mapping (autonomous-dev Implementation)
+
+### Complete Agent-Skill Integration Map
+
+**Implementation Status**: All 18 agents now include "Relevant Skills" sections in their prompts (GitHub Issue #35)
+
+#### Core Workflow Agents (9 agents, 22 skill references)
+
+| Agent | Function | Relevant Skills | Pattern |
+|-------|----------|-----------------|---------|
+| **researcher** | Web research, pattern discovery | research-patterns | Learns from existing implementations and best practices |
+| **planner** | Architecture design, planning | architecture-patterns, api-design, database-design, testing-guide | Designs systems using established patterns |
+| **test-master** | TDD, test generation | testing-guide, security-patterns | Writes secure, comprehensive tests first |
+| **implementer** | Code implementation | python-standards, observability | Optimizes performance, adds observability |
+| **reviewer** | Code quality, anti-patterns | code-review, consistency-enforcement, python-standards | Ensures code quality and consistency |
+| **security-auditor** | Vulnerability scanning, OWASP | security-patterns, python-standards | Detects security issues with pattern knowledge |
+| **doc-master** | Documentation sync | documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency | Maintains accurate, consistent documentation |
+| **advisor** | Critical thinking, validation | semantic-validation, advisor-triggers, research-patterns | Validates proposals against best practices |
+| **quality-validator** | Feature validation | testing-guide, code-review | Ensures features meet quality standards |
+
+#### Utility Agents (9 agents, 25 skill references)
+
+| Agent | Function | Relevant Skills | Pattern |
+|-------|----------|-----------------|---------|
+| **alignment-validator** | PROJECT.md alignment | semantic-validation, file-organization | Validates alignment using semantic patterns |
+| **alignment-analyzer** | Detailed alignment analysis | research-patterns, semantic-validation, file-organization | Research-backed alignment analysis |
+| **commit-message-generator** | Conventional commits | git-workflow, code-review | Follows git conventions, reviews changes |
+| **pr-description-generator** | PR descriptions | github-workflow, documentation-guide, code-review | Professional PR documentation |
+| **project-bootstrapper** | Tech stack detection | research-patterns, file-organization, python-standards | Discovers project patterns automatically |
+| **setup-wizard** | Setup guidance | research-patterns, file-organization | Analyzes tech stack for configuration |
+| **project-progress-tracker** | Goal tracking | project-management | Assesses progress against SMART goals |
+| **project-status-analyzer** | Project health | project-management, code-review, semantic-validation | Holistic project health assessment |
+| **sync-validator** | Environment sync | consistency-enforcement, file-organization, python-standards, security-patterns | Multi-layer synchronization validation |
+
+#### Skill Coverage Summary
+
+**Total Unique Skills Referenced**: 18 of 19 available skills (95% coverage)
+
+**Skills by Reference Count** (sorted by usage):
+- **High-Use Skills** (5+ agents): semantic-validation (3), file-organization (5), python-standards (5), research-patterns (4), code-review (5), project-management (2), testing-guide (3), security-patterns (3)
+- **Medium-Use Skills** (2-4 agents): documentation-guide (2), consistency-enforcement (3), git-workflow (2), code-review (5)
+- **Specialized Skills** (1 agent): github-workflow (1), advisor-triggers (1), cross-reference-validation (1), documentation-currency (1), database-design (1), api-design (1), architecture-patterns (1), observability (1)
+
+**Unused Skill**: None (all 19 skills are referenced by at least one agent)
+
+#### Progressive Disclosure in Action
+
+**Context Efficiency Example**:
+```
+Without Progressive Disclosure:
+- Doc-master prompt would include full contents of 5 SKILL.md files
+- Each SKILL.md: 5-20KB
+- Total: 25-100KB loaded for every doc-master invocation
+- Context overhead: Large, inefficient
+
+With Progressive Disclosure (Current Implementation):
+- Doc-master prompt includes: "Available skills: documentation-guide, consistency-enforcement, ..."
+- Metadata only: ~200 bytes
+- When doc-master tasks requires specialized knowledge (e.g., API docs):
+  - Full documentation-guide SKILL.md loaded (5-20KB)
+  - On-demand, only when needed
+- Context overhead: Minimal (200 bytes vs 25-100KB)
+```
+
+#### Design Decisions
+
+**Why Each Agent Has Specific Skills**:
+
+1. **researcher**: Needs research-patterns to find established best practices
+2. **planner**: Needs architecture-patterns, api-design, database-design, testing-guide for comprehensive system design
+3. **test-master**: Needs testing-guide (core) + security-patterns (writes secure tests)
+4. **implementer**: Needs python-standards (language) + observability (adds metrics/logging)
+5. **reviewer**: Needs code-review (domain), consistency-enforcement (style), python-standards (language)
+6. **security-auditor**: Needs security-patterns (domain) + python-standards (understands vulnerable patterns)
+7. **doc-master**: Most skill-rich (5 skills) because documentation is cross-cutting concern
+8. **advisor**: Needs semantic-validation (checks proposals), research-patterns (facts), advisor-triggers (recognizes when advice needed)
+9. **quality-validator**: Needs testing-guide (test validation) + code-review (code quality)
+
+### Skill Activation Pattern
+
+**How Agents Discover and Use Skills**:
+
+1. **Agent Prompt Includes Skill List**: Each agent sees available skills in its system prompt
+2. **Claude Recognizes Task Type**: Agent receives task, recognizes which skills are relevant
+3. **Progressive Loading**: Claude loads skill SKILL.md only when task requires it
+4. **Skilled Execution**: Agent completes task using skill knowledge
+5. **Efficient Context**: Unused skill content never loaded
+
+**Example Workflow**:
+```
+User asks doc-master: "Update API documentation"
+    ↓
+doc-master sees: "Available skills: documentation-guide, consistency-enforcement, ..."
+    ↓
+Claude recognizes: "This is API documentation - need documentation-guide skill"
+    ↓
+Claude loads: documentation-guide/SKILL.md (only this skill)
+    ↓
+doc-master uses: Documentation patterns, formatting standards from SKILL.md
+    ↓
+Result: Professional API docs using established patterns
+    ↓
+Unused skills (git-workflow, etc.) never loaded to context
+```
+
+---
+
 ## Part 4: Agent-Skill Integration Patterns
 
 ### Pattern 1: Main Agent with Skill Access

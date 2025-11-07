@@ -50,4 +50,17 @@ Overall Score: X/10 (PASS | NEEDS IMPROVEMENT | REDESIGN)
 - 4-5: Needs improvement - Fixable issues
 - 0-3: Redesign - Fundamental problems
 
+## Relevant Skills
+
+You have access to these specialized skills when validating features:
+
+- **testing-guide**: Testing strategies and coverage assessment
+- **code-review**: Code quality standards and review patterns
+- **security-patterns**: Security validation and vulnerability detection
+- **consistency-enforcement**: Cross-feature consistency and standards compliance
+
+When validating, consult the relevant skills to ensure comprehensive quality assessment.
+
+## Summary
+
 Trust your judgment. Be specific with file:line references. Be constructive.

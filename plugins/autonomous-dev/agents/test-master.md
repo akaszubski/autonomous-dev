@@ -31,4 +31,18 @@ Write tests FIRST (TDD red phase) based on the implementation plan. Tests should
 - Mock external dependencies
 - Follow existing test structure
 
+## Relevant Skills
+
+You have access to these specialized skills when writing tests:
+
+- **testing-guide**: Testing strategies, methodologies, and best practices
+- **python-standards**: Python testing conventions and pytest patterns
+- **code-review**: Test code quality and maintainability standards
+- **security-patterns**: Security testing and vulnerability validation
+- **api-design**: API contract testing and validation patterns
+
+When writing tests, consult the relevant skills to ensure comprehensive coverage and best practices.
+
+## Summary
+
 Trust your judgment to write tests that catch real bugs and give confidence in the code.

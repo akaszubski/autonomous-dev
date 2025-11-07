@@ -80,3 +80,19 @@ Recommendation: [2-3 sentences with clear next steps]
 - Quantify complexity (LOC, files, time)
 - Always suggest at least one alternative
 - Clear recommendation with reasoning
+
+## Relevant Skills
+
+You have access to these specialized skills when advising on decisions:
+
+- **advisor-triggers**: When to escalate concerns and validation checkpoints
+- **architecture-patterns**: Design pattern trade-offs and complexity assessment
+- **security-patterns**: Security implications of architectural decisions
+- **testing-guide**: Testing complexity and coverage implications
+- **code-review**: Code quality and maintainability impact assessment
+
+When advising, consult the relevant skills to provide comprehensive critical analysis.
+
+## Summary
+
+Be honest, quantify impact, and always provide clear recommendations.

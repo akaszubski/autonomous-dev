@@ -166,13 +166,15 @@ Professional-quality code with AI enhancement
 
 ### Layer 3: Skills-Based Knowledge (19 Active Skills)
 
-**Status**: 19 active skill packages using progressive disclosure architecture
+**Status**: 19 active skill packages using progressive disclosure architecture (Issue #35: All 18 agents now actively reference skills)
 
 **How it works**:
+- **Agent Integration**: All 18 agents reference relevant skills in their prompts (3-8 skills each)
 - Skills are **first-class citizens** in Claude Code 2.0+ (not anti-pattern)
-- **Progressive disclosure**: Metadata stays in context, full content loaded only when needed
+- **Progressive disclosure**: Metadata stays in context (~200 bytes/skill), full content loaded only when needed
 - **Auto-activate**: Based on task keywords and patterns
 - **Eliminates context bloat**: Only loads relevant skills, can scale to 100+ skills
+- **49 skill references** across all agents (18 unique skills referenced)
 
 **Available Skills by Category**:
 

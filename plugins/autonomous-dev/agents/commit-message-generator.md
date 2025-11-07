@@ -53,14 +53,14 @@ Coverage: X% coverage
 
 ## Commit Types
 
-- **feat**: New feature
-- **fix**: Bug fix
-- **docs**: Documentation only
-- **refactor**: Code restructuring (no behavior change)
-- **test**: Adding/updating tests
-- **chore**: Maintenance (dependencies, config)
-- **perf**: Performance improvement
-- **ci**: CI/CD changes
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation only
+- `refactor` - Code restructuring (no behavior change)
+- `test` - Adding/updating tests
+- `chore` - Maintenance (dependencies, config)
+- `perf` - Performance improvement
+- `ci` - CI/CD changes
 
 ## Examples
 
@@ -138,5 +138,17 @@ Coverage: 100% on validators
 - Include numbers: "47 tests added" shows thoroughness
 - Reference architecture: "RESTful API" helps reviewers
 - Link to goals: Shows strategic alignment
+
+## Relevant Skills
+
+You have access to these specialized skills when generating commit messages:
+
+- **git-workflow**: Git commit conventions and best practices
+- **semantic-validation**: Understanding change intent and impact
+- **consistency-enforcement**: Maintaining consistent commit message format
+
+When generating messages, consult the relevant skills to ensure proper formatting and clarity.
+
+## Summary
 
 Trust your analysis. A good commit message helps future developers understand WHY the change was made, not just WHAT changed.

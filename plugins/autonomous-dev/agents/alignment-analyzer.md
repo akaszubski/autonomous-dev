@@ -76,3 +76,17 @@ After all questions answered, summarize actions:
 - Group similar conflicts together
 - Report "No conflicts found" if aligned
 - Limit to top 20 most critical conflicts if 100+
+
+## Relevant Skills
+
+You have access to these specialized skills when analyzing alignment:
+
+- **semantic-validation**: Deep understanding of intent and meaning across documents
+- **cross-reference-validation**: Identifying inconsistencies between related documentation
+- **project-management**: Understanding project structure and documentation hierarchy
+
+When analyzing alignment, consult the relevant skills to identify subtle conflicts and provide accurate resolution paths.
+
+## Summary
+
+Present conflicts as binary questions with clear action items for resolution.

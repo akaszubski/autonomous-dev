@@ -131,38 +131,38 @@ git commit -m "docs: Update project goals"
 
 ## Architecture
 
-### Agents (18 specialists)
+### Agents (18 specialists with active skill integration - GitHub Issue #35)
 
 Located: `plugins/autonomous-dev/agents/`
 
-**Core Workflow Agents (9)** (orchestrator removed v3.2.2 - Claude coordinates directly):
-- **researcher**: Web research for patterns and best practices
-- **planner**: Architecture planning and design
-- **test-master**: TDD specialist (writes tests first)
-- **implementer**: Code implementation (makes tests pass)
-- **reviewer**: Quality gate (code review)
-- **security-auditor**: Security scanning and vulnerability detection
-- **doc-master**: Documentation synchronization
-- **advisor**: Critical thinking and validation (v3.0+)
-- **quality-validator**: GenAI-powered feature validation (v3.0+)
+**Core Workflow Agents (9)** with skill references (orchestrator removed v3.2.2 - Claude coordinates directly):
+- **researcher**: Web research for patterns and best practices - Uses research-patterns skill
+- **planner**: Architecture planning and design - Uses architecture-patterns, api-design, database-design, testing-guide skills
+- **test-master**: TDD specialist (writes tests first) - Uses testing-guide, security-patterns skills
+- **implementer**: Code implementation (makes tests pass) - Uses python-standards, observability skills
+- **reviewer**: Quality gate (code review) - Uses code-review, consistency-enforcement, python-standards skills
+- **security-auditor**: Security scanning and vulnerability detection - Uses security-patterns, python-standards skills
+- **doc-master**: Documentation synchronization - Uses documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency skills
+- **advisor**: Critical thinking and validation (v3.0+) - Uses semantic-validation, advisor-triggers, research-patterns skills
+- **quality-validator**: GenAI-powered feature validation (v3.0+) - Uses testing-guide, code-review skills
 
-**Utility Agents (9)**:
-- **alignment-validator**: PROJECT.md alignment checking
-- **commit-message-generator**: Conventional commit generation
-- **pr-description-generator**: Pull request descriptions
-- **project-progress-tracker**: Track progress against goals
-- **alignment-analyzer**: Detailed alignment analysis
-- **project-bootstrapper**: Tech stack detection and setup (v3.0+)
-- **setup-wizard**: Intelligent setup - analyzes tech stack, recommends hooks (v3.1+)
-- **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+)
-- **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+)
+**Utility Agents (9)** with skill references:
+- **alignment-validator**: PROJECT.md alignment checking - Uses semantic-validation, file-organization skills
+- **commit-message-generator**: Conventional commit generation - Uses git-workflow, code-review skills
+- **pr-description-generator**: Pull request descriptions - Uses github-workflow, documentation-guide, code-review skills
+- **project-progress-tracker**: Track progress against goals - Uses project-management skill
+- **alignment-analyzer**: Detailed alignment analysis - Uses research-patterns, semantic-validation, file-organization skills
+- **project-bootstrapper**: Tech stack detection and setup (v3.0+) - Uses research-patterns, file-organization, python-standards skills
+- **setup-wizard**: Intelligent setup - analyzes tech stack, recommends hooks (v3.1+) - Uses research-patterns, file-organization skills
+- **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+) - Uses project-management, code-review, semantic-validation skills
+- **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+) - Uses consistency-enforcement, file-organization, python-standards, security-patterns skills
 
 **Note on Orchestrator Removal (v3.2.2)**:
 The "orchestrator" agent was removed because it created a logical impossibility - it was Claude coordinating Claude. When `/auto-implement` invoked the orchestrator agent, it just loaded orchestrator.md as Claude's system prompt, but it was still the same Claude instance making decisions. This allowed Claude to skip agents by reasoning they weren't needed.
 
 **Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
 
-### Skills (19 Active - Progressive Disclosure)
+### Skills (19 Active - Progressive Disclosure + Agent Integration)
 
 **Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
 
@@ -171,6 +171,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - Progressive disclosure solves context bloat elegantly
 - Metadata stays in context, full content loads only when needed
 - Can scale to 100+ skills without performance issues
+- **NEW (v3.5+)**: All 18 agents explicitly reference relevant skills for enhanced decision-making (Issue #35)
 
 **19 Active Skills** (organized by category):
 - **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
@@ -178,9 +179,16 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
 - **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
-**How It Works**: Skills auto-activate based on task keywords. Claude loads full SKILL.md content only when relevant, keeping context efficient.
+**How It Works**:
+1. **Progressive Disclosure**: Skills auto-activate based on task keywords. Claude loads full SKILL.md content only when relevant, keeping context efficient.
+2. **Agent Integration** (NEW): Each agent's prompt includes a "Relevant Skills" section listing specialized knowledge available for that agent's domain. This helps agents recognize when to apply specialized skills.
+3. **Combined Effect**: Agent + skill integration prevents hallucination while scaling to 100+ skills without context bloat.
 
-See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details.
+**Agent-Skill Mapping** (all 18 agents now have skill references):
+- See agent prompts in `plugins/autonomous-dev/agents/` for "Relevant Skills" sections
+- See `docs/SKILLS-AGENTS-INTEGRATION.md` for comprehensive mapping table
+
+See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
 ### Hooks (29 total automation)
 

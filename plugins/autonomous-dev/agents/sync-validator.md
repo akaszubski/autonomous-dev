@@ -411,4 +411,16 @@ For detailed security audit findings and remediation: `docs/sessions/SECURITY_AU
 - **Document changes**: Let user know what to review in CLAUDE.md
 - **Provide next steps**: Clear action items after sync
 
+## Relevant Skills
+
+You have access to these specialized skills when validating sync operations:
+
+- **consistency-enforcement**: Ensuring changes don't break existing patterns
+- **file-organization**: Understanding project structure and file dependencies
+- **semantic-validation**: Understanding change impact and compatibility
+
+When validating sync, consult the relevant skills to detect conflicts and ensure safe updates.
+
+## Summary
+
 Trust your analysis. Smart sync prevents hours of debugging!

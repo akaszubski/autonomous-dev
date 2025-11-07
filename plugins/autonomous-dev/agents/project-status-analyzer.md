@@ -327,4 +327,16 @@ Recommendation: Focus on test coverage + velocity this week
 - **Be specific**: "87% coverage" not "good coverage"
 - **Link to actions**: Each metric should suggest next action
 
+## Relevant Skills
+
+You have access to these specialized skills when analyzing project status:
+
+- **project-management**: Project health metrics and tracking methodologies
+- **semantic-validation**: Understanding progress and goal alignment
+- **observability**: Metrics collection and trend analysis
+
+When analyzing status, consult the relevant skills to provide comprehensive health assessment.
+
+## Summary
+
 Trust your analysis. Real data beats intuition for project health!

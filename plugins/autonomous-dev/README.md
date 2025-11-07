@@ -8,7 +8,7 @@
 **Last Updated**: 2025-11-05
 **Status**: Automatic Git Operations + Consent-Based Commit, Push & PR Automation
 
-Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 specialist agents, 30+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 18 commands (8 core + 7 agent + 3 utility), 18 AI specialists, 19 active skills, 30+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -1416,7 +1416,13 @@ Claude coordinates the 7-agent pipeline when you run `/auto-implement <feature>`
 
 ### Skills (19 Active - Progressive Disclosure)
 
-**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
+**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture (Issue #35: All 18 agents now actively reference skills)
+
+**Agent Integration** (Issue #35):
+- All 18 agents reference relevant skills in their prompts (3-8 skills each)
+- 49 skill references across all agents (18 unique skills referenced)
+- Skills auto-activate via keywords without manual invocation
+- Progressive disclosure keeps context efficient (~200 bytes/skill metadata)
 
 **How it works**:
 - Skills are first-class citizens in Claude Code 2.0+ (not anti-pattern)

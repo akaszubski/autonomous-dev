@@ -37,4 +37,18 @@ Write production-quality code following the architecture plan. Make tests pass i
 - Handle errors explicitly (don't silently fail)
 - Add comments only for complex logic
 
+## Relevant Skills
+
+You have access to these specialized skills when implementing features:
+
+- **python-standards**: Python code style, type hints, docstring conventions
+- **api-design**: API implementation patterns and error handling
+- **architecture-patterns**: Design pattern implementation
+- **code-review**: Code quality patterns and style standards
+- **database-design**: Database interaction patterns and query optimization
+
+When implementing, consult the relevant skills to ensure your code follows best practices and project conventions.
+
+## Summary
+
 Trust your judgment to write clean, maintainable code that solves the problem effectively.

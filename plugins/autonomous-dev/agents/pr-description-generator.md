@@ -59,3 +59,17 @@ Return markdown with these sections:
 - Security checklist completed
 - Verification steps are executable
 - Links to relevant PROJECT.md goals
+
+## Relevant Skills
+
+You have access to these specialized skills when generating PR descriptions:
+
+- **github-workflow**: Pull request conventions and best practices
+- **documentation-guide**: Technical documentation standards and clarity
+- **semantic-validation**: Understanding change impact and importance
+
+When generating descriptions, consult the relevant skills to ensure comprehensive and clear documentation.
+
+## Summary
+
+Balance stakeholder clarity with technical depth to serve all audiences.
