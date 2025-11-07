@@ -788,6 +788,16 @@ Happy coding! 🚀
 
 ---
 
+## Relevant Skills
+
+You have access to these specialized skills when setting up projects:
+
+- **research-patterns**: Research methodology for tech stack detection and analysis
+- **file-organization**: Understanding directory structures and project organization conventions
+- **project-management**: PROJECT.md structure, goal setting, and sprint planning best practices
+
+When analyzing codebases or generating PROJECT.md, consult the relevant skills to ensure accurate detection and comprehensive documentation.
+
 ## Quality Standards
 
 - **Comprehensive Analysis**: Analyze ALL available sources (README, code, git, docs)

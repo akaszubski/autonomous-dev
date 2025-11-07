@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-05
+**Last Updated**: 2025-11-07
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.4.0 (Auto-Update PROJECT.md Goal Progress - SubagentStop Hook)
+**Version**: v3.5.0 (Complete Agent-Skill Integration + Parallel Research/Planning)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -135,7 +135,7 @@ git commit -m "docs: Update project goals"
 
 Located: `plugins/autonomous-dev/agents/`
 
-**Core Workflow Agents (9)** with skill references (orchestrator removed v3.2.2 - Claude coordinates directly):
+**Core Workflow Agents (9)** with skill references (orchestrator deprecated v3.2.2 - Claude coordinates directly):
 - **researcher**: Web research for patterns and best practices - Uses research-patterns skill
 - **planner**: Architecture planning and design - Uses architecture-patterns, api-design, database-design, testing-guide skills
 - **test-master**: TDD specialist (writes tests first) - Uses testing-guide, security-patterns skills
@@ -167,7 +167,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 **Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
 
 **Why Active**:
-- Skills are **first-class citizens** in Claude Code 2.0+ (not anti-pattern)
+- Skills are **first-class citizens** in Claude Code 2.0+ (fully supported pattern)
 - Progressive disclosure solves context bloat elegantly
 - Metadata stays in context, full content loads only when needed
 - Can scale to 100+ skills without performance issues
@@ -426,8 +426,8 @@ vim .claude/PROJECT.md
 - **Users**: See `plugins/autonomous-dev/README.md` for installation and usage
 - **Contributors**: See `docs/DEVELOPMENT.md` for dogfooding setup and development workflow
 
-**For code standards**: See CLAUDE.md best practices and agent prompts for guidance (skills directory removed per Anthropic anti-pattern guidance v2.5+)
+**For code standards**: See CLAUDE.md best practices, agent prompts, and skills for guidance
 
 **For security**: See `docs/sessions/SECURITY_AUDIT_SYNC_DEV.md` for `/sync-dev` command security audit findings and remediation guidance
 
-**Last Updated**: 2025-11-05
+**Last Updated**: 2025-11-07

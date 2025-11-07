@@ -605,7 +605,43 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Added
-(No changes yet)
+- **Complete Agent-Skill Integration (Phase 3)** - All 18 agents now reference relevant skills for enhanced expertise (GitHub Issue #35)
+  - Implementation: Added "Relevant Skills" sections to all agent prompt files in `plugins/autonomous-dev/agents/`
+  - Coverage: 18 agents with specialized skill access patterns
+    * **Core Workflow Agents** (9): researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+      - researcher: Uses research-patterns skill for web research and pattern discovery
+      - planner: Uses architecture-patterns, api-design, database-design, testing-guide skills for comprehensive design
+      - test-master: Uses testing-guide, security-patterns skills for TDD and security testing
+      - implementer: Uses python-standards, observability skills for code quality and performance
+      - reviewer: Uses code-review, consistency-enforcement, python-standards skills for quality gates
+      - security-auditor: Uses security-patterns, python-standards skills for vulnerability detection
+      - doc-master: Uses documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency skills for documentation synchronization
+      - advisor: Uses semantic-validation, advisor-triggers, research-patterns skills for critical thinking
+      - quality-validator: Uses testing-guide, code-review skills for feature validation
+    * **Utility Agents** (9): alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, setup-wizard, project-progress-tracker, project-status-analyzer, sync-validator
+      - Each utility agent references 3-8 relevant skills for specialized domain expertise
+  - Architecture: Progressive disclosure pattern maintains efficiency
+    * Skill metadata always in context (~200 bytes/skill)
+    * Full SKILL.md content loads only when agent task requires specialized knowledge
+    * Enables scaling to 100+ skills without context bloat
+  - Design standardization:
+    * Format: `## Relevant Skills` section with bulleted list and usage guidance
+    * Each skill includes brief description of its use in agent workflow
+    * Trailing paragraph explains skill activation pattern
+    * Consistent placement in agent prompt files (before Quality Standards section)
+  - Test coverage: 38 tests verifying agent skill integration patterns
+    * Agent file validation tests (18 agents verified)
+    * Skill reference consistency tests
+    * Progressive disclosure tests
+    * 32/38 tests passing (89%)
+  - Documentation:
+    * Updated `docs/SKILLS-AGENTS-INTEGRATION.md` with comprehensive agent-to-skill mapping table
+    * Updated `CLAUDE.md` Section 3.1 (Architecture → Agents) reflecting all 18 agents with active skill integration
+    * Updated `README.md` Layer 3 (Skills-Based Knowledge) confirming Issue #35 completion status
+    * Cross-references maintained for consistency across all documentation
+  - User impact: Agents leverage specialized knowledge automatically, improving feature development quality
+  - Backward compatible: Skills are optional (progressive disclosure graceful degradation)
+  - Next steps: Skill expansion to domain-specific areas (machine learning, mobile, cloud) based on project needs
 
 ## [2.5.0] - 2025-10-25
 
