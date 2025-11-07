@@ -190,6 +190,32 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
+### Libraries (2 Shared Libraries - v3.4.0+)
+
+**Location**: `plugins/autonomous-dev/lib/`
+
+**Core Libraries**:
+
+1. **security_utils.py** (628 lines, v3.4.3+) - Centralized security validation and audit logging
+   - Functions: `validate_path()`, `validate_pytest_path()`, `validate_input_length()`, `validate_agent_name()`, `validate_github_issue()`, `audit_log()`
+   - Security coverage: CWE-22 (path traversal), CWE-59 (symlink resolution), CWE-117 (log output neutralization)
+   - Path validation: 4-layer whitelist defense (string checks → symlink detection → path resolution → whitelist validation)
+   - Test mode support: Auto-detects pytest, allows system temp while blocking system directories
+   - Audit logging: Thread-safe JSON logging to `logs/security_audit.log` (10MB rotation, 5 backups)
+   - Used by: agent_tracker.py, project_md_updater.py, and all security-critical operations
+   - Test coverage: 638 unit tests (98.3% coverage)
+   - Documentation: See `docs/SECURITY.md` for comprehensive guide
+
+2. **project_md_updater.py** (247 lines, v3.4.0+) - Atomic PROJECT.md updates with security validation
+   - Functions: `update_goal_progress()`, `_atomic_write()`, `_validate_update()`, `_backup_before_update()`, `_detect_merge_conflicts()`
+   - Security: Uses security_utils.validate_path() for whitelist validation, mkstemp() for atomic writes
+   - Atomic writes: Temp file creation (mkstemp) → content writing → atomic rename
+   - Merge conflict detection: Prevents data loss if PROJECT.md changed during update
+   - Test coverage: 24 unit tests (95.8% coverage)
+   - Used by: auto_update_project_progress.py hook (SubagentStop)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery.
+
 ### Hooks (29 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`

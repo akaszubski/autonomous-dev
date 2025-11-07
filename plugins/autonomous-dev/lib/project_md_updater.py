@@ -11,6 +11,7 @@ Security Features:
 - Atomic file writes (temp file + rename pattern)
 - Backup creation before modifications
 - Merge conflict detection
+- Shared security validation via security_utils module
 
 Usage:
     from project_md_updater import ProjectMdUpdater
@@ -18,21 +19,29 @@ Usage:
     updater = ProjectMdUpdater(Path("PROJECT.md"))
     updater.update_goal_progress("Goal 1", 25)  # Update to 25%
 
-Date: 2025-11-04
-Feature: PROJECT.md auto-update
+Date: 2025-11-07
+Feature: PROJECT.md auto-update with shared security_utils
 Agent: implementer
+Issue: GitHub #46 (refactor to use shared security module)
 """
 
 import os
 import re
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 
-
-# Project root for path validation
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.resolve()
+# Import shared security utilities
+# Handle both module import (from package) and direct script execution
+try:
+    from .security_utils import validate_path, audit_log
+except ImportError:
+    # Direct script execution - add lib dir to path
+    lib_dir = Path(__file__).parent.resolve()
+    sys.path.insert(0, str(lib_dir))
+    from security_utils import validate_path, audit_log
 
 
 class ProjectMdUpdater:
@@ -46,71 +55,30 @@ class ProjectMdUpdater:
 
         Raises:
             ValueError: If path is symlink, outside project, or invalid
+
+        Security:
+            Uses shared security_utils.validate_path() for consistent validation
+            across all modules. Logs all validation attempts to security audit log.
         """
-        # Check if running in test mode (pytest sets this env var)
-        is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
-
-        # SECURITY: Reject symlinks immediately
-        if project_file.is_symlink():
-            raise ValueError(
-                f"Symlinks are not allowed: {project_file}\n"
-                f"PROJECT.md cannot be a symlink for security reasons.\n"
-                f"Expected: Regular file path\n"
-                f"See: Security best practices"
-            )
-
-        # SECURITY: Resolve path and validate location
-        try:
-            resolved_path = project_file.resolve()
-
-            # Check if resolved path is also a symlink
-            if resolved_path.is_symlink():
-                raise ValueError(
-                    f"Path contains symlink: {project_file}\n"
-                    f"Resolved path is a symlink: {resolved_path}\n"
-                    f"Expected: Regular file path without symlinks"
-                )
-
-            # SECURITY: Whitelist validation - ensure within project
-            # In test mode, allow temp dirs but still block system directories
-            if not is_test_mode:
-                try:
-                    resolved_path.relative_to(PROJECT_ROOT)
-                except ValueError:
-                    raise ValueError(
-                        f"Path outside project root: {project_file}\n"
-                        f"PROJECT.md must be within project directory.\n"
-                        f"Resolved path: {resolved_path}\n"
-                        f"Project root: {PROJECT_ROOT}\n"
-                        f"Expected: Path within project"
-                    )
-            else:
-                # In test mode, still block obvious system directories
-                # Note: On macOS, /etc -> /private/etc, /var -> /private/var
-                system_dirs = [
-                    '/etc', '/usr', '/bin', '/sbin', '/var/log', '/root',
-                    '/private/etc', '/private/var/log'
-                ]
-                resolved_str = str(resolved_path)
-                for sys_dir in system_dirs:
-                    if resolved_str.startswith(sys_dir + '/') or resolved_str == sys_dir:
-                        raise ValueError(
-                            f"Path traversal attempt detected: {project_file}\n"
-                            f"Resolved to system directory: {resolved_path}\n"
-                            f"System directories are not allowed"
-                        )
-
-        except (OSError, RuntimeError) as e:
-            raise ValueError(
-                f"Invalid PROJECT.md path: {project_file}\n"
-                f"Error: {e}\n"
-                f"Expected: Valid filesystem path within project"
-            )
+        # SECURITY: Validate path using shared validation module
+        # This ensures consistent security enforcement across all components
+        resolved_path = validate_path(
+            project_file,
+            purpose="PROJECT.md update",
+            allow_missing=True  # Allow non-existent PROJECT.md (will be created)
+        )
 
         self.project_file = resolved_path
         # Keep original path's parent for mkstemp (avoids /var vs /private/var mismatch on macOS)
         self._mkstemp_dir = str(project_file.parent)
         self.backup_file: Optional[Path] = None
+
+        # Audit log initialization
+        audit_log("project_md_updater", "initialized", {
+            "operation": "init",
+            "project_file": str(self.project_file),
+            "mkstemp_dir": self._mkstemp_dir
+        })
 
     def _create_backup(self) -> Path:
         """Create timestamped backup of PROJECT.md.
@@ -218,7 +186,23 @@ class ProjectMdUpdater:
             # Never in a partially-written state
             temp_path.replace(self.project_file)
 
+            # Audit log successful write
+            audit_log("project_md_updater", "success", {
+                "operation": "atomic_write",
+                "target_file": str(self.project_file),
+                "temp_file": str(temp_path),
+                "content_size": len(content)
+            })
+
         except Exception as e:
+            # Audit log failure
+            audit_log("project_md_updater", "failure", {
+                "operation": "atomic_write",
+                "target_file": str(self.project_file),
+                "temp_file": str(temp_path) if temp_path else None,
+                "error": str(e)
+            })
+
             # Cleanup file descriptor on any error
             # This prevents resource exhaustion (FD leak)
             if temp_fd is not None:

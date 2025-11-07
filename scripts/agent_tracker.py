@@ -70,6 +70,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
+# Import shared security utilities (GitHub Issue #46 - refactor to shared module)
+# Add parent directories to sys.path to allow import from plugins/autonomous-dev/lib
+script_dir = Path(__file__).parent.resolve()
+project_root = script_dir.parent
+lib_dir = project_root / "plugins" / "autonomous-dev" / "lib"
+sys.path.insert(0, str(lib_dir))
+
+from security_utils import (
+    validate_path,
+    validate_agent_name,
+    validate_github_issue,
+    validate_input_length,
+    audit_log,
+    PROJECT_ROOT
+)
+
 
 # Agent display metadata
 AGENT_METADATA = {
@@ -114,13 +130,8 @@ EXPECTED_AGENTS = [
     "doc-master"
 ]
 
-# Input validation constants
-MAX_ISSUE_NUMBER = 999999  # GitHub issue numbers are typically < 1M
-MIN_ISSUE_NUMBER = 1
-MAX_MESSAGE_LENGTH = 10000  # 10KB max message length to prevent bloat
-
-# Project root for path validation (whitelist approach)
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+# Note: Input validation constants and PROJECT_ROOT now imported from security_utils
+# This ensures consistent validation across all modules
 
 
 class AgentTracker:
@@ -134,124 +145,19 @@ class AgentTracker:
         Raises:
             ValueError: If session_file path is outside project (path traversal attempt)
 
-        Path Validation Design (GitHub Issue #45):
-        ===========================================
-        This method prevents path traversal attacks via three layers:
-
-        1. String-level check: Rejects any path containing '..' sequences
-           Example: "../../etc/passwd" blocked immediately
-           Rationale: Catches obvious traversal attempts before filesystem operations
-
-        2. Symlink resolution: resolve() follows symlinks and normalizes path
-           Example: "/session/link" -> "/etc/passwd" (if symlink points outside)
-           Rationale: Symlink-based escapes are caught after resolution
-
-        3. System directory checks: Rejects paths in sensitive system directories
-           Protected: /etc/, /var/log/, /usr/, /bin/, /sbin/
-           Rationale: Even if somehow valid, prevents writing to system files
-
-        Attack Scenarios Blocked:
-        =========================
-        - Relative traversal: "../../etc/passwd" (blocked by check #1)
-        - Absolute paths: "/etc/passwd" (blocked by check #3)
-        - Symlink escapes: "link_to_etc" -> "/etc/passwd" (blocked by check #2)
-        - Mixed: "subdir/../../etc/passwd" (blocked by check #2 after resolve)
+        Security:
+            Uses shared security_utils.validate_path() for consistent validation
+            across all modules. Logs all validation attempts to security audit log.
         """
         if session_file:
-            # Use provided session file (for testing)
-            self.session_file = Path(session_file)
-
-            # SECURITY LAYER 1: Reject symlinks immediately (defense in depth)
-            # Symlinks can be used to escape directory boundaries
-            # Check before resolve() to catch symlink attacks early
-            if self.session_file.is_symlink():
-                raise ValueError(
-                    f"Symlinks are not allowed: {session_file}\n"
-                    f"Session files cannot be symlinks for security reasons.\n"
-                    f"Expected: Regular file path (e.g., 'docs/sessions/session.json')\n"
-                    f"See: docs/SECURITY.md#path-validation"
-                )
-
-            # SECURITY LAYER 2: Resolve and validate resolved path
-            try:
-                # resolve() follows symlinks and normalizes paths
-                # This catches path normalization tricks and relative paths
-                resolved_path = self.session_file.resolve()
-
-                # Check for symlinks in the resolved path components
-                # This catches symlinks in parent directories
-                if resolved_path.is_symlink():
-                    raise ValueError(
-                        f"Path contains symlink: {session_file}\n"
-                        f"Resolved path is a symlink: {resolved_path}\n"
-                        f"Expected: Regular file path without symlinks\n"
-                        f"See: docs/SECURITY.md#path-validation"
-                    )
-
-                # SECURITY LAYER 3: Whitelist validation using relative_to()
-                # Ensure path is within project root (not /etc/, /usr/, etc.)
-                # This replaces blacklist approach with whitelist approach
-
-                # Detect pytest test mode (Issue #46 - enable tests without compromising security)
-                is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
-
-                if not is_test_mode:
-                    # Production mode: Strict PROJECT_ROOT validation
-                    try:
-                        # This will raise ValueError if path is outside PROJECT_ROOT
-                        resolved_path.relative_to(PROJECT_ROOT)
-                    except ValueError:
-                        raise ValueError(
-                            f"Path outside project root: {session_file}\n"
-                            f"Session files must be within project directory.\n"
-                            f"Resolved path: {resolved_path}\n"
-                            f"Project root: {PROJECT_ROOT}\n"
-                            f"Expected: Path within project (e.g., docs/sessions/session.json)\n"
-                            f"See: docs/SECURITY.md#path-validation"
-                        )
-                else:
-                    # Test mode: Whitelist temp directories only (SECURITY FIX - Issue #46)
-                    # CRITICAL: Use whitelist (only allow safe temp dirs), not blacklist
-                    import tempfile
-
-                    # Get system temp directory (typically /tmp, /var/tmp, or platform-specific)
-                    system_temp = Path(tempfile.gettempdir()).resolve()
-
-                    # Allow: PROJECT_ROOT OR system temp directory
-                    is_in_project = False
-                    is_in_temp = False
-
-                    try:
-                        resolved_path.relative_to(PROJECT_ROOT)
-                        is_in_project = True
-                    except ValueError:
-                        pass
-
-                    try:
-                        resolved_path.relative_to(system_temp)
-                        is_in_temp = True
-                    except ValueError:
-                        pass
-
-                    if not (is_in_project or is_in_temp):
-                        raise ValueError(
-                            f"Path outside allowed directories (test mode): {session_file}\n"
-                            f"Resolved path: {resolved_path}\n"
-                            f"Allowed locations:\n"
-                            f"  - Project root: {PROJECT_ROOT}\n"
-                            f"  - System temp: {system_temp}\n"
-                            f"Test mode uses WHITELIST approach for security.\n"
-                            f"See: docs/SECURITY.md#path-validation"
-                        )
-
-            except (OSError, RuntimeError) as e:
-                # Symlink loops or permission issues
-                raise ValueError(
-                    f"Invalid session file path: {session_file}\n"
-                    f"Error: {e}\n"
-                    f"Expected: Valid filesystem path within project\n"
-                    f"See: docs/SECURITY.md#path-validation"
-                )
+            # SECURITY: Validate path using shared validation module
+            # This ensures consistent security enforcement across all components
+            validated_path = validate_path(
+                Path(session_file),
+                purpose="agent session tracking",
+                allow_missing=True  # Allow non-existent session files (will be created)
+            )
+            self.session_file = validated_path
 
             self.session_dir = self.session_file.parent
             self.session_dir.mkdir(parents=True, exist_ok=True)
@@ -372,7 +278,22 @@ class AgentTracker:
             # Never in a partially-written state
             temp_path.replace(self.session_file)
 
+            # Audit log successful save
+            audit_log("agent_tracker", "success", {
+                "operation": "save_session",
+                "session_file": str(self.session_file),
+                "temp_file": str(temp_path),
+                "agent_count": len(self.session_data.get("agents", []))
+            })
+
         except Exception as e:
+            # Audit log failure
+            audit_log("agent_tracker", "failure", {
+                "operation": "save_session",
+                "session_file": str(self.session_file),
+                "temp_file": str(temp_path) if temp_path else None,
+                "error": str(e)
+            })
             # Cleanup temp file on any error
             # This prevents orphaned .tmp files accumulating
             if temp_fd is not None:
@@ -404,61 +325,21 @@ class AgentTracker:
                        Includes expected format and valid agents list.
             TypeError: If agent_name is None or not string.
 
-        Input Validation (GitHub Issue #45):
-        =====================================
-        agent_name validation:
-        - Type check: Must be string (not None, not int, etc.)
-        - Content check: Cannot be empty or whitespace only
-        - Membership check: Must be in EXPECTED_AGENTS list (bypass in test mode)
-        - Rationale: Prevents injection, ensures valid agent tracking
-
-        message validation:
-        - Length check: Cannot exceed 10KB (10000 bytes)
-        - Rationale: Prevents log bloat from extremely long messages
-        - Examples: "Failed to parse JWT" (OK), 10KB+ message (rejected)
+        Security:
+            Uses shared security_utils validation for consistent enforcement
+            across all modules. Logs validation attempts to audit log.
         """
-        # Validate agent name
-        # Type validation: Ensure it's a string
-        if agent_name is None:
-            raise TypeError(
-                "Agent name cannot be None.\n"
-                "Expected: Non-empty string (e.g., 'researcher')\n"
-                "Got: None"
-            )
+        # SECURITY: Validate inputs using shared validation module
+        agent_name = validate_agent_name(agent_name, purpose="agent start")
+        message = validate_input_length(message, 10000, "message", purpose="agent start")
 
-        if not isinstance(agent_name, str):
-            raise TypeError(
-                f"Agent name must be string, got {type(agent_name).__name__}\n"
-                f"Expected: str (e.g., 'researcher')\n"
-                f"Got: {type(agent_name).__name__}"
-            )
-
-        # Content validation: Ensure it's not empty or whitespace
-        if not agent_name or not agent_name.strip():
-            raise ValueError(
-                "Agent name cannot be empty or whitespace.\n"
-                f"Expected: Non-empty string (e.g., 'researcher')\n"
-                f"Got: '{agent_name}'"
-            )
-
-        # Membership validation: In test mode, allow any agent name for flexibility
-        # Otherwise, enforce EXPECTED_AGENTS list
+        # Additional membership check for EXPECTED_AGENTS (business logic, not security)
         is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
         if not is_test_mode and agent_name not in EXPECTED_AGENTS:
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
                 f"Agent not recognized in EXPECTED_AGENTS list.\n"
                 f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
-            )
-
-        # Message length validation: Prevent bloat
-        # Limit: 10KB (10000 bytes) to prevent extremely long messages
-        if len(message) > MAX_MESSAGE_LENGTH:
-            raise ValueError(
-                f"Message too long: {len(message)} bytes (max {MAX_MESSAGE_LENGTH})\n"
-                f"Message exceeds maximum length to prevent log bloat.\n"
-                f"Expected: Message <= {MAX_MESSAGE_LENGTH} bytes\n"
-                f"Suggestion: Truncate to first {MAX_MESSAGE_LENGTH} chars"
             )
 
         entry = {
@@ -484,31 +365,21 @@ class AgentTracker:
         Raises:
             ValueError: If agent_name is empty/invalid or message too long
             TypeError: If agent_name is None
+
+        Security:
+            Uses shared security_utils validation for consistent enforcement.
         """
-        # Validate agent name
-        if agent_name is None:
-            raise TypeError("Agent name cannot be None")
+        # SECURITY: Validate inputs using shared validation module
+        agent_name = validate_agent_name(agent_name, purpose="agent completion")
+        message = validate_input_length(message, 10000, "message", purpose="agent completion")
 
-        if not isinstance(agent_name, str):
-            raise TypeError(f"Agent name must be string, got {type(agent_name)}")
-
-        if not agent_name or not agent_name.strip():
-            raise ValueError("Agent name cannot be empty or whitespace")
-
-        # In test mode, allow any agent name for flexibility
+        # Additional membership check for EXPECTED_AGENTS (business logic, not security)
         is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
         if not is_test_mode and agent_name not in EXPECTED_AGENTS:
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
                 f"Agent not recognized in EXPECTED_AGENTS list.\n"
                 f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
-            )
-
-        # Validate message length
-        if len(message) > MAX_MESSAGE_LENGTH:
-            raise ValueError(
-                f"Message too long: {len(message)} bytes (max {MAX_MESSAGE_LENGTH})\n"
-                f"Message exceeds maximum length to prevent log bloat."
             )
 
         # Find the most recent entry for this agent
@@ -559,31 +430,21 @@ class AgentTracker:
         Raises:
             ValueError: If agent_name is empty/invalid or message too long
             TypeError: If agent_name is None
+
+        Security:
+            Uses shared security_utils validation for consistent enforcement.
         """
-        # Validate agent name (same as start_agent)
-        if agent_name is None:
-            raise TypeError("Agent name cannot be None")
+        # SECURITY: Validate inputs using shared validation module
+        agent_name = validate_agent_name(agent_name, purpose="agent failure")
+        message = validate_input_length(message, 10000, "message", purpose="agent failure")
 
-        if not isinstance(agent_name, str):
-            raise TypeError(f"Agent name must be string, got {type(agent_name)}")
-
-        if not agent_name or not agent_name.strip():
-            raise ValueError("Agent name cannot be empty or whitespace")
-
-        # In test mode, allow any agent name for flexibility
+        # Additional membership check for EXPECTED_AGENTS (business logic, not security)
         is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
         if not is_test_mode and agent_name not in EXPECTED_AGENTS:
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
                 f"Agent not recognized in EXPECTED_AGENTS list.\n"
                 f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
-            )
-
-        # Validate message length
-        if len(message) > MAX_MESSAGE_LENGTH:
-            raise ValueError(
-                f"Message too long: {len(message)} bytes (max {MAX_MESSAGE_LENGTH})\n"
-                f"Message exceeds maximum length to prevent log bloat."
             )
 
         # Find the most recent entry for this agent
@@ -631,48 +492,11 @@ class AgentTracker:
             TypeError: If issue_number is not an integer (not float, str, etc).
             ValueError: If issue_number outside range 1-999999.
 
-        Input Validation (GitHub Issue #45):
-        =====================================
-        Type validation:
-        - Must be int type, not float/str/None
-        - Rationale: Prevents accidental string numbers or null values
-
-        Range validation:
-        - Minimum: 1 (no zero or negative issue numbers)
-        - Maximum: 999999 (practical limit, GitHub repos rarely have 1M+ issues)
-        - Rationale: Prevents invalid numbers and resource exhaustion
-
-        Examples:
-        - set_github_issue(42) -> OK
-        - set_github_issue("42") -> TypeError (string not int)
-        - set_github_issue(-5) -> ValueError (below minimum)
-        - set_github_issue(1000000) -> ValueError (above maximum)
+        Security:
+            Uses shared security_utils validation for consistent enforcement.
         """
-        # Validate type: Must be int, not float/str/None/bool
-        if not isinstance(issue_number, int) or isinstance(issue_number, bool):
-            raise TypeError(
-                f"Issue number must be an integer, got {type(issue_number).__name__}\n"
-                f"Expected: positive integer (e.g., 42)\n"
-                f"Got: {issue_number}"
-            )
-
-        # Validate range: Must be positive and reasonable
-        if issue_number < MIN_ISSUE_NUMBER:
-            raise ValueError(
-                f"Invalid issue number: {issue_number}\n"
-                f"Issue number must be a positive integer >= {MIN_ISSUE_NUMBER}\n"
-                f"Expected: positive integer\n"
-                f"Got: {issue_number}"
-            )
-
-        if issue_number > MAX_ISSUE_NUMBER:
-            raise ValueError(
-                f"Issue number too large: {issue_number}\n"
-                f"GitHub issue numbers are typically < 1M.\n"
-                f"Maximum allowed: {MAX_ISSUE_NUMBER}\n"
-                f"Expected: integer between {MIN_ISSUE_NUMBER}-{MAX_ISSUE_NUMBER}\n"
-                f"Got: {issue_number}"
-            )
+        # SECURITY: Validate issue number using shared validation module
+        issue_number = validate_github_issue(issue_number, purpose="session tracking")
 
         self.session_data["github_issue"] = issue_number
         self._save()

@@ -1144,6 +1144,7 @@ cd my-fastapi-project
 - [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
 - [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
+- [SECURITY.md](docs/SECURITY.md) - Security utilities, path validation, audit logging
 
 ### For Contributors
 
@@ -1153,6 +1154,7 @@ cd my-fastapi-project
 | [docs/](docs/) | Development documentation (architecture, code review, implementation status) |
 | [.claude/PROJECT.md](.claude/PROJECT.md) | Project architecture & goals |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security architecture, utilities, vulnerability fixes (v3.4.1+) |
 
 ---
 
