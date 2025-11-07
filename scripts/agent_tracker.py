@@ -779,6 +779,203 @@ class AgentTracker:
         print(f"Total duration: {total_duration // 60}m {total_duration % 60}s")
         print()
 
+    def verify_parallel_exploration(self) -> bool:
+        """Verify parallel execution of researcher and planner agents.
+
+        This method validates that both researcher and planner agents completed
+        successfully and calculates parallelization efficiency metrics.
+
+        Returns:
+            True if both agents completed (parallel or sequential)
+            False if agents incomplete or failed
+
+        Side Effects:
+            Writes parallel_exploration metadata to session file:
+            {
+                "status": "parallel" | "sequential" | "incomplete" | "failed",
+                "sequential_time_seconds": int,
+                "parallel_time_seconds": int,
+                "time_saved_seconds": int,
+                "efficiency_percent": float,
+                "missing_agents": List[str],  # if incomplete
+                "failed_agents": List[str]    # if failed
+            }
+
+        Raises:
+            ValueError: Invalid timestamp format or missing required fields
+
+        Phase 2 Requirements:
+            - Verify both researcher and planner completed
+            - Detect parallel vs sequential execution (start times within 5 seconds)
+            - Calculate time savings and efficiency metrics
+            - Handle failures gracefully
+        """
+        # Reload session data to get latest state (in case file was modified externally)
+        if self.session_file.exists():
+            self.session_data = json.loads(self.session_file.read_text())
+
+        # Initialize duplicate tracking
+        self._duplicate_agents = []
+
+        # Find researcher and planner agents
+        researcher = self._find_agent("researcher")
+        planner = self._find_agent("planner")
+
+        # Check completion status
+        if not researcher or not planner:
+            missing_agents = []
+            if not researcher:
+                missing_agents.append("researcher")
+            if not planner:
+                missing_agents.append("planner")
+
+            self._write_incomplete_status(missing_agents)
+            return False
+
+        if researcher["status"] != "completed" or planner["status"] != "completed":
+            # Distinguish between failed agents and not-yet-completed agents
+            failed_agents = []
+            incomplete_agents = []
+
+            if researcher["status"] == "failed":
+                failed_agents.append("researcher")
+            elif researcher["status"] != "completed":
+                incomplete_agents.append("researcher")
+
+            if planner["status"] == "failed":
+                failed_agents.append("planner")
+            elif planner["status"] != "completed":
+                incomplete_agents.append("planner")
+
+            # If any failed, report as failed
+            if failed_agents:
+                self._write_failed_status(failed_agents)
+            else:
+                # Otherwise report as incomplete (agents not yet finished)
+                self._write_incomplete_status(incomplete_agents)
+            return False
+
+        # Validate timing data
+        self._validate_timestamps(researcher, planner)
+
+        # Calculate metrics
+        researcher_duration = researcher.get("duration_seconds", 0)
+        planner_duration = planner.get("duration_seconds", 0)
+
+        sequential_time = researcher_duration + planner_duration
+        parallel_time = max(researcher_duration, planner_duration)
+        time_saved = sequential_time - parallel_time
+        efficiency = (time_saved / sequential_time * 100) if sequential_time > 0 else 0
+
+        # Detect parallel vs sequential execution
+        is_parallel = self._detect_parallel_execution(researcher, planner)
+        status = "parallel" if is_parallel else "sequential"
+
+        # If sequential, time_saved should be 0
+        if not is_parallel:
+            time_saved = 0
+            efficiency = 0
+
+        # Write metrics to session file
+        metrics = {
+            "status": status,
+            "sequential_time_seconds": sequential_time,
+            "parallel_time_seconds": parallel_time,
+            "time_saved_seconds": time_saved,
+            "efficiency_percent": round(efficiency, 2)
+        }
+
+        # Add duplicate_agents if any were found
+        if hasattr(self, '_duplicate_agents') and self._duplicate_agents:
+            metrics["duplicate_agents"] = list(set(self._duplicate_agents))  # Remove duplicates in the list itself
+
+        self.session_data["parallel_exploration"] = metrics
+        self._save()
+
+        # Audit log verification result
+        audit_log("agent_tracker", "success", {
+            "operation": "verify_parallel_exploration",
+            "status": status,
+            "time_saved_seconds": time_saved,
+            "efficiency_percent": round(efficiency, 2)
+        })
+
+        return True
+
+    def _find_agent(self, agent_name: str) -> Optional[Dict[str, Any]]:
+        """Find agent in session data, return latest entry.
+
+        Also tracks if there are duplicates for warning purposes.
+        """
+        agents = [a for a in self.session_data.get("agents", []) if a["agent"] == agent_name]
+        if not agents:
+            return None
+
+        # Track duplicates
+        if len(agents) > 1 and not hasattr(self, '_duplicate_agents'):
+            self._duplicate_agents = []
+        if len(agents) > 1:
+            self._duplicate_agents.append(agent_name)
+
+        # Return latest entry (completed or otherwise)
+        return agents[-1]
+
+    def _validate_timestamps(self, researcher: Dict[str, Any], planner: Dict[str, Any]):
+        """Validate timestamps are present and valid ISO format."""
+        for agent_name, data in [("researcher", researcher), ("planner", planner)]:
+            if "started_at" not in data or "completed_at" not in data:
+                raise ValueError(
+                    f"Missing timestamp for {agent_name}\n"
+                    f"Required fields: started_at, completed_at\n"
+                    f"Found: {list(data.keys())}"
+                )
+            try:
+                datetime.fromisoformat(data["started_at"])
+                datetime.fromisoformat(data["completed_at"])
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid timestamp format for {agent_name}: {e}\n"
+                    f"Expected ISO format: YYYY-MM-DDTHH:MM:SS\n"
+                    f"Got started_at: {data.get('started_at')}\n"
+                    f"Got completed_at: {data.get('completed_at')}"
+                )
+
+    def _detect_parallel_execution(self, researcher: Dict[str, Any], planner: Dict[str, Any]) -> bool:
+        """Detect if agents ran in parallel (start times within 5 seconds)."""
+        researcher_start = datetime.fromisoformat(researcher["started_at"])
+        planner_start = datetime.fromisoformat(planner["started_at"])
+
+        time_diff = abs((planner_start - researcher_start).total_seconds())
+        return time_diff < 5  # Parallel if started within 5 seconds
+
+    def _write_incomplete_status(self, missing_agents: List[str]):
+        """Write incomplete status to session file."""
+        self.session_data["parallel_exploration"] = {
+            "status": "incomplete",
+            "missing_agents": missing_agents
+        }
+        self._save()
+
+        audit_log("agent_tracker", "failure", {
+            "operation": "verify_parallel_exploration",
+            "status": "incomplete",
+            "missing_agents": missing_agents
+        })
+
+    def _write_failed_status(self, failed_agents: List[str]):
+        """Write failed status to session file."""
+        self.session_data["parallel_exploration"] = {
+            "status": "failed",
+            "failed_agents": failed_agents
+        }
+        self._save()
+
+        audit_log("agent_tracker", "failure", {
+            "operation": "verify_parallel_exploration",
+            "status": "failed",
+            "failed_agents": failed_agents
+        })
+
     # Helper methods for testing (aliases to existing methods)
     def log_start(self, agent_name: str, message: str):
         """Alias for start_agent() for backward compatibility with tests."""

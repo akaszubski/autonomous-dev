@@ -43,15 +43,18 @@ Options:
 
 ---
 
-### STEP 1: Invoke Researcher Agent
+### STEP 1: Parallel Exploration (Researcher + Planner Simultaneously)
 
-⚠️ **ACTION REQUIRED NOW**: Invoke the Task tool immediately.
+⚠️ **ACTION REQUIRED NOW**: Invoke TWO agents in PARALLEL (single response).
 
-**WRONG** ❌: "I will research patterns for this feature..."
-**WRONG** ❌: "Based on my knowledge..."
-**WRONG** ❌: "Here's what I found..."
+**CRITICAL**: You MUST call Task tool TWICE in a single response. This enables parallel execution and reduces exploration time from 8 minutes to 5 minutes (Phase 2 optimization from Issue #46).
 
-**CORRECT** ✅: Actually invoke the Task tool with these parameters:
+**WRONG** ❌: "I will research patterns, then plan..."
+**WRONG** ❌: Invoking researcher, waiting for completion, then invoking planner (sequential)
+
+**CORRECT** ✅: Make TWO Task tool calls in ONE response:
+
+#### Agent 1: Researcher
 
 ```
 subagent_type: "researcher"
@@ -70,29 +73,12 @@ Output: Summary of findings with recommendations for implementation."
 model: "sonnet"
 ```
 
-**DO IT NOW**. Do not proceed until researcher completes.
-
-**After researcher completes**, VERIFY invocation succeeded:
-```bash
-python scripts/session_tracker.py auto-implement "Researcher completed - findings: [1-line summary]"
-python scripts/agent_tracker.py status
-```
-
-⚠️ **CHECKPOINT 1**: Verify output shows "researcher" in the agent list.
-If not, you FAILED to invoke the Task tool. GO BACK and actually invoke it.
-
----
-
-### STEP 2: Invoke Planner Agent
-
-⚠️ **ACTION REQUIRED**: After researcher completes, IMMEDIATELY invoke planner.
-
-**CORRECT** ✅: Call Task tool with:
+#### Agent 2: Planner
 
 ```
 subagent_type: "planner"
 description: "Plan [feature name]"
-prompt: "Based on research findings: [summarize key points from researcher], create detailed implementation plan.
+prompt: "Create detailed implementation plan for: [user's feature description].
 
 Include:
 - File structure (what files to create/modify)
@@ -107,20 +93,48 @@ Output: Step-by-step implementation plan with file-by-file breakdown."
 model: "sonnet"
 ```
 
-**DO IT NOW**. Don't move to STEP 3 until planner completes.
-
-**After planner completes**, VERIFY invocation succeeded:
-```bash
-python scripts/session_tracker.py auto-implement "Planner completed - plan: [1-line summary]"
-python scripts/agent_tracker.py status
-```
-
-⚠️ **CHECKPOINT 2**: Verify output shows both "researcher" and "planner" ran.
-If count != 2, GO BACK and invoke missing agents.
+**DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.
 
 ---
 
-### STEP 3: Invoke Test-Master Agent (TDD - Tests BEFORE Implementation)
+### STEP 1.1: Verify Parallel Exploration
+
+**After both agents complete**, verify parallel execution succeeded:
+
+```bash
+python scripts/session_tracker.py auto-implement "Parallel exploration completed - processing results"
+python scripts/agent_tracker.py status
+```
+
+⚠️ **CHECKPOINT 1**: Call `verify_parallel_exploration()` to validate:
+
+```bash
+cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+from scripts.agent_tracker import AgentTracker
+tracker = AgentTracker()
+success = tracker.verify_parallel_exploration()
+print(f"\n{'✅ PARALLEL EXPLORATION: SUCCESS' if success else '❌ PARALLEL EXPLORATION: FAILED'}")
+if not success:
+    print("\n⚠️ One or more agents missing. Check session file for details.")
+    print("Re-invoke missing agents before continuing to STEP 2.\n")
+EOF
+```
+
+**If checkpoint FAILS** (returns False):
+1. Check which agent is missing: `python scripts/agent_tracker.py status`
+2. Re-invoke missing agent sequentially
+3. Re-run checkpoint verification
+
+**If checkpoint PASSES** (returns True):
+- Check session file for parallel execution metrics:
+  - `time_saved_seconds`: How much time parallelization saved
+  - `efficiency_percent`: Parallelization efficiency (target: ≥50%)
+  - `status`: "parallel" or "sequential"
+- Proceed to STEP 2 (test-master)
+
+---
+
+### STEP 2: Invoke Test-Master Agent (TDD - Tests BEFORE Implementation)
 
 ⚠️ **ACTION REQUIRED**: Invoke Task tool NOW.
 
@@ -153,14 +167,14 @@ python scripts/session_tracker.py auto-implement "Test-master completed - tests:
 python scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 3 - CRITICAL TDD GATE**: Verify output shows 3 agents ran (researcher, planner, test-master).
+⚠️ **CHECKPOINT 2 - CRITICAL TDD GATE**: Verify output shows 3 agents ran (researcher, planner, test-master).
 
 This is the TDD checkpoint - tests MUST exist before implementation.
 If count != 3, STOP and invoke missing agents NOW.
 
 ---
 
-### STEP 4: Invoke Implementer Agent
+### STEP 3: Invoke Implementer Agent
 
 ⚠️ **ACTION REQUIRED**: Now that tests exist, implement to make them pass.
 
@@ -194,11 +208,11 @@ python scripts/session_tracker.py auto-implement "Implementer completed - files:
 python scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 4**: Verify 4 agents ran. If not, invoke missing agents before continuing.
+⚠️ **CHECKPOINT 3**: Verify 4 agents ran. If not, invoke missing agents before continuing.
 
 ---
 
-### STEP 5: Parallel Validation (3 Agents Simultaneously)
+### STEP 4: Parallel Validation (3 Agents Simultaneously)
 
 ⚠️ **ACTION REQUIRED**: Invoke THREE validation agents in PARALLEL (single response).
 
@@ -278,7 +292,7 @@ model: "haiku"
 
 ---
 
-### STEP 5.1: Handle Validation Results
+### STEP 4.1: Handle Validation Results
 
 **After all three validators complete**, analyze combined results:
 
@@ -320,9 +334,9 @@ python scripts/agent_tracker.py status
 
 ---
 
-### STEP 5.2: Final Agent Verification
+### STEP 4.2: Final Agent Verification
 
-⚠️ **CHECKPOINT 5 - VERIFY ALL 7 AGENTS RAN**:
+⚠️ **CHECKPOINT 4 - VERIFY ALL 7 AGENTS RAN**:
 
 Expected agents:
 1. researcher ✅
@@ -342,11 +356,11 @@ python scripts/agent_tracker.py status
 
 Identify which agents are missing and invoke them NOW before proceeding.
 
-**If count == 7**: Proceed to STEP 6 (Git Operations).
+**If count == 7**: Proceed to STEP 5 (Report Completion).
 
 ---
 
-### STEP 6: Git Operations (Consent-Based Automation)
+### STEP 5: Report Completion
 
 **AFTER** all 7 agents complete successfully, offer to commit and push changes.
 
@@ -521,9 +535,7 @@ This is **graceful degradation** - automate where possible, but never block succ
 
 ---
 
-### STEP 7: Report Completion
-
-**ONLY AFTER** confirming all 7 agents ran (checkpoint 5 passed), tell the user:
+**ONLY AFTER** confirming all 7 agents ran (checkpoint 4 passed), tell the user:
 
 ```
 ✅ Feature complete! All 7 agents executed successfully.
