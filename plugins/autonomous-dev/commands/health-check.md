@@ -23,7 +23,7 @@ Validates all autonomous-dev plugin components to ensure the system is functioni
 
 ## What This Does
 
-Validates 3 critical component types:
+Validates 4 critical component types:
 
 1. **Agents** (18 specialist agents - orchestrator removed in v3.2.2)
    - Core workflow: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master
@@ -40,6 +40,12 @@ Validates 3 critical component types:
    - Core: auto-implement, align-project, align-claude, setup, sync-dev, status, health-check, pipeline-status
    - Individual agents: research, plan, test-feature, implement, review, security-scan, update-docs
    - Utility: test, uninstall, update-plugin
+
+4. **Marketplace Version** (NEW in v3.7.1)
+   - Detects version differences between marketplace and project plugin
+   - Shows available upgrades/downgrades
+   - Alerts if plugin is out of sync with installed version
+   - See: `lib/version_detector.py` (GitHub #50)
 
 Note: Skills are active (19 skills) but not validated by health check - they use progressive disclosure in Claude Code 2.0+
 
@@ -102,6 +108,12 @@ Commands: 18/18 present
   /update-docs ................... PASS
   /update-plugin ................. PASS
 
+Marketplace Version Check
+  Project version: 3.7.0
+  Marketplace version: 3.7.1
+  Status: ⬆ Update available (3.7.0 → 3.7.1)
+  Action: Run `/sync --marketplace` to update
+
 ============================================================
 OVERALL STATUS: HEALTHY
 ============================================================
@@ -154,6 +166,7 @@ Action: Reinstall plugin with /plugin uninstall autonomous-dev && /plugin instal
 - After plugin updates (ensure compatibility)
 - When debugging plugin issues (identify missing components)
 - Regular system validation (weekly/monthly checks)
+- To check for marketplace updates (version check shows available upgrades)
 
 ## Related Commands
 

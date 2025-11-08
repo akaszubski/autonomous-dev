@@ -137,18 +137,40 @@ Checking for orphaned files...
 ✓ All marketplace sync operations complete
 ```
 
-**Version Detection** (NEW in v3.7.1):
-- Compares marketplace vs project plugin versions
-- Shows available upgrades (3.7.0 → 3.7.1)
-- Warns about downgrade risk if applicable
-- Prevents silent stale plugin issues
+**Version Detection** (NEW in v3.7.1 - GitHub #50):
+- **How it works**: Parses `MAJOR.MINOR.PATCH[-PRERELEASE]` from both marketplace and project `plugin.json`
+- **Comparison**: Detects upgrade available, downgrade risk, or up-to-date status
+- **Shows available upgrades**: 3.7.0 → 3.7.1 (tells you what's new)
+- **Warns about downgrade risk**: If project is newer than marketplace (edge case)
+- **Prevents silent stale issues**: You always know if updates are available
+- **Implementation**: `lib/version_detector.py` (531 lines, 20 unit tests)
+  - `Version` class: Semantic version object with comparison operators
+  - `VersionComparison` dataclass: Result with `is_upgrade`, `is_downgrade`, `status`, `message`
+  - `detect_version_mismatch()` function: High-level API for version comparison
+  - **Security**: Path validation, audit logging (CWE-22, CWE-59 protection)
+  - **Error handling**: Clear messages with expected format and troubleshooting hints
+  - **Pre-release handling**: Correctly handles `3.7.0`, `3.8.0-beta.1`, `3.8.0-rc.2` patterns
 
-**Orphan Cleanup** (NEW in v3.7.1):
-- Detects files removed/renamed in newer plugin versions
-- Reports orphans in dry-run mode (safe default)
-- Optional cleanup with `--cleanup` flag (removes old files)
-- User approval required before deletion (unless `-y` flag)
-- Atomic cleanup with rollback on failure
+**Orphan Cleanup** (NEW in v3.7.1 - GitHub #50):
+- **What is an orphan?**: Files in `.claude/` that aren't in the current plugin version
+- **Why cleanup matters**: Old/deprecated files can cause confusion or silent behavior changes
+- **Detection**: Scans `.claude/commands/`, `.claude/hooks/`, `.claude/agents/` against plugin.json manifest
+- **Reports orphans in dry-run mode**: Safe default - shows what would be deleted
+- **Optional cleanup with `--cleanup` flag**: Removes old files (requires confirmation unless `-y` flag)
+- **Atomic cleanup with rollback**: If deletion fails, changes automatically rolled back
+- **Implementation**: `lib/orphan_file_cleaner.py` (514 lines, 22 unit tests)
+  - `OrphanFile` dataclass: Represents orphaned file with path and reason
+  - `CleanupResult` dataclass: Result with `orphans_detected`, `orphans_deleted`, `success`, `summary`
+  - `OrphanFileCleaner` class: Low-level API for fine-grained control
+  - `detect_orphans()`: Detection without cleanup
+  - `cleanup_orphans()`: Cleanup with mode control (dry-run, confirm, auto)
+  - **Security**: Path validation, audit logging to `logs/orphan_cleanup_audit.log` (JSON format)
+  - **Error handling**: Graceful per-file failures (one orphan deletion failure doesn't block others)
+
+**Implementation Integration** (GitHub #51):
+- Both version detection and orphan cleanup are integrated into `sync_dispatcher.py`
+- Enhancement doesn't block core sync - non-blocking error handling
+- See `lib/sync_dispatcher.py` for complete integration details
 
 See `lib/version_detector.py` and `lib/orphan_file_cleaner.py` for implementation details.
 

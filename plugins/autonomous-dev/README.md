@@ -149,6 +149,68 @@ cp ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands
 # Then do a FULL restart (Cmd+Q, not /exit!)
 ```
 
+### Marketplace Update Workflow (NEW in v3.7.1)
+
+After installing or updating the plugin, use the smart `/sync` command to check for marketplace updates and clean up orphaned files:
+
+**Smart Auto-Detection**:
+```bash
+# Auto-detects marketplace mode and syncs
+/sync
+```
+
+**Explicit Marketplace Update**:
+```bash
+# Force marketplace sync with version detection and optional orphan cleanup
+/sync --marketplace
+
+# With orphan cleanup (shows orphans, asks for confirmation)
+/sync --marketplace --cleanup
+
+# With auto-cleanup (removes all orphans without prompting)
+/sync --marketplace --cleanup -y
+```
+
+**What This Does**:
+- **Version Detection** (NEW v3.7.1): Compares marketplace vs project plugin versions, shows available upgrades
+- **File Sync**: Copies latest plugin files to `.claude/` directory
+- **Orphan Detection** (NEW v3.7.1): Identifies files removed in newer plugin versions
+- **Safe Cleanup**: Dry-run by default, user approval before deletion
+
+**Example Output**:
+```
+Detecting sync mode... Marketplace update detected
+
+Checking version...
+  Project version: 3.7.0
+  Marketplace version: 3.7.1
+  ⬆ Update available: 3.7.0 → 3.7.1
+
+Copying files from installed plugin...
+✓ Marketplace sync complete: 47 files updated
+
+Checking for orphaned files...
+  Found 2 orphaned files (safe cleanup available):
+    - .claude/commands/old-sync-dev.md (no longer in v3.7.1)
+    - .claude/hooks/deprecated-validation.py (consolidated)
+
+  Dry-run mode: No files deleted (use --cleanup to remove)
+
+✓ All marketplace sync operations complete
+```
+
+**After Update**:
+1. Run version check: `/health-check` (shows current vs available versions)
+2. Read changelog for new features/fixes in `CHANGELOG.md`
+3. Restart Claude Code if commands updated (Cmd+Q or Ctrl+Q, then reopen)
+
+**For Plugin Developers**:
+- Use `--plugin-dev` for local development: `/sync --plugin-dev`
+- See `plugins/autonomous-dev/lib/version_detector.py` for version detection implementation
+- See `plugins/autonomous-dev/lib/orphan_file_cleaner.py` for orphan cleanup implementation
+
+---
+
 ## ✨ What's New in v3.5.0
 
 **🚀 Automatic Git Operations - Consent-Based Commit, Push & PR Automation**
