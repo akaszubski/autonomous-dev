@@ -1,0 +1,774 @@
+{
+  "version": "2.0",
+  "agent": "test-master",
+  "workflow_id": "20251023_104242",
+  "status": "completed",
+  "timestamp": "2025-10-23T12:00:00.000000",
+
+  "test_summary": {
+    "mode": "TDD",
+    "total_tests": 42,
+    "unit_tests": 28,
+    "integration_tests": 8,
+    "security_tests": 6,
+    "coverage_target": 90,
+    "all_tests_should_fail": true,
+    "reason_for_failure": "No implementation exists yet - TDD red phase"
+  },
+
+  "test_files": [
+    {
+      "path": "tests/unit/test_pr_automation.py",
+      "purpose": "Unit tests for PR automation library - mock all subprocess calls",
+      "test_count": 28,
+      "dependencies": ["pytest", "unittest.mock", "subprocess"],
+      "test_cases": [
+        {
+          "name": "test_validate_gh_prerequisites_success",
+          "description": "Test gh CLI validation succeeds when gh is installed and authenticated",
+          "category": "prerequisites",
+          "inputs": {
+            "gh_version_returncode": 0,
+            "gh_auth_status_returncode": 0
+          },
+          "expected_output": {
+            "valid": true,
+            "error_message": ""
+          },
+          "mocks": [
+            "subprocess.run for 'gh --version'",
+            "subprocess.run for 'gh auth status'"
+          ]
+        },
+        {
+          "name": "test_validate_gh_prerequisites_gh_not_installed",
+          "description": "Test gh CLI validation fails when gh not installed",
+          "category": "prerequisites",
+          "inputs": {
+            "gh_version_side_effect": "FileNotFoundError"
+          },
+          "expected_output": {
+            "valid": false,
+            "error_message": "GitHub CLI not installed"
+          },
+          "mocks": [
+            "subprocess.run to raise FileNotFoundError"
+          ]
+        },
+        {
+          "name": "test_validate_gh_prerequisites_not_authenticated",
+          "description": "Test gh CLI validation fails when not authenticated",
+          "category": "prerequisites",
+          "inputs": {
+            "gh_version_returncode": 0,
+            "gh_auth_status_returncode": 1,
+            "gh_auth_stderr": "You are not logged into any GitHub hosts"
+          },
+          "expected_output": {
+            "valid": false,
+            "error_message": "GitHub CLI not authenticated"
+          },
+          "mocks": [
+            "subprocess.run for 'gh --version'",
+            "subprocess.run for 'gh auth status' with exit code 1"
+          ]
+        },
+        {
+          "name": "test_get_current_branch_success",
+          "description": "Test get current git branch succeeds in valid repository",
+          "category": "git_operations",
+          "inputs": {
+            "git_branch_output": "* feature/pr-automation\n  main\n"
+          },
+          "expected_output": {
+            "branch_name": "feature/pr-automation"
+          },
+          "mocks": [
+            "subprocess.run for 'git branch' returning sample output"
+          ]
+        },
+        {
+          "name": "test_get_current_branch_not_git_repo",
+          "description": "Test get current branch fails when not in git repository",
+          "category": "git_operations",
+          "inputs": {
+            "git_branch_side_effect": "subprocess.CalledProcessError"
+          },
+          "expected_output": {
+            "exception": "subprocess.CalledProcessError"
+          },
+          "mocks": [
+            "subprocess.run for 'git branch' raising CalledProcessError"
+          ]
+        },
+        {
+          "name": "test_get_current_branch_detached_head",
+          "description": "Test get current branch handles detached HEAD state",
+          "category": "git_operations",
+          "inputs": {
+            "git_branch_output": "* (HEAD detached at v1.0.0)\n  main\n"
+          },
+          "expected_output": {
+            "branch_name": "HEAD"
+          },
+          "mocks": [
+            "subprocess.run for 'git branch' with detached HEAD output"
+          ]
+        },
+        {
+          "name": "test_parse_commit_messages_for_issues_single_issue",
+          "description": "Test parsing commit messages finds single issue number",
+          "category": "commit_parsing",
+          "inputs": {
+            "git_log_output": "commit abc123\nAuthor: Test\nDate: 2025-10-23\n\n    feat: add PR automation\n    \n    Closes #42\n"
+          },
+          "expected_output": {
+            "issue_numbers": [42]
+          },
+          "mocks": [
+            "subprocess.run for 'git log main..HEAD' returning sample output"
+          ]
+        },
+        {
+          "name": "test_parse_commit_messages_for_issues_multiple_issues",
+          "description": "Test parsing commit messages finds multiple issue numbers",
+          "category": "commit_parsing",
+          "inputs": {
+            "git_log_output": "commit abc123\n\n    feat: add PR automation\n    \n    Closes #42\n    Fixes #123\n    Resolves #456\n"
+          },
+          "expected_output": {
+            "issue_numbers": [42, 123, 456]
+          },
+          "mocks": [
+            "subprocess.run for 'git log' returning multi-issue output"
+          ]
+        },
+        {
+          "name": "test_parse_commit_messages_for_issues_no_issues",
+          "description": "Test parsing commit messages with no issue references",
+          "category": "commit_parsing",
+          "inputs": {
+            "git_log_output": "commit abc123\n\n    feat: add PR automation\n    \n    No issue references here\n"
+          },
+          "expected_output": {
+            "issue_numbers": []
+          },
+          "mocks": [
+            "subprocess.run for 'git log' with no issue keywords"
+          ]
+        },
+        {
+          "name": "test_parse_commit_messages_for_issues_case_insensitive",
+          "description": "Test parsing handles case variations (CLOSES, closes, Closes)",
+          "category": "commit_parsing",
+          "inputs": {
+            "git_log_output": "commit abc123\n\n    CLOSES #42\n    fixes #123\n    Resolves #456\n"
+          },
+          "expected_output": {
+            "issue_numbers": [42, 123, 456]
+          },
+          "mocks": [
+            "subprocess.run for 'git log' with mixed case keywords"
+          ]
+        },
+        {
+          "name": "test_parse_commit_messages_for_issues_deduplication",
+          "description": "Test parsing deduplicates repeated issue numbers",
+          "category": "commit_parsing",
+          "inputs": {
+            "git_log_output": "commit abc123\n\n    Closes #42\ncommit def456\n\n    Fixes #42\n"
+          },
+          "expected_output": {
+            "issue_numbers": [42]
+          },
+          "mocks": [
+            "subprocess.run for 'git log' with duplicate issue numbers"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_draft_default",
+          "description": "Test PR creation defaults to draft status",
+          "category": "pr_creation",
+          "inputs": {
+            "title": null,
+            "body": null,
+            "draft": true,
+            "base": "main",
+            "head": "feature/pr-automation",
+            "reviewer": null
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 42,
+            "pr_url": "https://github.com/akaszubski/autonomous-dev/pull/42",
+            "draft": true,
+            "linked_issues": [],
+            "error": null
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --draft --fill-verbose'",
+            "get_current_branch returning 'feature/pr-automation'",
+            "validate_gh_prerequisites returning (True, '')"
+          ],
+          "assertions": [
+            "subprocess.run called with ['gh', 'pr', 'create', '--draft', '--fill-verbose', '--base', 'main']",
+            "result['success'] is True",
+            "result['pr_number'] == 42",
+            "result['draft'] is True"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_ready_with_flag",
+          "description": "Test PR creation with ready flag (not draft)",
+          "category": "pr_creation",
+          "inputs": {
+            "title": null,
+            "body": null,
+            "draft": false,
+            "base": "main",
+            "head": "feature/pr-automation",
+            "reviewer": null
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 43,
+            "pr_url": "https://github.com/akaszubski/autonomous-dev/pull/43",
+            "draft": false,
+            "linked_issues": [],
+            "error": null
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --fill-verbose' (no --draft flag)"
+          ],
+          "assertions": [
+            "subprocess.run called WITHOUT --draft flag",
+            "result['draft'] is False"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_with_custom_title_body",
+          "description": "Test PR creation with custom title and body (overrides --fill)",
+          "category": "pr_creation",
+          "inputs": {
+            "title": "Custom PR Title",
+            "body": "Custom PR body content",
+            "draft": true,
+            "base": "main",
+            "head": "feature/pr-automation",
+            "reviewer": null
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 44,
+            "pr_url": "https://github.com/akaszubski/autonomous-dev/pull/44",
+            "draft": true
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --draft --title \"Custom PR Title\" --body \"Custom PR body content\"'"
+          ],
+          "assertions": [
+            "subprocess.run called with --title and --body flags",
+            "subprocess.run NOT called with --fill-verbose"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_with_reviewer",
+          "description": "Test PR creation with reviewer assignment",
+          "category": "pr_creation",
+          "inputs": {
+            "title": null,
+            "body": null,
+            "draft": true,
+            "base": "main",
+            "head": "feature/pr-automation",
+            "reviewer": "alice"
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 45,
+            "pr_url": "https://github.com/akaszubski/autonomous-dev/pull/45",
+            "draft": true
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --draft --fill-verbose --reviewer alice'"
+          ],
+          "assertions": [
+            "subprocess.run called with --reviewer alice flag"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_with_multiple_reviewers",
+          "description": "Test PR creation with multiple reviewers",
+          "category": "pr_creation",
+          "inputs": {
+            "reviewer": "alice,bob,charlie"
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 46
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --reviewer alice,bob,charlie'"
+          ],
+          "assertions": [
+            "subprocess.run called with comma-separated reviewers"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_fails_on_main_branch",
+          "description": "Test PR creation raises ValueError when on main branch",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "current_branch": "main"
+          },
+          "expected_output": {
+            "exception": "ValueError",
+            "exception_message": "Cannot create PR from main branch"
+          },
+          "mocks": [
+            "get_current_branch returning 'main'"
+          ],
+          "assertions": [
+            "ValueError raised",
+            "error message contains 'Cannot create PR from main branch'",
+            "subprocess.run NOT called (validation fails early)"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_fails_on_master_branch",
+          "description": "Test PR creation raises ValueError when on master branch",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "current_branch": "master"
+          },
+          "expected_output": {
+            "exception": "ValueError",
+            "exception_message": "Cannot create PR from master branch"
+          },
+          "mocks": [
+            "get_current_branch returning 'master'"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_fails_no_commits",
+          "description": "Test PR creation raises ValueError when no commits exist",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "git_log_output": ""
+          },
+          "expected_output": {
+            "exception": "ValueError",
+            "exception_message": "No commits found between main and current branch"
+          },
+          "mocks": [
+            "subprocess.run for 'git log main..HEAD' returning empty string"
+          ],
+          "assertions": [
+            "ValueError raised before gh pr create is called"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_fails_no_auth",
+          "description": "Test PR creation fails gracefully when gh not authenticated",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "gh_auth_status_returncode": 1
+          },
+          "expected_output": {
+            "success": false,
+            "error": "GitHub CLI not authenticated"
+          },
+          "mocks": [
+            "validate_gh_prerequisites returning (False, 'GitHub CLI not authenticated')"
+          ],
+          "assertions": [
+            "result['success'] is False",
+            "result['error'] contains authentication error",
+            "subprocess.run for gh pr create NOT called"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_fails_gh_not_installed",
+          "description": "Test PR creation fails gracefully when gh CLI not installed",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "gh_version_side_effect": "FileNotFoundError"
+          },
+          "expected_output": {
+            "success": false,
+            "error": "GitHub CLI not installed"
+          },
+          "mocks": [
+            "validate_gh_prerequisites returning (False, 'GitHub CLI not installed')"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_handles_rate_limit",
+          "description": "Test PR creation handles GitHub API rate limit error",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "gh_pr_create_stderr": "GraphQL error: API rate limit exceeded"
+          },
+          "expected_output": {
+            "success": false,
+            "error": "GitHub API rate limit exceeded"
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create' raising CalledProcessError with rate limit stderr"
+          ],
+          "assertions": [
+            "result['success'] is False",
+            "result['error'] contains 'rate limit'"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_handles_permission_error",
+          "description": "Test PR creation handles 403 permission error (missing repo scope)",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "gh_pr_create_stderr": "GraphQL error: Resource protected by organization SAML enforcement"
+          },
+          "expected_output": {
+            "success": false,
+            "error": "Permission denied"
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create' raising CalledProcessError with 403 stderr"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_handles_network_timeout",
+          "description": "Test PR creation handles network timeout gracefully",
+          "category": "pr_creation_errors",
+          "inputs": {
+            "subprocess_timeout": 30
+          },
+          "expected_output": {
+            "success": false,
+            "error": "GitHub API request timed out"
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create' raising TimeoutExpired"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_parses_pr_url_from_output",
+          "description": "Test PR creation correctly parses PR URL from gh CLI output",
+          "category": "pr_creation",
+          "inputs": {
+            "gh_pr_create_stdout": "https://github.com/akaszubski/autonomous-dev/pull/42\n"
+          },
+          "expected_output": {
+            "pr_url": "https://github.com/akaszubski/autonomous-dev/pull/42",
+            "pr_number": 42
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create' returning URL in stdout"
+          ],
+          "assertions": [
+            "PR number correctly extracted from URL (42)",
+            "PR URL matches gh CLI output"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_includes_linked_issues",
+          "description": "Test PR creation returns linked issues found in commit messages",
+          "category": "pr_creation",
+          "inputs": {
+            "git_log_output": "commit abc\n\n    Closes #42\n    Fixes #123\n"
+          },
+          "expected_output": {
+            "success": true,
+            "linked_issues": [42, 123]
+          },
+          "mocks": [
+            "parse_commit_messages_for_issues returning [42, 123]"
+          ],
+          "assertions": [
+            "result['linked_issues'] == [42, 123]"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_with_base_develop",
+          "description": "Test PR creation with non-main base branch",
+          "category": "pr_creation",
+          "inputs": {
+            "base": "develop",
+            "head": "feature/pr-automation"
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": 47
+          },
+          "mocks": [
+            "subprocess.run for 'gh pr create --base develop'"
+          ],
+          "assertions": [
+            "subprocess.run called with --base develop flag"
+          ]
+        },
+        {
+          "name": "test_create_pull_request_dry_run_mode",
+          "description": "Test PR creation in dry-run mode (no actual API call)",
+          "category": "pr_creation",
+          "inputs": {
+            "dry_run": true
+          },
+          "expected_output": {
+            "success": true,
+            "pr_number": null,
+            "pr_url": null,
+            "dry_run": true
+          },
+          "mocks": [
+            "subprocess.run NOT called when dry_run=True"
+          ],
+          "assertions": [
+            "subprocess.run NOT called",
+            "result['dry_run'] is True",
+            "result contains validation results but no actual PR created"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/integration/test_pr_workflow.py",
+      "purpose": "Integration tests for end-to-end PR creation workflow",
+      "test_count": 8,
+      "dependencies": ["pytest", "unittest.mock", "subprocess"],
+      "test_cases": [
+        {
+          "name": "test_end_to_end_pr_creation_workflow",
+          "description": "Test complete workflow: commit → validate → parse issues → create PR",
+          "category": "workflow",
+          "workflow_steps": [
+            "Mock git repository with feature branch",
+            "Mock commits with 'Closes #42' in message",
+            "Call create_pull_request()",
+            "Verify prerequisites validated",
+            "Verify current branch checked",
+            "Verify commit messages parsed",
+            "Verify gh pr create called with correct flags",
+            "Verify PR URL returned"
+          ],
+          "expected_behavior": "All steps execute in correct order, PR created successfully"
+        },
+        {
+          "name": "test_pr_creation_with_issue_linking",
+          "description": "Test PR auto-links issues from commit messages",
+          "category": "workflow",
+          "workflow_steps": [
+            "Mock commits with 'Closes #42', 'Fixes #123'",
+            "Create PR with auto-fill",
+            "Verify parse_commit_messages_for_issues called",
+            "Verify result contains linked_issues: [42, 123]"
+          ],
+          "expected_behavior": "Issues correctly extracted and returned in result"
+        },
+        {
+          "name": "test_pr_creation_fails_validation_early",
+          "description": "Test PR creation aborts early if prerequisites not met",
+          "category": "workflow",
+          "workflow_steps": [
+            "Mock gh auth status returning not authenticated",
+            "Call create_pull_request()",
+            "Verify gh pr create NOT called",
+            "Verify error returned immediately"
+          ],
+          "expected_behavior": "Validation failures prevent unnecessary subprocess calls"
+        },
+        {
+          "name": "test_pr_creation_with_reviewer_assignment",
+          "description": "Test PR created with reviewer assigned",
+          "category": "workflow",
+          "workflow_steps": [
+            "Call create_pull_request(reviewer='alice')",
+            "Verify gh pr create called with --reviewer alice",
+            "Mock gh CLI output confirming reviewer assigned",
+            "Verify result includes reviewer information"
+          ],
+          "expected_behavior": "Reviewer flag correctly passed to gh CLI"
+        },
+        {
+          "name": "test_pr_creation_from_wrong_branch_fails",
+          "description": "Test PR creation from main branch fails with clear error",
+          "category": "workflow",
+          "workflow_steps": [
+            "Mock current branch as 'main'",
+            "Call create_pull_request()",
+            "Verify ValueError raised",
+            "Verify error message suggests creating feature branch",
+            "Verify gh pr create NOT called"
+          ],
+          "expected_behavior": "Early validation prevents invalid PR creation attempt"
+        },
+        {
+          "name": "test_pr_creation_with_no_commits_fails",
+          "description": "Test PR creation fails when no commits exist between base and head",
+          "category": "workflow",
+          "workflow_steps": [
+            "Mock git log main..HEAD returning empty",
+            "Call create_pull_request()",
+            "Verify ValueError raised",
+            "Verify error message suggests making commits first"
+          ],
+          "expected_behavior": "Empty commit validation prevents useless PR"
+        },
+        {
+          "name": "test_draft_pr_workflow",
+          "description": "Test draft PR creation (default) and conversion to ready",
+          "category": "workflow",
+          "workflow_steps": [
+            "Create PR with draft=True (default)",
+            "Verify gh pr create called with --draft flag",
+            "Verify result['draft'] is True",
+            "Note: Conversion to ready would be separate command (future: /pr-ready)"
+          ],
+          "expected_behavior": "Draft PR created by default for autonomous workflow"
+        },
+        {
+          "name": "test_pr_creation_preserves_custom_title_body",
+          "description": "Test custom title and body override --fill-verbose",
+          "category": "workflow",
+          "workflow_steps": [
+            "Call create_pull_request(title='Custom', body='Custom body')",
+            "Verify gh pr create called with --title and --body flags",
+            "Verify --fill-verbose NOT used",
+            "Verify result confirms custom content"
+          ],
+          "expected_behavior": "Custom title/body respected, auto-fill skipped"
+        }
+      ]
+    },
+    {
+      "path": "tests/security/test_pr_security.py",
+      "purpose": "Security tests for PR automation - token safety, input validation",
+      "test_count": 6,
+      "dependencies": ["pytest", "unittest.mock"],
+      "test_cases": [
+        {
+          "name": "test_github_token_not_leaked_in_logs",
+          "description": "Test GITHUB_TOKEN never appears in stdout/stderr or logs",
+          "category": "secrets",
+          "test_steps": [
+            "Set GITHUB_TOKEN environment variable",
+            "Call create_pull_request()",
+            "Capture all subprocess calls",
+            "Verify token NOT in command args",
+            "Verify token NOT in stdout/stderr",
+            "Verify token passed via environment only"
+          ],
+          "security_requirement": "CRITICAL - token exposure would allow repository compromise"
+        },
+        {
+          "name": "test_github_token_not_in_error_messages",
+          "description": "Test GITHUB_TOKEN not included in error messages",
+          "category": "secrets",
+          "test_steps": [
+            "Trigger various errors (rate limit, permission, timeout)",
+            "Verify error messages don't contain token value",
+            "Verify error['error'] field sanitized"
+          ],
+          "security_requirement": "HIGH - error messages often logged/displayed"
+        },
+        {
+          "name": "test_command_injection_prevention",
+          "description": "Test malicious commit messages don't enable command injection",
+          "category": "injection",
+          "test_steps": [
+            "Mock commit message with shell metacharacters: 'Closes #42; rm -rf /'",
+            "Call create_pull_request()",
+            "Verify subprocess.run called with list args (not shell=True)",
+            "Verify malicious command NOT executed"
+          ],
+          "security_requirement": "CRITICAL - command injection could delete repository"
+        },
+        {
+          "name": "test_issue_number_validation",
+          "description": "Test issue numbers are validated as integers (not arbitrary strings)",
+          "category": "injection",
+          "test_steps": [
+            "Mock commit message with 'Closes #../../etc/passwd'",
+            "Call parse_commit_messages_for_issues()",
+            "Verify only valid integer issue numbers extracted",
+            "Verify malicious path NOT included in result"
+          ],
+          "security_requirement": "MEDIUM - prevents path traversal in issue linking"
+        },
+        {
+          "name": "test_draft_pr_prevents_accidental_merge",
+          "description": "Test default draft status prevents accidental auto-merge",
+          "category": "workflow_safety",
+          "test_steps": [
+            "Call create_pull_request() with no draft parameter",
+            "Verify --draft flag included in gh pr create command",
+            "Verify result['draft'] is True",
+            "Note: GitHub prevents merging draft PRs (API enforcement)"
+          ],
+          "security_requirement": "HIGH - accidental merge could bypass code review"
+        },
+        {
+          "name": "test_subprocess_timeout_prevents_hanging",
+          "description": "Test subprocess timeout prevents infinite hangs on rate limit",
+          "category": "dos_prevention",
+          "test_steps": [
+            "Mock gh pr create hanging (no response)",
+            "Verify subprocess.run called with timeout=30",
+            "Verify TimeoutExpired raised after 30 seconds",
+            "Verify error message suggests network check"
+          ],
+          "security_requirement": "MEDIUM - prevents workflow hanging indefinitely"
+        }
+      ]
+    }
+  ],
+
+  "test_implementation": {
+    "unit_tests_file": {
+      "path": "tests/unit/test_pr_automation.py",
+      "content_template": "# tests/unit/test_pr_automation.py\n\"\"\"\nUnit tests for PR automation library.\n\nTDD Mode: These tests are written BEFORE implementation.\nAll tests should FAIL initially (ImportError: module not found).\n\nTest Strategy:\n- Mock all subprocess calls (no real gh CLI or git commands)\n- Test happy paths and error conditions\n- Aim for 90%+ code coverage\n- Test each function independently\n\"\"\"\n\nimport json\nimport pytest\nfrom pathlib import Path\nfrom unittest.mock import Mock, patch, MagicMock, call\nfrom subprocess import CalledProcessError, TimeoutExpired\nfrom typing import Dict, Any, List, Tuple\n\n# Import will fail - module doesn't exist yet (TDD!)\ntry:\n    from plugins.autonomous_dev.lib.pr_automation import (\n        create_pull_request,\n        parse_commit_messages_for_issues,\n        validate_gh_prerequisites,\n        get_current_branch,\n    )\nexcept ImportError as e:\n    pytest.skip(f\"Implementation not found (TDD red phase): {e}\", allow_module_level=True)\n\n\nclass TestValidateGHPrerequisites:\n    \"\"\"Test gh CLI installation and authentication validation.\"\"\"\n\n    @patch('subprocess.run')\n    def test_validate_gh_prerequisites_success(self, mock_run):\n        \"\"\"Test gh CLI validation succeeds when installed and authenticated.\"\"\"\n        # Arrange: Mock successful gh --version and gh auth status\n        mock_run.side_effect = [\n            Mock(returncode=0, stdout='gh version 2.40.0'),  # gh --version\n            Mock(returncode=0, stdout='Logged in to github.com')  # gh auth status\n        ]\n\n        # Act\n        valid, error_message = validate_gh_prerequisites()\n\n        # Assert\n        assert valid is True\n        assert error_message == ''\n        assert mock_run.call_count == 2\n\n    @patch('subprocess.run')\n    def test_validate_gh_prerequisites_gh_not_installed(self, mock_run):\n        \"\"\"Test gh CLI validation fails when gh not installed.\"\"\"\n        # Arrange: Mock FileNotFoundError (gh command not found)\n        mock_run.side_effect = FileNotFoundError('gh not found')\n\n        # Act\n        valid, error_message = validate_gh_prerequisites()\n\n        # Assert\n        assert valid is False\n        assert 'not installed' in error_message.lower()\n\n    @patch('subprocess.run')\n    def test_validate_gh_prerequisites_not_authenticated(self, mock_run):\n        \"\"\"Test gh CLI validation fails when not authenticated.\"\"\"\n        # Arrange: gh --version succeeds, gh auth status fails\n        mock_run.side_effect = [\n            Mock(returncode=0, stdout='gh version 2.40.0'),\n            Mock(returncode=1, stderr='You are not logged into any GitHub hosts')\n        ]\n\n        # Act\n        valid, error_message = validate_gh_prerequisites()\n\n        # Assert\n        assert valid is False\n        assert 'not authenticated' in error_message.lower()\n\n\nclass TestGetCurrentBranch:\n    \"\"\"Test getting current git branch.\"\"\"\n\n    @patch('subprocess.run')\n    def test_get_current_branch_success(self, mock_run):\n        \"\"\"Test get current branch succeeds in valid repository.\"\"\"\n        # Arrange: Mock git branch output\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='  main\\n* feature/pr-automation\\n  develop\\n'\n        )\n\n        # Act\n        branch_name = get_current_branch()\n\n        # Assert\n        assert branch_name == 'feature/pr-automation'\n        mock_run.assert_called_once()\n\n    @patch('subprocess.run')\n    def test_get_current_branch_not_git_repo(self, mock_run):\n        \"\"\"Test get current branch raises error when not in git repository.\"\"\"\n        # Arrange: Mock git command failure\n        mock_run.side_effect = CalledProcessError(\n            returncode=128,\n            cmd='git branch',\n            stderr='fatal: not a git repository'\n        )\n\n        # Act & Assert\n        with pytest.raises(CalledProcessError):\n            get_current_branch()\n\n    @patch('subprocess.run')\n    def test_get_current_branch_detached_head(self, mock_run):\n        \"\"\"Test get current branch handles detached HEAD state.\"\"\"\n        # Arrange: Mock detached HEAD output\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='* (HEAD detached at v1.0.0)\\n  main\\n'\n        )\n\n        # Act\n        branch_name = get_current_branch()\n\n        # Assert\n        assert branch_name in ['HEAD', 'detached']  # Implementation can choose\n\n\nclass TestParseCommitMessagesForIssues:\n    \"\"\"Test parsing commit messages for issue numbers.\"\"\"\n\n    @patch('subprocess.run')\n    def test_parse_commit_messages_single_issue(self, mock_run):\n        \"\"\"Test parsing finds single issue number.\"\"\"\n        # Arrange: Mock git log with single issue\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='commit abc123\\n\\n    feat: add PR automation\\n    \\n    Closes #42\\n'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues(base='main')\n\n        # Assert\n        assert issue_numbers == [42]\n\n    @patch('subprocess.run')\n    def test_parse_commit_messages_multiple_issues(self, mock_run):\n        \"\"\"Test parsing finds multiple issue numbers.\"\"\"\n        # Arrange: Mock git log with multiple issues\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='commit abc\\n\\n    Closes #42\\n    Fixes #123\\n    Resolves #456\\n'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues()\n\n        # Assert\n        assert issue_numbers == [42, 123, 456]\n\n    @patch('subprocess.run')\n    def test_parse_commit_messages_no_issues(self, mock_run):\n        \"\"\"Test parsing with no issue references.\"\"\"\n        # Arrange: Mock git log without issue keywords\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='commit abc\\n\\n    feat: add feature\\n    \\n    No issue references\\n'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues()\n\n        # Assert\n        assert issue_numbers == []\n\n    @patch('subprocess.run')\n    def test_parse_commit_messages_case_insensitive(self, mock_run):\n        \"\"\"Test parsing handles case variations.\"\"\"\n        # Arrange: Mock mixed case keywords\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='CLOSES #42\\nfixes #123\\nResolves #456'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues()\n\n        # Assert\n        assert set(issue_numbers) == {42, 123, 456}\n\n    @patch('subprocess.run')\n    def test_parse_commit_messages_deduplication(self, mock_run):\n        \"\"\"Test parsing deduplicates repeated issue numbers.\"\"\"\n        # Arrange: Mock duplicate issues\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='Closes #42\\nFixes #42\\nResolves #42'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues()\n\n        # Assert\n        assert issue_numbers == [42]\n\n\nclass TestCreatePullRequest:\n    \"\"\"Test PR creation functionality.\"\"\"\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('plugins.autonomous_dev.lib.pr_automation.parse_commit_messages_for_issues')\n    @patch('subprocess.run')\n    def test_create_pull_request_draft_default(self, mock_run, mock_parse, mock_branch, mock_validate):\n        \"\"\"Test PR creation defaults to draft status.\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_parse.return_value = []\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='https://github.com/akaszubski/autonomous-dev/pull/42\\n'\n        )\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is True\n        assert result['pr_number'] == 42\n        assert result['pr_url'] == 'https://github.com/akaszubski/autonomous-dev/pull/42'\n        assert result['draft'] is True\n        assert '--draft' in str(mock_run.call_args)\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('subprocess.run')\n    def test_create_pull_request_ready_with_flag(self, mock_run, mock_branch, mock_validate):\n        \"\"\"Test PR creation with ready flag (not draft).\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='https://github.com/akaszubski/autonomous-dev/pull/43\\n'\n        )\n\n        # Act\n        result = create_pull_request(draft=False)\n\n        # Assert\n        assert result['draft'] is False\n        assert '--draft' not in str(mock_run.call_args)\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('subprocess.run')\n    def test_create_pull_request_with_reviewer(self, mock_run, mock_branch, mock_validate):\n        \"\"\"Test PR creation with reviewer assignment.\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='https://github.com/akaszubski/autonomous-dev/pull/45\\n'\n        )\n\n        # Act\n        result = create_pull_request(reviewer='alice')\n\n        # Assert\n        assert result['success'] is True\n        assert '--reviewer' in str(mock_run.call_args)\n        assert 'alice' in str(mock_run.call_args)\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    def test_create_pull_request_fails_on_main_branch(self, mock_branch):\n        \"\"\"Test PR creation raises ValueError when on main branch.\"\"\"\n        # Arrange\n        mock_branch.return_value = 'main'\n\n        # Act & Assert\n        with pytest.raises(ValueError, match='Cannot create PR from main branch'):\n            create_pull_request()\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    def test_create_pull_request_fails_on_master_branch(self, mock_branch):\n        \"\"\"Test PR creation raises ValueError when on master branch.\"\"\"\n        # Arrange\n        mock_branch.return_value = 'master'\n\n        # Act & Assert\n        with pytest.raises(ValueError, match='Cannot create PR from master branch'):\n            create_pull_request()\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    def test_create_pull_request_fails_no_auth(self, mock_validate):\n        \"\"\"Test PR creation fails when gh not authenticated.\"\"\"\n        # Arrange\n        mock_validate.return_value = (False, 'GitHub CLI not authenticated')\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is False\n        assert 'not authenticated' in result['error'].lower()\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('subprocess.run')\n    def test_create_pull_request_handles_rate_limit(self, mock_run, mock_branch, mock_validate):\n        \"\"\"Test PR creation handles GitHub API rate limit error.\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_run.side_effect = CalledProcessError(\n            returncode=1,\n            cmd='gh pr create',\n            stderr='GraphQL error: API rate limit exceeded'\n        )\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is False\n        assert 'rate limit' in result['error'].lower()\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('subprocess.run')\n    def test_create_pull_request_handles_timeout(self, mock_run, mock_branch, mock_validate):\n        \"\"\"Test PR creation handles network timeout.\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_run.side_effect = TimeoutExpired(cmd='gh pr create', timeout=30)\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is False\n        assert 'timeout' in result['error'].lower()\n\n    @patch('plugins.autonomous_dev.lib.pr_automation.validate_gh_prerequisites')\n    @patch('plugins.autonomous_dev.lib.pr_automation.get_current_branch')\n    @patch('plugins.autonomous_dev.lib.pr_automation.parse_commit_messages_for_issues')\n    @patch('subprocess.run')\n    def test_create_pull_request_includes_linked_issues(self, mock_run, mock_parse, mock_branch, mock_validate):\n        \"\"\"Test PR creation returns linked issues.\"\"\"\n        # Arrange\n        mock_validate.return_value = (True, '')\n        mock_branch.return_value = 'feature/pr-automation'\n        mock_parse.return_value = [42, 123]\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='https://github.com/akaszubski/autonomous-dev/pull/50\\n'\n        )\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['linked_issues'] == [42, 123]\n",
+      "estimated_lines": 300
+    },
+    "integration_tests_file": {
+      "path": "tests/integration/test_pr_workflow.py",
+      "content_template": "# tests/integration/test_pr_workflow.py\n\"\"\"\nIntegration tests for end-to-end PR creation workflow.\n\nTests workflow integration:\n- validate_gh_prerequisites → get_current_branch → parse_commits → create_pull_request\n- Error handling across function boundaries\n- Issue linking from commit messages\n- Draft PR workflow\n\"\"\"\n\nimport pytest\nfrom unittest.mock import patch, Mock\nfrom subprocess import CalledProcessError\n\ntry:\n    from plugins.autonomous_dev.lib.pr_automation import create_pull_request\nexcept ImportError as e:\n    pytest.skip(f\"Implementation not found (TDD red phase): {e}\", allow_module_level=True)\n\n\nclass TestPRWorkflow:\n    \"\"\"End-to-end PR creation workflow tests.\"\"\"\n\n    @patch('subprocess.run')\n    def test_end_to_end_pr_creation_success(self, mock_run):\n        \"\"\"Test complete workflow from validation to PR creation.\"\"\"\n        # Arrange: Mock all subprocess calls in order\n        mock_run.side_effect = [\n            Mock(returncode=0, stdout='gh version 2.40.0'),  # gh --version\n            Mock(returncode=0, stdout='Logged in'),  # gh auth status\n            Mock(returncode=0, stdout='* feature/pr-automation'),  # git branch\n            Mock(returncode=0, stdout='commit abc\\n\\n    Closes #42'),  # git log\n            Mock(returncode=0, stdout='https://github.com/user/repo/pull/42'),  # gh pr create\n        ]\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is True\n        assert result['pr_number'] == 42\n        assert result['linked_issues'] == [42]\n        assert mock_run.call_count == 5\n\n    @patch('subprocess.run')\n    def test_pr_creation_fails_validation_early(self, mock_run):\n        \"\"\"Test workflow aborts if prerequisites not met.\"\"\"\n        # Arrange: gh not authenticated\n        mock_run.side_effect = [\n            Mock(returncode=0),  # gh --version\n            Mock(returncode=1, stderr='not logged in'),  # gh auth status fails\n        ]\n\n        # Act\n        result = create_pull_request()\n\n        # Assert\n        assert result['success'] is False\n        assert 'not authenticated' in result['error'].lower()\n        assert mock_run.call_count == 2  # Stopped after validation\n\n    @patch('subprocess.run')\n    def test_pr_creation_from_main_branch_fails(self, mock_run):\n        \"\"\"Test PR creation from main branch fails early.\"\"\"\n        # Arrange\n        mock_run.side_effect = [\n            Mock(returncode=0),  # gh --version\n            Mock(returncode=0),  # gh auth status\n            Mock(returncode=0, stdout='* main'),  # git branch (main!)\n        ]\n\n        # Act & Assert\n        with pytest.raises(ValueError, match='Cannot create PR from main'):\n            create_pull_request()\n\n        # Verify gh pr create NOT called\n        assert mock_run.call_count == 3\n",
+      "estimated_lines": 150
+    },
+    "security_tests_file": {
+      "path": "tests/security/test_pr_security.py",
+      "content_template": "# tests/security/test_pr_security.py\n\"\"\"\nSecurity tests for PR automation.\n\nFocus areas:\n- GITHUB_TOKEN not leaked in logs/output\n- Command injection prevention\n- Input validation\n- Subprocess safety\n\"\"\"\n\nimport os\nimport pytest\nfrom unittest.mock import patch, Mock\n\ntry:\n    from plugins.autonomous_dev.lib.pr_automation import (\n        create_pull_request,\n        parse_commit_messages_for_issues\n    )\nexcept ImportError as e:\n    pytest.skip(f\"Implementation not found (TDD red phase): {e}\", allow_module_level=True)\n\n\nclass TestTokenSecurity:\n    \"\"\"Test GITHUB_TOKEN security.\"\"\"\n\n    @patch('subprocess.run')\n    @patch.dict(os.environ, {'GITHUB_TOKEN': 'secret_token_value'})\n    def test_github_token_not_in_command_args(self, mock_run):\n        \"\"\"Test GITHUB_TOKEN not passed in command args.\"\"\"\n        # Arrange\n        mock_run.side_effect = [\n            Mock(returncode=0),  # Prerequisites\n            Mock(returncode=0),\n            Mock(returncode=0, stdout='* feature'),\n            Mock(returncode=0, stdout='https://github.com/user/repo/pull/1'),\n        ]\n\n        # Act\n        create_pull_request()\n\n        # Assert\n        for call in mock_run.call_args_list:\n            call_str = str(call)\n            assert 'secret_token_value' not in call_str\n            assert 'GITHUB_TOKEN' not in call_str or 'env' in call_str  # OK if in env dict\n\n\nclass TestCommandInjection:\n    \"\"\"Test command injection prevention.\"\"\"\n\n    @patch('subprocess.run')\n    def test_malicious_commit_message_not_executed(self, mock_run):\n        \"\"\"Test malicious shell commands in commit messages not executed.\"\"\"\n        # Arrange: Mock commit with command injection attempt\n        mock_run.side_effect = [\n            Mock(returncode=0),\n            Mock(returncode=0),\n            Mock(returncode=0, stdout='* feature'),\n            Mock(returncode=0, stdout='Closes #42; rm -rf /'),  # Malicious!\n            Mock(returncode=0, stdout='https://github.com/user/repo/pull/1'),\n        ]\n\n        # Act\n        result = create_pull_request()\n\n        # Assert: subprocess.run should use list args, not shell=True\n        for call in mock_run.call_args_list:\n            # Verify shell=True not used\n            if 'shell' in call.kwargs:\n                assert call.kwargs['shell'] is False\n\n    @patch('subprocess.run')\n    def test_issue_number_validation(self, mock_run):\n        \"\"\"Test only valid integer issue numbers extracted.\"\"\"\n        # Arrange: Mock commit with path traversal attempt\n        mock_run.return_value = Mock(\n            returncode=0,\n            stdout='Closes #../../etc/passwd\\nFixes #42'\n        )\n\n        # Act\n        issue_numbers = parse_commit_messages_for_issues()\n\n        # Assert: Only valid integers\n        assert issue_numbers == [42]\n        assert all(isinstance(n, int) for n in issue_numbers)\n",
+      "estimated_lines": 100
+    }
+  },
+
+  "next_steps": [
+    "1. Create test files: tests/unit/test_pr_automation.py, tests/integration/test_pr_workflow.py, tests/security/test_pr_security.py",
+    "2. Run pytest - all tests should FAIL with ImportError (module doesn't exist)",
+    "3. Stage test files in git",
+    "4. Report to orchestrator: Tests created (TDD red phase)",
+    "5. Wait for implementer agent to create plugins/autonomous-dev/lib/pr_automation.py",
+    "6. Re-run tests to verify implementation makes tests pass (TDD green phase)"
+  ],
+
+  "coverage_expectations": {
+    "target_coverage": 90,
+    "critical_paths": [
+      "create_pull_request() - all branches (draft/ready, with/without reviewer, error cases)",
+      "validate_gh_prerequisites() - all error conditions",
+      "parse_commit_messages_for_issues() - regex edge cases",
+      "get_current_branch() - git error handling"
+    ],
+    "acceptable_uncovered": [
+      "Logging statements",
+      "Type hints and docstrings",
+      "Platform-specific error messages"
+    ]
+  },
+
+  "project_md_alignment": {
+    "testing_philosophy": "Research first. Test coverage required. - Tests written BEFORE implementation (TDD)",
+    "quality_gates": "All PRs require human approval (agent review is pre-filter) - Draft PR tests enforce this",
+    "github_integration": "GitHub workflow: Issues → Branches → PRs → Reviews → Merge - Tests cover PR step",
+    "zero_downtime": "Zero-downtime for existing workflows - Tests are additive, don't break existing functionality"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "version": "2.0",
+  "agent": "orchestrator",
+  "workflow_id": "20251023_100715",
+  "status": "in_progress",
+  "created_at": "2025-10-23T10:07:15.762115",
+  "request": "implement user authentication with JWT tokens",
+  "alignment": {
+    "validated": true,
+    "matches_goals": [
+      "Improve security"
+    ],
+    "within_scope": true,
+    "scope_items": [
+      "Authentication features"
+    ],
+    "respects_constraints": true,
+    "constraints_checked": 4
+  },
+  "workflow_plan": {
+    "agents": [
+      "researcher",
+      "planner",
+      "test-master",
+      "implementer"
+    ],
+    "parallel_validators": [
+      "reviewer",
+      "security-auditor",
+      "doc-master"
+    ],
+    "estimated_duration": "60-120 seconds"
+  }
+}

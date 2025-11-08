@@ -333,11 +333,18 @@ ls plugins/autonomous-dev/
 # Step 1: Update plugin via marketplace
 /plugin update autonomous-dev
 
-# Step 2: Exit and restart Claude Code
-# (Cmd+Q or Ctrl+Q)
+# Step 2: FULL RESTART REQUIRED
+# CRITICAL: /exit is NOT enough! Claude Code caches commands in memory.
+# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux) to fully quit
+# Verify: ps aux | grep claude | grep -v grep (should return nothing)
+# Wait 5 seconds, then restart Claude Code
 
 # Step 3: Sync marketplace updates to project
 /sync --marketplace
+
+# Step 4: FULL RESTART AGAIN
+# Commands won't reload until you fully restart Claude Code
+# Press Cmd+Q again, wait 5 seconds, restart
 ```
 
 ---
@@ -351,10 +358,16 @@ vim plugins/autonomous-dev/commands/new-feature.md
 # Step 2: Sync to .claude/ for testing
 /sync --plugin-dev
 
-# Step 3: Test the command
+# Step 3: FULL RESTART REQUIRED
+# CRITICAL: /exit is NOT enough! You must fully quit Claude Code.
+# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+# Verify: ps aux | grep claude | grep -v grep (should return nothing)
+# Wait 5 seconds, then restart Claude Code
+
+# Step 4: Test the command
 /new-feature
 
-# Step 4: Repeat as needed
+# Step 5: Repeat as needed (restart required each time!)
 ```
 
 ---

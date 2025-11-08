@@ -1,0 +1,569 @@
+{
+  "version": "2.0",
+  "agent": "planner",
+  "workflow_id": "20251023_104242",
+  "status": "completed",
+  "timestamp": "2025-10-23T11:30:00.000000",
+
+  "architecture_summary": {
+    "approach": "Create /pr-create slash command that uses gh CLI for PR creation, integrating with existing /commit workflow and reviewer agent pipeline",
+    "key_decisions": [
+      "Use gh CLI (not REST API or PyGithub) for PR creation - matches existing codebase pattern in auto_track_issues.py",
+      "Default to draft PRs for autonomous workflow - requires explicit human approval before merge (aligns with CODE-REVIEW-WORKFLOW.md Layer 2 requirement)",
+      "Auto-parse commit messages for issue linking (Closes #N) - enables traceability per PROJECT.md requirements",
+      "Integrate with existing GitHub Actions pull_request trigger for automatic reviewer agent invocation",
+      "Use subprocess for gh CLI calls - zero dependencies, already proven pattern in hooks/auto_track_issues.py"
+    ],
+    "components": [
+      "/pr-create slash command (plugins/autonomous-dev/commands/pr-create.md)",
+      "PR creation library (plugins/autonomous-dev/lib/pr_automation.py)",
+      "Unit tests (tests/unit/test_pr_automation.py)",
+      "Integration tests (tests/integration/test_pr_workflow.py)",
+      "Documentation updates (plugins/autonomous-dev/docs/PR-AUTOMATION.md)"
+    ],
+    "estimated_effort": "60-90 minutes (TDD approach with 5 implementation phases)"
+  },
+
+  "api_contracts": [
+    {
+      "function": "create_pull_request",
+      "location": "plugins/autonomous-dev/lib/pr_automation.py",
+      "signature": "def create_pull_request(title: str = None, body: str = None, draft: bool = True, base: str = 'main', head: str = None, reviewer: str = None) -> Dict[str, Any]",
+      "inputs": {
+        "title": "Optional PR title (if None, uses --fill from commits)",
+        "body": "Optional PR body (if None, uses --fill-verbose from commits)",
+        "draft": "Create as draft PR (default True for autonomous workflow)",
+        "base": "Target branch (default 'main')",
+        "head": "Source branch (default current branch from git)",
+        "reviewer": "Optional GitHub handle for reviewer assignment"
+      },
+      "outputs": {
+        "success": "Boolean indicating if PR was created",
+        "pr_number": "Integer PR number",
+        "pr_url": "String URL to created PR",
+        "draft": "Boolean indicating if PR is draft",
+        "linked_issues": "List of issue numbers auto-linked from commits",
+        "error": "Optional error message if failed"
+      },
+      "errors": [
+        "ValueError: Current branch is main/master (cannot create PR from default branch)",
+        "ValueError: No commits to create PR (branch even with base)",
+        "subprocess.CalledProcessError: gh CLI command failed (auth, network, or API error)",
+        "PermissionError: GITHUB_TOKEN missing 'repo' scope"
+      ]
+    },
+    {
+      "function": "parse_commit_messages_for_issues",
+      "location": "plugins/autonomous-dev/lib/pr_automation.py",
+      "signature": "def parse_commit_messages_for_issues(base: str = 'main', head: str = None) -> List[int]",
+      "inputs": {
+        "base": "Base branch to compare against",
+        "head": "Head branch (default current branch)"
+      },
+      "outputs": {
+        "issue_numbers": "List of integer issue numbers found in commit messages (e.g., [42, 123])"
+      },
+      "errors": []
+    },
+    {
+      "function": "validate_gh_prerequisites",
+      "location": "plugins/autonomous-dev/lib/pr_automation.py",
+      "signature": "def validate_gh_prerequisites() -> Tuple[bool, str]",
+      "inputs": {},
+      "outputs": {
+        "valid": "Boolean indicating if prerequisites are met",
+        "error_message": "String error message if validation failed (empty if valid)"
+      },
+      "errors": []
+    },
+    {
+      "function": "get_current_branch",
+      "location": "plugins/autonomous-dev/lib/pr_automation.py",
+      "signature": "def get_current_branch() -> str",
+      "inputs": {},
+      "outputs": {
+        "branch_name": "String name of current git branch"
+      },
+      "errors": [
+        "subprocess.CalledProcessError: Not in a git repository"
+      ]
+    }
+  ],
+
+  "file_changes": [
+    {
+      "path": "plugins/autonomous-dev/commands/pr-create.md",
+      "change_type": "create",
+      "purpose": "Slash command definition for /pr-create - entry point for PR automation",
+      "estimated_lines": 120,
+      "dependencies": ["plugins/autonomous-dev/lib/pr_automation.py"],
+      "rationale": "Follows existing slash command pattern (see commit.md, issue-create.md). Provides user-facing interface with flags for draft/ready, reviewer assignment."
+    },
+    {
+      "path": "plugins/autonomous-dev/lib/pr_automation.py",
+      "change_type": "create",
+      "purpose": "Core PR automation logic - gh CLI wrapper with subprocess calls",
+      "estimated_lines": 250,
+      "dependencies": ["subprocess", "os", "json", "typing"],
+      "rationale": "Encapsulates all gh CLI interaction. Reusable library for future PR operations (update, close, etc.). Follows existing pattern from auto_track_issues.py for subprocess gh calls."
+    },
+    {
+      "path": "tests/unit/test_pr_automation.py",
+      "change_type": "create",
+      "purpose": "Unit tests for pr_automation.py - mock subprocess calls",
+      "estimated_lines": 300,
+      "dependencies": ["pytest", "unittest.mock"],
+      "rationale": "TDD approach - write tests first. Mock subprocess.run to avoid actual gh CLI calls. Test all error conditions (no commits, wrong branch, auth failure, rate limits)."
+    },
+    {
+      "path": "tests/integration/test_pr_workflow.py",
+      "change_type": "create",
+      "purpose": "Integration tests - end-to-end /commit → /pr-create workflow",
+      "estimated_lines": 150,
+      "dependencies": ["pytest", "subprocess"],
+      "rationale": "Validate workflow integration. Requires test GitHub repo or mocking. Tests issue linking, draft PR creation, reviewer assignment."
+    },
+    {
+      "path": "plugins/autonomous-dev/docs/PR-AUTOMATION.md",
+      "change_type": "modify",
+      "purpose": "Update documentation with /pr-create command usage and examples",
+      "estimated_lines": 50,
+      "dependencies": [],
+      "rationale": "Existing doc covers gh CLI usage. Add new section for /pr-create command. Include examples of draft→ready workflow, issue linking, reviewer assignment."
+    },
+    {
+      "path": ".env.example",
+      "change_type": "modify",
+      "purpose": "Add PR automation configuration options",
+      "estimated_lines": 10,
+      "dependencies": [],
+      "rationale": "Document GITHUB_TOKEN 'repo' scope requirement. Add optional PR_DEFAULT_DRAFT=true config. Add PR_DEFAULT_BASE=main config."
+    },
+    {
+      "path": "plugins/autonomous-dev/docs/GITHUB-WORKFLOW.md",
+      "change_type": "modify",
+      "purpose": "Update workflow diagram to include /pr-create step",
+      "estimated_lines": 20,
+      "dependencies": [],
+      "rationale": "Add /commit → /pr-create → reviewer agent step to existing workflow diagram. Show integration with pull_request GitHub Action trigger."
+    }
+  ],
+
+  "implementation_plan": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "TDD Setup - Write Failing Tests",
+        "duration_estimate": "15 minutes",
+        "tasks": [
+          "Create tests/unit/test_pr_automation.py with test cases for all API contracts",
+          "Test create_pull_request with various flag combinations (draft, ready, reviewer)",
+          "Test parse_commit_messages_for_issues with sample git log output",
+          "Test validate_gh_prerequisites for missing gh CLI, no auth",
+          "Test get_current_branch for valid repo and error cases",
+          "Run pytest - all tests should FAIL (no implementation yet)"
+        ],
+        "completion_criteria": [
+          "All test files created",
+          "Test coverage targets defined (aim for 90%+)",
+          "Tests fail with ImportError (module doesn't exist yet)"
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Core Library Implementation",
+        "duration_estimate": "30 minutes",
+        "tasks": [
+          "Create plugins/autonomous-dev/lib/pr_automation.py",
+          "Implement validate_gh_prerequisites() - check gh CLI installed and authenticated",
+          "Implement get_current_branch() - parse git branch output",
+          "Implement parse_commit_messages_for_issues() - regex for Closes #N, Fixes #N, Resolves #N",
+          "Implement create_pull_request() - build gh pr create command with flags",
+          "Add error handling for all subprocess calls (timeout, auth, rate limits)",
+          "Run pytest - tests should now PASS"
+        ],
+        "completion_criteria": [
+          "All unit tests passing",
+          "Code coverage > 85%",
+          "All error conditions handled gracefully"
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Slash Command Integration",
+        "duration_estimate": "20 minutes",
+        "tasks": [
+          "Create plugins/autonomous-dev/commands/pr-create.md",
+          "Add command description and flags (--draft, --ready, --reviewer)",
+          "Call pr_automation.create_pull_request() from command",
+          "Parse command arguments for flags",
+          "Format output with PR URL, number, draft status, linked issues",
+          "Add usage examples to command docs"
+        ],
+        "completion_criteria": [
+          "/pr-create command callable",
+          "Command output formatted correctly",
+          "All flags work as documented"
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Integration Tests",
+        "duration_estimate": "15 minutes",
+        "tasks": [
+          "Create tests/integration/test_pr_workflow.py",
+          "Mock git log output for commit message parsing",
+          "Test /commit → /pr-create workflow",
+          "Test issue linking from commit messages",
+          "Test draft PR creation",
+          "Test error handling (no commits, wrong branch)",
+          "Run pytest for integration tests"
+        ],
+        "completion_criteria": [
+          "Integration tests passing",
+          "Workflow validated end-to-end",
+          "Edge cases covered"
+        ]
+      },
+      {
+        "phase": 5,
+        "name": "Documentation and Validation",
+        "duration_estimate": "10 minutes",
+        "tasks": [
+          "Update plugins/autonomous-dev/docs/PR-AUTOMATION.md with /pr-create examples",
+          "Update plugins/autonomous-dev/docs/GITHUB-WORKFLOW.md workflow diagram",
+          "Update .env.example with PR configuration options",
+          "Run /security-scan to verify no GITHUB_TOKEN leaks in logs",
+          "Run /test to verify all tests pass",
+          "Validate PROJECT.md alignment (GitHub integration goal)"
+        ],
+        "completion_criteria": [
+          "All documentation updated",
+          "Security scan passes",
+          "All tests pass (unit + integration)",
+          "PROJECT.md alignment confirmed"
+        ]
+      }
+    ]
+  },
+
+  "integration_points": [
+    {
+      "component": "/commit slash command",
+      "location": "plugins/autonomous-dev/commands/commit.md",
+      "integration_type": "Sequential workflow",
+      "description": "After /commit completes, suggest /pr-create to user. Could add optional --pr flag to /commit to auto-create PR after commit.",
+      "changes_required": "None required for Phase 1. Future enhancement: add --pr flag to /commit command."
+    },
+    {
+      "component": "GitHub Actions pull_request trigger",
+      "location": ".github/workflows/*.yml (if exists)",
+      "integration_type": "Event trigger",
+      "description": "When PR is created, GitHub Actions pull_request event triggers reviewer agent. Reviewer agent reads PR diff and provides automated Layer 1 review (per CODE-REVIEW-WORKFLOW.md).",
+      "changes_required": "None - pull_request trigger already configured in existing GitHub Actions (if repo has Actions enabled)."
+    },
+    {
+      "component": "auto_track_issues.py hook",
+      "location": "plugins/autonomous-dev/hooks/auto_track_issues.py",
+      "integration_type": "Shared pattern",
+      "description": "Both use subprocess to call gh CLI. Shared pattern for authentication checking (gh auth status), error handling, dry-run mode.",
+      "changes_required": "None - reuse existing pattern. Potential future: extract common gh CLI wrapper to shared utility."
+    },
+    {
+      "component": "CODE-REVIEW-WORKFLOW.md Layer 2 (human review)",
+      "location": "docs/CODE-REVIEW-WORKFLOW.md",
+      "integration_type": "Workflow gate",
+      "description": "All PRs created by /pr-create default to draft status. Requires explicit human command (/pr-ready or gh pr ready) to mark PR as ready for review. Enforces Layer 2 human approval requirement.",
+      "changes_required": "None - draft PR default enforces this. Future enhancement: /pr-ready command to mark draft→ready with validation checks."
+    },
+    {
+      "component": "GITHUB_TOKEN environment variable",
+      "location": ".env file",
+      "integration_type": "Configuration",
+      "description": "Existing GITHUB_TOKEN used for gh CLI authentication. Must have 'repo' scope for PR creation (write access).",
+      "changes_required": "Update .env.example to document 'repo' scope requirement. No code changes."
+    }
+  ],
+
+  "testing_strategy": {
+    "unit_tests": {
+      "coverage_target": 90,
+      "test_files": [
+        "tests/unit/test_pr_automation.py"
+      ],
+      "key_test_cases": [
+        "test_create_pull_request_draft_default",
+        "test_create_pull_request_ready_with_flag",
+        "test_create_pull_request_with_reviewer",
+        "test_create_pull_request_fails_on_main_branch",
+        "test_create_pull_request_fails_no_commits",
+        "test_create_pull_request_fails_no_auth",
+        "test_parse_commit_messages_for_issues_single_issue",
+        "test_parse_commit_messages_for_issues_multiple_issues",
+        "test_parse_commit_messages_for_issues_no_issues",
+        "test_validate_gh_prerequisites_success",
+        "test_validate_gh_prerequisites_gh_not_installed",
+        "test_validate_gh_prerequisites_not_authenticated",
+        "test_get_current_branch_success",
+        "test_get_current_branch_not_git_repo"
+      ],
+      "mocking_strategy": "Mock subprocess.run for all gh and git CLI calls. Use side_effect to simulate different outputs (success, auth failure, rate limit)."
+    },
+    "integration_tests": {
+      "test_files": [
+        "tests/integration/test_pr_workflow.py"
+      ],
+      "key_scenarios": [
+        "End-to-end: /commit → /pr-create → verify PR URL returned",
+        "Issue linking: commit with 'Closes #42' → verify issue linked in PR",
+        "Draft PR workflow: create draft → verify cannot merge until marked ready",
+        "Reviewer assignment: /pr-create --reviewer @alice → verify reviewer assigned",
+        "Error handling: /pr-create from main branch → verify error message",
+        "Error handling: /pr-create with no commits → verify error message"
+      ],
+      "environment_requirements": "Requires either (1) test GitHub repo with write access, or (2) comprehensive subprocess mocking for gh CLI calls."
+    },
+    "security_tests": {
+      "test_files": [
+        "tests/security/test_pr_security.py"
+      ],
+      "key_scenarios": [
+        "Verify GITHUB_TOKEN not leaked in command output logs",
+        "Verify GITHUB_TOKEN not included in PR body or title",
+        "Verify subprocess timeout prevents hanging on rate limit",
+        "Verify error messages don't expose sensitive repo details",
+        "Verify draft PR prevents accidental auto-merge"
+      ]
+    },
+    "uat_tests": {
+      "description": "Manual UAT workflow for real GitHub PR creation",
+      "steps": [
+        "1. Create feature branch and make commits with 'Closes #N' in message",
+        "2. Run /commit to commit changes locally",
+        "3. Run /pr-create to create draft PR",
+        "4. Verify PR created on GitHub with correct title, body, draft status",
+        "5. Verify issue #N auto-linked in PR",
+        "6. Verify reviewer agent triggered via GitHub Actions",
+        "7. Run gh pr ready to mark PR ready for review",
+        "8. Verify human can approve and merge"
+      ]
+    }
+  },
+
+  "security_design": {
+    "threat_model": [
+      {
+        "threat": "GITHUB_TOKEN exposure in logs",
+        "severity": "CRITICAL",
+        "likelihood": "MEDIUM",
+        "mitigation": "Never log subprocess command args containing token. Use subprocess with env dict instead of shell=True. Audit all error messages to ensure token not included."
+      },
+      {
+        "threat": "Accidental PR merge without human review",
+        "severity": "HIGH",
+        "likelihood": "LOW",
+        "mitigation": "Default all autonomous PRs to draft status. Require explicit /pr-ready command or manual gh pr ready before merge possible. Enforces CODE-REVIEW-WORKFLOW.md Layer 2 requirement."
+      },
+      {
+        "threat": "Rate limit exhaustion (GitHub API secondary limits)",
+        "severity": "MEDIUM",
+        "likelihood": "MEDIUM",
+        "mitigation": "Implement retry logic with exponential backoff. Add 1-second delay between PR creation operations. Monitor rate limit headers in gh CLI output. Fail gracefully with clear error message."
+      },
+      {
+        "threat": "Malicious code injection via commit messages",
+        "severity": "MEDIUM",
+        "likelihood": "LOW",
+        "mitigation": "Sanitize commit messages before passing to gh pr create. Use subprocess args list (not shell=True) to prevent command injection. Validate issue numbers are integers only."
+      },
+      {
+        "threat": "Insufficient GITHUB_TOKEN permissions",
+        "severity": "LOW",
+        "likelihood": "MEDIUM",
+        "mitigation": "Validate token has 'repo' scope before attempting PR creation. Use gh auth status to check permissions. Provide clear error message with instructions to update token scope."
+      }
+    ],
+    "authentication": "Uses existing GITHUB_TOKEN from .env file. Token must have 'repo' scope. Authentication validated via gh auth status before any PR operations.",
+    "authorization": "GitHub repository write access required. Enforced by GitHub API - token without write access will fail with 403. Validate prerequisites before attempting PR creation.",
+    "data_validation": [
+      "Validate current branch is not main/master (prevent invalid PR)",
+      "Validate commits exist between base and head (prevent empty PR)",
+      "Validate issue numbers are integers in commit message parsing",
+      "Sanitize commit messages to prevent command injection"
+    ],
+    "secrets_management": "GITHUB_TOKEN stored in .env file (gitignored). Never logged or included in error messages. Passed to gh CLI via environment variable, not command args."
+  },
+
+  "error_handling": {
+    "expected_errors": [
+      {
+        "error": "gh CLI not installed",
+        "detection": "subprocess.run(['gh', '--version']) raises FileNotFoundError",
+        "recovery": "Return error message: 'GitHub CLI not installed. Install: brew install gh' with link to installation docs",
+        "user_message": "GitHub CLI (gh) is required for PR automation. Install with: brew install gh"
+      },
+      {
+        "error": "gh CLI not authenticated",
+        "detection": "gh auth status returns non-zero exit code",
+        "recovery": "Return error message with authentication instructions: gh auth login",
+        "user_message": "GitHub CLI not authenticated. Run: gh auth login"
+      },
+      {
+        "error": "Current branch is main/master",
+        "detection": "get_current_branch() returns 'main' or 'master'",
+        "recovery": "Raise ValueError with instructions to create feature branch",
+        "user_message": "Cannot create PR from main branch. Create a feature branch first: git checkout -b feature/your-feature"
+      },
+      {
+        "error": "No commits to create PR",
+        "detection": "git log base..head returns empty",
+        "recovery": "Raise ValueError with instructions to make commits",
+        "user_message": "No commits found between main and current branch. Make some commits first."
+      },
+      {
+        "error": "GitHub API rate limit exceeded",
+        "detection": "gh pr create returns 'rate limit exceeded' in stderr",
+        "recovery": "Implement exponential backoff retry (3 attempts with 2s, 4s, 8s delays). If still failing, return error with rate limit reset time.",
+        "user_message": "GitHub API rate limit exceeded. Try again in {reset_time} minutes or use: gh api rate_limit to check quota."
+      },
+      {
+        "error": "GITHUB_TOKEN missing 'repo' scope",
+        "detection": "gh pr create returns '403 Forbidden' or permission error",
+        "recovery": "Return error with instructions to update token scope",
+        "user_message": "GitHub token lacks 'repo' scope. Update token at: https://github.com/settings/tokens"
+      },
+      {
+        "error": "Network timeout",
+        "detection": "subprocess.TimeoutExpired after 30s timeout",
+        "recovery": "Return error suggesting network check and retry",
+        "user_message": "GitHub API request timed out. Check network connection and retry."
+      }
+    ],
+    "logging": "All errors logged to .claude/artifacts/{workflow_id}/logs/pr_automation.log with timestamp, error type, and context. Use WorkflowLogger for structured logging."
+  },
+
+  "documentation_plan": {
+    "files_to_update": [
+      {
+        "file": "plugins/autonomous-dev/docs/PR-AUTOMATION.md",
+        "changes": "Add /pr-create command documentation with usage examples, flags, and workflow integration. Include examples of draft→ready workflow, issue linking patterns.",
+        "sections": [
+          "Add /pr-create command reference",
+          "Add examples: basic usage, with reviewer, issue linking",
+          "Add troubleshooting section for common errors"
+        ]
+      },
+      {
+        "file": "plugins/autonomous-dev/docs/GITHUB-WORKFLOW.md",
+        "changes": "Update workflow diagram to include /pr-create step between /commit and reviewer agent trigger. Show integration with GitHub Actions pull_request event.",
+        "sections": [
+          "Update workflow diagram: /commit → /pr-create → reviewer agent",
+          "Add note about draft PR requirement for autonomous workflow"
+        ]
+      },
+      {
+        "file": ".env.example",
+        "changes": "Add PR automation configuration examples and GITHUB_TOKEN scope requirements",
+        "sections": [
+          "Add PR_DEFAULT_DRAFT=true config option",
+          "Add PR_DEFAULT_BASE=main config option",
+          "Update GITHUB_TOKEN comment to mention 'repo' scope requirement"
+        ]
+      },
+      {
+        "file": "plugins/autonomous-dev/README.md",
+        "changes": "Add /pr-create to command list in Quick Reference section",
+        "sections": [
+          "Add /pr-create to GitHub Workflow commands list"
+        ]
+      }
+    ],
+    "new_documentation": [
+      {
+        "file": "plugins/autonomous-dev/docs/PR-CREATION-GUIDE.md",
+        "purpose": "Step-by-step guide for PR creation workflow with screenshots and examples",
+        "content": [
+          "Prerequisites (gh CLI installation, authentication)",
+          "Basic workflow: feature branch → commits → /commit → /pr-create",
+          "Issue linking patterns (Closes #N, Fixes #N, Resolves #N)",
+          "Draft vs ready PRs - when to use each",
+          "Reviewer assignment strategies",
+          "Troubleshooting common errors",
+          "Integration with reviewer agent and CODE-REVIEW-WORKFLOW.md"
+        ]
+      }
+    ]
+  },
+
+  "risk_assessment": {
+    "risks": [
+      {
+        "risk": "GitHub API rate limits could block PR creation during high-volume autonomous workflow",
+        "probability": "MEDIUM",
+        "impact": "MEDIUM",
+        "mitigation": "Implement retry logic with exponential backoff. Add 1s delay between operations. Monitor rate limit headers. Provide clear error messages with reset time.",
+        "contingency": "If rate limits become persistent issue, add local queue for PR creation operations with throttling (max N PRs per hour)."
+      },
+      {
+        "risk": "Users bypass draft PR requirement and create ready PRs immediately",
+        "probability": "MEDIUM",
+        "impact": "LOW",
+        "mitigation": "Document draft PR requirement in GITHUB-WORKFLOW.md. Make --draft default (requires explicit --ready flag to override). Log all ready PR creations for audit.",
+        "contingency": "Add pre-push hook to validate all PRs are draft unless explicitly approved by human."
+      },
+      {
+        "risk": "gh CLI authentication expires mid-workflow causing PR creation failures",
+        "probability": "LOW",
+        "impact": "MEDIUM",
+        "mitigation": "Validate gh auth status before every PR creation. Provide clear error message with re-auth instructions. gh CLI tokens typically valid for 1+ hours.",
+        "contingency": "Implement token refresh logic using gh auth refresh command if supported."
+      },
+      {
+        "risk": "Commit message parsing fails to detect issue numbers in non-standard formats",
+        "probability": "MEDIUM",
+        "impact": "LOW",
+        "mitigation": "Support multiple formats: Closes #N, Fixes #N, Resolves #N, Close #N, Fix #N, Resolve #N (case-insensitive). Document supported formats in PR-CREATION-GUIDE.md.",
+        "contingency": "Add manual issue linking flag: /pr-create --link-issue 42"
+      },
+      {
+        "risk": "Integration tests require real GitHub repo access, slowing CI/CD",
+        "probability": "HIGH",
+        "impact": "LOW",
+        "mitigation": "Comprehensive subprocess mocking in integration tests. Reserve real GitHub API tests for UAT only. Use pytest fixtures to mock gh CLI responses.",
+        "contingency": "Create dedicated test GitHub repo with public access for CI/CD integration tests."
+      }
+    ],
+    "assumptions": [
+      "GitHub CLI (gh) is installed and available in PATH",
+      "GITHUB_TOKEN environment variable has 'repo' scope",
+      "Repository has default branch named 'main' or 'master'",
+      "GitHub Actions enabled for repository (for reviewer agent trigger)",
+      "Users understand draft vs ready PR distinction",
+      "Network connectivity to api.github.com available"
+    ],
+    "dependencies": [
+      "gh CLI (version 2.40+)",
+      "git CLI (any recent version)",
+      "GITHUB_TOKEN with repo scope",
+      "Python 3.8+ (for subprocess, typing)",
+      "pytest for testing",
+      "unittest.mock for mocking"
+    ]
+  },
+
+  "project_md_alignment": {
+    "aligned_goals": [
+      "Tight GitHub integration for team workflow - PR automation enables seamless GitHub workflow",
+      "GitHub workflow: Issues → Branches → PRs → Reviews → Merge (fully integrated) - /pr-create completes the PR step",
+      "Development speed: 10x faster than manual - automated PR creation saves 2-5 minutes per PR",
+      "Adoption: Easy install for new team members - /pr-create command simple to use, no additional setup beyond gh CLI"
+    ],
+    "scope_validation": "WITHIN_SCOPE - GitHub-first workflow and PR automation are explicitly in scope per PROJECT.md",
+    "constraints_respected": [
+      "All PRs require human approval (agent review is pre-filter) - draft PR default enforces this",
+      "Zero-downtime for existing workflows - /pr-create is additive, doesn't break existing commands",
+      "No external SaaS dependencies (except GitHub) - uses official GitHub CLI, no third-party services",
+      "Plugin must work offline for local development - PR creation requires network, but gracefully fails with clear error if offline"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "version": "2.0",
+  "workflow_id": "20251023_104242",
+  "created_at": "2025-10-23T11:47:45.832247",
+  "checkpoint_type": "agent_completion",
+  "completed_agents": [
+    "orchestrator",
+    "researcher",
+    "planner"
+  ],
+  "current_agent": "test-master",
+  "artifacts_created": [
+    "manifest.json",
+    "research.json",
+    "architecture.json"
+  ],
+  "metadata": {}
+}

@@ -291,22 +291,43 @@ Add a simple hello world function
 ```
 
 **When to resync**:
-- ✅ Changed a hook → `./scripts/resync-dogfood.sh` (no restart)
-- ✅ Changed a command → `./scripts/resync-dogfood.sh` (no restart)
-- ✅ Changed a template → `./scripts/resync-dogfood.sh` (no restart)
-- ⚠️ Changed settings.local.json → restart Claude Code
-- ⚠️ Changed an agent → must push to GitHub + reinstall (agents loaded from `~/.claude/plugins/`)
+- ✅ Changed a hook → `./scripts/resync-dogfood.sh` + **FULL RESTART REQUIRED**
+- ✅ Changed a command → `./scripts/resync-dogfood.sh` + **FULL RESTART REQUIRED**
+- ✅ Changed a template → `./scripts/resync-dogfood.sh` (no restart needed)
+- ⚠️ Changed settings.local.json → **FULL RESTART REQUIRED**
+- ⚠️ Changed an agent → must push to GitHub + reinstall + **FULL RESTART REQUIRED**
+
+**CRITICAL: Understanding Restarts**
+
+Claude Code caches command definitions and hooks in memory at startup. **`/exit` is NOT enough** to reload changes!
+
+**What doesn't work**:
+- ❌ `/exit` - Only ends conversation, process keeps running
+- ❌ Closing window - Process may run in background
+- ❌ `/clear` - Only clears conversation history
+
+**What works**:
+- ✅ Press `Cmd+Q` (Mac) or `Ctrl+Q` (Windows/Linux) to fully quit
+- ✅ Verify process is dead: `ps aux | grep claude | grep -v grep` (should return nothing)
+- ✅ Wait 5 seconds
+- ✅ Restart Claude Code
 
 **Typical workflow**:
 ```bash
-# Edit hook
-vim plugins/autonomous-dev/hooks/detect_feature_request.py
+# 1. Edit command
+vim plugins/autonomous-dev/commands/new-feature.md
 
-# Resync
+# 2. Resync to .claude/
 ./scripts/resync-dogfood.sh
 
-# Test immediately (no restart!)
-# Type a feature request in Claude Code
+# 3. FULL RESTART (CRITICAL!)
+# Press Cmd+Q to fully quit Claude Code
+# Verify: ps aux | grep claude | grep -v grep
+# Wait 5 seconds
+# Restart Claude Code
+
+# 4. Test the command
+/new-feature  # Should now work with your changes
 ```
 
 ---

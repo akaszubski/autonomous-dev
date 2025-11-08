@@ -338,6 +338,30 @@ vim plugins/autonomous-dev/agents/[agent].md
 # Add to tools: [...] list in frontmatter
 ```
 
+### "Commands not updating after plugin changes"
+
+**CRITICAL**: `/exit` does NOT reload commands! You need a full restart.
+
+**The Problem**:
+- `/exit` - Only ends the current conversation, process keeps running
+- Closing window - Process may still run in background
+- `/clear` - Only clears conversation history
+
+**The Solution**:
+1. **Fully quit Claude Code** - Press `Cmd+Q` (Mac) or `Ctrl+Q` (Linux/Windows)
+2. **Verify it's dead**: `ps aux | grep claude | grep -v grep` should return nothing
+3. **Wait 5 seconds** for process to fully exit
+4. **Restart Claude Code**
+5. **Verify**: Commands should now be updated
+
+**Why**: Claude Code caches command definitions in memory at startup. The only way to reload commands is to completely restart the application process.
+
+**When you need a full restart**:
+- After installing/updating plugins
+- After modifying command files
+- After syncing plugin changes
+- When new commands don't appear in autocomplete
+
 ---
 
 ## MCP Server (Optional)

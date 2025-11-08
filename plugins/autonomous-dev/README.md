@@ -121,11 +121,32 @@ If not found, install plugin first (Step 1) and restart (Step 2).
 
 **Commands still not showing?**
 
-Try manual bootstrap:
+**CRITICAL**: `/exit` is NOT enough to reload commands!
+
+Claude Code caches command definitions in memory at startup. You need a **full application restart**:
+
+```bash
+# 1. Fully quit Claude Code
+#    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+#    OR use: pkill -9 claude
+
+# 2. Verify process is dead
+ps aux | grep claude | grep -v grep
+# Should return nothing
+
+# 3. Wait 5 seconds
+
+# 4. Restart Claude Code
+
+# 5. Test commands
+/sy  # Should show /sync and other commands
+```
+
+**Still not working?** Try manual bootstrap:
 ```bash
 # Copy commands manually
 cp ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands/*.md .claude/commands/
-# Restart Claude Code
+# Then do a FULL restart (Cmd+Q, not /exit!)
 ```
 
 ## ✨ What's New in v3.5.0

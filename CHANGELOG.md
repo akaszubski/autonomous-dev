@@ -12,6 +12,26 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.7.0] - 2025-11-08
 
+### Added
+- **GenAI-Powered Orphan Detection in Sync Script** - GitHub #47
+  - Smart orphan file detection: Identifies files in installed location not in dev directory
+  - GenAI reasoning: Analyzes why files are orphaned (renamed, consolidated, deprecated, moved, removed)
+  - Interactive cleanup: Prompts to remove orphaned files with backup
+  - Auto-detection: Checks for orphans after every sync (non-intrusive)
+  - New flags:
+    - `--detect-orphans`: Scan for and show orphaned files with reasoning
+    - `--cleanup`: Remove orphaned files (creates backup first)
+    - `-y`: Skip confirmation prompts (non-interactive mode)
+  - Safety features:
+    - Timestamped backups before deletion
+    - Dry-run support for preview
+    - Interactive confirmation (unless `-y` flag)
+  - Example detection:
+    - `dev-sync.md` → "Deprecated - replaced by unified /sync command"
+    - `old-command.md` → "Likely renamed to 'new-command.md'"
+    - `moved-file.md` → "Moved to commands/ directory"
+  - Documentation: `docs/SYNC-SCRIPT-GENAI.md` - comprehensive guide with examples
+
 ### Changed
 - **Command Consolidation: Unified /sync Command** - GitHub #47
   - Consolidated `/sync-dev` (development sync) and `/update-plugin` (marketplace updates) into single `/sync` command
