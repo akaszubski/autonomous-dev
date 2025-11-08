@@ -1144,6 +1144,47 @@ cd my-fastapi-project
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
 - [SECURITY.md](docs/SECURITY.md) - Security utilities, path validation, audit logging
 
+### For Python Developers (Shared Libraries API)
+
+The `plugins/autonomous-dev/lib/` directory contains 5 production-ready shared libraries for building autonomous development tools:
+
+**Core Libraries:**
+- `security_utils.py` - Path validation, input sanitization, audit logging (CWE-22, CWE-59 protection)
+- `project_md_updater.py` - Atomic PROJECT.md updates with merge conflict detection
+- `version_detector.py` - Semantic version parsing and comparison (v3.7.1+)
+- `orphan_file_cleaner.py` - Orphaned file detection and cleanup (v3.7.1+)
+- `sync_dispatcher.py` - Intelligent sync orchestration with version detection and cleanup (v3.7.1+)
+
+**Example: Using sync_marketplace() API (v3.7.1+)**
+
+```python
+from pathlib import Path
+from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+
+# Run marketplace sync with version detection and optional cleanup
+result = sync_marketplace(
+    project_root="/path/to/project",
+    marketplace_plugins_file=Path("~/.claude/plugins/installed_plugins.json"),
+    cleanup_orphans=True,  # Optional: detect and cleanup orphaned files
+    dry_run=True,          # Optional: preview cleanup without deleting
+)
+
+# Access comprehensive results
+print(result.summary)  # Human-readable summary with version and cleanup info
+
+# Check version comparison
+if result.version_comparison:
+    print(f"Status: {result.version_comparison.status}")
+    print(f"Versions: {result.version_comparison.project_version} → {result.version_comparison.marketplace_version}")
+
+# Check cleanup results
+if result.orphan_cleanup:
+    print(f"Orphans detected: {result.orphan_cleanup.orphans_detected}")
+    print(f"Orphans deleted: {result.orphan_cleanup.orphans_deleted}")
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed library documentation and usage patterns.
+
 ### For Contributors
 
 | Guide | Purpose |

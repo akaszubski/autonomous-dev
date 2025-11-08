@@ -51,6 +51,12 @@ from plugins.autonomous_dev.lib.security_utils import (
     audit_log,
 )
 from plugins.autonomous_dev.lib.sync_mode_detector import SyncMode, get_individual_sync_modes
+from plugins.autonomous_dev.lib.version_detector import detect_version_mismatch, VersionComparison
+from plugins.autonomous_dev.lib.orphan_file_cleaner import (
+    detect_orphans,
+    cleanup_orphans as cleanup_orphan_files,
+    CleanupResult,
+)
 
 
 @dataclass
@@ -63,6 +69,8 @@ class SyncResult:
         message: Human-readable result message
         details: Additional result details (files updated, conflicts, etc.)
         error: Error message if sync failed
+        version_comparison: Version comparison results (marketplace sync only)
+        orphan_cleanup: Orphan cleanup results (marketplace sync only)
     """
 
     success: bool
@@ -70,6 +78,40 @@ class SyncResult:
     message: str
     details: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    version_comparison: Optional[VersionComparison] = None
+    orphan_cleanup: Optional[CleanupResult] = None
+
+    @property
+    def summary(self) -> str:
+        """Generate comprehensive summary including all details.
+
+        Returns:
+            Human-readable summary with version and cleanup info
+        """
+        parts = [self.message]
+
+        # Add version information
+        if self.version_comparison:
+            vc = self.version_comparison
+            if vc.project_version and vc.marketplace_version:
+                if vc.status == VersionComparison.UPGRADE_AVAILABLE:
+                    parts.append(f"Version upgrade: {vc.project_version} → {vc.marketplace_version}")
+                elif vc.status == VersionComparison.DOWNGRADE_RISK:
+                    parts.append(f"Downgrade risk: {vc.project_version} → {vc.marketplace_version}")
+                elif vc.status == VersionComparison.UP_TO_DATE:
+                    parts.append(f"Version up to date: {vc.project_version}")
+
+        # Add orphan cleanup information
+        if self.orphan_cleanup:
+            oc = self.orphan_cleanup
+            if oc.dry_run and oc.orphans_detected > 0:
+                parts.append(f"Orphans detected: {oc.orphans_detected} (dry-run, not deleted)")
+            elif oc.orphans_deleted > 0:
+                parts.append(f"Orphan cleanup: {oc.orphans_deleted} files deleted")
+            elif oc.orphans_detected == 0:
+                parts.append("No orphaned files detected")
+
+        return " | ".join(parts)
 
 
 class SyncDispatcherError(Exception):
@@ -90,19 +132,31 @@ class SyncDispatcher:
         _backup_dir: Temporary directory for backup files
     """
 
-    def __init__(self, project_path: str):
+    def __init__(self, project_path: str = None, project_root: str = None):
         """Initialize dispatcher with project path.
 
         Args:
-            project_path: Path to project root directory
+            project_path: Path to project root directory (legacy parameter)
+            project_root: Path to project root directory (preferred parameter)
 
         Raises:
             ValueError: If path fails security validation
             SyncDispatcherError: If project path is invalid
+
+        Note:
+            Either project_path or project_root must be provided.
+            project_root takes precedence if both are provided.
         """
+        # Accept both project_path and project_root for backwards compatibility
+        path = project_root if project_root is not None else project_path
+        if path is None:
+            raise SyncDispatcherError(
+                "Either project_path or project_root must be provided"
+            )
+
         # Validate and resolve path
         try:
-            validated_path = validate_path(project_path, "sync dispatcher")
+            validated_path = validate_path(path, "sync dispatcher")
             self.project_path = Path(validated_path).resolve()
         except ValueError as e:
             audit_log(
@@ -110,7 +164,7 @@ class SyncDispatcher:
                 "failure",
                 {
                     "operation": "init",
-                    "project_path": project_path,
+                    "project_path": path,
                     "error": str(e),
                 },
             )
@@ -514,6 +568,288 @@ class SyncDispatcher:
             },
         )
 
+    def sync_marketplace(
+        self,
+        marketplace_plugins_file: Path,
+        cleanup_orphans: bool = False,
+        dry_run: bool = False,
+    ) -> SyncResult:
+        """Execute marketplace sync with version detection and orphan cleanup.
+
+        This enhanced marketplace sync performs:
+        1. Version detection (project vs marketplace)
+        2. File copy (commands, hooks, agents)
+        3. Orphan detection (always)
+        4. Orphan cleanup (conditional, based on cleanup_orphans)
+
+        All enhancements are non-blocking. Core sync succeeds even if
+        version detection or orphan cleanup fails.
+
+        Args:
+            marketplace_plugins_file: Path to installed_plugins.json
+            cleanup_orphans: Whether to cleanup orphaned files (default: False)
+            dry_run: Whether to dry-run orphan cleanup (default: False)
+
+        Returns:
+            SyncResult with version_comparison and orphan_cleanup attributes
+
+        Example:
+            >>> dispatcher = SyncDispatcher("/path/to/project")
+            >>> result = dispatcher.sync_marketplace(
+            ...     marketplace_plugins_file=Path("~/.claude/plugins/installed_plugins.json"),
+            ...     cleanup_orphans=True,
+            ...     dry_run=False
+            ... )
+            >>> print(result.summary)
+        """
+        version_comparison = None
+        orphan_cleanup_result = None
+        files_updated = 0
+
+        # Step 1: Version detection (non-blocking)
+        try:
+            version_comparison = detect_version_mismatch(
+                project_root=str(self.project_path),
+                marketplace_plugins_file=str(marketplace_plugins_file),
+            )
+            audit_log(
+                "marketplace_sync",
+                "version_detected",
+                {
+                    "project_path": str(self.project_path),
+                    "project_version": version_comparison.project_version,
+                    "marketplace_version": version_comparison.marketplace_version,
+                    "status": version_comparison.status,
+                },
+            )
+        except Exception as e:
+            # Log error but continue sync
+            audit_log(
+                "marketplace_sync",
+                "version_detection_failed",
+                {
+                    "project_path": str(self.project_path),
+                    "error": str(e),
+                },
+            )
+            # version_comparison stays None
+
+        # Validate marketplace_plugins_file path (security)
+        try:
+            validated_marketplace_file = validate_path(
+                str(marketplace_plugins_file),
+                "marketplace plugins file"
+            )
+        except ValueError as e:
+            # Security violations (path traversal, etc) - re-raise for security tests
+            if "Path outside allowed directories" in str(e):
+                raise
+            # Other validation errors - return gracefully
+            return SyncResult(
+                success=False,
+                mode=SyncMode.MARKETPLACE,
+                message="Security validation failed",
+                error=str(e),
+                version_comparison=version_comparison,
+                orphan_cleanup=orphan_cleanup_result,
+            )
+
+        # Check if file exists
+        if not Path(validated_marketplace_file).exists():
+            # File not found - return SyncResult (graceful error handling)
+            return SyncResult(
+                success=False,
+                mode=SyncMode.MARKETPLACE,
+                message="Marketplace plugins file not found",
+                error=f"File not found: {validated_marketplace_file}",
+                version_comparison=version_comparison,
+                orphan_cleanup=orphan_cleanup_result,
+            )
+
+        marketplace_plugins_file = Path(validated_marketplace_file)
+
+        # Step 2: Copy marketplace files (core sync - MUST succeed)
+        try:
+
+            # Read marketplace plugins
+            try:
+                plugins_data = json.loads(marketplace_plugins_file.read_text())
+            except json.JSONDecodeError as e:
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.MARKETPLACE,
+                    message="Failed to parse marketplace plugins JSON",
+                    error=f"JSON parse error: {e}",
+                    version_comparison=version_comparison,
+                    orphan_cleanup=orphan_cleanup_result,
+                )
+
+            # Find autonomous-dev plugin
+            plugin_info = plugins_data.get("autonomous-dev")
+            if not plugin_info:
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.MARKETPLACE,
+                    message="autonomous-dev not found in marketplace",
+                    error="Plugin not installed in marketplace",
+                    version_comparison=version_comparison,
+                    orphan_cleanup=orphan_cleanup_result,
+                )
+
+            # Get plugin path and validate BEFORE existence check (CWE-59 protection)
+            plugin_path = Path(plugin_info.get("path", ""))
+
+            # Validate plugin path FIRST (prevents symlink TOCTOU attack)
+            try:
+                plugin_path = validate_path(str(plugin_path), "marketplace plugin directory")
+            except ValueError as e:
+                audit_log(
+                    "security_violation",
+                    "marketplace_path_invalid",
+                    {
+                        "path": str(plugin_path),
+                        "error": str(e),
+                    },
+                )
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.MARKETPLACE,
+                    message="Security validation failed",
+                    error=f"Invalid marketplace path: {e}",
+                    version_comparison=version_comparison,
+                    orphan_cleanup=orphan_cleanup_result,
+                )
+
+            # Now safe to check existence (after validation)
+            if not plugin_path.exists():
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.MARKETPLACE,
+                    message="Marketplace plugin directory not found",
+                    error=f"Directory not found: {plugin_path}",
+                    version_comparison=version_comparison,
+                    orphan_cleanup=orphan_cleanup_result,
+                )
+
+            # Ensure target .claude directory exists
+            claude_dir = self.project_path / ".claude"
+            claude_dir.mkdir(exist_ok=True)
+
+            # Ensure plugins directory exists (for plugin.json)
+            plugins_dir = claude_dir / "plugins" / "autonomous-dev"
+            plugins_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy plugin.json (needed for orphan detection)
+            plugin_json_src = Path(plugin_path) / "plugin.json"
+            plugin_json_dst = plugins_dir / "plugin.json"
+            if plugin_json_src.exists():
+                shutil.copy2(plugin_json_src, plugin_json_dst)
+                files_updated += 1
+
+            # Copy files (same logic as _dispatch_marketplace)
+            # Copy commands
+            commands_src = Path(plugin_path) / "commands"
+            commands_dst = claude_dir / "commands"
+            if commands_src.exists():
+                shutil.copytree(commands_src, commands_dst, dirs_exist_ok=True)
+                files_updated += sum(1 for _ in commands_dst.rglob("*.md"))
+
+            # Copy hooks
+            hooks_src = Path(plugin_path) / "hooks"
+            hooks_dst = claude_dir / "hooks"
+            if hooks_src.exists():
+                shutil.copytree(hooks_src, hooks_dst, dirs_exist_ok=True)
+                files_updated += sum(1 for _ in hooks_dst.rglob("*.py"))
+
+            # Copy agents
+            agents_src = Path(plugin_path) / "agents"
+            agents_dst = claude_dir / "agents"
+            if agents_src.exists():
+                shutil.copytree(agents_src, agents_dst, dirs_exist_ok=True)
+                files_updated += sum(1 for _ in agents_dst.rglob("*.md"))
+
+        except Exception as e:
+            # Core sync failed - return failure
+            return SyncResult(
+                success=False,
+                mode=SyncMode.MARKETPLACE,
+                message="Marketplace file copy failed",
+                error=str(e),
+                version_comparison=version_comparison,
+                orphan_cleanup=orphan_cleanup_result,
+            )
+
+        # Step 3 & 4: Orphan detection and cleanup (non-blocking, only if cleanup enabled)
+        if cleanup_orphans:
+            try:
+                # Use cleanup_orphan_files function which handles both detection and cleanup
+                orphan_cleanup_result = cleanup_orphan_files(
+                    project_root=str(self.project_path),
+                    dry_run=dry_run,
+                    confirm=False,  # Auto mode
+                )
+                audit_log(
+                    "marketplace_sync",
+                    "orphans_processed",
+                    {
+                        "project_path": str(self.project_path),
+                        "orphans_detected": orphan_cleanup_result.orphans_detected,
+                        "orphans_deleted": orphan_cleanup_result.orphans_deleted,
+                        "dry_run": dry_run,
+                    },
+                )
+            except Exception as e:
+                # Log error but continue
+                audit_log(
+                    "marketplace_sync",
+                    "orphan_processing_failed",
+                    {
+                        "project_path": str(self.project_path),
+                        "error": str(e),
+                    },
+                )
+                # orphan_cleanup_result stays None
+
+        # Step 5: Build enriched message
+        message_parts = [f"Marketplace sync completed: {files_updated} files updated"]
+
+        if version_comparison and version_comparison.project_version and version_comparison.marketplace_version:
+            if version_comparison.status == VersionComparison.UPGRADE_AVAILABLE:
+                message_parts.append(
+                    f"Upgraded from {version_comparison.project_version} to {version_comparison.marketplace_version}"
+                )
+            elif version_comparison.status == VersionComparison.DOWNGRADE_RISK:
+                message_parts.append(
+                    f"WARNING: Downgrade from {version_comparison.project_version} to {version_comparison.marketplace_version}"
+                )
+            elif version_comparison.status == VersionComparison.UP_TO_DATE:
+                message_parts.append(f"Version {version_comparison.project_version} (up to date)")
+
+        if orphan_cleanup_result:
+            if orphan_cleanup_result.dry_run and orphan_cleanup_result.orphans_detected > 0:
+                message_parts.append(
+                    f"{orphan_cleanup_result.orphans_detected} orphaned files detected (dry-run)"
+                )
+            elif orphan_cleanup_result.orphans_deleted > 0:
+                message_parts.append(f"{orphan_cleanup_result.orphans_deleted} orphaned files cleaned")
+            elif orphan_cleanup_result.orphans_detected == 0:
+                message_parts.append("No orphaned files")
+
+        message = " | ".join(message_parts)
+
+        # Return success with enriched data
+        return SyncResult(
+            success=True,
+            mode=SyncMode.MARKETPLACE,
+            message=message,
+            details={
+                "files_updated": files_updated,
+                "source": str(plugin_path) if 'plugin_path' in locals() else "unknown",
+            },
+            version_comparison=version_comparison,
+            orphan_cleanup=orphan_cleanup_result,
+        )
+
     def _create_backup(self) -> None:
         """Create backup of .claude directory before sync.
 
@@ -605,3 +941,45 @@ def dispatch_sync(
     """
     dispatcher = SyncDispatcher(project_path)
     return dispatcher.dispatch(mode, create_backup=create_backup)
+
+
+def sync_marketplace(
+    project_root: str,
+    marketplace_plugins_file: Path,
+    cleanup_orphans: bool = False,
+    dry_run: bool = False,
+) -> SyncResult:
+    """Convenience function for marketplace sync with enhancements.
+
+    This is the high-level API for marketplace sync that includes:
+    - Version detection (upgrade/downgrade detection)
+    - Orphan cleanup (optional, with dry-run support)
+    - Rich result object with version and cleanup details
+
+    Args:
+        project_root: Path to project root directory
+        marketplace_plugins_file: Path to installed_plugins.json
+        cleanup_orphans: Whether to cleanup orphaned files (default: False)
+        dry_run: Whether to dry-run orphan cleanup (default: False)
+
+    Returns:
+        SyncResult with version_comparison and orphan_cleanup attributes
+
+    Example:
+        >>> from pathlib import Path
+        >>> result = sync_marketplace(
+        ...     project_root="/path/to/project",
+        ...     marketplace_plugins_file=Path("~/.claude/plugins/installed_plugins.json"),
+        ...     cleanup_orphans=True,
+        ...     dry_run=True
+        ... )
+        >>> print(result.summary)
+        >>> if result.version_comparison:
+        ...     print(f"Version: {result.version_comparison.status}")
+    """
+    dispatcher = SyncDispatcher(project_root)
+    return dispatcher.sync_marketplace(
+        marketplace_plugins_file=marketplace_plugins_file,
+        cleanup_orphans=cleanup_orphans,
+        dry_run=dry_run,
+    )

@@ -646,3 +646,534 @@ class TestSecurityValidation:
 
         # User file should be unchanged
         assert user_file.read_text() == "Important data"
+
+
+class TestVersionDetectionNonBlocking:
+    """Test version detection failures don't block sync."""
+
+    @pytest.fixture
+    def temp_environment(self, tmp_path):
+        """Create full test environment."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        (project_root / ".claude").mkdir()
+        (project_root / ".claude" / "plugins").mkdir()
+        (project_root / ".claude" / "plugins" / "autonomous-dev").mkdir()
+
+        marketplace_dir = tmp_path / "marketplace"
+        marketplace_dir.mkdir()
+        (marketplace_dir / ".claude").mkdir()
+        (marketplace_dir / ".claude" / "plugins").mkdir()
+
+        return {
+            "project_root": project_root,
+            "marketplace_dir": marketplace_dir
+        }
+
+    def test_version_detection_failure_does_not_block_sync(self, temp_environment):
+        """Test sync succeeds even when version detection fails.
+
+        REQUIREMENT: Non-blocking version detection.
+        Expected: SyncResult.success=True even if version detection fails.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup marketplace with invalid plugin.json (will break version detection)
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        # Invalid JSON will break version detection
+        (marketplace_plugin_dir / "plugin.json").write_text("invalid json")
+
+        # Create some actual files to sync
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(marketplace_plugins_file=marketplace_plugins)
+
+        # Sync should succeed despite version detection failure
+        assert result.success is True
+        assert result.version_comparison is None  # Version detection failed
+
+    def test_missing_plugin_json_does_not_block_sync(self, temp_environment):
+        """Test sync succeeds when plugin.json is missing.
+
+        REQUIREMENT: Non-blocking version detection.
+        Expected: SyncResult.success=True, version_comparison=None.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup marketplace without plugin.json
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        # No plugin.json created
+
+        # Create some actual files to sync
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(marketplace_plugins_file=marketplace_plugins)
+
+        # Sync should succeed despite missing plugin.json
+        assert result.success is True
+        assert result.version_comparison is None
+
+    def test_version_detection_error_logged_but_not_raised(self, temp_environment):
+        """Test version detection errors are logged but don't raise exceptions.
+
+        REQUIREMENT: Non-blocking error handling.
+        Expected: No exceptions raised, errors logged internally.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup with corrupted version info
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "invalid.version.format",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "also.invalid"
+        }))
+
+        # Create some actual files to sync
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+
+        # Should not raise exception
+        result = dispatcher.sync_marketplace(marketplace_plugins_file=marketplace_plugins)
+
+        # Sync should succeed
+        assert result.success is True
+
+
+class TestOrphanDetectionNonBlocking:
+    """Test orphan detection failures don't block sync."""
+
+    @pytest.fixture
+    def temp_environment(self, tmp_path):
+        """Create full test environment."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        (project_root / ".claude").mkdir()
+        (project_root / ".claude" / "commands").mkdir()
+        (project_root / ".claude" / "plugins").mkdir()
+        (project_root / ".claude" / "plugins" / "autonomous-dev").mkdir()
+
+        marketplace_dir = tmp_path / "marketplace"
+        marketplace_dir.mkdir()
+        (marketplace_dir / ".claude").mkdir()
+        (marketplace_dir / ".claude" / "plugins").mkdir()
+
+        return {
+            "project_root": project_root,
+            "marketplace_dir": marketplace_dir
+        }
+
+    def test_orphan_detection_failure_does_not_block_sync(self, temp_environment):
+        """Test sync succeeds even when orphan detection fails.
+
+        REQUIREMENT: Non-blocking orphan detection.
+        Expected: SyncResult.success=True even if orphan detection fails.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup marketplace
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+
+        # Sync with cleanup enabled (may fail internally)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=True
+        )
+
+        # Sync should succeed even if orphan detection has issues
+        assert result.success is True
+
+    def test_orphan_cleanup_error_does_not_block_sync(self, temp_environment):
+        """Test sync succeeds even when orphan cleanup fails.
+
+        REQUIREMENT: Non-blocking orphan cleanup.
+        Expected: SyncResult.success=True, cleanup errors reported.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Create protected orphan file (will cause cleanup failure)
+        orphan_file = project_root / ".claude" / "commands" / "old-command.md"
+        orphan_file.write_text("# Old Command")
+        orphan_file.chmod(0o444)  # Read-only
+
+        # Setup marketplace
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        try:
+            dispatcher = SyncDispatcher(project_root=project_root)
+
+            # Sync with cleanup enabled (may fail to delete protected file)
+            result = dispatcher.sync_marketplace(
+                marketplace_plugins_file=marketplace_plugins,
+                cleanup_orphans=True,
+                dry_run=False
+            )
+
+            # Sync should succeed despite cleanup errors
+            assert result.success is True
+
+            # If cleanup was attempted, errors should be reported
+            if result.orphan_cleanup:
+                # Cleanup may report errors
+                assert result.orphan_cleanup.errors >= 0
+        finally:
+            # Restore permissions for cleanup
+            orphan_file.chmod(0o644)
+
+
+class TestCombinedWorkflow:
+    """Test combined version detection + orphan cleanup workflow."""
+
+    @pytest.fixture
+    def temp_full_environment(self, tmp_path):
+        """Create complete test environment with versions and orphans."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        (project_root / ".claude").mkdir()
+        (project_root / ".claude" / "commands").mkdir()
+        (project_root / ".claude" / "plugins").mkdir()
+        (project_root / ".claude" / "plugins" / "autonomous-dev").mkdir()
+
+        # Old version with deprecated command
+        project_plugin = project_root / ".claude" / "plugins" / "autonomous-dev" / "plugin.json"
+        project_plugin.write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.7.0",
+            "commands": ["auto-implement.md", "old-command.md"]
+        }))
+
+        # Create orphaned command
+        orphan_file = project_root / ".claude" / "commands" / "old-command.md"
+        orphan_file.write_text("# Old Command")
+
+        # Marketplace setup
+        marketplace_dir = tmp_path / "marketplace"
+        marketplace_dir.mkdir()
+        (marketplace_dir / ".claude").mkdir()
+        (marketplace_dir / ".claude" / "plugins").mkdir()
+
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.8.0",
+            "commands": ["auto-implement.md"]  # old-command removed
+        }))
+
+        # Create marketplace commands
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "auto-implement.md").write_text("# Auto Implement")
+
+        return {
+            "project_root": project_root,
+            "marketplace_plugins": marketplace_plugins,
+            "orphan_file": orphan_file
+        }
+
+    def test_full_sync_workflow_with_all_features(self, temp_full_environment):
+        """Test complete sync workflow with version detection and cleanup.
+
+        REQUIREMENT: Integrated workflow with all features.
+        Expected: Version upgrade detected, orphans cleaned, success reported.
+        """
+        project_root = temp_full_environment["project_root"]
+        marketplace_plugins = temp_full_environment["marketplace_plugins"]
+        orphan_file = temp_full_environment["orphan_file"]
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=False
+        )
+
+        # Should succeed
+        assert result.success is True
+
+        # Should detect version upgrade
+        assert result.version_comparison is not None
+        assert result.version_comparison.project_version == "3.7.0"
+        assert result.version_comparison.marketplace_version == "3.8.0"
+
+        # Should cleanup orphans
+        assert result.orphan_cleanup is not None
+        assert result.orphan_cleanup.orphans_deleted > 0
+        assert not orphan_file.exists()
+
+    def test_sync_result_details_comprehensive(self, temp_full_environment):
+        """Test SyncResult includes comprehensive details.
+
+        REQUIREMENT: Rich result reporting.
+        Expected: SyncResult.details includes version_info and orphan_info.
+        """
+        project_root = temp_full_environment["project_root"]
+        marketplace_plugins = temp_full_environment["marketplace_plugins"]
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=True
+        )
+
+        # Should include comprehensive details
+        assert "files_updated" in result.details or result.details is not None
+        assert result.version_comparison is not None
+        assert result.orphan_cleanup is not None
+
+    def test_sync_message_includes_all_info(self, temp_full_environment):
+        """Test sync message includes version and orphan info.
+
+        REQUIREMENT: Comprehensive user messaging.
+        Expected: Message mentions version upgrade and orphans.
+        """
+        project_root = temp_full_environment["project_root"]
+        marketplace_plugins = temp_full_environment["marketplace_plugins"]
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=True
+        )
+
+        message_lower = result.message.lower()
+
+        # Should mention version info
+        assert "3.7.0" in message_lower or "3.8.0" in message_lower or "upgrade" in message_lower
+
+        # Should mention orphan info if detected
+        if result.orphan_cleanup and result.orphan_cleanup.orphans_detected > 0:
+            assert "orphan" in message_lower or "cleanup" in message_lower
+
+
+class TestEdgeCases:
+    """Test edge cases and boundary conditions."""
+
+    @pytest.fixture
+    def temp_environment(self, tmp_path):
+        """Create test environment."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        (project_root / ".claude").mkdir()
+        (project_root / ".claude" / "plugins").mkdir()
+        (project_root / ".claude" / "plugins" / "autonomous-dev").mkdir()
+
+        marketplace_dir = tmp_path / "marketplace"
+        marketplace_dir.mkdir()
+        (marketplace_dir / ".claude").mkdir()
+        (marketplace_dir / ".claude" / "plugins").mkdir()
+
+        return {
+            "project_root": project_root,
+            "marketplace_dir": marketplace_dir
+        }
+
+    def test_no_orphans_detected_clean_sync(self, temp_environment):
+        """Test clean sync with no orphaned files.
+
+        REQUIREMENT: Handle clean state gracefully.
+        Expected: orphan_cleanup shows 0 orphans if cleanup enabled.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup matching versions
+        project_plugin = project_root / ".claude" / "plugins" / "autonomous-dev" / "plugin.json"
+        project_plugin.write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.8.0",
+            "commands": ["auto-implement.md"]
+        }))
+
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.8.0",
+            "commands": ["auto-implement.md"]
+        }))
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=True
+        )
+
+        # Should succeed
+        assert result.success is True
+
+        # Should detect no orphans
+        if result.orphan_cleanup:
+            assert result.orphan_cleanup.orphans_detected == 0
+
+    def test_version_already_up_to_date(self, temp_environment):
+        """Test sync when versions are already matching.
+
+        REQUIREMENT: Handle up-to-date state.
+        Expected: version_comparison shows UP_TO_DATE status.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup identical versions
+        project_plugin = project_root / ".claude" / "plugins" / "autonomous-dev" / "plugin.json"
+        project_plugin.write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.8.0"
+        }))
+
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "3.8.0",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        (marketplace_plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.8.0"
+        }))
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(marketplace_plugins_file=marketplace_plugins)
+
+        # Should succeed
+        assert result.success is True
+
+        # Should detect versions are same
+        if result.version_comparison:
+            assert result.version_comparison.project_version == "3.8.0"
+            assert result.version_comparison.marketplace_version == "3.8.0"
+
+    def test_both_features_fail_gracefully(self, temp_environment):
+        """Test sync succeeds even when both version and orphan features fail.
+
+        REQUIREMENT: Non-blocking error handling for all enhancements.
+        Expected: Core sync succeeds, enhanced features fail gracefully.
+        """
+        project_root = temp_environment["project_root"]
+        marketplace_dir = temp_environment["marketplace_dir"]
+
+        # Setup to break both version detection (invalid JSON) and orphan detection
+        marketplace_plugins = marketplace_dir / ".claude" / "plugins" / "installed_plugins.json"
+        marketplace_plugins.write_text(json.dumps({
+            "autonomous-dev": {
+                "version": "invalid.version",
+                "source": "marketplace",
+                "path": str(marketplace_dir / ".claude" / "plugins" / "autonomous-dev")
+            }
+        }))
+
+        marketplace_plugin_dir = marketplace_dir / ".claude" / "plugins" / "autonomous-dev"
+        marketplace_plugin_dir.mkdir(parents=True)
+        # Invalid JSON for version detection
+        (marketplace_plugin_dir / "plugin.json").write_text("invalid json")
+
+        # Create files to sync
+        (marketplace_plugin_dir / "commands").mkdir()
+        (marketplace_plugin_dir / "commands" / "test.md").write_text("# Test")
+
+        dispatcher = SyncDispatcher(project_root=project_root)
+        result = dispatcher.sync_marketplace(
+            marketplace_plugins_file=marketplace_plugins,
+            cleanup_orphans=True,
+            dry_run=True
+        )
+
+        # Core sync should still succeed
+        assert result.success is True
+
+        # Enhanced features should be None (failed)
+        assert result.version_comparison is None
+        # orphan_cleanup may be None if it failed

@@ -3,7 +3,7 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-08
-**Current Version**: v3.7.0 (Unified /sync Command)
+**Current Version**: v3.7.1 (Marketplace Update UX + Version Detection)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -800,6 +800,29 @@ Versioning: [Semantic Versioning](https://semver.org/)
   - User impact: Agents leverage specialized knowledge automatically, improving feature development quality
   - Backward compatible: Skills are optional (progressive disclosure graceful degradation)
   - Next steps: Skill expansion to domain-specific areas (machine learning, mobile, cloud) based on project needs
+
+- **Sync Dispatcher Integration with Version Detection and Orphan Cleanup** - GitHub #51
+  - New `sync_marketplace()` high-level API in `sync_dispatcher.py` for marketplace sync with enhancements
+  - SyncResult dataclass enhancement: Added `version_comparison` and `orphan_cleanup` attributes
+  - Version detection integration:
+    - Uses `detect_version_mismatch()` from `version_detector.py` to compare project vs. marketplace versions
+    - Shows upgrade/downgrade status and version numbers in result messages
+    - Upgrade messaging: "Upgraded from X.Y.Z to A.B.C"
+    - Downgrade warning: "WARNING: Downgrade from X.Y.Z to A.B.C"
+    - Up-to-date messaging: "Version X.Y.Z (up to date)"
+  - Orphan cleanup integration:
+    - Uses `cleanup_orphan_files()` from `orphan_file_cleaner.py` to detect and cleanup orphaned files
+    - Optional cleanup (cleanup_orphans parameter, default False)
+    - Dry-run support for safe preview mode
+    - Reports: "X orphaned files detected (dry-run)" or "X orphaned files cleaned"
+  - Non-blocking error handling:
+    - Version detection failures don't block core sync
+    - Orphan cleanup failures don't block core sync
+    - All errors logged to security audit with context
+  - SyncResult.summary property: Auto-generates comprehensive summary including version and cleanup info
+  - Comprehensive audit logging: All version detection and cleanup operations logged to security audit (marketplace_sync events)
+  - Security: All paths validated via security_utils with CWE-22/CWE-59 protection
+  - User impact: Single API call provides rich result object with version and cleanup visibility
 
 ## [2.5.0] - 2025-10-25
 

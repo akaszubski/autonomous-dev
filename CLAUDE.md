@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-08
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.7.1 (Marketplace Update UX + Version Detection)
+**Version**: v3.7.1 (Marketplace Update UX + Version Detection + Sync Dispatcher Integration)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -207,7 +207,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (4 Shared Libraries - v3.4.0+)
+### Libraries (5 Shared Libraries - v3.4.0+, Enhanced v3.7.1+)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -253,7 +253,30 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: sync_dispatcher.py for marketplace sync cleanup
    - Related: GitHub Issue #50
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery.
+5. **sync_dispatcher.py** (976 lines, v3.7.1+) - Intelligent sync orchestration with version detection and cleanup
+   - Classes: `SyncMode` (enum: MARKETPLACE, ENV, PLUGIN_DEV), `SyncResult` (dataclass with version/cleanup attributes), `SyncDispatcher` (main coordinator)
+   - High-level API: `sync_marketplace()` convenience function for marketplace sync with enhancements
+   - Features: Version detection (project vs marketplace), orphan cleanup (optional), non-blocking error handling, comprehensive audit logging
+   - SyncResult attributes:
+     - `success`: Whether sync succeeded
+     - `mode`: Which sync mode executed
+     - `message`: Human-readable result
+     - `details`: Additional details (files updated, conflicts, etc.)
+     - `version_comparison`: VersionComparison object (NEW, v3.7.1+) with upgrade/downgrade status
+     - `orphan_cleanup`: CleanupResult object (NEW, v3.7.1+) with orphan detection/cleanup summary
+   - SyncResult.summary property: Auto-generates comprehensive summary including version and cleanup info
+   - Marketplace sync enhancement: Integrates version_detector and orphan_file_cleaner
+     - Version detection: Runs detect_version_mismatch() for marketplace vs. project comparison
+     - Orphan cleanup: Conditional (cleanup_orphans parameter), with dry-run support
+     - Error handling: Non-blocking - enhancements don't block core sync
+     - Messaging: Shows upgrade/downgrade/up-to-date status and cleanup results
+   - Audit logging: All operations logged to security audit (marketplace_sync events)
+   - Security: All paths validated via security_utils
+   - Test coverage: Comprehensive testing of all sync modes
+   - Used by: /sync command, sync_marketplace() high-level API
+   - Related: GitHub Issues #47, #50, #51
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup) don't block core sync operations.
 
 ### Hooks (29 total automation)
 
