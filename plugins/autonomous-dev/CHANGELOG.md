@@ -28,6 +28,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Testing**: New comprehensive test suite (`tests/test_genai_prompts.py`)
 - **Related**: Issue #19
 
+## [3.7.1] - 2025-11-08
+
+### ✨ Marketplace Update UX Improvement Release
+
+**Goal**: Improve `/sync marketplace` UX by detecting version differences and cleaning up orphaned files after updates.
+
+**Problem Solved**: Users couldn't see if marketplace updates were available, and old files weren't removed after syncing newer plugin versions, causing confusion and state drift.
+
+### Added
+
+#### 🔍 Version Detection Service (`lib/version_detector.py` - 531 lines)
+- **Semantic version parsing**: Parse `MAJOR.MINOR.PATCH[-PRERELEASE]` format from plugin.json
+- **Version comparison**: Detect upgrade available, downgrade risk, or up-to-date status
+- **API**:
+  - `Version` - Semantic version object with comparison operators (`<`, `>`, `==`, `<=`, `>=`)
+  - `VersionComparison` - Result dataclass with `is_upgrade`, `is_downgrade`, `status`, `message`
+  - `VersionDetector` class - Low-level API for fine-grained control
+  - `detect_version_mismatch()` - High-level convenience function
+- **Security**: Path validation via `security_utils`, audit logging (CWE-22, CWE-59 protection)
+- **Error messages**: Clear, actionable with expected format and troubleshooting hints
+- **Pre-release handling**: Correctly handles `3.7.0`, `3.8.0-beta.1`, `3.8.0-rc.2` patterns
+- **Testing**: 20 unit tests covering version parsing, comparison, edge cases (file not found, corrupted JSON)
+- **Related**: GitHub Issue #50
+
+#### 🧹 Orphan File Cleaner (`lib/orphan_file_cleaner.py` - 514 lines)
+- **Orphan detection**: Identify files in `.claude/` that aren't in `plugin.json`
+- **Dry-run mode**: Report orphans without deleting (default safe behavior)
+- **Cleanup modes**:
+  - `dry_run=True` (default) - Report only, safe preview
+  - `confirm=True` - Ask user before each deletion
+  - `confirm=False, dry_run=False` - Auto-delete without prompts (non-interactive)
+- **API**:
+  - `OrphanFile` - Dataclass for orphaned file representation
+  - `CleanupResult` - Result with `orphans_detected`, `orphans_deleted`, `success`, `summary`
+  - `OrphanFileCleaner` class - Low-level API for fine-grained control
+  - `detect_orphans()` - Detect without cleanup
+  - `cleanup_orphans()` - Cleanup with mode control
+- **Categories**: Commands, hooks, agents in respective `.claude/` subdirectories
+- **Security**: Path validation via `security_utils`, audit logging to `logs/orphan_cleanup_audit.log`
+- **Error handling**: Graceful failures per file (one orphan deletion failure doesn't block others)
+- **Testing**: 22 unit tests covering detection, cleanup, permission errors, dry-run modes
+- **Related**: GitHub Issue #50
+
+#### 📊 Sync Dispatcher Marketplace Tests (`tests/unit/lib/test_sync_dispatcher_marketplace.py` - 648 lines)
+- **17 integration tests** for `sync_dispatcher.py` marketplace sync workflow
+- **Coverage**: Version detection integration, orphan cleanup integration, backup/rollback
+- **Scenarios**: Version upgrade paths, downgrade handling, file cleanup verification
+- **Security**: Validates path handling in sync operations
+- **Related**: GitHub Issue #50
+
+### Changed
+
+#### `/sync` Command Enhancements (GitHub Issue #50)
+- **New marketplace sync intelligence**: Version detection auto-applies when `/sync --marketplace` detected
+- **Integration**: `version_detector.py` and `orphan_file_cleaner.py` integrated into `sync_dispatcher.py`
+- **UX improvements**:
+  - Before: "Run /sync, then manually check version?" (confusing)
+  - After: "Run /sync marketplace → Detects version difference → Suggests upgrade" (clear)
+- **Safe cleanup**: Orphans detected automatically after sync, users confirm before deletion
+- **Backward compatible**: Existing `/sync` behavior unchanged for dev/env modes
+
+### Testing Summary
+
+- **Total new tests**: 59 (20 version_detector + 22 orphan_file_cleaner + 17 sync_dispatcher_marketplace)
+- **Test coverage**: 92%+ for new services (quality bar maintained)
+- **Integration tests**: Sync pipeline fully tested with version detection + orphan cleanup
+- **Security tests**: Path traversal, symlink, and permission scenarios validated
+
+### Architecture Notes
+
+Both new services follow established patterns:
+- **Security-first**: All paths validated via `security_utils.validate_path()` (CWE-22, CWE-59 protection)
+- **Audit logging**: JSON logging to centralized audit files (transparent operation tracking)
+- **Error clarity**: All exceptions include context + expected format + helpful hints
+- **Type hints**: 100% type coverage on public APIs
+- **Docstrings**: Google-style docstrings on all public functions and classes
+
 ## [3.2.1] - 2025-10-26
 
 ### 🎯 Alignment Simplicity Release

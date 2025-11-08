@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-08
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.7.0 (Unified /sync Command)
+**Version**: v3.7.1 (Marketplace Update UX + Version Detection)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -207,7 +207,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (2 Shared Libraries - v3.4.0+)
+### Libraries (4 Shared Libraries - v3.4.0+)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -219,7 +219,7 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Path validation: 4-layer whitelist defense (string checks → symlink detection → path resolution → whitelist validation)
    - Test mode support: Auto-detects pytest, allows system temp while blocking system directories
    - Audit logging: Thread-safe JSON logging to `logs/security_audit.log` (10MB rotation, 5 backups)
-   - Used by: agent_tracker.py, project_md_updater.py, and all security-critical operations
+   - Used by: agent_tracker.py, project_md_updater.py, version_detector.py, orphan_file_cleaner.py, and all security-critical operations
    - Test coverage: 638 unit tests (98.3% coverage)
    - Documentation: See `docs/SECURITY.md` for comprehensive guide
 
@@ -230,6 +230,28 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Merge conflict detection: Prevents data loss if PROJECT.md changed during update
    - Test coverage: 24 unit tests (95.8% coverage)
    - Used by: auto_update_project_progress.py hook (SubagentStop)
+
+3. **version_detector.py** (531 lines, v3.7.1+) - Semantic version detection and comparison
+   - Classes: `Version` (semantic version object with comparison operators), `VersionComparison` (result dataclass)
+   - Functions: `VersionDetector` class (low-level API), `detect_version_mismatch()` (convenience function)
+   - Features: Parse semantic versions, compare marketplace vs project versions, detect upgrades/downgrades, handle pre-release versions
+   - Security: Path validation via security_utils, audit logging (CWE-22, CWE-59 protection)
+   - Error handling: Clear error messages with context and expected format
+   - Pre-release support: Correctly handles `MAJOR.MINOR.PATCH` and `MAJOR.MINOR.PATCH-PRERELEASE` patterns
+   - Test coverage: 20 unit tests (version parsing, comparison, edge cases)
+   - Used by: sync_dispatcher.py for marketplace version detection
+   - Related: GitHub Issue #50
+
+4. **orphan_file_cleaner.py** (514 lines, v3.7.1+) - Orphaned file detection and cleanup
+   - Classes: `OrphanFile` (orphan representation), `CleanupResult` (result with summary), `OrphanFileCleaner` (low-level API)
+   - Functions: `detect_orphans()` (detection only), `cleanup_orphans()` (cleanup with mode control)
+   - Features: Detect orphans in commands/hooks/agents, dry-run mode (safe), confirm mode (user approval), auto mode (non-interactive)
+   - Security: Path validation via security_utils, audit logging to `logs/orphan_cleanup_audit.log` (JSON format)
+   - Error handling: Graceful per-file failures (one orphan failure doesn't block others)
+   - Modes: `dry_run=True` (report only), `confirm=True` (ask per file), auto-delete (no prompts)
+   - Test coverage: 22 unit tests (detection, cleanup, permissions, dry-run)
+   - Used by: sync_dispatcher.py for marketplace sync cleanup
+   - Related: GitHub Issue #50
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery.
 
