@@ -1,8 +1,8 @@
 # Claude Code Autonomous Development Plugin
 
 **Last Updated**: 2025-11-09
-**Version**: v3.7.2 (Parallel Validation Checkpoint)
-**Status**: Production-ready with Command-Driven SDLC + Unified Sync + Performance Optimization + Security Hardening + Validation Checkpoints
+**Version**: v3.8.1 (Automatic Hook Activation in /update-plugin + Phase 2.5)
+**Status**: Production-ready with Command-Driven SDLC + Unified Sync + Performance Optimization + Security Hardening + Automatic Hook Activation
 
 > **User Intent (v3.0+)**: *"I speak requirements and Claude Code delivers first-grade software engineering in minutes by following all necessary SDLC steps (research, plan, TDD, implement, review, security, docs) — automated and accelerated via AI, not shortcuts."*
 >
@@ -14,7 +14,7 @@ Production-ready plugin with **dual-layer architecture** (Hook Enforcement + Age
 - **Layer 1 (Hooks)**: Automatically validates PROJECT.md alignment, security, tests, and docs on every commit — **guaranteed enforcement**
 - **Layer 2 (Agents)**: Provides AI assistance via explicit commands (`/auto-implement` or individual agents) — researches patterns, plans architecture, reviews code — **intelligent enhancement**
 
-🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **19 Active Skills** • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **17 Commands**
+🛡️ **Hook-Based Enforcement** • 🤖 **18 AI Specialists** • 📚 **19 Active Skills** • 🧠 **Command Coordination** • 🔒 **Security Scanning** • 📋 **18 Commands** • 🔧 **27 Libraries**
 
 ---
 
@@ -279,7 +279,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 - Press **Cmd+Q** (Mac) or **Ctrl+Q** (Windows/Linux)
 - Reopen Claude Code
 
-**Done!** All 8 commands now available.
+**Done!** All 18 commands now available.
 
 **What the bootstrap does**: Copies plugin commands, hooks, and templates to your project's `.claude/` directory. This is required because Claude Code currently needs these files locally to discover them.
 
@@ -289,9 +289,9 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 This configures automatic hooks (auto-format on save, auto-test on commit) and creates PROJECT.md from template.
 
-### What You Get (17 Commands)
+### What You Get (18 Commands)
 
-**Core Commands (8)**:
+**Core Commands (9)**:
 ✅ `/auto-implement` - Full 7-agent SDLC workflow
 ✅ `/align-project` - Find & fix misalignment between goals and code
 ✅ `/align-claude` - Check/fix documentation drift
@@ -300,6 +300,7 @@ This configures automatic hooks (auto-format on save, auto-test on commit) and c
 ✅ `/sync` - Unified sync (auto-detects: dev environment, marketplace, or plugin dev) - GitHub #47
 ✅ `/health-check` - Verify all components loaded and working
 ✅ `/pipeline-status` - Track /auto-implement workflow progress
+✅ `/update-plugin` - Interactive plugin update with automatic hook activation - GitHub #50 Phase 2.5
 
 **Individual Agent Commands (7)** - Per GitHub #44:
 ✅ `/research` - Research patterns and best practices
@@ -320,9 +321,10 @@ This configures automatic hooks (auto-format on save, auto-test on commit) and c
 /health-check
 ```
 
-Should show all 8 commands loaded and working ✅:
-- `/auto-implement`, `/align-project`, `/setup`, `/test`, `/status`
-- `/health-check`, `/sync`, `/uninstall`
+Should show all 18 commands loaded and working ✅:
+- Core (9): `/auto-implement`, `/align-project`, `/align-claude`, `/setup`, `/sync`, `/status`, `/health-check`, `/pipeline-status`, `/update-plugin`
+- Individual Agents (7): `/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`
+- Utility (2): `/test`, `/uninstall`
 
 ### Optional Setup (Advanced)
 
@@ -383,6 +385,41 @@ AUTO_GIT_PR=true             # Enable PR creation
 
 ### Updating
 
+**Option 1: Interactive Update (Recommended - Phase 2.5)**
+
+```bash
+/update-plugin
+# Interactive prompts guide you through:
+# 1. Version check (shows current vs available)
+# 2. Automatic backup creation (in /tmp)
+# 3. Confirmation prompt
+# 4. Update with automatic rollback on failure
+# 5. Hook activation (adds recommended hooks to settings.local.json)
+# 6. Verification (version + file validation)
+# 7. Backup cleanup after success
+
+# Exit and restart Claude Code (REQUIRED!)
+# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+```
+
+**Features**:
+- ✅ Automatic backup before update (with rollback on failure)
+- ✅ Hook activation - adds recommended hooks to settings.local.json (Phase 2.5)
+- ✅ Smart settings merge - preserves your existing customizations
+- ✅ Verification - confirms update succeeded
+- ✅ Non-interactive mode available (`--yes` flag for scripts)
+
+**CLI Options**:
+```bash
+/update-plugin --check-only          # Check for updates without updating
+/update-plugin --yes                 # Skip confirmation prompts
+/update-plugin --no-backup           # Skip backup (not recommended)
+/update-plugin --activate-hooks      # Enable hook activation (default)
+/update-plugin --no-activate-hooks   # Skip hook activation
+```
+
+**Option 2: Manual Update (Traditional)**
+
 ```bash
 # 1. Uninstall current version
 /plugin uninstall autonomous-dev
@@ -400,9 +437,15 @@ AUTO_GIT_PR=true             # Enable PR creation
 # Done!
 ```
 
-**IMPORTANT**: You must exit and restart Claude Code after both uninstall AND install!
+**IMPORTANT**: You must exit and restart Claude Code after updates!
 
-**Note**: If you're using automatic hooks, you may want to re-run `/setup` after updating to get the latest hook versions.
+**Hook Activation (Phase 2.5)**:
+The `/update-plugin` command now automatically activates recommended hooks in your `settings.local.json`:
+- **UserPromptSubmit**: `display_project_context.py`, `enforce_command_limit.py`
+- **SubagentStop**: `log_agent_completion.py`, `auto_update_project_progress.py`
+- **PrePush**: `auto_test.py`
+
+Your existing customizations are preserved - the update only adds new hooks, never removes your settings.
 
 ---
 
@@ -522,7 +565,7 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
 
-### 17 Slash Commands
+### 18 Slash Commands
 
 All commands are independently discoverable with autocomplete:
 
@@ -549,11 +592,72 @@ All commands are independently discoverable with autocomplete:
 - `/test` - Run all automated tests (pytest wrapper)
 - `/uninstall` - Remove or disable plugin
 
-See [plugins/autonomous-dev/docs/COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) for complete command reference.
+### Shared Libraries (8 Core + 19 Utilities = 27 Total)
 
-### Automation Hooks (24 total)
+The plugin includes reusable Python libraries for common operations:
 
-All hooks are **pre-commit** (run before code is committed). They validate quality automatically.
+**Core Libraries (8)**:
+
+1. **security_utils.py** (628 lines) - Security validation and audit logging
+   - Path validation (CWE-22, CWE-59 protection)
+   - Input sanitization and length validation
+   - Thread-safe audit logging to `logs/security_audit.log`
+   - Used by: All security-critical operations
+
+2. **project_md_updater.py** (247 lines) - Atomic PROJECT.md updates
+   - `update_goal_progress()` - Update goal completion percentages
+   - Atomic writes with backup and rollback
+   - Merge conflict detection
+   - Used by: auto_update_project_progress.py hook
+
+3. **version_detector.py** (531 lines) - Semantic version management
+   - `Version` class with comparison operators
+   - `detect_version_mismatch()` - Compare marketplace vs project versions
+   - Pre-release version support
+   - Used by: sync_dispatcher.py, validate_marketplace_version.py
+
+4. **orphan_file_cleaner.py** (514 lines) - Orphaned file cleanup
+   - `detect_orphans()` - Find orphaned commands/hooks/agents
+   - `cleanup_orphans()` - Remove with dry-run/confirm/auto modes
+   - Audit logging to `logs/orphan_cleanup_audit.log`
+   - Used by: sync_dispatcher.py for marketplace sync
+
+5. **sync_dispatcher.py** (976 lines) - Intelligent sync orchestration
+   - Auto-detects sync mode (marketplace/env/plugin-dev)
+   - Version detection and orphan cleanup integration
+   - Non-blocking enhancement pattern
+   - Used by: /sync command
+
+6. **validate_marketplace_version.py** (371 lines) - Marketplace version CLI
+   - CLI interface for version comparison
+   - JSON and human-readable output formats
+   - Security validation and audit logging
+   - Used by: /health-check command
+
+7. **plugin_updater.py** (658 lines) - Interactive plugin updates
+   - `PluginUpdater` class with backup/rollback support
+   - Hook activation integration (Phase 2.5)
+   - Verification of updates with version + file checks
+   - Used by: /update-plugin command
+
+8. **hook_activator.py** (508 lines) - Automatic hook activation
+   - `HookActivator` class for settings.local.json management
+   - Smart settings merge (preserves customizations)
+   - Atomic writes with validation
+   - Used by: plugin_updater.py (Phase 2.5 feature)
+
+**Utility Libraries (19)**: Additional helper modules for git operations, performance profiling, session tracking, and other specialized tasks.
+
+**Design Patterns**:
+- Progressive enhancement: String → Path → Whitelist validation
+- Non-blocking enhancements: Failures don't block core operations
+- Atomic file operations: tempfile.mkstemp() + rename pattern
+- Security-first: All paths validated via security_utils
+- Audit logging: Thread-safe JSON logging for all critical operations
+
+### Automation Hooks (39 Hook Files: 24 Enforcement + 15 Utilities)
+
+All enforcement hooks are **pre-commit** (run before code is committed). They validate quality automatically.
 
 **Core Blocking Hooks (9)** - Run by default, block commits if failed:
 - **validate-project-alignment** - PROJECT.md must exist with GOALS/SCOPE/CONSTRAINTS before committing
@@ -996,7 +1100,7 @@ wc -l plugins/autonomous-dev/commands/*.md # Should be reasonable
 
 # 2. Verify counts
 ls plugins/autonomous-dev/agents/*.md | wc -l     # Should be 19
-ls plugins/autonomous-dev/commands/*.md | wc -l   # Should be 8
+ls plugins/autonomous-dev/commands/*.md | wc -l   # Should be 18
 
 # 3. Run tests
 /test  # All tests must pass
@@ -1028,7 +1132,7 @@ The plugin's success is measured by these concrete metrics:
 | Metric | Target | How to Check |
 |--------|--------|-------------|
 | **Agent count** | 19 (8 core + 6 analysis + 5 automation) | `ls plugins/autonomous-dev/agents/ | wc -l` |
-| **Command count** | 8 (5 core + 3 utility) | `ls plugins/autonomous-dev/commands/ | wc -l` |
+| **Command count** | 18 (9 core + 7 individual + 2 utility) | `ls plugins/autonomous-dev/commands/ | wc -l` |
 | **Agent length** | 50-100 lines (max 150) | `wc -l plugins/autonomous-dev/agents/*.md` |
 | **Hook count** | 24 (9 core + 15 extended) | `ls plugins/autonomous-dev/hooks/ | wc -l` |
 | **Context per feature** | < 8,000 tokens | Monitor during development |
@@ -1138,7 +1242,7 @@ cd my-fastapi-project
 | [plugins/autonomous-dev/docs/](plugins/autonomous-dev/docs/) | All user guides (commands, GitHub, testing, troubleshooting, etc.) |
 
 **Key docs:**
-- [COMMANDS.md](plugins/autonomous-dev/docs/COMMANDS.md) - Complete command reference (21 commands)
+- See command list above - Complete command reference (18 commands: 9 core + 7 individual + 2 utility)
 - [commit-workflow.md](plugins/autonomous-dev/docs/commit-workflow.md) - Progressive commit workflow
 - [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues & solutions
 - [GITHUB_AUTH_SETUP.md](plugins/autonomous-dev/docs/GITHUB_AUTH_SETUP.md) - GitHub integration setup
@@ -1211,7 +1315,7 @@ Claude Code needs a restart to load the plugin commands. After restarting:
 /auto-implement
 /align-project
 
-# All 8 commands should appear in autocomplete
+# All 18 commands should appear in autocomplete
 ```
 
 ### Feature request was BLOCKED
