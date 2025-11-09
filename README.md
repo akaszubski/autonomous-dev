@@ -346,25 +346,30 @@ This wizard helps you:
 
 **Enable automatic git operations in /auto-implement workflow:**
 
-By default, `/auto-implement` stops after documentation sync (Step 7). You can optionally enable Step 8 to automatically commit, push, and create PRs.
+By default, `/auto-implement` stops after documentation sync (Step 6). You can optionally enable Step 7 to automatically commit, push, and create PRs via SubagentStop hook.
 
 **Setup:**
 
+To enable automatic git operations after `/auto-implement` completes, set environment variables in `.env`:
+
 ```bash
-# 1. Open .env file in your project
+# 1. Create or edit .env in your project root
 vim .env
 
-# 2. Add these lines (copy from .env.example)
-AUTO_GIT_ENABLED=true        # Enable git operations
-AUTO_GIT_PUSH=true           # Enable push to remote
-AUTO_GIT_PR=true             # Enable PR creation
+# 2. Add these lines
+AUTO_GIT_ENABLED=true        # Enable automatic git operations (default: false)
+AUTO_GIT_PUSH=true           # Enable automatic push to remote (default: false)
+AUTO_GIT_PR=true             # Enable automatic PR creation (default: false)
 ```
 
-**What happens:**
-- ✅ Step 8 invokes commit-message-generator agent (creates conventional commit message)
-- ✅ Automatic commit with agent-generated message
-- ✅ Automatic push to feature branch (if AUTO_GIT_PUSH=true)
-- ✅ Automatic PR creation (if AUTO_GIT_PR=true + gh CLI installed)
+**How it works:**
+
+When quality-validator agent completes (last validation step), the SubagentStop hook automatically:
+
+- ✅ Invokes commit-message-generator agent (creates conventional commit message)
+- ✅ Stages all changes and creates commit with agent-generated message
+- ✅ Pushes to feature branch (if AUTO_GIT_PUSH=true)
+- ✅ Creates PR on GitHub (if AUTO_GIT_PR=true and gh CLI installed)
 
 **Safety features:**
 - Consent-based: Disabled by default (no behavior change without opt-in)

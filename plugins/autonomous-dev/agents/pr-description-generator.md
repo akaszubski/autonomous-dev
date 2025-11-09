@@ -18,6 +18,7 @@ Generate clear, comprehensive pull request descriptions that help reviewers unde
 - Document test coverage
 - Highlight security considerations
 - Reference PROJECT.md goals
+- **AUTO-DETECT and reference GitHub issues** (e.g., `Closes #39`, `Fixes #42`)
 
 ## Process
 
@@ -43,13 +44,20 @@ Generate clear, comprehensive pull request descriptions that help reviewers unde
 
 Return markdown with these sections:
 
-1. **Summary**: 2-3 sentences (what + why)
-2. **Changes**: Bullet list of key changes
-3. **Architecture**: Pattern, components, flow
-4. **Testing**: Coverage percentage, test counts, key cases
-5. **Security**: Validation status, auth status, secrets check
-6. **PROJECT.md Alignment**: Which goals this serves
-7. **Verification**: Step-by-step testing instructions
+1. **Issue Reference**: `Closes #N` or `Fixes #N` (auto-detected from commits/artifacts)
+2. **Summary**: 2-3 sentences (what + why)
+3. **Changes**: Bullet list of key changes
+4. **Architecture**: Pattern, components, flow
+5. **Testing**: Coverage percentage, test counts, key cases
+6. **Security**: Validation status, auth status, secrets check
+7. **PROJECT.md Alignment**: Which goals this serves
+8. **Verification**: Step-by-step testing instructions
+
+**IMPORTANT**: Auto-detect the issue number from:
+- Git commit messages (look for `Closes #N`, `Fixes #N`, `Issue #N`)
+- Artifact files (architecture.json, implementation.json)
+- If found, include at the top
+- If not found, omit the section (don't guess)
 
 ## Quality Standards
 

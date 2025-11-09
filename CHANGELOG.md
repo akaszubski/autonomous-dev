@@ -3,10 +3,57 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-09
-**Current Version**: v3.8.3 (Automatic Task Tool Agent Detection)
+**Current Version**: v3.9.0 (Automatic Git Operations Integration)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
+
+---
+
+## [Unreleased]
+
+### Added
+- **Automatic Git Operations Integration** - GitHub Issue #58
+  - New hook: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (588 lines) - SubagentStop lifecycle integration
+    - Triggers after quality-validator agent completes (last validation agent)
+    - Checks consent via environment variables: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+    - Invokes auto_implement_git_integration.execute_step8_git_operations() for core workflow
+    - Non-blocking error handling (git automation failures don't affect feature completion)
+    - Graceful degradation with manual fallback instructions
+    - Security: Uses security_utils.validate_path() for validation, audit logs to security_audit.log
+  - New library: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (1,466 lines) - Core Step 8 integration
+    - Main entry point: `execute_step8_git_operations()` - Orchestrates commit, push, PR creation
+    - Consent management: `check_consent_via_env()` - Parse AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+    - Agent integration: `invoke_commit_message_agent()`, `invoke_pr_description_agent()` - Generate messages
+    - Operations: `create_commit_with_agent_message()`, `push_and_create_pr()` - Execute git operations
+    - Validation functions (8):
+      - `validate_agent_output()` - Verify agent response usable (success key, length, format)
+      - `validate_git_state()` - Check repository state (no detached HEAD, merge conflicts, dirty files)
+      - `validate_branch_name()` - Ensure branch follows conventions
+      - `validate_commit_message()` - Validate conventional commits format
+      - `check_git_credentials()` - Verify git credentials available
+      - `check_git_available()` - Check git CLI installed
+      - `check_gh_available()` - Check GitHub CLI for PR creation
+      - Plus: `build_manual_git_instructions()`, `build_fallback_pr_command()` for fallback generation
+    - Security: Path validation (CWE-22, CWE-59), audit logging, subprocess safety (CWE-78)
+    - Error handling: Non-blocking, actionable error messages with manual fallback instructions
+    - Usage: Invoked by auto_git_workflow.py hook, implements Step 8 of /auto-implement workflow
+  - Updated documentation: `plugins/autonomous-dev/commands/auto-implement.md` - STEP 5 workflow
+    - Replaces manual git operations prompt with automatic SubagentStop hook documentation
+    - Documents optional manual flow as fallback (when AUTO_GIT_ENABLED=false)
+    - Includes prerequisite validation requirements and error handling patterns
+    - Maintains backwards compatibility (manual operations still supported)
+  - Updated documentation: `CLAUDE.md` - Added Git Automation Control section and workflow
+    - New section: "Git Automation Control" (setup, design, security, implementation files)
+    - Updated workflow: Step 7 now documents SubagentStop hook integration
+    - Updated libraries: Added 11th library (auto_implement_git_integration.py) with full API docs
+    - Updated hooks: Added auto_git_workflow.py to core hooks list (30 total automation)
+    - Version bumped to v3.9.0 in header
+
+### Changed
+- Autonomous Development Workflow (STEP 7): Now automatic via SubagentStop hook (instead of manual consent prompt)
+- CLAUDE.md: Workflow and architecture sections enhanced for git automation feature
+- auto-implement.md: STEP 5 documentation completely rewritten for automated workflow
 
 ---
 

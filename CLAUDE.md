@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.8.3 (Automatic Task Tool Agent Detection - Issue #57)
+**Version**: v3.9.0 (Automatic Git Operations Integration - Issue #58)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -124,7 +124,13 @@ git commit -m "docs: Update project goals"
    - doc-master updates documentation
    - Execution: Three Task tool calls in single response enables parallel execution
    - Performance: 5 minutes → 2 minutes (60% faster)
-7. **Git Operations**: Auto-commit and push to feature branch (consent-based)
+7. **Automated Git Operations (SubagentStop hook - consent-based)**:
+   - Triggers when quality-validator agent completes
+   - Check environment variables for consent: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
+   - Invoke commit-message-generator agent (creates conventional commit)
+   - Automatically stage changes, create commit, push, and optionally create PR
+   - Graceful degradation: If prerequisites fail (git not available, config missing), feature is still successful
+   - Hook file: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (SubagentStop lifecycle)
 8. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
 **Performance Baseline (Issue #46 - Multi-Phase Optimization - Phases 4-7 Complete)**:
@@ -152,6 +158,66 @@ git commit -m "docs: Update project goals"
   - Test coverage: 23 unit tests covering success, parallelization detection, incomplete/failed agents
   - Infrastructure: Validation checkpoints enable Phase 8+ bottleneck detection
 - **Cumulative Improvement**: 5-9 minutes saved per workflow (15-32% faster, 24% overall improvement)
+
+---
+
+## Git Automation Control
+
+Automatic git operations (commit, push, PR creation) can be optionally enabled after `/auto-implement` completes.
+
+**Status**: Optional feature (disabled by default for safety)
+
+**Environment Variables** (set in `.env` file):
+
+```bash
+# Master switch - enables automatic git operations after /auto-implement
+AUTO_GIT_ENABLED=true        # Default: false
+
+# Enable automatic push to remote (requires AUTO_GIT_ENABLED=true)
+AUTO_GIT_PUSH=true           # Default: false
+
+# Enable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
+AUTO_GIT_PR=true             # Default: false
+```
+
+**How It Works**:
+
+1. `/auto-implement` completes STEP 6 (parallel validation)
+2. quality-validator agent completes (last validation agent)
+3. SubagentStop hook triggers `auto_git_workflow.py`
+4. Hook checks consent via environment variables (non-blocking if disabled)
+5. If enabled, invokes commit-message-generator agent to create conventional commit message
+6. Stages changes, commits with agent-generated message, optionally pushes and creates PR
+7. If any prerequisite fails (git not configured, merge conflicts, etc.), provides manual fallback instructions
+8. Feature is successful regardless of git operation outcome (graceful degradation)
+
+**Consent-Based Design**:
+
+- Disabled by default - no behavior change without explicit opt-in
+- Validates all prerequisites before attempting operations
+- Non-blocking - git automation failures don't affect feature completion
+- Always provides manual fallback instructions if automation fails
+
+**Security**:
+
+- Uses `security_utils.validate_path()` for all file path validation (CWE-22, CWE-59)
+- Audit logs all operations to `logs/security_audit.log`
+- No credential logging - never exposes API keys or passwords
+- Subprocess calls prevent command injection attacks
+- Safe JSON parsing (no arbitrary code execution)
+
+**Implementation Files**:
+
+- Hook: `/plugins/autonomous-dev/hooks/auto_git_workflow.py` (588 lines) - SubagentStop lifecycle hook
+- Library: `/plugins/autonomous-dev/lib/auto_implement_git_integration.py` (1,466 lines) - Core integration logic
+  - Functions: `execute_step8_git_operations()` (main entry point), `check_consent_via_env()`, `validate_git_state()`, `create_commit_with_agent_message()`, `push_and_create_pr()`
+  - Validation: `validate_agent_output()`, `validate_git_state()`, `validate_branch_name()`, `validate_commit_message()`, `check_git_credentials()`, `check_git_available()`, `check_gh_available()`
+  - Agents: Invokes commit-message-generator and pr-description-generator agents with workflow context
+
+**Related GitHub Issues**:
+- Issue #58: Automatic git operations integration (feature implementation)
+
+**For detailed usage**: See `plugins/autonomous-dev/README.md` "Enable automatic git operations in /auto-implement workflow" section
 
 ---
 
@@ -216,7 +282,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (10 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation)
+### Libraries (11 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation, Enhanced v3.9.0+ with Git Integration)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -418,13 +484,42 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: doc-master agent (parity checklist), validate_claude_alignment.py hook (automatic validation), CLI validation scripts
    - Related: GitHub Issue #56 (automatic documentation parity validation in /auto-implement workflow)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing. Hook activation and parity validation are optional (controlled by flags/hooks).
+11. **auto_implement_git_integration.py** (1,466 lines, v3.9.0+) - Automatic git operations orchestration
+   - Purpose: Core Step 8 integration for /auto-implement workflow (commit, push, PR creation)
+   - Key Functions:
+     - `execute_step8_git_operations()` - Main entry point orchestrating complete workflow (workflow_id, request, branch, push, create_pr, base_branch)
+     - `check_consent_via_env()` - Parse consent from environment variables (AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR)
+     - `invoke_commit_message_agent()` - Call commit-message-generator agent (generates conventional commit message)
+     - `invoke_pr_description_agent()` - Call pr-description-generator agent (generates PR description)
+     - `create_commit_with_agent_message()` - Stage changes and commit with agent-generated message
+     - `push_and_create_pr()` - Push to remote and optionally create PR via gh CLI
+     - `validate_agent_output()` - Verify agent response is usable (success key, message length, format)
+     - `validate_git_state()` - Check repository state (not detached, no merge conflicts, clean working directory)
+     - `validate_branch_name()` - Ensure branch name follows conventions
+     - `validate_commit_message()` - Validate commit message format (conventional commits)
+     - `check_git_credentials()`, `check_git_available()`, `check_gh_available()` - Prerequisite checks
+     - `build_manual_git_instructions()`, `build_fallback_pr_command()` - Fallback instruction generation
+   - Features:
+     - Consent-based automation via environment variables (defaults: all disabled for safety)
+     - Agent-driven commit and PR descriptions (uses existing agents)
+     - Graceful degradation with manual fallback instructions (non-blocking)
+     - Prerequisite validation before operations
+     - Subprocess safety (command injection prevention)
+     - Comprehensive error handling with actionable messages
+   - ExecutionResult attributes: success, commit_sha, pushed, pr_created, pr_url, error, details, manual_instructions
+   - Security: Uses security_utils.validate_path() for all paths, audit logs to security_audit.log, safe subprocess calls
+   - Integration: Invoked by auto_git_workflow.py hook (SubagentStop lifecycle) after quality-validator completes
+   - Error handling: Non-blocking - git operation failures don't affect feature completion (graceful degradation)
+   - Used by: auto_git_workflow.py hook, /auto-implement Step 8 (automatic git operations)
+   - Related: GitHub Issue #58 (automatic git operations integration)
 
-### Hooks (29 total automation)
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation, git automation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface); auto_implement_git_integration.py (core logic), auto_git_workflow.py (hook integration) enables reuse and testing. Git automation and other enhancements are optional (controlled by flags/hooks).
+
+### Hooks (30 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`
 
-**Core Hooks (9)**:
+**Core Hooks (10)**:
 - `auto_format.py`: black + isort (Python), prettier (JS/TS)
 - `auto_test.py`: pytest on related tests
 - `security_scan.py`: Secrets detection, vulnerability scanning
@@ -434,6 +529,7 @@ Located: `plugins/autonomous-dev/hooks/`
 - `enforce_pipeline_complete.py`: Validates all 7 agents ran (v3.2.2+)
 - `enforce_tdd.py`: Validates tests written before code (v3.0+)
 - `detect_feature_request.py`: Auto-detect feature requests
+- `auto_git_workflow.py`: Automatic git operations after /auto-implement (v3.9.0+, SubagentStop lifecycle)
 
 **Optional/Extended Hooks (20)**:
 - `auto_enforce_coverage.py`: 80% minimum coverage
