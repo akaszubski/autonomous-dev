@@ -13,6 +13,27 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [3.7.2] - 2025-11-09
 
 ### Added
+- **Marketplace Version Validation Integration into /health-check** - GitHub Issue #50 Phase 1
+  - New library: `validate_marketplace_version.py` (371 lines) - CLI script for marketplace version detection
+  - Integration: Added `_validate_marketplace_version()` method to `health_check.py` hook
+  - Features:
+    - CLI interface with `--project-root`, `--verbose`, and `--json` output options
+    - Detects version differences between marketplace and project plugin
+    - Shows available upgrades/downgrades in human-readable and JSON formats
+    - Non-blocking error handling (marketplace not found is not fatal)
+    - Path validation and audit logging via security_utils
+  - Return type: `VersionComparison` object with upgrade/downgrade status
+  - Integration points:
+    - health_check.py calls validate_marketplace_version() and displays "Marketplace Version" section in health check report
+    - Example output: "Project v3.7.0 vs Marketplace v3.7.1 - Update available (3.7.0 → 3.7.1)"
+  - Test coverage: 7 new unit tests (version comparison, output formatting, error cases)
+  - Files modified:
+    - `plugins/autonomous-dev/hooks/health_check.py` - Added _validate_marketplace_version() method
+    - `plugins/autonomous-dev/lib/validate_marketplace_version.py` - New CLI script
+    - `plugins/autonomous-dev/commands/health-check.md` - Updated documentation
+    - `tests/unit/test_health_check.py` - Added 7 unit tests
+  - Documentation: Updated health-check.md to show marketplace version check as active feature
+
 - **Parallel Validation Checkpoint (Phase 7 Quick Win from GitHub Issue #46)**
   - New method: `AgentTracker.verify_parallel_validation()` - Validates reviewer, security-auditor, doc-master parallel execution
   - Parallel execution detection: 5-second window for agent start times (all 3 agents must start within 5 seconds)

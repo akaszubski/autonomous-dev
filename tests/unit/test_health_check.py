@@ -180,5 +180,176 @@ class TestHealthCheck:
         pass
 
 
+class TestMarketplaceVersionValidation:
+    """Test suite for marketplace version validation integration (Issue #50 Phase 1)."""
+
+    def test_validate_marketplace_version_success(self):
+        """Test marketplace version validation when versions match."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version from the lib module
+        mock_report = "Marketplace: 3.7.0 | Project: 3.7.0 | Status: UP TO DATE"
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   return_value=mock_report):
+            result = checker._validate_marketplace_version()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True for successful version check"
+
+    def test_validate_marketplace_version_upgrade_available(self):
+        """Test marketplace version validation when upgrade is available."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version to show upgrade available
+        mock_report = "Marketplace: 3.8.0 | Project: 3.7.0 | Status: UPGRADE AVAILABLE"
+
+        # Capture stdout to verify upgrade message is displayed
+        import io
+        captured = io.StringIO()
+
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   return_value=mock_report):
+            with patch('sys.stdout', captured):
+                result = checker._validate_marketplace_version()
+
+        output = captured.getvalue()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True even when upgrade available"
+
+        # Should display upgrade message
+        assert "UPGRADE AVAILABLE" in output, "Should show upgrade message"
+        assert "3.8.0" in output, "Should show marketplace version"
+        assert "3.7.0" in output, "Should show project version"
+
+    def test_validate_marketplace_version_downgrade_detected(self):
+        """Test marketplace version validation when marketplace is older (local ahead)."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version to show downgrade (local ahead)
+        mock_report = "Marketplace: 3.6.0 | Project: 3.7.0 | Status: LOCAL AHEAD"
+
+        # Capture stdout to verify downgrade warning is displayed
+        import io
+        captured = io.StringIO()
+
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   return_value=mock_report):
+            with patch('sys.stdout', captured):
+                result = checker._validate_marketplace_version()
+
+        output = captured.getvalue()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True even when downgrade detected"
+
+        # Should display warning message
+        assert "LOCAL AHEAD" in output, "Should show local ahead warning"
+        assert "3.6.0" in output, "Should show marketplace version"
+        assert "3.7.0" in output, "Should show project version"
+
+    def test_validate_marketplace_version_marketplace_not_installed(self):
+        """Test marketplace version validation when marketplace plugin not found."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version to raise FileNotFoundError
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   side_effect=FileNotFoundError("Marketplace plugin.json not found")):
+            # Capture stdout to verify skip message is displayed
+            import io
+            captured = io.StringIO()
+
+            with patch('sys.stdout', captured):
+                result = checker._validate_marketplace_version()
+
+        output = captured.getvalue()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True even when marketplace not found"
+
+        # Should display skip message
+        assert "SKIP" in output or "not found" in output.lower(), "Should show skip message"
+
+    def test_validate_marketplace_version_permission_error(self):
+        """Test marketplace version validation when permission denied."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version to raise PermissionError
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   side_effect=PermissionError("Permission denied reading plugin.json")):
+            # Capture stdout to verify error message is displayed
+            import io
+            captured = io.StringIO()
+
+            with patch('sys.stdout', captured):
+                result = checker._validate_marketplace_version()
+
+        output = captured.getvalue()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True even when permission error occurs"
+
+        # Should display error message
+        assert "ERROR" in output or "Permission" in output, "Should show permission error"
+
+    def test_validate_marketplace_version_corrupted_json(self):
+        """Test marketplace version validation when JSON is corrupted."""
+        checker = PluginHealthCheck()
+
+        # Mock validate_marketplace_version to raise JSONDecodeError
+        from json import JSONDecodeError
+        json_error = JSONDecodeError("Expecting value", "", 0)
+
+        with patch('plugins.autonomous_dev.lib.validate_marketplace_version.validate_marketplace_version',
+                   side_effect=json_error):
+            # Capture stdout to verify error message is displayed
+            import io
+            captured = io.StringIO()
+
+            with patch('sys.stdout', captured):
+                result = checker._validate_marketplace_version()
+
+        output = captured.getvalue()
+
+        # Should return True (non-blocking)
+        assert result is True, "Method should return True even when JSON corrupted"
+
+        # Should display error message
+        assert "ERROR" in output or "corrupt" in output.lower(), "Should show JSON error"
+
+    def test_validate_marketplace_version_called_from_validate(self):
+        """Integration test: Verify print_report() calls _validate_marketplace_version()."""
+        checker = PluginHealthCheck()
+
+        # Mock all validate methods to prevent actual file system access
+        with patch.object(checker, 'validate_agents', return_value=(8, 8)):
+            with patch.object(checker, 'validate_skills', return_value=(0, 0)):
+                with patch.object(checker, 'validate_hooks', return_value=(8, 8)):
+                    with patch.object(checker, 'validate_commands', return_value=(21, 21)):
+                        with patch.object(checker, 'validate_sync_status', return_value=(True, [])):
+                            # Mock the new _validate_marketplace_version method
+                            with patch.object(checker, '_validate_marketplace_version', return_value=True) as mock_validate_version:
+                                # Mock results to avoid failures
+                                checker.results = {
+                                    "agents": {a: "PASS" for a in checker.EXPECTED_AGENTS},
+                                    "skills": {},
+                                    "hooks": {h: "PASS" for h in checker.EXPECTED_HOOKS},
+                                    "commands": {c: "PASS" for c in checker.EXPECTED_COMMANDS},
+                                    "overall": "UNKNOWN"
+                                }
+
+                                # Capture stdout
+                                import io
+                                captured = io.StringIO()
+                                with patch('sys.stdout', captured):
+                                    try:
+                                        checker.print_report()
+                                    except SystemExit:
+                                        pass
+
+                                # Verify _validate_marketplace_version was called
+                                mock_validate_version.assert_called_once()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--cov=health_check", "--cov-report=term-missing"])

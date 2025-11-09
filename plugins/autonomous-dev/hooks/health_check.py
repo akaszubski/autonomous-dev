@@ -24,6 +24,9 @@ from typing import Dict, List, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from error_messages import ErrorMessage, ErrorCode, print_info
 
+# Import validate_marketplace_version - will be mocked in tests
+import plugins.autonomous_dev.lib.validate_marketplace_version as validate_marketplace_version_module
+
 
 class PluginHealthCheck:
     """Validates autonomous-dev plugin component integrity."""
@@ -176,7 +179,12 @@ class PluginHealthCheck:
         return all(marker.exists() for marker in source_markers)
 
     def _find_installed_plugin_path(self) -> Path:
-        """Find the installed plugin path from Claude's config."""
+        """Find the installed plugin path from Claude's config.
+
+        Security: Validates paths from JSON config to prevent CWE-22 path traversal attacks.
+        """
+        from plugins.autonomous_dev.lib.security_utils import validate_path
+
         home = Path.home()
         installed_plugins_file = home / ".claude" / "plugins" / "installed_plugins.json"
 
@@ -190,7 +198,19 @@ class PluginHealthCheck:
             # Look for autonomous-dev plugin
             for plugin_key, plugin_info in config.get("plugins", {}).items():
                 if plugin_key.startswith("autonomous-dev@"):
-                    return Path(plugin_info["installPath"])
+                    install_path_str = plugin_info["installPath"]
+
+                    # Security: Validate path from JSON to prevent path traversal (CWE-22)
+                    try:
+                        validated_path = validate_path(
+                            Path(install_path_str),
+                            purpose="installed plugin location",
+                            allow_missing=True
+                        )
+                        return validated_path
+                    except ValueError:
+                        # Security violation - skip this path
+                        continue
         except Exception:
             pass
 
@@ -242,6 +262,42 @@ class PluginHealthCheck:
         }
 
         return len(out_of_sync) == 0, out_of_sync
+
+    def _validate_marketplace_version(self) -> bool:
+        """
+        Validate marketplace plugin version against project version.
+
+        Returns:
+            bool: Always True (non-blocking validation)
+        """
+        try:
+            # Find project root (parent of .claude/)
+            project_root = self.plugin_dir.parent.parent
+
+            # Call validate_marketplace_version
+            report = validate_marketplace_version_module.validate_marketplace_version(project_root)
+
+            # Print the report
+            print(report)
+
+        except FileNotFoundError as e:
+            # Marketplace plugin not installed - this is OK
+            print(f"Marketplace Version: SKIP (marketplace plugin not found)")
+
+        except PermissionError:
+            # Permission denied - show error but don't block (CWE-209: don't leak paths)
+            print(f"Marketplace Version: ERROR (permission denied reading plugin configuration)")
+
+        except json.JSONDecodeError:
+            # Corrupted JSON - show error but don't block (CWE-209: don't leak file details)
+            print(f"Marketplace Version: ERROR (corrupted plugin configuration)")
+
+        except Exception:
+            # Any other error - show generic error but don't block (CWE-209: don't leak details)
+            print(f"Marketplace Version: ERROR (unexpected error during version check)")
+
+        # Always return True (non-blocking)
+        return True
 
     def print_report(self):
         """Print human-readable health check report."""
@@ -298,6 +354,10 @@ class PluginHealthCheck:
                         print(f"    ... and {len(out_of_sync_files) - 5} more")
                 print("\n  💡 Run: /sync-dev to sync changes")
             print()
+
+        # Marketplace version validation
+        self._validate_marketplace_version()
+        print()
 
         # Overall status
         total_issues = (

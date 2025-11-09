@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.7.2 (Parallel Validation Checkpoint + Performance Metrics)
+**Version**: v3.7.2 (Parallel Validation Checkpoint + Issue #50 Phase 1 Marketplace Integration)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -284,6 +284,25 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: /sync command, sync_marketplace() high-level API
    - Related: GitHub Issues #47, #50, #51
 
+6. **validate_marketplace_version.py** (371 lines, v3.7.2+) - CLI script for /health-check marketplace integration
+   - Purpose: Detects version differences between marketplace plugin and local project plugin
+   - Features: CLI interface, version comparison reporting, non-blocking error handling, security validation
+   - Functions: `validate_marketplace_version()` (main function), `_parse_version()`, `_format_output()`
+   - CLI Arguments:
+     - `--project-root`: Project root path (required)
+     - `--verbose`: Verbose output
+     - `--json`: Machine-readable JSON output format
+   - Output Formats:
+     - Human-readable: "Project v3.7.0 vs Marketplace v3.7.1 - Update available"
+     - JSON: Structured result with version comparison data
+   - Return types: `VersionComparison` object (from version_detector.py) with upgrade/downgrade status
+   - Security: Path validation via security_utils.validate_path(), audit logging to security audit
+   - Error handling: Non-blocking errors (marketplace not found is not fatal), exit code 1 on errors
+   - Integration: Called by health_check.py `_validate_marketplace_version()` method
+   - Test coverage: 7 unit tests (version comparison, output formatting, error cases)
+   - Used by: health-check command (CLI invocation), /health-check validation
+   - Related: GitHub Issue #50 Phase 1 (marketplace version validation integration into /health-check)
+
 **Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup) don't block core sync operations.
 
 ### Hooks (29 total automation)
@@ -524,4 +543,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-08
+**Last Updated**: 2025-11-09

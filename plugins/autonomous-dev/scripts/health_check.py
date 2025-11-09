@@ -3,30 +3,21 @@
 Health check script - validates plugin integrity.
 
 This script provides health check functionality for the autonomous-dev plugin.
+Re-exports PluginHealthCheck from hooks/health_check.py for backward compatibility.
 """
 
 import sys
 from pathlib import Path
+import importlib.util
 
+# Import PluginHealthCheck from hooks/health_check.py using direct file import
+hooks_health_check_path = Path(__file__).parent.parent / 'hooks' / 'health_check.py'
+spec = importlib.util.spec_from_file_location("hooks_health_check", hooks_health_check_path)
+hooks_health_check = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(hooks_health_check)
 
-class PluginHealthCheck:
-    """Health check class for plugin validation."""
-
-    def __init__(self):
-        """Initialize health checker."""
-        self.agents_count = 18
-        self.commands_count = 18
-        self.hooks_count = 31
-
-    def run(self):
-        """Run health check and return status."""
-        print("Plugin Health Check")
-        print("=" * 50)
-        print(f"Agents: {self.agents_count} configured")
-        print(f"Commands: {self.commands_count} available")
-        print(f"Hooks: {self.hooks_count} total (9 core, 20 optional, 2 lifecycle)")
-        print(f"Status: OK")
-        return True
+# Re-export PluginHealthCheck
+PluginHealthCheck = hooks_health_check.PluginHealthCheck
 
 
 def main():

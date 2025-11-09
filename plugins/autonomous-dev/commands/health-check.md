@@ -41,11 +41,11 @@ Validates 4 critical component types:
    - Individual agents: research, plan, test-feature, implement, review, security-scan, update-docs
    - Utility: test, uninstall, update-plugin
 
-4. **Marketplace Version** (NEW in v3.7.1)
+4. **Marketplace Version** (ACTIVE - v3.7.2, GitHub Issue #50 Phase 1)
    - Detects version differences between marketplace and project plugin
    - Shows available upgrades/downgrades
    - Alerts if plugin is out of sync with installed version
-   - See: `lib/version_detector.py` (GitHub #50)
+   - Integrated via: `lib/validate_marketplace_version.py` and `lib/version_detector.py`
 
 Note: Skills are active (19 skills) but not validated by health check - they use progressive disclosure in Claude Code 2.0+
 
