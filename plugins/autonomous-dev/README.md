@@ -5,8 +5,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
 **Version**: v3.7.0
-**Last Updated**: 2025-11-08
-**Status**: Unified /sync Command + Performance Optimization (Phases 4-6) + Security Hardening
+**Last Updated**: 2025-11-09
+**Status**: Unified /sync Command + Performance Optimization (Phases 4-6) + Security Hardening + Documentation Parity Validation
 
 Production-ready plugin with 17 commands (8 core + 7 agent + 2 utility), 18 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
 
@@ -208,6 +208,7 @@ Checking for orphaned files...
 - Use `--plugin-dev` for local development: `/sync --plugin-dev`
 - See `plugins/autonomous-dev/lib/version_detector.py` for version detection implementation
 - See `plugins/autonomous-dev/lib/orphan_file_cleaner.py` for orphan cleanup implementation
+- See `plugins/autonomous-dev/lib/validate_documentation_parity.py` for documentation consistency validation
 
 ---
 

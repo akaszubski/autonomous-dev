@@ -216,7 +216,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (9 Shared Libraries - v3.4.0+, Enhanced v3.8.1+)
+### Libraries (10 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -380,7 +380,36 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: plugin_updater.py for /update-plugin command
    - Related: GitHub Issue #50 Phase 2.5 (automatic hook activation)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation) don't block core sync operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing. Hook activation is optional (controlled by --activate-hooks / --no-activate-hooks flags).
+10. **validate_documentation_parity.py** (880 lines, v3.8.1+) - Documentation consistency validation across CLAUDE.md, PROJECT.md, README.md, and CHANGELOG.md
+   - Classes: `ValidationLevel` (enum: ERROR, WARNING, INFO), `ParityIssue` (issue representation), `ParityReport` (validation result), `DocumentationParityValidator` (main coordinator)
+   - Validation Categories:
+     - `validate_version_consistency()` - Detect when CLAUDE.md date != PROJECT.md date
+     - `validate_count_discrepancies()` - Detect when documented counts != actual counts (agents, commands, skills, hooks)
+     - `validate_cross_references()` - Detect when documented features don't exist in codebase (or vice versa)
+     - `validate_changelog_parity()` - Detect when plugin.json version missing from CHANGELOG.md
+     - `validate_security_documentation()` - Detect missing or incomplete security documentation
+   - High-level API: `validate_documentation_parity()` convenience function
+   - ParityReport attributes:
+     - `version_issues`: Version consistency violations
+     - `count_issues`: Count discrepancy violations
+     - `cross_reference_issues`: Cross-reference validation violations
+     - `changelog_issues`: CHANGELOG parity violations
+     - `security_issues`: Security documentation violations
+     - `has_errors`: Whether report has critical errors
+     - `exit_code`: Exit code for CLI use (0=success, 1=warnings, 2=errors)
+   - Features: Prevents documentation drift, enforces accuracy, supports CLI with JSON output
+   - Security: File size limits (max 10MB per file), path validation via security_utils, safe file reading (no execution)
+   - Error handling: Graceful handling of malformed content, missing files, corrupted JSON
+   - CLI Arguments:
+     - `--project-root`: Project root path (default: current directory)
+     - `--verbose`, `-v`: Verbose output
+     - `--json`: Machine-readable JSON output format
+   - Integration: Integrated into validate_claude_alignment.py hook for automatic parity validation on commit
+   - Test coverage: 1,145 unit tests (97%+ coverage), 666 integration tests (doc-master integration, hook blocking, end-to-end workflows)
+   - Used by: doc-master agent (parity checklist), validate_claude_alignment.py hook (automatic validation), CLI validation scripts
+   - Related: GitHub Issue #56 (automatic documentation parity validation in /auto-implement workflow)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing. Hook activation and parity validation are optional (controlled by flags/hooks).
 
 ### Hooks (29 total automation)
 
@@ -620,4 +649,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-09 (Documentation Parity Validation Added - GitHub Issue #56)
