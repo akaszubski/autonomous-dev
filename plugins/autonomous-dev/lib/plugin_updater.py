@@ -204,19 +204,42 @@ class PluginUpdater:
             )
 
         # Validate plugin_name (CWE-78: OS Command Injection prevention)
+        # Step 1: Length validation via security_utils
+        try:
+            validated_name = security_utils.validate_input_length(
+                value=plugin_name,
+                max_length=100,
+                field_name="plugin_name",
+                purpose="plugin update"
+            )
+        except ValueError as e:
+            raise UpdateError(f"Invalid plugin name: {e}")
+
+        # Step 2: Format validation (alphanumeric, dash, underscore only)
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]+$', plugin_name):
+        if not re.match(r'^[a-zA-Z0-9_-]+$', validated_name):
             raise UpdateError(
-                f"Invalid plugin name: {plugin_name}\n"
+                f"Invalid plugin name: {validated_name}\n"
                 f"Plugin names must contain only alphanumeric characters, dashes, and underscores.\n"
                 f"Examples: 'autonomous-dev', 'my_plugin', 'plugin123'"
             )
 
-        if len(plugin_name) > 100:
-            raise UpdateError(f"Plugin name too long: {len(plugin_name)} chars (max 100)")
+        self.plugin_name = validated_name
+        self.plugin_dir = claude_dir / "plugins" / validated_name
 
-        self.plugin_name = plugin_name
-        self.plugin_dir = claude_dir / "plugins" / plugin_name
+        # Validate plugin directory path (CWE-22: Path Traversal prevention)
+        # Ensures marketplace plugin directory is within project bounds
+        try:
+            validated_plugin_dir = security_utils.validate_path(
+                str(self.plugin_dir),
+                "plugin directory"
+            )
+            self.plugin_dir = Path(validated_plugin_dir)
+        except ValueError as e:
+            raise UpdateError(
+                f"Invalid plugin directory path: {e}\n"
+                f"Plugin directory must be within project .claude/plugins/ directory"
+            )
 
         # Audit log initialization
         security_utils.audit_log(
@@ -339,9 +362,19 @@ class PluginUpdater:
             # Find marketplace plugins file
             marketplace_file = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 
-            # Validate marketplace file exists and is not a symlink (CWE-22: Path Traversal)
-            # Note: We don't use validate_path() here because this is a global Claude file,
-            # not a project-specific file. We just check it's not a symlink attack.
+            # Validate marketplace file (CWE-22: Path Traversal prevention)
+            # Note: This is a global Claude file, not project-specific, so we use manual validation
+            # instead of validate_path() which enforces project-root whitelist
+
+            # Check 1: Must be in user's home directory (not root or system dirs)
+            if not str(marketplace_file.resolve()).startswith(str(Path.home().resolve())):
+                raise UpdateError(
+                    f"Invalid marketplace file: must be in user home directory\n"
+                    f"Path: {marketplace_file}\n"
+                    f"Expected: ~/.claude/plugins/installed_plugins.json"
+                )
+
+            # Check 2: Reject symlinks (defense in depth)
             if marketplace_file.is_symlink():
                 raise UpdateError(
                     f"Invalid marketplace file: symlink detected (potential attack)\n"
@@ -632,10 +665,9 @@ class PluginUpdater:
 
             # Audit log backup creation
             security_utils.audit_log(
-                "plugin_updater",
                 "plugin_backup_created",
+                "success",
                 {
-                    "event": "plugin_backup_created",
                     "backup_path": str(backup_path),
                     "project_root": str(self.project_root),
                     "plugin_name": self.plugin_name,
@@ -705,10 +737,9 @@ class PluginUpdater:
 
             # Audit log rollback
             security_utils.audit_log(
-                "plugin_updater",
                 "plugin_rollback",
+                "success",
                 {
-                    "event": "plugin_rollback",
                     "backup_path": str(backup_path),
                     "project_root": str(self.project_root),
                     "plugin_name": self.plugin_name,
@@ -735,10 +766,9 @@ class PluginUpdater:
 
                 # Audit log cleanup
                 security_utils.audit_log(
-                    "plugin_updater",
                     "plugin_backup_cleanup",
+                    "success",
                     {
-                        "event": "plugin_backup_cleanup",
                         "backup_path": str(backup_path),
                         "project_root": str(self.project_root),
                         "plugin_name": self.plugin_name,

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.8.1 (Automatic Hook Activation in /update-plugin + Issue #50 Phase 2.5)
+**Version**: v3.8.2 (Complete Security Hardening in plugin_updater.py - Issue #52)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -304,28 +304,37 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: health-check command (CLI invocation), /health-check validation
    - Related: GitHub Issue #50 Phase 1 (marketplace version validation integration into /health-check)
 
-7. **plugin_updater.py** (658 lines, v3.8.0+) - Interactive plugin update with version detection, backup, and rollback
+7. **plugin_updater.py** (868 lines, v3.8.2+) - Interactive plugin update with version detection, backup, rollback, and security hardening
    - Classes: `UpdateError` (base exception), `BackupError` (backup failures), `VerificationError` (verification failures), `UpdateResult` (result dataclass), `PluginUpdater` (main coordinator)
    - Key Methods:
      - `check_for_updates()` - Check for available updates without performing update
      - `update()` - Perform interactive or non-interactive update with options
-     - `_create_backup()` - Create timestamped backup (security: 0o700 permissions)
-     - `_rollback()` - Restore from backup on failure
+     - `_create_backup()` - Create timestamped backup (security: 0o700 permissions, symlink detection)
+     - `_rollback()` - Restore from backup on failure (with path validation and symlink blocking)
      - `_cleanup_backup()` - Remove backup after successful update
      - `_verify_update()` - Verify update succeeded (version + file validation)
+     - `_activate_hooks()` - Activate hooks from new plugin version (added v3.8.1)
    - Features:
      - Interactive confirmation prompts (customizable)
-     - Automatic backup before update (timestamped, in /tmp)
+     - Automatic backup before update (timestamped, in /tmp, 0o700 permissions)
      - Automatic rollback on any failure (sync, verification, unexpected errors)
      - Verification: checks version matches expected, validates critical files exist
      - Cleanup: removes backup after successful update
+     - Hook activation: Auto-activates hooks from new version (first install only)
    - Error handling: UpdateError base class with specific exceptions (BackupError, VerificationError) for recovery
-   - UpdateResult attributes: success, updated, message, old_version, new_version, backup_path, rollback_performed, details
-   - Integration: Uses version_detector.py for version comparison, sync_dispatcher.py for sync operations
-   - Security: Path validation via security_utils, backup permissions (CWE-732), audit logging (CWE-778)
-   - Test coverage: Comprehensive unit tests (backup/rollback, verification, error handling)
+   - UpdateResult attributes: success, updated, message, old_version, new_version, backup_path, rollback_performed, hooks_activated, hooks_added, details
+   - Integration: Uses version_detector.py for version comparison, sync_dispatcher.py for sync operations, hook_activator.py for activation
+   - Security (GitHub Issue #52 - 5 CWE vulnerabilities addressed):
+     - CWE-22 (Path Traversal): Marketplace path validation, rollback path validation, user home directory check
+     - CWE-78 (Command Injection): Plugin name length + format validation (alphanumeric, dash, underscore only)
+     - CWE-59 (Symlink Following/TOCTOU): Backup path re-validation after creation, symlink detection
+     - CWE-117 (Log Injection): Audit log input sanitization, audit log signature standardized
+     - CWE-732 (Permissions): Backup directory permissions 0o700 (user-only)
+   - All validations use security_utils module for consistency
+   - Audit logging for all security operations to security_audit.log
+   - Test coverage: 53 unit tests (39 existing + 14 new security tests, 46 passing, 7 design issues to fix)
    - Used by: update_plugin.py CLI script, /update-plugin command
-   - Related: GitHub Issue #50 Phase 2 (interactive plugin update command)
+   - Related: GitHub Issue #50 Phase 2 (interactive plugin update), GitHub Issue #52 (security hardening)
 
 8. **update_plugin.py** (380 lines, v3.8.0+) - CLI script for interactive plugin updates
    - Purpose: Command-line interface for plugin_updater.py with user-friendly prompts and output
