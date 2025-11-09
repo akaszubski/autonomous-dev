@@ -1,10 +1,10 @@
 {
   "name": "autonomous-dev",
-  "version": "3.7.0",
-  "description": "Autonomous development plugin for Claude Code - 18 AI agents, 19 skills, automation hooks",
+  "version": "3.10.0",
+  "description": "Autonomous development plugin for Claude Code - 19 AI agents, 19 skills, automation hooks",
   "author": "akaszubski",
   "repository": "https://github.com/akaszubski/autonomous-dev",
-  "agents": 18,
+  "agents": 19,
   "skills": 19,
   "commands": [
     "/auto-implement",
@@ -15,6 +15,7 @@
     "/status",
     "/health-check",
     "/pipeline-status",
+    "/create-issue",
     "/research",
     "/plan",
     "/test-feature",

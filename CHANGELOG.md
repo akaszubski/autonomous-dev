@@ -3,13 +3,75 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-09
-**Current Version**: v3.9.0 (Automatic Git Operations Integration)
+**Current Version**: v3.10.0 (Automatic GitHub Issue Creation with Research)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [Unreleased]
+
+## [3.10.0] - 2025-11-09
+
+### Added
+- **Automatic GitHub Issue Creation with Research** - GitHub Issue #58
+  - New agent: `plugins/autonomous-dev/agents/issue-creator.md` (168 lines)
+    - Transforms feature requests and research findings into well-structured GitHub issue descriptions
+    - Generates comprehensive issues with: Description, Research Findings, Implementation Plan, Acceptance Criteria, References
+    - Uses Sonnet model for high-quality issue generation
+    - Receives input from researcher agent (patterns, best practices, security considerations)
+    - Outputs structured markdown issue body for GitHub creation
+    - Available as subagent_type="issue-creator" via Task tool
+  - New command: `plugins/autonomous-dev/commands/create-issue.md` (347 lines)
+    - Orchestrates complete workflow: Research → Generate Issue → Create on GitHub
+    - STEP 1: Invoke researcher agent for research-backed content
+    - STEP 2: Invoke issue-creator agent to generate structured GitHub issue
+    - STEP 3: Create issue via gh CLI with validation and error handling
+    - STEP 4: Offer automatic /auto-implement for immediate feature development
+    - Checkpoints validate each step before proceeding
+    - Non-blocking error handling with manual fallback instructions
+    - Usage: `/create-issue "Feature description or request"`
+    - Time: 3-8 minutes total (2-5 min research + 1-2 min issue generation + <1 min creation)
+  - New library: `plugins/autonomous-dev/lib/github_issue_automation.py` (645 lines)
+    - Automated GitHub issue creation with research integration
+    - Classes: `IssueCreationError` (base), `GhCliError` (gh CLI failures), `ValidationError` (input validation), `IssueCreationResult` (result)
+    - Main function: `create_github_issue(title, body, labels, assignee, project_root)`
+    - Validation functions (5): title validation (CWE-78, CWE-117, CWE-20), body length validation, gh CLI checks, response parsing
+    - Operations: `create_issue_via_gh_cli()` with subprocess safety and timeout handling
+    - Error handling: Graceful failures with manual fallback instructions
+    - Features: Research integration, label support, assignee support, JSON output
+    - Security: Input validation (CWE-78, CWE-117, CWE-20), subprocess safety, audit logging
+  - New script: `plugins/autonomous-dev/scripts/create_issue.py` (247 lines)
+    - CLI interface for GitHub issue creation via gh CLI
+    - Arguments: --title, --body, --labels, --assignee, --project-root, --json, --verbose
+    - Invoked by /create-issue command STEP 3 for issue creation
+  - Updated documentation: `plugins/autonomous-dev/README.md`
+    - Added /create-issue usage examples and prerequisites
+    - gh CLI installation instructions (brew macOS, apt Linux)
+    - gh authentication setup
+    - Basic and advanced usage examples
+    - Integration with /auto-implement workflow
+
+### Changed
+- Updated CLAUDE.md version to v3.10.0
+- Updated agent count: 18 → 19 (added issue-creator)
+- Updated command count: 18 → 19 (added /create-issue)
+- Updated library count: 11 → 12 (added github_issue_automation.py)
+- Updated plugin.json: version, agent count, commands list
+- Updated PROJECT.md: version, scope, architecture
+
+### Prerequisites
+- **gh CLI**: macOS: `brew install gh` | Linux: `sudo apt install gh`
+- **GitHub Authentication**: `gh auth login`
+- **Git Repository**: Project must have GitHub remote
+
+---
+
+## [3.9.0] - 2025-11-09
+
+### Added
+- **Automatic Git Operations Integration** - GitHub Issue #58
 ## [Unreleased]
 
 ### Added

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.8.2 (Issue #52 Complete - Security Hardening in plugin_updater.py)
+**Version**: v3.10.0 (Issue #58 - Automatic GitHub Issue Creation with Research)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
@@ -248,18 +248,18 @@ This is achieved via **dual-layer architecture**:
 - **Git**: For version control and rollback safety
 
 **Current Architecture** (v3.7.0 - Unified /sync Command):
-- **Agents**: 18 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
+- **Agents**: 19 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
   - **Core 9**: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
-  - **Utility 9**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
+  - **Utility 10**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, issue-creator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
 - **Skills**: 19 (active with progressive disclosure architecture)
   - **Status**: 19 active skill packages in plugins/autonomous-dev/skills/
   - **Architecture**: Progressive disclosure (metadata in context, full content loaded when needed)
   - **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
   - **How It Works**: Skills auto-activate based on keywords, Claude Code 2.0+ native support
   - **Reference**: See docs/SKILLS-AGENTS-INTEGRATION.md for full architecture
-- **Commands**: 17 total (unified /sync per GitHub #47)
-  - **Core (8)**: /auto-implement, /align-project, /align-claude, /setup, /sync (auto-detection), /status, /health-check, /pipeline-status
-  - **Agent (7)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs
+- **Commands**: 19 total (unified /sync per GitHub #47, added /create-issue per GitHub #58)
+  - **Core (9)**: /auto-implement, /align-project, /align-claude, /setup, /sync (auto-detection), /status, /health-check, /pipeline-status, /create-issue
+  - **Agent (8)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs, /create-issue
   - **Utility (2)**: /test, /uninstall
 - **Hooks**: 29 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_pipeline_complete, enforce_tdd

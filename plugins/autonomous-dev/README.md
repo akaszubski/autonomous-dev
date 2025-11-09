@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.7.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.10.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.7.0
+**Version**: v3.10.0
 **Last Updated**: 2025-11-09
-**Status**: Unified /sync Command + Performance Optimization (Phases 4-6) + Security Hardening + Documentation Parity Validation
+**Status**: GitHub Issue Automation + Git Operations Integration + Security Hardening + Documentation Parity Validation
 
-Production-ready plugin with 17 commands (8 core + 7 agent + 2 utility), 18 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 19 commands (9 core + 8 agent + 2 utility), 19 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -77,8 +77,8 @@ grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-de
 - ✅ Recommended when updating or troubleshooting
 
 **What gets installed:**
-- 17 slash commands (8 core + 7 agent + 2 utility: `/auto-implement`, `/sync`, `/research`, etc.)
-- 18 specialist agents (researcher, planner, implementer, etc. - orchestrator removed v3.2.2)
+- 19 slash commands (9 core + 8 agent + 2 utility: `/auto-implement`, `/sync`, `/create-issue`, `/research`, etc.)
+- 19 specialist agents (researcher, planner, implementer, issue-creator, etc. - orchestrator removed v3.2.2)
 - 35+ automation hooks (validation, security, testing, docs)
 - Templates and project scaffolding
 
@@ -209,6 +209,62 @@ Checking for orphaned files...
 - See `plugins/autonomous-dev/lib/version_detector.py` for version detection implementation
 - See `plugins/autonomous-dev/lib/orphan_file_cleaner.py` for orphan cleanup implementation
 - See `plugins/autonomous-dev/lib/validate_documentation_parity.py` for documentation consistency validation
+
+---
+
+## ✨ What's New in v3.10.0
+
+**📋 Automatic GitHub Issue Creation with Research Integration**
+
+This release adds intelligent GitHub issue automation to the individual agent commands, enabling fully researched, well-structured issue creation from feature requests.
+
+### v3.10.0 Changes (2025-11-09)
+
+**✅ GitHub Issue Automation** (`/create-issue` command):
+- **Research-backed issues**: Researcher agent finds patterns and best practices
+- **Structured content**: Issue-creator agent generates comprehensive GitHub issue body
+- **Automated creation**: gh CLI creates issue on GitHub with validation
+- **Full workflow**: Research → Generate Issue → Create on GitHub (3-8 minutes)
+- **Integration**: Option to immediately start implementation with `/auto-implement`
+
+**How to Use**:
+```bash
+# Basic usage
+/create-issue "Add JWT authentication for API endpoints"
+
+# Output includes:
+# 1. Research findings (patterns, best practices, security)
+# 2. Generated issue body (description, implementation plan, acceptance criteria)
+# 3. Created GitHub issue URL
+# 4. Option to start /auto-implement
+```
+
+**What Gets Created**:
+- **Description**: Clear summary of what needs building
+- **Research Findings**: Existing patterns, best practices, security considerations
+- **Implementation Plan**: Components, integration points, complexity estimate
+- **Acceptance Criteria**: Testable completion criteria
+- **References**: Links to relevant code and documentation
+
+**Prerequisites**:
+```bash
+# Install gh CLI
+brew install gh              # macOS
+sudo apt install gh         # Linux
+gh --version                 # Verify installation
+
+# Authenticate
+gh auth login
+gh auth status              # Verify authentication
+```
+
+**Security Features**:
+- Input validation (CWE-78, CWE-117, CWE-20)
+- gh CLI subprocess safety
+- No credential exposure in logs
+- Graceful error handling with manual fallback
+
+**Related**: GitHub Issue #58 - Automatic GitHub Issue Creation with Research
 
 ---
 
@@ -1187,7 +1243,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | `/pipeline-status` | Track /auto-implement workflow progress | (Python script) | Monitor feature implementation status |
 | `/uninstall` | Remove or disable plugin | (Interactive menu) | When cleaning up |
 
-**Additional Commands** (17 total): The table above shows 10 core commands. Also available: 7 individual agent commands (`/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`). See GitHub #47 for details on unified /sync command.
+**Additional Commands** (19 total): The table above shows core commands. Also available: 8 individual agent commands (`/research`, `/plan`, `/test-feature`, `/implement`, `/review`, `/security-scan`, `/update-docs`, `/create-issue` - GitHub #58). See GitHub #47 for details on unified /sync command.
 
 **Workflow**:
 ```bash

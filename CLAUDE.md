@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.9.0 (Automatic Git Operations Integration - Issue #58)
+**Version**: v3.10.0 (Automatic GitHub Issue Creation with Research - Issue #58)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -12,17 +12,17 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 18 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 19 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /uninstall
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /create-issue, /uninstall
 ```
 
-**Commands (18 active, includes /update-plugin per GitHub #50 Phase 2)**:
+**Commands (19 active, includes /create-issue for GitHub issue automation - Issue #58)**:
 
 **Core Workflow (9)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
@@ -35,7 +35,7 @@
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
 - `/update-plugin` - Interactive plugin update with backup and rollback (Python CLI) - GitHub #50 Phase 2
 
-**Individual Agents (7)** - GitHub #44:
+**Individual Agents (8)** - GitHub #44, #58:
 - `/research <feature>` - Research patterns and best practices (2-5 min)
 - `/plan <feature>` - Architecture and implementation planning (3-5 min)
 - `/test-feature <feature>` - TDD test generation (2-5 min)
@@ -43,6 +43,7 @@
 - `/review` - Code quality review and feedback (2-3 min)
 - `/security-scan` - Security vulnerability scan and OWASP compliance (1-2 min)
 - `/update-docs` - Documentation synchronization (1-2 min)
+- `/create-issue <request>` - Create GitHub issue with research integration (3-8 min) - GitHub #58
 
 **Utility Commands (2)**:
 - `/test` - Run automated tests (pytest wrapper)
@@ -223,7 +224,7 @@ AUTO_GIT_PR=true             # Default: false
 
 ## Architecture
 
-### Agents (18 specialists with active skill integration - GitHub Issue #35)
+### Agents (19 specialists with active skill integration - GitHub Issue #35, #58)
 
 Located: `plugins/autonomous-dev/agents/`
 
@@ -238,10 +239,11 @@ Located: `plugins/autonomous-dev/agents/`
 - **advisor**: Critical thinking and validation (v3.0+) - Uses semantic-validation, advisor-triggers, research-patterns skills
 - **quality-validator**: GenAI-powered feature validation (v3.0+) - Uses testing-guide, code-review skills
 
-**Utility Agents (9)** with skill references:
+**Utility Agents (10)** with skill references:
 - **alignment-validator**: PROJECT.md alignment checking - Uses semantic-validation, file-organization skills
 - **commit-message-generator**: Conventional commit generation - Uses git-workflow, code-review skills
 - **pr-description-generator**: Pull request descriptions - Uses github-workflow, documentation-guide, code-review skills
+- **issue-creator**: Generate well-structured GitHub issue descriptions (v3.10.0+, GitHub #58) - Uses github-workflow, documentation-guide, research-patterns skills
 - **project-progress-tracker**: Track progress against goals - Uses project-management skill
 - **alignment-analyzer**: Detailed alignment analysis - Uses research-patterns, semantic-validation, file-organization skills
 - **project-bootstrapper**: Tech stack detection and setup (v3.0+) - Uses research-patterns, file-organization, python-standards skills
@@ -282,7 +284,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (11 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation, Enhanced v3.9.0+ with Git Integration)
+### Libraries (12 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation, Enhanced v3.9.0+ with Git Integration, Enhanced v3.10.0+ with Issue Automation)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -513,7 +515,32 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: auto_git_workflow.py hook, /auto-implement Step 8 (automatic git operations)
    - Related: GitHub Issue #58 (automatic git operations integration)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation, git automation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface); auto_implement_git_integration.py (core logic), auto_git_workflow.py (hook integration) enables reuse and testing. Git automation and other enhancements are optional (controlled by flags/hooks).
+12. **github_issue_automation.py** (645 lines, v3.10.0+) - Automated GitHub issue creation with research integration
+   - Classes: `IssueCreationError` (base exception), `GhCliError` (gh CLI failures), `ValidationError` (input validation), `IssueCreationResult` (result dataclass)
+   - Key Functions:
+     - `create_github_issue()` - Main entry point orchestrating complete workflow (title, body, labels, assignee, project_root)
+     - `validate_issue_title()` - Validate title for security and format
+     - `validate_issue_body()` - Validate body length and content (max 65,000 characters - GitHub limit)
+     - `check_gh_cli_installed()` - Verify gh CLI available
+     - `check_gh_cli_authenticated()` - Verify GitHub authentication
+     - `create_issue_via_gh_cli()` - Execute gh issue create command
+     - `parse_issue_response()` - Parse gh CLI JSON output
+     - `format_fallback_instructions()` - Generate manual fallback steps
+   - Features:
+     - Research integration: Accepts issue body generated by issue-creator agent
+     - Label support: Optional labels from repository defaults or custom
+     - Assignee support: Optional assignee assignment
+     - Error handling: Non-blocking with detailed fallback instructions
+     - Timeout handling: Network timeout recovery
+     - JSON output: Machine-readable result format
+   - IssueCreationResult attributes: success, issue_number, issue_url, error, details
+   - Security: Input validation (CWE-78, CWE-117, CWE-20), subprocess safety, audit logging
+   - Integration: Called by create_issue.py CLI script, /create-issue command STEP 3
+   - Error handling: Graceful with manual fallback instructions
+   - Used by: create_issue.py script, /create-issue command
+   - Related: GitHub Issue #58 (GitHub issue automation)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation, git automation, issue automation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface); auto_implement_git_integration.py (core logic), auto_git_workflow.py (hook integration); github_issue_automation.py (core logic), create_issue.py (CLI interface) enables reuse and testing. Feature automation and other enhancements are optional (controlled by flags/hooks).
 
 ### Hooks (30 total automation)
 
