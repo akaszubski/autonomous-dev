@@ -39,16 +39,70 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 # Add project root to path for imports
-project_root = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(project_root / "scripts"))
-sys.path.insert(0, str(project_root / "plugins" / "autonomous-dev" / "lib"))
+# From .claude/hooks/auto_update_project_progress.py:
+#   parents[0] = .claude/hooks/
+#   parents[1] = .claude/
+#   parents[2] = project_root/
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))  # Add project root for 'scripts' module
 
+# Import ProjectMdUpdater at module level (not used in tests)
 try:
-    from agent_tracker import AgentTracker
-    from project_md_updater import ProjectMdUpdater
+    from plugins.autonomous_dev.lib.project_md_updater import ProjectMdUpdater
 except ImportError as e:
     print(f"Warning: Required module not found: {e}", file=sys.stderr)
     sys.exit(0)
+
+
+def detect_and_track_agent(session_file: str) -> bool:
+    """Auto-detect and track agent from CLAUDE_AGENT_NAME environment variable.
+
+    This function is called by SubagentStop hook to automatically detect agents
+    invoked via Task tool and start tracking them in the session file.
+
+    Args:
+        session_file: Path to session JSON file
+
+    Returns:
+        True if agent was tracked (new), False otherwise (already tracked or no env var)
+
+    Security:
+        - Validates session_file path using security_utils
+        - Validates CLAUDE_AGENT_NAME via AgentTracker.auto_track_from_environment()
+        - Gracefully handles errors (returns False, doesn't raise)
+
+    Usage (GitHub Issue #57):
+        Called in main() before PROJECT.md update logic to ensure Task tool
+        agents are tracked even if they don't trigger PROJECT.md updates.
+
+        ```python
+        # In main()
+        detect_and_track_agent(str(session_file))  # Auto-track Task tool agents
+        run_hook(agent_name, session_file, project_file)  # Normal hook logic
+        ```
+
+    Design:
+        - Non-blocking: Errors return False (doesn't block hook workflow)
+        - Defensive: Validates all inputs before tracking
+        - Silent: No output unless error (hooks should be quiet)
+    """
+    try:
+        # Import AgentTracker inside function to enable test mocking
+        # (tests patch scripts.agent_tracker.AgentTracker, which only works if import happens during test)
+        from scripts.agent_tracker import AgentTracker
+
+        # Create AgentTracker instance
+        tracker = AgentTracker(session_file=session_file)
+
+        # Auto-track from environment (if CLAUDE_AGENT_NAME set)
+        was_tracked = tracker.auto_track_from_environment()
+
+        return was_tracked
+
+    except Exception as e:
+        # Non-blocking: Log error but don't fail hook
+        print(f"Warning: Auto-tracking failed: {e}", file=sys.stderr)
+        return False
 
 
 def should_trigger_update(agent_name: str) -> bool:
@@ -342,6 +396,15 @@ def main():
         return
 
     session_file = json_files[-1]
+
+    # AUTO-DETECT TASK TOOL AGENTS (GitHub Issue #57)
+    # This must run BEFORE run_hook() to ensure agents are tracked
+    # even if they don't trigger PROJECT.md updates
+    try:
+        detect_and_track_agent(str(session_file))
+    except Exception as e:
+        # Non-blocking: Log error but continue with hook
+        print(f"Warning: Agent auto-tracking failed: {e}", file=sys.stderr)
 
     # Find PROJECT.md
     project_file = project_root / ".claude" / "PROJECT.md"

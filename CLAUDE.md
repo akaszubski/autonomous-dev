@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.8.2 (Complete Security Hardening in plugin_updater.py - Issue #52)
+**Version**: v3.8.3 (Automatic Task Tool Agent Detection - Issue #57)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -455,7 +455,7 @@ Located: `plugins/autonomous-dev/hooks/`
 
 **Lifecycle Hooks**:
 - `UserPromptSubmit`: Display project context
-- `SubagentStop`: Log agent completion to session; auto-update PROJECT.md progress (v3.4.0+)
+- `SubagentStop`: Log agent completion to session; auto-update PROJECT.md progress (v3.4.0+); auto-detect Task tool agents (v3.8.3+)
 
 ---
 

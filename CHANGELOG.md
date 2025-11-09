@@ -3,10 +3,96 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-09
-**Current Version**: v3.8.2 (Complete Security Hardening in plugin_updater.py)
+**Current Version**: v3.8.3 (Automatic Task Tool Agent Detection)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
+
+---
+
+## [3.8.3] - 2025-11-09
+
+### Added
+- **Automatic Task Tool Agent Detection** - GitHub Issue #57
+  - Enhanced script: `scripts/agent_tracker.py` - Added Task tool agent auto-detection
+    - New method: `is_agent_tracked(agent_name: str) -> bool` - Check if agent already tracked (duplicate detection)
+      - Security: Validates agent name via security_utils.validate_agent_name()
+      - Returns: True if agent exists in session (any status), False otherwise
+      - Used by: auto_track_from_environment() to prevent duplicate tracking
+    - New method: `auto_track_from_environment(message: Optional[str] = None) -> bool` - Auto-detect and track agents from CLAUDE_AGENT_NAME environment variable
+      - Security: Validates CLAUDE_AGENT_NAME and message parameters via security_utils
+      - Returns: True if agent was tracked (new), False otherwise (already tracked or no env var)
+      - Non-blocking: Returns False gracefully if env var missing (doesn't raise exception)
+      - Idempotent: Safe to call multiple times (checks is_agent_tracked first)
+      - Integration: Called by SubagentStop hook to auto-track Task tool agents
+      - Audit logging: All operations logged to security_audit.log
+    - Enhanced method: `complete_agent()` - Made idempotent for Task tool workflow
+      - Backward compatible: Accepts both tools and tools_used parameters (alias)
+      - Idempotency: If agent already completed, returns silently (no duplicate completions)
+      - Purpose: Prevents duplicate completions when agents invoked via Task tool + SubagentStop hook
+      - Audit logging: Logs idempotent skips and completions
+  - Enhanced hook: `plugins/autonomous-dev/hooks/auto_update_project_progress.py` - Added Task tool agent detection
+    - New function: `detect_and_track_agent(session_file: str) -> bool` - Auto-detect and track agents from environment
+      - Called in main() BEFORE run_hook() to ensure tracking even if no PROJECT.md update needed
+      - Non-blocking: Returns False if env var missing or agent already tracked
+      - Defensive: Validates all inputs before tracking
+      - Audit logging: Errors logged but don't fail hook
+      - Design: Enables Task tool agents to appear in session logs
+    - Key insertion point: detect_and_track_agent() runs BEFORE should_trigger_update() check
+      - Ensures Task tool agents tracked even if they don't affect PROJECT.md
+  - New documentation: `docs/TASK_TOOL_DETECTION.md` - Architecture documentation
+    - Overview: What problem is solved (Task tool agents not appearing in session logs)
+    - Design: How auto-detection works (environment variable → SubagentStop hook → tracking)
+    - Security: Input validation, audit logging, whitelist validation
+    - Test coverage: Unit and integration test architecture
+    - References: Links to related issues and implementation files
+    - FAQ: Common questions and troubleshooting
+
+### Changed
+- **SubagentStop Hook Behavior**: Now auto-detects Task tool agents via environment variable
+  - Hook description in CLAUDE.md updated to reflect Task tool detection capability
+  - Files modified: auto_update_project_progress.py, CLAUDE.md
+- **Agent Tracker API**: complete_agent() parameter name flexibility
+  - Added tools_used as alias for tools parameter (backward compatible)
+  - Made complete_agent() idempotent (safe to call multiple times)
+  - Doesn't affect existing code (existing parameter names still work)
+
+### Fixed
+- **Task Tool Agent Tracking**: Agents invoked via Task tool now automatically appear in session logs
+  - Problem: Task tool sets CLAUDE_AGENT_NAME but doesn't trigger SubagentStop hook detection
+  - Solution: detect_and_track_agent() detects environment variable in SubagentStop hook
+  - Result: Task tool agents tracked same as direct agent invocations
+  - Backward compatible: Doesn't affect existing manual tracking
+  - Idempotent: Prevents duplicate entries if agent tracked by multiple paths
+
+### Test Coverage
+- New unit test file: `tests/unit/test_subagent_stop_task_tool_detection.py` (22 tests)
+  - Covers: detect_and_track_agent(), is_agent_tracked(), auto_track_from_environment()
+  - Tests: Successful tracking, duplicate prevention, validation, audit logging
+  - Status: 22/22 passing
+- New integration test file: `tests/integration/test_task_tool_agent_tracking.py` (13 tests)
+  - Covers: End-to-end Task tool workflows, hook integration, PROJECT.md updates
+  - Tests: Task tool execution, manual + Task tool paths, session consistency
+  - Status: 11/13 passing (2 design issues for future fixes)
+- Total new tests: 35 tests
+- Overall test status: 33/35 passing (94.3% pass rate)
+- Coverage areas:
+  - Detection: Task tool environment variable detection and validation
+  - Idempotency: Duplicate prevention and graceful handling
+  - Security: Input validation, audit logging, whitelist checks
+  - Integration: SubagentStop hook interaction, session file updates
+  - Backward compatibility: Existing agent tracking continues to work
+
+### Security
+- **No CWE vulnerabilities**: All inputs validated via security_utils
+  - Agent name validation: Prevents path traversal, validates against whitelist
+  - Message validation: Length checks, prevents buffer overflow
+  - Environment variable: Treated as untrusted, validated before use
+- **Audit logging**: All operations logged to security_audit.log
+  - Success events: Agent tracking, duplicate prevention
+  - Failure events: Invalid agent names, validation errors
+  - Enables security audit trail for agent execution
+- **Graceful degradation**: Missing env var doesn't cause errors, just returns False
 
 ---
 

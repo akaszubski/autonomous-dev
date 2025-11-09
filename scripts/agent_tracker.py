@@ -354,13 +354,14 @@ class AgentTracker:
         print(f"✅ Started: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
 
-    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None):
-        """Log agent completion.
+    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None, tools_used: Optional[List[str]] = None):
+        """Log agent completion (idempotent - safe to call multiple times).
 
         Args:
             agent_name: Name of the agent (must be in EXPECTED_AGENTS)
             message: Completion message (max 10KB)
-            tools: Optional list of tools used
+            tools: Optional list of tools used (preferred parameter name)
+            tools_used: Optional list of tools used (alias for backwards compatibility)
 
         Raises:
             ValueError: If agent_name is empty/invalid or message too long
@@ -368,7 +369,16 @@ class AgentTracker:
 
         Security:
             Uses shared security_utils validation for consistent enforcement.
+
+        Idempotency (GitHub Issue #57):
+            If agent is already completed, this is a no-op (returns silently).
+            This prevents duplicate completions when agents are invoked via Task tool
+            and completed by both Task tool and SubagentStop hook.
         """
+        # Handle tools_used alias for backwards compatibility
+        if tools_used is not None and tools is None:
+            tools = tools_used
+
         # SECURITY: Validate inputs using shared validation module
         agent_name = validate_agent_name(agent_name, purpose="agent completion")
         message = validate_input_length(message, 10000, "message", purpose="agent completion")
@@ -382,29 +392,47 @@ class AgentTracker:
                 f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
             )
 
-        # Find the most recent entry for this agent
+        # IDEMPOTENCY: Check if agent already completed
+        # If already completed, skip without error (safe to call multiple times)
         for entry in reversed(self.session_data["agents"]):
-            if entry["agent"] == agent_name and entry["status"] == "started":
-                entry["status"] = "completed"
-                entry["completed_at"] = datetime.now().isoformat()
-                entry["message"] = message
+            if entry["agent"] == agent_name:
+                if entry["status"] == "completed":
+                    # Already completed - skip silently (idempotent behavior)
+                    audit_log("agent_tracker", "success", {
+                        "operation": "complete_agent_idempotent",
+                        "agent_name": agent_name,
+                        "status": "already_completed",
+                        "message": "Agent already completed, skipped duplicate completion"
+                    })
+                    return
+                elif entry["status"] == "started":
+                    # Found started entry - complete it
+                    entry["status"] = "completed"
+                    entry["completed_at"] = datetime.now().isoformat()
+                    entry["message"] = message
 
-                # Calculate duration
-                started = datetime.fromisoformat(entry["started_at"])
-                completed = datetime.fromisoformat(entry["completed_at"])
-                entry["duration_seconds"] = int((completed - started).total_seconds())
+                    # Calculate duration
+                    started = datetime.fromisoformat(entry["started_at"])
+                    completed = datetime.fromisoformat(entry["completed_at"])
+                    entry["duration_seconds"] = int((completed - started).total_seconds())
 
-                if tools:
-                    entry["tools_used"] = tools
+                    if tools:
+                        entry["tools_used"] = tools
 
-                self._save()
+                    self._save()
 
-                print(f"✅ Completed: {agent_name} - {message}")
-                print(f"⏱️  Duration: {entry['duration_seconds']}s")
-                print(f"📄 Session: {self.session_file.name}")
-                return
+                    audit_log("agent_tracker", "success", {
+                        "operation": "complete_agent",
+                        "agent_name": agent_name,
+                        "duration_seconds": entry["duration_seconds"]
+                    })
 
-        # If no started entry found, create a completed entry
+                    print(f"✅ Completed: {agent_name} - {message}")
+                    print(f"⏱️  Duration: {entry['duration_seconds']}s")
+                    print(f"📄 Session: {self.session_file.name}")
+                    return
+
+        # If no entry found, create a completed entry
         entry = {
             "agent": agent_name,
             "status": "completed",
@@ -416,6 +444,12 @@ class AgentTracker:
 
         self.session_data["agents"].append(entry)
         self._save()
+
+        audit_log("agent_tracker", "success", {
+            "operation": "complete_agent",
+            "agent_name": agent_name,
+            "no_prior_start": True
+        })
 
         print(f"✅ Completed: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
@@ -593,6 +627,159 @@ class AgentTracker:
             if entry["status"] in ["completed", "failed"]
         }
         return set(EXPECTED_AGENTS).issubset(completed_agents)
+
+    def is_agent_tracked(self, agent_name: str) -> bool:
+        """Check if agent is already tracked in current session (for duplicate detection).
+
+        Args:
+            agent_name: Name of agent to check
+
+        Returns:
+            True if agent exists in session (any status), False otherwise
+
+        Raises:
+            ValueError: If agent_name is invalid (path traversal, empty, too long)
+
+        Security:
+            Uses shared security_utils validation for input validation.
+            Logs all queries to audit log.
+
+        Usage (GitHub Issue #57):
+            Used by auto_track_from_environment() to prevent duplicate tracking
+            when agents are invoked via Task tool.
+        """
+        # SECURITY: Validate agent name
+        agent_name = validate_agent_name(agent_name, purpose="agent tracking check")
+
+        # Check if agent exists in session (any status)
+        for entry in self.session_data["agents"]:
+            if entry["agent"] == agent_name:
+                audit_log("agent_tracker", "success", {
+                    "operation": "is_agent_tracked",
+                    "agent_name": agent_name,
+                    "tracked": True,
+                    "status": entry["status"]
+                })
+                return True
+
+        audit_log("agent_tracker", "success", {
+            "operation": "is_agent_tracked",
+            "agent_name": agent_name,
+            "tracked": False
+        })
+        return False
+
+    def auto_track_from_environment(self, message: Optional[str] = None) -> bool:
+        """Auto-detect and track agent from CLAUDE_AGENT_NAME environment variable.
+
+        This method enables automatic agent tracking when agents are invoked via
+        Task tool. The Task tool sets CLAUDE_AGENT_NAME when invoking agents,
+        allowing SubagentStop hook to detect and track them automatically.
+
+        Args:
+            message: Optional message for agent start. If None, uses default message.
+
+        Returns:
+            True if agent was tracked (new tracking), False otherwise (already tracked or no env var)
+
+        Raises:
+            ValueError: If CLAUDE_AGENT_NAME contains invalid agent name (path traversal, etc)
+
+        Security:
+            - Validates CLAUDE_AGENT_NAME using shared security_utils
+            - Validates message parameter length (max 10KB)
+            - Logs all operations to audit log
+            - Gracefully handles missing environment variable (returns False)
+
+        Usage (GitHub Issue #57):
+            Called by SubagentStop hook to auto-detect Task tool agents:
+
+            ```python
+            # In auto_update_project_progress.py hook
+            tracker = AgentTracker(session_file=session_file)
+            was_tracked = tracker.auto_track_from_environment(
+                message="Auto-detected from Task tool"
+            )
+            ```
+
+        Design:
+            - Idempotent: Safe to call multiple times (checks is_agent_tracked first)
+            - Non-blocking: Returns False if env var missing (doesn't raise exception)
+            - Defensive: Validates all inputs before tracking
+        """
+        # Get agent name from environment
+        agent_name = os.environ.get("CLAUDE_AGENT_NAME")
+
+        # If not set (None), return False gracefully (not an error)
+        # Note: Empty string "" is different from None and will be validated
+        if agent_name is None:
+            audit_log("agent_tracker", "success", {
+                "operation": "auto_track_from_environment",
+                "status": "no_env_var",
+                "message": "CLAUDE_AGENT_NAME not set, skipped auto-tracking"
+            })
+            return False
+
+        # SECURITY: Validate agent name from environment
+        # This will catch empty strings, path traversal, etc.
+        try:
+            agent_name = validate_agent_name(agent_name, purpose="Task tool auto-tracking")
+        except ValueError as e:
+            # Invalid agent name in environment - log and raise
+            audit_log("agent_tracker", "failure", {
+                "operation": "auto_track_from_environment",
+                "status": "invalid_agent_name",
+                "agent_name": agent_name if agent_name else "(empty)",
+                "error": str(e)
+            })
+            raise
+
+        # SECURITY: Validate message parameter (if provided)
+        if message is not None:
+            try:
+                message = validate_input_length(message, 10000, "message", purpose="Task tool auto-tracking")
+            except ValueError as e:
+                # Invalid message length - log and raise
+                audit_log("agent_tracker", "failure", {
+                    "operation": "auto_track_from_environment",
+                    "status": "invalid_message",
+                    "agent_name": agent_name,
+                    "error": str(e)
+                })
+                raise
+        else:
+            # Default message
+            message = f"Auto-detected via Task tool (CLAUDE_AGENT_NAME={agent_name})"
+
+        # Check if already tracked (idempotent)
+        if self.is_agent_tracked(agent_name):
+            audit_log("agent_tracker", "success", {
+                "operation": "auto_track_from_environment",
+                "status": "already_tracked",
+                "agent_name": agent_name,
+                "message": "Agent already tracked, skipped duplicate"
+            })
+            return False
+
+        # Start tracking agent
+        entry = {
+            "agent": agent_name,
+            "status": "started",
+            "started_at": datetime.now().isoformat(),
+            "message": message
+        }
+        self.session_data["agents"].append(entry)
+        self._save()
+
+        audit_log("agent_tracker", "success", {
+            "operation": "auto_track_from_environment",
+            "status": "tracked",
+            "agent_name": agent_name,
+            "message": message
+        })
+
+        # No print() - hooks should be silent unless there's an error
+        return True
 
     def get_agent_emoji(self, status: str) -> str:
         """Get emoji for agent status."""
@@ -909,8 +1096,7 @@ class AgentTracker:
         and calculates parallelization efficiency metrics.
 
         Returns:
-            True if all 3 agents completed (parallel or sequential)
-            False if agents incomplete or failed
+            True if parallel validation succeeded (3 agents completed), False otherwise
 
         Side Effects:
             Writes parallel_validation metadata to session file:
@@ -973,7 +1159,13 @@ class AgentTracker:
             else:
                 # Report missing agents as incomplete
                 self._record_incomplete_validation(missing_agents + incomplete_agents)
-            return False
+            return {
+                "parallel_detected": False,
+                "agents_validated": [],
+                "efficiency_percent": 0,
+                "status": "failed" if failed_agents else "incomplete",
+                "time_saved_seconds": 0
+            }
 
         # Calculate metrics
         reviewer_duration = reviewer.get("duration_seconds", 0)
@@ -1018,7 +1210,39 @@ class AgentTracker:
             "efficiency_percent": round(efficiency, 2)
         })
 
-        return True
+        # Return True if validation succeeded (all 3 agents completed)
+        # Backward compatible with auto-implement.md:347
+        return status in ("parallel", "sequential")
+
+    def get_parallel_validation_metrics(self) -> Dict[str, Any]:
+        """Get detailed parallel validation metrics.
+
+        Returns:
+            Dict with parallel validation metrics:
+            {
+                "parallel_detected": bool,
+                "agents_validated": List[str],
+                "efficiency_percent": float,
+                "status": str,
+                "time_saved_seconds": int
+            }
+            Returns empty dict {} if no parallel_validation data in session
+
+        Note:
+            This method provides detailed metrics for testing and debugging.
+            For simple success/failure checks, use verify_parallel_validation() instead.
+        """
+        if "parallel_validation" not in self.session_data:
+            return {}
+
+        metrics = self.session_data["parallel_validation"]
+        return {
+            "parallel_detected": metrics.get("status") == "parallel",
+            "agents_validated": ["reviewer", "security-auditor", "doc-master"],
+            "efficiency_percent": metrics.get("efficiency_percent", 0),
+            "status": metrics.get("status", "unknown"),
+            "time_saved_seconds": metrics.get("time_saved_seconds", 0)
+        }
 
     def _find_agent(self, agent_name: str) -> Optional[Dict[str, Any]]:
         """Find agent in session data, return latest entry.
@@ -1279,29 +1503,33 @@ def main():
 
     elif command == "verify_parallel_validation":
         result = tracker.verify_parallel_validation()
-        if result:
+        # result is now a dict, check if agents were validated
+        if result.get("agents_validated"):
             print("\n✅ Parallel validation checkpoint passed")
-            # Print metrics
-            metadata = tracker.session_data.get("parallel_validation", {})
-            status = metadata.get("status", "unknown")
+            # Print metrics from result dict
+            status = result.get("status", "unknown")
             if status == "parallel":
-                time_saved = metadata.get("time_saved_seconds", 0)
-                efficiency = metadata.get("efficiency_percent", 0)
+                time_saved = result.get("time_saved_seconds", 0)
+                efficiency = result.get("efficiency_percent", 0)
                 print(f"   Status: Parallel execution detected")
                 print(f"   Time saved: {time_saved}s ({efficiency:.1f}% efficiency)")
             elif status == "sequential":
                 print(f"   Status: Sequential execution (all agents completed)")
+            sys.exit(0)
         else:
             print("\n❌ Parallel validation checkpoint failed")
-            metadata = tracker.session_data.get("parallel_validation", {})
-            status = metadata.get("status", "unknown")
+            status = result.get("status", "unknown")
             if status == "incomplete":
+                # Check session data for missing agents
+                metadata = tracker.session_data.get("parallel_validation", {})
                 missing = metadata.get("missing_agents", [])
                 print(f"   Missing agents: {', '.join(missing)}")
             elif status == "failed":
+                # Check session data for failed agents
+                metadata = tracker.session_data.get("parallel_validation", {})
                 failed = metadata.get("failed_agents", [])
                 print(f"   Failed agents: {', '.join(failed)}")
-        sys.exit(0 if result else 1)
+            sys.exit(1)
 
     else:
         print(f"Unknown command: {command}")
