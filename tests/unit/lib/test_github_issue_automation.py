@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from plugins.autonomous_dev.lib.github_issue_automation import (
     GitHubIssueAutomation,
     IssueCreationResult,
+    ValidationError,
     create_github_issue,
     validate_issue_title,
     validate_issue_body,
@@ -72,7 +73,7 @@ class TestValidateIssueTitle:
     def test_validate_title_too_long(self):
         """Test that excessively long title is rejected (CWE-20)."""
         long_title = "A" * 300  # Exceeds reasonable GitHub limit
-        with pytest.raises(ValueError, match="Title exceeds maximum length"):
+        with pytest.raises(ValidationError, match="Title exceeds maximum length"):
             validate_issue_title(long_title)
 
     def test_validate_title_shell_metacharacters(self):
@@ -86,29 +87,29 @@ class TestValidateIssueTitle:
         ]
 
         for title in dangerous_titles:
-            with pytest.raises(ValueError, match="contains invalid characters"):
+            with pytest.raises(ValidationError, match="contains invalid characters"):
                 validate_issue_title(title)
 
     def test_validate_title_empty_string(self):
         """Test that empty title is rejected."""
-        with pytest.raises(ValueError, match="Title cannot be empty"):
+        with pytest.raises(ValidationError, match="Title cannot be empty"):
             validate_issue_title("")
 
     def test_validate_title_whitespace_only(self):
         """Test that whitespace-only title is rejected."""
-        with pytest.raises(ValueError, match="Title cannot be empty"):
+        with pytest.raises(ValidationError, match="Title cannot be empty"):
             validate_issue_title("   \t\n   ")
 
     def test_validate_title_control_characters(self):
         """Test that control characters are rejected (CWE-117)."""
         title_with_control_chars = "Feature\x00\x01\x02"
-        with pytest.raises(ValueError, match="contains invalid characters"):
+        with pytest.raises(ValidationError, match="contains invalid characters"):
             validate_issue_title(title_with_control_chars)
 
     def test_validate_title_newlines(self):
         """Test that newlines in title are rejected."""
         title_with_newline = "Feature\nwith newline"
-        with pytest.raises(ValueError, match="contains invalid characters"):
+        with pytest.raises(ValidationError, match="contains invalid characters"):
             validate_issue_title(title_with_newline)
 
     def test_validate_title_with_allowed_special_chars(self):
@@ -149,17 +150,17 @@ This is a valid issue body.
     def test_validate_body_too_long(self):
         """Test that excessively long body is rejected (CWE-20)."""
         long_body = "A" * 100000  # Exceeds reasonable limit
-        with pytest.raises(ValueError, match="Body exceeds maximum length"):
+        with pytest.raises(ValidationError, match="Body exceeds maximum length"):
             validate_issue_body(long_body)
 
     def test_validate_body_empty_string(self):
         """Test that empty body is rejected."""
-        with pytest.raises(ValueError, match="Body cannot be empty"):
+        with pytest.raises(ValidationError, match="Body cannot be empty"):
             validate_issue_body("")
 
     def test_validate_body_whitespace_only(self):
         """Test that whitespace-only body is rejected."""
-        with pytest.raises(ValueError, match="Body cannot be empty"):
+        with pytest.raises(ValidationError, match="Body cannot be empty"):
             validate_issue_body("   \t\n   ")
 
     def test_validate_body_with_markdown(self):
@@ -459,7 +460,7 @@ class TestCreateGitHubIssue:
         """Test that title is validated before creation."""
         mock_check_gh.return_value = True
 
-        with pytest.raises(ValueError, match="contains invalid characters"):
+        with pytest.raises(ValidationError, match="contains invalid characters"):
             automation.create_issue(
                 title="Issue; rm -rf /",
                 body="Test body",
@@ -474,7 +475,7 @@ class TestCreateGitHubIssue:
         """Test that body is validated before creation."""
         mock_check_gh.return_value = True
 
-        with pytest.raises(ValueError, match="Body cannot be empty"):
+        with pytest.raises(ValidationError, match="Body cannot be empty"):
             automation.create_issue(
                 title="Valid title",
                 body="",
@@ -552,7 +553,7 @@ class TestSecurityValidation:
         ]
 
         for dangerous_title in dangerous_inputs:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValidationError):
                 automation.create_issue(
                     title=dangerous_title,
                     body="Body",
@@ -685,7 +686,7 @@ class TestErrorHandling:
         file_path = tmp_path / "file.txt"
         file_path.write_text("content")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             GitHubIssueAutomation(project_root=file_path)
 
     @patch('subprocess.run')
