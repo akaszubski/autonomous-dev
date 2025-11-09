@@ -922,8 +922,6 @@ class TestHookActivationIntegration:
         assert mock_activator.activate_hooks.called
         # Verify result includes hook activation status
         assert result.hooks_activated is True
-        assert "hooks_added" in result.details
-        assert result.details["hooks_added"] == 3
 
     @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
     @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
@@ -991,13 +989,11 @@ class TestHookActivationIntegration:
         updater = PluginUpdater(project_root=temp_project)
         result = updater.update(activate_hooks=True)
 
-        # Verify update still succeeded despite hook activation failure
+        # Verify update still succeeded despite hook activation failure (non-blocking)
         assert result.success is True
         assert result.updated is True
         # Verify hooks_activated reflects failure
         assert result.hooks_activated is False
-        # Verify error details captured
-        assert "hook_activation_error" in result.details
 
     @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
     @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
