@@ -55,6 +55,7 @@ from plugins.autonomous_dev.lib.plugin_updater import (
     UpdateError,
 )
 from plugins.autonomous_dev.lib.version_detector import VersionComparison
+from plugins.autonomous_dev.lib.hook_activator import HookActivator
 
 
 def parse_args() -> argparse.Namespace:
@@ -153,6 +154,20 @@ Exit Codes:
         help="Name of plugin to update (default: autonomous-dev)",
     )
 
+    parser.add_argument(
+        "--activate-hooks",
+        action="store_true",
+        default=None,
+        help="Automatically activate hooks after update",
+    )
+
+    parser.add_argument(
+        "--no-activate-hooks",
+        dest="activate_hooks",
+        action="store_false",
+        help="Skip hook activation after update",
+    )
+
     args = parser.parse_args()
 
     # Handle --no-backup override
@@ -186,6 +201,40 @@ def confirm_update(version_comparison: VersionComparison) -> bool:
         if response in ("y", "yes"):
             return True
         elif response in ("n", "no", ""):
+            return False
+        else:
+            print("Invalid response. Please enter 'y' or 'n'.")
+
+
+def prompt_for_hook_activation(is_first_install: bool) -> bool:
+    """Prompt user for hook activation.
+
+    Args:
+        is_first_install: Whether this is a first install
+
+    Returns:
+        True if user confirms (or first install), False otherwise
+    """
+    # Auto-activate on first install
+    if is_first_install:
+        return True
+
+    # Interactive prompt for updates
+    print("\n" + "=" * 60)
+    print("Hook Activation")
+    print("=" * 60)
+    print("Activate automatic hooks? This will configure:")
+    print("  - Auto-format on save (black + isort)")
+    print("  - Auto-test before push")
+    print("  - Auto-update project progress")
+    print("  - Display project context on prompts")
+    print("=" * 60)
+
+    while True:
+        response = input("\nActivate hooks? [Y/n]: ").strip().lower()
+        if response in ("", "y", "yes"):
+            return True
+        elif response in ("n", "no"):
             return False
         else:
             print("Invalid response. Please enter 'y' or 'n'.")
@@ -237,6 +286,7 @@ def display_update_summary(
             "new_version": result.new_version,
             "backup_path": str(result.backup_path) if result.backup_path else None,
             "rollback_performed": result.rollback_performed,
+            "hooks_activated": result.hooks_activated,
             "details": result.details,
         }
         print(json.dumps(output, indent=2))
@@ -338,16 +388,32 @@ def main() -> int:
                 print("Update cancelled by user.")
                 return 0
 
+        # Determine hook activation preference
+        if args.activate_hooks is not None:
+            # Explicit flag provided
+            activate_hooks = args.activate_hooks
+        elif args.yes or args.json:
+            # Non-interactive mode: activate by default
+            activate_hooks = True
+        else:
+            # Interactive mode: prompt user
+            activator = HookActivator(project_root=project_root)
+            is_first_install = activator.is_first_install()
+            activate_hooks = prompt_for_hook_activation(is_first_install)
+
         # Perform update
         if args.verbose and not args.json:
             print(f"\nUpdating {args.plugin_name}...")
             if args.auto_backup:
                 print("Creating backup...")
+            if activate_hooks:
+                print("Hook activation enabled...")
 
         try:
             result = updater.update(
                 auto_backup=args.auto_backup,
                 skip_confirm=args.yes,
+                activate_hooks=activate_hooks,
             )
         except UpdateError as e:
             if args.json:

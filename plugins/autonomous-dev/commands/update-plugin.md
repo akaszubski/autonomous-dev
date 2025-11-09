@@ -63,12 +63,82 @@ This command provides a safe, interactive way to update the autonomous-dev plugi
 - `--json`: Output JSON for scripting (machine-readable)
 - `--project-root PATH`: Path to project root (default: current directory)
 - `--plugin-name NAME`: Name of plugin to update (default: autonomous-dev)
+- `--activate-hooks`: Automatically activate hooks after update (default: enabled on first install, prompted on update)
+- `--no-activate-hooks`: Skip hook activation (manual setup required)
 
 ## Exit Codes
 
 - `0`: Success (update performed or already up-to-date)
 - `1`: Error (update failed)
 - `2`: No update needed (when --check-only and update available)
+
+## Hook Activation (Phase 2.5 - Turnkey Updates)
+
+**Automatic hook activation** makes plugin updates turnkey - just update and hooks are ready to use.
+
+### First Install vs Update Behavior
+
+**First Install** (settings.json doesn't exist):
+- Hooks are automatically activated
+- No prompts (safe default)
+- Settings file created with all hooks enabled
+- Example: Initial `/update-plugin` after fresh install
+
+**Update** (settings.json already exists):
+- Interactive prompt asks to activate hooks (if not using --yes or --activate-hooks)
+- Existing customizations are preserved (merge, not overwrite)
+- Only new hooks are added (doesn't remove existing hooks)
+- Example: Running `/update-plugin` on existing installation
+
+### Hook Activation Flags
+
+**Enable hook activation** (default):
+```bash
+/update-plugin                    # Interactive, prompts on update
+/update-plugin --yes --activate-hooks   # Non-interactive, activates hooks
+/update-plugin --yes              # Non-interactive, auto-activates (default behavior)
+```
+
+**Disable hook activation**:
+```bash
+/update-plugin --no-activate-hooks    # Skip hook activation (manual setup required)
+/update-plugin --yes --no-activate-hooks   # Non-interactive, no hooks
+```
+
+### What Gets Activated
+
+When hooks are activated, `/update-plugin` configures in `.claude/settings.json`:
+- Hook lifecycle events (UserPromptSubmit, SubagentStop, etc.)
+- Hook execution list (which hooks run on each event)
+- Preserves existing customizations if updating
+
+Example activation:
+```json
+{
+  "hooks": {
+    "PrePush": ["auto_test.py", "security_scan.py"],
+    "SubagentStop": ["log_agent_completion.py", "auto_update_project_progress.py"]
+  }
+}
+```
+
+### Troubleshooting Hook Activation
+
+**Hooks not activating on first install**:
+- Check that settings.json was created: `ls -la .claude/settings.json`
+- Verify permissions: `ls -la .claude/` should show readable/writable directory
+- Manual activation: Run `/setup` to manually configure hooks
+
+**Hooks not activating on update**:
+- Use `--activate-hooks` flag: `/update-plugin --yes --activate-hooks`
+- Or use interactive mode: `/update-plugin` (without --yes)
+- Check existing settings: `cat .claude/settings.json` to see current hooks
+
+**Activation failed, but update succeeded**:
+- Don't worry! Hook activation is non-blocking (update succeeds even if activation fails)
+- Manual fix: Run `/setup` to configure hooks manually
+- Or: Use `--yes --activate-hooks` to retry activation
+- Or: Edit `.claude/settings.json` directly (see `docs/SETTINGS.md`)
 
 ## Examples
 
@@ -100,6 +170,13 @@ Update Result
 Plugin updated successfully to 3.8.0
 Version: 3.7.0 → 3.8.0
 Backup: /tmp/autonomous-dev-backup-20251109-120000
+
+============================================================
+Hook Activation
+============================================================
+Activating hooks from updated plugin...
+Hooks activated: auto_test.py, security_scan.py, auto_format.py
+Settings saved to .claude/settings.json
 ============================================================
 ```
 
@@ -144,8 +221,12 @@ Output:
   "new_version": "3.8.0",
   "backup_path": "/tmp/autonomous-dev-backup-20251109-120000",
   "rollback_performed": false,
+  "hooks_activated": true,
+  "hooks_added": 3,
   "details": {
-    "files_updated": 15
+    "files_updated": 15,
+    "hooks": ["auto_test.py", "security_scan.py", "auto_format.py"],
+    "settings_path": "/path/to/project/.claude/settings.json"
   }
 }
 ```
@@ -184,8 +265,10 @@ python {{pluginDir}}/lib/update_plugin.py "$@"
 
 - `/sync` - Manual sync from marketplace to project
 - `/health-check` - Check plugin integrity and version
+- `/setup` - Manual hook configuration (alternative to auto-activation)
 - See `lib/plugin_updater.py` for implementation details
 - See `lib/update_plugin.py` for CLI implementation
+- See `lib/hook_activator.py` for hook activation logic
 
 ## Notes
 
@@ -194,3 +277,6 @@ python {{pluginDir}}/lib/update_plugin.py "$@"
 - **Backup cleanup**: Backups are automatically removed after successful update
 - **Safe by default**: Backup is always created unless explicitly disabled with --no-backup
 - **Interactive by default**: Requires user confirmation unless --yes is provided
+- **Hook activation**: Automatically enabled on first install; prompted on updates (unless --yes or explicit flags)
+- **Hook customizations preserved**: When updating, existing hook settings are merged with new hooks (not overwritten)
+- **Non-blocking activation**: If hook activation fails, update still succeeds (activation is optional enhancement)

@@ -1224,9 +1224,13 @@ See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration g
 
 The following commands have been **moved to `commands/archived/`** to align with the "explicit commands with background enforcement" philosophy:
 
-**v3.8.0 Active** (GitHub #50 Phase 2):
-- `/update-plugin` → Interactive plugin update with version detection, backup, and rollback
-- **Usage**: `/update-plugin` (interactive), `/update-plugin --check-only` (dry-run), `/update-plugin --yes` (non-interactive)
+**v3.8.1 Active** (GitHub #50 Phase 2.5):
+- `/update-plugin` → Interactive plugin update with version detection, backup, rollback, and automatic hook activation
+- **Features**:
+  - Automatic hook activation on first install (turnkey setup)
+  - Interactive prompts on updates (preserve customizations)
+  - Skip with `--no-activate-hooks` if manual setup preferred
+- **Usage**: `/update-plugin` (interactive), `/update-plugin --check-only` (dry-run), `/update-plugin --yes` (non-interactive, auto-activate hooks), `/update-plugin --yes --no-activate-hooks` (non-interactive, no hook activation)
 
 **v3.7.0 Archived** (Command consolidation - GitHub #47):
 - `/sync-dev` → Merged into `/sync` (unified auto-detection for dev, marketplace, plugin-dev modes)

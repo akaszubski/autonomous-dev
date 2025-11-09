@@ -1,8 +1,8 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-09
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.2.0 (Anti-Bloat Architecture - "Less is More" Design Requirement)
+**Version**: v3.8.1 (Issue #50 Phase 2.5 Complete - Automatic Hook Activation)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
@@ -1096,6 +1096,80 @@ Work cannot proceed without alignment.
 - ✅ Total time reduction: 5-9 minutes (within 8-12 minute goal)
 - ✅ Zero quality degradation (all tests passing)
 - ✅ TDD approach maintained (tests written first, before code)
+
+---
+
+**GitHub Issue #50: Improve Marketplace Plugin Update Experience (4 Phases - Phase 2.5 COMPLETE)**
+
+**Goal**: Make marketplace plugin updates discoverable, safe, and user-friendly with turnkey setup
+
+**Progress**:
+- ✅ **Phase 1: Marketplace Version Detection** (COMPLETE - v3.7.2, 2025-11-09)
+  - New library: `validate_marketplace_version.py` (371 lines) - CLI script for version detection
+  - Integration: Added `_validate_marketplace_version()` method to health_check.py
+  - Features: CLI interface (--verbose, --json), version comparison, upgrade/downgrade detection
+  - Return type: `VersionComparison` object with upgrade/downgrade status
+  - Output formats: Human-readable and JSON
+  - Non-blocking error handling: Marketplace not found is not fatal
+  - Security: Path validation via security_utils, audit logging
+  - Test coverage: 7 unit tests (version comparison, output formats, error cases)
+  - Integration: /health-check command shows marketplace version status
+  - Example output: "Project v3.7.0 vs Marketplace v3.7.1 - Update available (3.7.0 → 3.7.1)"
+  - Files modified: health_check.py, validate_marketplace_version.py, health-check.md, test_health_check.py
+
+- ✅ **Phase 2: Interactive /update-plugin Command** (COMPLETE - v3.8.0, 2025-11-09)
+  - New library: `plugin_updater.py` (715 lines) - Interactive plugin update with backup/rollback
+  - New CLI: `update_plugin.py` (380 lines) - User-facing CLI interface
+  - Features: Consent-based updates, automatic backup (0o700 permissions), rollback on failure, post-update verification
+  - Command: `/update-plugin [--check-only] [--yes] [--auto-backup] [--verbose] [--json]`
+  - Workflow: Detect version → Confirm with user → Backup → Update → Verify → Cleanup (or rollback on failure)
+  - Security Fixes (5 critical vulnerabilities):
+    - CWE-22: Path validation for marketplace files
+    - CWE-59: TOCTOU race prevention in backup creation
+    - CWE-78: Input validation for plugin_name parameter
+    - CWE-22: Symlink check in rollback operation
+    - CWE-400: DoS prevention (file size limits, required field validation)
+  - Test coverage: 86 tests (33 unit + 29 CLI + 24 security) - All passing
+  - Documentation: CLAUDE.md, CHANGELOG.md, health-check.md, README.md, update-plugin.md
+  - Exit codes: 0=success, 1=error, 2=no update needed
+
+- ✅ **Phase 2.5: Automatic Hook Activation** (COMPLETE - v3.8.1, 2025-11-09)
+  - New library: `hook_activator.py` (539 lines) - Automatic hook activation during updates
+  - Features: First install detection, smart merging (preserve customizations), atomic writes, validation, error recovery
+  - Enhancement: plugin_updater.py now calls _activate_hooks() after successful update
+  - Enhancement: update_plugin.py now accepts --activate-hooks and --no-activate-hooks flags
+  - Behavior:
+    - First install: Automatically activates hooks (no prompt, safe default)
+    - Update: Prompts to activate new hooks (interactive mode), auto-activates (non-interactive mode)
+    - Smart merging: Preserves existing customizations, only adds new hooks
+    - Non-blocking: Activation failures don't block successful updates
+  - Security: Path validation via security_utils, secure permissions (0o600), audit logging
+  - Test coverage: 57 unit tests (41 hook_activator + 7 plugin_updater + 9 CLI)
+  - Files added: hook_activator.py, test_hook_activator.py
+  - Files modified: plugin_updater.py, update_plugin.py, commands/update-plugin.md, README.md
+  - Documentation: New section in update-plugin.md explaining hook activation, troubleshooting guide
+
+- ❌ **Phase 3: Ideal UX with Post-Install Hooks** (PENDING - v4.0.0)
+  - Goal: Automatic update notifications via Claude Code post-install hooks
+  - Features: Zero-friction updates, background version checking
+  - Requires: Claude Code 2.0+ post-install hook support (not yet available)
+  - Status: Blocked on Claude Code platform feature
+
+**Phase 2.5 Results**:
+- ✅ All 57 new tests pass (41 hook_activator + 7 plugin_updater + 9 CLI)
+- ✅ First install auto-activation working
+- ✅ Update behavior with customization preservation working
+- ✅ Non-blocking error handling working (activation failures don't block update)
+- ✅ CLI flags documented and functional
+- ✅ Documentation updated (update-plugin.md, README.md, CHANGELOG.md, CLAUDE.md)
+
+**Success Metrics**:
+- ✅ Phase 1: /health-check shows marketplace version (COMPLETE)
+- ✅ Phase 2: /update-plugin command exists and works (COMPLETE)
+- ✅ Phase 2.5: Automatic hook activation on first install + customization preservation (COMPLETE)
+- ❌ Phase 3: Automatic update notifications (PENDING - platform dependent)
+
+**Related Issues**: GitHub Issue #51 (sync_dispatcher marketplace integration), GitHub Issue #47 (/sync unification)
 
 ---
 

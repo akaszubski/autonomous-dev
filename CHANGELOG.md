@@ -3,10 +3,80 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-09
-**Current Version**: v3.8.0 (Interactive /update-plugin Command + Phase 2)
+**Current Version**: v3.8.1 (Automatic Hook Activation in /update-plugin + Phase 2.5)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
+
+---
+
+## [3.8.1] - 2025-11-09
+
+### Added
+- **Automatic Hook Activation in /update-plugin** - GitHub Issue #50 Phase 2.5
+  - New library: `hook_activator.py` (539 lines) - Automatic hook activation during plugin updates
+    - Classes: `ActivationError` (base exception), `SettingsValidationError` (validation failures), `ActivationResult` (result dataclass), `HookActivator` (main coordinator)
+    - Key Methods:
+      - `activate_hooks()` - Activate hooks from new plugin version (main entry point)
+      - `detect_first_install()` - Check if settings.json exists (first install vs update detection)
+      - `_read_settings()` - Read and parse existing settings.json (with error handling)
+      - `_merge_hooks()` - Merge new hooks with existing settings (preserve customizations)
+      - `_validate_settings()` - Validate settings structure and content
+      - `_ensure_claude_dir()` - Create .claude directory if missing (with permissions)
+      - `_atomic_write()` - Write settings.json atomically (tempfile + rename pattern)
+    - Features:
+      - First install detection: Checks for existing settings.json file
+      - Automatic hook activation: Activates hooks from plugin.json on first install
+      - Smart merging: Preserves existing customizations when updating
+      - Atomic writes: Prevents corruption via tempfile + rename pattern
+      - Validation: Structure validation (required fields, hook format)
+      - Error recovery: Graceful handling of malformed JSON, permissions issues
+    - ActivationResult attributes: activated, first_install, message, hooks_added, settings_path, details
+    - Integration: Called by plugin_updater.py `_activate_hooks()` method after successful sync
+    - Security: Path validation via security_utils, audit logging to `logs/security_audit.log`, secure permissions (0o600)
+    - Error handling: Non-blocking (activation failures don't block plugin update)
+    - Test coverage: 41 unit tests (first install, updates, merge logic, error cases, malformed JSON)
+  - Enhanced library: `plugin_updater.py` - Added hook activation support
+    - New parameter: `activate_hooks` (bool, default: True) to control hook activation
+    - New method: `_activate_hooks()` - Orchestrates hook activation after successful update
+    - UpdateResult attributes: Added `hooks_activated` and `hooks_added` for result reporting
+    - Default behavior: Automatically activates hooks on first install, prompts on updates
+    - Non-blocking: Hook activation failures don't block plugin update
+    - Test coverage: 7 new tests (activation on first install, activation on update, merge logic, error handling)
+  - Enhanced library: `update_plugin.py` - Added CLI flags for hook activation
+    - New CLI arguments: `--activate-hooks` (enable activation), `--no-activate-hooks` (disable activation)
+    - Smart defaults:
+      - First install: Auto-activate (no prompt)
+      - Update: Prompt in interactive mode, auto-activate in non-interactive mode
+      - Can be overridden with `--activate-hooks` or `--no-activate-hooks`
+    - New function: `prompt_for_hook_activation()` - Interactive prompt for hook activation on updates
+    - Enhanced output: Shows hook activation details in results
+    - Test coverage: 9 new tests (hook activation flags, first install behavior, update behavior, merge logic)
+  - Updated command: `commands/update-plugin.md` - Documented hook activation feature
+    - New section: "Hook Activation (Phase 2.5 - Turnkey Updates)"
+    - First install vs update behavior explained
+    - Hook activation flags documented
+    - Examples for all activation scenarios
+    - Troubleshooting section: What if activation fails?
+    - Updated examples: Show hook activation in output
+  - Updated README: Plugin README.md mentions hook activation in /update-plugin section
+  - Feature: Turnkey updates - Just run `/update-plugin` and hooks are ready to use
+  - Behavior: First install auto-activates, updates preserve customizations (merge, not overwrite)
+  - Non-blocking: Activation failures don't block successful updates
+  - Customizable: Skip with `--no-activate-hooks` if manual setup preferred
+  - Test coverage: 57 unit tests total (41 hook_activator + 7 plugin_updater + 9 CLI)
+
+### Changed
+- **Hook activation now automatic**: `/update-plugin` activates hooks from new version (first install only)
+- **Prompt on updates**: When updating existing installation, prompts to activate new hooks (unless --yes or --activate-hooks)
+- **Version bumped**: From v3.8.0 → v3.8.1
+- **Libraries increased**: From 8 → 9 core shared libraries
+
+### Security
+- All hook activation operations validated via security_utils
+- Path validation: Prevents CWE-22 (path traversal)
+- Secure permissions: 0o600 for settings.json files (CWE-732)
+- Audit logging: All activation operations logged to security audit (CWE-778)
 
 ---
 

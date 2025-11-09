@@ -65,6 +65,11 @@ from plugins.autonomous_dev.lib.sync_dispatcher import (
     sync_marketplace,
     SyncResult,
 )
+from plugins.autonomous_dev.lib.hook_activator import (
+    HookActivator,
+    ActivationResult,
+    ActivationError,
+)
 
 
 class UpdateError(Exception):
@@ -94,6 +99,7 @@ class UpdateResult:
         new_version: Plugin version after update (or current if no update)
         backup_path: Path to backup directory (None if no backup created)
         rollback_performed: Whether rollback was performed after failure
+        hooks_activated: Whether hooks were activated after update (default: False)
         details: Additional result details (files updated, errors, etc.)
     """
 
@@ -104,6 +110,7 @@ class UpdateResult:
     new_version: Optional[str] = None
     backup_path: Optional[Path] = None
     rollback_performed: bool = False
+    hooks_activated: bool = False
     details: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -129,6 +136,10 @@ class UpdateResult:
         # Add rollback info
         if self.rollback_performed:
             parts.append("Rollback: Performed (restored from backup)")
+
+        # Add hook activation status
+        if self.hooks_activated:
+            parts.append("Hooks: Activated")
 
         # Add details
         if self.details:
@@ -270,6 +281,7 @@ class PluginUpdater:
         self,
         auto_backup: bool = True,
         skip_confirm: bool = False,
+        activate_hooks: bool = True,
     ) -> UpdateResult:
         """Perform plugin update with backup and rollback.
 
@@ -279,12 +291,14 @@ class PluginUpdater:
         3. Create backup (if auto_backup=True)
         4. Perform sync via sync_dispatcher
         5. Verify update success
-        6. Rollback on failure
-        7. Cleanup backup on success
+        6. Activate hooks (if activate_hooks=True and sync successful)
+        7. Rollback on failure
+        8. Cleanup backup on success
 
         Args:
             auto_backup: Whether to create backup before update (default: True)
             skip_confirm: Skip confirmation prompts (default: False)
+            activate_hooks: Whether to activate hooks after update (default: True)
 
         Returns:
             UpdateResult with success status and details
@@ -399,7 +413,13 @@ class PluginUpdater:
                         details={"error": str(e)},
                     )
 
-            # Step 6: Cleanup backup on success
+            # Step 6: Activate hooks (non-blocking, after successful sync)
+            hooks_activated = False
+            if activate_hooks:
+                activation_result = self._activate_hooks()
+                hooks_activated = activation_result.activated
+
+            # Step 7: Cleanup backup on success
             if backup_path:
                 self._cleanup_backup(backup_path)
 
@@ -413,6 +433,7 @@ class PluginUpdater:
                     "plugin_name": self.plugin_name,
                     "old_version": old_version,
                     "new_version": new_version,
+                    "hooks_activated": hooks_activated,
                 }
             )
 
@@ -424,6 +445,7 @@ class PluginUpdater:
                 new_version=new_version,
                 backup_path=backup_path,
                 rollback_performed=False,
+                hooks_activated=hooks_activated,
                 details=sync_result.details,
             )
 
@@ -471,6 +493,79 @@ class PluginUpdater:
                 new_version=old_version,
                 backup_path=backup_path,
                 rollback_performed=rollback_performed,
+                details={"error": str(e)},
+            )
+
+    def _activate_hooks(self) -> ActivationResult:
+        """Activate hooks after successful update (non-blocking).
+
+        This method is non-blocking: hook activation failures do NOT fail the update.
+        Activation errors are logged but the update still succeeds.
+
+        Returns:
+            ActivationResult with activation status and details
+
+        Note:
+            This method never raises exceptions - all errors are caught and logged.
+        """
+        try:
+            # Create HookActivator
+            activator = HookActivator(project_root=self.project_root)
+
+            # Define default hooks for autonomous-dev plugin
+            # These are the core hooks that should be activated by default
+            default_hooks = {
+                "hooks": {
+                    "UserPromptSubmit": [
+                        "display_project_context.py",
+                        "enforce_command_limit.py",
+                    ],
+                    "SubagentStop": [
+                        "log_agent_completion.py",
+                        "auto_update_project_progress.py",
+                    ],
+                    "PrePush": [
+                        "auto_test.py",
+                    ],
+                }
+            }
+
+            # Activate hooks
+            result = activator.activate_hooks(default_hooks)
+
+            # Audit log activation result
+            security_utils.audit_log(
+                "plugin_updater",
+                "hook_activation_complete",
+                {
+                    "event": "hook_activation_complete",
+                    "project_root": str(self.project_root),
+                    "activated": result.activated,
+                    "hooks_added": result.hooks_added,
+                },
+            )
+
+            return result
+
+        except Exception as e:
+            # Non-blocking: log error but don't fail update
+            security_utils.audit_log(
+                "plugin_updater",
+                "hook_activation_error",
+                {
+                    "event": "hook_activation_error",
+                    "project_root": str(self.project_root),
+                    "error": str(e),
+                },
+            )
+
+            # Return failure result (but update still succeeds)
+            return ActivationResult(
+                activated=False,
+                first_install=False,
+                message=f"Hook activation failed: {e}",
+                hooks_added=0,
+                settings_path=None,
                 details={"error": str(e)},
             )
 

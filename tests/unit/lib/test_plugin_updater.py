@@ -843,3 +843,259 @@ class TestUpdateMethod:
 
         # Should log update check
         assert mock_audit.called
+
+
+# ============================================================================
+# Test Hook Activation Integration (Phase 2.5)
+# ============================================================================
+
+
+class TestHookActivationIntegration:
+    """Test hook activation integration in PluginUpdater.update() method.
+
+    Phase 2.5 - Automatic hook activation in /update-plugin
+    """
+
+    @pytest.fixture
+    def temp_project(self, tmp_path):
+        """Create temp project directory with .claude directory.
+
+        Mimics a valid Claude Code project structure.
+        """
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+
+        # Create .claude directory (required for PluginUpdater)
+        claude_dir = project_dir / ".claude"
+        claude_dir.mkdir()
+
+        # Create plugins directory structure
+        plugins_dir = claude_dir / "plugins" / "autonomous-dev"
+        plugins_dir.mkdir(parents=True)
+
+        # Create plugin.json file (required for verification)
+        plugin_json = plugins_dir / "plugin.json"
+        plugin_json.write_text('{"name": "autonomous-dev", "version": "3.8.0", "description": "Test plugin"}')
+
+        return project_dir
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_with_hook_activation_enabled_first_install(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test update with hook activation enabled on first install.
+
+        REQUIREMENT: Automatically activate hooks on first install.
+        Expected: HookActivator called, UpdateResult.hooks_activated=True.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version=None,
+            marketplace_version="3.8.0",
+            status=VersionComparison.UPGRADE_AVAILABLE,
+            message="First install: 3.8.0"
+        )
+
+        # Mock successful sync
+        mock_sync.return_value = SyncResult(
+            success=True,
+            mode=SyncMode.MARKETPLACE,
+            message="Synced",
+            details={}
+        )
+
+        # Mock HookActivator
+        mock_activator = Mock()
+        mock_activator.is_first_install.return_value = True
+        mock_activator.activate_hooks.return_value = Mock(
+            activated=True,
+            first_install=True,
+            hooks_added=3,
+            message="Successfully activated 3 hooks"
+        )
+        mock_hook_activator_class.return_value = mock_activator
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=True)
+
+        # Verify hook activation was called
+        assert mock_activator.activate_hooks.called
+        # Verify result includes hook activation status
+        assert result.hooks_activated is True
+        assert "hooks_added" in result.details
+        assert result.details["hooks_added"] == 3
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_with_hook_activation_disabled(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test update with hook activation disabled.
+
+        REQUIREMENT: Allow users to skip hook activation.
+        Expected: HookActivator NOT called, UpdateResult.hooks_activated=False.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            status=VersionComparison.UPGRADE_AVAILABLE,
+            message="Upgrade available: 3.7.0 → 3.8.0"
+        )
+
+        # Mock successful sync
+        mock_sync.return_value = SyncResult(
+            success=True,
+            mode=SyncMode.MARKETPLACE,
+            message="Synced",
+            details={}
+        )
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=False)
+
+        # Verify hook activation was NOT called
+        assert not mock_hook_activator_class.called
+        # Verify result reflects no activation
+        assert result.hooks_activated is False
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_hook_activation_non_blocking_on_error(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test update succeeds even if hook activation fails (non-blocking).
+
+        REQUIREMENT: Hook activation failure should not block update success.
+        Expected: Update success=True, hooks_activated=False with error details.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            status=VersionComparison.UPGRADE_AVAILABLE,
+            message="Upgrade available: 3.7.0 → 3.8.0"
+        )
+
+        # Mock successful sync
+        mock_sync.return_value = SyncResult(
+            success=True,
+            mode=SyncMode.MARKETPLACE,
+            message="Synced",
+            details={}
+        )
+
+        # Mock HookActivator failure
+        mock_activator = Mock()
+        mock_activator.activate_hooks.side_effect = Exception("Permission denied")
+        mock_hook_activator_class.return_value = mock_activator
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=True)
+
+        # Verify update still succeeded despite hook activation failure
+        assert result.success is True
+        assert result.updated is True
+        # Verify hooks_activated reflects failure
+        assert result.hooks_activated is False
+        # Verify error details captured
+        assert "hook_activation_error" in result.details
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_result_summary_includes_hook_status(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test UpdateResult.summary includes hook activation status.
+
+        REQUIREMENT: Summary should show hook activation details.
+        Expected: Summary contains hook activation info.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            status=VersionComparison.UPGRADE_AVAILABLE,
+            message="Upgrade available: 3.7.0 → 3.8.0"
+        )
+
+        # Mock successful sync
+        mock_sync.return_value = SyncResult(
+            success=True,
+            mode=SyncMode.MARKETPLACE,
+            message="Synced",
+            details={}
+        )
+
+        # Mock HookActivator
+        mock_activator = Mock()
+        mock_activator.activate_hooks.return_value = Mock(
+            activated=True,
+            hooks_added=5,
+            message="Successfully activated 5 hooks"
+        )
+        mock_hook_activator_class.return_value = mock_activator
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=True)
+
+        summary = result.summary
+        # Verify summary mentions hooks
+        assert "hook" in summary.lower()
+        assert "5" in summary or "hooks_added" in summary.lower()
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_hook_activation_only_after_successful_sync(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test hooks only activated after successful sync.
+
+        REQUIREMENT: Don't activate hooks if sync fails.
+        Expected: HookActivator NOT called if sync fails.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            status=VersionComparison.UPGRADE_AVAILABLE,
+            message="Upgrade available: 3.7.0 → 3.8.0"
+        )
+
+        # Mock FAILED sync
+        mock_sync.return_value = SyncResult(
+            success=False,
+            mode=SyncMode.MARKETPLACE,
+            message="Sync failed: Network error",
+            details={}
+        )
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=True)
+
+        # Verify hook activation was NOT attempted
+        assert not mock_hook_activator_class.called
+        # Verify result reflects sync failure
+        assert result.success is False
+        assert result.hooks_activated is False
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.detect_version_mismatch")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.sync_marketplace")
+    @patch("plugins.autonomous_dev.lib.plugin_updater.HookActivator")
+    def test_update_result_dataclass_has_hooks_activated_field(self, mock_hook_activator_class, mock_sync, mock_detect, temp_project):
+        """Test UpdateResult dataclass has hooks_activated field.
+
+        REQUIREMENT: UpdateResult must track hook activation status.
+        Expected: hooks_activated field exists and defaults to False.
+        """
+        # Mock version detection
+        mock_detect.return_value = VersionComparison(
+            project_version="3.8.0",
+            marketplace_version="3.8.0",
+            status=VersionComparison.UP_TO_DATE,
+            message="Versions are equal: 3.8.0"
+        )
+
+        updater = PluginUpdater(project_root=temp_project)
+        result = updater.update(activate_hooks=False)
+
+        # Verify field exists
+        assert hasattr(result, "hooks_activated")
+        # Verify default value
+        assert result.hooks_activated is False

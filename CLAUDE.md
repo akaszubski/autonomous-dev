@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.8.0 (Interactive /update-plugin Command + Issue #50 Phase 2)
+**Version**: v3.8.1 (Automatic Hook Activation in /update-plugin + Issue #50 Phase 2.5)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -216,7 +216,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (8 Shared Libraries - v3.4.0+, Enhanced v3.8.0+)
+### Libraries (9 Shared Libraries - v3.4.0+, Enhanced v3.8.1+)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -355,7 +355,32 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: /update-plugin command (bash invocation)
    - Related: GitHub Issue #50 Phase 2 (interactive plugin update command)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup) don't block core sync operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing.
+9. **hook_activator.py** (539 lines, v3.8.1+) - Automatic hook activation during plugin updates
+   - Classes: `ActivationError` (base exception), `SettingsValidationError` (validation failures), `ActivationResult` (result dataclass), `HookActivator` (main coordinator)
+   - Key Methods:
+     - `activate_hooks()` - Activate hooks from new plugin version (main entry point)
+     - `detect_first_install()` - Check if settings.json exists (first install vs update detection)
+     - `_read_settings()` - Read and parse existing settings.json (with error handling)
+     - `_merge_hooks()` - Merge new hooks with existing settings (preserve customizations)
+     - `_validate_settings()` - Validate settings structure and content
+     - `_ensure_claude_dir()` - Create .claude directory if missing (with permissions)
+     - `_atomic_write()` - Write settings.json atomically (tempfile + rename pattern)
+   - Features:
+     - First install detection: Checks for existing settings.json file
+     - Automatic hook activation: Activates hooks from plugin.json on first install
+     - Smart merging: Preserves existing customizations when updating
+     - Atomic writes: Prevents corruption via tempfile + rename pattern
+     - Validation: Structure validation (required fields, hook format)
+     - Error recovery: Graceful handling of malformed JSON, permissions issues
+   - ActivationResult attributes: activated, first_install, message, hooks_added, settings_path, details
+   - Integration: Called by plugin_updater.py `_activate_hooks()` method after successful sync
+   - Security: Path validation via security_utils, audit logging to `logs/security_audit.log`, secure permissions (0o600)
+   - Error handling: Non-blocking (activation failures don't block plugin update)
+   - Test coverage: 41 unit tests (first install, updates, merge logic, error cases, malformed JSON)
+   - Used by: plugin_updater.py for /update-plugin command
+   - Related: GitHub Issue #50 Phase 2.5 (automatic hook activation)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation) don't block core sync operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing. Hook activation is optional (controlled by --activate-hooks / --no-activate-hooks flags).
 
 ### Hooks (29 total automation)
 

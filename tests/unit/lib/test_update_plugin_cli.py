@@ -653,3 +653,307 @@ class TestMainFunction:
             exit_code = main()
 
             assert exit_code == 1
+
+
+# ============================================================================
+# Test Hook Activation CLI Integration (Phase 2.5)
+# ============================================================================
+
+
+class TestHookActivationCLI:
+    """Test CLI integration for hook activation feature.
+
+    Phase 2.5 - Automatic hook activation in /update-plugin
+    """
+
+    def test_parse_args_activate_hooks_flag(self):
+        """Test --activate-hooks flag parsing.
+
+        REQUIREMENT: Support explicit hook activation flag.
+        Expected: activate_hooks=True when flag present.
+        """
+        with patch("sys.argv", ["update_plugin.py", "--activate-hooks"]):
+            args = parse_args()
+
+            assert args.activate_hooks is True
+
+    def test_parse_args_no_activate_hooks_flag(self):
+        """Test --no-activate-hooks flag parsing.
+
+        REQUIREMENT: Support explicit hook activation skip.
+        Expected: activate_hooks=False when flag present.
+        """
+        with patch("sys.argv", ["update_plugin.py", "--no-activate-hooks"]):
+            args = parse_args()
+
+            assert args.activate_hooks is False
+
+    def test_parse_args_conflicting_hook_flags(self):
+        """Test error when both --activate-hooks and --no-activate-hooks specified.
+
+        REQUIREMENT: Reject conflicting flags.
+        Expected: ArgumentError or exit with error message.
+        """
+        with patch("sys.argv", ["update_plugin.py", "--activate-hooks", "--no-activate-hooks"]):
+            with pytest.raises(SystemExit):
+                parse_args()
+
+    def test_parse_args_default_hook_activation(self):
+        """Test default hook activation behavior when no flags specified.
+
+        REQUIREMENT: Default should be None (let PluginUpdater decide based on first install).
+        Expected: activate_hooks=None by default.
+        """
+        with patch("sys.argv", ["update_plugin.py"]):
+            args = parse_args()
+
+            # Default should be None to allow auto-detection
+            assert args.activate_hooks is None
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.PluginUpdater")
+    @patch("plugins.autonomous_dev.lib.update_plugin.prompt_for_hook_activation")
+    def test_main_prompts_for_hook_activation_first_install(self, mock_prompt, mock_updater_class, temp_project):
+        """Test main() prompts for hook activation on first install.
+
+        REQUIREMENT: Interactive prompt on first install.
+        Expected: prompt_for_hook_activation() called when first install detected.
+        """
+        mock_updater = Mock()
+        mock_updater_class.return_value = mock_updater
+
+        # Mock first install detection
+        mock_updater.check_for_updates.return_value = VersionComparison(
+            project_version=None,
+            marketplace_version="3.8.0",
+            is_equal=False,
+            project_newer=False,
+            marketplace_newer=True,
+            status="FIRST_INSTALL"
+        )
+
+        # Mock user says yes to activation
+        mock_prompt.return_value = True
+
+        mock_updater.update.return_value = UpdateResult(
+            success=True,
+            updated=True,
+            message="Updated",
+            old_version=None,
+            new_version="3.8.0",
+            backup_path=None,
+            rollback_performed=False,
+            hooks_activated=True,
+            details={"hooks_added": 3}
+        )
+
+        with patch("sys.argv", ["update_plugin.py", "--project-root", str(temp_project)]):
+            exit_code = main()
+
+            # Verify prompt was shown
+            mock_prompt.assert_called_once()
+            # Verify update called with activate_hooks=True
+            mock_updater.update.assert_called_with(activate_hooks=True, auto_backup=True)
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.PluginUpdater")
+    @patch("plugins.autonomous_dev.lib.update_plugin.prompt_for_hook_activation")
+    def test_main_prompts_for_hook_activation_on_update(self, mock_prompt, mock_updater_class, temp_project):
+        """Test main() prompts for hook activation on update (not first install).
+
+        REQUIREMENT: Interactive prompt on update.
+        Expected: prompt_for_hook_activation() called for update scenario.
+        """
+        mock_updater = Mock()
+        mock_updater_class.return_value = mock_updater
+
+        # Mock update scenario
+        mock_updater.check_for_updates.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            is_equal=False,
+            project_newer=False,
+            marketplace_newer=True,
+            status="UPGRADE_AVAILABLE"
+        )
+
+        # Mock user says no to activation
+        mock_prompt.return_value = False
+
+        mock_updater.update.return_value = UpdateResult(
+            success=True,
+            updated=True,
+            message="Updated",
+            old_version="3.7.0",
+            new_version="3.8.0",
+            backup_path="/tmp/backup",
+            rollback_performed=False,
+            hooks_activated=False,
+            details={}
+        )
+
+        with patch("sys.argv", ["update_plugin.py", "--project-root", str(temp_project)]):
+            exit_code = main()
+
+            # Verify prompt was shown
+            mock_prompt.assert_called_once()
+            # Verify update called with activate_hooks=False
+            mock_updater.update.assert_called_with(activate_hooks=False, auto_backup=True)
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.PluginUpdater")
+    def test_main_skips_prompt_when_yes_flag_and_activate_hooks(self, mock_updater_class, temp_project):
+        """Test main() skips prompt when --yes and --activate-hooks specified.
+
+        REQUIREMENT: Non-interactive mode with explicit flags.
+        Expected: No prompt, activate_hooks=True passed to update().
+        """
+        mock_updater = Mock()
+        mock_updater_class.return_value = mock_updater
+
+        mock_updater.check_for_updates.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            is_equal=False,
+            project_newer=False,
+            marketplace_newer=True,
+            status="UPGRADE_AVAILABLE"
+        )
+
+        mock_updater.update.return_value = UpdateResult(
+            success=True,
+            updated=True,
+            message="Updated",
+            old_version="3.7.0",
+            new_version="3.8.0",
+            backup_path="/tmp/backup",
+            rollback_performed=False,
+            hooks_activated=True,
+            details={"hooks_added": 2}
+        )
+
+        with patch("sys.argv", ["update_plugin.py", "--yes", "--activate-hooks", "--project-root", str(temp_project)]):
+            exit_code = main()
+
+            # Verify update called with activate_hooks=True
+            mock_updater.update.assert_called_with(activate_hooks=True, auto_backup=True)
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.PluginUpdater")
+    def test_json_output_includes_hooks_activated_status(self, mock_updater_class, temp_project, capsys):
+        """Test JSON output includes hooks_activated field.
+
+        REQUIREMENT: Machine-readable output should include hook status.
+        Expected: JSON contains hooks_activated and hooks_added fields.
+        """
+        mock_updater = Mock()
+        mock_updater_class.return_value = mock_updater
+
+        mock_updater.check_for_updates.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            is_equal=False,
+            project_newer=False,
+            marketplace_newer=True,
+            status="UPGRADE_AVAILABLE"
+        )
+
+        mock_updater.update.return_value = UpdateResult(
+            success=True,
+            updated=True,
+            message="Updated",
+            old_version="3.7.0",
+            new_version="3.8.0",
+            backup_path="/tmp/backup",
+            rollback_performed=False,
+            hooks_activated=True,
+            details={"hooks_added": 5}
+        )
+
+        with patch("sys.argv", ["update_plugin.py", "--yes", "--activate-hooks", "--json", "--project-root", str(temp_project)]):
+            exit_code = main()
+
+            captured = capsys.readouterr()
+            output = json.loads(captured.out)
+
+            # Verify JSON includes hook fields
+            assert "hooks_activated" in output
+            assert output["hooks_activated"] is True
+            assert "hooks_added" in output
+            assert output["hooks_added"] == 5
+
+    def test_prompt_for_hook_activation_first_install_auto_yes(self):
+        """Test prompt_for_hook_activation() auto-accepts on first install.
+
+        REQUIREMENT: First install should default to activating hooks.
+        Expected: Returns True without user input on first install.
+        """
+        with patch("builtins.input") as mock_input:
+            # Should not need input for first install
+            result = prompt_for_hook_activation(first_install=True)
+
+            assert result is True
+            # Verify input was NOT called (auto-yes)
+            mock_input.assert_not_called()
+
+    def test_prompt_for_hook_activation_update_asks_user(self):
+        """Test prompt_for_hook_activation() asks user on update.
+
+        REQUIREMENT: Update scenario should prompt user.
+        Expected: Returns user's choice based on input.
+        """
+        with patch("builtins.input", return_value="y"):
+            result = prompt_for_hook_activation(first_install=False)
+
+            assert result is True
+
+        with patch("builtins.input", return_value="n"):
+            result = prompt_for_hook_activation(first_install=False)
+
+            assert result is False
+
+    def test_prompt_for_hook_activation_handles_invalid_input(self):
+        """Test prompt_for_hook_activation() handles invalid user input.
+
+        REQUIREMENT: Handle invalid input gracefully.
+        Expected: Re-prompt on invalid input, eventually return choice.
+        """
+        with patch("builtins.input", side_effect=["invalid", "maybe", "y"]):
+            result = prompt_for_hook_activation(first_install=False)
+
+            assert result is True
+
+    @patch("plugins.autonomous_dev.lib.plugin_updater.PluginUpdater")
+    def test_main_displays_hook_activation_summary(self, mock_updater_class, temp_project, capsys):
+        """Test main() displays hook activation results in summary.
+
+        REQUIREMENT: User should see hook activation results.
+        Expected: Summary output mentions hooks activated.
+        """
+        mock_updater = Mock()
+        mock_updater_class.return_value = mock_updater
+
+        mock_updater.check_for_updates.return_value = VersionComparison(
+            project_version="3.7.0",
+            marketplace_version="3.8.0",
+            is_equal=False,
+            project_newer=False,
+            marketplace_newer=True,
+            status="UPGRADE_AVAILABLE"
+        )
+
+        mock_updater.update.return_value = UpdateResult(
+            success=True,
+            updated=True,
+            message="Updated",
+            old_version="3.7.0",
+            new_version="3.8.0",
+            backup_path="/tmp/backup",
+            rollback_performed=False,
+            hooks_activated=True,
+            details={"hooks_added": 3}
+        )
+
+        with patch("sys.argv", ["update_plugin.py", "--yes", "--activate-hooks", "--project-root", str(temp_project)]):
+            exit_code = main()
+
+            captured = capsys.readouterr()
+            # Verify output mentions hooks
+            assert "hook" in captured.out.lower()
+            assert "3" in captured.out or "activated" in captured.out.lower()
