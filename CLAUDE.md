@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.7.2 (Parallel Validation Checkpoint + Issue #50 Phase 1 Marketplace Integration)
+**Version**: v3.8.0 (Interactive /update-plugin Command + Issue #50 Phase 2)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -19,20 +19,21 @@
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /uninstall
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /uninstall
 ```
 
-**Commands (17 active, unified /sync command per GitHub #44)**:
+**Commands (18 active, includes /update-plugin per GitHub #50 Phase 2)**:
 
-**Core Workflow (8)**:
+**Core Workflow (9)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
 - `/sync` - Unified sync command (smart auto-detection: dev environment, marketplace, or plugin dev) - GitHub #47
 - `/status` - Track project progress (project-progress-tracker agent)
-- `/health-check` - Validate plugin integrity (Python validation)
+- `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
+- `/update-plugin` - Interactive plugin update with backup and rollback (Python CLI) - GitHub #50 Phase 2
 
 **Individual Agents (7)** - GitHub #44:
 - `/research <feature>` - Research patterns and best practices (2-5 min)
@@ -45,7 +46,7 @@
 
 **Utility Commands (2)**:
 - `/test` - Run automated tests (pytest wrapper)
-- `/uninstall` - Remove or disable plugin features
+- `/uninstall` - Remove or disable plugin features (advanced)
 
 ---
 
@@ -215,7 +216,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (5 Shared Libraries - v3.4.0+, Enhanced v3.7.1+)
+### Libraries (8 Shared Libraries - v3.4.0+, Enhanced v3.8.0+)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -303,7 +304,58 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: health-check command (CLI invocation), /health-check validation
    - Related: GitHub Issue #50 Phase 1 (marketplace version validation integration into /health-check)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup) don't block core sync operations.
+7. **plugin_updater.py** (658 lines, v3.8.0+) - Interactive plugin update with version detection, backup, and rollback
+   - Classes: `UpdateError` (base exception), `BackupError` (backup failures), `VerificationError` (verification failures), `UpdateResult` (result dataclass), `PluginUpdater` (main coordinator)
+   - Key Methods:
+     - `check_for_updates()` - Check for available updates without performing update
+     - `update()` - Perform interactive or non-interactive update with options
+     - `_create_backup()` - Create timestamped backup (security: 0o700 permissions)
+     - `_rollback()` - Restore from backup on failure
+     - `_cleanup_backup()` - Remove backup after successful update
+     - `_verify_update()` - Verify update succeeded (version + file validation)
+   - Features:
+     - Interactive confirmation prompts (customizable)
+     - Automatic backup before update (timestamped, in /tmp)
+     - Automatic rollback on any failure (sync, verification, unexpected errors)
+     - Verification: checks version matches expected, validates critical files exist
+     - Cleanup: removes backup after successful update
+   - Error handling: UpdateError base class with specific exceptions (BackupError, VerificationError) for recovery
+   - UpdateResult attributes: success, updated, message, old_version, new_version, backup_path, rollback_performed, details
+   - Integration: Uses version_detector.py for version comparison, sync_dispatcher.py for sync operations
+   - Security: Path validation via security_utils, backup permissions (CWE-732), audit logging (CWE-778)
+   - Test coverage: Comprehensive unit tests (backup/rollback, verification, error handling)
+   - Used by: update_plugin.py CLI script, /update-plugin command
+   - Related: GitHub Issue #50 Phase 2 (interactive plugin update command)
+
+8. **update_plugin.py** (380 lines, v3.8.0+) - CLI script for interactive plugin updates
+   - Purpose: Command-line interface for plugin_updater.py with user-friendly prompts and output
+   - Functions: `parse_args()` (CLI argument parsing), `main()` (entry point), `_format_version_output()` (display formatting), `_prompt_for_confirmation()` (interactive prompts)
+   - CLI Arguments:
+     - `--check-only`: Check for updates without performing update (dry-run)
+     - `--yes`, `-y`: Skip confirmation prompts (non-interactive mode)
+     - `--auto-backup`: Create backup before update (default: enabled)
+     - `--no-backup`: Skip backup creation (advanced users only)
+     - `--verbose`, `-v`: Enable verbose logging
+     - `--json`: Output JSON for scripting (machine-readable)
+     - `--project-root`: Path to project root (default: current directory)
+     - `--plugin-name`: Name of plugin to update (default: autonomous-dev)
+   - Exit codes:
+     - `0`: Success (update performed or already up-to-date)
+     - `1`: Error (update failed)
+     - `2`: No update needed (when --check-only)
+   - Output modes:
+     - Human-readable: Rich ASCII tables with status indicators and progress
+     - JSON: Machine-readable structured output for scripting
+     - Verbose: Detailed logging of all operations (backups, verifications, rollbacks)
+   - Interactive prompts: Confirmation before update (customizable via --yes flag)
+   - Integration: Invokes PluginUpdater from plugin_updater.py
+   - Security: Path validation via security_utils, audit logging
+   - Error handling: Clear error messages with context and guidance
+   - Test coverage: Comprehensive unit tests (argument parsing, output formatting, interactive flow)
+   - Used by: /update-plugin command (bash invocation)
+   - Related: GitHub Issue #50 Phase 2 (interactive plugin update command)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup) don't block core sync operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface) enables reuse and testing.
 
 ### Hooks (29 total automation)
 

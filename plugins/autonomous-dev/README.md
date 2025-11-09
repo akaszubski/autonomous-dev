@@ -1224,9 +1224,12 @@ See [commands/archived/ARCHIVE.md](commands/archived/ARCHIVE.md) for migration g
 
 The following commands have been **moved to `commands/archived/`** to align with the "explicit commands with background enforcement" philosophy:
 
+**v3.8.0 Active** (GitHub #50 Phase 2):
+- `/update-plugin` → Interactive plugin update with version detection, backup, and rollback
+- **Usage**: `/update-plugin` (interactive), `/update-plugin --check-only` (dry-run), `/update-plugin --yes` (non-interactive)
+
 **v3.7.0 Archived** (Command consolidation - GitHub #47):
 - `/sync-dev` → Merged into `/sync` (unified auto-detection for dev, marketplace, plugin-dev modes)
-- `/update-plugin` → Merged into `/sync` (unified auto-detection for marketplace updates)
 - **Migration**: Use `/sync` instead (auto-detects context, use `--env`, `--marketplace`, `--plugin-dev` flags for explicit control)
 
 **v3.1.0 Archived** (Philosophy alignment):

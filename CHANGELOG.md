@@ -3,12 +3,64 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-09
-**Current Version**: v3.7.2 (Parallel Validation Checkpoint)
+**Current Version**: v3.8.0 (Interactive /update-plugin Command + Phase 2)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
+
+## [3.8.0] - 2025-11-09
+
+### Added
+- **Interactive /update-plugin Command** - GitHub Issue #50 Phase 2
+  - New command: `/update-plugin` - Safe, interactive plugin update with version detection, backup, and rollback
+  - New library: `plugin_updater.py` (658 lines) - Core update logic with backup and rollback
+    - Classes: `UpdateResult` (result dataclass), `PluginUpdater` (main coordinator), custom exceptions (`UpdateError`, `BackupError`, `VerificationError`)
+    - Features:
+      - Check for updates (dry-run mode)
+      - Automatic backup before update (timestamped, /tmp, 0o700 permissions)
+      - Interactive confirmation prompts (customizable)
+      - Automatic rollback on any failure (sync, verification, unexpected errors)
+      - Verification: Version + file validation
+      - Cleanup: Remove backup after successful update
+    - Integration: Uses version_detector.py for comparison, sync_dispatcher.py for sync
+    - Security: Path validation via security_utils, CWE-22/59/732/778 protection
+    - Test coverage: Comprehensive unit tests (backup, rollback, verification, error handling)
+  - New library: `update_plugin.py` (380 lines) - CLI interface for plugin_updater.py
+    - Two-tier design: Core logic separate from CLI for reusability
+    - CLI Arguments: `--check-only`, `--yes`, `--auto-backup`, `--no-backup`, `--verbose`, `--json`, `--project-root`, `--plugin-name`
+    - Exit codes: 0=success, 1=error, 2=no update needed
+    - Output modes: Human-readable tables, JSON for scripting, verbose logging
+    - Interactive prompts: Confirmation before update
+    - Test coverage: Argument parsing, output formatting, interactive flow
+  - New command file: `commands/update-plugin.md` - Complete documentation
+    - Usage examples: interactive, check-only, non-interactive, JSON output
+    - Workflow: Check → Compare → Confirm → Backup → Sync → Verify → Rollback → Cleanup
+    - Security section: CWE coverage, rollback behavior, backup management
+    - Related links: /sync command, /health-check, implementation details
+  - Integration points:
+    - `/health-check` now links to `/update-plugin` when version mismatch detected
+    - Complements `/sync` for manual version detection + update
+    - Works alongside marketplace version detection from Phase 1
+  - Files added:
+    - `plugins/autonomous-dev/lib/plugin_updater.py`
+    - `plugins/autonomous-dev/lib/update_plugin.py`
+    - `plugins/autonomous-dev/commands/update-plugin.md`
+    - `tests/unit/test_plugin_updater.py` (comprehensive unit tests)
+    - `tests/unit/test_update_plugin_cli.py` (CLI integration tests)
+  - Test coverage: 45+ unit tests across backup, rollback, verification, error handling, CLI argument parsing
+
+### Changed
+- **Commands count**: Updated from 17 to 18 active commands (added `/update-plugin`)
+- **CLAUDE.md**: Updated version to v3.8.0, documented new libraries and commands
+- **Libraries documentation**: Increased from 6 to 8 core shared libraries
+- **health-check.md**: Added link to `/update-plugin` in marketplace version mismatch section
+
+### Performance
+- **Phase 2 addition**: Enables safe plugin updates without manual sync operations
+- **User experience**: Interactive confirmation and automatic rollback prevent update failures
+- **Safety**: Automatic backup + verification prevents data loss
 
 ## [3.7.2] - 2025-11-09
 

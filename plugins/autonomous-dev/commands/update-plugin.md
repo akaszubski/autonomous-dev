@@ -1,134 +1,196 @@
 ---
-description: Update plugin files from installed marketplace version to latest
+name: update-plugin
+description: Update plugin with version detection, backup, and rollback
+version: 1.0.0
+author: autonomous-dev
+tags: [plugin, update, marketplace, version]
+tools: [Bash]
+model: sonnet
 ---
 
-# Update Plugin Files
+# Update Plugin Command
 
-Updates your project's `.claude/` files from the installed marketplace plugin to get latest commands, hooks, and templates.
+**Interactive plugin update with version detection, backup, and rollback.**
+
+## Purpose
+
+This command provides a safe, interactive way to update the autonomous-dev plugin (or other plugins) from the marketplace with:
+
+- **Version detection**: Check current vs marketplace version
+- **Interactive confirmation**: Confirm before updating
+- **Automatic backup**: Create timestamped backup before update
+- **Verification**: Verify update succeeded
+- **Rollback**: Restore from backup if update fails
+- **Rich feedback**: Detailed status and progress
 
 ## Usage
+
+```bash
+# Interactive update (recommended)
+/update-plugin
+
+# Check for updates only (no update performed)
+/update-plugin --check-only
+
+# Non-interactive update (for automation)
+/update-plugin --yes
+
+# Update without backup (advanced users only)
+/update-plugin --yes --no-backup
+
+# JSON output for scripting
+/update-plugin --json
+```
+
+## Workflow
+
+1. **Check for updates**: Compare project version vs marketplace version
+2. **Display comparison**: Show current and new version
+3. **Confirm update**: Prompt for user confirmation (unless --yes)
+4. **Create backup**: Timestamped backup in /tmp (unless --no-backup)
+5. **Perform update**: Sync from marketplace to project
+6. **Verify update**: Check version matches expected
+7. **Rollback on failure**: Restore from backup if update fails
+8. **Cleanup backup**: Remove backup after successful update
+
+## CLI Arguments
+
+- `--check-only`: Check for updates without performing update (dry-run)
+- `--yes`, `-y`: Skip confirmation prompts (non-interactive mode)
+- `--auto-backup`: Create backup before update (default: enabled)
+- `--no-backup`: Skip backup creation (advanced users only)
+- `--verbose`, `-v`: Enable verbose logging
+- `--json`: Output JSON for scripting (machine-readable)
+- `--project-root PATH`: Path to project root (default: current directory)
+- `--plugin-name NAME`: Name of plugin to update (default: autonomous-dev)
+
+## Exit Codes
+
+- `0`: Success (update performed or already up-to-date)
+- `1`: Error (update failed)
+- `2`: No update needed (when --check-only and update available)
+
+## Examples
+
+### Interactive Update (Recommended)
 
 ```bash
 /update-plugin
 ```
 
-## What This Does
+Output:
+```
+============================================================
+Plugin Update Available
+============================================================
+Current version:  3.7.0
+New version:      3.8.0
+Status:           Upgrade Available
+============================================================
 
-This command re-copies files from the globally installed plugin to your project:
+Do you want to proceed with the update? [y/N]: y
 
-1. **Backs up** your current `.claude/` directory (to `.claude.backup.TIMESTAMP/`)
-2. **Updates** all plugin files:
-   - Commands → `.claude/commands/`
-   - Hooks → `.claude/hooks/`
-   - Templates → `.claude/templates/`
-   - Agents → `.claude/agents/`
-   - Skills → `.claude/skills/`
-3. **Preserves** your custom commands and configurations
-4. **Reports** what was updated
+Creating backup...
+Updating autonomous-dev...
+Verifying update...
 
-## When to Use This
+============================================================
+Update Result
+============================================================
+Plugin updated successfully to 3.8.0
+Version: 3.7.0 → 3.8.0
+Backup: /tmp/autonomous-dev-backup-20251109-120000
+============================================================
+```
 
-Run `/update-plugin` when:
-- You've updated the plugin: `/plugin update autonomous-dev`
-- New features were released and you want the latest
-- Bug fixes in hooks or commands
-- You want to restore default files
-
-## Safety
-
-Your existing files are backed up before updating. If something goes wrong:
+### Check for Updates Only
 
 ```bash
-# Restore from backup
-rm -rf .claude
-mv .claude.backup.TIMESTAMP .claude
+/update-plugin --check-only
 ```
+
+Output:
+```
+============================================================
+Version Check
+============================================================
+Project version:     3.7.0
+Marketplace version: 3.8.0
+Status:              Upgrade Available
+============================================================
+
+Update available.
+```
+
+### Non-Interactive Update
+
+```bash
+/update-plugin --yes
+```
+
+### JSON Output for Scripting
+
+```bash
+/update-plugin --json
+```
+
+Output:
+```json
+{
+  "success": true,
+  "updated": true,
+  "message": "Plugin updated successfully to 3.8.0",
+  "old_version": "3.7.0",
+  "new_version": "3.8.0",
+  "backup_path": "/tmp/autonomous-dev-backup-20251109-120000",
+  "rollback_performed": false,
+  "details": {
+    "files_updated": 15
+  }
+}
+```
+
+## Security
+
+All operations are security-validated:
+
+- **CWE-22**: Path traversal prevention (all paths validated)
+- **CWE-59**: Symlink resolution (reject symlinks outside whitelist)
+- **CWE-732**: Backup permissions (user-only, 0o700)
+- **CWE-778**: Audit logging (all operations logged to security audit)
+
+## Rollback Behavior
+
+If update fails at any point:
+
+1. **Verification fails**: Automatic rollback to backup
+2. **Sync fails**: Automatic rollback to backup
+3. **Unexpected error**: Automatic rollback to backup
+
+Rollback restores:
+- All plugin files (commands, hooks, agents, skills)
+- Original plugin.json with previous version
+- Original directory structure
 
 ## Implementation
 
-```bash
-#!/usr/bin/env bash
-
-set -e
-
-# Find plugin directory
-PLUGIN_DIR="$HOME/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev"
-
-if [ ! -d "$PLUGIN_DIR" ]; then
-    echo "❌ Plugin not found. Please install first:"
-    echo "   /plugin marketplace add akaszubski/autonomous-dev"
-    echo "   /plugin install autonomous-dev"
-    exit 1
-fi
-
-# Project directory
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-CLAUDE_DIR="$PROJECT_DIR/.claude"
-
-if [ ! -d "$CLAUDE_DIR" ]; then
-    echo "❌ No .claude directory found. Run bootstrap first:"
-    echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)"
-    exit 1
-fi
-
-# Backup current files
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="$PROJECT_DIR/.claude.backup.$TIMESTAMP"
-
-echo "📦 Creating backup: .claude.backup.$TIMESTAMP"
-cp -r "$CLAUDE_DIR" "$BACKUP_DIR"
-
-# Update files
-echo "🔄 Updating plugin files..."
-
-# Update commands (preserve custom ones)
-echo "  📋 Updating commands..."
-cp "$PLUGIN_DIR"/commands/*.md "$CLAUDE_DIR/commands/" 2>/dev/null || true
-
-# Update hooks
-echo "  🎣 Updating hooks..."
-cp -r "$PLUGIN_DIR"/hooks/* "$CLAUDE_DIR/hooks/" 2>/dev/null || true
-
-# Update templates
-echo "  📄 Updating templates..."
-cp -r "$PLUGIN_DIR"/templates/* "$CLAUDE_DIR/templates/" 2>/dev/null || true
-
-# Update agents
-echo "  🤖 Updating agents..."
-cp "$PLUGIN_DIR"/agents/*.md "$CLAUDE_DIR/agents/" 2>/dev/null || true
-
-# Update skills
-echo "  📚 Updating skills..."
-cp -r "$PLUGIN_DIR"/skills/* "$CLAUDE_DIR/skills/" 2>/dev/null || true
-
-echo ""
-echo "✅ Plugin files updated successfully!"
-echo ""
-echo "📦 Backup saved to: .claude.backup.$TIMESTAMP"
-echo ""
-echo "🔄 Restart Claude Code to use updated files:"
-echo "   Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)"
-echo ""
-```
-
----
-
-## Alternative: Check for Updates
-
-To check if updates are available without installing:
+Invoke the Python CLI script:
 
 ```bash
-# Check installed version
-cat ~/.claude/plugins/installed_plugins.json | grep -A 3 "autonomous-dev"
-
-# Check latest version
-curl -s https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/plugins/autonomous-dev/.claude-plugin/plugin.json | grep version
+python {{pluginDir}}/lib/update_plugin.py "$@"
 ```
 
----
+## Related
 
-## Related Commands
+- `/sync` - Manual sync from marketplace to project
+- `/health-check` - Check plugin integrity and version
+- See `lib/plugin_updater.py` for implementation details
+- See `lib/update_plugin.py` for CLI implementation
 
-- `/health-check` - Verify all commands are present
-- `/setup` - Initial configuration wizard
-- `/uninstall` - Remove plugin files
+## Notes
+
+- **Restart required**: After updating, exit and restart Claude Code (Cmd+Q or Ctrl+Q) for changes to take effect
+- **Backup location**: Backups are created in system temp directory (/tmp or equivalent)
+- **Backup cleanup**: Backups are automatically removed after successful update
+- **Safe by default**: Backup is always created unless explicitly disabled with --no-backup
+- **Interactive by default**: Requires user confirmation unless --yes is provided
