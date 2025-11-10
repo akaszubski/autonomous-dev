@@ -427,7 +427,7 @@ def sync_plugin(source_dir: Path, target_dir: Path, dry_run: bool = False):
     print()
 
     # Directories to sync
-    sync_dirs = ["agents", "skills", "commands", "hooks", "scripts", "templates", "docs"]
+    sync_dirs = ["agents", "skills", "commands", "hooks", "lib", "scripts", "templates", "docs"]
 
     # Files to sync
     sync_files = ["README.md", "CHANGELOG.md"]
