@@ -1,0 +1,46 @@
+{
+  "description": "Permission Batching Configuration - Reduce approval prompts by 80%",
+  "permissionBatching": {
+    "enabled": true,
+    "autoApproveSafeReads": true,
+    "autoApproveProjectWrites": true,
+    "batchWindowSeconds": 5
+  },
+  "permissions": {
+    "allow": [
+      "Read(**/*)",
+      "Grep(**/*)",
+      "Glob(**/*)"
+    ],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(**/.env)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)",
+      "Write(/etc/*)",
+      "Write(/usr/*)",
+      "Write(/System/*)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)"
+    ],
+    "ask": [
+      "Write(**/*)",
+      "Edit(**/*)",
+      "Bash(*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "description": "Batch permission approver",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/batch_permission_approver.py"
+          }
+        ]
+      }
+    ]
+  }
+}
