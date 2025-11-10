@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.11.0] - 2025-11-11
+
+### ✨ Added
+
+#### Brownfield Project Retrofit for Autonomous Development (GitHub Issue #59)
+- **New Command**: `/align-project-retrofit` - Retrofit existing projects for autonomous-dev compatibility
+  - 5-phase structured process: Analyze → Assess → Plan → Execute → Verify
+  - Multi-language support: Python, JavaScript, Go, Java, Rust, C++, C#, PHP
+  - Framework detection: Django, FastAPI, Express, Spring, Rocket, Rails, Laravel
+  - Smart execution modes: DRY_RUN (show only), STEP_BY_STEP (confirm each), AUTO (all)
+  - Automatic backup/rollback: Timestamped backups with 0o700 permissions
+  - 12-Factor App compliance assessment with prioritized remediation
+
+- **New Agent**: `brownfield-analyzer` - Analyzes brownfield project compatibility and generates retrofit recommendations
+
+- **New Libraries** (6 phase-based libraries, ~4,500 lines, 224+ tests):
+  1. **brownfield_retrofit.py** (470 lines) - Orchestration and Phase 0 analysis
+     - Tech stack auto-detection, project root validation
+     - Phase 0 analysis and retrofit plan generation
+     - Classes: BrownfieldProject, BrownfieldAnalysis, BrownfieldRetrofitter
+     - Security: Path validation via security_utils, audit logging to security_audit.log
+
+  2. **codebase_analyzer.py** (870 lines) - Deep codebase analysis (PHASE 1)
+     - Multi-language support: Python, JavaScript, Go, Java, Rust, C++, C#, PHP
+     - Directory structure analysis, language/framework detection
+     - Dependency parsing (requirements.txt, package.json, go.mod, Cargo.toml, etc.)
+     - Test file detection and categorization
+     - Code organization and documentation assessment
+     - Classes: CodebaseAnalysis, CodebaseAnalyzer
+     - Security: Respects .gitignore, symlink detection, path validation
+
+  3. **alignment_assessor.py** (666 lines) - Alignment gap assessment (PHASE 2)
+     - 12-Factor App compliance scoring (0-100 scale)
+     - Gap detection and prioritization (critical, high, medium, low)
+     - PROJECT.md draft generation
+     - Readiness assessment and effort estimation
+     - Classes: AlignmentGap, AlignmentAssessment, ComplianceScore, AlignmentAssessor
+     - Security: Safe file access, input validation, no code execution
+
+  4. **migration_planner.py** (578 lines) - Migration planning (PHASE 3)
+     - Gap-to-step conversion with clear instructions
+     - Multi-factor effort estimation (XS-XL scale)
+     - Dependency tracking and critical path analysis
+     - Verification criteria generation
+     - Classes: MigrationStep, StepDependency, MigrationPlan, MigrationPlanner
+     - Security: No code execution, safe path handling
+
+  5. **retrofit_executor.py** (725 lines) - Execution with backup/rollback (PHASE 4)
+     - Execution mode support (DRY_RUN, STEP_BY_STEP, AUTO)
+     - Automatic timestamped backup (0o700 permissions)
+     - Atomic rollback on failure (all or nothing)
+     - Template application (PROJECT.md, CLAUDE.md, .claude directory)
+     - Test framework setup and hook installation
+     - Classes: ExecutionMode, ExecutionStep, ExecutionResult, RetrofitExecutor
+     - Security: Path validation, audit logging, symlink detection, CWE-22/59/732 hardening
+
+  6. **retrofit_verifier.py** (689 lines) - Verification and readiness (PHASE 5)
+     - File existence and integrity verification
+     - Configuration validation (PROJECT.md, CLAUDE.md)
+     - Test framework operational check
+     - Hook installation verification
+     - /auto-implement compatibility assessment
+     - Classes: VerificationCheck, ReadinessAssessment, RetrofitVerifier
+     - Security: Safe file validation, no code execution
+
+- **Test Coverage**: 224+ new tests across all 6 libraries
+  - Unit tests: Phase-specific functionality, error cases, configuration validation
+  - Integration tests: Full workflow testing, backup/rollback verification
+  - Coverage: 85%+ across new libraries (targeting 90%+ in Phase 2 hardening)
+
+- **Security Hardening** (5 CWE vulnerabilities addressed):
+  - **CWE-22 (Path Traversal)**: Path validation with whitelist defense, resolved path checks
+  - **CWE-59 (Symlink Following)**: Symlink detection on all paths, TOCTOU prevention via re-validation
+  - **CWE-78 (Command Injection)**: Safe subprocess handling, plugin name format validation
+  - **CWE-117 (Log Injection)**: Input sanitization in audit logs, standardized audit log format
+  - **CWE-732 (Permissions)**: Backup directory permissions 0o700 (user-only access)
+  - **Audit Logging**: All operations logged to `logs/security_audit.log` in JSON format
+
+### 🔧 Refactored
+
+#### Plugin Documentation (v3.11.0)
+- Updated command count: 19 → 20 commands
+- Updated agent count: 19 → 20 agents (added brownfield-analyzer)
+- Updated library count: 12 → 18 shared libraries
+
+### 📋 [3.10.0] - 2025-11-09
+
 ### ✨ Added
 
 #### Documentation Parity Validation (GitHub Issue #56)

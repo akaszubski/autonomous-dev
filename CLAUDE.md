@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 19 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 20 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -22,12 +22,13 @@
 # Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /create-issue, /uninstall
 ```
 
-**Commands (19 active, includes /create-issue for GitHub issue automation - Issue #58)**:
+**Commands (20 active, includes /align-project-retrofit for brownfield adoption - Issue #59)**:
 
-**Core Workflow (9)**:
+**Core Workflow (10)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
+- `/align-project-retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - GitHub #59
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
 - `/sync` - Unified sync command (smart auto-detection: dev environment, marketplace, or plugin dev) - GitHub #47
 - `/status` - Track project progress (project-progress-tracker agent)
@@ -239,11 +240,12 @@ Located: `plugins/autonomous-dev/agents/`
 - **advisor**: Critical thinking and validation (v3.0+) - Uses semantic-validation, advisor-triggers, research-patterns skills
 - **quality-validator**: GenAI-powered feature validation (v3.0+) - Uses testing-guide, code-review skills
 
-**Utility Agents (10)** with skill references:
+**Utility Agents (11)** with skill references:
 - **alignment-validator**: PROJECT.md alignment checking - Uses semantic-validation, file-organization skills
 - **commit-message-generator**: Conventional commit generation - Uses git-workflow, code-review skills
 - **pr-description-generator**: Pull request descriptions - Uses github-workflow, documentation-guide, code-review skills
 - **issue-creator**: Generate well-structured GitHub issue descriptions (v3.10.0+, GitHub #58) - Uses github-workflow, documentation-guide, research-patterns skills
+- **brownfield-analyzer**: Analyze brownfield projects for retrofit readiness (v3.11.0+, GitHub #59) - Uses research-patterns, semantic-validation, file-organization, python-standards skills
 - **project-progress-tracker**: Track progress against goals - Uses project-management skill
 - **alignment-analyzer**: Detailed alignment analysis - Uses research-patterns, semantic-validation, file-organization skills
 - **project-bootstrapper**: Tech stack detection and setup (v3.0+) - Uses research-patterns, file-organization, python-standards skills
@@ -284,7 +286,7 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (12 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation, Enhanced v3.9.0+ with Git Integration, Enhanced v3.10.0+ with Issue Automation)
+### Libraries (18 Shared Libraries - v3.4.0+, Enhanced v3.8.1+ with Parity Validation, Enhanced v3.9.0+ with Git Integration, Enhanced v3.10.0+ with Issue Automation, Enhanced v3.11.0+ with Brownfield Retrofit)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
@@ -540,7 +542,157 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
    - Used by: create_issue.py script, /create-issue command
    - Related: GitHub Issue #58 (GitHub issue automation)
 
-**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation, git automation, issue automation) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface); auto_implement_git_integration.py (core logic), auto_git_workflow.py (hook integration); github_issue_automation.py (core logic), create_issue.py (CLI interface) enables reuse and testing. Feature automation and other enhancements are optional (controlled by flags/hooks).
+13. **brownfield_retrofit.py** (470 lines, v3.11.0+) - Brownfield project retrofit orchestration and Phase 0 analysis
+   - Classes: `BrownfieldProject` (project descriptor), `BrownfieldAnalysis` (analysis result), `RetrofitPhase` (phase enum), `BrownfieldRetrofitter` (main coordinator)
+   - Key Functions:
+     - `analyze_brownfield_project()` - Main entry point for Phase 0 analysis (project_root)
+     - `detect_project_root()` - Auto-detect project root from current directory
+     - `validate_project_structure()` - Verify valid project directory
+     - `_detect_tech_stack()` - Identify language, framework, package manager
+     - `_check_existing_structure()` - Check for PROJECT.md, CLAUDE.md, .claude directory
+     - `build_retrofit_plan()` - Generate high-level retrofit plan
+   - Features:
+     - Tech stack auto-detection (Python, JavaScript, Go, Java, Rust, etc.)
+     - Existing structure analysis (identifies missing or incomplete files)
+     - Project root validation (verifies directory structure)
+     - Plan generation with all 5 phases outlined
+   - BrownfieldAnalysis attributes: tech_stack, language, framework, package_manager, has_tests, test_framework, existing_structure, retrofit_plan
+   - Security: Path validation via security_utils, audit logging to security_audit.log
+   - Integration: Entry point for /align-project-retrofit command (PHASE 0)
+   - Used by: align_project_retrofit.py script, /align-project-retrofit command PHASE 0
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+14. **codebase_analyzer.py** (870 lines, v3.11.0+) - Deep codebase analysis for brownfield projects (PHASE 1)
+   - Classes: `CodebaseAnalysis` (analysis result dataclass), `CodebaseAnalyzer` (main coordinator)
+   - Key Functions:
+     - `analyze_codebase()` - Main entry point for comprehensive analysis (project_root, tech_stack_hint)
+     - `_scan_directory_structure()` - Recursively analyze directory organization
+     - `_detect_language_and_framework()` - Language and framework detection
+     - `_analyze_dependencies()` - Parse requirements.txt, package.json, go.mod, Cargo.toml, etc.
+     - `_find_test_files()` - Locate and categorize test files
+     - `_detect_code_organization()` - Analyze module organization and naming conventions
+     - `_scan_documentation()` - Find README, docs, docstrings coverage
+     - `_identify_configuration_files()` - Locate config files (.env, .yaml, .json, etc.)
+   - Features:
+     - Multi-language support (Python, JavaScript, Go, Java, Rust, C++, etc.)
+     - Framework detection (Django, FastAPI, Express, Spring, etc.)
+     - Dependency analysis (dev vs production, versions)
+     - Test file detection and categorization (unit, integration, e2e)
+     - Code organization assessment (modular, monolithic, microservices)
+     - Documentation coverage analysis
+     - Configuration file inventory
+   - CodebaseAnalysis attributes: language, framework, package_manager, dependencies, dev_dependencies, test_files, code_organization, documentation_status, configuration_files, total_files, total_lines_of_code
+   - Security: Respects .gitignore, skips vendor/node_modules, symlink detection, path validation
+   - Integration: Called by /align-project-retrofit command (PHASE 1)
+   - Used by: align_project_retrofit.py, alignment_assessor.py
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+15. **alignment_assessor.py** (666 lines, v3.11.0+) - Assessment of alignment gaps and readiness (PHASE 2)
+   - Classes: `AlignmentGap` (gap descriptor), `AlignmentAssessment` (assessment result), `ComplianceScore` (12-factor app score), `AlignmentAssessor` (main coordinator)
+   - Key Functions:
+     - `assess_alignment()` - Main entry point for alignment assessment (codebase_analysis, project_root)
+     - `_calculate_compliance_score()` - Calculate 12-Factor App compliance (0-100 scale)
+     - `_check_project_structure()` - Verify PROJECT.md, CLAUDE.md presence
+     - `_check_documentation_quality()` - Assess README, API docs, architecture docs
+     - `_check_test_coverage()` - Estimate test coverage from test file locations
+     - `_detect_alignment_gaps()` - Identify missing autonomous-dev standards
+     - `_prioritize_gaps()` - Sort gaps by criticality and effort
+     - `_generate_project_md_draft()` - Create initial PROJECT.md structure
+   - Features:
+     - 12-Factor App compliance assessment (codebase, dependencies, config, etc.)
+     - Alignment gap detection (missing files, incomplete structure)
+     - Gap prioritization (critical, high, medium, low)
+     - PROJECT.md draft generation (ready to customize)
+     - Readiness assessment (ready, needs_work, not_ready)
+     - Estimated retrofit effort (XS, S, M, L, XL)
+   - AlignmentAssessment attributes: compliance_score, readiness, gaps, estimated_effort, project_md_draft, recommendations
+   - Security: Safe file access, input validation, no code execution
+   - Integration: Called by /align-project-retrofit command (PHASE 2)
+   - Used by: align_project_retrofit.py, migration_planner.py
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+16. **migration_planner.py** (578 lines, v3.11.0+) - Migration plan generation with dependency tracking (PHASE 3)
+   - Classes: `MigrationStep` (step descriptor), `StepDependency` (dependency relationship), `MigrationPlan` (complete plan), `MigrationPlanner` (main coordinator)
+   - Key Functions:
+     - `generate_migration_plan()` - Main entry point (alignment_assessment, project_root, tech_stack)
+     - `_break_down_gaps_into_steps()` - Convert gaps into actionable steps
+     - `_estimate_effort()` - Estimate effort for each step (XS-XL scale)
+     - `_assess_impact()` - Assess impact level (LOW, MEDIUM, HIGH)
+     - `_detect_step_dependencies()` - Identify prerequisite steps
+     - `_create_critical_path()` - Order steps by dependencies
+     - `_generate_verification_criteria()` - Define success criteria for each step
+     - `_estimate_total_effort()` - Sum effort for complete plan
+   - Features:
+     - Gap-to-step conversion with clear instructions
+     - Multi-factor effort estimation (complexity, scope, skill level)
+     - Dependency tracking (prerequisites, blocking relationships)
+     - Critical path analysis (minimum viable retrofit path)
+     - Verification criteria (how to confirm step success)
+     - Step grouping by phase (setup, structure, tests, docs, integration)
+     - Rollback considerations for each step
+   - MigrationPlan attributes: total_steps, estimated_effort, critical_path, verification_criteria, step_groups, recommendations
+   - Security: No code execution, safe path handling, input validation
+   - Integration: Called by /align-project-retrofit command (PHASE 3)
+   - Used by: align_project_retrofit.py, retrofit_executor.py
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+17. **retrofit_executor.py** (725 lines, v3.11.0+) - Step-by-step retrofit execution with backup/rollback (PHASE 4)
+   - Classes: `ExecutionMode` (enum: DRY_RUN, STEP_BY_STEP, AUTO), `ExecutionStep` (step with result), `ExecutionResult` (execution summary), `RetrofitExecutor` (main coordinator)
+   - Key Functions:
+     - `execute_migration()` - Main entry point (migration_plan, mode, project_root)
+     - `_create_backup()` - Create timestamped backup (0o700 permissions, symlink detection)
+     - `_execute_step()` - Execute single step (create files, update configs, etc.)
+     - `_apply_template()` - Apply .claude template to project
+     - `_create_project_md()` - Create PROJECT.md with customization
+     - `_create_claude_md()` - Create CLAUDE.md tailored to project
+     - `_setup_test_framework()` - Configure test framework
+     - `_setup_git_hooks()` - Install project hooks
+     - `_rollback_all_changes()` - Restore from backup on failure
+     - `_validate_step_result()` - Verify step succeeded
+   - Features:
+     - Execution mode support: DRY_RUN (show only), STEP_BY_STEP (confirm each), AUTO (all)
+     - Automatic backup before changes (timestamped, 0o700 permissions)
+     - Rollback on any failure (atomic: all succeed or all rollback)
+     - Step-by-step confirmation prompts (customizable)
+     - Template application (PROJECT.md, CLAUDE.md, .claude directory)
+     - Test framework setup (auto-detect and configure)
+     - Hook installation and activation
+     - Detailed progress reporting
+   - ExecutionResult attributes: success, steps_completed, steps_failed, backup_path, rollback_performed, created_files, updated_files, details
+   - Security: Path validation via security_utils, audit logging, symlink detection, 0o700 permissions, CWE-22/59/732 hardening
+   - Integration: Called by /align-project-retrofit command (PHASE 4)
+   - Error handling: Non-blocking with detailed fallback instructions, rollback on failure
+   - Used by: align_project_retrofit.py, RetrofitVerifier
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+18. **retrofit_verifier.py** (689 lines, v3.11.0+) - Verification and readiness assessment (PHASE 5)
+   - Classes: `VerificationCheck` (check result), `ReadinessAssessment` (readiness status), `RetrofitVerifier` (main coordinator)
+   - Key Functions:
+     - `verify_retrofit_complete()` - Main entry point (execution_result, project_root, original_analysis)
+     - `_verify_files_created()` - Verify all required files exist and are valid
+     - `_verify_file_structure()` - Check .claude directory structure and permissions
+     - `_verify_configuration()` - Validate PROJECT.md and CLAUDE.md content
+     - `_verify_test_setup()` - Confirm test framework is operational
+     - `_verify_hooks_installed()` - Check hook activation status
+     - `_verify_auto_implement_readiness()` - Verify /auto-implement compatibility
+     - `_run_smoke_tests()` - Execute basic validation tests
+     - `_assess_final_readiness()` - Determine readiness for /auto-implement
+   - Features:
+     - File existence and integrity verification
+     - Configuration validation (PROJECT.md structure, CLAUDE.md alignment)
+     - Test framework operational check
+     - Hook installation verification
+     - /auto-implement compatibility check
+     - Smoke test execution (optional)
+     - Readiness assessment (ready, needs_minor_fixes, needs_major_fixes)
+     - Remediation recommendations for failures
+   - ReadinessAssessment attributes: is_ready, checks_passed, checks_failed, recommendations, next_steps
+   - Security: Safe file validation, no code execution, input validation
+   - Integration: Called by /align-project-retrofit command (PHASE 5)
+   - Used by: align_project_retrofit.py, validation reporting
+   - Related: GitHub Issue #59 (brownfield project retrofit)
+
+**Design Pattern**: Progressive enhancement (string → path → whitelist) allows graceful error recovery. Non-blocking enhancements (version detection, orphan cleanup, hook activation, parity validation, git automation, issue automation, brownfield retrofit) don't block core operations. Two-tier library design: plugin_updater.py (core logic), update_plugin.py (CLI interface); auto_implement_git_integration.py (core logic), auto_git_workflow.py (hook integration); github_issue_automation.py (core logic), create_issue.py (CLI interface); brownfield_retrofit.py + 5 phase libraries enable reuse and testing. Feature automation and other enhancements are optional (controlled by flags/hooks).
 
 ### Hooks (30 total automation)
 

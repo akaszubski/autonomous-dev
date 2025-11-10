@@ -145,7 +145,7 @@ This is achieved via **dual-layer architecture**:
 - ✅ **Template-based** - Standard structure defined in templates/project-structure.json
 
 **Brownfield Alignment** (Existing Projects):
-- ✅ **Retrofit capability** - `/align-project-retrofit` command (PLANNED)
+- ✅ **Retrofit capability** - `/align-project-retrofit` command (COMPLETE - v3.11.0, GitHub #59)
 - ✅ **Non-destructive** - Analyzes current structure → Proposes alignment plan → Asks approval
 - ✅ **Migration guide** - Step-by-step process to align existing projects
 - ✅ **Preserves existing** - Doesn't break what's working → Enhances incrementally
@@ -827,7 +827,7 @@ Follow a systematic 7-phase approach with user checkpoints:
 3. ✅ **File organization enforcement** - Standard structure enforced
 4. ✅ **Strict mode configuration** - Pre-configured templates
 5. ✅ **Background enforcement hooks** - Validate workflow compliance (v3.0 - NEW)
-6. 🚧 **Brownfield alignment** - `/align-project-retrofit` command (PLANNED)
+6. ✅ **Brownfield alignment** - `/align-project-retrofit` command (COMPLETE - v3.11.0)
 7. 🚧 **Documentation** - Complete strict mode guide
 
 **Completed in This Sprint**:

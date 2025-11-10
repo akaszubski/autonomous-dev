@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.10.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.11.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.10.0
-**Last Updated**: 2025-11-09
-**Status**: GitHub Issue Automation + Git Operations Integration + Security Hardening + Documentation Parity Validation
+**Version**: v3.11.0
+**Last Updated**: 2025-11-11
+**Status**: Brownfield Project Retrofit for Autonomous Development
 
-Production-ready plugin with 19 commands (9 core + 8 agent + 2 utility), 19 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -77,8 +77,8 @@ grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-de
 - ✅ Recommended when updating or troubleshooting
 
 **What gets installed:**
-- 19 slash commands (9 core + 8 agent + 2 utility: `/auto-implement`, `/sync`, `/create-issue`, `/research`, etc.)
-- 19 specialist agents (researcher, planner, implementer, issue-creator, etc. - orchestrator removed v3.2.2)
+- 20 slash commands (10 core + 8 agent + 2 utility: `/auto-implement`, `/align-project-retrofit`, `/sync`, `/create-issue`, `/research`, etc.)
+- 20 specialist agents (researcher, planner, implementer, issue-creator, brownfield-analyzer, etc. - orchestrator removed v3.2.2)
 - 35+ automation hooks (validation, security, testing, docs)
 - Templates and project scaffolding
 
@@ -209,6 +209,102 @@ Checking for orphaned files...
 - See `plugins/autonomous-dev/lib/version_detector.py` for version detection implementation
 - See `plugins/autonomous-dev/lib/orphan_file_cleaner.py` for orphan cleanup implementation
 - See `plugins/autonomous-dev/lib/validate_documentation_parity.py` for documentation consistency validation
+
+---
+
+## ✨ What's New in v3.11.0
+
+**🏗️ Brownfield Project Retrofit for Autonomous Development**
+
+This release adds comprehensive brownfield project retrofit capability, enabling existing projects to be automatically transformed into autonomous-dev compatible projects. The `/align-project-retrofit` command guides projects through a 5-phase structured migration process with backup/rollback safety.
+
+### v3.11.0 Changes (2025-11-11)
+
+**✅ Brownfield Retrofit Command** (`/align-project-retrofit` command):
+- **Phase 0**: Auto-detect project tech stack and existing structure
+- **Phase 1**: Deep codebase analysis (language, framework, dependencies, tests)
+- **Phase 2**: Alignment assessment with 12-Factor App compliance scoring
+- **Phase 3**: Smart migration planning with dependency tracking
+- **Phase 4**: Execution with automatic backup/rollback (DRY_RUN, STEP_BY_STEP, or AUTO mode)
+- **Phase 5**: Verification and /auto-implement readiness assessment
+- **Safety**: Timestamped backup (0o700 permissions), atomic rollback on failure
+
+**6 New Libraries** (~4,500 lines, 224+ tests):
+- `brownfield_retrofit.py` - Orchestration and Phase 0 analysis
+- `codebase_analyzer.py` - Multi-language codebase analysis (Python, JavaScript, Go, Java, Rust, etc.)
+- `alignment_assessor.py` - Alignment gaps and compliance scoring
+- `migration_planner.py` - Migration plan with dependencies and critical path
+- `retrofit_executor.py` - Step-by-step execution with backup/rollback
+- `retrofit_verifier.py` - Verification and readiness assessment
+
+**New Agent** - `brownfield-analyzer`:
+- Analyzes existing projects for autonomous-dev compatibility
+- Generates alignment assessment and retrofit recommendations
+- Integrates with /align-project-retrofit command
+
+**How to Use**:
+```bash
+# Basic usage (interactive)
+/align-project-retrofit
+
+# The command will:
+# 1. Analyze your project (detect tech stack, structure, dependencies)
+# 2. Compare to autonomous-dev standards (calculate compliance score)
+# 3. Create migration plan (break down work into steps)
+# 4. Ask for execution mode (DRY_RUN, STEP_BY_STEP, or AUTO)
+# 5. Apply changes with automatic backup/rollback
+# 6. Verify compliance and assess /auto-implement readiness
+```
+
+**What Gets Created**:
+- **PROJECT.md**: Project goals, scope, constraints (customized for your project)
+- **.claude/CLAUDE.md**: Development standards and practices
+- **.claude/PROJECT.md**: Symlink to root PROJECT.md
+- **Pre-commit hooks**: Auto-formatting, security scanning, test execution
+- **Test configuration**: Framework setup (pytest, jest, etc.)
+- **Documentation**: README updates, architecture docs
+
+**Safety Features**:
+- Automatic timestamped backup before any changes (0o700 permissions)
+- Atomic rollback: all succeed or all changes are rolled back
+- Three execution modes: DRY_RUN (show only), STEP_BY_STEP (confirm each), AUTO (all)
+- Non-destructive analysis (no changes until you approve)
+- 12-Factor App compliance assessment
+- /auto-implement readiness verification
+
+**Security Hardening**:
+- CWE-22 (Path Traversal): Path validation with whitelist defense
+- CWE-59 (Symlink Following): Symlink detection and resolution
+- CWE-78 (Command Injection): Safe subprocess handling
+- CWE-117 (Log Injection): Input sanitization in audit logs
+- CWE-732 (Permissions): Secure backup permissions (0o700)
+- Comprehensive security audit logging to `logs/security_audit.log`
+
+**Supported Technologies**:
+- **Languages**: Python, JavaScript/TypeScript, Go, Java, Rust, C++, C#, PHP
+- **Frameworks**: Django, FastAPI, Express, Spring, Rocket, Rails, Laravel
+- **Package Managers**: pip, npm, go mod, Maven, Cargo, Composer
+- **Test Frameworks**: pytest, Jest, Mocha, JUnit, Cargo test
+- **Version Control**: Git (with hook integration)
+
+**Real-World Scenario**:
+```
+Before /align-project-retrofit:
+- Brownfield project with no PROJECT.md or CLAUDE.md
+- Ad-hoc file organization, inconsistent structure
+- No pre-commit hooks, inconsistent testing
+- Cannot use /auto-implement (not compatible)
+
+After /align-project-retrofit:
+- PROJECT.md created with project goals and structure
+- .claude directory with CLAUDE.md and configuration
+- Pre-commit hooks installed (auto-format, security, tests)
+- Test framework configured and operational
+- Ready for /auto-implement workflow
+- Can now use all autonomous-dev features
+```
+
+**Related**: GitHub Issue #59 - Brownfield Project Retrofit Implementation
 
 ---
 
