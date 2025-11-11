@@ -61,9 +61,9 @@ from plugins.autonomous_dev.lib.orphan_file_cleaner import (
 
 @dataclass
 class SyncResult:
-    
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
-"""Result of a sync operation.
+    """Result of a sync operation.
+
+    See error-handling-patterns skill for exception hierarchy and error handling best practices.
 
     Attributes:
         success: Whether sync succeeded

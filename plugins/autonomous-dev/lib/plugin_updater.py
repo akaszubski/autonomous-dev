@@ -75,9 +75,10 @@ from plugins.autonomous_dev.lib.hook_activator import (
 # Exception hierarchy pattern from error-handling-patterns skill:
 # BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class UpdateError(Exception):
-    
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
-"""Base exception for plugin update errors."""
+    """Base exception for plugin update errors.
+
+    See error-handling-patterns skill for exception hierarchy and error handling best practices.
+    """
     pass
 
 

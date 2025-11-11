@@ -46,9 +46,11 @@ from plugins.autonomous_dev.lib import security_utils
 
 
 class TechStack(Enum):
-    
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
-"""Supported technology stacks."""
+    """
+
+    See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+    Supported technology stacks."""
     PYTHON = "python"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"

@@ -69,9 +69,11 @@ from plugins.autonomous_dev.lib import security_utils
 # Exception hierarchy pattern from error-handling-patterns skill:
 # BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class ActivationError(Exception):
-    
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
-"""Base exception for hook activation failures."""
+    """
+
+    See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+    Base exception for hook activation failures."""
     pass
 
 

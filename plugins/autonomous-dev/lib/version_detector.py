@@ -56,9 +56,9 @@ from plugins.autonomous_dev.lib.security_utils import (
 
 @dataclass
 class Version:
-    
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
-"""Semantic version representation.
+    """Semantic version representation.
+
+    See error-handling-patterns skill for exception hierarchy and error handling best practices.
 
     Attributes:
         major: Major version number (breaking changes)
