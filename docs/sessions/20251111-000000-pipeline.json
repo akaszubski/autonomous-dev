@@ -1,0 +1,13 @@
+{
+  "session_id": "20251111-000000",
+  "started": "2025-11-11T00:00:00.232493",
+  "github_issue": null,
+  "agents": [],
+  "parallel_exploration": {
+    "status": "incomplete",
+    "missing_agents": [
+      "researcher",
+      "planner"
+    ]
+  }
+}

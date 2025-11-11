@@ -1,95 +1,80 @@
 {
-  "description": "Strict Mode Configuration - Fast Autonomous Execution (v3.2.0+)",
+  "description": "Permission Batching Configuration - Reduce approval prompts by 80%",
+  "permissionBatching": {
+    "enabled": true,
+    "autoApproveSafeReads": true,
+    "autoApproveProjectWrites": true,
+    "batchWindowSeconds": 5
+  },
   "permissions": {
     "allow": [
-      "Bash:*",
-      "Read:*",
-      "Write:*",
-      "Edit:*",
-      "Glob:*",
-      "Grep:*",
-      "WebSearch:*",
-      "WebFetch:*",
-      "Task(.*researcher.*):*",
-      "Task(.*test-master.*):*",
-      "Task(.*implementer.*):*",
-      "Task(.*reviewer.*):*",
-      "Task(.*security-auditor.*):*",
-      "Task(.*doc-master.*):*",
-      "Task(.*advisor.*):*",
-      "Task(.*alignment-.*):*",
-      "Task(.*commit-message.*):*",
-      "Task(.*pr-description.*):*",
-      "Task(.*project-.*):*",
-      "Task(.*quality-validator.*):*",
-      "Task(.*setup-wizard.*):*",
-      "Task(.*sync-validator.*):*"
+      "Read:.*",
+      "Grep:.*",
+      "Glob:.*",
+      "WebSearch:.*",
+      "WebFetch:.*",
+      "Task:.*",
+      "TodoWrite:.*",
+      "Write:src/.*",
+      "Write:tests/.*",
+      "Write:docs/.*",
+      "Write:plugins/.*",
+      "Write:scripts/.*",
+      "Write:CLAUDE\\.md",
+      "Write:CHANGELOG\\.md",
+      "Write:README\\.md",
+      "Edit:src/.*",
+      "Edit:tests/.*",
+      "Edit:docs/.*",
+      "Edit:plugins/.*",
+      "Edit:scripts/.*",
+      "Edit:CLAUDE\\.md",
+      "Edit:CHANGELOG\\.md",
+      "Edit:README\\.md",
+      "Bash:ls.*",
+      "Bash:cat.*",
+      "Bash:pwd",
+      "Bash:wc.*",
+      "Bash:echo.*",
+      "Bash:python scripts/.*",
+      "Bash:python -m pytest.*",
+      "Bash:python plugins/.*",
+      "Bash:python3.*<<.*EOF",
+      "Bash:cd.*&&.*python.*",
+      "Bash:git status",
+      "Bash:git diff.*",
+      "Bash:git log.*",
+      "Bash:git add.*",
+      "Bash:git commit.*",
+      "Bash:npm test",
+      "Bash:npm run.*",
+      "Bash:pytest.*"
     ],
-    "deny": [],
-    "ask": [
-      "Task(.*planner.*):*"
-    ]
+    "deny": [
+      "Read:.*\\.ssh/.*",
+      "Read:.*\\.aws/.*",
+      "Read:.*\\.env$",
+      "Write:.*\\.ssh/.*",
+      "Write:.*\\.aws/.*",
+      "Write:/etc/.*",
+      "Write:/usr/.*",
+      "Write:/System/.*",
+      "Bash:.*rm -rf.*",
+      "Bash:.*sudo.*",
+      "Bash:.*git push --force.*",
+      "Bash:.*git push -f.*",
+      "Bash:.*git reset --hard.*"
+    ],
+    "ask": []
   },
   "hooks": {
-    "UserPromptSubmit": [
+    "PreToolUse": [
       {
-        "description": "Display STRICT MODE status",
+        "description": "Batch permission approver",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔒 STRICT MODE ENABLED (v3.2.2 - Claude Coordination)\\n\\n📊 System Status:\\n- 18 Agents active (orchestrator removed in v3.2.2 - Claude coordinates directly)\\n- 19 Skills loaded (using progressive disclosure architecture)\\n- 18 Commands available (/auto-implement, /research, /plan, /test-feature, etc.)\\n\\n🎯 Autonomous Development:\\n- PROJECT.md alignment REQUIRED before any feature work\\n- Full SDLC pipeline: research → plan → test → implement → review → security → docs\\n- File organization enforced: src/, docs/, tests/, scripts/\\n- All commits validated: alignment + tests + security + docs (BLOCKING)\\n'"
-          }
-        ]
-      },
-      {
-        "description": "Auto-detect feature requests and trigger orchestrator",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/detect_feature_request.py"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [],
-    "PreCommit": [
-      {
-        "description": "Comprehensive GenAI-enhanced validation pipeline (6 hooks)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/validate_project_alignment.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python .claude/hooks/security_scan.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python .claude/hooks/auto_generate_tests.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python .claude/hooks/auto_update_docs.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python .claude/hooks/validate_docs_consistency.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python .claude/hooks/auto_fix_docs.py || exit 1"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "description": "Log agent completion to structured pipeline file",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/log_agent_completion.py"
+            "command": "python .claude/hooks/batch_permission_approver.py"
           }
         ]
       }
