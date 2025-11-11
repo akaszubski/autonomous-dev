@@ -629,7 +629,9 @@ class DocumentationParityValidator:
             # Pattern: "- `/auto-implement` - Autonomous feature development"
             # Pattern: "`/auto-implement`"
             matches = re.findall(r"`/([a-z-]+)`", content)
-            features.extend(matches)
+            # Exclude built-in CLI commands (not part of plugin)
+            built_in_commands = {"clear", "exit", "help"}
+            features.extend([m for m in matches if m not in built_in_commands])
 
         elif feature_type == "library":
             # Pattern: "1. **security_utils.py** - Centralized security validation"

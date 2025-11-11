@@ -178,7 +178,7 @@ class ClaudeAlignmentValidator:
             "/test",
             "/status",
             "/health-check",
-            "/sync-dev",
+            "/sync",
             "/uninstall"
         ]
 

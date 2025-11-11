@@ -67,13 +67,13 @@ class TestCharacterCountValidation:
 
     def test_total_content_preserved(self):
         """
-        Total content across CLAUDE.md + new docs should approximately equal original.
+        Total content across CLAUDE.md + new docs should approximately equal baseline.
 
-        Original CLAUDE.md: ~54,511 characters
-        After optimization: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
-        Tolerance: ±5% (to allow for link text, formatting differences)
+        Baseline (comprehensive documentation): ~84,553 characters
+        Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
+        Tolerance: ±5% (to allow for minor content updates)
         """
-        original_size = 54511  # Current CLAUDE.md size
+        original_size = 84553  # Comprehensive documentation baseline (v3.11.0)
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -110,10 +110,10 @@ class TestCharacterCountValidation:
         """
         Individual documentation files should be appropriately sized.
 
-        Expected sizes (approximate):
-        - docs/LIBRARIES.md: ~12,000 characters (library descriptions)
-        - docs/PERFORMANCE.md: ~2,000 characters (Phase 4-7 details)
-        - docs/GIT-AUTOMATION.md: ~3,000 characters (env var docs)
+        Expected sizes (comprehensive documentation, v3.11.0):
+        - docs/LIBRARIES.md: ~40,585 characters (18 library API references)
+        - docs/PERFORMANCE.md: ~8,039 characters (complete optimization tracking)
+        - docs/GIT-AUTOMATION.md: ~10,909 characters (comprehensive workflow guide)
         """
         project_root = Path(__file__).parent.parent.parent
 
@@ -126,22 +126,22 @@ class TestCharacterCountValidation:
         assert performance_md.exists(), "docs/PERFORMANCE.md not created"
         assert git_automation_md.exists(), "docs/GIT-AUTOMATION.md not created"
 
-        # Check sizes (±30% tolerance for formatting)
+        # Check sizes (±30% tolerance for minor updates)
         libraries_size = len(libraries_md.read_text(encoding="utf-8"))
         performance_size = len(performance_md.read_text(encoding="utf-8"))
         git_automation_size = len(git_automation_md.read_text(encoding="utf-8"))
 
-        assert 8000 <= libraries_size <= 16000, (
+        assert 28000 <= libraries_size <= 54000, (
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
-            f"(expected ~12,000 ±30%)"
+            f"(expected ~40,585 ±30%)"
         )
-        assert 1400 <= performance_size <= 2600, (
+        assert 5600 <= performance_size <= 10500, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
-            f"(expected ~2,000 ±30%)"
+            f"(expected ~8,039 ±30%)"
         )
-        assert 2100 <= git_automation_size <= 3900, (
+        assert 7600 <= git_automation_size <= 14200, (
             f"GIT-AUTOMATION.md size unexpected: {git_automation_size} chars "
-            f"(expected ~3,000 ±30%)"
+            f"(expected ~10,909 ±30%)"
         )
 
 
@@ -598,12 +598,12 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for agent count (19 specialists)
+        # Check for agent count (20 specialists)
         # Allow some flexibility in phrasing
         agent_count_patterns = [
-            r"19\s+(?:AI\s+)?agents",
-            r"19\s+specialists",
-            r"Agents\s+\(19\s+specialists",
+            r"20\s+(?:AI\s+)?agents",
+            r"20\s+specialists",
+            r"Agents\s+\(20\s+specialists",
         ]
 
         has_agent_count = any(
@@ -612,7 +612,7 @@ class TestAlignmentValidation:
         )
 
         assert has_agent_count, (
-            "CLAUDE.md missing correct agent count (19 specialists). "
+            "CLAUDE.md missing correct agent count (20 specialists). "
             "Ensure agent documentation preserved during optimization."
         )
 
