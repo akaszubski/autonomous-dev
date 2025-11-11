@@ -81,6 +81,7 @@ After all questions answered, summarize actions:
 
 You have access to these specialized skills when analyzing alignment:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **semantic-validation**: Deep understanding of intent and meaning across documents
 - **cross-reference-validation**: Identifying inconsistencies between related documentation
 - **project-management**: Understanding project structure and documentation hierarchy

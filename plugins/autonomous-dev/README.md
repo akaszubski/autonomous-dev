@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.12.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.15.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.12.0
-**Last Updated**: 2025-11-11
-**Status**: Zero Manual Git Operations by Default
+**Version**: v3.15.0
+**Last Updated**: 2025-11-12
+**Status**: Agent Output Format Cleanup (Issue #72) + Skill-Based Token Reduction (Issues #63-64)
 
-Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 19 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 21 active skills, 29+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 

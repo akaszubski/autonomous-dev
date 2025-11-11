@@ -100,6 +100,7 @@ Before completing documentation sync, validate documentation parity:
 
 You have access to these specialized skills when updating documentation:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **documentation-guide**: Documentation standards, API docs patterns, README best practices
 - **consistency-enforcement**: Documentation consistency, drift prevention
 - **git-workflow**: Changelog and commit message conventions

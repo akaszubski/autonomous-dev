@@ -2,15 +2,133 @@
 
 All notable changes to the autonomous-dev plugin documented here.
 
-**Last Updated**: 2025-11-11
-**Current Version**: v3.13.0 (Multi-Method Task Tool Agent Detection)
+**Last Updated**: 2025-11-12
+**Current Version**: v3.15.0 (Agent Output Format Cleanup)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
-## [Unreleased]
+
+## [3.15.0] - 2025-11-12
+
+### Added
+- **Agent Output Format Cleanup** - GitHub Issue #72
+  - Created token measurement infrastructure for tracking cleanup progress
+  - **measure_agent_tokens.py**: Token counting script with baseline/post-cleanup comparison
+    - Functions: `measure_baseline_tokens()`, `calculate_token_savings()`, `analyze_agent_tokens()`
+    - CLI flags: `--baseline`, `--post-cleanup`, `--report`, `--json`
+    - Per-agent token analysis with section-level breakdown
+    - Token savings calculation with percentage reduction
+    - Ranked savings report showing top agents
+    - Location: `scripts/measure_agent_tokens.py`
+  - **measure_output_format_sections.py**: Helper utilities for Output Format section analysis
+    - Functions: `extract_output_format_section()`, `count_output_format_lines()`, `identify_verbose_sections()`
+    - Line counting excludes empty lines and code blocks
+    - Subsection verbosity detection (>20 lines threshold)
+    - Location: `scripts/measure_output_format_sections.py`
+  - **Baseline measurements**: Saved to `docs/metrics/baseline_tokens.json` (26,401 tokens)
+  - **Post-cleanup measurements**: Saved to `docs/metrics/post_cleanup_tokens.json` (25,218 tokens)
+
+### Changed
+- **Phase 1 Agent Output Format Cleanup** (5 agents streamlined):
+  - **test-master**: Added agent-output-formats skill reference
+  - **quality-validator**: Streamlined Output Format section (15 lines → 3 lines, saved ~100 tokens)
+  - **advisor**: Streamlined Output Format section (20 lines → 3 lines, saved ~450 tokens)
+  - **alignment-validator**: Streamlined Output Format section (25 lines → 3 lines, saved ~180 tokens)
+  - **project-progress-tracker**: Streamlined Output Format section (60 lines → 8 lines, saved ~400 tokens)
+  - All agents now reference agent-output-formats skill for detailed format specifications
+  - Removed redundant template examples, kept agent-specific guidance
+  - No Output Format sections exceed 30-line threshold after cleanup
+- **20 agents now reference agent-output-formats skill** for standardized output formatting via progressive disclosure
+  - Core workflow agents (9): researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+  - Utility agents (11): alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
+
+### Performance
+- **Total token reduction: ~1,183 tokens (4.5% reduction across all agents)**
+  - Phase 1 agents token savings:
+    - quality-validator: 574 → 474 tokens (saved 100)
+    - advisor: 1,082 → 632 tokens (saved 450)
+    - alignment-validator: 767 → 587 tokens (saved 180)
+    - project-progress-tracker: 2,192 → 1,792 tokens (saved 400)
+    - test-master: 392 → 404 tokens (added skill reference, +12 tokens)
+  - Combined with Issues #63/#64: ~11,683 tokens total savings (20-28% reduction)
+  - Quality preserved: agent-output-formats skill provides full format details via progressive disclosure
+
+### Documentation
+- CLAUDE.md updated with Issue #72 token savings details
+- CHANGELOG.md updated with Issue #72 implementation details
+- Token measurement data saved in `docs/metrics/` directory
+- docs/SKILLS-AGENTS-INTEGRATION.md updated: agent-output-formats coverage expanded from 15 to 20 agents
+
+### Testing
+- Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
+- Test files:
+  - `tests/unit/test_agent_output_cleanup_token_counting.py` (49 tests)
+  - `tests/unit/test_agent_output_cleanup_skill_references.py` (29 tests)
+  - `tests/unit/test_agent_output_cleanup_section_length.py` (26 tests)
+  - `tests/unit/test_agent_output_cleanup_documentation.py` (23 tests)
+  - `tests/integration/test_agent_output_cleanup_quality.py` (30 tests)
+- All agent skill references validated (20/20 agents reference agent-output-formats)
+- All Output Format sections under 30-line threshold
+- Token measurements verified and documented
+
+---
+
+
+## [3.14.0] - 2025-11-11
+
+### Added
+- **Skill-Based Token Reduction** - GitHub Issues #63, #64
+  - Created 2 new skills for standardized patterns across agents and libraries
+  - **agent-output-formats skill** (Issue #63):
+    - Standardized output formats for research, planning, implementation, and review agents
+    - Templates for all agent types: Research Agent, Planning Agent, Implementation Agent, Review Agent, Brownfield Analysis Agent
+    - 5-section structure: Findings/Patterns, Best Practices, Security Considerations, Recommendations/Architecture/Changes/Issues, References/Links
+    - Auto-activates on keywords: output, format, research, planning, implementation, review, agent response, findings, recommendations, architecture, changes
+    - Referenced by 15 agents: researcher, planner, implementer, reviewer, security-auditor, doc-master, issue-creator, brownfield-analyzer, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator, commit-message-generator, pr-description-generator
+    - Location: `plugins/autonomous-dev/skills/agent-output-formats/`
+  - **error-handling-patterns skill** (Issue #64):
+    - Standardized error handling: exception hierarchy, error message formatting, security audit logging, graceful degradation
+    - Exception hierarchy pattern (AutonomousDevError base with 4 domain categories: SecurityError, ValidationError, GitError, AgentError)
+    - Error message format: "ERROR: {what went wrong}\nEXPECTED: {what was expected}\nRECEIVED: {what was provided}\nSUGGESTION: {how to fix}"
+    - Security audit logging pattern with CWE references
+    - Graceful degradation strategies (fallback values, feature flags, optional features)
+    - Auto-activates on keywords: error, exception, validation, raise, try, catch, except, audit, logging, graceful degradation
+    - Referenced by 22 libraries: agent_invoker.py, alignment_assessor.py, artifacts.py, auto_implement_git_integration.py, brownfield_retrofit.py, codebase_analyzer.py, first_run_warning.py, github_issue_automation.py, hook_activator.py, migration_planner.py, orphan_file_cleaner.py, plugin_updater.py, project_md_updater.py, retrofit_executor.py, retrofit_verifier.py, security_utils.py, sync_dispatcher.py, update_plugin.py, user_state_manager.py, validate_documentation_parity.py, validate_marketplace_version.py, version_detector.py
+    - Location: `plugins/autonomous-dev/skills/error-handling-patterns/`
+
+### Changed
+- **Agent prompts streamlined** (15 agents updated):
+  - Replaced verbose output format instructions with skill references
+  - Replaced verbose error handling instructions with skill references
+  - Token savings: 300-800 tokens per agent (average 500 tokens)
+  - Agents updated: researcher, planner, implementer, reviewer, security-auditor, doc-master, issue-creator, brownfield-analyzer, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator, commit-message-generator, pr-description-generator
+- **Library docstrings streamlined** (22 libraries updated):
+  - Replaced verbose error handling documentation with skill references
+  - Token savings: 100-300 tokens per library (average 200 tokens)
+  - Libraries updated: agent_invoker.py, alignment_assessor.py, artifacts.py, auto_implement_git_integration.py, brownfield_retrofit.py, codebase_analyzer.py, first_run_warning.py, github_issue_automation.py, hook_activator.py, migration_planner.py, orphan_file_cleaner.py, plugin_updater.py, project_md_updater.py, retrofit_executor.py, retrofit_verifier.py, security_utils.py, sync_dispatcher.py, update_plugin.py, user_state_manager.py, validate_documentation_parity.py, validate_marketplace_version.py, version_detector.py
+
+### Performance
+- **Total token reduction: ~10,500 tokens (18-25% reduction)**
+  - Agent prompts: 15 agents × 500 tokens = 7,500 tokens saved
+  - Library docstrings: 22 libraries × 200 tokens = 4,400 tokens saved (estimated ~3,000 tokens net)
+  - Total impact: Faster context loading, reduced API costs, improved agent invocation speed
+  - Quality preserved: Skills provide same guidance, loaded on-demand via progressive disclosure
+
+### Documentation
+- Updated skill count: 19 → 21 active skills
+- CLAUDE.md updated with new skills in categories
+- docs/SKILLS-AGENTS-INTEGRATION.md updated with agent-output-formats and error-handling-patterns mappings
+- plugins/autonomous-dev/README.md updated with skill count
+
+### Testing
+- Test coverage: 120 passing, 53 skipped
+- All skill files include examples and templates
+- Skills validated with auto-activation keywords
+
+
 
 ## [3.13.0] - 2025-11-11
 

@@ -96,6 +96,7 @@ Non-critical security improvements:
 
 You have access to these specialized skills when auditing security:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **security-patterns**: Security best practices, API key management, input validation patterns
 - **python-standards**: Secure Python coding patterns
 - **code-review**: Code quality patterns related to security

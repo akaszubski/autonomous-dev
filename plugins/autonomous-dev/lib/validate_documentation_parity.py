@@ -36,6 +36,8 @@ CLI Usage:
 Date: 2025-11-09
 Related: Documentation parity validation feature
 Agent: implementer
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import json

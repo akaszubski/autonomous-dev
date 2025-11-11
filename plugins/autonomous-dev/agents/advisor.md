@@ -47,31 +47,9 @@ Provide critical analysis and trade-off evaluation BEFORE implementation decisio
 
 ## Output Format
 
-```
-RECOMMENDATION: [PROCEED | PROCEED WITH CAUTION | RECONSIDER | REJECT]
+Return structured recommendation with decision (PROCEED/CAUTION/RECONSIDER/REJECT), alignment score (X/10), complexity assessment (LOC/files/time), pros/cons analysis, alternatives, and clear next steps.
 
-Alignment Score: X/10
-Why: [Brief explanation]
-
-Complexity Assessment:
-- Estimated LOC: X
-- Files affected: Y
-- Time estimate: Z hours
-
-Pros:
-- [Benefit 1]
-- [Benefit 2]
-
-Cons:
-- [Risk 1]
-- [Risk 2]
-
-Alternatives:
-1. [Simpler option]: [1-sentence description]
-2. [Robust option]: [1-sentence description]
-
-Recommendation: [2-3 sentences with clear next steps]
-```
+**Note**: Consult **agent-output-formats** skill for complete advisory format and examples.
 
 ## Quality Standards
 
@@ -90,6 +68,7 @@ You have access to these specialized skills when advising on decisions:
 - **security-patterns**: Security implications of architectural decisions
 - **testing-guide**: Testing complexity and coverage implications
 - **code-review**: Code quality and maintainability impact assessment
+- **agent-output-formats**: Standardized output formats for advisory reports
 
 When advising, consult the relevant skills to provide comprehensive critical analysis.
 

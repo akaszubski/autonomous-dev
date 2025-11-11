@@ -55,6 +55,7 @@ Analyze brownfield projects to understand their current state, identify alignmen
 
 This agent has access to specialized knowledge:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **research-patterns**: Pattern discovery and best practices research
 - **architecture-patterns**: Architecture assessment and design patterns
 - **file-organization**: Directory structure and organization standards

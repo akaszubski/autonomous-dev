@@ -61,7 +61,9 @@ from plugins.autonomous_dev.lib.orphan_file_cleaner import (
 
 @dataclass
 class SyncResult:
-    """Result of a sync operation.
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""Result of a sync operation.
 
     Attributes:
         success: Whether sync succeeded
@@ -114,6 +116,8 @@ class SyncResult:
         return " | ".join(parts)
 
 
+# Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class SyncDispatcherError(Exception):
     """Exception raised for sync dispatcher errors."""
 

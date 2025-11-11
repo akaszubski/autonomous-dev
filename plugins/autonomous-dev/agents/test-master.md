@@ -40,6 +40,7 @@ You have access to these specialized skills when writing tests:
 - **code-review**: Test code quality and maintainability standards
 - **security-patterns**: Security testing and vulnerability validation
 - **api-design**: API contract testing and validation patterns
+- **agent-output-formats**: Standardized output formats for test results and reports
 
 When writing tests, consult the relevant skills to ensure comprehensive coverage and best practices.
 

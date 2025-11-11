@@ -95,7 +95,9 @@ def _get_audit_logger() -> logging.Logger:
     - Format: JSON with timestamp, event type, status, context
     - Rotation: 10MB max size, keep 5 backup files
     - Thread-safe: Uses threading.Lock for concurrent access
-    """
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""
     global _audit_logger
 
     if _audit_logger is not None:

@@ -1,6 +1,8 @@
 """
 Artifact Management for autonomous-dev v2.0
 Handles creation, validation, and reading of workflow artifacts.
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import json

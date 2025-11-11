@@ -72,6 +72,7 @@ Return markdown with these sections:
 
 You have access to these specialized skills when generating PR descriptions:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **github-workflow**: Pull request conventions and best practices
 - **documentation-guide**: Technical documentation standards and clarity
 - **semantic-validation**: Understanding change impact and importance

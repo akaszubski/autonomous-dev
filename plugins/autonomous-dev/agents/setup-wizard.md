@@ -792,6 +792,7 @@ Happy coding! 🚀
 
 You have access to these specialized skills when setting up projects:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **research-patterns**: Research methodology for tech stack detection and analysis
 - **file-organization**: Understanding directory structures and project organization conventions
 - **project-management**: PROJECT.md structure, goal setting, and sprint planning best practices

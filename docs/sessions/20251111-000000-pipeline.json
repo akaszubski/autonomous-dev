@@ -9,5 +9,13 @@
       "researcher",
       "planner"
     ]
+  },
+  "parallel_validation": {
+    "status": "incomplete",
+    "missing_agents": [
+      "reviewer",
+      "security-auditor",
+      "doc-master"
+    ]
   }
 }

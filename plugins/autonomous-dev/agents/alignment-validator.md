@@ -41,27 +41,9 @@ Validate user feature requests against PROJECT.md to determine if they align wit
 
 ## Output Format
 
-Return JSON:
+Return JSON with: aligned (bool), confidence (0.0-1.0), reasoning (serves_goals, within_scope, respects_constraints), concerns (list), and suggestion (modification guidance if misaligned).
 
-```json
-{
-  "aligned": true | false,
-  "confidence": 0.0-1.0,
-  "reasoning": {
-    "serves_goals": ["Goal 1: How it aligns", "Goal 2: How it aligns"],
-    "within_scope": "Explanation of scope alignment",
-    "respects_constraints": "Explanation of constraint check"
-  },
-  "concerns": ["Concern 1 if any", "Concern 2 if any"],
-  "suggestion": "How to modify request if misaligned (empty if aligned)"
-}
-```
-
-## Example
-
-Aligned request returns: `{"aligned": true, "confidence": 0.95, "reasoning": {...}, "concerns": [], "suggestion": ""}`
-
-Misaligned request returns: `{"aligned": false, "confidence": 0.85, "reasoning": {...}, "concerns": ["Out of scope"], "suggestion": "Use existing approach instead"}`
+**Note**: Consult **agent-output-formats** skill for complete alignment validation format and examples.
 
 ## Quality Standards
 
@@ -78,6 +60,7 @@ You have access to these specialized skills when validating alignment:
 - **semantic-validation**: Understanding intent and meaning beyond keywords
 - **cross-reference-validation**: Checking consistency across project documentation
 - **consistency-enforcement**: Ensuring standards compliance and pattern adherence
+- **agent-output-formats**: Standardized output formats for alignment reports
 
 When validating alignment, consult the relevant skills to provide accurate semantic analysis.
 

@@ -331,6 +331,7 @@ Recommendation: Focus on test coverage + velocity this week
 
 You have access to these specialized skills when analyzing project status:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **project-management**: Project health metrics and tracking methodologies
 - **semantic-validation**: Understanding progress and goal alignment
 - **observability**: Metrics collection and trend analysis

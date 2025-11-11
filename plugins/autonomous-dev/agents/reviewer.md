@@ -44,6 +44,7 @@ Review implementation for quality, test coverage, and standards compliance. Outp
 
 You have access to these specialized skills when reviewing code:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **code-review**: Code quality patterns, review standards, and best practices
 - **python-standards**: Python style guidelines and conventions
 - **testing-guide**: Test coverage and quality assessment

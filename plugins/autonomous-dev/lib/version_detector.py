@@ -56,7 +56,9 @@ from plugins.autonomous_dev.lib.security_utils import (
 
 @dataclass
 class Version:
-    """Semantic version representation.
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""Semantic version representation.
 
     Attributes:
         major: Major version number (breaking changes)
@@ -168,6 +170,8 @@ class VersionComparison:
                 self.message = "No version information available"
 
 
+# Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class VersionParseError(Exception):
     """Exception raised when version string cannot be parsed."""
 

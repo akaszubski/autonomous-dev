@@ -35,6 +35,8 @@ Date: 2025-11-09
 Issue: GitHub #50 - Fix Marketplace Update UX
 Agent: implementer
 Related: version_detector.py, health_check.py
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import argparse

@@ -154,6 +154,7 @@ Generate a comprehensive GitHub issue body with these sections:
 
 This agent has access to these skills for enhanced decision-making:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **github-workflow**: GitHub issue creation patterns and best practices
 - **documentation-guide**: Documentation standards and structure
 - **research-patterns**: Research synthesis and pattern identification

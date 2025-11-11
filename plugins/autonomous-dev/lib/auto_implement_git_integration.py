@@ -62,7 +62,9 @@ except ImportError:
         return False
     def show_first_run_warning(state_file):
         return True
-    class FirstRunWarningError(Exception):
+    # Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
+class FirstRunWarningError(Exception):
         pass
     from pathlib import Path
     DEFAULT_STATE_FILE = Path.home() / ".autonomous-dev" / "user_state.json"
@@ -101,7 +103,9 @@ def parse_consent_value(value: Optional[str], default: bool = True) -> bool:
         True
         >>> parse_consent_value(None, default=False)  # Custom default
         False
-    """
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""
     # None or empty string uses default
     if value is None:
         return default

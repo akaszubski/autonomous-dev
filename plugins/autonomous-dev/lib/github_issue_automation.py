@@ -10,6 +10,8 @@ Security:
 - CWE-20: Input validation (length limits, format validation)
 
 Related to: GitHub Issue #58 - Automatic GitHub issue creation with research
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import json
@@ -29,6 +31,8 @@ from .security_utils import audit_log, validate_input_length, validate_path
 # =============================================================================
 
 
+# Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class IssueCreationError(Exception):
     """Base exception for issue creation errors."""
     pass

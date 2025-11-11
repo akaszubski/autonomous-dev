@@ -50,57 +50,11 @@ Update PROJECT.md to reflect feature completion progress, map completed features
 
 ## Output Format
 
-**For automated hooks (SubagentStop)**: Return YAML format for easy parsing:
+**Automated hooks (SubagentStop)**: Return YAML with goal percentages and features completed.
 
-```yaml
-assessment:
-  goal_1: 25
-  goal_2: 50
-  goal_3: 75
-  features_completed: 3
-```
+**Interactive use**: Return detailed JSON with feature mapping, goal progress, PROJECT.md updates, and next priorities.
 
-**For interactive use**: Return detailed JSON with update details and suggestions:
-
-```json
-{
-  "feature_completed": "Feature name",
-  "maps_to_goal": "Goal name from PROJECT.md",
-  "scope_area": "Scope area (e.g., Authentication, API, UI)",
-  "goal_progress": {
-    "goal_name": "Enhanced user experience",
-    "previous_progress": "50%",
-    "new_progress": "60%",
-    "features_completed": 3,
-    "features_total": 5,
-    "status": "in_progress"
-  },
-  "project_md_updates": {
-    "section": "GOALS",
-    "changes": [
-      "Updated 'Enhanced UX' goal: 50% → 60% (3/5 features)",
-      "Added 'Add dark mode' to completed features"
-    ]
-  },
-  "next_priorities": [
-    {
-      "feature": "Add keyboard shortcuts",
-      "goal": "Enhanced user experience",
-      "rationale": "Completes UX goal (would be 80% done)",
-      "estimated_effort": "medium"
-    },
-    {
-      "feature": "Add rate limiting",
-      "goal": "Performance & reliability",
-      "rationale": "Addresses underserved goal (currently 20%)",
-      "estimated_effort": "high"
-    }
-  ],
-  "summary": "Feature 'Add dark mode' advances 'Enhanced UX' goal to 60% (3/5). Recommend focusing on UX completion or addressing Performance goal next."
-}
-```
-
-**Note**: When invoked from SubagentStop hook, use YAML format. When invoked by user via `/status` command, use detailed JSON format.
+**Note**: Consult **agent-output-formats** skill for complete format specifications and examples.
 
 ## PROJECT.md Update Strategy
 
@@ -282,6 +236,7 @@ You have access to these specialized skills when tracking progress:
 - **project-management**: Project planning, prioritization, and tracking methodologies
 - **semantic-validation**: Understanding feature-to-goal mapping and relationships
 - **documentation-currency**: Keeping documentation up-to-date and accurate
+- **agent-output-formats**: Standardized output formats for progress reports (YAML for hooks, JSON for interactive use)
 
 When tracking progress, consult the relevant skills to provide strategic recommendations.
 

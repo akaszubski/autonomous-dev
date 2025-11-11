@@ -105,6 +105,7 @@ Critical notes:
 
 You have access to these specialized skills when planning architecture:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **architecture-patterns**: System design, ADRs, design patterns, scalability patterns
 - **project-management**: Project scope, goal alignment, constraint checking
 - **database-design**: Schema design, normalization, query patterns

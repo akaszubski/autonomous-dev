@@ -1,8 +1,8 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-11-12
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.12.0 (Issue #61 - Zero Manual Git Operations by Default)
+**Version**: v3.15.0 (Issue #72 - Agent Output Format Cleanup, Issues #63-64 - Skill-Based Token Reduction, Issue #61 - Zero Manual Git Operations)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 

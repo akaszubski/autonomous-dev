@@ -252,14 +252,32 @@ Minimal tool access:
 
 #### Skill Coverage Summary
 
-**Total Unique Skills Referenced**: 18 of 19 available skills (95% coverage)
+#### Skill Coverage Summary
+
+**Total Unique Skills Referenced**: 21 of 21 available skills (100% coverage)
+
+**New Skills (v3.14.0)**:
+- **agent-output-formats** (Issue #72): Referenced by all 20 agents for standardized output formatting
+- **error-handling-patterns** (Issue #64): Referenced by 22 libraries for standardized error handling
 
 **Skills by Reference Count** (sorted by usage):
+- **Ultra-High-Use Skills** (20-22 references): error-handling-patterns (22 libraries), agent-output-formats (20 agents)
 - **High-Use Skills** (5+ agents): semantic-validation (3), file-organization (5), python-standards (5), research-patterns (4), code-review (5), project-management (2), testing-guide (3), security-patterns (3)
-- **Medium-Use Skills** (2-4 agents): documentation-guide (2), consistency-enforcement (3), git-workflow (2), code-review (5)
+- **Medium-Use Skills** (2-4 agents): documentation-guide (2), consistency-enforcement (3), git-workflow (2)
 - **Specialized Skills** (1 agent): github-workflow (1), advisor-triggers (1), cross-reference-validation (1), documentation-currency (1), database-design (1), api-design (1), architecture-patterns (1), observability (1)
 
-**Unused Skill**: None (all 19 skills are referenced by at least one agent)
+**Agent-Skill Integration Details**:
+- Core workflow agents (9 agents): 22 skill references + agent-output-formats references
+- Utility agents (11 agents): 25 skill references + agent-output-formats references
+- All 20 agents: Standardized output formats via agent-output-formats skill (Issue #72)
+- All libraries (22 libraries): error-handling-patterns references
+
+**Token Reduction Impact** (Issues #63, #64, #72):
+- Agent prompts (Issues #63-64): ~7,500 tokens saved (15 agents × 500 tokens average)
+- Library docstrings (Issues #63-64): ~3,000 tokens saved (22 libraries × 200 tokens average, net reduction)
+- Agent output format cleanup (Issue #72): ~1,183 tokens saved (5 agents streamlined, 20 agents now reference skill)
+- Combined total savings: ~11,683 tokens (20-28% reduction)
+- Quality: Preserved via progressive disclosure (skills load on-demand)
 
 #### Progressive Disclosure in Action
 

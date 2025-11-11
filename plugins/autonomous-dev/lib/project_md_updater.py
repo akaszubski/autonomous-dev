@@ -45,7 +45,9 @@ except ImportError:
 
 
 class ProjectMdUpdater:
-    """Safe, atomic updater for PROJECT.md goal progress."""
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""Safe, atomic updater for PROJECT.md goal progress."""
 
     def __init__(self, project_file: Path):
         """Initialize updater with security validation.

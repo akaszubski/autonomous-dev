@@ -38,6 +38,8 @@ Exit Codes:
 Date: 2025-11-09
 Issue: GitHub #50 Phase 2 - Interactive /update-plugin command
 Agent: implementer
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import argparse

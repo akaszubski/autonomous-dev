@@ -18,6 +18,8 @@ Security:
 
 Related:
     - GitHub Issue #59: Brownfield retrofit command implementation
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import json

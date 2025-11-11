@@ -14,6 +14,8 @@ Features:
 Date: 2025-11-11
 Issue: #61 (Enable Zero Manual Git Operations by Default)
 Agent: implementer
+
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
 """
 
 import copy
@@ -46,6 +48,8 @@ DEFAULT_STATE = {
 }
 
 
+# Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class UserStateError(Exception):
     """Exception raised for user state management errors."""
     pass

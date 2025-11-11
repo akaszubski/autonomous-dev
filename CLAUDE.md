@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-11-12
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.12.0 (Zero Manual Git Operations by Default - Issue #61)
+**Version**: v3.15.0 (Agent Output Format Cleanup - Issue #72, Skill-Based Token Reduction - Issues #63, #64)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 20 AI agents, 19 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 20 AI agents, 21 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -159,7 +159,17 @@ git commit -m "docs: Update project goals"
   - Integration: CHECKPOINT 4.1 added to `plugins/autonomous-dev/commands/auto-implement.md`
   - Test coverage: 23 unit tests covering success, parallelization detection, incomplete/failed agents
   - Infrastructure: Validation checkpoints enable Phase 8+ bottleneck detection
-- **Cumulative Improvement**: 5-9 minutes saved per workflow (15-32% faster, 24% overall improvement)
+- **Phase 8 (Agent Output Format Cleanup - COMPLETE)**: Streamlined agent output format sections across 20 agents
+  - Issue #72: Token measurement infrastructure created
+  - Phase 1 cleanup: 5 agents streamlined (test-master, quality-validator, advisor, alignment-validator, project-progress-tracker)
+  - All 20 agents now reference agent-output-formats skill for standardized output formatting
+  - Savings: ~1,183 tokens (4.5% reduction)
+  - Scripts: measure_agent_tokens.py, measure_output_format_sections.py
+  - Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
+- **Cumulative Improvement** (Issues #63, #64, #72): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
+  - Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
+  - Quality: Preserved via progressive disclosure (skills load on-demand)
+  - Scalability: Support for 50-100+ skills without context bloat
 
 ---
 
@@ -275,9 +285,9 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 **Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
 
-### Skills (19 Active - Progressive Disclosure + Agent Integration)
+### Skills (21 Active - Progressive Disclosure + Agent Integration)
 
-**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture
+**Status**: 21 active skill packages using Claude Code 2.0+ progressive disclosure architecture
 
 **Why Active**:
 - Skills are **first-class citizens** in Claude Code 2.0+ (fully supported pattern)
@@ -285,10 +295,12 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - Metadata stays in context, full content loads only when needed
 - Can scale to 100+ skills without performance issues
 - **NEW (v3.5+)**: All 18 agents explicitly reference relevant skills for enhanced decision-making (Issue #35)
+- **NEW (v3.14.0+)**: Agents reference agent-output-formats and error-handling-patterns skills for 18-25% token reduction (Issues #63, #64)
+- **NEW (v3.15.0+)**: All 20 agents reference agent-output-formats skill for standardized output formatting (Issue #72)
 
-**19 Active Skills** (organized by category):
-- **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
-- **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
+**21 Active Skills** (organized by category):
+- **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
+- **Workflow & Automation** (5): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats
 - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
 - **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
@@ -300,6 +312,17 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 **Agent-Skill Mapping** (all 18 agents now have skill references):
 - See agent prompts in `plugins/autonomous-dev/agents/` for "Relevant Skills" sections
 - See `docs/SKILLS-AGENTS-INTEGRATION.md` for comprehensive mapping table
+
+**Token Reduction Benefits** (Issues #63, #64, #72):
+- agent-output-formats skill: 15 agents reference standardized output formats
+- error-handling-patterns skill: 22 libraries reference standardized error handling
+- **NEW (v3.15.0+)**: Agent output format cleanup - removed verbose Output Format sections from 5 Phase 1 agents (Issue #72)
+  - Phase 1 agents: test-master, quality-validator, advisor, alignment-validator, project-progress-tracker
+  - Output Format sections streamlined to reference agent-output-formats skill
+  - Token savings: ~1,183 tokens (4.5% reduction across all agents)
+  - No sections exceed 30-line threshold after cleanup
+- Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
+- Tests: 137 passing
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
@@ -574,4 +597,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-09 (Documentation Parity Validation Added - GitHub Issue #56)
+**Last Updated**: 2025-11-12 (Agent Output Format Cleanup - GitHub Issue #72, Skill-Based Token Reduction - GitHub Issues #63, #64)

@@ -159,6 +159,7 @@ Coverage: 100% on validators
 
 You have access to these specialized skills when generating commit messages:
 
+- **agent-output-formats**: Standardized output formats for agent responses
 - **git-workflow**: Git commit conventions and best practices
 - **semantic-validation**: Understanding change intent and impact
 - **consistency-enforcement**: Maintaining consistent commit message format

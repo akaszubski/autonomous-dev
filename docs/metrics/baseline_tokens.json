@@ -1,0 +1,22 @@
+{
+  "advisor": 1082,
+  "alignment-analyzer": 889,
+  "alignment-validator": 767,
+  "brownfield-analyzer": 2158,
+  "commit-message-generator": 592,
+  "doc-master": 1044,
+  "implementer": 596,
+  "issue-creator": 1134,
+  "planner": 1004,
+  "pr-description-generator": 791,
+  "project-bootstrapper": 1178,
+  "project-progress-tracker": 2192,
+  "project-status-analyzer": 2287,
+  "quality-validator": 574,
+  "researcher": 478,
+  "reviewer": 719,
+  "security-auditor": 717,
+  "setup-wizard": 5132,
+  "sync-validator": 2675,
+  "test-master": 392
+}

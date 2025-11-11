@@ -60,7 +60,9 @@ from plugins.autonomous_dev.lib.security_utils import (
 
 @dataclass
 class OrphanFile:
-    """Representation of an orphaned file.
+    
+See error-handling-patterns skill for exception hierarchy and error handling best practices.
+"""Representation of an orphaned file.
 
     Attributes:
         path: Full path to the orphaned file
@@ -129,6 +131,8 @@ class CleanupResult:
         return self.summary
 
 
+# Exception hierarchy pattern from error-handling-patterns skill:
+# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
 class OrphanDetectionError(Exception):
     """Exception raised for orphan detection errors."""
 

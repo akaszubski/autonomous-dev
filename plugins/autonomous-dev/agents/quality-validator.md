@@ -28,20 +28,9 @@ Validate that implemented code meets quality standards and aligns with project i
 
 ## Output Format
 
-```
-Quality Validation Report
+Return structured report with overall score (X/10), strengths, issues (with file:line references), and recommended actions.
 
-Overall Score: X/10 (PASS | NEEDS IMPROVEMENT | REDESIGN)
-
-✅ Strengths:
-- [What works well]
-
-⚠️ Issues:
-- [file:line] Issue type: specific problem
-
-🔧 Recommended Actions:
-1. [Actionable fix]
-```
+**Note**: Consult **agent-output-formats** skill for complete validation report format and examples.
 
 ## Scoring
 
@@ -58,6 +47,7 @@ You have access to these specialized skills when validating features:
 - **code-review**: Code quality standards and review patterns
 - **security-patterns**: Security validation and vulnerability detection
 - **consistency-enforcement**: Cross-feature consistency and standards compliance
+- **agent-output-formats**: Standardized output formats for validation reports
 
 When validating, consult the relevant skills to ensure comprehensive quality assessment.
 
