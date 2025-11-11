@@ -26,5 +26,29 @@ echo "🔍 Validating slash command implementations..."
 # Run command validation
 python plugins/autonomous-dev/hooks/validate_commands.py
 
+echo "🔍 Running documentation validation tests..."
+
+# Check if venv exists and has pytest
+if [ -f "venv/bin/pytest" ]; then
+    venv/bin/pytest tests/unit/test_claude_md_optimization.py tests/integration/test_documentation_references.py -q --tb=line
+    TEST_EXIT=$?
+    if [ $TEST_EXIT -ne 0 ]; then
+        echo ""
+        echo "⚠️  Documentation tests failed. Fix issues or bypass with: git commit --no-verify"
+        exit $TEST_EXIT
+    fi
+elif command -v pytest &> /dev/null; then
+    pytest tests/unit/test_claude_md_optimization.py tests/integration/test_documentation_references.py -q --tb=line
+    TEST_EXIT=$?
+    if [ $TEST_EXIT -ne 0 ]; then
+        echo ""
+        echo "⚠️  Documentation tests failed. Fix issues or bypass with: git commit --no-verify"
+        exit $TEST_EXIT
+    fi
+else
+    echo "⚠️  pytest not installed, skipping documentation tests"
+    echo "   Install: python -m venv venv && source venv/bin/activate && pip install pytest pytest-cov"
+fi
+
 # If all validations pass, allow commit
-exit $?
+exit 0
