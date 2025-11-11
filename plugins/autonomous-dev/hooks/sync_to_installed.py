@@ -449,8 +449,12 @@ def sync_plugin(source_dir: Path, target_dir: Path, dry_run: bool = False):
         if target_subdir.exists():
             shutil.rmtree(target_subdir)
 
-        # Copy source to target
-        shutil.copytree(source_subdir, target_subdir)
+        # Copy source to target, excluding archived directories
+        def ignore_archived(directory, contents):
+            """Ignore archived directories and their contents."""
+            return ['archived'] if 'archived' in contents else []
+
+        shutil.copytree(source_subdir, target_subdir, ignore=ignore_archived)
 
         # Count files
         file_count = sum(1 for _ in target_subdir.rglob("*") if _.is_file())
