@@ -1244,23 +1244,375 @@ class AgentTracker:
             "time_saved_seconds": metrics.get("time_saved_seconds", 0)
         }
 
+    def _validate_agent_data(self, agent_data: Dict[str, Any]) -> bool:
+        """Validate agent data structure and timestamps.
+
+        Args:
+            agent_data: Agent data dict to validate
+
+        Returns:
+            True if valid, False otherwise
+
+        Validates:
+            - Required fields: agent, status, started_at, completed_at
+            - Status is in ["completed", "failed"]
+            - Timestamps are valid ISO format
+
+        Security:
+            No exceptions raised - graceful validation for robust parsing
+        """
+        # Check required fields
+        required_fields = ["agent", "status", "started_at", "completed_at"]
+        if not all(field in agent_data for field in required_fields):
+            return False
+
+        # Validate status
+        if agent_data["status"] not in ["completed", "failed"]:
+            return False
+
+        # Validate timestamps (ISO format)
+        try:
+            datetime.fromisoformat(agent_data["started_at"])
+            datetime.fromisoformat(agent_data["completed_at"])
+        except (ValueError, TypeError):
+            return False
+
+        return True
+
+    def _get_session_text_file(self) -> Optional[str]:
+        """Get session text file path (.md) from JSON file path.
+
+        Returns:
+            Path to session .md file if exists, None otherwise
+
+        Example:
+            JSON: docs/sessions/20251111-test-pipeline.json
+            Text: docs/sessions/20251111-test-session.md
+
+            JSON: docs/sessions/test_session.json
+            Text: docs/sessions/test_session-session.md OR docs/sessions/20251111-test-session.md
+        """
+        try:
+            # Derive .md file path from JSON path
+            json_path = Path(self.session_file)
+            stem = json_path.stem
+
+            # Try multiple naming patterns
+            possible_paths = []
+
+            # Pattern 1: Remove -pipeline suffix if present, add -session
+            if stem.endswith("-pipeline"):
+                base_stem = stem[:-9]  # Remove "-pipeline"
+                possible_paths.append(json_path.parent / f"{base_stem}-session.md")
+
+            # Pattern 2: Direct stem + -session
+            possible_paths.append(json_path.parent / f"{stem}-session.md")
+
+            # Pattern 3: Extract session ID from stem if present (e.g., "20251111-test")
+            # For test files like "test_session.json", try to find matching session IDs
+            if "_" in stem:
+                # Look for any session file in the directory
+                for md_file in json_path.parent.glob("*-session.md"):
+                    possible_paths.append(md_file)
+
+            # Check each possible path
+            for text_path in possible_paths:
+                if text_path.exists():
+                    return str(text_path)
+
+            return None
+        except Exception as e:
+            audit_log("agent_tracker", "error", {
+                "operation": "_get_session_text_file",
+                "error": str(e)
+            })
+            return None
+
+    def _detect_agent_from_session_text(
+        self,
+        agent_name: str,
+        session_text_path: str
+    ) -> Optional[Dict[str, Any]]:
+        """Parse session text file for agent completion markers.
+
+        Args:
+            agent_name: Name of agent to find (e.g., "researcher")
+            session_text_path: Path to session .md file
+
+        Returns:
+            Agent data dict if found, None otherwise
+
+        Format Expected:
+            **HH:MM:SS - agent_name**: message
+            **HH:MM:SS - agent_name**: ... completed
+
+        Security:
+            - Validates path to prevent traversal attacks
+            - Audit logs all operations
+            - Graceful error handling (no crashes)
+        """
+        try:
+            # SECURITY: Validate path
+            validated_path = validate_path(
+                Path(session_text_path),
+                purpose="session text parsing",
+                allow_missing=False
+            )
+
+            # Read file
+            if not validated_path.exists():
+                return None
+
+            content = validated_path.read_text()
+
+            # Find agent markers (regex)
+            import re
+
+            # First, check if there are ANY malformed entries for this agent
+            # Look for lines with agent name but invalid timestamp format
+            malformed_pattern = rf"\*\*[^*]+ - {re.escape(agent_name)}\*\*:"
+            all_agent_lines = re.findall(malformed_pattern, content, re.MULTILINE)
+
+            # Pattern: **HH:MM:SS - agent_name**: message (strict timestamp format)
+            # This pattern ensures HH, MM, SS are valid digits
+            valid_pattern = rf"\*\*(\d{{2}}:\d{{2}}:\d{{2}}) - {re.escape(agent_name)}\*\*: (.+)"
+            matches = re.findall(valid_pattern, content, re.MULTILINE)
+
+            # If we found agent mentions but some don't match valid pattern, data is unreliable
+            if len(all_agent_lines) > len(matches):
+                return None  # Some malformed timestamps detected
+
+            if not matches:
+                return None
+
+            # Validate all timestamps match the pattern (no INVALID strings)
+            for time_str, _ in matches:
+                # Additional validation: check if time components are numeric
+                time_parts = time_str.split(':')
+                if len(time_parts) != 3:
+                    return None
+                try:
+                    # Validate each component is a valid integer
+                    hours, minutes, seconds = int(time_parts[0]), int(time_parts[1]), int(time_parts[2])
+                    # Basic range validation
+                    if not (0 <= hours <= 23 and 0 <= minutes <= 59 and 0 <= seconds <= 59):
+                        return None
+                except ValueError:
+                    return None  # Invalid timestamp component
+
+            # Find completion marker (latest one if multiple)
+            # Separate completions and starts
+            completion_markers = []
+            start_markers = []
+
+            for time_str, message in matches:
+                if "completed" in message.lower() or "complete" in message.lower():
+                    completion_markers.append((time_str, message))
+                else:
+                    start_markers.append((time_str, message))
+
+            if not completion_markers:
+                return None
+
+            # Use the latest completion
+            completion_marker = completion_markers[-1]
+
+            # Find the corresponding start marker (last start before this completion)
+            # If there are multiple completions, pair them correctly
+            start_marker = None
+            if start_markers:
+                # Use the start marker that corresponds to this completion
+                # If we have equal numbers of starts and completions, pair them
+                if len(start_markers) >= len(completion_markers):
+                    start_marker = start_markers[len(completion_markers) - 1]
+                else:
+                    # More completions than starts, use the last available start
+                    start_marker = start_markers[-1]
+
+            # Parse timestamps - extract session date from content
+            session_date = None
+
+            # Try Pattern 1: "Session YYYYMMDD" or "# Session YYYYMMDD"
+            date_match = re.search(r"(?:#\s+)?Session (\d{8})", content)
+            if date_match:
+                session_date = date_match.group(1)  # e.g., "20251111"
+            else:
+                # Try Pattern 2: "**Started**: YYYY-MM-DD HH:MM:SS"
+                date_match = re.search(r"\*\*Started\*\*:\s+(\d{4})-(\d{2})-(\d{2})", content)
+                if date_match:
+                    session_date = f"{date_match.group(1)}{date_match.group(2)}{date_match.group(3)}"
+                else:
+                    # Try Pattern 3: Use session_id from tracker if available
+                    if hasattr(self, 'session_data') and 'session_id' in self.session_data:
+                        session_id = self.session_data['session_id']
+                        # Extract date from session_id (format: YYYYMMDD-HHMMSS or YYYYMMDD-test)
+                        id_date_match = re.match(r"(\d{8})", session_id)
+                        if id_date_match:
+                            session_date = id_date_match.group(1)
+
+            if not session_date:
+                # No date found, return None
+                return None
+
+            # Convert to ISO format
+            start_time_str = f"{session_date[:4]}-{session_date[4:6]}-{session_date[6:8]}T{start_marker[0] if start_marker else completion_marker[0]}"
+            complete_time_str = f"{session_date[:4]}-{session_date[4:6]}-{session_date[6:8]}T{completion_marker[0]}"
+
+            # Build agent data
+            agent_data = {
+                "agent": agent_name,
+                "status": "completed",
+                "started_at": start_time_str,
+                "completed_at": complete_time_str,
+                "message": completion_marker[1]
+            }
+
+            # Calculate duration if both timestamps available
+            if start_marker:
+                try:
+                    start_dt = datetime.fromisoformat(start_time_str)
+                    complete_dt = datetime.fromisoformat(complete_time_str)
+                    duration = int((complete_dt - start_dt).total_seconds())
+                    agent_data["duration_seconds"] = duration
+                except ValueError:
+                    pass  # Duration calculation failed, skip
+
+            # Validate before returning
+            if not self._validate_agent_data(agent_data):
+                return None
+
+            # Audit log successful detection
+            audit_log("agent_tracker", "info", {
+                "operation": "_detect_agent_from_session_text",
+                "agent_name": agent_name,
+                "detection_method": "session_text_parsing",
+                "file": str(validated_path)
+            })
+
+            return agent_data
+
+        except Exception as e:
+            # Log error but don't crash
+            audit_log("agent_tracker", "error", {
+                "operation": "_detect_agent_from_session_text",
+                "agent_name": agent_name,
+                "error": str(e)
+            })
+            return None
+
+    def _detect_agent_from_json_structure(
+        self,
+        agent_name: str
+    ) -> Optional[Dict[str, Any]]:
+        """Reload JSON file to detect external modifications.
+
+        Args:
+            agent_name: Name of agent to find
+
+        Returns:
+            Agent data dict if found and valid, None otherwise
+
+        Purpose:
+            Detect Task tool agents that modified JSON directly
+            (bypassing tracker's in-memory state)
+
+        Security:
+            - Validates JSON parsing
+            - Graceful error handling
+            - Audit logs detection
+        """
+        try:
+            # Reload from disk (detect external changes)
+            if not self.session_file.exists():
+                return None
+
+            # Parse JSON
+            try:
+                session_data = json.loads(self.session_file.read_text())
+            except json.JSONDecodeError:
+                return None  # Corrupted JSON
+
+            # Find agent
+            agents = [a for a in session_data.get("agents", []) if a.get("agent") == agent_name]
+            if not agents:
+                return None
+
+            # Get latest entry
+            agent_data = agents[-1]
+
+            # Must be completed or failed
+            if agent_data.get("status") not in ["completed", "failed"]:
+                return None
+
+            # Validate data
+            if not self._validate_agent_data(agent_data):
+                return None
+
+            # Audit log successful detection
+            audit_log("agent_tracker", "info", {
+                "operation": "_detect_agent_from_json_structure",
+                "agent_name": agent_name,
+                "detection_method": "json_reload",
+                "status": agent_data.get("status")
+            })
+
+            return agent_data
+
+        except Exception as e:
+            # Log error but don't crash
+            audit_log("agent_tracker", "error", {
+                "operation": "_detect_agent_from_json_structure",
+                "agent_name": agent_name,
+                "error": str(e)
+            })
+            return None
+
     def _find_agent(self, agent_name: str) -> Optional[Dict[str, Any]]:
         """Find agent in session data, return latest entry.
 
+        Multi-method detection (Issue #71):
+        1. Check agent tracker state (existing behavior - FAST)
+        2. Analyze JSON structure (external modifications)
+        3. Parse session text file (Task tool agents)
+
         Also tracks if there are duplicates for warning purposes.
+
+        Args:
+            agent_name: Name of agent to find
+
+        Returns:
+            Agent data dict if found, None otherwise
+
+        Security:
+            All detection methods include audit logging and validation
         """
+        # Priority 1: Check tracker state (existing behavior - FAST)
         agents = [a for a in self.session_data.get("agents", []) if a["agent"] == agent_name]
-        if not agents:
-            return None
 
-        # Track duplicates
-        if len(agents) > 1 and not hasattr(self, '_duplicate_agents'):
-            self._duplicate_agents = []
-        if len(agents) > 1:
-            self._duplicate_agents.append(agent_name)
+        if agents:
+            # Track duplicates (existing behavior)
+            if len(agents) > 1 and not hasattr(self, '_duplicate_agents'):
+                self._duplicate_agents = []
+            if len(agents) > 1:
+                self._duplicate_agents.append(agent_name)
 
-        # Return latest entry (completed or otherwise)
-        return agents[-1]
+            # Return latest entry (completed or otherwise)
+            return agents[-1]
+
+        # Priority 2: Check JSON structure (external modifications)
+        agent_data = self._detect_agent_from_json_structure(agent_name)
+        if agent_data is not None:
+            return agent_data
+
+        # Priority 3: Parse session text (Task tool agents)
+        session_text_file = self._get_session_text_file()
+        if session_text_file is not None:
+            agent_data = self._detect_agent_from_session_text(agent_name, session_text_file)
+            if agent_data is not None:
+                return agent_data
+
+        # Not found in any method
+        return None
 
     def _validate_timestamps(self, researcher: Dict[str, Any], planner: Dict[str, Any]):
         """Validate timestamps are present and valid ISO format."""
