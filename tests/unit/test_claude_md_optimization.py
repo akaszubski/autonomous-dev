@@ -73,7 +73,7 @@ class TestCharacterCountValidation:
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
         Tolerance: ±5% (to allow for minor content updates)
         """
-        original_size = 84553  # Comprehensive documentation baseline (v3.11.0)
+        original_size = 89955  # Comprehensive documentation baseline (v3.12.0, Issue #61)
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -110,10 +110,10 @@ class TestCharacterCountValidation:
         """
         Individual documentation files should be appropriately sized.
 
-        Expected sizes (comprehensive documentation, v3.11.0):
+        Expected sizes (comprehensive documentation, v3.12.0):
         - docs/LIBRARIES.md: ~40,585 characters (18 library API references)
         - docs/PERFORMANCE.md: ~8,039 characters (complete optimization tracking)
-        - docs/GIT-AUTOMATION.md: ~10,909 characters (comprehensive workflow guide)
+        - docs/GIT-AUTOMATION.md: ~14,926 characters (comprehensive workflow guide + Issue #61 opt-out consent)
         """
         project_root = Path(__file__).parent.parent.parent
 
@@ -139,9 +139,9 @@ class TestCharacterCountValidation:
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
             f"(expected ~8,039 ±30%)"
         )
-        assert 7600 <= git_automation_size <= 14200, (
+        assert 10400 <= git_automation_size <= 19400, (
             f"GIT-AUTOMATION.md size unexpected: {git_automation_size} chars "
-            f"(expected ~10,909 ±30%)"
+            f"(expected ~14,926 ±30%)"
         )
 
 
@@ -363,7 +363,7 @@ class TestContentExtractionValidation:
         required_components = [
             "How It Works",
             "SubagentStop",
-            "Consent-Based",
+            "First-Run Consent",  # v3.12.0: Updated from "Consent-Based" to reflect Issue #61 terminology
             "Security",
         ]
 

@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-11
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.10.0 (Automatic GitHub Issue Creation with Research - Issue #58)
+**Version**: v3.12.0 (Zero Manual Git Operations by Default - Issue #61)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -165,21 +165,27 @@ git commit -m "docs: Update project goals"
 
 ## Git Automation Control
 
-Automatic git operations (commit, push, PR creation) can be optionally enabled after `/auto-implement` completes. See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
+Automatic git operations (commit, push, PR creation) are **enabled by default** after `/auto-implement` completes (v3.12.0+). See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
-**Status**: Optional feature (disabled by default for safety)
+**Status**: Default feature (enabled by default with first-run consent, opt-out available)
 
-**Environment Variables** (set in `.env` file):
+**First-Run Consent** (v3.12.0+):
+- On first `/auto-implement` run, displays interactive consent prompt
+- User chooses to enable/disable (default: yes)
+- Choice stored in `~/.autonomous-dev/user_state.json`
+- Skipped in non-interactive sessions (CI/CD)
+
+**Environment Variables** (opt-out via `.env` file):
 
 ```bash
-# Master switch - enables automatic git operations after /auto-implement
-AUTO_GIT_ENABLED=true        # Default: false
+# Master switch - disables automatic git operations after /auto-implement
+AUTO_GIT_ENABLED=false       # Default: true (enabled by default)
 
-# Enable automatic push to remote (requires AUTO_GIT_ENABLED=true)
-AUTO_GIT_PUSH=true           # Default: false
+# Disable automatic push to remote (requires AUTO_GIT_ENABLED=true)
+AUTO_GIT_PUSH=false          # Default: true (enabled by default)
 
-# Enable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
-AUTO_GIT_PR=true             # Default: false
+# Disable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
+AUTO_GIT_PR=false            # Default: true (enabled by default)
 ```
 
 **How It Works**:
@@ -187,15 +193,18 @@ AUTO_GIT_PR=true             # Default: false
 1. `/auto-implement` completes STEP 6 (parallel validation)
 2. quality-validator agent completes (last validation agent)
 3. SubagentStop hook triggers `auto_git_workflow.py`
-4. Hook checks consent via environment variables (non-blocking if disabled)
-5. If enabled, invokes commit-message-generator agent to create conventional commit message
+4. On first run: displays consent prompt; subsequent runs: checks user state + environment variables
+5. If enabled (default), invokes commit-message-generator agent to create conventional commit message
 6. Stages changes, commits with agent-generated message, optionally pushes and creates PR
 7. If any prerequisite fails (git not configured, merge conflicts, etc.), provides manual fallback instructions
 8. Feature is successful regardless of git operation outcome (graceful degradation)
 
-**Consent-Based Design**:
+**Opt-Out Consent Design** (v3.12.0+):
 
-- Disabled by default - no behavior change without explicit opt-in
+- Enabled by default - seamless zero-manual-git-operations workflow out of the box
+- First-run consent - interactive prompt on first `/auto-implement` run
+- User state persistence - choice stored in `~/.autonomous-dev/user_state.json`
+- Environment override - `.env` variables override user state preferences
 - Validates all prerequisites before attempting operations
 - Non-blocking - git automation failures don't affect feature completion
 - Always provides manual fallback instructions if automation fails
@@ -215,8 +224,16 @@ AUTO_GIT_PR=true             # Default: false
   - Functions: `execute_step8_git_operations()` (main entry point), `check_consent_via_env()`, `validate_git_state()`, `create_commit_with_agent_message()`, `push_and_create_pr()`
   - Validation: `validate_agent_output()`, `validate_git_state()`, `validate_branch_name()`, `validate_commit_message()`, `check_git_credentials()`, `check_git_available()`, `check_gh_available()`
   - Agents: Invokes commit-message-generator and pr-description-generator agents with workflow context
+- Library: `/plugins/autonomous-dev/lib/user_state_manager.py` (10,077 bytes) - User preference persistence
+  - Classes: `UserStateManager` (load, save, update user state), `UserStateError` (exception handling)
+  - Functions: `is_first_run()`, `record_first_run_complete()`, `get_preference()`, `set_preference()`
+  - Security: Path validation (CWE-22), audit logging, JSON safety
+- Library: `/plugins/autonomous-dev/lib/first_run_warning.py` (8,112 bytes) - Interactive consent prompt
+  - Functions: `render_warning()`, `prompt_user_consent()`, `parse_user_input()`, `record_consent()`
+  - Features: Interactive prompt, non-interactive detection, graceful error handling
 
 **Related GitHub Issues**:
+- Issue #61: Enable Zero Manual Git Operations by Default (v3.12.0)
 - Issue #58: Automatic git operations integration (feature implementation)
 
 **For detailed usage**: See `plugins/autonomous-dev/README.md` "Enable automatic git operations in /auto-implement workflow" section

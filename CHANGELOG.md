@@ -3,7 +3,7 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-11
-**Current Version**: v3.11.0 (Brownfield Project Retrofit)
+**Current Version**: v3.12.0 (Zero Manual Git Operations by Default)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -11,6 +11,36 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ---
 
 ## [Unreleased]
+
+## [3.12.0] - 2025-11-11
+
+### Changed
+- **Zero Manual Git Operations by Default** - GitHub Issue #61
+  - Git automation now **enabled by default** (opt-out model)
+  - First-run interactive consent prompt on first `/auto-implement` execution
+  - User preference persistence in `~/.autonomous-dev/user_state.json`
+  - Environment variable override support (`.env` variables > user state > defaults)
+  - New libraries:
+    - `plugins/autonomous-dev/lib/user_state_manager.py` (10,077 bytes) - User preference storage with security validation
+    - `plugins/autonomous-dev/lib/first_run_warning.py` (8,112 bytes) - Interactive consent prompt system
+  - Updated defaults:
+    - `AUTO_GIT_ENABLED`: `false` → `true` (enabled by default)
+    - `AUTO_GIT_PUSH`: `false` → `true` (enabled by default)
+    - `AUTO_GIT_PR`: `false` → `true` (enabled by default)
+  - Updated documentation:
+    - `docs/GIT-AUTOMATION.md` - Reflected opt-out model and first-run consent
+    - `CLAUDE.md` - Updated Git Automation Control section
+    - `.env.example` - Updated comments to reflect opt-out model
+    - `plugins/autonomous-dev/README.md` - Added "What's New" section
+  - **Breaking Change**: Existing users with no `.env` configuration will see first-run consent prompt
+  - **Mitigation**: Users can opt-out by setting `AUTO_GIT_ENABLED=false` in `.env` or choosing "no" at first-run prompt
+
+### Security
+- User state file path validation (CWE-22 path traversal prevention)
+- Audit logging for all user state operations
+- Safe JSON parsing (no arbitrary code execution)
+- Non-interactive mode detection for CI/CD environments
+
 
 ## [3.11.0] - 2025-11-11
 

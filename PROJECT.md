@@ -1,8 +1,8 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-11
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.10.0 (Issue #58 - Automatic GitHub Issue Creation with Research)
+**Version**: v3.12.0 (Issue #61 - Zero Manual Git Operations by Default)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 

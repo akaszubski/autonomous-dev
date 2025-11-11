@@ -1,40 +1,92 @@
 # Git Automation Control
 
-**Last Updated**: 2025-11-09
-**Related Issue**: [#58 - Automatic Git Operations](https://github.com/akaszubski/autonomous-dev/issues/58)
+**Last Updated**: 2025-11-11
+**Related Issue**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61)
 
-This document describes the automatic git operations feature that can be optionally enabled after `/auto-implement` completes.
+This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
 
 ## Overview
 
-Automatic git operations (commit, push, PR creation) provide a seamless end-to-end workflow for feature implementation. This feature is **disabled by default** for safety and requires explicit opt-in via environment variables.
+Automatic git operations (commit, push, PR creation) provide a seamless end-to-end workflow for feature implementation. This feature is **enabled by default** as of v3.12.0 (opt-out model with first-run consent).
 
 ## Status
 
-**Optional feature** - Disabled by default for safety
+**Default Feature** - Enabled by default with first-run consent prompt (opt-out available)
 
 ## Environment Variables
 
 Configure git automation by setting these variables in your `.env` file:
 
 ```bash
-# Master switch - enables automatic git operations after /auto-implement
-AUTO_GIT_ENABLED=true        # Default: false
+# Master switch - disables automatic git operations after /auto-implement
+AUTO_GIT_ENABLED=false       # Default: true (enabled by default, opt-out)
 
-# Enable automatic push to remote (requires AUTO_GIT_ENABLED=true)
-AUTO_GIT_PUSH=true           # Default: false
+# Disable automatic push to remote (requires AUTO_GIT_ENABLED=true)
+AUTO_GIT_PUSH=false          # Default: true (enabled by default, opt-out)
 
-# Enable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
-AUTO_GIT_PR=true             # Default: false
+# Disable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
+AUTO_GIT_PR=false            # Default: true (enabled by default, opt-out)
 ```
 
 ### Environment Variable Details
 
 | Variable | Default | Description | Dependencies |
 |----------|---------|-------------|--------------|
-| `AUTO_GIT_ENABLED` | `false` | Master switch for all git automation | None |
-| `AUTO_GIT_PUSH` | `false` | Enable automatic push to remote | `AUTO_GIT_ENABLED=true` |
-| `AUTO_GIT_PR` | `false` | Enable automatic PR creation | `AUTO_GIT_ENABLED=true`, `gh` CLI installed |
+| `AUTO_GIT_ENABLED` | `true` | Master switch for all git automation | None |
+| `AUTO_GIT_PUSH` | `true` | Enable automatic push to remote | `AUTO_GIT_ENABLED=true` |
+| `AUTO_GIT_PR` | `true` | Enable automatic PR creation | `AUTO_GIT_ENABLED=true`, `gh` CLI installed |
+
+### First-Run Consent (v3.12.0+)
+
+On the **first run** of `/auto-implement`, users see an interactive consent prompt:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║  🚀 Zero Manual Git Operations (NEW DEFAULT)                ║
+║                                                              ║
+║  Automatic git operations enabled after /auto-implement:    ║
+║                                                              ║
+║    ✓ automatic commit with conventional commit message      ║
+║    ✓ automatic push to remote                               ║
+║    ✓ automatic pull request creation                        ║
+║                                                              ║
+║  HOW TO OPT OUT:                                            ║
+║                                                              ║
+║  Add to .env file:                                          ║
+║    AUTO_GIT_ENABLED=false                                   ║
+║                                                              ║
+║  Or disable specific operations:                            ║
+║    AUTO_GIT_PUSH=false   # Disable push                     ║
+║    AUTO_GIT_PR=false     # Disable PR creation              ║
+║                                                              ║
+║  See docs/GIT-AUTOMATION.md for details                     ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+Do you want to enable automatic git operations? (Y/n):
+```
+
+- **Default**: Yes (pressing Enter accepts)
+- **User choice recorded**: Stored in `~/.autonomous-dev/user_state.json`
+- **Non-interactive mode**: Skips prompt (CI/CD environments)
+
+### Opt-Out Model
+
+**To disable all git automation**, add to `.env`:
+
+```bash
+AUTO_GIT_ENABLED=false
+```
+
+**To disable specific operations**, add to `.env`:
+
+```bash
+# Enable commit but not push or PR
+AUTO_GIT_ENABLED=true
+AUTO_GIT_PUSH=false
+AUTO_GIT_PR=false
+```
 
 ## How It Works
 
@@ -69,7 +121,8 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 - Triggers `auto_git_workflow.py` hook
 
 **Step 4: Consent Check**
-- Checks `AUTO_GIT_ENABLED` environment variable
+- On first run: displays interactive consent prompt (v3.12.0+)
+- Checks `AUTO_GIT_ENABLED` environment variable (default: true)
 - If disabled, workflow exits gracefully (no git operations)
 - If enabled, proceeds with validation checks
 
@@ -111,24 +164,51 @@ To commit manually:
 
 **Key point**: Feature implementation is still successful even if git operations fail.
 
-## Consent-Based Design
+## Opt-Out Consent Design (v3.12.0+)
 
-The git automation feature follows a **consent-based design philosophy**:
+The git automation feature follows an **opt-out consent design** with first-run awareness:
 
-### Safety Principles
+### Design Philosophy
 
-1. **Disabled by default** - No behavior change without explicit opt-in
-2. **Validates all prerequisites** - Checks git config, remote, credentials before operations
-3. **Non-blocking** - Git automation failures don't affect feature completion
-4. **Always provides fallback** - Manual instructions if automation fails
-5. **Audited operations** - All git operations logged to security audit
+1. **Enabled by default** - Seamless zero-manual-git-operations workflow out of the box
+2. **First-run consent** - Interactive prompt on first `/auto-implement` run
+3. **User state persistence** - Consent choice stored in `~/.autonomous-dev/user_state.json`
+4. **Environment override** - `.env` variables override user state preferences
+5. **Validates all prerequisites** - Checks git config, remote, credentials before operations
+6. **Non-blocking** - Git automation failures don't affect feature completion
+7. **Always provides fallback** - Manual instructions if automation fails
+8. **Audited operations** - All git operations logged to security audit
 
-### Why Consent-Based?
+### Why Opt-Out Model?
 
-- **User control**: Users decide when to enable automation
-- **Repository safety**: No accidental commits or pushes
+- **Seamless workflow**: Zero manual git operations by default (matches modern expectations)
+- **Informed consent**: First-run warning educates users about behavior
+- **Easy opt-out**: Simple `.env` file configuration to disable
+- **User control**: Can opt-out entirely or disable specific operations (push/PR)
+- **Repository safety**: Validates git state before all operations
 - **Flexibility**: Can enable commit but not push (staged rollout)
 - **Transparency**: Clear environment variables, not hidden settings
+
+### User State Management
+
+**State File**: `~/.autonomous-dev/user_state.json`
+
+**Structure**:
+```json
+{
+  "first_run_complete": true,
+  "preferences": {
+    "auto_git_enabled": true
+  },
+  "version": "1.0"
+}
+```
+
+**Priority**: Environment variables (`.env`) > User state file > Defaults (true)
+
+**Libraries**:
+- `plugins/autonomous-dev/lib/user_state_manager.py` - State persistence
+- `plugins/autonomous-dev/lib/first_run_warning.py` - Interactive consent prompt
 
 ## Security
 
@@ -195,7 +275,24 @@ All git operations follow security best practices:
 
 ## Usage Examples
 
-### Enable Commit Only
+### Default Behavior (Full Automation)
+
+By default, git automation is **enabled** (v3.12.0+):
+
+```bash
+# No .env configuration needed - full automation enabled by default
+```
+
+Run feature implementation:
+```bash
+/auto-implement "add user authentication with JWT"
+```
+
+Result: Feature implemented, committed, pushed, and PR created automatically.
+
+---
+
+### Enable Commit Only (Disable Push/PR)
 
 Create `.env` file in project root:
 
@@ -208,39 +305,19 @@ AUTO_GIT_PR=false
 
 Run feature implementation:
 ```bash
-/auto-implement "add user authentication with JWT"
+/auto-implement "add rate limiting to API endpoints"
 ```
 
 Result: Feature implemented and committed locally (not pushed).
 
 ---
 
-### Enable Full Automation
+### Disable All Automation (Opt-Out)
 
 ```bash
-# Enable automatic commit, push, and PR creation
-AUTO_GIT_ENABLED=true
-AUTO_GIT_PUSH=true
-AUTO_GIT_PR=true
-```
-
-Run feature implementation:
-```bash
-/auto-implement "add rate limiting to API endpoints"
-```
-
-Result: Feature implemented, committed, pushed, and PR created automatically.
-
----
-
-### Disable All Automation
-
-```bash
-# Disable all git automation (default behavior)
+# Disable all git automation (opt-out)
 AUTO_GIT_ENABLED=false
 ```
-
-Or simply don't set any environment variables (same effect).
 
 Result: Feature implemented, no git operations performed (manual commit required).
 
@@ -252,13 +329,18 @@ Result: Feature implemented, no git operations performed (manual commit required
 
 **Diagnosis**:
 ```bash
-# Check environment variables
+# Check environment variables (if configured)
 cat .env | grep AUTO_GIT
+
+# Check user state
+cat ~/.autonomous-dev/user_state.json
 ```
 
 **Solutions**:
-- Ensure `AUTO_GIT_ENABLED=true` in `.env` file
-- Verify `.env` file in project root (same directory as `.claude/`)
+- Default is **enabled** (v3.12.0+) - no configuration needed
+- If you opted out on first run, edit `~/.autonomous-dev/user_state.json` and set `"auto_git_enabled": true`
+- If you set `AUTO_GIT_ENABLED=false` in `.env`, remove it or set to `true`
+- Verify `.env` file in project root (same directory as `.claude/`) if configured
 - Check git configured: `git config user.name` and `git config user.email`
 
 ---
@@ -339,8 +421,9 @@ Git automation adds **minimal overhead** to `/auto-implement` workflow:
 
 Improvements to git automation are welcome! When contributing:
 
-1. **Maintain consent-based design** - Always disabled by default
+1. **Maintain opt-out consent design** - Always enabled by default with first-run warning (v3.12.0+)
 2. **Add security validation** - Use security_utils for all operations
 3. **Audit logging** - Log all git operations to security audit
 4. **Graceful degradation** - Provide manual fallback if automation fails
 5. **Test coverage** - Add unit tests for new functionality
+6. **User state persistence** - Use `user_state_manager.py` for preference storage

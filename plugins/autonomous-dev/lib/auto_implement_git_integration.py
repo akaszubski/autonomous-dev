@@ -52,19 +52,39 @@ from pr_automation import create_pull_request
 from security_utils import audit_log
 import security_utils  # Make accessible for testing
 
+# Import first-run warning system (Issue #61)
+try:
+    from first_run_warning import should_show_warning, show_first_run_warning, FirstRunWarningError
+    from user_state_manager import DEFAULT_STATE_FILE
+except ImportError:
+    # Fallback for testing - disable first-run warning
+    def should_show_warning(state_file):
+        return False
+    def show_first_run_warning(state_file):
+        return True
+    class FirstRunWarningError(Exception):
+        pass
+    from pathlib import Path
+    DEFAULT_STATE_FILE = Path.home() / ".autonomous-dev" / "user_state.json"
 
-def parse_consent_value(value: Optional[str]) -> bool:
+
+def parse_consent_value(value: Optional[str], default: bool = True) -> bool:
     """
     Parse consent value from environment variable.
 
+    NEW BEHAVIOR (Issue #61): Defaults to True when value is None or empty.
+    This enables opt-out consent model for automatic git operations.
+
     Accepts various truthy values: 'true', 'yes', '1', 'y' (case-insensitive)
-    All other values (including None, '', 'false', '0', 'no') return False.
+    Accepts various falsy values: 'false', 'no', '0', 'n' (case-insensitive)
+    None or empty string uses the default parameter (defaults to True).
 
     Args:
         value: Environment variable value (or None if not set)
+        default: Default value when value is None or empty (default: True)
 
     Returns:
-        bool: True if value is truthy, False otherwise
+        bool: True if value is truthy or default, False if explicitly falsy
 
     Examples:
         >>> parse_consent_value('true')
@@ -75,54 +95,124 @@ def parse_consent_value(value: Optional[str]) -> bool:
         True
         >>> parse_consent_value('false')
         False
-        >>> parse_consent_value(None)
-        False
-        >>> parse_consent_value('')
+        >>> parse_consent_value(None)  # NEW: defaults to True
+        True
+        >>> parse_consent_value('')  # NEW: defaults to True
+        True
+        >>> parse_consent_value(None, default=False)  # Custom default
         False
     """
+    # None or empty string uses default
     if value is None:
-        return False
+        return default
 
     # Strip whitespace
     value = str(value).strip()
 
-    # Empty string after stripping
+    # Empty string after stripping uses default
     if not value:
+        return default
+
+    # Check falsy values first (explicit opt-out)
+    falsy_values = {'false', 'no', '0', 'n'}
+    if value.lower() in falsy_values:
         return False
 
-    # Check truthy values (case-insensitive)
+    # Check truthy values (explicit opt-in)
     truthy_values = {'true', 'yes', '1', 'y'}
-    return value.lower() in truthy_values
+    if value.lower() in truthy_values:
+        return True
+
+    # Unknown value - use default
+    return default
 
 
 def check_consent_via_env() -> Dict[str, bool]:
     """
     Check user consent for git operations via environment variables.
 
+    NEW BEHAVIOR (Issue #61): Defaults to True when env vars not set.
+    This enables opt-out consent model for automatic git operations.
+
     Reads three environment variables:
-    - AUTO_GIT_ENABLED: Master switch for git operations
-    - AUTO_GIT_PUSH: Enable push to remote
-    - AUTO_GIT_PR: Enable PR creation
+    - AUTO_GIT_ENABLED: Master switch for git operations (default: True)
+    - AUTO_GIT_PUSH: Enable push to remote (default: True)
+    - AUTO_GIT_PR: Enable PR creation (default: True)
+
+    Priority: env vars > state file > defaults (now True)
 
     If AUTO_GIT_ENABLED=false, all operations are disabled regardless of
     other settings.
 
     Returns:
         Dict with consent flags:
-            - git_enabled: Whether git operations are enabled
-            - push_enabled: Whether push is enabled (requires git_enabled)
-            - pr_enabled: Whether PR creation is enabled (requires push_enabled)
+            - enabled: Whether git operations are enabled
+            - push: Whether push is enabled (requires enabled)
+            - pr: Whether PR creation is enabled (requires push)
+            - git_enabled: Alias for enabled (backward compatibility)
+            - push_enabled: Alias for push (backward compatibility)
+            - pr_enabled: Alias for pr (backward compatibility)
             - all_enabled: True only if all three are enabled
 
     Examples:
-        >>> os.environ['AUTO_GIT_ENABLED'] = 'true'
-        >>> os.environ['AUTO_GIT_PUSH'] = 'true'
-        >>> os.environ['AUTO_GIT_PR'] = 'true'
+        >>> # No env vars set - defaults to True (NEW!)
         >>> consent = check_consent_via_env()
-        >>> consent['all_enabled']
+        >>> consent['enabled']
         True
+
+        >>> # Explicit opt-out
+        >>> os.environ['AUTO_GIT_ENABLED'] = 'false'
+        >>> consent = check_consent_via_env()
+        >>> consent['enabled']
+        False
     """
-    # Read environment variables
+    # STEP 1: Check if first-run warning should be shown (Issue #61)
+    # This happens BEFORE checking environment variables to ensure informed consent
+    if should_show_warning(DEFAULT_STATE_FILE):
+        try:
+            user_accepted = show_first_run_warning(DEFAULT_STATE_FILE)
+            if not user_accepted:
+                # User explicitly opted out - return disabled state
+                audit_log(
+                    "first_run_consent",
+                    "declined",
+                    {
+                        "component": "auto_implement_git_integration",
+                        "user_choice": "opted_out"
+                    }
+                )
+                return {
+                    'enabled': False,
+                    'push': False,
+                    'pr': False,
+                    'git_enabled': False,
+                    'push_enabled': False,
+                    'pr_enabled': False,
+                    'all_enabled': False
+                }
+            else:
+                audit_log(
+                    "first_run_consent",
+                    "accepted",
+                    {
+                        "component": "auto_implement_git_integration",
+                        "user_choice": "accepted"
+                    }
+                )
+        except FirstRunWarningError as e:
+            # Warning failed - default to disabled for safety
+            audit_log(
+                "first_run_warning_error",
+                "failure",
+                {
+                    "component": "auto_implement_git_integration",
+                    "error": str(e)
+                }
+            )
+            # Fall back to env var checking below
+
+    # STEP 2: Read environment variables (defaults to True per Issue #61)
+    # Environment variables override first-run consent for flexibility
     git_enabled = parse_consent_value(os.environ.get('AUTO_GIT_ENABLED'))
     push_enabled = parse_consent_value(os.environ.get('AUTO_GIT_PUSH'))
     pr_enabled = parse_consent_value(os.environ.get('AUTO_GIT_PR'))
@@ -130,17 +220,23 @@ def check_consent_via_env() -> Dict[str, bool]:
     # If git is disabled, everything is disabled
     if not git_enabled:
         return {
-            'git_enabled': False,
-            'push_enabled': False,
-            'pr_enabled': False,
+            'enabled': False,
+            'push': False,
+            'pr': False,
+            'git_enabled': False,  # Backward compatibility
+            'push_enabled': False,  # Backward compatibility
+            'pr_enabled': False,  # Backward compatibility
             'all_enabled': False
         }
 
     # Return actual values
     return {
-        'git_enabled': git_enabled,
-        'push_enabled': push_enabled,
-        'pr_enabled': pr_enabled,
+        'enabled': git_enabled,
+        'push': push_enabled,
+        'pr': pr_enabled,
+        'git_enabled': git_enabled,  # Backward compatibility
+        'push_enabled': push_enabled,  # Backward compatibility
+        'pr_enabled': pr_enabled,  # Backward compatibility
         'all_enabled': git_enabled and push_enabled and pr_enabled
     }
 
