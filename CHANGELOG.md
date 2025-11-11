@@ -2,8 +2,8 @@
 
 All notable changes to the autonomous-dev plugin documented here.
 
-**Last Updated**: 2025-11-09
-**Current Version**: v3.10.0 (Automatic GitHub Issue Creation with Research)
+**Last Updated**: 2025-11-11
+**Current Version**: v3.11.0 (Brownfield Project Retrofit)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -11,6 +11,42 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ---
 
 ## [Unreleased]
+
+## [3.11.0] - 2025-11-11
+
+### Added
+- **Brownfield Project Retrofit System** - GitHub Issue #59
+  - New command: `/align-project-retrofit` (5-phase retrofit process)
+    - Phase 0: Project analysis and tech stack detection
+    - Phase 1: Deep codebase analysis (multi-language support)
+    - Phase 2: Gap assessment and 12-Factor App compliance checking
+    - Phase 3: Migration plan with dependency tracking
+    - Phase 4: Step-by-step execution with rollback support
+    - Phase 5: Verification and readiness assessment
+  - New agent: `plugins/autonomous-dev/agents/brownfield-analyzer.md`
+    - Analyzes existing projects for retrofit readiness
+    - Uses research-patterns, semantic-validation, file-organization, python-standards skills
+  - New libraries (6 total):
+    - `brownfield_retrofit.py` - Phase 0 implementation
+    - `codebase_analyzer.py` - Phase 1 implementation (multi-language)
+    - `alignment_assessor.py` - Phase 2 implementation (12-Factor compliance)
+    - `migration_planner.py` - Phase 3 implementation (dependency tracking)
+    - `retrofit_executor.py` - Phase 4 implementation (rollback support)
+    - `retrofit_verifier.py` - Phase 5 implementation (readiness assessment)
+  - Enables adopting autonomous-dev in existing codebases without starting from scratch
+
+### Changed
+- Updated documentation organization
+  - Created `docs/PERFORMANCE.md` for performance optimization details
+  - Created `docs/GIT-AUTOMATION.md` for git automation workflow documentation
+  - Created `docs/LIBRARIES.md` for comprehensive library API reference
+  - Optimized `CLAUDE.md` (-486 lines) by extracting detailed sections to dedicated files
+- Updated agent count: 19 → 20 agents (added brownfield-analyzer)
+- Updated hook count: 30 → 41 hooks (comprehensive automation coverage)
+
+### Fixed
+- Documentation alignment issues identified by validation tests
+- CLAUDE.md now correctly references agent count (20) and hook count (41)
 
 ## [3.10.0] - 2025-11-09
 

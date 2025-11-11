@@ -135,7 +135,7 @@ git commit -m "docs: Update project goals"
    - Hook file: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (SubagentStop lifecycle)
 8. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
-**Performance Baseline (Issue #46 - Multi-Phase Optimization - Phases 4-7 Complete)**:
+**Performance Baseline** (see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for complete details):
 - **Phase 4 (Model Optimization - COMPLETE)**: Researcher agent switched to Haiku model (25-39 min baseline)
   - Savings: 3-5 minutes from 28-44 minute baseline
   - Quality: No degradation - Haiku excels at pattern discovery tasks
@@ -165,7 +165,7 @@ git commit -m "docs: Update project goals"
 
 ## Git Automation Control
 
-Automatic git operations (commit, push, PR creation) can be optionally enabled after `/auto-implement` completes.
+Automatic git operations (commit, push, PR creation) can be optionally enabled after `/auto-implement` completes. See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
 **Status**: Optional feature (disabled by default for safety)
 
@@ -225,7 +225,7 @@ AUTO_GIT_PR=true             # Default: false
 
 ## Architecture
 
-### Agents (19 specialists with active skill integration - GitHub Issue #35, #58)
+### Agents (20 specialists with active skill integration - GitHub Issue #35, #58, #59)
 
 Located: `plugins/autonomous-dev/agents/`
 
@@ -318,7 +318,7 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **For detailed API documentation**: See `docs/LIBRARIES.md`
 
-### Hooks (30 total automation)
+### Hooks (41 total automation)
 
 Located: `plugins/autonomous-dev/hooks/`
 

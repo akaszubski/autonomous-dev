@@ -1,11 +1,55 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-11
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see CLAUDE.md Architecture section.
+This document provides detailed API documentation for all 18 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+
+## Overview
+
+The autonomous-dev plugin includes **18 shared libraries** organized into three categories:
+
+### Core Libraries (12)
+
+1. **security_utils.py** - Security validation and audit logging
+2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
+3. **version_detector.py** - Semantic version comparison for marketplace sync
+4. **orphan_file_cleaner.py** - Orphaned file detection and cleanup
+5. **sync_dispatcher.py** - Intelligent sync orchestration (marketplace/env/plugin-dev)
+6. **validate_marketplace_version.py** - CLI script for version validation
+7. **plugin_updater.py** - Interactive plugin update with backup/rollback
+8. **update_plugin.py** - CLI interface for plugin updates
+9. **hook_activator.py** - Automatic hook activation during updates
+10. **validate_documentation_parity.py** - Documentation consistency validation
+11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
+12. **github_issue_automation.py** - GitHub issue creation with research
+
+### Brownfield Retrofit Libraries (6)
+
+13. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+14. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+15. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+16. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+17. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+18. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+
+## Design Patterns
+
+- **Progressive Enhancement**: String → path → whitelist validation for graceful error recovery
+- **Non-blocking Enhancement**: Enhancements don't block core operations
+- **Two-tier Design**: Core logic + CLI interface for reusability and testing
+- **Security First**: All file operations validated via security_utils.py
+
+## Related Documentation
+
+- [CLAUDE.md](../CLAUDE.md) - Main project documentation
+- [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization tracking
+- [GIT-AUTOMATION.md](GIT-AUTOMATION.md) - Git automation workflow
+- [SECURITY.md](SECURITY.md) - Security hardening guide
 
 ---
+
+# Library Reference
 
 ## 1. security_utils.py (628 lines, v3.4.3+)
 
@@ -80,7 +124,10 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Functions
 
-#### `update_goal_progress(project_root, goal_title, progress_percent, notes)`
+#### `update_goal_progress()` - Update goal progress atomically
+
+**Signature**: `update_goal_progress(project_root, goal_title, progress_percent, notes)`
+
 - **Purpose**: Update goal progress in PROJECT.md atomically
 - **Parameters**:
   - `project_root` (str|Path): Project root directory
@@ -203,7 +250,10 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Functions
 
-#### `detect_orphans(project_root)`
+#### `detect_orphans()` - Detect orphaned files
+
+**Signature**: `detect_orphans(project_root)`
+
 - **Purpose**: Detect orphaned files in commands/hooks/agents directories
 - **Parameters**: `project_root` (str|Path): Project root directory
 - **Returns**: `List[OrphanFile]`
