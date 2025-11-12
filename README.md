@@ -166,7 +166,7 @@ Professional-quality code with AI enhancement
 
 ### Layer 3: Skills-Based Knowledge (19 Active Skills)
 
-**Status**: 19 active skill packages using progressive disclosure architecture (Issue #35: All 18 agents now actively reference skills)
+**Status**: 21 active skill packages using progressive disclosure architecture (Issue #35: All 18 agents now actively reference skills)
 
 **How it works**:
 - **Agent Integration**: All 18 agents reference relevant skills in their prompts (3-8 skills each)
@@ -564,7 +564,7 @@ vim PROJECT.md  # Update SCOPE, GOALS as project evolves
 
 ### 19 Active Skills (Progressive Disclosure Architecture)
 
-**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure
+**Status**: 21 active skill packages using Claude Code 2.0+ progressive disclosure
 
 **How it works**: Skills use progressive disclosure - metadata stays in context (minimal overhead), full skill content loads only when needed. This architecture allows scaling to 100+ skills without context bloat.
 

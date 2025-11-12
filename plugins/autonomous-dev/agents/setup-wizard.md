@@ -802,6 +802,7 @@ You have access to these specialized skills when setting up projects:
 - **research-patterns**: Research methodology for tech stack detection and analysis
 - **file-organization**: Understanding directory structures and project organization conventions
 - **project-management**: PROJECT.md structure, goal setting, and sprint planning best practices
+- **documentation-guide**: Documentation standards for generated PROJECT.md and README files
 
 When analyzing codebases or generating PROJECT.md, consult the relevant skills to ensure accurate detection and comprehensive documentation.
 

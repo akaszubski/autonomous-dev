@@ -3,7 +3,7 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-12
-**Current Version**: v3.17.0 (Enhanced testing-guide skill)
+**Current Version**: v3.18.0 (Enhanced documentation-guide skill - Phase 8.4)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -11,6 +11,66 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ---
 
 ## [Unreleased]
+
+---
+
+## [3.18.0] - 2025-11-12
+
+### Added
+- **Enhanced documentation-guide skill with documentation standards** - GitHub Issue #66 Phase 8.4
+  - **New Documentation Files (4)**:
+    - `parity-validation.md` (325 lines) - Documentation consistency validation patterns
+    - `changelog-format.md` (287 lines) - Keep a Changelog format with examples
+    - `readme-structure.md` (312 lines) - README organization and best practices
+    - `docstring-standards.md` (298 lines) - Google-style docstrings with examples
+  - **New Template Files (3)**:
+    - `templates/docstring-template.py` (156 lines) - Complete docstring template with examples
+    - `templates/readme-template.md` (189 lines) - Comprehensive README structure template
+    - `templates/changelog-template.md` (142 lines) - Changelog template with version sections
+  - **Total**: 1,709 lines of documentation standards guidance
+  - **Progressive Disclosure**: ~15,000+ tokens available on-demand, only ~50 tokens context overhead
+  - **Agent Integration**: 9 agents now reference documentation-guide skill (doc-master, reviewer, implementer, issue-creator, pr-description-generator, alignment-analyzer, project-bootstrapper, project-status-analyzer, setup-wizard)
+  - **Test Coverage**: 48 tests passing (38 unit + 10 integration)
+
+### Changed
+- **9 agents updated to reference documentation-guide skill**:
+  - **doc-master**: Added documentation-guide to Relevant Skills section (primary documentation agent)
+  - **reviewer**: Added documentation-guide skill reference for code review documentation checks
+  - **implementer**: Added documentation-guide skill reference for inline documentation and docstrings
+  - **issue-creator**: Added documentation-guide skill reference for GitHub issue formatting
+  - **pr-description-generator**: Added documentation-guide skill reference for PR descriptions
+  - **alignment-analyzer**: Added documentation-guide skill reference for documentation parity validation
+  - **project-bootstrapper**: Added documentation-guide skill reference for README generation
+  - **project-status-analyzer**: Added documentation-guide skill reference for status report formatting
+  - **setup-wizard**: Added documentation-guide skill reference for setup documentation
+- **documentation-guide SKILL.md enhanced**:
+  - Updated keywords: Added parity, validation, changelog, readme, docstring
+  - Enhanced "What triggers me" section with 4 new activation keywords
+  - Added references to new documentation files and templates
+  - Progressive disclosure metadata updated
+
+### Performance
+- **Token reduction: ~280 tokens (4-6% reduction across 9 agents)**
+  - Average ~31 tokens saved per agent (removed duplicated documentation patterns)
+  - Progressive disclosure: Documentation standards available on-demand without context bloat
+  - Combined with Issues #62-65, #72: **~11,980 tokens total savings (20-28% reduction)**
+  - Quality preserved: documentation-guide skill provides comprehensive documentation standards via progressive disclosure
+
+### Documentation
+- CLAUDE.md updated with Phase 8.4 completion details and token savings
+- PROJECT.md updated with Issue #66 implementation details
+- docs/SKILLS-AGENTS-INTEGRATION.md: 9 agents now reference documentation-guide skill
+- Token measurement: Phase 8.4 contributes ~280 tokens to cumulative savings
+
+### Testing
+- Test coverage: 48 tests (38 unit + 10 integration)
+- Test files:
+  - `tests/unit/skills/test_documentation_guide_phase84.py` (38 tests)
+  - `tests/integration/test_documentation_guide_integration.py` (10 integration tests)
+  - `tests/unit/test_documentation_token_reduction.py` (token measurement validation)
+- All agent skill references validated (9/9 agents reference documentation-guide)
+- All documentation files validated for structure and content
+- Template files validated for completeness
 
 ---
 

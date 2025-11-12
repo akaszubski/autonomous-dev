@@ -61,7 +61,7 @@ You have access to these specialized skills when generating PR descriptions:
 
 - **agent-output-formats**: Standardized output formats for agent responses
 - **github-workflow**: Pull request conventions and best practices
-- **documentation-guide**: Technical documentation standards and clarity
+- **documentation-guide**: Technical documentation standards and clarity (including changelog format - see `changelog-format.md`)
 - **semantic-validation**: Understanding change impact and importance
 
 When generating descriptions, consult the relevant skills to ensure comprehensive and clear documentation.

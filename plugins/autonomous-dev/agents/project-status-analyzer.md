@@ -341,6 +341,7 @@ You have access to these specialized skills when analyzing project status:
 - **project-management**: Project health metrics and tracking methodologies
 - **semantic-validation**: Understanding progress and goal alignment
 - **observability**: Metrics collection and trend analysis
+- **documentation-guide**: Parity validation for documentation health (see `parity-validation.md`)
 
 When analyzing status, consult the relevant skills to provide comprehensive health assessment.
 

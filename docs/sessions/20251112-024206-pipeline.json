@@ -91,10 +91,6 @@
   ],
   "parallel_exploration": {
     "status": "parallel",
-    "researcher_start": "2025-11-12T17:53:00",
-    "planner_start": "2025-11-12T17:53:00",
-    "researcher_end": "2025-11-12T17:56:19",
-    "planner_end": "2025-11-12T17:56:20",
     "sequential_time_seconds": 399,
     "parallel_time_seconds": 200,
     "time_saved_seconds": 199,

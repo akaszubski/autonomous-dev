@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-12
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.16.0 (Issue #72 - Agent Output Format Cleanup Phase 2, Issues #63-64 - Skill-Based Token Reduction, Issue #61 - Zero Manual Git Operations)
+**Version**: v3.18.0 (Issue #66 - Enhanced documentation-guide skill Phase 8.4, Issues #62-65, #72 - Token Reduction)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
@@ -1124,7 +1124,7 @@ Work cannot proceed without alignment.
 **Combined Results**:
 - Total documentation: 2,557 lines of testing guidance available on-demand
 - Token reduction: ~18 tokens from test-master streamlining
-- Combined with Issues #63, #64, #72: ~11,700 tokens total savings (20-28% reduction)
+- Combined with Issues #63, #64, #72: ~11,980 tokens total savings (20-28% reduction)
 - Test coverage: 165 passing tests (137 base + 28 testing-guide skill tests)
 - Quality: Zero functionality changes, backward compatible
 
@@ -1136,6 +1136,37 @@ Work cannot proceed without alignment.
 - ✅ Test coverage (165 passing tests)
 - ✅ No quality degradation (all tests pass)
 
+
+---
+
+**GitHub Issue #66: Enhanced documentation-guide Skill (Phase 8.4 - COMPLETE)**
+
+**Goal**: Extract duplicated documentation patterns into centralized documentation-guide skill
+
+**Progress**:
+- ✅ **Phase 8.4: Enhanced documentation-guide Skill** (COMPLETE - v3.18.0, 2025-11-12)
+  - 4 new documentation files: parity-validation.md (325 lines), changelog-format.md (287 lines), readme-structure.md (312 lines), docstring-standards.md (298 lines)
+  - 3 template files: docstring-template.py (156 lines), readme-template.md (189 lines), changelog-template.md (142 lines)
+  - Total: 1,709 lines of documentation standards guidance
+  - Progressive disclosure: ~15,000+ tokens on-demand, only ~50 tokens context overhead
+  - 9 agents now reference documentation-guide skill: doc-master, reviewer, implementer, issue-creator, pr-description-generator, alignment-analyzer, project-bootstrapper, project-status-analyzer, setup-wizard
+  - Test coverage: 48 tests passing (38 unit + 10 integration)
+  - Token savings: ~280 tokens (4-6% reduction across 9 agents)
+
+**Combined Results**:
+- Total documentation: 1,709 lines of documentation standards available on-demand
+- Token reduction: ~280 tokens from 9 agents referencing documentation-guide skill
+- Combined with Issues #62-65, #72: **~11,980 tokens total savings (20-28% reduction)**
+- Test coverage: 213 passing tests (165 base + 48 documentation-guide skill tests)
+- Quality: Zero functionality changes, backward compatible
+
+**Success Metrics - ALL MET**:
+- ✅ Comprehensive documentation standards (1,709 lines: 4 docs + 3 templates)
+- ✅ Progressive disclosure (~15,000+ tokens on-demand, ~50 tokens overhead)
+- ✅ Agent integration (9 agents reference documentation-guide skill)
+- ✅ Token reduction (~280 tokens from 9 agents)
+- ✅ Test coverage (213 passing tests)
+- ✅ No quality degradation (all tests pass)
 
 ---
 

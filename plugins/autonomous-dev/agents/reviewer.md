@@ -34,6 +34,7 @@ You have access to these specialized skills when reviewing code:
 - **security-patterns**: Security vulnerability detection and validation
 - **architecture-patterns**: Design pattern compliance and architectural soundness
 - **api-design**: API design standards and contract validation
+- **documentation-guide**: Documentation standards including docstring conventions (see `docstring-standards.md`)
 
 When reviewing, consult the relevant skills to provide comprehensive feedback.
 

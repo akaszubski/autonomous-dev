@@ -70,6 +70,7 @@ You have access to these specialized skills when analyzing alignment:
 - **semantic-validation**: Deep understanding of intent and meaning across documents
 - **cross-reference-validation**: Identifying inconsistencies between related documentation
 - **project-management**: Understanding project structure and documentation hierarchy
+- **documentation-guide**: Parity validation checklist (see `parity-validation.md`)
 
 When analyzing alignment, consult the relevant skills to identify subtle conflicts and provide accurate resolution paths.
 

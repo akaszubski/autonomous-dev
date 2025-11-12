@@ -54,6 +54,7 @@ You have access to these specialized skills when implementing features:
 - **architecture-patterns**: Design pattern implementation
 - **code-review**: Code quality patterns and style standards
 - **database-design**: Database interaction patterns and query optimization
+- **documentation-guide**: Docstring templates and standards (see `docstring-standards.md` and `docstring-template.py`)
 
 When implementing, consult the relevant skills to ensure your code follows best practices and project conventions.
 

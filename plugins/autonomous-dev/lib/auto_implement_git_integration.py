@@ -62,10 +62,12 @@ except ImportError:
         return False
     def show_first_run_warning(state_file):
         return True
+
     # Exception hierarchy pattern from error-handling-patterns skill:
-# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
-class FirstRunWarningError(Exception):
+    # BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
+    class FirstRunWarningError(Exception):
         pass
+
     from pathlib import Path
     DEFAULT_STATE_FILE = Path.home() / ".autonomous-dev" / "user_state.json"
 

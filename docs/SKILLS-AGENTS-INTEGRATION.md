@@ -229,8 +229,8 @@ Minimal tool access:
 | **researcher** | Web research, pattern discovery | research-patterns | Learns from existing implementations and best practices |
 | **planner** | Architecture design, planning | architecture-patterns, api-design, database-design, testing-guide | Designs systems using established patterns |
 | **test-master** | TDD, test generation | testing-guide, security-patterns | Writes secure, comprehensive tests first |
-| **implementer** | Code implementation | python-standards, observability | Optimizes performance, adds observability |
-| **reviewer** | Code quality, anti-patterns | code-review, consistency-enforcement, python-standards | Ensures code quality and consistency |
+| **implementer** | Code implementation | python-standards, observability, documentation-guide | Optimizes performance, adds observability and documentation |
+| **reviewer** | Code quality, anti-patterns | code-review, consistency-enforcement, python-standards, documentation-guide | Ensures code quality and documentation consistency |
 | **security-auditor** | Vulnerability scanning, OWASP | security-patterns, python-standards | Detects security issues with pattern knowledge |
 | **doc-master** | Documentation sync | documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency | Maintains accurate, consistent documentation |
 | **advisor** | Critical thinking, validation | semantic-validation, advisor-triggers, research-patterns | Validates proposals against best practices |
@@ -241,13 +241,14 @@ Minimal tool access:
 | Agent | Function | Relevant Skills | Pattern |
 |-------|----------|-----------------|---------|
 | **alignment-validator** | PROJECT.md alignment | semantic-validation, file-organization | Validates alignment using semantic patterns |
-| **alignment-analyzer** | Detailed alignment analysis | research-patterns, semantic-validation, file-organization | Research-backed alignment analysis |
+| **alignment-analyzer** | Detailed alignment analysis | research-patterns, semantic-validation, file-organization, documentation-guide | Research-backed alignment and documentation analysis |
 | **commit-message-generator** | Conventional commits | git-workflow, code-review | Follows git conventions, reviews changes |
 | **pr-description-generator** | PR descriptions | github-workflow, documentation-guide, code-review | Professional PR documentation |
-| **project-bootstrapper** | Tech stack detection | research-patterns, file-organization, python-standards | Discovers project patterns automatically |
-| **setup-wizard** | Setup guidance | research-patterns, file-organization | Analyzes tech stack for configuration |
+| **project-bootstrapper** | Tech stack detection | research-patterns, file-organization, python-standards, documentation-guide | Discovers project patterns and generates documentation |
+| **setup-wizard** | Setup guidance | research-patterns, file-organization, documentation-guide | Analyzes tech stack and generates setup documentation |
 | **project-progress-tracker** | Goal tracking | project-management | Assesses progress against SMART goals |
-| **project-status-analyzer** | Project health | project-management, code-review, semantic-validation | Holistic project health assessment |
+| **project-status-analyzer** | Project health | project-management, code-review, semantic-validation, documentation-guide | Holistic project health assessment with documentation |
+| **issue-creator** | GitHub issue creation | github-workflow, documentation-guide, research-patterns | Creates well-structured GitHub issues with research |
 | **sync-validator** | Environment sync | consistency-enforcement, file-organization, python-standards, security-patterns | Multi-layer synchronization validation |
 
 #### Skill Coverage Summary
@@ -263,7 +264,7 @@ Minimal tool access:
 **Skills by Reference Count** (sorted by usage):
 - **Ultra-High-Use Skills** (20-22 references): error-handling-patterns (22 libraries), agent-output-formats (20 agents)
 - **High-Use Skills** (5+ agents): semantic-validation (3), file-organization (5), python-standards (5), research-patterns (4), code-review (5), project-management (2), testing-guide (3), security-patterns (3)
-- **Medium-Use Skills** (2-4 agents): documentation-guide (2), consistency-enforcement (3), git-workflow (2)
+- **Medium-Use Skills** (2-9 agents): documentation-guide (9), consistency-enforcement (3), git-workflow (2)
 - **Specialized Skills** (1 agent): github-workflow (1), advisor-triggers (1), cross-reference-validation (1), documentation-currency (1), database-design (1), api-design (1), architecture-patterns (1), observability (1)
 
 **Agent-Skill Integration Details**:

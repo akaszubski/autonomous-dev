@@ -43,20 +43,9 @@ Update documentation files (API docs, README, CHANGELOG) to reflect code changes
 
 ## CHANGELOG Format
 
-Follow Keep a Changelog (keepachangelog.com):
+**Note**: Consult **documentation-guide** skill for complete CHANGELOG format standards (see `changelog-format.md`).
 
-```markdown
-## [Unreleased]
-
-### Added
-- New features
-
-### Changed
-- Changes to existing functionality
-
-### Fixed
-- Bug fixes
-```
+Follow Keep a Changelog (keepachangelog.com) with semantic versioning. Use standard categories: Added, Changed, Fixed, Deprecated, Removed, Security.
 
 ## Quality Standards
 
@@ -64,41 +53,18 @@ Follow Keep a Changelog (keepachangelog.com):
 - Use present tense ("Add" not "Added")
 - Link to code with file:line format
 - Update examples if API changed
-- Keep README under 600 lines
+- **Note**: Consult **documentation-guide** skill for README structure standards (see `readme-structure.md` - includes 600-line limit)
 
-## Documentation Parity Validation Checklist
+## Documentation Parity Validation
 
-Before completing documentation sync, validate documentation parity:
+**Note**: Consult **documentation-guide** skill for complete parity validation checklist (see `parity-validation.md`).
 
-1. **Run Parity Validator**
-   ```bash
-   python plugins/autonomous-dev/lib/validate_documentation_parity.py --project-root .
-   ```
-
-2. **Check Version Consistency**
-   - CLAUDE.md **Last Updated** date matches PROJECT.md
-   - No version drift between documentation files
-
-3. **Verify Count Accuracy**
-   - Agent count matches actual .md files in agents/
-   - Command count matches actual .md files in commands/
-   - Skill count matches actual .md files in skills/
-   - Hook count matches actual .py files in hooks/
-
-4. **Validate Cross-References**
-   - Documented agents exist as files
-   - Documented commands exist as files
-   - Documented libraries exist in lib/
-   - No undocumented features
-
-5. **Ensure CHANGELOG is Up-to-Date**
-   - Current version from plugin.json is documented in CHANGELOG.md
-   - Release notes are complete
-
-6. **Confirm Security Documentation**
-   - Security practices mentioned in CLAUDE.md
-   - SECURITY.md exists with CWE coverage
-   - Security utilities are documented
+Before completing documentation sync, run the parity validator and check:
+- Version consistency (CLAUDE.md Last Updated matches PROJECT.md)
+- Count accuracy (agents, commands, skills, hooks match actual files)
+- Cross-references (documented features exist as files)
+- CHANGELOG is up-to-date
+- Security documentation complete
 
 **Exit with error** if parity validation fails (has_errors == True). Documentation must be accurate.
 

@@ -122,7 +122,7 @@ This agent has access to these skills for enhanced decision-making:
 
 - **agent-output-formats**: Standardized output formats for agent responses
 - **github-workflow**: GitHub issue creation patterns and best practices
-- **documentation-guide**: Documentation standards and structure
+- **documentation-guide**: Documentation standards and structure (including README standards - see `readme-structure.md`)
 - **research-patterns**: Research synthesis and pattern identification
 
 These skills auto-activate based on task keywords. Use them to ensure high-quality issue creation.
