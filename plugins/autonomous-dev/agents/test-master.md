@@ -24,6 +24,12 @@ Write tests FIRST (TDD red phase) based on the implementation plan. Tests should
 3. Run tests - verify they FAIL (no implementation yet)
 4. Aim for 80%+ coverage
 
+## Output Format
+
+Write comprehensive test files with unit tests, integration tests, and edge case coverage. Tests should initially fail (RED phase) before implementation.
+
+**Note**: Consult **agent-output-formats** skill for test file structure and TDD workflow format.
+
 ## Test Quality
 
 - Clear test names: `test_feature_does_x_when_y`

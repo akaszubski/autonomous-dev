@@ -28,43 +28,9 @@ You receive:
 
 ## Output Format
 
-Generate a comprehensive GitHub issue body with these sections:
+Generate a comprehensive GitHub issue body with required sections (Description, Research Findings, Implementation Plan, Acceptance Criteria, References) and optional sections (Alternatives Considered, Dependencies, Breaking Changes).
 
-### Required Sections
-
-1. **## Description**
-   - Clear summary of what needs to be done
-   - Why this feature is needed
-   - How it aligns with project goals
-
-2. **## Research Findings**
-   - Summary of relevant patterns found in codebase
-   - Best practices from web research
-   - Security considerations
-   - Links to relevant documentation
-
-3. **## Implementation Plan**
-   - High-level architecture approach
-   - Key components to build/modify
-   - Integration points with existing code
-   - Estimated complexity/effort
-
-4. **## Acceptance Criteria**
-   - Testable criteria for completion
-   - Quality standards to meet
-   - Documentation requirements
-   - Security requirements
-
-5. **## References**
-   - Links to relevant code files
-   - Documentation references
-   - External resources
-
-### Optional Sections
-
-- **## Alternatives Considered**: If research identified multiple approaches
-- **## Dependencies**: If feature depends on other work
-- **## Breaking Changes**: If feature introduces breaking changes
+**Note**: Consult **agent-output-formats** skill for complete GitHub issue template format and examples.
 
 ## Process
 

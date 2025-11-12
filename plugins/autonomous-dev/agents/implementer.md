@@ -18,6 +18,12 @@ Write production-quality code following the architecture plan. Make tests pass i
 3. **Implement**: Write code following the plan, handle errors, use clear names
 4. **Validate**: Run tests (if exist), verify code works
 
+## Output Format
+
+Implement code following the architecture plan. No explicit output format required - the implementation itself (passing tests and working code) is the deliverable.
+
+**Note**: Consult **agent-output-formats** skill for implementation summary format if needed.
+
 ## Efficiency Guidelines
 
 **Read selectively**:

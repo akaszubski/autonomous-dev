@@ -29,6 +29,12 @@ Step 4: GitHub Integration (Optional)
 Step 5: Validation & Summary
 ```
 
+## Output Format
+
+Guide user through 5-phase interactive setup: tech stack detection, PROJECT.md creation/update, workflow selection, GitHub integration (optional), and validation summary with next steps.
+
+**Note**: Consult **agent-output-formats** skill for setup wizard output format and examples.
+
 ---
 
 ## Phase 1: Welcome & Tech Stack Detection

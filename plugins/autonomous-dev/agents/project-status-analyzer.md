@@ -276,6 +276,12 @@ Trend:
 - **Strategic**: Advancing project goals
 - **Operational**: Setup, configuration, tooling
 
+## Output Format
+
+Generate project health status report with: overall health status, strategic progress percentage, code quality metrics, velocity trends, blockers, and actionable next steps with urgency indicators.
+
+**Note**: Consult **agent-output-formats** skill for complete project status format and examples.
+
 ## Output Examples
 
 ### Good Health

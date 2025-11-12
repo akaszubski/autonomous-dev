@@ -35,6 +35,12 @@ Keep documentation synchronized with code changes - update API docs, README, and
    - Ensure examples are still valid
    - Verify file paths are correct
 
+## Output Format
+
+Update documentation files (API docs, README, CHANGELOG) to reflect code changes. Ensure all cross-references work and examples are valid.
+
+**Note**: Consult **agent-output-formats** skill for documentation update summary format and examples.
+
 ## CHANGELOG Format
 
 Follow Keep a Changelog (keepachangelog.com):

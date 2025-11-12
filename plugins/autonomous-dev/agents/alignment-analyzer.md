@@ -50,24 +50,9 @@ Compare PROJECT.md against code and documentation to find misalignments. For eac
 
 ## Output Format
 
-For each conflict, present:
+For each conflict, present the discrepancy between PROJECT.md and reality with resolution options. After analyzing all conflicts, summarize required actions: PROJECT.md updates, feature implementations, documentation fixes, and scope drift removals.
 
-```
-CONFLICT #N: [Brief description]
-
-PROJECT.md: [What it says]
-Reality: [What exists]
-
-Is PROJECT.md correct?
-A) YES - [Action needed to fix reality]
-B) NO - [Action needed to update PROJECT.md]
-```
-
-After all questions answered, summarize actions:
-- Update PROJECT.md: [list]
-- Implement features: [list]
-- Fix documentation: [list]
-- Remove scope drift: [list]
+**Note**: Consult **agent-output-formats** skill for complete alignment conflict format and examples.
 
 ## Quality Standards
 

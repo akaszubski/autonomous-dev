@@ -3,13 +3,60 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-12
-**Current Version**: v3.15.0 (Agent Output Format Cleanup)
+**Current Version**: v3.16.0 (Agent Output Format Cleanup Phase 2)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [Unreleased]
+
+---
+
+## [3.16.0] - 2025-11-12
+
+### Changed
+- **Phase 2 Agent Output Format Cleanup** (16 agents streamlined) - GitHub Issue #72
+  - **planner**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **security-auditor**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **brownfield-analyzer**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **sync-validator**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **alignment-analyzer**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **issue-creator**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **pr-description-generator**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **project-bootstrapper**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **reviewer**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **commit-message-generator**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **project-status-analyzer**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **researcher**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **implementer**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **doc-master**: Streamlined Output Format section, added agent-output-formats skill reference
+  - **setup-wizard**: Streamlined Output Format section, added agent-output-formats skill reference
+  - All 20 agents now reference agent-output-formats skill for standardized output formatting
+  - Removed redundant template examples across all agents, kept agent-specific guidance
+  - No Output Format sections exceed 30-line threshold after Phase 2 cleanup
+
+### Performance
+- **Phase 2 token reduction: ~1,700 tokens (6.8% reduction for Phase 2 agents)**
+  - Phase 1 agents (v3.15.0): 5 agents streamlined, saved ~1,183 tokens
+  - Phase 2 agents (v3.16.0): 16 agents streamlined, saved ~1,700 tokens
+  - Combined Phase 1+2 savings: ~2,883 tokens (11.7% reduction across all 20 agents)
+  - Combined with Issues #63/#64: ~11,683 tokens total savings (20-28% reduction)
+  - Quality preserved: agent-output-formats skill provides full format details via progressive disclosure
+
+### Documentation
+- CLAUDE.md updated with Phase 2 completion details
+- CHANGELOG.md updated with Issue #72 Phase 2 implementation details
+- docs/SKILLS-AGENTS-INTEGRATION.md: All 20 agents now reference agent-output-formats skill
+
+### Testing
+- Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
+- All 20 agents have agent-output-formats skill references verified (20/20)
+- All Output Format sections validated to be under 30-line threshold
+- No functionality changes - documentation-only cleanup
+
+---
 
 ## [3.15.0] - 2025-11-12
 

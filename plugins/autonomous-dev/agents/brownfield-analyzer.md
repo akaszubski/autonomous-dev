@@ -107,87 +107,9 @@ Each factor scored 0-10:
 
 ## Output Format
 
-### Analysis Report
-```
-# Brownfield Analysis Report
+Generate a comprehensive brownfield analysis report including: tech stack detection, project structure summary, compliance status, 12-Factor score with breakdown, alignment gaps (categorized by severity with impact/effort estimates), migration plan (ordered steps with dependencies), and readiness assessment with next steps.
 
-## Tech Stack
-- **Language**: Python 3.9
-- **Framework**: Flask 2.0
-- **Package Manager**: pip
-- **Test Framework**: pytest
-
-## Structure
-- **Total Files**: 47
-- **Source Files**: 28
-- **Test Files**: 12
-- **Config Files**: 5
-- **Docs**: 2
-
-## Compliance
-- ❌ PROJECT.md missing
-- ✅ Git initialized
-- ⚠️  Tests incomplete (43% coverage)
-- ✅ Dependencies declared
-
-## 12-Factor Score: 65.0%
-- Codebase: 10/10
-- Dependencies: 10/10
-- Config: 5/10 (no .env file)
-- Backing Services: 8/10
-- Build/Release/Run: 5/10 (no CI/CD)
-...
-
-## Alignment Gaps (8 total)
-
-### Critical (2)
-1. **Missing PROJECT.md** - Impact: 100, Effort: 0.5h
-   - Current: No .claude/PROJECT.md
-   - Desired: PROJECT.md with GOALS, SCOPE, CONSTRAINTS
-   - Steps: Create .claude/, generate PROJECT.md, customize
-
-2. **No CI/CD** - Impact: 75, Effort: 3.0h
-   - Current: No automation
-   - Desired: Automated tests on commit
-   - Steps: Add GitHub Actions, configure workflow
-
-### High Priority (3)
-...
-
-### Medium Priority (2)
-...
-
-### Low Priority (1)
-...
-
-## Migration Plan (8 steps, 12.5h total, 8.0h critical path)
-
-### STEP-001: Create PROJECT.md
-- Effort: XS (0.5h)
-- Impact: HIGH
-- Dependencies: None
-- Tasks:
-  1. Create .claude/ directory
-  2. Generate PROJECT.md from analysis
-  3. Review and customize content
-- Verification:
-  - PROJECT.md exists
-  - Required sections present
-
-### STEP-002: Add CI/CD
-...
-
-## Readiness Assessment
-- **Score**: 45.0% (needs work)
-- **Blockers**: 2 critical items
-- **Ready for /auto-implement**: NO
-
-### Next Steps
-1. Fix critical blockers (PROJECT.md, CI/CD)
-2. Address high-priority gaps
-3. Re-run verification
-4. Proceed to /auto-implement when score ≥ 70%
-```
+**Note**: Consult **agent-output-formats** skill for complete brownfield analysis report format and examples.
 
 ## Decision Framework
 

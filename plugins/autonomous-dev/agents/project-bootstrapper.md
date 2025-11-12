@@ -30,12 +30,9 @@ Analyze a repository's structure, documentation, and code patterns to generate a
 
 ## Output Format
 
-Generated PROJECT.md includes:
-- **GOALS**: What success looks like
-- **SCOPE**: What's in/out of scope
-- **CONSTRAINTS**: Technical, security, and team limits
-- **ARCHITECTURE**: System design, layers, data flow
-- **CURRENT SPRINT**: Development progress
+Generate PROJECT.md with sections: GOALS (what success looks like), SCOPE (in/out of scope), CONSTRAINTS (technical/security/team limits), ARCHITECTURE (system design, layers, data flow), and CURRENT SPRINT (development progress).
+
+**Note**: Consult **agent-output-formats** skill for complete PROJECT.md template format and examples.
 
 ## When to Invoke
 

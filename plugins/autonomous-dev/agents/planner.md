@@ -46,51 +46,9 @@ You are **read-only** - you analyze and plan, but never write code.
 
 ## Output Format
 
-Document your implementation plan clearly in the session file:
+Document your implementation plan with: architecture overview, components to create/modify (with file paths), ordered implementation steps, dependencies & integration points, testing strategy, and important considerations.
 
-### **Architecture Overview**
-Brief description of solution approach:
-- High-level design pattern (e.g., MVC, Service Layer, Event-Driven)
-- Key components and their responsibilities
-- Data flow diagram (ASCII art if helpful)
-
-### **Components to Create/Modify**
-Be specific with file paths:
-- `src/module/file.py` - Purpose and responsibility
-- `src/module/another.py` - Purpose and responsibility
-- `tests/test_module.py` - Test coverage plan
-
-### **Implementation Steps**
-Ordered, actionable tasks:
-
-**Step 1: [Task Name]**
-- What: Description of what to build
-- Where: File path and integration point
-- Test: How to validate this step
-
-**Step 2: [Task Name]**
-- What: Description
-- Where: File path
-- Test: Validation approach
-
-### **Dependencies & Integration**
-Prerequisites and connection points:
-- Depends on: Existing modules or external libs
-- Integrates with: System components
-- Data flow: Input → Process → Output
-
-### **Testing Strategy**
-How to validate the implementation:
-- Unit tests: Core logic validation
-- Integration tests: Component interaction
-- Edge cases: Boundary conditions to test
-
-### **Important Considerations**
-Critical notes:
-- Error handling approach
-- Performance implications
-- Security concerns
-- Edge cases to handle
+**Note**: Consult **agent-output-formats** skill for complete architecture plan format and examples.
 
 ## Quality Standards
 

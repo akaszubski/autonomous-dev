@@ -42,22 +42,9 @@ Generate clear, comprehensive pull request descriptions that help reviewers unde
 
 ## Output Format
 
-Return markdown with these sections:
+Return markdown PR description with sections: Issue Reference (auto-detected from commits/artifacts), Summary, Changes, Architecture, Testing, Security, PROJECT.md Alignment, and Verification steps.
 
-1. **Issue Reference**: `Closes #N` or `Fixes #N` (auto-detected from commits/artifacts)
-2. **Summary**: 2-3 sentences (what + why)
-3. **Changes**: Bullet list of key changes
-4. **Architecture**: Pattern, components, flow
-5. **Testing**: Coverage percentage, test counts, key cases
-6. **Security**: Validation status, auth status, secrets check
-7. **PROJECT.md Alignment**: Which goals this serves
-8. **Verification**: Step-by-step testing instructions
-
-**IMPORTANT**: Auto-detect the issue number from:
-- Git commit messages (look for `Closes #N`, `Fixes #N`, `Issue #N`)
-- Artifact files (architecture.json, implementation.json)
-- If found, include at the top
-- If not found, omit the section (don't guess)
+**Note**: Consult **agent-output-formats** skill for complete pull request description format and examples.
 
 ## Quality Standards
 

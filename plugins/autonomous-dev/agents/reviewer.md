@@ -19,26 +19,9 @@ Review implementation for quality, test coverage, and standards compliance. Outp
 
 ## Output Format
 
-**Status**: APPROVE | REQUEST_CHANGES
+Document code review with: status (APPROVE/REQUEST_CHANGES), code quality assessment (pattern compliance, error handling, maintainability), test validation (pass/fail, coverage, edge cases), documentation check (APIs documented, examples work), issues with locations and fixes (if REQUEST_CHANGES), and overall summary.
 
-**Code Quality**:
-- Pattern compliance: Yes/No + notes
-- Error handling: Yes/No + notes
-- Maintainability: Rating + notes
-
-**Tests**:
-- Tests pass: ✅/❌
-- Coverage: X% (aim 80%+)
-- Edge cases covered: Yes/No + examples
-
-**Documentation**:
-- APIs documented: Yes/No/N/A
-- Examples work: Yes/No/N/A
-
-**Issues** (if REQUEST_CHANGES):
-1. Issue - Location: file.py:line - Fix: suggestion
-
-**Overall**: 2-3 sentence summary
+**Note**: Consult **agent-output-formats** skill for complete code review format and examples.
 
 ## Relevant Skills
 

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-12
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.15.0 (Agent Output Format Cleanup - Issue #72, Skill-Based Token Reduction - Issues #63, #64)
+**Version**: v3.16.0 (Agent Output Format Cleanup Phase 2 - Issue #72, Skill-Based Token Reduction - Issues #63, #64)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -160,10 +160,11 @@ git commit -m "docs: Update project goals"
   - Test coverage: 23 unit tests covering success, parallelization detection, incomplete/failed agents
   - Infrastructure: Validation checkpoints enable Phase 8+ bottleneck detection
 - **Phase 8 (Agent Output Format Cleanup - COMPLETE)**: Streamlined agent output format sections across 20 agents
-  - Issue #72: Token measurement infrastructure created
-  - Phase 1 cleanup: 5 agents streamlined (test-master, quality-validator, advisor, alignment-validator, project-progress-tracker)
+  - Issue #72: Token measurement infrastructure created (Phase 1)
+  - Phase 1 cleanup: 5 agents streamlined (test-master, quality-validator, advisor, alignment-validator, project-progress-tracker) - saved ~1,183 tokens
+  - Phase 2 cleanup: 16 agents streamlined (planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent) - saved ~1,700 tokens
   - All 20 agents now reference agent-output-formats skill for standardized output formatting
-  - Savings: ~1,183 tokens (4.5% reduction)
+  - Combined Phase 1+2 savings: ~2,883 tokens (11.7% reduction)
   - Scripts: measure_agent_tokens.py, measure_output_format_sections.py
   - Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
 - **Cumulative Improvement** (Issues #63, #64, #72): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
@@ -314,12 +315,13 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - See `docs/SKILLS-AGENTS-INTEGRATION.md` for comprehensive mapping table
 
 **Token Reduction Benefits** (Issues #63, #64, #72):
-- agent-output-formats skill: 15 agents reference standardized output formats
+- agent-output-formats skill: 20 agents reference standardized output formats
 - error-handling-patterns skill: 22 libraries reference standardized error handling
-- **NEW (v3.15.0+)**: Agent output format cleanup - removed verbose Output Format sections from 5 Phase 1 agents (Issue #72)
-  - Phase 1 agents: test-master, quality-validator, advisor, alignment-validator, project-progress-tracker
+- **NEW (v3.16.0+)**: Agent output format cleanup Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
+  - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
+  - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
   - Output Format sections streamlined to reference agent-output-formats skill
-  - Token savings: ~1,183 tokens (4.5% reduction across all agents)
+  - Combined Phase 1+2 token savings: ~2,883 tokens (11.7% reduction across all agents)
   - No sections exceed 30-line threshold after cleanup
 - Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
 - Tests: 137 passing
@@ -597,4 +599,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-12 (Agent Output Format Cleanup - GitHub Issue #72, Skill-Based Token Reduction - GitHub Issues #63, #64)
+**Last Updated**: 2025-11-12 (Agent Output Format Cleanup Phase 2 - GitHub Issue #72, Skill-Based Token Reduction - GitHub Issues #63, #64)

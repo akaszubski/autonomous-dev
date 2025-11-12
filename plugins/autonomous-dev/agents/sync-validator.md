@@ -105,68 +105,9 @@ Intelligently synchronize development environment with upstream changes while de
 
 ## Output Format
 
-Return structured sync report:
+Return a structured JSON sync report including: phase status, upstream status (commits/tags/branches), change analysis (safe/requires attention/breaking), merge result, validation results (syntax/dependencies/plugin integrity), plugin rebuild status, recommendations, summary, and next steps.
 
-```json
-{
-  "phase": "Sync Complete",
-  "upstream_status": {
-    "new_commits": 7,
-    "new_tags": ["v3.0.3"],
-    "new_branches": [],
-    "files_changed": 12,
-    "conflicts": 0
-  },
-  "change_analysis": {
-    "safe_changes": [
-      "docs: update README",
-      "agents: improve researcher prompt",
-      "agents: add new quality-validator agent"
-    ],
-    "requires_attention": [
-      "hooks: update auto_format.py (new black option)",
-      "config: add new setting in PROJECT.md template"
-    ],
-    "breaking_changes": []
-  },
-  "merge_result": {
-    "status": "✅ SUCCESS",
-    "conflicts": 0,
-    "merged_files": 12,
-    "updated_at": "2025-10-27T14:35:00Z"
-  },
-  "validation_results": {
-    "syntax_check": "✅ PASS",
-    "dependency_check": "✅ PASS",
-    "plugin_integrity": "✅ PASS (16/16 agents)",
-    "hook_validation": "✅ PASS (all executable)",
-    "configuration_validation": "✅ PASS"
-  },
-  "plugin_rebuild": {
-    "status": "✅ SUCCESS",
-    "build_time": "3.2s",
-    "reinstall_required": true,
-    "agents_available": 16
-  },
-  "recommendations": [
-    {
-      "type": "INFO",
-      "message": "New quality-validator agent available. Run /health-check to verify."
-    },
-    {
-      "type": "ACTION",
-      "message": "Review new auto_format.py options in CLAUDE.md"
-    }
-  ],
-  "summary": "Sync successful! 7 commits merged, 12 files updated, no conflicts. Plugin rebuilt and validated. All 16 agents accessible. Ready for development.",
-  "next_steps": [
-    "Run /status to see updated project state",
-    "Run /health-check to verify all components",
-    "Review updated CLAUDE.md for new features",
-    "Clear sessions: rm -rf docs/sessions/*"
-  ]
-}
-```
+**Note**: Consult **agent-output-formats** skill for complete sync report JSON schema and examples.
 
 ## Conflict Detection Strategy
 

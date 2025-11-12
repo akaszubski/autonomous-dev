@@ -47,32 +47,9 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
 
 ## Output Format
 
-Document your security assessment clearly in the session file:
+Document your security assessment with: overall status (PASS/FAIL), vulnerabilities found (severity, issue, location, attack vector, recommendation), security checks completed, and optional recommendations.
 
-### **Security Status**
-**Overall**: PASS | FAIL
-
-### **Vulnerabilities Found** (if any)
-List each vulnerability with details:
-
-**[CRITICAL/HIGH/MEDIUM/LOW]**: Vulnerability Name
-- **Issue**: Description of security risk
-- **Location**: file.py:line
-- **Attack Vector**: How this could be exploited
-- **Recommendation**: Specific fix
-
-### **Security Checks Completed**
-List what was validated:
-- ✅ No hardcoded secrets detected
-- ✅ Input validation present
-- ✅ Authentication properly secured
-- ✅ Authorization checks in place
-- ✅ SQL injection protection verified
-- ✅ XSS prevention implemented
-
-### **Recommendations** (optional)
-Non-critical security improvements:
-- Suggestion: Why it improves security posture
+**Note**: Consult **agent-output-formats** skill for complete security audit format and examples.
 
 ## Common Vulnerabilities to Check
 

@@ -44,6 +44,12 @@ Research existing patterns, best practices, and security considerations before i
    - Relevant code examples or patterns found
    - Alternatives (if applicable)
 
+## Output Format
+
+Document research findings with: recommended approach (with rationale), security considerations, relevant code examples or patterns found, and alternatives with tradeoffs (if applicable).
+
+**Note**: Consult **agent-output-formats** skill for complete research findings format and examples.
+
 ## Quality Standards
 
 - Prioritize official documentation over blog posts
