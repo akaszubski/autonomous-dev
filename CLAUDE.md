@@ -164,11 +164,11 @@ git commit -m "docs: Update project goals"
   - Phase 1 cleanup: 5 agents streamlined (test-master, quality-validator, advisor, alignment-validator, project-progress-tracker) - saved ~1,183 tokens
   - Phase 2 cleanup: 16 agents streamlined (planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent) - saved ~1,700 tokens
   - All 20 agents now reference agent-output-formats skill for standardized output formatting
-  - Combined Phase 1+2 savings: ~2,883 tokens (11.7% reduction)
+  - Combined Phase 1+2 savings: ~2,900 tokens (11.7% reduction)
   - Scripts: measure_agent_tokens.py, measure_output_format_sections.py
   - Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
 - **Cumulative Improvement** (Issues #63, #64, #72): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
-  - Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
+  - Combined token savings: ~11,700 tokens (20-28% reduction in agent/library prompts)
   - Quality: Preserved via progressive disclosure (skills load on-demand)
   - Scalability: Support for 50-100+ skills without context bloat
 
@@ -324,13 +324,14 @@ The "orchestrator" agent was removed because it created a logical impossibility 
   - implementer agent now references testing-guide skill for TDD guidance
   - Total: 2,557 lines of comprehensive testing guidance
   - Test coverage: 27/28 tests passing (96.4%)
+  - test-master agent streamlined (Phase 8.3): Removed inline "Test Quality" section, now references testing-guide skill (~18 tokens saved)
 - **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
   - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
   - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
   - Output Format sections streamlined to reference agent-output-formats skill
-  - Combined Phase 1+2 token savings: ~2,883 tokens (11.7% reduction across all agents)
+  - Combined Phase 1+2 token savings: ~2,900 tokens (11.7% reduction across all agents)
   - No sections exceed 30-line threshold after cleanup
-- Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
+- Combined token savings: ~11,700 tokens (20-28% reduction in agent/library prompts)
 - Tests: 165 passing (137 base + 28 testing-guide skill tests)
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.

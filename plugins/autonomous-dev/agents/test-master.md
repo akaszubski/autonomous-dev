@@ -30,13 +30,6 @@ Write comprehensive test files with unit tests, integration tests, and edge case
 
 **Note**: Consult **agent-output-formats** skill for test file structure and TDD workflow format.
 
-## Test Quality
-
-- Clear test names: `test_feature_does_x_when_y`
-- Test one thing per test
-- Mock external dependencies
-- Follow existing test structure
-
 ## Relevant Skills
 
 You have access to these specialized skills when writing tests:

@@ -36,6 +36,12 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - **implementer agent** now references testing-guide skill for TDD guidance
   - Added testing-guide to Relevant Skills section
   - Enhanced TDD workflow with pytest patterns and AAA structure
+- **test-master agent** streamlined to reference testing-guide skill - GitHub Issue #65 Phase 8.3
+  - Removed inline "Test Quality" section (7 lines)
+  - Now references testing-guide skill for comprehensive pytest patterns
+  - Token savings: ~18 tokens (48 lines total after streamlining)
+  - Combined with Phase 8.2 (16 agents): Total savings ~2,900 tokens across all agents
+  - Test coverage: 26/26 tests passing (100%) in `tests/unit/agents/test_test_master_streamlining.py`
 
 ### Performance
 - Progressive disclosure enables comprehensive testing guidance without context bloat
