@@ -46,6 +46,8 @@
       "Bash:git log.*",
       "Bash:git add.*",
       "Bash:git commit.*",
+      "Bash:git push",
+      "Bash:gh pr create.*",
       "Bash:npm test",
       "Bash:npm run.*",
       "Bash:pytest.*"
@@ -75,6 +77,17 @@
           {
             "type": "command",
             "command": "python .claude/hooks/batch_permission_approver.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "description": "Automatic git operations after /auto-implement completes",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/auto_git_workflow.py"
           }
         ]
       }
