@@ -49,6 +49,7 @@ You have access to these specialized skills when implementing features:
 
 - **agent-output-formats**: Standardized output formats for agent responses
 - **python-standards**: Python code style, type hints, docstring conventions
+- **testing-guide**: TDD methodology, pytest patterns, coverage strategies, AAA pattern
 - **api-design**: API implementation patterns and error handling
 - **architecture-patterns**: Design pattern implementation
 - **code-review**: Code quality patterns and style standards

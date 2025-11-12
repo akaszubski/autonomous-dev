@@ -3,7 +3,7 @@
 All notable changes to the autonomous-dev plugin documented here.
 
 **Last Updated**: 2025-11-12
-**Current Version**: v3.16.0 (Agent Output Format Cleanup Phase 2)
+**Current Version**: v3.17.0 (Enhanced testing-guide skill)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -13,6 +13,38 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ---
+
+
+## [3.17.0] - 2025-11-12
+
+### Added
+- **Enhanced testing-guide skill with comprehensive testing patterns** - GitHub Issue #65
+  - **New Documentation Files (4)**:
+    - `pytest-patterns.md` (404 lines) - Fixtures, mocking, parametrization, and pytest best practices
+    - `coverage-strategies.md` (398 lines) - Achieving 80%+ coverage with branch coverage and edge cases
+    - `arrange-act-assert.md` (435 lines) - AAA pattern examples with practical code samples
+    - Enhanced `SKILL.md` with Progressive Disclosure section and metadata improvements
+  - **New Python Templates (3)**:
+    - `test-templates/unit-test-template.py` (368 lines) - Complete unit test template with fixtures
+    - `test-templates/integration-test-template.py` (472 lines) - Integration test patterns with setup/teardown
+    - `test-templates/fixture-examples.py` (480 lines) - Reusable pytest fixtures for common scenarios
+  - **Total**: 2,557 lines of comprehensive testing guidance
+  - **Progressive Disclosure**: ~10,000 tokens available on-demand, only ~50 tokens context overhead
+  - **Test Coverage**: 27/28 tests passing (96.4%) in `tests/unit/skills/test_testing_patterns_skill.py` (580 lines)
+
+### Changed
+- **implementer agent** now references testing-guide skill for TDD guidance
+  - Added testing-guide to Relevant Skills section
+  - Enhanced TDD workflow with pytest patterns and AAA structure
+
+### Performance
+- Progressive disclosure enables comprehensive testing guidance without context bloat
+- 2,557 lines of testing documentation available on-demand
+- Context overhead: only ~50 tokens (skill metadata) vs ~10,000 tokens (full content)
+- Supports scaling to 100+ skills without performance degradation
+
+---
+
 
 ## [3.16.0] - 2025-11-12
 

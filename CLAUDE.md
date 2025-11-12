@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-12
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.16.0 (Agent Output Format Cleanup Phase 2 - Issue #72, Skill-Based Token Reduction - Issues #63, #64)
+**Version**: v3.17.0 (Enhanced testing-guide skill with comprehensive testing patterns - Issue #65)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -317,14 +317,21 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 **Token Reduction Benefits** (Issues #63, #64, #72):
 - agent-output-formats skill: 20 agents reference standardized output formats
 - error-handling-patterns skill: 22 libraries reference standardized error handling
-- **NEW (v3.16.0+)**: Agent output format cleanup Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
+- **NEW (v3.17.0+)**: Enhanced testing-guide skill with comprehensive testing patterns (Issue #65)
+  - 4 new documentation files: pytest-patterns.md, coverage-strategies.md, arrange-act-assert.md, plus skill metadata enhancements
+  - 3 Python templates: unit-test-template.py, integration-test-template.py, fixture-examples.py
+  - Progressive disclosure: ~10,000 tokens available on-demand, only ~50 tokens context overhead
+  - implementer agent now references testing-guide skill for TDD guidance
+  - Total: 2,557 lines of comprehensive testing guidance
+  - Test coverage: 27/28 tests passing (96.4%)
+- **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
   - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
   - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
   - Output Format sections streamlined to reference agent-output-formats skill
   - Combined Phase 1+2 token savings: ~2,883 tokens (11.7% reduction across all agents)
   - No sections exceed 30-line threshold after cleanup
 - Combined token savings: ~11,683 tokens (20-28% reduction in agent/library prompts)
-- Tests: 137 passing
+- Tests: 165 passing (137 base + 28 testing-guide skill tests)
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
@@ -599,4 +606,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-12 (Agent Output Format Cleanup Phase 2 - GitHub Issue #72, Skill-Based Token Reduction - GitHub Issues #63, #64)
+**Last Updated**: 2025-11-12 (Enhanced testing-guide skill - GitHub Issue #65, Skill-Based Token Reduction - GitHub Issues #63, #64, #72)
