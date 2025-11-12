@@ -577,6 +577,63 @@ Agents + Skills = Powerful partnership
 
 ## Part 9: Specific Recommendations for autonomous-dev Skills
 
+### Complete Skill Inventory (22 Active Skills - v3.19.0)
+
+**Core Development (7 skills)**:
+1. api-design - REST API design with versioning and error handling
+2. architecture-patterns - System architecture and ADR creation
+3. code-review - Code quality assessment and pattern detection
+4. database-design - Database schema and modeling patterns
+5. testing-guide - Test-driven development and testing patterns
+6. security-patterns - Security implementation and vulnerability prevention
+7. error-handling-patterns - Standardized error handling and validation
+
+**Workflow & Automation (6 skills)** - v3.19.0 Addition:
+8. git-workflow - Git operations and commit strategies
+9. github-workflow - GitHub automation and PR workflows
+10. project-management - Project tracking and goal management
+11. documentation-guide - Documentation standards and best practices
+12. agent-output-formats - Standardized agent output formatting
+13. skill-integration - Skill discovery, composition, and progressive disclosure (NEW v3.19.0)
+
+**Code & Quality (4 skills)**:
+14. python-standards - Python coding standards and best practices
+15. observability - Logging, monitoring, and metrics patterns
+16. consistency-enforcement - Code consistency and standardization
+17. file-organization - Project structure and file organization
+
+**Validation & Analysis (5 skills)**:
+18. research-patterns - Research methodology and pattern discovery
+19. semantic-validation - Semantic analysis and validation patterns
+20. cross-reference-validation - Documentation cross-reference checking
+21. documentation-currency - Documentation freshness and synchronization
+22. advisor-triggers - Critical thinking and advisory prompts
+
+### Skill-Integration Skill Details (NEW v3.19.0 - Issue #67-68)
+
+**Location**: `/plugins/autonomous-dev/skills/skill-integration/`
+
+**Purpose**: Standardized patterns for how agents discover, reference, and use skills effectively
+
+**Contents**:
+- **SKILL.md** (385 lines) - Overview and quick reference
+- **Documentation Files (3)**:
+  - `progressive-disclosure.md` (1,247 lines) - Complete architecture guide
+  - `skill-discovery.md` (892 lines) - Keyword-based activation patterns
+  - `skill-composition.md` (1,156 lines) - Multi-skill combination patterns
+- **Example Files (3)**:
+  - `agent-skill-reference-template.md` (287 lines) - Agent prompt template
+  - `progressive-disclosure-diagram.md` (421 lines) - Visual guides
+  - `skill-composition-example.md` (368 lines) - Real-world examples
+
+**Key Concepts**:
+1. **Progressive Disclosure**: Metadata stays in context, full content loads on-demand
+2. **Skill Discovery**: Keyword-based auto-activation or manual referencing
+3. **Skill Composition**: Combining multiple skills for complex tasks
+4. **Context Efficiency**: Support 50-100+ skills without bloat
+
+**Impact**: Standardizes how all agents and libraries reference and compose skills, enabling unlimited skill scaling while maintaining context efficiency.
+
 ### Current Skills That Need Updates
 
 **1. api-design**

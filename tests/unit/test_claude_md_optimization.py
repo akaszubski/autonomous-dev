@@ -69,11 +69,11 @@ class TestCharacterCountValidation:
         """
         Total content across CLAUDE.md + new docs should approximately equal baseline.
 
-        Baseline (comprehensive documentation): ~84,553 characters
+        Baseline (comprehensive documentation): ~95,161 characters
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
         Tolerance: ±5% (to allow for minor content updates)
         """
-        original_size = 89955  # Comprehensive documentation baseline (v3.12.0, Issue #61)
+        original_size = 95161  # Comprehensive documentation baseline (v3.19.0, Issues #67-68)
 
         # Paths
         project_root = Path(__file__).parent.parent.parent

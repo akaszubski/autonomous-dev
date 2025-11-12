@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-12
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.18.0 (Issue #66 - Enhanced documentation-guide skill Phase 8.4, Issues #62-65, #72 - Token Reduction)
+**Version**: v3.19.0 (Skill integration standardization + git/github workflow enhancements - Issues #67-68, #66, #62-65, #72)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 

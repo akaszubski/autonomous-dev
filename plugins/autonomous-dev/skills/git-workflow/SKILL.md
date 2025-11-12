@@ -2,7 +2,18 @@
 name: git-workflow
 type: knowledge
 description: Git best practices, commit conventions, branching strategies, and pull request workflows. Use when working with git operations, commits, branches, or PRs.
-keywords: git, commit, branch, pull request, pr, merge, github, conventional commits, workflow
+keywords:
+  - git
+  - commit
+  - branch
+  - pull request
+  - pr
+  - merge
+  - github
+  - conventional commits
+  - commit message
+  - commit patterns
+  - workflow
 auto_activate: true
 ---
 
@@ -16,6 +27,12 @@ Git best practices and workflow standards for team collaboration.
 - Release management
 - CI/CD integration
 - Keywords: "git", "commit", "branch", "pr", "merge", "github"
+
+## Detailed Documentation
+
+For comprehensive commit message patterns and examples:
+- **Commit Patterns**: See [docs/commit-patterns.md](docs/commit-patterns.md) for detailed conventional commit specification
+- **Real-World Examples**: See [examples/commit-examples.txt](examples/commit-examples.txt) for 50+ production-ready commit messages
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-12
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.18.0 (Enhanced documentation-guide skill - Phase 8.4, Issue #66)
+**Version**: v3.19.0 (Skill integration standardization + git/github workflow enhancements - Issues #67-68)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 20 AI agents, 21 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 20 AI agents, 22 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -286,9 +286,9 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 **Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
 
-### Skills (21 Active - Progressive Disclosure + Agent Integration)
+### Skills (22 Active - Progressive Disclosure + Agent Integration)
 
-**Status**: 21 active skill packages using Claude Code 2.0+ progressive disclosure architecture
+**Status**: 22 active skill packages using Claude Code 2.0+ progressive disclosure architecture
 
 **Why Active**:
 - Skills are **first-class citizens** in Claude Code 2.0+ (fully supported pattern)
@@ -299,9 +299,9 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - **NEW (v3.14.0+)**: Agents reference agent-output-formats and error-handling-patterns skills for 18-25% token reduction (Issues #63, #64)
 - **NEW (v3.15.0+)**: All 20 agents reference agent-output-formats skill for standardized output formatting (Issue #72)
 
-**21 Active Skills** (organized by category):
+**22 Active Skills** (organized by category):
 - **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
-- **Workflow & Automation** (5): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats
+- **Workflow & Automation** (6): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats, skill-integration
 - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
 - **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
 
@@ -333,6 +333,15 @@ The "orchestrator" agent was removed because it created a logical impossibility 
   - Total: 1,709 lines of documentation standards guidance
   - Test coverage: 48 tests passing (38 unit + 10 integration)
   - Token savings: ~280 tokens (4-6% reduction across 9 agents)
+- **NEW (v3.19.0+)**: New skill-integration skill for standardized skill architecture patterns (Issue #67-68)
+  - Skill composition, discovery, and progressive disclosure architecture
+  - 3 documentation files: progressive-disclosure.md, skill-discovery.md, skill-composition.md
+  - 3 example templates: agent-skill-reference-template.md, progressive-disclosure-diagram.md, skill-composition-example.md
+  - Progressive disclosure: ~3,000 tokens available on-demand, only ~40 tokens context overhead
+  - Total: 385 lines of skill integration guidance
+  - Enhanced git-workflow skill with advanced workflow patterns (Issue #67)
+  - Enhanced github-workflow skill with PR and issue automation patterns (Issue #68)
+  - Combined enhancements: ~1,200+ additional tokens of guidance via progressive disclosure
 - **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
   - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
   - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)

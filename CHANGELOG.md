@@ -1,3 +1,77 @@
+---
+
+## [3.19.0] - 2025-11-12
+
+### Added
+- **New skill-integration skill for standardized skill architecture patterns** - GitHub Issues #67-68
+  - **Skill Integration Skill**: Complete skill for standardized patterns in skill discovery, composition, and progressive disclosure
+  - **Documentation Files (3)**:
+    - `progressive-disclosure.md` (1,247 lines) - Complete guide to progressive disclosure architecture
+    - `skill-discovery.md` (892 lines) - Keyword-based skill activation and manual skill references
+    - `skill-composition.md` (1,156 lines) - Combining multiple skills for complex tasks
+  - **Example Files (3)**:
+    - `agent-skill-reference-template.md` (287 lines) - Agent prompt template for skill references
+    - `progressive-disclosure-diagram.md` (421 lines) - ASCII diagrams and visual guides
+    - `skill-composition-example.md` (368 lines) - Real-world skill composition examples
+  - **Total**: 4,371 lines of comprehensive skill integration guidance
+  - **Progressive Disclosure**: ~3,000 tokens available on-demand, only ~40 tokens context overhead
+  - **Location**: `plugins/autonomous-dev/skills/skill-integration/`
+
+- **Enhanced git-workflow skill with advanced workflow patterns** - GitHub Issue #67
+  - **New Documentation Files (2)**:
+    - Advanced commit strategies and squashing patterns
+    - Branch management and workflow best practices
+  - **New Example Files (3)**:
+    - Conventional commit examples across multiple domains
+    - Git workflow automation patterns
+    - Branch strategy templates
+  - **Enhanced SKILL.md**: Updated with progressive disclosure sections and expanded keyword coverage
+  - **Total**: 570 lines in SKILL.md + supporting documentation and examples
+
+- **Enhanced github-workflow skill with PR and issue automation patterns** - GitHub Issue #68
+  - **New Documentation Files (2)**:
+    - PR automation workflows and CI/CD integration
+    - GitHub Actions integration patterns
+  - **New Example Files (3)**:
+    - PR description automation examples
+    - Issue automation and labeling patterns
+    - Workflow automation templates
+  - **Enhanced SKILL.md**: Updated with progressive disclosure sections and GitHub Actions guidance
+  - **Total**: 676 lines in SKILL.md + supporting documentation and examples
+
+### Changed
+- **CLAUDE.md** updated:
+  - Version updated to v3.19.0
+  - Skill count updated from 21 to 22 active skills
+  - Workflow & Automation category now includes 6 skills (added skill-integration)
+  - Token reduction benefits section updated with new skill information
+
+- **docs/SKILLS-AGENTS-INTEGRATION.md** updated:
+  - Added skill-integration skill to skill inventory
+  - Updated architecture documentation with new skill references
+  - Added examples of skill composition patterns
+
+### Performance
+- **Skill-integration skill**: ~40 tokens context overhead with ~3,000 tokens available on-demand
+- **git-workflow enhancement**: Additional workflow patterns via progressive disclosure
+- **github-workflow enhancement**: PR/issue automation patterns via progressive disclosure
+- **Combined**: ~1,200+ additional tokens of workflow guidance without context bloat
+
+### Documentation
+- New skill documentation: `/plugins/autonomous-dev/skills/skill-integration/SKILL.md` (385 lines)
+- Enhanced git-workflow documentation: `/plugins/autonomous-dev/skills/git-workflow/` (570 lines SKILL.md)
+- Enhanced github-workflow documentation: `/plugins/autonomous-dev/skills/github-workflow/` (676 lines SKILL.md)
+- All documentation follows progressive disclosure architecture
+- Token reduction through on-demand loading of detailed guidance
+
+### Testing
+- Test coverage for skill-integration skill patterns
+- Validation of progressive disclosure implementation
+- Git workflow pattern tests
+- GitHub workflow automation tests
+
+---
+
 # Changelog
 
 All notable changes to the autonomous-dev plugin documented here.
