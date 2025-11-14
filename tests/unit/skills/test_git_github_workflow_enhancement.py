@@ -79,6 +79,18 @@ COMMIT_EXAMPLES_FILE = GIT_WORKFLOW_EXAMPLES_DIR / "commit-examples.txt"
 PR_TEMPLATE_EXAMPLE_FILE = GITHUB_WORKFLOW_EXAMPLES_DIR / "pr-template.md"
 ISSUE_TEMPLATE_EXAMPLE_FILE = GITHUB_WORKFLOW_EXAMPLES_DIR / "issue-template.md"
 
+# Issue #68: GitHub Workflow Automation Enhancement
+# New automation documentation files
+PR_AUTOMATION_DOC = GITHUB_WORKFLOW_DOCS_DIR / "pr-automation.md"
+ISSUE_AUTOMATION_DOC = GITHUB_WORKFLOW_DOCS_DIR / "issue-automation.md"
+GITHUB_ACTIONS_INTEGRATION_DOC = GITHUB_WORKFLOW_DOCS_DIR / "github-actions-integration.md"
+API_SECURITY_PATTERNS_DOC = GITHUB_WORKFLOW_DOCS_DIR / "api-security-patterns.md"
+
+# New automation example files
+PR_AUTOMATION_WORKFLOW = GITHUB_WORKFLOW_EXAMPLES_DIR / "pr-automation-workflow.yml"
+ISSUE_AUTOMATION_WORKFLOW = GITHUB_WORKFLOW_EXAMPLES_DIR / "issue-automation-workflow.yml"
+WEBHOOK_HANDLER = GITHUB_WORKFLOW_EXAMPLES_DIR / "webhook-handler.py"
+
 # Agents to update
 AGENTS_TO_UPDATE = {
     "commit-message-generator": "git-workflow",
@@ -523,6 +535,307 @@ class TestSkillActivation:
             "github-workflow skill should auto-activate on PR/issue keywords\n"
             "Expected: auto_activate: true in SKILL.md frontmatter\n"
             "See: Issue #67"
+        )
+
+
+# ============================================================================
+# Test Suite 6: GitHub Workflow Automation Enhancement (Issue #68)
+# ============================================================================
+
+
+class TestGithubWorkflowAutomationPatterns:
+    """Test GitHub workflow automation patterns (Issue #68).
+
+    This test suite validates the enhancement of github-workflow skill with
+    automation patterns for PR/issue workflows, GitHub Actions integration,
+    and webhook security.
+
+    Expected artifacts:
+    - 4 documentation files: pr-automation.md, issue-automation.md,
+      github-actions-integration.md, api-security-patterns.md
+    - 3 example files: pr-automation-workflow.yml, issue-automation-workflow.yml,
+      webhook-handler.py
+    - Updated SKILL.md with automation keywords
+    - ~1,200+ tokens of automation guidance
+    """
+
+    # ========================================================================
+    # Documentation Existence Tests (4 tests)
+    # ========================================================================
+
+    def test_pr_automation_doc_exists(self):
+        """Test pr-automation.md documentation file exists."""
+        assert PR_AUTOMATION_DOC.exists(), (
+            f"PR automation doc not found: {PR_AUTOMATION_DOC}\n"
+            f"Expected: Create docs/pr-automation.md with automation patterns\n"
+            f"Content: Auto-labeling, auto-reviewers, auto-merge workflows\n"
+            f"See: Issue #68"
+        )
+
+    def test_issue_automation_doc_exists(self):
+        """Test issue-automation.md documentation file exists."""
+        assert ISSUE_AUTOMATION_DOC.exists(), (
+            f"Issue automation doc not found: {ISSUE_AUTOMATION_DOC}\n"
+            f"Expected: Create docs/issue-automation.md with automation patterns\n"
+            f"Content: Auto-triage, auto-assignment, auto-labeling workflows\n"
+            f"See: Issue #68"
+        )
+
+    def test_github_actions_integration_doc_exists(self):
+        """Test github-actions-integration.md documentation file exists."""
+        assert GITHUB_ACTIONS_INTEGRATION_DOC.exists(), (
+            f"GitHub Actions integration doc not found: {GITHUB_ACTIONS_INTEGRATION_DOC}\n"
+            f"Expected: Create docs/github-actions-integration.md\n"
+            f"Content: Workflow syntax, event triggers, action composition\n"
+            f"See: Issue #68"
+        )
+
+    def test_api_security_patterns_doc_exists(self):
+        """Test api-security-patterns.md documentation file exists."""
+        assert API_SECURITY_PATTERNS_DOC.exists(), (
+            f"API security patterns doc not found: {API_SECURITY_PATTERNS_DOC}\n"
+            f"Expected: Create docs/api-security-patterns.md\n"
+            f"Content: Webhook signature verification, token security, rate limiting\n"
+            f"See: Issue #68"
+        )
+
+    # ========================================================================
+    # Documentation Completeness Tests (4 tests)
+    # ========================================================================
+
+    def test_pr_automation_has_required_sections(self):
+        """Test pr-automation.md contains required automation sections."""
+        content = PR_AUTOMATION_DOC.read_text()
+
+        required_sections = [
+            "Auto-labeling",
+            "Auto-reviewers",
+            "Auto-merge",
+            "Status checks"
+        ]
+
+        for section in required_sections:
+            assert section.lower() in content.lower(), (
+                f"Missing '{section}' section in pr-automation.md\n"
+                f"Expected: Document PR automation workflows\n"
+                f"See: Issue #68"
+            )
+
+    def test_issue_automation_has_required_sections(self):
+        """Test issue-automation.md contains required automation sections."""
+        content = ISSUE_AUTOMATION_DOC.read_text()
+
+        required_sections = [
+            "Auto-triage",
+            "Auto-assignment",
+            "Auto-labeling",
+            "Stale issues"
+        ]
+
+        for section in required_sections:
+            assert section.lower() in content.lower(), (
+                f"Missing '{section}' section in issue-automation.md\n"
+                f"Expected: Document issue automation workflows\n"
+                f"See: Issue #68"
+            )
+
+    def test_github_actions_integration_has_required_sections(self):
+        """Test github-actions-integration.md contains required sections."""
+        content = GITHUB_ACTIONS_INTEGRATION_DOC.read_text()
+
+        required_sections = [
+            "Workflow syntax",
+            "Event triggers",
+            "Actions marketplace",
+            "Custom actions"
+        ]
+
+        for section in required_sections:
+            assert section.lower() in content.lower(), (
+                f"Missing '{section}' section in github-actions-integration.md\n"
+                f"Expected: Document GitHub Actions integration patterns\n"
+                f"See: Issue #68"
+            )
+
+    def test_api_security_patterns_has_required_sections(self):
+        """Test api-security-patterns.md contains required security sections."""
+        content = API_SECURITY_PATTERNS_DOC.read_text()
+
+        required_sections = [
+            "Webhook signature",
+            "Token security",
+            "Rate limiting",
+            "HTTPS"
+        ]
+
+        for section in required_sections:
+            assert section.lower() in content.lower(), (
+                f"Missing '{section}' section in api-security-patterns.md\n"
+                f"Expected: Document GitHub API security patterns\n"
+                f"See: Issue #68"
+            )
+
+    # ========================================================================
+    # Example Existence Tests (3 tests)
+    # ========================================================================
+
+    def test_pr_automation_workflow_example_exists(self):
+        """Test pr-automation-workflow.yml example file exists."""
+        assert PR_AUTOMATION_WORKFLOW.exists(), (
+            f"PR automation workflow not found: {PR_AUTOMATION_WORKFLOW}\n"
+            f"Expected: Create examples/pr-automation-workflow.yml\n"
+            f"Content: GitHub Actions workflow for PR automation\n"
+            f"See: Issue #68"
+        )
+
+    def test_issue_automation_workflow_example_exists(self):
+        """Test issue-automation-workflow.yml example file exists."""
+        assert ISSUE_AUTOMATION_WORKFLOW.exists(), (
+            f"Issue automation workflow not found: {ISSUE_AUTOMATION_WORKFLOW}\n"
+            f"Expected: Create examples/issue-automation-workflow.yml\n"
+            f"Content: GitHub Actions workflow for issue automation\n"
+            f"See: Issue #68"
+        )
+
+    def test_webhook_handler_example_exists(self):
+        """Test webhook-handler.py example file exists."""
+        assert WEBHOOK_HANDLER.exists(), (
+            f"Webhook handler not found: {WEBHOOK_HANDLER}\n"
+            f"Expected: Create examples/webhook-handler.py\n"
+            f"Content: Python webhook handler with signature verification\n"
+            f"See: Issue #68"
+        )
+
+    # ========================================================================
+    # Example Quality Tests (2 tests)
+    # ========================================================================
+
+    def test_webhook_handler_has_signature_verification(self):
+        """Test webhook-handler.py includes HMAC signature verification."""
+        content = WEBHOOK_HANDLER.read_text()
+
+        # Check for HMAC signature verification
+        security_indicators = [
+            "hmac",
+            "signature",
+            "verify",
+            "sha256"
+        ]
+
+        found_indicators = [ind for ind in security_indicators if ind in content.lower()]
+
+        assert len(found_indicators) >= 3, (
+            f"Webhook handler missing signature verification\n"
+            f"Expected: HMAC SHA-256 signature verification implementation\n"
+            f"Found: {found_indicators}\n"
+            f"See: Issue #68, GitHub webhook security best practices"
+        )
+
+    def test_workflow_examples_have_valid_yaml_structure(self):
+        """Test workflow examples have valid GitHub Actions YAML structure."""
+        for workflow_file in [PR_AUTOMATION_WORKFLOW, ISSUE_AUTOMATION_WORKFLOW]:
+            content = workflow_file.read_text()
+
+            # Parse YAML to check structure
+            workflow = yaml.safe_load(content)
+
+            assert "name" in workflow, (
+                f"Workflow {workflow_file.name} missing 'name' field\n"
+                f"Expected: Valid GitHub Actions workflow structure\n"
+                f"See: Issue #68"
+            )
+
+            assert "on" in workflow, (
+                f"Workflow {workflow_file.name} missing 'on' (event triggers) field\n"
+                f"Expected: Valid GitHub Actions workflow structure\n"
+                f"See: Issue #68"
+            )
+
+            assert "jobs" in workflow, (
+                f"Workflow {workflow_file.name} missing 'jobs' field\n"
+                f"Expected: Valid GitHub Actions workflow structure\n"
+                f"See: Issue #68"
+            )
+
+    # ========================================================================
+    # SKILL.md Integration Tests (2 tests)
+    # ========================================================================
+
+    def test_skill_md_references_automation_docs(self):
+        """Test SKILL.md references new automation documentation files."""
+        content = GITHUB_WORKFLOW_SKILL_FILE.read_text()
+
+        automation_docs = [
+            "pr-automation.md",
+            "issue-automation.md",
+            "github-actions-integration.md",
+            "api-security-patterns.md"
+        ]
+
+        for doc in automation_docs:
+            assert doc in content, (
+                f"SKILL.md should reference {doc}\n"
+                f"Expected: Link to docs/{doc} in skill content\n"
+                f"See: Issue #68"
+            )
+
+    def test_skill_md_has_automation_keywords(self):
+        """Test SKILL.md metadata includes automation-related keywords."""
+        content = GITHUB_WORKFLOW_SKILL_FILE.read_text()
+
+        # Extract frontmatter
+        parts = content.split("---\n", 2)
+        assert len(parts) >= 3, "Skill file must have YAML frontmatter"
+
+        frontmatter = yaml.safe_load(parts[1])
+
+        # Check for automation-related keywords
+        keywords = frontmatter.get("keywords", [])
+        automation_keywords = [
+            "automation",
+            "github actions",
+            "webhook",
+            "auto-labeling",
+            "auto-merge"
+        ]
+
+        found_keywords = [k for k in automation_keywords if any(k in keyword.lower() for keyword in keywords)]
+
+        assert len(found_keywords) >= 3, (
+            f"Missing automation keywords in github-workflow SKILL.md\n"
+            f"Expected: At least 3 of {automation_keywords}\n"
+            f"Found: {found_keywords}\n"
+            f"See: Issue #68"
+        )
+
+    # ========================================================================
+    # Token Target Test (1 test)
+    # ========================================================================
+
+    def test_automation_docs_meet_token_target(self):
+        """Test automation documentation meets ~1,200+ token target."""
+        total_tokens = 0
+
+        # Count tokens from all automation docs
+        automation_docs = [
+            PR_AUTOMATION_DOC,
+            ISSUE_AUTOMATION_DOC,
+            GITHUB_ACTIONS_INTEGRATION_DOC,
+            API_SECURITY_PATTERNS_DOC
+        ]
+
+        for doc_file in automation_docs:
+            content = doc_file.read_text()
+            # Rough token count (1 token ≈ 4 chars)
+            tokens = len(content) // 4
+            total_tokens += tokens
+
+        assert total_tokens >= 1200, (
+            f"Automation documentation token count too low: {total_tokens}\n"
+            f"Expected: ~1,200+ tokens of automation guidance\n"
+            f"Breakdown needed: PR automation (~300), Issue automation (~300),\n"
+            f"GitHub Actions (~400), API security (~200)\n"
+            f"See: Issue #68"
         )
 
 

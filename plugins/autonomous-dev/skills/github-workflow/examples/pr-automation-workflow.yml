@@ -1,0 +1,115 @@
+name: PR Automation Workflow
+
+# Trigger on pull request events
+"on":
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+
+jobs:
+  # Auto-label PRs based on changed files
+  auto-label:
+    name: Auto-Label PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
+    steps:
+      - uses: actions/labeler@v4
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Label PR by size
+  size-label:
+    name: Label by Size
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: 10
+          s_label: 'size/s'
+          s_max_size: 50
+          m_label: 'size/m'
+          m_max_size: 200
+          l_label: 'size/l'
+          l_max_size: 500
+          xl_label: 'size/xl'
+
+  # Auto-assign reviewers
+  assign-reviewers:
+    name: Auto-Assign Reviewers
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
+    steps:
+      - uses: kentaro-m/auto-assign-action@v1.2.1
+        with:
+          configuration-path: '.github/auto-assign.yml'
+
+  # Status checks (build, test, lint)
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build application
+        run: make build
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
+        run: make test
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run linters
+        run: make lint
+
+  # Coverage check
+  coverage:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run coverage
+        run: |
+          make coverage
+          coverage_pct=$(coverage report | tail -1 | awk '{print $4}' | sed 's/%//')
+          if [ "$coverage_pct" -lt 80 ]; then
+            echo "Coverage $coverage_pct% is below 80% threshold"
+            exit 1
+          fi
+
+  # Auto-merge when conditions met
+  auto-merge:
+    name: Auto-Merge
+    runs-on: ubuntu-latest
+    needs: [build, test, lint, coverage]
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'approved' &&
+      contains(github.event.pull_request.labels.*.name, 'automerge') &&
+      !contains(github.event.pull_request.labels.*.name, 'hold')
+    steps:
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

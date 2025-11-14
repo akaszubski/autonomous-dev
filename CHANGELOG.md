@@ -215,8 +215,8 @@
 
 All notable changes to the autonomous-dev plugin documented here.
 
-**Last Updated**: 2025-11-14
-**Current Version**: v3.19.0 (Skill integration + git/github workflow enhancements - Phase 2 Complete)
+**Last Updated**: 2025-11-15
+**Current Version**: v3.20.1 (Skill integration + git/github workflow enhancements - Phase 2 Complete)
 
 Format: [Keep a Changelog](https://keepachangelog.com/)
 Versioning: [Semantic Versioning](https://semver.org/)
@@ -227,7 +227,82 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [3.20.1] - 2025-11-15
+
+### Added
+- **Issue #68 Phase 2: Enhanced github-workflow skill with comprehensive automation documentation** - GitHub Issue #68 Phase 2
+  - **New Documentation Files (4)** (completed 2025-11-15):
+    - `docs/pr-automation.md` (533 lines, ~2,907 tokens) - PR automation workflows, auto-labeling, auto-reviewers, auto-merge strategies, and CI/CD integration patterns
+    - `docs/issue-automation.md` (590 lines, ~3,922 tokens) - GitHub issue automation, auto-triage, auto-assignment, stale issue detection, and label management workflows
+    - `docs/github-actions-integration.md` (587 lines, ~2,842 tokens) - CI/CD workflow patterns, custom actions, workflow security, and marketplace action integration
+    - `docs/api-security-patterns.md` (541 lines, ~3,430 tokens) - Webhook signature verification, token security, API rate limiting, and authentication best practices
+  - **New Example Files (3)** (completed 2025-11-15):
+    - `examples/pr-automation-workflow.yml` (115 lines, ~776 tokens) - Complete GitHub Actions workflow for PR automation (auto-labeling, review assignment, quality checks)
+    - `examples/issue-automation-workflow.yml` (164 lines, ~1,347 tokens) - Complete GitHub Actions workflow for issue automation (auto-triage, assignment, stale detection)
+    - `examples/webhook-handler.py` (283 lines, ~2,175 tokens) - Python webhook handler with HMAC SHA-256 signature verification and security best practices
+  - **Total Documentation**: 2,251 lines of automation documentation + 562 lines of examples = **3,813 lines total**
+  - **Token Content**: ~17,399 tokens of automation guidance (4 docs + 3 examples)
+  - **SKILL.md Enhanced**: Keywords include automation, github actions, webhook, auto-labeling, auto-merge, PR automation, issue automation, api-security
+  - **Location**: `/plugins/autonomous-dev/skills/github-workflow/`
+
+### Changed
+- **github-workflow SKILL.md** updated:
+  - Version bumped to v1.2.0 (was v1.1.0)
+  - Enhanced description with "Includes PR description templates, issue templates, automation patterns, and webhook security"
+  - Keywords expanded: Added pr-automation, issue-automation, webhook, auto-labeling, auto-merge, automation
+  - Updated documentation references in SKILL.md to include all 4 new automation documentation files
+  - Added examples section referencing new workflow and webhook handler examples
+
+### Performance
+- **Progressive Disclosure**: ~17,400 tokens of automation documentation available on-demand
+- **Context Overhead**: Only ~50 tokens in SKILL.md metadata, full documentation loads via links on-demand
+- **No Context Bloat**: Skills remain lightweight while providing comprehensive guidance
+
+### Documentation
+- **New automation documentation**: 3,813 lines total (2,251 docs + 562 examples)
+  - PR automation patterns: PR labeling, reviewer assignment, auto-merge strategies
+  - Issue automation patterns: Triage, assignment, stale detection, milestone management
+  - GitHub Actions integration: Workflow syntax, composite actions, security best practices
+  - API security: Webhook signatures, token management, rate limiting, authentication
+- **Code Examples**:
+  - Two complete GitHub Actions workflows (YAML)
+  - Python webhook handler with cryptographic signature verification
+  - All examples follow GitHub best practices and security standards
+
+### Testing
+- **New Tests** (16 new tests added to test_git_github_workflow_enhancement.py):
+  - 4 documentation file existence tests
+  - 4 documentation completeness tests (content validation)
+  - 3 example file existence and structure tests
+  - 2 example quality tests (signature verification, YAML structure)
+  - 2 SKILL.md integration tests (reference validation, keyword coverage)
+  - 1 token target test (automation documentation ~1,200+ tokens)
+- **Test Coverage**: 16 new tests validating Issue #68 Phase 2 completion
+- **All Tests Passing**: Validates that documentation, examples, and SKILL.md are properly synchronized
+
+### Security
+- Webhook signature verification implemented in webhook-handler.py example
+- HMAC SHA-256 signature validation with constant-time comparison
+- Token security best practices documented in api-security-patterns.md
+- API rate limiting strategies documented
+- Authentication and authorization patterns included
+
+### Files Modified
+- Created: `plugins/autonomous-dev/skills/github-workflow/docs/pr-automation.md`
+- Created: `plugins/autonomous-dev/skills/github-workflow/docs/issue-automation.md`
+- Created: `plugins/autonomous-dev/skills/github-workflow/docs/github-actions-integration.md`
+- Created: `plugins/autonomous-dev/skills/github-workflow/docs/api-security-patterns.md`
+- Created: `plugins/autonomous-dev/skills/github-workflow/examples/pr-automation-workflow.yml`
+- Created: `plugins/autonomous-dev/skills/github-workflow/examples/issue-automation-workflow.yml`
+- Created: `plugins/autonomous-dev/skills/github-workflow/examples/webhook-handler.py`
+- Modified: `plugins/autonomous-dev/skills/github-workflow/SKILL.md` (version 1.2.0 with enhanced metadata and references)
+- Modified: `tests/unit/skills/test_git_github_workflow_enhancement.py` (16 new tests for Issue #68 Phase 2)
+
+---
+
 ## [3.18.0] - 2025-11-12
+
+### Added - 2025-11-12
 
 ### Added
 - **Enhanced documentation-guide skill with documentation standards** - GitHub Issue #66 Phase 8.4

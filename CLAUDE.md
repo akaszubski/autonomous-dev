@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-14
+**Last Updated**: 2025-11-15
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.20.0 (Phase 8.5 Profiler Integration + Phase 9 Investigation - Issue #46)
+**Version**: v3.20.1 (Issue #68 Phase 3: github-workflow Documentation Expansion + Phase 8.5 Profiler Integration + Phase 9 Investigation)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -351,21 +351,30 @@ The "orchestrator" agent was removed because it created a logical impossibility 
   - Test coverage: 48 tests passing (38 unit + 10 integration)
   - Token savings: ~280 tokens (4-6% reduction across 9 agents)
 - **NEW (v3.19.0+)**: New skill-integration skill for standardized skill architecture patterns (Issue #67-68)
-  - **Phase 1 (Skill Infrastructure - COMPLETE)**:
+  - **Phase 1 (Skill Infrastructure - COMPLETE - v3.19.0)**:
     - Skill composition, discovery, and progressive disclosure architecture
     - 3 documentation files: progressive-disclosure.md, skill-discovery.md, skill-composition.md
     - 3 example templates: agent-skill-reference-template.md, progressive-disclosure-diagram.md, skill-composition-example.md
     - Progressive disclosure: ~3,000 tokens available on-demand, only ~40 tokens context overhead
     - Total: 385 lines of skill integration guidance
     - Enhanced git-workflow skill with advanced workflow patterns (Issue #67)
-    - Enhanced github-workflow skill with PR and issue automation patterns (Issue #68)
+    - Enhanced github-workflow skill v1.1.0 with PR and issue automation patterns (Issue #68)
     - Combined enhancements: ~1,200+ additional tokens of guidance via progressive disclosure
-  - **Phase 2 (Agent Streamlining - COMPLETE)**:
+  - **Phase 2 (Agent Streamlining - COMPLETE - v3.19.0)**:
     - Streamlined commit-message-generator agent: ~702 tokens saved (references git-workflow skill)
     - Streamlined issue-creator agent: ~271 tokens saved (references github-workflow skill)
     - Combined Phase 2 savings: ~973 tokens (5-8% reduction in git/github-related agents)
     - Test coverage: 30 unit tests passing in test_git_github_workflow_enhancement.py
     - Integration tests: token_reduction_workflow.py validates savings targets
+  - **Phase 3 (github-workflow Documentation Expansion - COMPLETE - v3.20.1)**:
+    - Enhanced github-workflow skill to v1.2.0 with comprehensive automation documentation
+    - 4 new documentation files: pr-automation.md (~2,907 tokens), issue-automation.md (~3,922 tokens), github-actions-integration.md (~2,842 tokens), api-security-patterns.md (~3,430 tokens)
+    - 3 new example files: pr-automation-workflow.yml (~776 tokens), issue-automation-workflow.yml (~1,347 tokens), webhook-handler.py (~2,175 tokens)
+    - Total: 3,813 lines (2,251 docs + 562 examples) = ~17,399 tokens of automation guidance
+    - Progressive disclosure: ~17,400 tokens on-demand, only ~50 tokens SKILL.md overhead
+    - Keywords expanded: Added pr-automation, issue-automation, webhook, auto-labeling, auto-merge, automation, api-security
+    - Covers: PR automation workflows, issue automation patterns, GitHub Actions integration, webhook security, API best practices
+    - Test coverage: 16 new tests validating documentation, examples, and SKILL.md synchronization
 - **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
   - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
   - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
