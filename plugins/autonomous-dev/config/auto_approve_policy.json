@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "description": "MCP Auto-Approval Policy - Whitelist/Blacklist for Safe Tool Execution",
+  "bash": {
+    "whitelist": [
+      "pytest*",
+      "git status",
+      "git diff*",
+      "git log*",
+      "ls*",
+      "cat*",
+      "head*",
+      "tail*",
+      "grep*",
+      "wc*",
+      "find*",
+      "echo*",
+      "pwd",
+      "which*",
+      "python -m pytest*",
+      "python -c*",
+      "pip list",
+      "pip show*"
+    ],
+    "blacklist": [
+      "rm -rf*",
+      "sudo*",
+      "chmod 777*",
+      "curl*|*bash",
+      "wget*|*bash",
+      "eval*",
+      "exec*",
+      "dd*",
+      "mkfs*",
+      "fdisk*",
+      "kill -9*",
+      "killall*",
+      "> /dev/*",
+      "shutdown*",
+      "reboot*",
+      "init 0*",
+      "init 6*"
+    ]
+  },
+  "file_paths": {
+    "whitelist": [
+      "/Users/*/Documents/GitHub/*",
+      "/tmp/pytest-*",
+      "/tmp/tmp*",
+      "/private/tmp/pytest-*",
+      "/private/tmp/tmp*"
+    ],
+    "blacklist": [
+      "/etc/*",
+      "/var/*",
+      "/root/*",
+      "*/.env",
+      "*/secrets/*",
+      "*/credentials/*",
+      "*/.ssh/*",
+      "*/id_rsa*",
+      "*/id_ed25519*"
+    ]
+  },
+  "agents": {
+    "trusted": [
+      "researcher",
+      "planner",
+      "test-master",
+      "implementer",
+      "reviewer",
+      "doc-master"
+    ],
+    "restricted": [
+      "security-auditor"
+    ]
+  }
+}

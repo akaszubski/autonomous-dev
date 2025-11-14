@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.20.1-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.21.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.20.1
+**Version**: v3.21.0
 **Last Updated**: 2025-11-15
-**Status**: Issue #68 Phase 3: github-workflow Automation Documentation Expansion + Phase 8.5 Performance Profiler Integration + Phase 9 Model Optimization Investigation
+**Status**: Issue #73: MCP Auto-Approval for Subagent Tool Calls
 
-Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 22 active skills, 41+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 22 active skills, 42+ automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -211,6 +211,102 @@ Checking for orphaned files...
 - See `plugins/autonomous-dev/lib/validate_documentation_parity.py` for documentation consistency validation
 
 ---
+
+## ✨ What's New in v3.21.0
+
+**🚀 MCP Auto-Approval for Subagent Tool Calls**
+
+This release introduces automatic tool approval for MCP (Model Context Protocol) tool calls from trusted subagents. Users can now enable zero-interruption workflows: subagent invokes tool → auto-approved → no manual permission prompts. Reduces 50+ permission prompts to 0 per `/auto-implement` run.
+
+### v3.21.0 Changes (2025-11-15)
+
+**🎯 Opt-In Auto-Approval** (disabled by default, requires explicit enablement):
+- **Zero Permission Prompts**: Trusted operations auto-approved (pytest, git status, ls, cat, grep, etc.)
+- **Security**: 6 layers of defense-in-depth validation
+- **Circuit Breaker**: Auto-disable after 10 consecutive denials (prevents runaway automation)
+- **Audit Trail**: Every approval/denial logged to `logs/tool_approval_audit.log`
+- **First-run consent**: Interactive prompt on first tool call (when enabled)
+- **User state persistence**: Choice saved in `~/.autonomous-dev/user_state.json`
+- **Environment override**: `.env` variables override user state preferences
+
+**📝 How to Enable**:
+```bash
+# Add to .env file
+echo "MCP_AUTO_APPROVE=true" >> .env
+
+# On first /auto-implement run, you'll see consent prompt
+/auto-implement "Your feature description"
+
+# Choose Y (default) or n at prompt
+# Your choice is saved and won't be asked again
+```
+
+**🛠️ New Libraries**:
+- `tool_validator.py` (537 lines) - Whitelist/blacklist validation engine
+- `tool_approval_audit.py` (298 lines) - Audit logging system
+- `auto_approval_consent.py` (174 lines) - User consent management
+
+**🛠️ New Hook**:
+- `auto_approve_tool.py` - PreToolUse lifecycle hook for MCP auto-approval
+
+**🛠️ New Configuration**:
+- `auto_approve_policy.json` - Whitelist/blacklist policy configuration
+
+**🔐 Security Features**:
+- **Subagent Context Isolation**: Only auto-approve in subagent context (CLAUDE_AGENT_NAME env var)
+- **Agent Whitelist**: Only trusted agents (researcher, planner, test-master, implementer, reviewer, doc-master)
+- **Tool Whitelist**: Only approved tools (Bash, Read, Write, Grep, Edit)
+- **Command Validation**: Whitelist/blacklist enforcement
+  - **Whitelist**: pytest, git status, git diff, ls, cat, grep, wc, find, echo, pwd, which, python -m pytest, pip list
+  - **Blacklist**: rm -rf, sudo, chmod 777, curl|bash, eval, exec, dd, mkfs, fdisk, kill -9, killall, shutdown, reboot
+- **Path Validation**: CWE-22 path traversal prevention
+  - **Whitelist**: Project directories (/Users/*/Documents/GitHub/*), temp directories (/tmp/*)
+  - **Blacklist**: /etc, /var, /root, secrets, credentials, .ssh, private keys
+- **Command Injection Prevention**: CWE-78 regex validation (semicolons, pipes, backticks, $())
+- **Audit Logging**: Full trail of every approval/denial (SIEM integration ready)
+- **Circuit Breaker**: Auto-disable after 10 consecutive denials
+
+**📖 How It Works**:
+```bash
+# Without Auto-Approval (50+ prompts per feature):
+User → /auto-implement → researcher agent invokes Bash
+  → [PROMPT: Approve tool use?] → User approves → ...
+  (Repeat 50+ times for pytest, git, ls, cat, grep, etc.)
+
+# With Auto-Approval (0 prompts):
+User → /auto-implement → researcher agent invokes Bash
+  → [AUTO-APPROVED] → ...
+  (Zero prompts, seamless automation)
+
+# Dangerous commands still require manual approval:
+Subagent → Bash("rm -rf /tmp/data")
+  → [DENIED: Blacklist match] → Manual approval required
+```
+
+**⚙️ Configuration**:
+```bash
+# Enable/disable auto-approval
+MCP_AUTO_APPROVE=false   # Default: false (opt-in design)
+
+# Custom policy file path (optional)
+AUTO_APPROVE_POLICY_FILE=/path/to/custom_policy.json
+```
+
+**🎯 Why Opt-In Model?**:
+- **Safety First**: Disabled by default to prevent accidental auto-approval
+- **Informed Consent**: First-run prompt educates users about behavior
+- **User Control**: Easy enable/disable via `.env` file
+- **Graceful Degradation**: Failures fall back to manual approval (safe failure)
+
+**📦 Breaking Change**:
+- None - feature is opt-in (disabled by default)
+
+**📚 Documentation**:
+- Comprehensive guide: `docs/TOOL-AUTO-APPROVAL.md`
+- Security model, configuration, troubleshooting, contributor guide
+
+---
+
 
 ## ✨ What's New in v3.12.0
 
