@@ -73,7 +73,7 @@ class TestCharacterCountValidation:
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
         Tolerance: ±5% (to allow for minor content updates)
         """
-        original_size = 95161  # Comprehensive documentation baseline (v3.19.0, Issues #67-68)
+        original_size = 101380  # Comprehensive documentation baseline (v3.19.0 Phase 2, Issues #67-68)
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -135,9 +135,9 @@ class TestCharacterCountValidation:
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
             f"(expected ~40,585 ±30%)"
         )
-        assert 5600 <= performance_size <= 10500, (
+        assert 8600 <= performance_size <= 16200, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
-            f"(expected ~8,039 ±30%)"
+            f"(expected ~12,397 ±30%)"
         )
         assert 10400 <= git_automation_size <= 19400, (
             f"GIT-AUTOMATION.md size unexpected: {git_automation_size} chars "

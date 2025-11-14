@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2025-11-14
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.19.0 (Skill integration standardization + git/github workflow enhancements - Issues #67-68)
+**Version**: v3.20.0 (Phase 8.5 Profiler Integration + Phase 9 Investigation - Issue #46)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -167,10 +167,27 @@ git commit -m "docs: Update project goals"
   - Combined Phase 1+2 savings: ~2,900 tokens (11.7% reduction)
   - Scripts: measure_agent_tokens.py, measure_output_format_sections.py
   - Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
-- **Cumulative Improvement** (Issues #63, #64, #72): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
+- **Phase 8.5 (Profiler Integration - COMPLETE)**: Real-time performance analysis API
+  - Issue #46 Phase 8.5: Integrated profiling analysis into workflow
+  - New function: `analyze_performance_logs()` in performance_profiler.py (81 lines)
+  - Features: Load metrics, aggregate by agent, detect top 3 slowest agents
+  - Enhanced PerformanceTimer: ISO 8601 timestamps with Z suffix, backward compatible
+  - Enhanced Metrics: calculate_aggregate_metrics() now includes count field
+  - Path validation: Flexible logs/ directory detection for cross-platform test compatibility
+  - Test coverage: 27/27 tests passing (100%) - PerformanceTimer, metrics, bottleneck detection, CWE-22 validation
+  - Documentation: Comprehensive docstrings with examples, security notes, performance characteristics
+  - Foundation: Enables Phase 9 model optimization and Phase 10 smart agent selection
+- **Phase 9 (Model Downgrade Strategy - INVESTIGATIVE)**: Cost optimization through model analysis
+  - Issue #46 Phase 9: Investigative phase for model downgrade feasibility
+  - Test coverage: 11/19 tests passing (58%) - Investigation mode
+  - Focus areas: Researcher (Haiku verified optimal), Planner (Sonnet analysis), Other agents (cost-benefit pending)
+  - Framework: Performance impact analysis, quality metrics, cost-benefit calculation
+  - Timeline: Complete investigation by 2025-11-30
+- **Cumulative Improvement** (Issues #63, #64, #72, #46 Phase 8.5): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
   - Combined token savings: ~11,980 tokens (20-28% reduction in agent/library prompts)
   - Quality: Preserved via progressive disclosure (skills load on-demand)
   - Scalability: Support for 50-100+ skills without context bloat
+  - Profiling: Real-time metrics enable Phase 9+ data-driven optimizations
 
 ---
 
@@ -334,22 +351,31 @@ The "orchestrator" agent was removed because it created a logical impossibility 
   - Test coverage: 48 tests passing (38 unit + 10 integration)
   - Token savings: ~280 tokens (4-6% reduction across 9 agents)
 - **NEW (v3.19.0+)**: New skill-integration skill for standardized skill architecture patterns (Issue #67-68)
-  - Skill composition, discovery, and progressive disclosure architecture
-  - 3 documentation files: progressive-disclosure.md, skill-discovery.md, skill-composition.md
-  - 3 example templates: agent-skill-reference-template.md, progressive-disclosure-diagram.md, skill-composition-example.md
-  - Progressive disclosure: ~3,000 tokens available on-demand, only ~40 tokens context overhead
-  - Total: 385 lines of skill integration guidance
-  - Enhanced git-workflow skill with advanced workflow patterns (Issue #67)
-  - Enhanced github-workflow skill with PR and issue automation patterns (Issue #68)
-  - Combined enhancements: ~1,200+ additional tokens of guidance via progressive disclosure
+  - **Phase 1 (Skill Infrastructure - COMPLETE)**:
+    - Skill composition, discovery, and progressive disclosure architecture
+    - 3 documentation files: progressive-disclosure.md, skill-discovery.md, skill-composition.md
+    - 3 example templates: agent-skill-reference-template.md, progressive-disclosure-diagram.md, skill-composition-example.md
+    - Progressive disclosure: ~3,000 tokens available on-demand, only ~40 tokens context overhead
+    - Total: 385 lines of skill integration guidance
+    - Enhanced git-workflow skill with advanced workflow patterns (Issue #67)
+    - Enhanced github-workflow skill with PR and issue automation patterns (Issue #68)
+    - Combined enhancements: ~1,200+ additional tokens of guidance via progressive disclosure
+  - **Phase 2 (Agent Streamlining - COMPLETE)**:
+    - Streamlined commit-message-generator agent: ~702 tokens saved (references git-workflow skill)
+    - Streamlined issue-creator agent: ~271 tokens saved (references github-workflow skill)
+    - Combined Phase 2 savings: ~973 tokens (5-8% reduction in git/github-related agents)
+    - Test coverage: 30 unit tests passing in test_git_github_workflow_enhancement.py
+    - Integration tests: token_reduction_workflow.py validates savings targets
 - **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
   - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
   - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
   - Output Format sections streamlined to reference agent-output-formats skill
   - Combined Phase 1+2 token savings: ~2,900 tokens (11.7% reduction across all agents)
   - No sections exceed 30-line threshold after cleanup
-- Combined token savings: ~11,980 tokens (20-28% reduction in agent/library prompts)
-- Tests: 213 passing (165 base + 48 documentation-guide skill tests)
+- Combined token savings: ~12,953 tokens (21-30% reduction in agent/library prompts)
+  - v3.19.0 Phase 2: ~973 tokens (commit-message-generator + issue-creator streamlining)
+  - Previous phases: ~11,980 tokens (agent-output-formats, error-handling-patterns, testing-guide, documentation-guide, skill-integration)
+- Tests: 243 passing (165 base + 48 documentation-guide + 30 git/github-workflow skill tests)
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 

@@ -30,29 +30,14 @@ You receive:
 
 Generate a comprehensive GitHub issue body with required sections (Description, Research Findings, Implementation Plan, Acceptance Criteria, References) and optional sections (Alternatives Considered, Dependencies, Breaking Changes).
 
-**Note**: Consult **agent-output-formats** skill for complete GitHub issue template format and examples.
+**Note**: Consult **agent-output-formats** skill for complete GitHub issue template format and **github-workflow** skill for issue structure examples and best practices.
 
 ## Process
 
-1. **Read Research Findings**
-   - Review researcher agent output
-   - Extract key patterns and recommendations
-
-2. **Structure Issue**
-   - Organize information into required sections
-   - Ensure each section is actionable
-   - Add specific details from research
-
-3. **Validate Completeness**
-   - All required sections present
-   - Acceptance criteria are testable
-   - Implementation plan is clear
-   - References are included
-
-4. **Format Output**
-   - Use markdown formatting
-   - Keep sections concise but complete
-   - Use bullet points for clarity
+1. **Read Research Findings** - Review researcher agent output and extract key patterns
+2. **Structure Issue** - Organize into required sections with actionable details
+3. **Validate Completeness** - Ensure all sections present, criteria testable, plan clear
+4. **Format Output** - Use markdown formatting with bullet points for clarity
 
 ## Quality Standards
 
@@ -61,53 +46,6 @@ Generate a comprehensive GitHub issue body with required sections (Description, 
 - **Completeness**: All research findings incorporated
 - **Testability**: Acceptance criteria are measurable
 - **Traceability**: References to source materials included
-
-## Example Output Structure
-
-```markdown
-## Description
-
-[Clear summary of feature, why needed, alignment with goals]
-
-## Research Findings
-
-**Existing Patterns:**
-- Pattern 1: [description]
-- Pattern 2: [description]
-
-**Best Practices:**
-- Practice 1: [source]
-- Practice 2: [source]
-
-**Security Considerations:**
-- CWE-XX: [description]
-- Mitigation: [approach]
-
-## Implementation Plan
-
-**Components:**
-1. Component 1: [description, ~LOC estimate]
-2. Component 2: [description, ~LOC estimate]
-
-**Integration Points:**
-- Integration 1: [description]
-- Integration 2: [description]
-
-**Estimated Complexity:** Medium/High/Low
-
-## Acceptance Criteria
-
-- [ ] Criterion 1 (testable)
-- [ ] Criterion 2 (testable)
-- [ ] Documentation updated
-- [ ] Security validated
-
-## References
-
-- `path/to/relevant/file.py` - [description]
-- [Official Documentation](url)
-- [Best Practice Guide](url)
-```
 
 ## Constraints
 
