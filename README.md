@@ -1,8 +1,8 @@
 # Autonomous Development Plugin for Claude Code
 
-**Speak requirements. Get production-ready code.**
+**Speak requirements. Get production-ready code. Guaranteed alignment with your strategic goals.**
 
-Claude Code plugin that automates the full software development lifecycle: research → plan → test → implement → review → security → documentation.
+Claude Code plugin that automates the full software development lifecycle with PROJECT.md-first validation: alignment → research → plan → test → implement → review → security → documentation.
 
 **Version**: v3.21.0 | **Status**: Production Ready | **Last Updated**: 2025-11-15
 
@@ -13,15 +13,44 @@ Claude Code plugin that automates the full software development lifecycle: resea
 **You say**: "Add JWT authentication to the API"
 
 **Claude Code**:
-1. Researches JWT best practices and security patterns
-2. Plans the architecture and integration points
-3. Writes tests first (TDD)
-4. Implements the code to pass tests
-5. Reviews code quality and patterns
-6. Scans for security vulnerabilities
-7. Updates documentation
+1. **Validates against PROJECT.md** - Checks feature aligns with GOALS, SCOPE, CONSTRAINTS (blocks if misaligned)
+2. Researches JWT best practices and security patterns
+3. Plans the architecture and integration points
+4. Writes tests first (TDD)
+5. Implements the code to pass tests
+6. Reviews code quality and patterns
+7. Scans for security vulnerabilities
+8. Updates documentation
 
-**All automated. All in minutes.**
+**All automated. All aligned with your strategic goals.**
+
+### The Key Differentiator: PROJECT.md-First
+
+**Every feature validates against your strategic direction BEFORE work begins.**
+
+Define once in `.claude/PROJECT.md`:
+- **GOALS**: What success looks like
+- **SCOPE**: What's IN and OUT
+- **CONSTRAINTS**: Technical and business limits
+- **ARCHITECTURE**: How the system works
+
+Features outside your SCOPE are automatically **blocked**. Zero scope creep. Zero wasted effort.
+
+**Example**:
+```
+Your PROJECT.md says:
+  SCOPE:
+    IN: User authentication, API endpoints
+    OUT: Admin dashboard, analytics
+
+You request: "/auto-implement Add analytics dashboard"
+
+Result: ❌ BLOCKED
+  "Analytics is OUT OF SCOPE per PROJECT.md.
+   Either remove analytics from OUT scope, or modify request."
+```
+
+No work happens until alignment is fixed. This saves hours of wasted implementation.
 
 ---
 
@@ -74,6 +103,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 
 Claude Code will:
+- ✅ Validate against PROJECT.md (alignment check)
 - ✅ Research validation patterns
 - ✅ Plan the implementation
 - ✅ Write tests first
@@ -139,10 +169,10 @@ Both update to latest version automatically.
 
 **For Users**:
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - How the two-layer system works (hooks + agents)
-- **[PROJECT.md Philosophy](docs/PHILOSOPHY.md)** - Why PROJECT.md-first development works
+- **[PROJECT.md Philosophy](docs/MAINTAINING-PHILOSOPHY.md)** - Why PROJECT.md-first development works
 - **[Workflows & Examples](docs/WORKFLOWS.md)** - Real-world usage patterns and examples
-- **[Command Reference](docs/REFERENCE.md)** - Complete list of commands and what they do
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Command Reference](plugins/autonomous-dev/commands/)** - Complete list of commands and what they do
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions (coming soon)
 
 **For Contributors**:
 - **[Development Guide](docs/DEVELOPMENT.md)** - How to contribute to the plugin
