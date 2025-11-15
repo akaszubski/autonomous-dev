@@ -1,18 +1,14 @@
 ---
 name: batch-implement
 description: Execute multiple features sequentially with automatic context management
-author: implementer agent
-version: 1.0.0
-date: 2025-11-15
+author: Claude
+version: 3.0.0
+date: 2025-11-16
 ---
 
-# /batch-implement - Batch Feature Implementation
+# /batch-implement - Overnight Feature Queue
 
-Execute multiple features sequentially with automatic context clearing between features. Prevents context bloat while maintaining autonomous development workflow.
-
-## Purpose
-
-Process a list of features in sequence, invoking `/auto-implement` for each feature and automatically clearing context between features to maintain optimal performance.
+Process multiple features unattended - queue them up, let it run overnight, wake up to completed work.
 
 ## Usage
 
@@ -22,554 +18,264 @@ Process a list of features in sequence, invoking `/auto-implement` for each feat
 
 ## Input Format
 
-Features file (plain text, UTF-8):
+Plain text file, one feature per line:
+
 ```text
-# Authentication features
-Add user login
-Add user logout
+# Authentication
+Add user login with JWT
+Add password reset flow
 
-# User management features
-Add user profile page
-Add password reset
+# API features
+Add rate limiting to endpoints
+Add API versioning
 ```
 
-**Format Requirements**:
+**Rules**:
 - One feature per line
+- Lines starting with `#` are comments (skipped)
 - Empty lines are skipped
-- Comment lines (starting with #) are skipped
-- Duplicate features are automatically removed (preserving first occurrence)
-- Maximum 1000 features per file
-- Maximum 500 characters per feature line
-- Maximum file size: 1MB
+- Keep features under 500 characters each
 
-## Workflow
+## How It Works
 
-### CHECKPOINT 1: Validate Input File
+**Simple loop**:
 
-**Objective**: Validate features file for security and correctness
-
-**Tasks**:
-1. Parse features file path from user input
-2. Validate file exists and is readable
-3. Check file size limit (1MB) - CWE-400 DoS prevention
-4. Validate UTF-8 encoding
-5. Prevent path traversal attacks - CWE-22
-
-**Security Checks**:
-- ✅ Path traversal prevention (CWE-22)
-- ✅ File size limit (CWE-400)
-- ✅ Encoding validation
-
-**Output**:
-```
-✓ Features file validated: features.txt
-  - File size: 1.2 KB
-  - Encoding: UTF-8
-  - Security: Passed
-```
-
-**Error Handling**:
-- File not found → Clear error with path
-- File too large → Show size and limit
-- Invalid encoding → Request UTF-8 file
-- Path traversal detected → Block and log to security audit
+1. Read features.txt
+2. Parse features (skip comments, empty lines, duplicates)
+3. For each feature:
+   - `/auto-implement {feature}`
+   - `/clear`
+   - Next feature
+4. Done
 
 ---
 
-### CHECKPOINT 2: Parse Features
+## Implementation
 
-**Objective**: Extract and deduplicate features from file
+Invoke the batch orchestration workflow to process features sequentially with automatic context management.
 
-**Tasks**:
-1. Read file content (UTF-8)
-2. Split into lines
-3. Strip whitespace from each line
-4. Skip empty lines
-5. Skip comment lines (starting with #)
-6. Enforce line length limit (500 chars) - CWE-400
-7. Deduplicate features (preserve first occurrence)
-8. Enforce feature count limit (1000) - CWE-400
+**You (Claude) orchestrate this workflow manually** - read features, loop through each one, invoke /auto-implement, clear context, next.
 
-**Output**:
+ARGUMENTS: {{ARGUMENTS}} (path to features.txt)
+
+### STEP 1: Read and Parse Features
+
+**Action**: Use the Read tool to read the features file
+
+Parse the content:
+- Skip lines starting with `#` (comments)
+- Skip empty lines (just whitespace)
+- Skip duplicate features
+- Collect unique features into a list
+
+Display to user:
 ```
-✓ Parsed 15 features from file:
-  1. Add user login
-  2. Add user logout
-  3. Add user profile page
+Found N features in features.txt:
+  1. Feature one
+  2. Feature two
+  3. Feature three
   ...
 
-  Skipped: 3 empty lines, 2 comments, 1 duplicate
+Ready to process N features. This will run unattended.
+Starting batch processing...
 ```
-
-**Error Handling**:
-- Line too long → Show line number and limit
-- Too many features → Show count and limit
-- No features found → Warn and exit
 
 ---
 
-### CHECKPOINT 3: Execute Batch
+### STEP 2: Create Todo List
 
-**Objective**: Execute features sequentially with context management
+**Action**: Use TodoWrite tool to create todo items for tracking
 
-**Tasks**:
-1. Generate unique batch ID
-2. For each feature:
-   a. Log progress (current/total)
-   b. Invoke /auto-implement via Task tool
-   c. Track timing and git statistics
-   d. Execute /clear command (context management)
-   e. Update session file with progress
-   f. Handle errors (continue or abort based on mode)
-3. Calculate batch metrics (timing, success rate)
-
-**Context Management**:
-- Clear context after EACH feature
-- Keeps context under 8K tokens
-- Prevents context bloat scaling issues
-
-**Error Handling**:
-- Continue-on-failure mode (default): Log error, continue with next feature
-- Abort-on-failure mode: Stop batch on first error
-
-**Progress Tracking**:
+Create one todo per feature:
 ```
-[Batch 1/15] Executing: Add user login
-  Status: Success
-  Duration: 28.3s
-  Files changed: 3
-
-[Batch 2/15] Executing: Add user logout
-  Status: Success
-  Duration: 22.1s
-  Files changed: 2
-
-...
+[
+  {"content": "Feature 1", "status": "pending", "activeForm": "Processing Feature 1"},
+  {"content": "Feature 2", "status": "pending", "activeForm": "Processing Feature 2"},
+  ...
+]
 ```
 
-**Session File Logging**:
-- Location: `docs/sessions/YYYYMMDD-HHMMSS-batch-{batch_id}.json`
-- Content: Progress, timing, status per feature
-- Format: JSON for machine parsing
+This gives visual progress tracking during batch execution.
 
 ---
 
-### CHECKPOINT 4: Generate Summary
+### STEP 3: Process Each Feature
 
-**Objective**: Create human-readable summary report
+**Action**: Loop through features sequentially
 
-**Tasks**:
-1. Calculate aggregate metrics:
-   - Total features processed
-   - Success/failure counts
-   - Success rate percentage
-   - Total execution time
-   - Average time per feature
-2. List failed features (if any) with error messages
-3. Aggregate git statistics (files changed, lines added/removed)
-4. Format summary report
+**For each feature (1 through N)**:
+
+1. **Mark todo as in_progress** using TodoWrite
+
+2. **Display progress**:
+   ```
+   ========================================
+   Batch Progress: Feature M/N
+   ========================================
+   Feature: {feature description}
+   ```
+
+3. **Invoke /auto-implement** using SlashCommand tool:
+   ```
+   SlashCommand(command="/auto-implement {feature}")
+   ```
+
+   Wait for completion (this runs the full autonomous workflow):
+   - Alignment check
+   - Research
+   - Planning
+   - TDD tests
+   - Implementation
+   - Review + Security + Docs (parallel)
+   - Git automation (if enabled)
+
+4. **Mark todo as completed** using TodoWrite
+
+5. **Clear context** using SlashCommand tool:
+   ```
+   SlashCommand(command="/clear")
+   ```
+
+   **CRITICAL**: This prevents context bloat. Without clearing, you'll hit context limits after 3-4 features.
+
+6. **Continue to next feature**
+
+---
+
+### STEP 4: Summary Report
+
+**Action**: After all features processed, display summary
+
+```
+========================================
+BATCH COMPLETE
+========================================
+
+Total features: N
+Completed successfully: M
+Failed: (N - M)
+
+Time: {estimate based on typical /auto-implement duration}
+
+All features have been processed.
+Check git commits for individual feature implementations.
+========================================
+```
+
+---
+
+## Prerequisites for Unattended Operation
+
+**Required environment variables** (set in `.env` file):
+
+```bash
+# Auto-approve tool calls (no permission prompts)
+MCP_AUTO_APPROVE=true
+
+# Auto git operations (commit, push, PR)
+AUTO_GIT_ENABLED=true
+AUTO_GIT_PUSH=true
+AUTO_GIT_PR=false  # Optional - set true if you want auto PRs
+```
+
+Without these, the batch will pause for permission prompts.
+
+---
+
+## Example
+
+**features.txt**:
+```text
+# Bug fixes
+Fix login timeout issue
+Fix memory leak in background jobs
+
+# New features
+Add email notifications
+Add export to CSV
+Add dark mode toggle
+```
+
+**Command**:
+```bash
+/batch-implement features.txt
+```
 
 **Output**:
 ```
-======================================================================
-BATCH AUTO-IMPLEMENT SUMMARY
-======================================================================
+Found 5 features in features.txt:
+  1. Fix login timeout issue
+  2. Fix memory leak in background jobs
+  3. Add email notifications
+  4. Add export to CSV
+  5. Add dark mode toggle
 
-Batch ID: batch-a1b2c3d4
-Total features: 15
-Successful: 13
-Failed: 2
-Success rate: 86.7%
+Starting batch processing...
 
-Total time: 382.5 seconds
-Average time per feature: 25.5 seconds
+========================================
+Batch Progress: Feature 1/5
+========================================
+Feature: Fix login timeout issue
 
-FAILED FEATURES:
-  1. Add invalid feature
-     Error: Feature does not align with PROJECT.md goals
-  2. Add broken feature
-     Error: Tests failed after implementation
+[/auto-implement runs full workflow...]
+[Context cleared]
 
-GIT STATISTICS:
-  Files changed: 42
-  Lines added: 1,234
-  Lines removed: 567
+========================================
+Batch Progress: Feature 2/5
+========================================
+Feature: Fix memory leak in background jobs
 
-======================================================================
+[/auto-implement runs full workflow...]
+[Context cleared]
+
+...
+
+========================================
+BATCH COMPLETE
+========================================
+
+Total features: 5
+Completed successfully: 5
+Failed: 0
+
+All features have been processed.
+========================================
 ```
 
 ---
 
-## Implementation Details
+## Timing
 
-### BatchAutoImplement Class
+**Per feature**: ~20-30 minutes (same as single `/auto-implement`)
 
-**Location**: `plugins/autonomous-dev/lib/batch_auto_implement.py`
+**Batch of 10 features**: ~3-5 hours
+**Batch of 20 features**: ~6-10 hours (perfect for overnight)
 
-**Key Methods**:
-- `validate_features_file(path)` - Security validation
-- `parse_features(path)` - Feature extraction and deduplication
-- `execute_batch(path)` - Sequential execution orchestration
-- `generate_summary(result)` - Summary report generation
-
-**Internal Methods**:
-- `_execute_single_feature()` - Single feature execution via Task tool
-- `_track_progress()` - Session file logging
-- `_ensure_directories()` - Directory structure validation
-
-### Data Classes
-
-**FeatureResult**:
-```python
-@dataclass
-class FeatureResult:
-    feature_name: str
-    status: str  # "success" or "failed"
-    duration_seconds: float
-    git_stats: Dict[str, Any]
-    error: Optional[str]
-```
-
-**BatchResult**:
-```python
-@dataclass
-class BatchResult:
-    batch_id: str
-    total_features: int
-    successful_features: int
-    failed_features: int
-    feature_results: List[FeatureResult]
-    failed_feature_names: List[str]
-    total_time_seconds: float
-
-    def success_rate() -> float:
-        # Returns success rate percentage (0.0 - 100.0)
-```
-
-### Exception Hierarchy
-
-- `ValidationError` - Input validation failures
-- `BatchExecutionError` - Fatal batch execution errors
-
----
-
-## Security Features
-
-### CWE-22: Path Traversal Prevention
-
-- Uses `security_utils.validate_path()` for all file paths
-- Blocks attempts to access files outside project directory
-- Example: `../../etc/passwd` → ValidationError
-
-### CWE-400: DoS Prevention
-
-- File size limit: 1MB
-- Feature count limit: 1000
-- Line length limit: 500 characters
-- Prevents resource exhaustion attacks
-
-### CWE-78: Command Injection Prevention
-
-- No shell command execution
-- Uses Task tool API for /auto-implement invocation
-- Uses /clear command API (no subprocess calls)
-
-### Audit Logging
-
-All operations logged to `logs/security_audit.log`:
-- File validation
-- Feature parsing
-- Batch execution start/complete
-- Individual feature execution
-- Progress tracking errors
-- Context clearing errors
-
----
-
-## Performance Characteristics
-
-### Context Management
-
-**Problem**: Without context clearing, context bloats:
-- Feature 1: 2K tokens
-- Feature 2: 5K tokens
-- Feature 3: 8K tokens
-- Feature 4: **Context limit exceeded** ❌
-
-**Solution**: Clear context after each feature:
-- Feature 1: 2K tokens → /clear → 200 tokens
-- Feature 2: 2K tokens → /clear → 200 tokens
-- Feature 3: 2K tokens → /clear → 200 tokens
-- Feature 100: 2K tokens → /clear → 200 tokens ✅
-
-**Scalability**: Support for 100+ features in single batch
-
-### Timing Estimates
-
-- 10 features: ~4-5 minutes (with context clearing)
-- 50 features: ~20-25 minutes
-- 100 features: ~40-50 minutes
-
-**Note**: Actual timing depends on feature complexity and /auto-implement performance
-
----
-
-## Examples
-
-### Basic Usage
-
-```bash
-# Create features file
-cat > features.txt << EOF
-Add user authentication
-Add password reset
-Add email verification
-EOF
-
-# Execute batch
-/batch-implement features.txt
-```
-
-### With Comments and Grouping
-
-```bash
-# Create organized features file
-cat > features.txt << EOF
-# Phase 1: Authentication
-Add user login
-Add user logout
-Add session management
-
-# Phase 2: User Profile
-Add profile page
-Add avatar upload
-Add profile editing
-
-# Phase 3: Security
-Add two-factor authentication
-Add password strength validation
-EOF
-
-# Execute batch
-/batch-implement features.txt
-```
-
-### Continue on Failure (Default)
-
-```bash
-# If a feature fails, continue with remaining features
-/batch-implement features.txt
-
-# Output will show which features failed
-# Summary report lists failed features
-```
-
-### Check Session Logs
-
-```bash
-# View latest batch session
-cat docs/sessions/$(ls -t docs/sessions/ | grep batch | head -1)
-```
+**Recommendation**: Queue 10-20 features max per batch.
 
 ---
 
 ## Error Handling
 
-### Validation Errors
+**If a feature fails**:
+- Mark todo as failed (not completed)
+- Continue to next feature (don't abort entire batch)
+- Report failures in summary
 
-**File Not Found**:
-```
-Error: Features file not found: missing.txt
-```
-
-**File Too Large**:
-```
-Error: File size (2.5MB) exceeds limit (1.0MB): huge.txt
-```
-
-**Invalid UTF-8**:
-```
-Error: File is not valid UTF-8: binary.txt
-```
-
-**Path Traversal**:
-```
-Error: Path traversal detected: ../../etc/passwd
-```
-
-### Parsing Errors
-
-**Line Too Long**:
-```
-Error: Line 15 exceeds maximum length (523 > 500 chars): features.txt
-```
-
-**Too Many Features**:
-```
-Error: Feature count (1,234) exceeds limit (1,000): features.txt
-```
-
-**No Features**:
-```
-Error: No features found in file: empty.txt
-```
-
-### Execution Errors
-
-**Feature Fails (Continue Mode)**:
-```
-[Batch 3/10] Executing: Add invalid feature
-  Status: Failed
-  Error: Feature does not align with PROJECT.md goals
-
-Continuing with remaining features...
-```
-
-**Feature Fails (Abort Mode)**:
-```
-[Batch 3/10] Executing: Add invalid feature
-  Status: Failed
-  Error: Feature does not align with PROJECT.md goals
-
-Aborting batch execution (abort-on-failure mode)
-```
+**Continue-on-failure is default** - one bad feature won't stop the batch.
 
 ---
 
-## Integration with /auto-implement
+## Tips
 
-Each feature is executed via the full `/auto-implement` workflow:
-
-1. **Alignment Check** - Validates against PROJECT.md
-2. **Research** - Patterns and best practices (researcher agent)
-3. **Planning** - Architecture design (planner agent)
-4. **TDD Tests** - Test generation (test-master agent)
-5. **Implementation** - Code implementation (implementer agent)
-6. **Parallel Validation** - Quality, security, docs (3 agents)
-7. **Git Automation** - Commit, push, PR (if enabled)
-
-**Context Cleared After Each Feature** to maintain performance
+1. **Start small**: Test with 2-3 features first to verify setup
+2. **Check .env**: Ensure MCP_AUTO_APPROVE=true and AUTO_GIT_ENABLED=true
+3. **Feature order**: Put critical features first (in case batch interrupted)
+4. **Feature size**: Keep features small and focused (easier to debug failures)
+5. **Overnight runs**: Perfect for 10-20 features while you sleep
 
 ---
 
-## Best Practices
-
-### Feature Descriptions
-
-✅ **Good**: Clear, specific, actionable
-```text
-Add user login with email and password
-Add password reset via email
-Add email verification on signup
-```
-
-❌ **Bad**: Vague, ambiguous, too broad
-```text
-Fix authentication
-Update user stuff
-Make it better
-```
-
-### File Organization
-
-**Recommended Structure**:
-```text
-# Group related features
-# Use clear section headers
-# One feature per line
-# Keep descriptions concise
-
-# Authentication (Phase 1)
-Add user login
-Add user logout
-Add session management
-
-# User Profile (Phase 2)
-Add profile page
-Add avatar upload
-```
-
-### Batch Size
-
-- **Small batches (5-10 features)**: Quick feedback, easy debugging
-- **Medium batches (10-50 features)**: Balance speed and oversight
-- **Large batches (50+ features)**: Overnight/background processing
-
-**Recommendation**: Start small (5-10 features) to validate workflow, then scale up
-
----
-
-## Troubleshooting
-
-### Context Still Growing
-
-**Symptom**: Context exceeds 8K tokens during batch
-
-**Cause**: /clear command not executing properly
-
-**Solution**:
-1. Check /clear command implementation
-2. Verify execute_clear_command() is called
-3. Restart Claude Code to reset context
-
-### Features Failing Consistently
-
-**Symptom**: Multiple features fail with same error
-
-**Cause**:
-- Features don't align with PROJECT.md
-- Prerequisite features missing
-- Environment issues
-
-**Solution**:
-1. Review PROJECT.md goals and scope
-2. Check feature dependencies (order matters!)
-3. Run /health-check to validate environment
-4. Test single feature with /auto-implement first
-
-### Slow Execution
-
-**Symptom**: Batch takes much longer than expected
-
-**Cause**:
-- Complex features requiring extensive research
-- Large codebase slowing down agents
-- Network latency (research phase)
-
-**Solution**:
-1. Break complex features into smaller pieces
-2. Use /research first to cache patterns
-3. Run smaller batches during off-peak hours
-
----
-
-## Related Commands
-
-- `/auto-implement` - Single feature autonomous development
-- `/research` - Pre-cache research patterns
-- `/plan` - Validate feature plan before batch
-- `/status` - Check project progress
-- `/health-check` - Validate environment before batch
-
----
-
-## Version History
-
-**v1.0.0** (2025-11-15)
-- Initial implementation
-- Sequential feature execution
-- Automatic context management
-- Security hardening (CWE-22, CWE-400, CWE-78)
-- Session file logging
-- Summary report generation
-- Continue-on-failure and abort-on-failure modes
-
----
-
-**Implementation**: `plugins/autonomous-dev/lib/batch_auto_implement.py`
-
-**Tests**:
-- Unit tests: `tests/unit/test_batch_auto_implement.py` (44 tests)
-- Integration tests: `tests/integration/test_batch_workflow.py` (16 tests)
-
-**Security**: Hardened against CWE-22, CWE-400, CWE-78
+**Version**: 3.0.0 (Simple orchestration - no Python libraries)
+**Issue**: #75 (Batch implementation)
+**Changed**: Removed complex Python libraries, pure Claude orchestration
