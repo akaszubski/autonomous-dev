@@ -10,6 +10,12 @@ date: 2025-11-15
 
 Execute multiple features sequentially with automatic context clearing between features. Prevents context bloat while maintaining autonomous development workflow.
 
+## Implementation
+
+```bash
+python "$(dirname "$0")/../lib/batch_auto_implement.py" "{{ARGUMENTS}}"
+```
+
 ## Purpose
 
 Process a list of features in sequence, invoking `/auto-implement` for each feature and automatically clearing context between features to maintain optimal performance.

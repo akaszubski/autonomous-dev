@@ -817,3 +817,42 @@ class BatchAutoImplement:
         lines.append("=" * 70)
 
         return "\n".join(lines)
+
+
+# ==============================================================================
+# CLI Entry Point
+# ==============================================================================
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    if len(sys.argv) < 2:
+        print("Usage: python batch_auto_implement.py <features_file>")
+        print("\nExample:")
+        print("  python batch_auto_implement.py features.txt")
+        sys.exit(1)
+
+    features_file = Path(sys.argv[1])
+    project_root = Path.cwd()
+
+    # Initialize batch processor
+    processor = BatchAutoImplement(
+        project_root=project_root,
+        continue_on_failure=True,
+    )
+
+    try:
+        # Execute batch workflow
+        result = processor.execute_batch(features_file)
+
+        # Display summary
+        print(processor.generate_summary(result))
+
+        # Exit with appropriate code
+        sys.exit(0 if result.failed_features == 0 else 1)
+
+    except (ValidationError, BatchExecutionError) as e:
+        print(f"\n❌ Batch execution failed: {e}")
+        sys.exit(1)
