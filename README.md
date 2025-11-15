@@ -114,6 +114,36 @@ Claude Code will:
 
 **Typical time**: 20-30 minutes (fully automated)
 
+### Batch Processing Multiple Features (NEW in v3.22.0)
+
+Process multiple features sequentially with automatic context management:
+
+```bash
+# Create features file
+cat > sprint-backlog.txt <<EOF
+# Authentication
+Add user login with JWT
+Add password reset flow
+
+# API improvements
+Add rate limiting to API
+Add API versioning
+EOF
+
+# Execute all features
+/batch-implement sprint-backlog.txt
+```
+
+**Benefits**:
+- ✅ Automatic context clearing between features (prevents context bloat)
+- ✅ Progress tracking with timing per feature
+- ✅ Continue-on-failure mode (process all features even if some fail)
+- ✅ Summary report with success/failure counts
+
+**Use Cases**: Sprint backlogs, technical debt cleanup, feature parity, bulk refactoring
+
+**Typical time**: 20-30 minutes per feature (same as `/auto-implement`)
+
 ### Individual Commands (If You Prefer Step-by-Step)
 
 Instead of the full workflow, run individual agents:

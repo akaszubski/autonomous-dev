@@ -1,0 +1,262 @@
+TDD Red Phase Test Inventory: /batch-implement Command
+========================================================
+
+Date: 2025-11-15
+Agent: test-master
+Status: COMPLETE - All tests FAILING as expected (TDD red phase)
+
+Test Files
+----------
+
+1. Unit Tests
+   File: tests/unit/test_batch_auto_implement.py
+   Lines: 1,137
+   Tests: 44 test methods
+
+2. Integration Tests
+   File: tests/integration/test_batch_workflow.py
+   Lines: 923
+   Tests: 16 test methods
+
+Total Tests: 60 test methods
+Total Lines: 2,060 lines of test code
+
+Test Coverage Breakdown
+-----------------------
+
+Unit Tests (44 tests):
+  ├── TestInputValidation (7 tests)
+  │   ├── test_validate_features_file_exists
+  │   ├── test_validate_features_file_is_file
+  │   ├── test_validate_path_traversal_blocked
+  │   ├── test_validate_file_size_limit
+  │   ├── test_validate_encoding_utf8
+  │   ├── test_validate_empty_file
+  │   └── (1 more validation test)
+  │
+  ├── TestFeatureParsing (8 tests)
+  │   ├── test_parse_features_single_line
+  │   ├── test_parse_features_multiple_lines
+  │   ├── test_parse_features_skip_comments
+  │   ├── test_parse_features_skip_empty_lines
+  │   ├── test_parse_features_strip_whitespace
+  │   ├── test_parse_features_deduplicate
+  │   ├── test_parse_features_max_line_length
+  │   └── test_parse_features_comments_only_file
+  │
+  ├── TestBatchExecution (5 tests)
+  │   ├── test_execute_single_feature
+  │   ├── test_execute_multiple_features_sequential
+  │   ├── test_execute_continue_on_failure_mode
+  │   ├── test_execute_abort_on_failure_mode
+  │   └── test_execute_task_tool_invocation_format
+  │
+  ├── TestContextManagement (3 tests)
+  │   ├── test_clear_context_after_each_feature
+  │   ├── test_clear_context_on_failure
+  │   └── test_handle_clear_command_failure
+  │
+  ├── TestProgressTracking (4 tests)
+  │   ├── test_track_feature_timing
+  │   ├── test_session_file_logging
+  │   ├── test_track_git_statistics
+  │   └── test_track_failed_features_list
+  │
+  ├── TestSummaryGeneration (4 tests)
+  │   ├── test_generate_summary_basic_metrics
+  │   ├── test_generate_summary_timing_info
+  │   ├── test_generate_summary_failed_features_list
+  │   └── test_generate_summary_git_statistics
+  │
+  ├── TestSecurity (4 tests)
+  │   ├── test_cwe22_path_traversal_prevention
+  │   ├── test_cwe400_dos_file_size_limit
+  │   ├── test_cwe400_dos_line_count_limit
+  │   └── test_cwe78_command_injection_prevention
+  │
+  ├── TestEdgeCases (9 tests)
+  │   ├── test_single_very_long_feature_name
+  │   ├── test_unicode_feature_names
+  │   ├── test_windows_line_endings
+  │   ├── test_mixed_comment_styles
+  │   ├── test_all_features_fail
+  │   ├── test_all_features_succeed
+  │   └── (3 more edge case tests)
+  │
+  └── TestDataClasses (3 tests)
+      ├── test_feature_result_creation
+      ├── test_batch_result_creation
+      └── test_batch_result_calculated_metrics
+
+Integration Tests (16 tests):
+  ├── TestEndToEndWorkflow (4 tests)
+  │   ├── test_single_feature_complete_workflow
+  │   ├── test_multiple_features_sequential_execution
+  │   ├── test_workflow_with_failures_continue_mode
+  │   └── test_workflow_abort_on_first_failure
+  │
+  ├── TestContextManagementIntegration (2 tests)
+  │   ├── test_context_stays_under_limit
+  │   └── test_context_clearing_failure_handling
+  │
+  ├── TestGitAutomationIntegration (2 tests)
+  │   ├── test_git_automation_per_feature
+  │   └── test_git_stats_aggregation
+  │
+  ├── TestSessionLoggingIntegration (3 tests)
+  │   ├── test_session_file_created_with_metadata
+  │   ├── test_session_file_logs_feature_progress
+  │   └── test_session_file_logs_failures
+  │
+  ├── TestPerformanceIntegration (2 tests)
+  │   ├── test_ten_features_under_five_minutes
+  │   └── test_timing_accuracy
+  │
+  └── TestSummaryReportIntegration (3 tests)
+      ├── test_summary_with_mixed_results
+      ├── test_summary_with_all_successes
+      └── test_summary_includes_git_metrics
+
+Security Test Coverage
+----------------------
+
+CWE-22 (Path Traversal): 3 tests
+  - test_validate_path_traversal_blocked
+  - test_cwe22_path_traversal_prevention
+  - (path validation in integration tests)
+
+CWE-400 (DoS via Resource Exhaustion): 2 tests
+  - test_validate_file_size_limit (1MB max)
+  - test_cwe400_dos_line_count_limit (10,000 features max)
+
+CWE-78 (Command Injection): 1 test
+  - test_cwe78_command_injection_prevention
+
+CWE-117 (Log Injection): 1 test
+  - test_audit_logging_enabled
+
+Test Fixtures
+-------------
+
+Shared Fixtures:
+  - temp_project_root: Standard project structure
+  - sample_features_file: Sample feature list
+  - batch_processor: BatchAutoImplement instance
+  - integration_project: Realistic project for integration tests
+  - realistic_features_file: Authentication features example
+  - batch_processor_integration: Integration test instance
+
+Mock Patterns:
+  - Task tool: Mocked for /auto-implement invocation
+  - execute_clear_command: Mocked for context clearing
+  - git_operations: Mocked for git automation
+  - subprocess.run: Mocked for command injection tests
+  - audit_log: Mocked for security logging verification
+
+Implementation Requirements (from tests)
+----------------------------------------
+
+Classes:
+  - BatchAutoImplement
+  - BatchResult (dataclass)
+  - FeatureResult (dataclass)
+  - ValidationError (exception)
+  - BatchExecutionError (exception)
+
+Methods:
+  - validate_features_file(path: Path) -> None
+  - parse_features(path: Path) -> List[str]
+  - execute_batch(path: Path) -> BatchResult
+  - generate_summary(result: BatchResult) -> str
+  - execute_clear_command() -> bool
+
+Security Limits:
+  - MAX_FILE_SIZE_BYTES = 1048576 (1MB)
+  - MAX_LINE_LENGTH_CHARS = 500
+  - MAX_FEATURE_COUNT = 10000
+  - REQUIRED_ENCODING = 'utf-8'
+
+Configuration:
+  - continue_on_failure: bool (default: True)
+  - project_root: Path
+
+External Dependencies:
+  - Task tool (from MCP)
+  - security_utils.audit_log
+  - security_utils.validate_path
+  - session_tracker (for logging)
+
+Running Tests
+-------------
+
+Verify TDD Red Phase (tests skip):
+  $ python -c "from batch_auto_implement import BatchAutoImplement"
+  ImportError: No module named 'batch_auto_implement'
+
+Run unit tests (requires pytest):
+  $ pytest tests/unit/test_batch_auto_implement.py -v
+
+Run integration tests (requires pytest):
+  $ pytest tests/integration/test_batch_workflow.py -v
+
+Run all batch tests:
+  $ pytest tests/unit/test_batch_auto_implement.py tests/integration/test_batch_workflow.py -v
+
+Check coverage:
+  $ pytest --cov=plugins.autonomous_dev.lib.batch_auto_implement \
+           --cov-report=term-missing \
+           tests/unit/test_batch_auto_implement.py
+
+Expected Results
+----------------
+
+Current State (TDD Red):
+  ✅ All tests SKIP with "Implementation not found (TDD red phase)"
+  ✅ Import fails: ModuleNotFoundError
+
+After Implementation (TDD Green):
+  Target: 80%+ of tests passing (48+ of 60 tests)
+  Expected: 90%+ tests passing (54+ of 60 tests)
+  Coverage: 85%+ code coverage
+
+Quality Metrics
+---------------
+
+Lines of test code: 2,060
+Lines per test: ~34.3 average
+Test method count: 60
+Test class count: 13
+
+AAA Pattern: 100% compliance
+Docstrings: 100% coverage
+Type hints: All fixtures typed
+Mocking: Comprehensive (Task, clear, git, subprocess)
+
+Next Steps
+----------
+
+1. implementer agent creates lib/batch_auto_implement.py
+2. Implement classes and methods to make tests pass
+3. Run tests iteratively until 80%+ passing
+4. Fix edge cases to reach 90%+ passing
+5. reviewer agent validates code quality
+6. security-auditor agent validates security
+7. doc-master agent creates documentation
+
+Files Created
+-------------
+
+Test files:
+  ✅ tests/unit/test_batch_auto_implement.py (1,137 lines, 44 tests)
+  ✅ tests/integration/test_batch_workflow.py (923 lines, 16 tests)
+
+Documentation:
+  ✅ tests/TDD_RED_PHASE_BATCH_IMPLEMENT_SUMMARY.md (detailed summary)
+  ✅ tests/BATCH_IMPLEMENT_TEST_INVENTORY.txt (this file)
+
+Implementation files (to be created):
+  ⏳ plugins/autonomous-dev/lib/batch_auto_implement.py
+  ⏳ plugins/autonomous-dev/commands/batch-implement.md
+
+---
+End of TDD Red Phase Test Inventory

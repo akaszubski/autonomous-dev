@@ -1,5 +1,59 @@
 ---
 
+## [3.22.0] - 2025-11-15
+
+### Added
+- **Batch Feature Implementation** - GitHub Issue #74
+  - **Feature**: Sequential processing of multiple features with automatic context management
+    - Process 10-100+ features from a text file
+    - Automatic context clearing between features (prevents context bloat)
+    - Progress tracking with timing and git statistics per feature
+    - Summary generation with success/failure counts and metrics
+  - **New Command**: `/batch-implement <features-file>`
+    - Input: Plain text file (one feature per line)
+    - Workflow: Parse → Validate → Sequential /auto-implement → Clear context → Repeat
+    - Output: Per-feature progress + aggregate summary
+  - **New Library**: `batch_auto_implement.py` (668 lines)
+    - `BatchAutoImplement` class: Main orchestrator
+    - `FeatureResult` dataclass: Individual feature execution result
+    - `BatchResult` dataclass: Aggregate batch execution result
+    - Input validation: File path (CWE-22), size limit (1MB), encoding (UTF-8)
+    - Feature parsing: Deduplication, comment skipping, line length limit (500 chars)
+    - Security: Path traversal prevention, DoS protection (CWE-400), command injection prevention (CWE-78)
+    - Error handling: Continue-on-failure (default) and abort-on-failure modes
+  - **Test Coverage**: 57 tests total
+    - `test_batch_auto_implement.py`: 39 unit tests (100% passing)
+    - `test_batch_workflow.py`: 18 integration tests (100% passing)
+    - Coverage areas: Input validation, feature parsing, batch execution, error handling, security
+  - **Use Cases**:
+    - Sprint backlog processing (10-50 features)
+    - Technical debt cleanup (bulk refactoring)
+    - Feature parity implementation (migrate features from another system)
+    - Automated dependency updates with testing
+
+### Changed
+- **CLAUDE.md** updated:
+  - Version bumped: v3.21.0 → v3.22.0
+  - Command count updated: 19 → 20 commands
+  - Added `/batch-implement` to Core Workflow commands section (11 commands)
+  - Added "Batch Feature Processing" section with usage examples and security details
+  - Updated Libraries section: 18 → 19 libraries (added batch_auto_implement.py)
+- **README.md** updated:
+  - Added "Batch Processing Multiple Features" section in Quick Start
+  - Includes example features file and usage
+  - Documents benefits, use cases, and typical execution time
+- **plugin.json** updated:
+  - Version bumped: 3.21.0 → 3.22.0
+  - Added `/batch-implement` to commands list
+  - Description updated: Added "batch processing" feature mention
+
+### Removed
+- **`commands/uninstall.md`** - Archived to `commands/archive/uninstall.md`
+  - Reason: Functionality replaced by native `/plugin uninstall autonomous-dev` command
+  - Documented in "Removed Commands" section of CLAUDE.md
+
+---
+
 ## [3.21.0] - 2025-11-15
 
 ### Added

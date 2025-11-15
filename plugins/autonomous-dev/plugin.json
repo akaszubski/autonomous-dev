@@ -1,13 +1,14 @@
 {
   "name": "autonomous-dev",
-  "version": "3.21.0",
-  "description": "Autonomous development plugin for Claude Code - 20 AI agents, 22 skills, MCP auto-approval, automation hooks",
+  "version": "3.22.0",
+  "description": "Autonomous development plugin for Claude Code - 20 AI agents, 22 skills, batch processing, MCP auto-approval, automation hooks",
   "author": "akaszubski",
   "repository": "https://github.com/akaszubski/autonomous-dev",
   "agents": 20,
   "skills": 22,
   "commands": [
     "/auto-implement",
+    "/batch-implement",
     "/align-project",
     "/align-claude",
     "/align-project-retrofit",
@@ -25,8 +26,7 @@
     "/review",
     "/security-scan",
     "/update-docs",
-    "/test",
-    "/uninstall"
+    "/test"
   ],
   "hooks": {
     "core": 11,
