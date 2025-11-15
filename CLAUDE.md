@@ -19,10 +19,10 @@
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 # Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /create-issue, /uninstall
+# Done! All commands work: /auto-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /create-issue
 ```
 
-**Commands (20 active, includes /align-project-retrofit for brownfield adoption - Issue #59)**:
+**Commands (19 active, includes /align-project-retrofit for brownfield adoption - Issue #59)**:
 
 **Core Workflow (10)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
@@ -46,9 +46,8 @@
 - `/update-docs` - Documentation synchronization (1-2 min)
 - `/create-issue <request>` - Create GitHub issue with research integration (3-8 min) - GitHub #58
 
-**Utility Commands (2)**:
+**Utility Commands (1)**:
 - `/test` - Run automated tests (pytest wrapper)
-- `/uninstall` - Remove or disable plugin features (advanced)
 
 ---
 
@@ -245,104 +244,24 @@ AUTO_GIT_PR=false            # Default: true (enabled by default)
 - Subprocess calls prevent command injection attacks
 - Safe JSON parsing (no arbitrary code execution)
 
-**Implementation Files**:
-
-- Hook: `/plugins/autonomous-dev/hooks/auto_git_workflow.py` (588 lines) - SubagentStop lifecycle hook
-- Library: `/plugins/autonomous-dev/lib/auto_implement_git_integration.py` (1,466 lines) - Core integration logic
-  - Functions: `execute_step8_git_operations()` (main entry point), `check_consent_via_env()`, `validate_git_state()`, `create_commit_with_agent_message()`, `push_and_create_pr()`
-  - Validation: `validate_agent_output()`, `validate_git_state()`, `validate_branch_name()`, `validate_commit_message()`, `check_git_credentials()`, `check_git_available()`, `check_gh_available()`
-  - Agents: Invokes commit-message-generator and pr-description-generator agents with workflow context
-- Library: `/plugins/autonomous-dev/lib/user_state_manager.py` (10,077 bytes) - User preference persistence
-  - Classes: `UserStateManager` (load, save, update user state), `UserStateError` (exception handling)
-  - Functions: `is_first_run()`, `record_first_run_complete()`, `get_preference()`, `set_preference()`
-  - Security: Path validation (CWE-22), audit logging, JSON safety
-- Library: `/plugins/autonomous-dev/lib/first_run_warning.py` (8,112 bytes) - Interactive consent prompt
-  - Functions: `render_warning()`, `prompt_user_consent()`, `parse_user_input()`, `record_consent()`
-  - Features: Interactive prompt, non-interactive detection, graceful error handling
-
-**Related GitHub Issues**:
-- Issue #61: Enable Zero Manual Git Operations by Default (v3.12.0)
-- Issue #58: Automatic git operations integration (feature implementation)
-
-**For detailed usage**: See `plugins/autonomous-dev/README.md` "Enable automatic git operations in /auto-implement workflow" section
+**Implementation**: `auto_git_workflow.py` hook, `auto_implement_git_integration.py` library, `user_state_manager.py`, `first_run_warning.py`. See `docs/GIT-AUTOMATION.md` and README.md for details.
 
 ---
 
 
-## MCP Auto-Approval Control
+## MCP Auto-Approval Control (v3.21.0+)
 
-Automatic tool approval for MCP tool calls from trusted subagents (v3.21.0+). Reduces permission prompts from 50+ to 0 for trusted operations. See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
+Automatic tool approval for trusted subagent operations. Reduces permission prompts from 50+ to 0 during `/auto-implement` workflows.
 
-**Status**: Opt-in feature (disabled by default, requires explicit enablement)
-
-**What It Does**:
-- Intercepts MCP tool calls from subagents (Bash, Read, Write, etc.)
-- Validates against whitelist/blacklist policy
-- Auto-approves trusted operations → zero interruptions
-- Denies dangerous operations → manual approval required
-- Circuit breaker protection → auto-disable after 10 denials
-
-**First-Run Consent** (v3.21.0+):
-- On first subagent tool call (when `MCP_AUTO_APPROVE=true`), displays consent prompt
-- User chooses to enable/disable auto-approval
-- Choice stored in `~/.autonomous-dev/user_state.json`
-- Skipped in non-interactive sessions (CI/CD)
-
-**Environment Variables** (opt-in via `.env` file):
-
+**Enable**:
 ```bash
-# Master switch - enables MCP auto-approval for subagent tool calls
-MCP_AUTO_APPROVE=false       # Default: false (opt-in design)
-
-# Custom policy file path (optional)
-AUTO_APPROVE_POLICY_FILE=/path/to/custom_policy.json  # Default: plugins/autonomous-dev/config/auto_approve_policy.json
+# In .env file
+MCP_AUTO_APPROVE=true  # Default: false (opt-in)
 ```
 
-**How It Works**:
+**Security**: 6 layers of defense (subagent isolation, agent whitelist, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
 
-1. Subagent (e.g., researcher, implementer) invokes MCP tool (e.g., Bash command "pytest tests/")
-2. PreToolUse hook triggers `auto_approve_tool.py`
-3. If `MCP_AUTO_APPROVE=true`: validates tool call against policy
-4. If trusted (whitelist match, no blacklist match): auto-approves → no prompt
-5. If dangerous (blacklist match, path traversal, command injection): denies → manual approval
-6. Audit logs all decisions to `logs/tool_approval_audit.log`
-7. Circuit breaker trips after 10 denials → all future requests denied
-
-**Security - 6 Layers of Defense**:
-
-1. **Subagent Context Isolation**: Only auto-approve in subagent context (CLAUDE_AGENT_NAME env var)
-2. **Agent Whitelist**: Only trusted agents (researcher, planner, test-master, implementer, reviewer, doc-master)
-3. **Tool Whitelist**: Only approved tools (Bash, Read, Write, Grep, etc.)
-4. **Command/Path Validation**: Whitelist/blacklist enforcement
-   - **Bash Whitelist**: pytest, git status, git diff, git log, ls, cat, head, tail, grep, wc, find, echo, pwd, which, python -m pytest, pip list, pip show
-   - **Bash Blacklist**: rm -rf, sudo, chmod 777, curl|bash, wget|bash, eval, exec, dd, mkfs, fdisk, kill -9, killall, shutdown, reboot
-   - **File Path Whitelist**: Project directories (/Users/*/Documents/GitHub/*), temp directories (/tmp/*)
-   - **File Path Blacklist**: /etc, /var, /root, secrets, credentials, .ssh, private keys
-5. **Audit Logging**: Full trail of every approval/denial (logs/tool_approval_audit.log)
-6. **Circuit Breaker**: Auto-disable after 10 consecutive denials (prevents runaway automation)
-
-**Opt-In Consent Design** (v3.21.0+):
-
-- Disabled by default - explicit enablement required for safety
-- First-run consent - interactive prompt on first tool call (when enabled)
-- User state persistence - choice stored in `~/.autonomous-dev/user_state.json`
-- Environment override - `.env` variables override user state preferences
-- Validates all prerequisites before attempting auto-approval
-- Non-blocking - auto-approval failures don't block tool execution (falls back to manual approval)
-- Always provides manual fallback if auto-approval fails
-
-**Implementation Files**:
-
-- Hook: `/plugins/autonomous-dev/hooks/auto_approve_tool.py` (PreToolUse lifecycle hook)
-- Library: `/plugins/autonomous-dev/lib/tool_validator.py` (537 lines) - Whitelist/blacklist validation engine
-- Library: `/plugins/autonomous-dev/lib/tool_approval_audit.py` (298 lines) - Audit logging system
-- Library: `/plugins/autonomous-dev/lib/auto_approval_consent.py` (174 lines) - User consent management
-- Config: `/plugins/autonomous-dev/config/auto_approve_policy.json` (policy configuration)
-
-**Related GitHub Issues**:
-- Issue #73: MCP Auto-Approval for Subagent Tool Calls (v3.21.0)
-
-**For detailed usage**: See `docs/TOOL-AUTO-APPROVAL.md` for comprehensive implementation guide
+**Hook**: `auto_approve_tool.py` (PreToolUse lifecycle)
 
 ---
 ## Architecture
