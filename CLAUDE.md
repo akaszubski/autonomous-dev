@@ -198,73 +198,20 @@ git commit -m "docs: Update project goals"
 
 **Command**: `/batch-implement <features-file>`
 
-Process multiple features sequentially with automatic context management. Prevents context bloat while maintaining full autonomous workflow for each feature.
+Process multiple features sequentially with automatic context clearing between each feature.
 
-**Use Cases**:
-- Sprint backlog processing (10-50 features)
-- Technical debt cleanup (bulk refactoring)
-- Feature parity implementation (migrate features from another system)
-- Automated dependency updates with testing
-
-**Input Format** (plain text file, one feature per line):
+**Input**: Plain text file, one feature per line (comments with `#` are skipped)
 ```text
-# Authentication features
+# Authentication
 Add user login with JWT
 Add password reset flow
-
-# API features
-Add rate limiting to API endpoints
-Add API versioning support
 ```
 
-**Workflow**:
-1. **Validate input file**: Path security (CWE-22), size limit (1MB), encoding (UTF-8)
-2. **Parse features**: Deduplicate, skip comments/empty lines, enforce limits (1000 features, 500 chars/line)
-3. **Sequential execution**: For each feature, invoke `/auto-implement` with automatic context clearing
-4. **Progress tracking**: Session logging with timing, git stats per feature
-5. **Summary generation**: Success/failure counts, timing metrics, failed feature list
+**Workflow**: Read file → Parse features → For each: `/auto-implement` + `/clear` → Summary
 
-**Security**:
-- Path traversal prevention (CWE-22)
-- DoS protection (file size, feature count, line length limits - CWE-400)
-- Command injection prevention (uses Task tool API - CWE-78)
-- Audit logging to `logs/security_audit.log`
+**Use Cases**: Sprint backlogs (10-50 features), overnight processing, technical debt cleanup
 
-**Error Handling**:
-- **Continue-on-failure** (default): Process all features, report failures at end
-- **Abort-on-failure**: Stop on first failure (use `--abort-on-failure` flag)
-
-**Performance**:
-- Per-feature time: Same as `/auto-implement` (20-30 min)
-- Context clearing: Automatic between features (maintains <8K tokens)
-- Scalability: Tested with 100+ features
-
-**Example**:
-```bash
-# Create features file
-cat > features.txt <<EOF
-Add input validation to login
-Add JWT refresh token
-Add password strength meter
-EOF
-
-# Execute batch
-/batch-implement features.txt
-
-# Output:
-# ✓ Feature 1/3: Add input validation to login (completed in 22m 15s)
-# ✓ Feature 2/3: Add JWT refresh token (completed in 25m 30s)
-# ✓ Feature 3/3: Add password strength meter (completed in 18m 45s)
-#
-# Batch Summary:
-# - Total features: 3
-# - Successful: 3 (100%)
-# - Failed: 0 (0%)
-# - Total time: 66m 30s
-# - Average time per feature: 22m 10s
-```
-
-**Library**: `plugins/autonomous-dev/lib/batch_auto_implement.py` (668 lines)
+**Performance**: ~20-30 min per feature (same as `/auto-implement`), automatic context clearing maintains <8K tokens
 
 ---
 
@@ -462,13 +409,13 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (19 Shared Libraries)
+### Libraries (18 Shared Libraries)
 
 **Location**: `plugins/autonomous-dev/lib/`
 
 **Purpose**: Reusable Python libraries for security, validation, automation, and brownfield retrofit
 
-**Core Libraries (13)**:
+**Core Libraries (12)**:
 1. **security_utils.py** - Security validation and audit logging (CWE-22, CWE-59, CWE-117)
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
 3. **version_detector.py** - Semantic version comparison for marketplace sync
@@ -481,15 +428,14 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 10. **validate_documentation_parity.py** - Documentation consistency validation
 11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
 12. **github_issue_automation.py** - GitHub issue creation with research
-13. **batch_auto_implement.py** - Batch feature processing with context management (v3.22.0)
 
 **Brownfield Retrofit Libraries (6)** - 5-phase retrofit system for existing projects:
-14. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-15. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-16. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-17. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-18. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-19. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+13. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+14. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+15. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+16. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+17. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+18. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist) for graceful error recovery. Non-blocking enhancements don't block core operations. Two-tier design (core logic + CLI interface) enables reuse and testing.
 

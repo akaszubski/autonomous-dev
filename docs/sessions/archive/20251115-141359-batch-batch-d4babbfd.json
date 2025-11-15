@@ -1,0 +1,124 @@
+{
+  "batch_id": "batch-d4babbfd",
+  "timestamp": "2025-11-15T14:13:59.924418",
+  "total_features": 13,
+  "features": [
+    {
+      "index": 1,
+      "total": 13,
+      "name": "Fix permission_classifier.py import path to use relative imports (Issue #74 Layer 1)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.925528",
+      "duration_seconds": 4.410743713378906e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 2,
+      "total": 13,
+      "name": "Add graceful degradation to batch_permission_approver.py hook (Issue #74 Layer 2)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.927103",
+      "duration_seconds": 4.1961669921875e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 3,
+      "total": 13,
+      "name": "Update README.md with Claude Code installation prerequisites at top (Issue #74 Layer 3)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.928762",
+      "duration_seconds": 5.2928924560546875e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 4,
+      "total": 13,
+      "name": "Add troubleshooting section to README.md for installation errors (Issue #74 Layer 3)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.930167",
+      "duration_seconds": 3.981590270996094e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 5,
+      "total": 13,
+      "name": "Close Issue #75 - batch-implement feature is complete and merged",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.932838",
+      "duration_seconds": 4.100799560546875e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 6,
+      "total": 13,
+      "name": "Extract agent-output-formats skill to reduce agent prompt duplication (Issue #62 Phase 1.1 - 8-12% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.935651",
+      "duration_seconds": 5.817413330078125e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 7,
+      "total": 13,
+      "name": "Extract error-handling-patterns skill for standardized error messages (Issue #62 Phase 1.2 - 10-15% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.937765",
+      "duration_seconds": 4.506111145019531e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 8,
+      "total": 13,
+      "name": "Extract testing-patterns skill for TDD and test coverage guidance (Issue #62 Phase 1.3 - 5-8% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.939820",
+      "duration_seconds": 3.886222839355469e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 9,
+      "total": 13,
+      "name": "Extract documentation-standards skill for consistent docs (Issue #62 Phase 1.4 - 6-10% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.941784",
+      "duration_seconds": 3.409385681152344e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 10,
+      "total": 13,
+      "name": "Extract git-github-workflow-patterns skill for git/github automation (Issue #62 Phase 2.1 - 3-5% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.943785",
+      "duration_seconds": 3.1948089599609375e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 11,
+      "total": 13,
+      "name": "Extract skill-integration-templates skill for skill composition patterns (Issue #62 Phase 2.2 - 3-5% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.945841",
+      "duration_seconds": 3.695487976074219e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 12,
+      "total": 13,
+      "name": "Extract project-alignment-validation skill for PROJECT.md validation patterns (Issue #62 Phase 2.3 - 2-4% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.947934",
+      "duration_seconds": 3.695487976074219e-05,
+      "error": "'NoneType' object is not callable"
+    },
+    {
+      "index": 13,
+      "total": 13,
+      "name": "Audit 22 libraries for pattern duplication and extract additional patterns (Issue #62 Phase 3 - 5-8% token reduction)",
+      "status": "failed",
+      "timestamp": "2025-11-15T14:13:59.950090",
+      "duration_seconds": 3.3855438232421875e-05,
+      "error": "'NoneType' object is not callable"
+    }
+  ]
+}
