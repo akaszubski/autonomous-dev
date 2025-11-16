@@ -34,7 +34,7 @@ autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent
 - **Fast** - Python execution, no LLM latency
 - **Consistent** - Same rules for every developer
 
-**See also**: [ARCHITECTURE-EXPLAINED.md](ARCHITECTURE-EXPLAINED.md) for detailed hook architecture
+**See also**: [docs/HOOKS.md](HOOKS.md) for complete hook inventory and lifecycle details, or [ARCHITECTURE-EXPLAINED.md](ARCHITECTURE-EXPLAINED.md) for detailed hook architecture
 
 ### Layer 2: Agent Intelligence (Command-Driven, Adaptive)
 
@@ -69,7 +69,7 @@ autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent
 - **Explainable** - Show reasoning in output
 - **Flexible** - Individual commands or full workflow
 
-**See also**: Agent prompts in `plugins/autonomous-dev/agents/`
+**See also**: [docs/AGENTS.md](AGENTS.md) for complete agent inventory and skill integration details, or agent prompts in `plugins/autonomous-dev/agents/`
 
 ---
 

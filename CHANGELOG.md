@@ -1,5 +1,62 @@
----
----
+## [3.27.0] - 2025-11-16
+
+### Changed
+- **CLAUDE.md Optimization** - Issue #78
+  - **Documentation Extraction**: Extracted large sections from CLAUDE.md into dedicated documentation files to improve maintainability and reduce main file complexity
+    - **Performance Baseline** section (73 lines) → [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for complete 9-phase optimization history
+    - **Batch Feature Processing** details (76 lines) → [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for comprehensive workflow documentation
+    - **Git Automation Control** details (55 lines) → consolidated summary with reference to [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md)
+    - **Architecture section** (192 lines) → reorganized with agent/skill/library/hook details moved to dedicated documentation files
+  - **New Documentation Files** (extracted and reorganized from CLAUDE.md):
+    - **[docs/AGENTS.md](docs/AGENTS.md)** (197 lines) - Complete agent inventory
+      - Core Workflow Agents (9): researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+      - Utility Agents (11): alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
+      - Orchestrator removal rationale and Claude-native coordination approach
+    - **[docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md)** (144 lines) - /batch-implement command reference
+      - Input options: File-based input and GitHub Issues (--issues flag)
+      - State management: Persistent tracking, auto-clear at 150K tokens, crash recovery
+      - Resume operations for 50+ feature processing
+    - **[docs/HOOKS.md](docs/HOOKS.md)** (238 lines) - Hook architecture and integration
+      - Core hooks (11): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool
+      - Optional/Extended hooks (20): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality
+      - Lifecycle hooks (UserPromptSubmit, SubagentStop)
+    - **[docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md)** (216 lines) - Complete optimization history
+      - 9 optimization phases (Phase 4-9) with detailed implementation details
+      - Phase 4: Haiku model for researcher (3-5 min saved)
+      - Phase 5: Prompt simplification (2-4 min saved)
+      - Phase 6: Profiling infrastructure (PerformanceTimer, JSON logging)
+      - Phase 7: Parallel validation checkpoint (60% faster - 5 min → 2 min)
+      - Phase 8: Agent output cleanup (~2,900 tokens saved)
+      - Phase 8.5: Real-time performance analysis API
+      - Phase 9: Model downgrade strategy (investigative)
+      - Cumulative: 15-25 min per workflow, 25-30% overall improvement, ~11,980 tokens saved
+  - **CLAUDE.md Reduced**: 584 lines → 473 lines (19% reduction, maintained readability)
+    - Performance section: 73 lines → 5 line summary with link
+    - Batch processing: 76 lines → 11 line summary with link
+    - Git automation: 55 lines → 12 line summary with link
+    - Architecture: 192 lines → 38 line summary with links
+  - **Cross-References Updated**:
+    - All moved content available via markdown links with descriptive text
+    - CLAUDE.md maintains readability for quick scanning
+    - Detailed documentation available separately for in-depth reference
+  - **Quality Assurance**:
+    - No information removed, only reorganized for better discoverability
+    - Complete details preserved in dedicated files
+    - Cross-references validated to ensure all links work
+    - Progressive disclosure pattern applied throughout
+
+- **Documentation Navigation Improved**:
+  - CLAUDE.md provides clear entry points to comprehensive documentation
+  - Reduced cognitive load for common reference use cases
+  - Detailed guidance available without cluttering main file
+  - Progressive disclosure enables scaling documentation without token overhead
+
+### Documentation Files Updated
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Added references to new documentation files (AGENTS.md, HOOKS.md, BATCH-PROCESSING.md)
+- **[docs/LIBRARIES.md](docs/LIBRARIES.md)**: Clarified library organization and referenced skill integration patterns
+- **README.md**: Verified version (v3.26.0 → v3.27.0), confirmed skill count (27 active), reviewed commands and features
+
+
 
 ## [3.26.0] - 2025-11-16
 

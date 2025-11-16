@@ -4,7 +4,7 @@
 
 Claude Code plugin that automates the full software development lifecycle with PROJECT.md-first validation: alignment → research → plan → test → implement → review → security → documentation.
 
-**Version**: v3.26.0 | **Status**: Production Ready | **Last Updated**: 2025-11-16
+**Version**: v3.27.0 | **Status**: Production Ready | **Last Updated**: 2025-11-16
 
 ---
 

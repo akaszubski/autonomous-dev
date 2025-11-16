@@ -138,111 +138,37 @@ git commit -m "docs: Update project goals"
    - Hook file: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (SubagentStop lifecycle)
 8. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
-**Performance Baseline** (see [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for complete details):
-- **Phase 4 (Model Optimization - COMPLETE)**: Researcher agent switched to Haiku model (25-39 min baseline)
-  - Savings: 3-5 minutes from 28-44 minute baseline
-  - Quality: No degradation - Haiku excels at pattern discovery tasks
-  - File: `plugins/autonomous-dev/agents/researcher.md` (model: haiku)
-- **Phase 5 (Prompt Simplification - COMPLETE)**: Streamlined researcher and planner prompts (22-36 min baseline)
-  - Researcher: 59 significant lines (40% reduction from 99 lines)
-  - Planner: 73 significant lines (39% reduction from 119 lines)
-  - Savings: 2-4 minutes per workflow through faster token processing
-  - Quality: Essential guidance preserved, PROJECT.md alignment maintained
-- **Phase 6 (Profiling Infrastructure - COMPLETE)**: Performance measurement and bottleneck detection
-  - New library: `plugins/autonomous-dev/lib/performance_profiler.py` (539 lines)
-  - Features: PerformanceTimer context manager, JSON logging, aggregate metrics, bottleneck detection
-  - Test coverage: 71/78 tests passing (91%)
-  - Integration: Agents wrapped in PerformanceTimer for automatic timing
-  - Enables Phase 7+ optimization decisions based on real data
-- **Phase 7 (Parallel Validation Checkpoint - COMPLETE)**: Validates reviewer, security-auditor, doc-master parallel execution
-  - New method: `AgentTracker.verify_parallel_validation()` in `scripts/agent_tracker.py`
-  - Parallel detection: 5-second window for agent start times
-  - Metrics: sequential_time, parallel_time, time_saved_seconds, efficiency_percent
-  - Helper methods: `_detect_parallel_execution_three_agents()`, `_record_incomplete_validation()`, `_record_failed_validation()`
-  - Integration: CHECKPOINT 4.1 added to `plugins/autonomous-dev/commands/auto-implement.md`
-  - Test coverage: 23 unit tests covering success, parallelization detection, incomplete/failed agents
-  - Infrastructure: Validation checkpoints enable Phase 8+ bottleneck detection
-- **Phase 8 (Agent Output Format Cleanup - COMPLETE)**: Streamlined agent output format sections across 20 agents
-  - Issue #72: Token measurement infrastructure created (Phase 1)
-  - Phase 1 cleanup: 5 agents streamlined (test-master, quality-validator, advisor, alignment-validator, project-progress-tracker) - saved ~1,183 tokens
-  - Phase 2 cleanup: 16 agents streamlined (planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent) - saved ~1,700 tokens
-  - All 20 agents now reference agent-output-formats skill for standardized output formatting
-  - Combined Phase 1+2 savings: ~2,900 tokens (11.7% reduction)
-  - Scripts: measure_agent_tokens.py, measure_output_format_sections.py
-  - Test coverage: 137 tests (104 unit + 30 integration + 3 skill tests)
-- **Phase 8.5 (Profiler Integration - COMPLETE)**: Real-time performance analysis API
-  - Issue #46 Phase 8.5: Integrated profiling analysis into workflow
-  - New function: `analyze_performance_logs()` in performance_profiler.py (81 lines)
-  - Features: Load metrics, aggregate by agent, detect top 3 slowest agents
-  - Enhanced PerformanceTimer: ISO 8601 timestamps with Z suffix, backward compatible
-  - Enhanced Metrics: calculate_aggregate_metrics() now includes count field
-  - Path validation: Flexible logs/ directory detection for cross-platform test compatibility
-  - Test coverage: 27/27 tests passing (100%) - PerformanceTimer, metrics, bottleneck detection, CWE-22 validation
-  - Documentation: Comprehensive docstrings with examples, security notes, performance characteristics
-  - Foundation: Enables Phase 9 model optimization and Phase 10 smart agent selection
-- **Phase 9 (Model Downgrade Strategy - INVESTIGATIVE)**: Cost optimization through model analysis
-  - Issue #46 Phase 9: Investigative phase for model downgrade feasibility
-  - Test coverage: 11/19 tests passing (58%) - Investigation mode
-  - Focus areas: Researcher (Haiku verified optimal), Planner (Sonnet analysis), Other agents (cost-benefit pending)
-  - Framework: Performance impact analysis, quality metrics, cost-benefit calculation
-  - Timeline: Complete investigation by 2025-11-30
-- **Cumulative Improvement** (Issues #63, #64, #72, #46 Phase 8.5): 5-10 minutes saved per workflow (15-35% faster, 25-30% overall improvement)
-  - Combined token savings: ~11,980 tokens (20-28% reduction in agent/library prompts)
-  - Quality: Preserved via progressive disclosure (skills load on-demand)
-  - Scalability: Support for 50-100+ skills without context bloat
-  - Profiling: Real-time metrics enable Phase 9+ data-driven optimizations
+**Performance Baseline**: 15-25 minutes per workflow (25-30% overall improvement from 28-44 min baseline)
+
+**Optimization History** (9 phases complete - see [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for details):
+- **Phase 4**: Haiku model for researcher (3-5 min saved)
+- **Phase 5**: Prompt simplification (2-4 min saved)
+- **Phase 6**: Profiling infrastructure (PerformanceTimer, JSON logging)
+- **Phase 7**: Parallel validation (60% faster - 5 min → 2 min)
+- **Phase 8**: Agent output cleanup (~2,900 tokens saved)
+- **Phase 8.5**: Real-time performance analysis API
+- **Phase 9**: Model downgrade strategy (investigative)
+- **Cumulative**: ~11,980 tokens saved, 50-100+ skills supported
+
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for complete phase details.
 
 ---
 
 ## Batch Feature Processing (Enhanced in v3.24.0)
 
+Process multiple features sequentially with intelligent state management and automatic context clearing. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
+
 **Command**: `/batch-implement <features-file>` or `/batch-implement --issues <issue-numbers>` or `/batch-implement --resume <batch-id>`
 
-Process multiple features sequentially with intelligent state management and automatic context clearing.
+**Key Features**:
+- **File-based input**: Plain text file, one feature per line
+- **GitHub Issues**: Fetch titles via `--issues` flag (requires gh CLI v2.0+)
+- **State management**: `.claude/batch_state.json` tracks progress across crashes
+- **Auto-clear**: Clears context at 150K tokens (no manual intervention)
+- **Resume support**: `--resume <batch-id>` continues from last completed feature
+- **50+ features**: State-based tracking prevents context bloat
 
-**Input Options**:
-
-1. **File-based** (plain text file, one feature per line):
-```text
-# Authentication
-Add user login with JWT
-Add password reset flow
-```
-
-2. **GitHub Issues** (fetch titles directly from GitHub - NEW in v3.24.0):
-```bash
-/batch-implement --issues 72 73 74
-# Fetches: "Issue #72: [title]", "Issue #73: [title]", "Issue #74: [title]"
-
-# Requires gh CLI v2.0+ and authentication (one-time setup):
-gh auth login
-```
-
-**Workflow**: Parse input → Create batch state → For each: `/auto-implement` + auto-clear at 150K tokens → Summary
-
-**State Management** (Enhanced in v3.24.0):
-- **Persistent state**: `.claude/batch_state.json` tracks progress across crashes
-- **Auto-clear threshold**: Automatically clears context at 150K tokens (no manual intervention)
-- **Crash recovery**: Resume from last completed feature with `--resume` flag
-- **Progress tracking**: Completed features, failed features, auto-clear events, issue_numbers, source_type
-- **50+ feature support**: State management prevents context bloat at scale
-- **GitHub integration**: Tracks original issue numbers for --issues flag workflows
-
-**Resume Operations**:
-```bash
-# If batch crashes or context exceeds threshold
-/batch-implement --resume batch-20251116-123456
-
-# System automatically:
-# 1. Loads state from .claude/batch_state.json
-# 2. Skips completed features
-# 3. Continues from current_index
-# 4. Maintains progress across auto-clear events
-```
-
-**Use Cases**: Sprint backlogs (10-50 features), overnight processing, technical debt cleanup, large-scale migrations (50+ features)
-
-**Performance**: ~20-30 min per feature (same as `/auto-implement`), automatic state-based context clearing maintains <8K tokens indefinitely
+**Performance**: ~20-30 min per feature, automatic context clearing maintains <8K tokens indefinitely
 
 ---
 
@@ -250,57 +176,18 @@ gh auth login
 
 Automatic git operations (commit, push, PR creation) are **enabled by default** after `/auto-implement` completes (v3.12.0+). See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
-**Status**: Default feature (enabled by default with first-run consent, opt-out available)
+**Control**:
+- **First-run consent**: Interactive prompt on first use (default: enabled)
+- **Environment variables**: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR` (opt-out via `.env`)
+- **State persistence**: Choice stored in `~/.autonomous-dev/user_state.json`
 
-**First-Run Consent** (v3.12.0+):
-- On first `/auto-implement` run, displays interactive consent prompt
-- User chooses to enable/disable (default: yes)
-- Choice stored in `~/.autonomous-dev/user_state.json`
-- Skipped in non-interactive sessions (CI/CD)
+**Workflow**:
+1. quality-validator completes → triggers `auto_git_workflow.py` hook
+2. commit-message-generator creates conventional commit
+3. Stages, commits, optionally pushes and creates PR
+4. Graceful degradation if prerequisites fail
 
-**Environment Variables** (opt-out via `.env` file):
-
-```bash
-# Master switch - disables automatic git operations after /auto-implement
-AUTO_GIT_ENABLED=false       # Default: true (enabled by default)
-
-# Disable automatic push to remote (requires AUTO_GIT_ENABLED=true)
-AUTO_GIT_PUSH=false          # Default: true (enabled by default)
-
-# Disable automatic PR creation (requires AUTO_GIT_ENABLED=true and gh CLI)
-AUTO_GIT_PR=false            # Default: true (enabled by default)
-```
-
-**How It Works**:
-
-1. `/auto-implement` completes STEP 6 (parallel validation)
-2. quality-validator agent completes (last validation agent)
-3. SubagentStop hook triggers `auto_git_workflow.py`
-4. On first run: displays consent prompt; subsequent runs: checks user state + environment variables
-5. If enabled (default), invokes commit-message-generator agent to create conventional commit message
-6. Stages changes, commits with agent-generated message, optionally pushes and creates PR
-7. If any prerequisite fails (git not configured, merge conflicts, etc.), provides manual fallback instructions
-8. Feature is successful regardless of git operation outcome (graceful degradation)
-
-**Opt-Out Consent Design** (v3.12.0+):
-
-- Enabled by default - seamless zero-manual-git-operations workflow out of the box
-- First-run consent - interactive prompt on first `/auto-implement` run
-- User state persistence - choice stored in `~/.autonomous-dev/user_state.json`
-- Environment override - `.env` variables override user state preferences
-- Validates all prerequisites before attempting operations
-- Non-blocking - git automation failures don't affect feature completion
-- Always provides manual fallback instructions if automation fails
-
-**Security**:
-
-- Uses `security_utils.validate_path()` for all file path validation (CWE-22, CWE-59)
-- Audit logs all operations to `logs/security_audit.log`
-- No credential logging - never exposes API keys or passwords
-- Subprocess calls prevent command injection attacks
-- Safe JSON parsing (no arbitrary code execution)
-
-**Implementation**: `auto_git_workflow.py` hook, `auto_implement_git_integration.py` library, `user_state_manager.py`, `first_run_warning.py`. See `docs/GIT-AUTOMATION.md` and README.md for details.
+**Security**: Path validation (CWE-22, CWE-59), audit logging, no credential exposure, injection prevention
 
 ---
 
@@ -324,51 +211,24 @@ MCP_AUTO_APPROVE=true  # Default: false (opt-in)
 
 ### Agents (20 specialists with active skill integration - GitHub Issue #35, #58, #59)
 
-Located: `plugins/autonomous-dev/agents/`
+20 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Core Workflow Agents (9)** with skill references (orchestrator deprecated v3.2.2 - Claude coordinates directly):
-- **researcher**: Web research for patterns and best practices - Uses research-patterns skill
-- **planner**: Architecture planning and design - Uses architecture-patterns, api-design, database-design, testing-guide skills
-- **test-master**: TDD specialist (writes tests first) - Uses testing-guide, security-patterns skills
-- **implementer**: Code implementation (makes tests pass) - Uses python-standards, observability skills
-- **reviewer**: Quality gate (code review) - Uses code-review, consistency-enforcement, python-standards skills
-- **security-auditor**: Security scanning and vulnerability detection - Uses security-patterns, python-standards skills
-- **doc-master**: Documentation synchronization - Uses documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency skills
-- **advisor**: Critical thinking and validation (v3.0+) - Uses semantic-validation, advisor-triggers, research-patterns skills
-- **quality-validator**: GenAI-powered feature validation (v3.0+) - Uses testing-guide, code-review skills
+**Core Workflow Agents (9)** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
+researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
 
-**Utility Agents (11)** with skill references:
-- **alignment-validator**: PROJECT.md alignment checking - Uses semantic-validation, file-organization skills
-- **commit-message-generator**: Conventional commit generation - Uses git-workflow, code-review skills
-- **pr-description-generator**: Pull request descriptions - Uses github-workflow, documentation-guide, code-review skills
-- **issue-creator**: Generate well-structured GitHub issue descriptions (v3.10.0+, GitHub #58) - Uses github-workflow, documentation-guide, research-patterns skills
-- **brownfield-analyzer**: Analyze brownfield projects for retrofit readiness (v3.11.0+, GitHub #59) - Uses research-patterns, semantic-validation, file-organization, python-standards skills
-- **project-progress-tracker**: Track progress against goals - Uses project-management skill
-- **alignment-analyzer**: Detailed alignment analysis - Uses research-patterns, semantic-validation, file-organization skills
-- **project-bootstrapper**: Tech stack detection and setup (v3.0+) - Uses research-patterns, file-organization, python-standards skills
-- **setup-wizard**: Intelligent setup - analyzes tech stack, recommends hooks (v3.1+) - Uses research-patterns, file-organization skills
-- **project-status-analyzer**: Real-time project health - goals, metrics, blockers (v3.1+) - Uses project-management, code-review, semantic-validation skills
-- **sync-validator**: Smart dev sync - detects conflicts, validates compatibility (v3.1+) - Uses consistency-enforcement, file-organization, python-standards, security-patterns skills
+**Utility Agents (11)**:
+alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
 
-**Note on Orchestrator Removal (v3.2.2)**:
-The "orchestrator" agent was removed because it created a logical impossibility - it was Claude coordinating Claude. When `/auto-implement` invoked the orchestrator agent, it just loaded orchestrator.md as Claude's system prompt, but it was still the same Claude instance making decisions. This allowed Claude to skip agents by reasoning they weren't needed.
-
-**Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator. Same checkpoints, simpler architecture, more reliable execution. See `agents/archived/orchestrator.md` for history.
+**Key Features**:
+- Each agent references relevant skills (progressive disclosure)
+- Parallel validation: reviewer + security-auditor + doc-master (60% faster)
+- Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
 
 ### Skills (27 Active - Progressive Disclosure + Agent Integration)
 
-**Status**: 27 active skill packages using Claude Code 2.0+ progressive disclosure architecture
+27 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.
 
-**Why Active**:
-- Skills are **first-class citizens** in Claude Code 2.0+ (fully supported pattern)
-- Progressive disclosure solves context bloat elegantly
-- Metadata stays in context, full content loads only when needed
-- Can scale to 100+ skills without performance issues
-- **NEW (v3.5+)**: All 18 agents explicitly reference relevant skills for enhanced decision-making (Issue #35)
-- **NEW (v3.14.0+)**: Agents reference agent-output-formats and error-handling-patterns skills for 18-25% token reduction (Issues #63, #64)
-- **NEW (v3.15.0+)**: All 20 agents reference agent-output-formats skill for standardized output formatting (Issue #72)
-
-**27 Active Skills** (organized by category):
+**Categories**:
 - **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
 - **Workflow & Automation** (7): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats, skill-integration, skill-integration-templates
 - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
@@ -376,192 +236,38 @@ The "orchestrator" agent was removed because it created a logical impossibility 
 - **Library Design** (3): library-design-patterns, state-management-patterns, api-integration-patterns
 
 **How It Works**:
-1. **Progressive Disclosure**: Skills auto-activate based on task keywords. Claude loads full SKILL.md content only when relevant, keeping context efficient.
-2. **Agent Integration** (NEW): Each agent's prompt includes a "Relevant Skills" section listing specialized knowledge available for that agent's domain. This helps agents recognize when to apply specialized skills.
-3. **Combined Effect**: Agent + skill integration prevents hallucination while scaling to 100+ skills without context bloat.
+- **Progressive Disclosure**: Skills auto-activate based on keywords, full content loads only when needed
+- **Agent Integration**: Each agent references relevant skills in their prompts
+- **Token Reduction**: ~16,833-17,233 tokens saved across 27 skills (26-35% reduction)
 
-**Agent-Skill Mapping** (all 18 agents now have skill references):
-- See agent prompts in `plugins/autonomous-dev/agents/` for "Relevant Skills" sections
-- See `docs/SKILLS-AGENTS-INTEGRATION.md` for comprehensive mapping table
-
-**Token Reduction Benefits** (Issues #63, #64, #72):
-- agent-output-formats skill: 20 agents reference standardized output formats
-- error-handling-patterns skill: 22 libraries reference standardized error handling
-- **NEW (v3.17.0+)**: Enhanced testing-guide skill with comprehensive testing patterns (Issue #65)
-  - 4 new documentation files: pytest-patterns.md, coverage-strategies.md, arrange-act-assert.md, plus skill metadata enhancements
-  - 3 Python templates: unit-test-template.py, integration-test-template.py, fixture-examples.py
-  - Progressive disclosure: ~10,000 tokens available on-demand, only ~50 tokens context overhead
-  - implementer agent now references testing-guide skill for TDD guidance
-  - Total: 2,557 lines of comprehensive testing guidance
-  - Test coverage: 27/28 tests passing (96.4%)
-  - test-master agent streamlined (Phase 8.3): Removed inline "Test Quality" section, now references testing-guide skill (~18 tokens saved)
-- **NEW (v3.18.0+)**: Enhanced documentation-guide skill with documentation standards (Issue #66 Phase 8.4)
-  - 4 new documentation files: parity-validation.md, changelog-format.md, readme-structure.md, docstring-standards.md
-  - 3 template files: docstring-template.py, readme-template.md, changelog-template.md
-  - Progressive disclosure: ~15,000+ tokens available on-demand, only ~50 tokens context overhead
-  - 9 agents now reference documentation-guide skill: doc-master, reviewer, implementer, issue-creator, pr-description-generator, alignment-analyzer, project-bootstrapper, project-status-analyzer, setup-wizard
-  - Total: 1,709 lines of documentation standards guidance
-  - Test coverage: 48 tests passing (38 unit + 10 integration)
-  - Token savings: ~280 tokens (4-6% reduction across 9 agents)
-- **NEW (v3.19.0+)**: New skill-integration skill for standardized skill architecture patterns (Issue #67-68)
-  - **Phase 1 (Skill Infrastructure - COMPLETE - v3.19.0)**:
-    - Skill composition, discovery, and progressive disclosure architecture
-    - 3 documentation files: progressive-disclosure.md, skill-discovery.md, skill-composition.md
-    - 3 example templates: agent-skill-reference-template.md, progressive-disclosure-diagram.md, skill-composition-example.md
-    - Progressive disclosure: ~3,000 tokens available on-demand, only ~40 tokens context overhead
-    - Total: 385 lines of skill integration guidance
-    - Enhanced git-workflow skill with advanced workflow patterns (Issue #67)
-    - Enhanced github-workflow skill v1.1.0 with PR and issue automation patterns (Issue #68)
-    - Combined enhancements: ~1,200+ additional tokens of guidance via progressive disclosure
-  - **Phase 2 (Agent Streamlining - COMPLETE - v3.19.0)**:
-    - Streamlined commit-message-generator agent: ~702 tokens saved (references git-workflow skill)
-    - Streamlined issue-creator agent: ~271 tokens saved (references github-workflow skill)
-    - Combined Phase 2 savings: ~973 tokens (5-8% reduction in git/github-related agents)
-    - Test coverage: 30 unit tests passing in test_git_github_workflow_enhancement.py
-    - Integration tests: token_reduction_workflow.py validates savings targets
-  - **Phase 3 (github-workflow Documentation Expansion - COMPLETE - v3.20.1)**:
-    - Enhanced github-workflow skill to v1.2.0 with comprehensive automation documentation
-    - 4 new documentation files: pr-automation.md (~2,907 tokens), issue-automation.md (~3,922 tokens), github-actions-integration.md (~2,842 tokens), api-security-patterns.md (~3,430 tokens)
-    - 3 new example files: pr-automation-workflow.yml (~776 tokens), issue-automation-workflow.yml (~1,347 tokens), webhook-handler.py (~2,175 tokens)
-    - Total: 3,813 lines (2,251 docs + 562 examples) = ~17,399 tokens of automation guidance
-    - Progressive disclosure: ~17,400 tokens on-demand, only ~50 tokens SKILL.md overhead
-    - Keywords expanded: Added pr-automation, issue-automation, webhook, auto-labeling, auto-merge, automation, api-security
-    - Covers: PR automation workflows, issue automation patterns, GitHub Actions integration, webhook security, API best practices
-    - Test coverage: 16 new tests validating documentation, examples, and SKILL.md synchronization
-- **NEW (v3.26.0+)**: Phase 8.6 - Extract skill-integration-templates skill (Issue #72 continuation)
-  - **1 New Skill**: skill-integration-templates
-  - **Skill-integration-templates skill** (11 files, ~1,200 tokens):
-    - 4 documentation files: skill-reference-syntax.md, agent-action-verbs.md, progressive-disclosure-usage.md, integration-best-practices.md
-    - 3 template files: skill-section-template.md, intro-sentence-templates.md, closing-sentence-templates.md
-    - 3 example files: planner-skill-section.md, implementer-skill-section.md, minimal-skill-reference.md
-    - Covers: Skill reference syntax, action verbs, progressive disclosure usage, integration patterns
-  - **20 Agents Enhanced**: All 20 agents now reference skill-integration-templates skill for standardized skill section formatting
-  - **Token Reduction**: ~800 tokens saved (~3.5% reduction across all agents)
-  - **Test Coverage**: 30 tests (23 unit + 7 integration) validating skill structure, documentation, templates
-  - **Progressive Disclosure**: ~1,200 tokens of integration patterns available on-demand, only ~50 tokens SKILL.md overhead
-  - **Impact**: Standardizes skill reference formatting across all agents, enables consistent progressive disclosure usage
-- **NEW (v3.25.0+)**: Phase 8.7 - Extract project-alignment-validation skill (Issue #72 continuation)
-  - **1 New Skill**: project-alignment-validation
-  - **Project-alignment-validation skill** (11 files, ~2,200 tokens):
-    - 4 documentation files: gap-assessment-methodology.md, semantic-validation-approach.md, conflict-resolution-patterns.md, alignment-checklist.md
-    - 3 template files: gap-assessment-template.md, alignment-report-template.md, conflict-resolution-template.md
-    - 3 example files: project-md-structure-example.md, alignment-scenarios.md, misalignment-examples.md
-    - Covers: Gap assessment, semantic validation, conflict resolution, alignment checklists, PROJECT.md structure patterns
-  - **12 Files Enhanced**: alignment-validator, alignment-analyzer, validate_project_alignment hook, and 9 libraries now reference project-alignment-validation skill
-  - **Token Reduction**: ~800-1,200 tokens saved (2-4% reduction across alignment agents and libraries)
-  - **Test Coverage**: 86 tests (65 unit + 21 integration) in 3 test files
-  - **Progressive Disclosure**: ~2,200 tokens of alignment patterns available on-demand, only ~50 tokens SKILL.md overhead
-  - **Agents Updated**: alignment-validator, alignment-analyzer, project-bootstrap, brownfield-analyzer, sync-validator, detect_feature_request hook, enforce_pipeline_complete hook, validate_project_alignment hook, validate_documentation_alignment hook
-- **NEW (v3.24.1+)**: Phase 8.8 - Library audit and pattern extraction (Issue #72 continuation)
-  - **3 New Skills**: library-design-patterns, state-management-patterns, api-integration-patterns
-  - **Library-design-patterns skill** (532 lines):
-    - 4 documentation files: progressive-enhancement.md, two-tier-design.md, security-patterns.md, docstring-standards.md
-    - 3 template files: library-template.py, cli-template.py, docstring-template.py
-    - 3 example files: progressive-enhancement-example.py, two-tier-example.py, security-validation-example.py
-    - Covers: Progressive enhancement pattern, two-tier architecture, security validation, docstring standards
-  - **State-management-patterns skill** (289 lines):
-    - 1 documentation file: json-persistence.md
-    - 3 template files: state-manager-template.py, atomic-write-template.py, file-lock-template.py
-    - Covers: JSON state persistence, atomic write operations, file locking patterns
-  - **API-integration-patterns skill** (357 lines):
-    - 4 template files: github-api-template.py, retry-decorator-template.py, subprocess-executor-template.py
-    - 1 example file: safe-subprocess-example.py
-    - Covers: GitHub API integration, retry logic, subprocess security, command injection prevention
-  - **35 Libraries Enhanced**: All libraries now reference relevant skills for standardized patterns
-  - **Token Reduction**: ~1,880 tokens saved (6-8% reduction across library docstrings)
-  - **Test Coverage**: 181 tests (147 unit + 34 integration) in 4 test files
-  - **Progressive Disclosure**: ~3,500 tokens of library patterns available on-demand, only ~150 tokens SKILL.md overhead
-- **Agent Output Format Cleanup** (v3.16.0+): Phase 2 - removed verbose Output Format sections from 16 additional agents (Issue #72)
-  - Phase 1 agents (v3.15.0): test-master, quality-validator, advisor, alignment-validator, project-progress-tracker (saved ~1,183 tokens)
-  - Phase 2 agents (v3.16.0): planner, security-auditor, brownfield-analyzer, sync-validator, alignment-analyzer, issue-creator, pr-description-generator, project-bootstrapper, reviewer, commit-message-generator, project-status-analyzer, researcher, implementer, doc-master, setup-wizard, and 1 core workflow agent (saved ~1,700 tokens)
-  - Output Format sections streamlined to reference agent-output-formats skill
-  - Combined Phase 1+2 token savings: ~2,900 tokens (11.7% reduction across all agents)
-  - No sections exceed 30-line threshold after cleanup
-- Combined token savings: ~16,833-17,233 tokens (26-35% reduction in agent/library prompts)
-  - v3.26.0 Phase 8.6: ~800 tokens (skill-integration-templates skill)
-  - v3.25.0 Phase 8.7: ~800-1,200 tokens (project-alignment-validation skill)
-  - v3.24.1 Phase 8.8: ~1,880 tokens (library-design-patterns, state-management-patterns, api-integration-patterns skills)
-  - v3.19.0 Phase 2: ~973 tokens (commit-message-generator + issue-creator streamlining)
-  - Previous phases: ~11,980 tokens (agent-output-formats, error-handling-patterns, testing-guide, documentation-guide, skill-integration)
-- Tests: 624 passing (245 base + 65 documentation-guide + 30 git/github-workflow + 181 library-design + 86 alignment-validation + 30 skill-integration-templates skill tests)
+**Key Benefits**:
+- All 20 agents explicitly reference relevant skills (Issue #35)
+- Prevents hallucination while maintaining scalability
+- Supports 50-100+ skills without context bloat
+- Test coverage: 624 tests passing
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
 ### Libraries (21 Documented Libraries)
 
-**Location**: `plugins/autonomous-dev/lib/`
+21 reusable Python libraries for security, validation, automation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
-**Purpose**: Reusable Python libraries for security, validation, automation, and brownfield retrofit
+**Core Libraries** (15): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, github_issue_automation, batch_state_manager, github_issue_fetcher, math_utils
 
-**Note**: 21 key user-facing libraries documented below and in `docs/LIBRARIES.md` (15 core/utility + 6 brownfield). All libraries reference relevant skills (library-design-patterns, state-management-patterns, api-integration-patterns, project-alignment-validation) for standardized patterns and token reduction (Phase 8.7-8.8 - v3.25.0)
+**Brownfield Retrofit** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
 
-**Core Libraries (15)**:
-1. **security_utils.py** - Security validation and audit logging (CWE-22, CWE-59, CWE-117)
-2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
-3. **version_detector.py** - Semantic version comparison for marketplace sync
-4. **orphan_file_cleaner.py** - Orphaned file detection and cleanup
-5. **sync_dispatcher.py** - Intelligent sync orchestration (marketplace/env/plugin-dev)
-6. **validate_marketplace_version.py** - CLI script for version validation
-7. **plugin_updater.py** - Interactive plugin update with backup/rollback
-8. **update_plugin.py** - CLI interface for plugin updates
-9. **hook_activator.py** - Automatic hook activation during updates
-10. **validate_documentation_parity.py** - Documentation consistency validation
-11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
-12. **github_issue_automation.py** - GitHub issue creation with research
-13. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
-14. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
-15. **math_utils.py** - Fibonacci calculator with multiple algorithms (iterative, recursive, matrix exponentiation)
-
-**Brownfield Retrofit Libraries (6)** - 5-phase retrofit system for existing projects:
-16. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-17. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-18. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-19. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-20. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-21. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
-
-**Design Pattern**: Progressive enhancement (string → path → whitelist) for graceful error recovery. Non-blocking enhancements don't block core operations. Two-tier design (core logic + CLI interface) enables reuse and testing.
-
-**For detailed API documentation**: See `docs/LIBRARIES.md`
+**Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
 ### Hooks (42 total automation)
 
-Located: `plugins/autonomous-dev/hooks/`
+42 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
-**Core Hooks (11)**:
-- `auto_format.py`: black + isort (Python), prettier (JS/TS)
-- `auto_test.py`: pytest on related tests
-- `security_scan.py`: Secrets detection, vulnerability scanning
-- `validate_project_alignment.py`: PROJECT.md validation
-- `validate_claude_alignment.py`: CLAUDE.md alignment checking (v3.0.2+)
-- `enforce_file_organization.py`: Standard structure enforcement
-- `enforce_pipeline_complete.py`: Validates all 7 agents ran (v3.2.2+)
-- `enforce_tdd.py`: Validates tests written before code (v3.0+)
-- `detect_feature_request.py`: Auto-detect feature requests
-- `auto_git_workflow.py`: Automatic git operations after /auto-implement (v3.9.0+, SubagentStop lifecycle)
-- `auto_approve_tool.py`: MCP auto-approval for subagent tool calls (v3.21.0+, PreToolUse lifecycle)
+**Core Hooks** (11): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool
 
-**Optional/Extended Hooks (20)**:
-- `auto_enforce_coverage.py`: 80% minimum coverage
-- `auto_fix_docs.py`: Documentation consistency
-- `auto_add_to_regression.py`: Regression test tracking
-- `auto_track_issues.py`: GitHub issue tracking
-- `auto_generate_tests.py`: Auto-generate test boilerplate
-- `auto_sync_dev.py`: Sync development changes
-- `auto_tdd_enforcer.py`: Strict TDD enforcement
-- `auto_update_docs.py`: Auto-update documentation
-- `auto_update_project_progress.py`: Auto-update PROJECT.md goals after /auto-implement (v3.4.0+)
-- `detect_doc_changes.py`: Detect documentation changes
-- `enforce_bloat_prevention.py`: Prevent context bloat
-- `enforce_command_limit.py`: Command count limits
-- `post_file_move.py`: Post-move validation
-- `validate_documentation_alignment.py`: Doc alignment checking
-- `validate_session_quality.py`: Session quality validation
-- Plus 5 others for extended enforcement and validation
+**Optional Hooks** (20): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 5 others
 
-**Lifecycle Hooks**:
-- `UserPromptSubmit`: Display project context
-- `SubagentStop`: Log agent completion to session; auto-update PROJECT.md progress (v3.4.0+); auto-detect Task tool agents (v3.8.3+)
+**Lifecycle Hooks** (2): UserPromptSubmit (display context), SubagentStop (log completion, auto-update progress)
+
 
 ---
 
