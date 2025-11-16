@@ -1,8 +1,0 @@
-{
-  "workflow_id": "20251023_104242",
-  "current_agent": "reviewer",
-  "status": "in_progress",
-  "progress_percentage": 85,
-  "message": "Reviewer: Validating code quality and test coverage...",
-  "updated_at": "2025-10-23T12:35:22.736370"
-}
