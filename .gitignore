@@ -101,6 +101,12 @@ docs/BOOTSTRAP_*.md
 *-detailed
 *-working
 
+# Temporary test directories
+tmp_test/
+tmp/
+temp/
+*_tmp/
+
 # Plugin installation (installed via /plugin install, not source code)
 # We keep PROJECT.md and settings.local.json but ignore installed components
 # Source of truth: plugins/autonomous-dev/ (commit this)
