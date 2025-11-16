@@ -336,7 +336,7 @@ def validate_path(
             "test_mode": test_mode
         })
 
-        error_msg = f"Path outside allowed directories: {path}\n"
+        error_msg = f"Path outside project root: {path}\n"
         error_msg += f"Purpose: {purpose}\n"
         error_msg += f"Resolved path: {resolved_path}\n"
         error_msg += f"Allowed locations:\n"
@@ -516,10 +516,9 @@ def validate_input_length(
             "reason": "length_exceeded"
         })
         raise ValueError(
-            f"{field_name} too long: {len(value)} characters\n"
+            f"Invalid {field_name}: {field_name} too long ({len(value)} characters)\n"
             f"Purpose: {purpose}\n"
             f"Maximum allowed: {max_length} characters\n"
-            f"Provided: {len(value)} characters\n"
             f"Preview: {value[:100]}..."
         )
 

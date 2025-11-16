@@ -1,0 +1,77 @@
+Issue #79 - Tracking Infrastructure Path Resolution - Test Files
+
+TEST FILES CREATED (5 modules, 82 tests):
+
+1. tests/unit/test_tracking_path_resolution.py
+   - 24 tests covering PROJECT_ROOT detection and path resolution
+   - Tests session_tracker.py, agent_tracker.py, batch_state_manager.py
+   - Verifies all paths resolve from PROJECT_ROOT, not cwd
+   - Tests subdirectory execution (plugins/, scripts/, hooks/)
+
+2. tests/unit/test_tracking_cross_platform.py
+   - 14 tests covering Windows, Linux, macOS path handling
+   - Tests path separators (backslash vs forward slash)
+   - Tests case sensitivity (Linux) vs case-insensitive (macOS)
+   - Tests Unicode paths, symlinks, and very long paths
+
+3. tests/unit/test_tracking_directory_creation.py
+   - 15 tests covering automatic directory creation
+   - Tests docs/sessions/ auto-creation
+   - Tests .claude/ auto-creation
+   - Tests idempotent mkdir, permissions, race conditions
+
+4. tests/unit/test_tracking_security.py
+   - 19 tests covering security validation
+   - Tests path traversal prevention (../../etc/passwd)
+   - Tests input validation (agent names, messages, issue numbers)
+   - Tests symlink attack prevention
+   - Tests file permissions (world-writable checks)
+
+5. tests/integration/test_tracking_integration.py
+   - 10 tests covering end-to-end integration
+   - Tests SessionTracker + AgentTracker coordination
+   - Tests BatchState persistence across sessions
+   - Tests hook execution context (imports from hooks/)
+   - Tests concurrent access, real-world workflows
+
+VERIFICATION DOCUMENT:
+
+tests/ISSUE79_TDD_RED_VERIFICATION.md
+   - Comprehensive test summary
+   - Expected failure breakdown (~50 failures expected)
+   - Implementation guidance
+   - Next steps for green phase
+
+RUN COMMANDS:
+
+# Run all Issue #79 tests
+venv/bin/pytest tests/unit/test_tracking_*.py tests/integration/test_tracking_integration.py -v
+
+# Run specific test module
+venv/bin/pytest tests/unit/test_tracking_path_resolution.py -v
+
+# Run with coverage
+venv/bin/pytest tests/unit/test_tracking_*.py --cov=plugins/autonomous_dev/lib --cov=scripts
+
+EXPECTED RESULTS (TDD Red Phase):
+
+- Path resolution tests: FAIL (hardcoded paths not fixed yet)
+- Security tests: FAIL (validation not implemented yet)
+- Integration tests: FAIL (depend on path resolution)
+- Cross-platform tests: MOSTLY PASS (pathlib handles it)
+- Directory creation tests: MOSTLY PASS (mkdir has exist_ok=True)
+
+Total: ~50 failures, ~32 passes (until implementation complete)
+
+FILES AFFECTED BY IMPLEMENTATION:
+
+1. plugins/autonomous-dev/lib/session_tracker.py (line 25)
+2. scripts/session_tracker.py (line 20)
+3. scripts/agent_tracker.py (line 179)
+4. plugins/autonomous-dev/lib/batch_state_manager.py (DEFAULT_STATE_FILE)
+5. Multiple hooks with hardcoded session paths
+
+NEW FILES TO CREATE:
+
+1. plugins/autonomous-dev/lib/path_utils.py (find_project_root function)
+2. plugins/autonomous-dev/lib/validation.py (path and input validation)

@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-11-17
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 19 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 22 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **20 shared libraries** organized into four categories:
+The autonomous-dev plugin includes **22 shared libraries** organized into four categories:
 
-### Core Libraries (14)
+### Core Libraries (16)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -25,19 +25,21 @@ The autonomous-dev plugin includes **20 shared libraries** organized into four c
 12. **github_issue_automation.py** - GitHub issue creation with research
 13. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
 14. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
+15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
+16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
 
 ### Utility Libraries (1)
 
-15. **math_utils.py** - Fibonacci calculator with multiple algorithms
+17. **math_utils.py** - Fibonacci calculator with multiple algorithms
 
 ### Brownfield Retrofit Libraries (6)
 
-16. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-17. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-18. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-19. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-20. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-21. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+18. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+19. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+20. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+21. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+22. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+23. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 ## Design Patterns
 
@@ -1529,6 +1531,242 @@ except GitHubAPIError as e:
 
 ---
 
+## 15. path_utils.py (187 lines, v3.28.0+)
+
+**Purpose**: Dynamic PROJECT_ROOT detection and path resolution for tracking infrastructure
+
+**Issue**: GitHub #79 - Fixes hardcoded paths that failed when running from subdirectories
+
+### Key Features
+
+- **Dynamic PROJECT_ROOT Detection**: Searches upward from current directory for `.git/` or `.claude/` markers
+- **Caching**: Module-level cache prevents repeated filesystem searches
+- **Flexible Creation**: Creates directories (docs/sessions, .claude) as needed with safe permissions (0o755)
+- **Backward Compatible**: Existing usage patterns still work, uses get_project_root() internally
+
+### Public API
+
+#### `find_project_root(marker_files=None, start_path=None)`
+- **Purpose**: Search upward for project root directory
+- **Parameters**:
+  - `marker_files` (list): Files/directories to search for. Defaults to `[".git", ".claude"]` (priority order)
+  - `start_path` (Path): Starting directory for search. Defaults to current working directory
+- **Returns**: `Path` - Project root directory
+- **Raises**: `FileNotFoundError` - If no marker found up to filesystem root
+- **Priority Strategy**: Searches all the way up for `.git` before considering `.claude` (ensures nested `.claude` dirs work correctly)
+
+#### `get_project_root(use_cache=True)`
+- **Purpose**: Get cached project root (detects and caches if first call)
+- **Parameters**: `use_cache` (bool): Use cached value or force re-detection (default: True)
+- **Returns**: `Path` - Project root directory
+- **Thread Safety**: Not thread-safe (uses module-level cache); wrap with threading.Lock for multi-threading
+- **Best For**: Performance-critical code that calls repeatedly
+
+#### `get_session_dir(create=True, use_cache=True)`
+- **Purpose**: Get session directory path (`PROJECT_ROOT/docs/sessions`)
+- **Parameters**:
+  - `create` (bool): Create directory if missing (default: True)
+  - `use_cache` (bool): Use cached project root (default: True)
+- **Returns**: `Path` - Session directory
+- **Creates**: Parent directories with safe permissions (0o755 = rwxr-xr-x)
+- **Used By**: session_tracker.py, agent_tracker.py
+
+#### `get_batch_state_file()`
+- **Purpose**: Get batch state file path (`PROJECT_ROOT/.claude/batch_state.json`)
+- **Returns**: `Path` - Batch state file path (note: file itself not created)
+- **Creates**: Parent directory (`.claude/`) if missing, with safe permissions
+- **Used By**: batch_state_manager.py
+
+#### `reset_project_root_cache()`
+- **Purpose**: Reset cached project root (testing only)
+- **Warning**: Only use in test teardown; production code should maintain cache for process lifetime
+
+### Test Coverage
+
+- **Total**: 45+ tests in `tests/unit/test_tracking_path_resolution.py`
+- **Areas**:
+  - PROJECT_ROOT detection from various directories
+  - Marker file priority (`.git` over `.claude`)
+  - Nested `.claude/` handling in git repositories
+  - Directory creation with safe permissions
+  - Cache behavior and reset
+
+### Usage Examples
+
+```python
+from plugins.autonomous_dev.lib.path_utils import (
+    get_project_root,
+    get_session_dir,
+    get_batch_state_file
+)
+
+# Get project root (cached after first call)
+root = get_project_root()
+print(root)  # /path/to/autonomous-dev
+
+# Get session directory (creates if missing)
+session_dir = get_session_dir()
+session_file = session_dir / "20251117-session.md"
+
+# Get batch state file path
+state_file = get_batch_state_file()
+# Returns: /project/.claude/batch_state.json
+
+# Force re-detection (for tests that change cwd)
+from tests.conftest import isolated_project
+root = get_project_root(use_cache=False)
+```
+
+### Security
+
+- **No Path Traversal**: Only searches upward, never downward
+- **Safe Permissions**: Creates directories with 0o755 (rwxr-xr-x)
+- **Validation**: Validates marker files exist before returning
+- **Symlink Handling**: Resolves symlinks to canonical paths
+
+### Migration from Hardcoded Paths
+
+**Before** (Issue #79 - fails from subdirectories):
+```python
+# Hardcoded path in session_tracker.py line 25
+session_dir = Path("docs/sessions")  # Fails if cwd != project root
+```
+
+**After** (v3.28.0+):
+```python
+from path_utils import get_session_dir
+session_dir = get_session_dir()  # Works from any subdirectory
+```
+
+### Related Documentation
+
+- See `library-design-patterns` skill for design principles
+- See Issue #79 for hardcoded path fixes and security implications
+
+---
+
+## 16. validation.py (286 lines, v3.28.0+)
+
+**Purpose**: Tracking infrastructure security validation (input sanitization and path traversal prevention)
+
+**Issue**: GitHub #79 - Fixes security gaps in tracking modules (path traversal, control character injection)
+
+### Key Features
+
+- **Path Traversal Prevention**: Rejects paths with `..` sequences, validates within allowed directories
+- **Symlink Attack Prevention**: Rejects symlinks that could bypass path restrictions
+- **Input Validation**: Agent names, messages with length limits and character validation
+- **Control Character Filtering**: Prevents log injection attacks
+- **Clear Error Messages**: Helpful guidance for developers using these APIs
+
+### Public API
+
+#### `validate_session_path(path, purpose="session tracking")`
+- **Purpose**: Validate session path to prevent path traversal attacks
+- **Parameters**:
+  - `path` (str|Path): Path to validate
+  - `purpose` (str): Description for error messages
+- **Returns**: `Path` - Validated and resolved path
+- **Raises**: `ValueError` - If path contains traversal sequences, is outside allowed dirs, or is symlink
+- **Allowed Directories**:
+  - `PROJECT_ROOT/docs/sessions/` (session files)
+  - `PROJECT_ROOT/.claude/` (state files)
+- **Security Coverage**: CWE-22 (path traversal), CWE-59 (symlink resolution)
+
+#### `validate_agent_name(name, purpose="agent tracking")`
+- **Purpose**: Validate agent name (alphanumeric, hyphen, underscore only)
+- **Parameters**:
+  - `name` (str): Agent name to validate
+  - `purpose` (str): Description for error messages
+- **Returns**: `str` - Validated agent name (whitespace stripped)
+- **Raises**: `ValueError` - If name is empty, too long (>255 chars), or contains invalid characters
+- **Allowed Characters**: Letters (a-z, A-Z), numbers (0-9), hyphen (-), underscore (_)
+- **Security Coverage**: Input injection prevention
+
+#### `validate_message(message, purpose="message logging")`
+- **Purpose**: Validate message (length limits, no control characters)
+- **Parameters**:
+  - `message` (str): Message to validate
+  - `purpose` (str): Description for error messages
+- **Returns**: `str` - Validated message (stripped of leading/trailing whitespace)
+- **Raises**: `ValueError` - If message exceeds 10KB or contains control characters
+- **Allowed Characters**: Printable ASCII, tabs, newlines, carriage returns
+- **Blocked Characters**: Control characters (ASCII 0-31 except tab/newline/CR)
+- **Security Coverage**: Log injection prevention, DoS prevention (input limits)
+
+### Constants
+
+- `MAX_MESSAGE_LENGTH = 10000` - Maximum message length (10KB)
+- `MAX_AGENT_NAME_LENGTH = 255` - Maximum agent name length
+
+### Test Coverage
+
+- **Total**: 35+ tests in `tests/unit/test_tracking_security.py`
+- **Areas**:
+  - Path traversal attack detection (various `.` and `..` patterns)
+  - Symlink attack detection
+  - Path outside allowed directories
+  - Agent name validation (empty, too long, invalid characters)
+  - Message validation (too long, control characters)
+  - Helpful error messages
+
+### Usage Examples
+
+```python
+from plugins.autonomous_dev.lib.validation import (
+    validate_session_path,
+    validate_agent_name,
+    validate_message
+)
+
+# Validate session path
+try:
+    safe_path = validate_session_path("/project/docs/sessions/file.json")
+except ValueError as e:
+    print(f"Invalid path: {e}")
+
+# Validate agent name
+try:
+    name = validate_agent_name("researcher-v2")
+    print(f"Valid name: {name}")
+except ValueError as e:
+    print(f"Invalid name: {e}")
+
+# Validate message
+try:
+    msg = validate_message("Research complete - 5 patterns found")
+    print(f"Valid message: {msg}")
+except ValueError as e:
+    print(f"Invalid message: {e}")
+
+# Security: These raise ValueError
+validate_session_path("../../etc/passwd")  # Path traversal
+validate_session_path("/etc/passwd")  # Outside allowed dirs
+validate_agent_name("../../etc/passwd")  # Invalid chars
+validate_agent_name("")  # Empty
+validate_message("x" * 20000)  # Too long
+validate_message("msg\x00with\x01control")  # Control chars
+```
+
+### Security Principles
+
+- **Whitelist Validation**: Only allow specific characters and paths
+- **Fail Closed**: Reject unknown inputs (not permissive)
+- **Clear Errors**: Error messages guide developers to correct usage
+- **Defense in Depth**: Multiple validation layers prevent bypasses
+- **No Eval/Exec**: Pure validation, no code execution
+
+### Used By
+
+- `session_tracker.py` - Session file path and agent name validation
+- `batch_state_manager.py` - Batch state file path validation
+- `agent_tracker.py` - Agent name validation for session tracking
+
+### Related Documentation
+
+- See `security-patterns` skill for validation principles
+- See `library-design-patterns` skill for input validation design
+- See Issue #79 for security implications and threat model
 
 ---
 

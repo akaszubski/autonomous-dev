@@ -14,11 +14,17 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# Add lib directory to path for imports (Issue #79)
+lib_dir = Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"
+sys.path.insert(0, str(lib_dir))
+from path_utils import get_session_dir
+
 
 class SessionTracker:
     def __init__(self):
-        self.session_dir = Path("docs/sessions")
-        self.session_dir.mkdir(parents=True, exist_ok=True)
+        # Use path_utils for dynamic PROJECT_ROOT resolution (Issue #79)
+        # This fixes hardcoded Path("docs/sessions") which failed from subdirectories
+        self.session_dir = get_session_dir(create=True)
 
         # Find or create session file for today
         today = datetime.now().strftime("%Y%m%d")

@@ -109,13 +109,41 @@ from typing import List, Dict, Any, Optional
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from security_utils import validate_path, audit_log
+from path_utils import get_batch_state_file
 
 # =============================================================================
 # Constants
 # =============================================================================
 
-# Default state file location
-DEFAULT_STATE_FILE = Path(".claude/batch_state.json")
+# Default state file location (dynamically resolved from PROJECT_ROOT - Issue #79)
+# This fixes hardcoded Path(".claude/batch_state.json") which failed from subdirectories
+# WARNING: This evaluates at module import time. For testing with mock project roots,
+# use get_default_state_file() function instead (evaluates lazily).
+try:
+    DEFAULT_STATE_FILE = get_batch_state_file()
+except FileNotFoundError:
+    # Fallback for edge cases (e.g., running outside a git repo)
+    # This maintains backward compatibility
+    DEFAULT_STATE_FILE = Path(".claude/batch_state.json")
+
+def get_default_state_file():
+    """Get default state file path (lazy evaluation - use in tests).
+
+    This is a function (not a constant) to support testing scenarios where
+    the project root might change between test cases.
+
+    For production code, use DEFAULT_STATE_FILE constant for performance.
+    For tests, use this function for correct behavior with mock project roots.
+
+    Returns:
+        Path to default batch state file (PROJECT_ROOT/.claude/batch_state.json)
+    """
+    try:
+        return get_batch_state_file()
+    except FileNotFoundError:
+        # Fallback for edge cases (e.g., running outside a git repo)
+        # This maintains backward compatibility
+        return Path(".claude/batch_state.json")
 
 # Context token threshold for auto-clearing (150K tokens)
 CONTEXT_THRESHOLD = 150000
@@ -228,6 +256,7 @@ def create_batch_state(
     state_file: Optional[str] = None,
     *,
     features: Optional[List[str]] = None,  # Keyword-only for new calling style
+    batch_id: Optional[str] = None,  # Optional custom batch ID
 ) -> BatchState:
     """Create new batch state.
 
@@ -242,6 +271,7 @@ def create_batch_state(
         source_type: Source type ("file" or "issues")
         state_file: Optional path to state file
         features: Features list (keyword-only, for new calling style)
+        batch_id: Optional custom batch ID (keyword-only)
 
     Returns:
         Newly created BatchState
@@ -306,8 +336,10 @@ def create_batch_state(
         raise BatchStateError(f"Invalid features file path: path traversal detected")
 
     # Generate unique batch ID with timestamp (including microseconds for uniqueness)
-    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
-    batch_id = f"batch-{timestamp}"
+    # Use provided batch_id if given, otherwise generate one
+    if not batch_id:
+        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
+        batch_id = f"batch-{timestamp}"
 
     # Create timestamps
     now = datetime.utcnow().isoformat() + "Z"
@@ -377,6 +409,17 @@ def save_batch_state(state_file: Path | str, state: BatchState) -> None:
     """
     # Convert to Path
     state_file = Path(state_file)
+
+    # Resolve relative paths from PROJECT_ROOT (Issue #79)
+    # This ensures "custom/state.json" → PROJECT_ROOT/custom/state.json
+    if not state_file.is_absolute():
+        from path_utils import get_project_root
+        try:
+            project_root = get_project_root(use_cache=False)
+            state_file = project_root / state_file
+        except FileNotFoundError:
+            # Fallback: if no project root, use cwd (backward compatibility)
+            pass
 
     # Validate path (security)
     try:
@@ -479,6 +522,17 @@ def load_batch_state(state_file: Path | str) -> BatchState:
     """
     # Convert to Path
     state_file = Path(state_file)
+
+    # Resolve relative paths from PROJECT_ROOT (Issue #79)
+    # This ensures "custom/state.json" → PROJECT_ROOT/custom/state.json
+    if not state_file.is_absolute():
+        from path_utils import get_project_root
+        try:
+            project_root = get_project_root(use_cache=False)
+            state_file = project_root / state_file
+        except FileNotFoundError:
+            # Fallback: if no project root, use cwd (backward compatibility)
+            pass
 
     # Validate path (security)
     try:
@@ -770,3 +824,195 @@ def cleanup_batch_state(state_file: Path | str) -> None:
                 "path": str(state_file),
             })
             raise BatchStateError(f"Failed to cleanup batch state: {e}")
+
+
+# =============================================================================
+# BatchStateManager Class (Backward Compatibility Wrapper)
+# =============================================================================
+
+
+class BatchStateManager:
+    """Object-oriented wrapper for batch state functions.
+
+    Provides backward compatibility for code expecting a class-based interface.
+    All methods delegate to the functional API defined above.
+
+    Examples:
+        >>> manager = BatchStateManager()
+        >>> state = manager.create_batch_state(["feature 1", "feature 2"])
+        >>> manager.save_batch_state(state)
+        >>> loaded = manager.load_batch_state()
+    """
+
+    def __init__(self, state_file: Optional[Path] = None):
+        """Initialize manager with optional custom state file path.
+
+        Args:
+            state_file: Optional custom path for state file.
+                       If None, uses default (.claude/batch_state.json)
+                       Path is validated for security (CWE-22, CWE-59)
+
+        Raises:
+            ValueError: If state_file contains path traversal or is outside project
+        """
+        self.state_file = state_file if state_file else get_default_state_file()
+
+        # Validate path if provided (security requirement)
+        if state_file:
+            from security_utils import validate_path
+            self.state_file = validate_path(
+                Path(state_file),
+                "batch state file",
+                allow_missing=True
+            )
+
+        # Create parent directory if it doesn't exist
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def create_batch_state(
+        self,
+        features: List[str],
+        batch_id: Optional[str] = None,
+        issue_numbers: Optional[List[int]] = None
+    ) -> BatchState:
+        """Create new batch state (delegates to create_batch_state function).
+
+        Args:
+            features: List of feature descriptions
+            batch_id: Optional custom batch ID
+            issue_numbers: Optional list of GitHub issue numbers
+
+        Returns:
+            BatchState object
+        """
+        return create_batch_state(
+            features=features,
+            state_file=str(self.state_file),
+            batch_id=batch_id,
+            issue_numbers=issue_numbers
+        )
+
+    def create_batch(
+        self,
+        features: List[str],
+        features_file: Optional[str] = None,
+        batch_id: Optional[str] = None,
+        issue_numbers: Optional[List[int]] = None
+    ) -> BatchState:
+        """Create new batch state (alias for create_batch_state).
+
+        Args:
+            features: List of feature descriptions
+            features_file: Optional path to features file (for validation)
+            batch_id: Optional custom batch ID
+            issue_numbers: Optional list of GitHub issue numbers
+
+        Returns:
+            BatchState object
+
+        Note:
+            If features_file is provided, it is validated for security but not used
+            (features list is the actual source of truth)
+        """
+        # Validate features_file if provided (security requirement)
+        if features_file:
+            from security_utils import validate_path
+            validate_path(Path(features_file), "features file", allow_missing=True)
+
+        return create_batch_state(
+            features=features,
+            state_file=str(self.state_file),
+            batch_id=batch_id,
+            issue_numbers=issue_numbers
+        )
+
+    def load_batch_state(self) -> BatchState:
+        """Load batch state from file (delegates to load_batch_state function).
+
+        Returns:
+            BatchState object
+        """
+        return load_batch_state(self.state_file)
+
+    def load_state(self) -> BatchState:
+        """Alias for load_batch_state() for backward compatibility with tests.
+
+        Returns:
+            BatchState object
+        """
+        return self.load_batch_state()
+
+    def save_batch_state(self, state: BatchState) -> None:
+        """Save batch state to file (delegates to save_batch_state function).
+
+        Args:
+            state: BatchState object to save
+        """
+        save_batch_state(self.state_file, state)
+
+    def save_state(self, state: BatchState) -> None:
+        """Alias for save_batch_state() for backward compatibility with tests.
+
+        Args:
+            state: BatchState object to save
+        """
+        self.save_batch_state(state)
+
+    def update_batch_progress(
+        self,
+        feature_index: int,
+        status: str,
+        tokens_consumed: int = 0
+    ) -> None:
+        """Update batch progress (delegates to update_batch_progress function).
+
+        Args:
+            feature_index: Index of completed feature
+            status: "completed" or "failed"
+            tokens_consumed: Estimated tokens consumed by this feature
+        """
+        update_batch_progress(
+            self.state_file,
+            feature_index,
+            status,
+            tokens_consumed
+        )
+
+    def record_auto_clear_event(
+        self,
+        feature_index: int,
+        tokens_before_clear: int
+    ) -> None:
+        """Record auto-clear event (delegates to record_auto_clear_event function).
+
+        Args:
+            feature_index: Feature index when auto-clear triggered
+            tokens_before_clear: Estimated tokens before clearing
+        """
+        record_auto_clear_event(
+            self.state_file,
+            feature_index,
+            tokens_before_clear
+        )
+
+    def should_auto_clear(self) -> bool:
+        """Check if auto-clear should trigger (delegates to should_auto_clear function).
+
+        Returns:
+            True if context should be cleared
+        """
+        state = self.load_batch_state()
+        return should_auto_clear(state)
+
+    def get_next_pending_feature(self) -> Optional[str]:
+        """Get next pending feature (delegates to get_next_pending_feature function).
+
+        Returns:
+            Next feature description or None if all complete
+        """
+        state = self.load_batch_state()
+        return get_next_pending_feature(state)
+
+    def cleanup_batch_state(self) -> None:
+        """Cleanup batch state file (delegates to cleanup_batch_state function)."""
+        cleanup_batch_state(self.state_file)

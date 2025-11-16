@@ -85,6 +85,7 @@ from security_utils import (
     audit_log,
     PROJECT_ROOT
 )
+from path_utils import get_session_dir
 
 
 # Agent display metadata
@@ -176,8 +177,9 @@ class AgentTracker:
                 self._save()
         else:
             # Standard mode: auto-detect or create session file
-            self.session_dir = Path("docs/sessions")
-            self.session_dir.mkdir(parents=True, exist_ok=True)
+            # Use path_utils for dynamic PROJECT_ROOT resolution (Issue #79)
+            # This fixes hardcoded Path("docs/sessions") which failed from subdirectories
+            self.session_dir = get_session_dir(create=True)
 
             # Find or create JSON session file for today
             today = datetime.now().strftime("%Y%m%d")
@@ -331,7 +333,9 @@ class AgentTracker:
         """
         # SECURITY: Validate inputs using shared validation module
         agent_name = validate_agent_name(agent_name, purpose="agent start")
-        message = validate_input_length(message, 10000, "message", purpose="agent start")
+        # Validate message (length + control characters)
+        from plugins.autonomous_dev.lib.validation import validate_message
+        message = validate_message(message, purpose="agent start")
 
         # Additional membership check for EXPECTED_AGENTS (business logic, not security)
         is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
@@ -354,7 +358,7 @@ class AgentTracker:
         print(f"✅ Started: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
 
-    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None, tools_used: Optional[List[str]] = None):
+    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None, tools_used: Optional[List[str]] = None, github_issue: Optional[int] = None):
         """Log agent completion (idempotent - safe to call multiple times).
 
         Args:
@@ -362,6 +366,7 @@ class AgentTracker:
             message: Completion message (max 10KB)
             tools: Optional list of tools used (preferred parameter name)
             tools_used: Optional list of tools used (alias for backwards compatibility)
+            github_issue: Optional GitHub issue number associated with this agent
 
         Raises:
             ValueError: If agent_name is empty/invalid or message too long
@@ -382,6 +387,11 @@ class AgentTracker:
         # SECURITY: Validate inputs using shared validation module
         agent_name = validate_agent_name(agent_name, purpose="agent completion")
         message = validate_input_length(message, 10000, "message", purpose="agent completion")
+
+        # Validate github_issue if provided
+        if github_issue is not None:
+            from plugins.autonomous_dev.lib.security_utils import validate_github_issue
+            github_issue = validate_github_issue(github_issue, purpose="agent completion")
 
         # Additional membership check for EXPECTED_AGENTS (business logic, not security)
         is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
@@ -1755,9 +1765,19 @@ class AgentTracker:
         """Alias for start_agent() for backward compatibility with tests."""
         return self.start_agent(agent_name, message)
 
-    def log_complete(self, agent_name: str, message: str, tools_used: Optional[List[str]] = None):
-        """Alias for complete_agent() for backward compatibility with tests."""
-        return self.complete_agent(agent_name, message, tools=tools_used)
+    def log_complete(self, agent_name: str, message: str, tools_used: Optional[List[str]] = None, tools: Optional[List[str]] = None, github_issue: Optional[int] = None):
+        """Alias for complete_agent() for backward compatibility with tests.
+
+        Args:
+            agent_name: Name of the agent
+            message: Completion message
+            tools_used: List of tools used (preferred parameter name)
+            tools: Legacy parameter name for tools_used (deprecated)
+            github_issue: Optional GitHub issue number
+        """
+        # Support both 'tools' and 'tools_used' parameter names for backward compatibility
+        final_tools = tools_used if tools_used is not None else tools
+        return self.complete_agent(agent_name, message, tools=final_tools, github_issue=github_issue)
 
     def log_fail(self, agent_name: str, message: str):
         """Alias for fail_agent() for backward compatibility with tests."""

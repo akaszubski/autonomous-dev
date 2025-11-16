@@ -1,3 +1,44 @@
+## [3.28.0] - 2025-11-17
+
+### Added
+- **Tracking Infrastructure Path Resolution and Security** - Issue #79
+  - **2 New Libraries**: Dynamic path resolution and security validation for tracking modules
+    - `path_utils.py` (187 lines): PROJECT_ROOT detection, session/batch state path resolution with caching
+    - `validation.py` (286 lines): Path traversal prevention, input validation (agent names, messages)
+  - **Security Improvements**:
+    - **Path Traversal Prevention** (CWE-22): All tracking paths validated within PROJECT_ROOT
+    - **Symlink Attack Prevention** (CWE-59): Rejects symlinks that could bypass restrictions
+    - **Input Validation**: Agent names (alphanumeric only), messages (10KB limit, no control chars)
+    - **Control Character Filtering**: Prevents log injection via null/control character removal
+  - **Fixes for Issue #79**:
+    - `session_tracker.py` line 25: Hardcoded `Path("docs/sessions")` → `get_session_dir()`
+    - `batch_state_manager.py` line 118: Hardcoded `.claude/batch_state.json` → `get_batch_state_file()`
+    - `agent_tracker.py` line 179: Hardcoded `Path("docs/sessions")` → `get_session_dir()`
+    - `scripts/session_tracker.py` and `scripts/agent_tracker.py`: Updated to use path_utils
+  - **Test Coverage**: 80+ tests in 4 new test files
+    - `test_tracking_path_resolution.py`: PROJECT_ROOT detection, marker file priority, nested .claude/ handling
+    - `test_tracking_security.py`: Path traversal, symlink attacks, input validation
+    - `test_tracking_directory_creation.py`: Safe permission creation (0o755)
+    - `test_tracking_cross_platform.py`: Cross-platform path handling (Windows/Mac/Linux)
+  - **Backward Compatibility**: All existing usage patterns still work (transparent migration)
+
+### Changed
+- **Library Infrastructure**:
+  - `session_tracker.py`: Migrated to use path_utils for PROJECT_ROOT detection
+  - `batch_state_manager.py`: Migrated to use path_utils for state file path resolution
+  - `scripts/agent_tracker.py`: Migrated to use path_utils for session directory
+  - All path operations now work from any subdirectory (not just project root)
+
+### Documentation
+- **[docs/LIBRARIES.md](docs/LIBRARIES.md)**:
+  - Updated library count in header (20 → 22 shared libraries)
+  - Added Section 15: path_utils.py API documentation (187 lines of content)
+  - Added Section 16: validation.py API documentation (286 lines of content)
+  - Both sections include security coverage, usage examples, test overview
+  - Updated library list with new additions and versioning info
+
+---
+
 ## [3.27.0] - 2025-11-16
 
 ### Changed
