@@ -1,0 +1,61 @@
+# Issue #73: MCP Auto-Approval for Subagent Tool Calls - Test Files
+
+## Test Files Created (6 files, 207 tests)
+
+### Unit Tests (153 tests)
+1. tests/unit/lib/test_tool_validator.py (60 tests)
+   - Tool call validation logic
+   - Whitelist/blacklist matching
+   - Path validation
+   - Command injection prevention
+
+2. tests/unit/hooks/test_auto_approve_tool.py (43 tests)
+   - PreToolUse hook logic
+   - Subagent context detection
+   - User consent checking
+   - Circuit breaker logic
+
+3. tests/unit/lib/test_tool_approval_audit.py (27 tests)
+   - Audit logging
+   - Log injection prevention
+   - Log rotation
+
+4. tests/unit/lib/test_user_state_manager_auto_approval.py (23 tests)
+   - Consent persistence
+   - First-run detection
+   - Environment variable override
+
+### Integration Tests (15 tests)
+5. tests/integration/test_tool_auto_approval_end_to_end.py (15 tests)
+   - Complete workflows
+   - Researcher WebSearch approval
+   - Implementer Bash approval
+   - Circuit breaker integration
+
+### Security Tests (39 tests)
+6. tests/security/test_tool_auto_approval_security.py (39 tests)
+   - Command injection attacks
+   - Path traversal attacks
+   - Log injection attacks
+   - Whitelist/blacklist bypass attempts
+   - Policy tampering detection
+   - Privilege escalation prevention
+
+## Summary Document
+- tests/TDD_RED_PHASE_ISSUE73_SUMMARY.md (comprehensive guide)
+
+## Test Execution Commands
+
+# Run all Issue #73 tests
+pytest tests/ -k "auto_approval OR tool_validator OR tool_approval_audit" -v
+
+# Run by category
+pytest tests/unit/lib/test_tool_validator.py -v                    # 60 tests
+pytest tests/unit/hooks/test_auto_approve_tool.py -v              # 43 tests
+pytest tests/unit/lib/test_tool_approval_audit.py -v              # 27 tests
+pytest tests/unit/lib/test_user_state_manager_auto_approval.py -v # 23 tests
+pytest tests/integration/test_tool_auto_approval_end_to_end.py -v # 15 tests
+pytest tests/security/test_tool_auto_approval_security.py -v      # 39 tests
+
+# Current Status: All tests FAIL (TDD red phase - expected)
+# Next Phase: implementer agent makes tests pass (TDD green phase)

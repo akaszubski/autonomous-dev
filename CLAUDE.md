@@ -50,9 +50,6 @@
 **Utility Commands (1)**:
 - `/test` - Run automated tests (pytest wrapper)
 
-**Removed Commands** (deprecated/archived):
-- `/uninstall` - Archived to commands/archive/ (use /plugin uninstall autonomous-dev instead)
-
 ---
 
 ## Context Management (CRITICAL!)
@@ -406,15 +403,12 @@ python .claude/hooks/setup.py
 
 ### Updating
 ```bash
-# 1. Uninstall
-/plugin uninstall autonomous-dev
+# Use the built-in update command
+/update-plugin
 
+# Or manually:
+# 1. Use /update-plugin for interactive update with backup/rollback
 # 2. Exit and restart Claude Code (REQUIRED!)
-
-# 3. Reinstall
-/plugin install autonomous-dev
-
-# 4. Exit and restart again
 ```
 
 ### Daily Workflow

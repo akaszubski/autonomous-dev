@@ -46,6 +46,47 @@ docs/sessions/*-pipeline.json
 *.pipeline.json
 *-session.md
 
+# TDD documentation and implementation guides (working files, archived after feature completion)
+tests/*_TDD_*.md
+tests/*_IMPLEMENTER_GUIDE.md
+tests/*_QUICK_REFERENCE.md
+tests/*_TEST_*.md
+tests/*_SUMMARY.md
+tests/*_VERIFICATION.md
+tests/*_RED_PHASE*.md
+tests/PHASE*.md
+tests/ISSUE*.md
+tests/STEP*.md
+tests/IMPLEMENTATION_GUIDE*.md
+tests/README_*.md
+tests/PROGRESS_*.md
+tests/REGRESSION_*.md
+tests/RUN_*.md
+tests/SKILLS_*.md
+docs/sessions/*-issue*.md
+docs/sessions/security-audit-*.md
+
+# Test utility scripts (one-off verification scripts)
+tests/verify_*.py
+tests/apply_*.py
+tests/measure_*.py
+tests/run_*.py
+
+# Documentation updates and summaries (working files)
+docs/*_UPDATE*.md
+docs/*_SUMMARY*.md
+docs/*_REPORT*.md
+docs/DOCUMENTATION_UPDATES*.md
+docs/DOCUMENTATION-UPDATE*.md
+docs/DOCS_VALIDATION*.md
+
+# Analysis and planning files (working files)
+docs/*_ANALYSIS.md
+docs/*_SOLUTION*.md
+docs/ALTERNATIVE-*.md
+docs/BLOAT-*.md
+docs/BOOTSTRAP_*.md
+
 # Backups and working files
 *.backup
 *.backup-*

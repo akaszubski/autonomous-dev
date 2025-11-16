@@ -179,7 +179,7 @@ class ClaudeAlignmentValidator:
             "/status",
             "/health-check",
             "/sync",
-            "/uninstall"
+            "/update-plugin"
         ]
 
         for cmd in commands_mentioned:
