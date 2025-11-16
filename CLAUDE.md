@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-11-16
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.26.0 (Phase 8.6 Complete: Extract skill-integration-templates skill)
+**Version**: v3.8.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
