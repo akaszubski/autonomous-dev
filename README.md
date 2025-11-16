@@ -1,6 +1,6 @@
 # Autonomous Development Plugin for Claude Code
 
-**Speak requirements. Get production-ready code. Guaranteed alignment with your strategic goals.**
+**Type `/auto-implement`. Get production-ready code. Guaranteed alignment with your strategic goals.**
 
 Claude Code plugin that automates the full software development lifecycle with PROJECT.md-first validation: alignment → research → plan → test → implement → review → security → documentation.
 
@@ -10,7 +10,7 @@ Claude Code plugin that automates the full software development lifecycle with P
 
 ## What It Does
 
-**You say**: "Add JWT authentication to the API"
+**You type**: `/auto-implement Add JWT authentication to the API`
 
 **Claude Code**:
 1. **Validates against PROJECT.md** - Checks feature aligns with GOALS, SCOPE, CONSTRAINTS (blocks if misaligned)
