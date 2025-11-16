@@ -21,6 +21,25 @@ echo "🔍 Validating repository structure..."
 # Run structure validation
 python scripts/validate_structure.py
 
+echo "🔍 Checking for accidentally staged .claude/ files..."
+
+# Block .claude/ files except PROJECT.md
+STAGED_CLAUDE_FILES=$(git diff --cached --name-only | grep "^\.claude/" | grep -v "^\.claude/PROJECT.md" || true)
+if [ -n "$STAGED_CLAUDE_FILES" ]; then
+    echo ""
+    echo "❌ ERROR: Attempting to commit .claude/ files (should be gitignored):"
+    echo "$STAGED_CLAUDE_FILES"
+    echo ""
+    echo "These are generated/installed files. Only .claude/PROJECT.md should be tracked."
+    echo ""
+    echo "To fix:"
+    echo "  git reset HEAD .claude/  # Unstage these files"
+    echo "  git status --ignored     # Verify they're ignored"
+    echo ""
+    echo "To bypass (NOT recommended): git commit --no-verify"
+    exit 1
+fi
+
 echo "🔍 Validating slash command implementations..."
 
 # Run command validation
