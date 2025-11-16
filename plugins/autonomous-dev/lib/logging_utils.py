@@ -1,6 +1,10 @@
 """
 Logging Infrastructure for autonomous-dev v2.0
 Provides multi-level logging, structured logging, and workflow tracking.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

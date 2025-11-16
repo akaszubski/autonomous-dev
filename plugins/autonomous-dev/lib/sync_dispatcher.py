@@ -32,6 +32,10 @@ Usage:
 Date: 2025-11-08
 Issue: GitHub #44 - Unified /sync command
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

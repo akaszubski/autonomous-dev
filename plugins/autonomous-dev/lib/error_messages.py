@@ -9,6 +9,10 @@ Provides consistent, helpful error messages following the pattern:
 - LEARN MORE: Link to documentation
 
 All errors include error codes (ERR-XXX) for searchability.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import os

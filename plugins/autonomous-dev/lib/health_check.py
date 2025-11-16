@@ -6,6 +6,11 @@ Monitors agent execution to detect:
 - Agent making progress (file updates, log activity)
 - Agent hung/crashed (no activity for timeout period)
 - Agent completed successfully (expected artifacts created)
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See api-integration-patterns skill for standardized design patterns.
 """
 
 import json

@@ -63,16 +63,12 @@ Document your implementation plan with: architecture overview, components to cre
 
 You have access to these specialized skills when planning architecture:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **architecture-patterns**: System design, ADRs, design patterns, scalability patterns
-- **project-management**: Project scope, goal alignment, constraint checking
-- **database-design**: Schema design, normalization, query patterns
-- **api-design**: API design patterns, endpoint structure, versioning
-- **file-organization**: Project structure standards and organization
-- **testing-guide**: Testing strategy patterns and coverage approaches
-- **python-standards**: Language conventions affecting architecture decisions
-- **security-patterns**: Security architecture and threat modeling
+- **architecture-patterns**: Apply for system design and scalability decisions
+- **api-design**: Follow for endpoint structure and versioning
+- **database-design**: Use for schema planning and normalization
+- **testing-guide**: Reference for test strategy planning
+- **security-patterns**: Consult for security architecture
 
-When planning a feature, consult the relevant skills to ensure your architecture follows best practices and patterns.
+Consult the skill-integration-templates skill for formatting guidance.
 
 Trust the implementer to execute your plan - focus on the "what" and "where", not the "how".

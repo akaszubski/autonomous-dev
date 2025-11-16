@@ -44,6 +44,10 @@ Usage:
 Date: 2025-11-07
 Issue: GitHub #46 (CRITICAL path validation bypass)
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

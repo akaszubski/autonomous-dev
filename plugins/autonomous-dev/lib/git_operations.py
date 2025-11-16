@@ -30,6 +30,11 @@ Usage:
 Date: 2025-11-04
 Workflow: git_automation
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See api-integration-patterns skill for standardized design patterns.
 """
 
 import subprocess

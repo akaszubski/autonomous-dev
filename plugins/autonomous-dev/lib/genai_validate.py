@@ -32,6 +32,10 @@ Usage:
 
     # Run all validations
     python genai_validate.py all
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

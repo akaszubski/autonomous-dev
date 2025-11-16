@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-11-16
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 18 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 19 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **18 shared libraries** organized into three categories:
+The autonomous-dev plugin includes **20 shared libraries** organized into four categories:
 
-### Core Libraries (12)
+### Core Libraries (14)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -23,15 +23,21 @@ The autonomous-dev plugin includes **18 shared libraries** organized into three 
 10. **validate_documentation_parity.py** - Documentation consistency validation
 11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
 12. **github_issue_automation.py** - GitHub issue creation with research
+13. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
+14. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
+
+### Utility Libraries (1)
+
+15. **math_utils.py** - Fibonacci calculator with multiple algorithms
 
 ### Brownfield Retrofit Libraries (6)
 
-13. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-14. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-15. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-16. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-17. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-18. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+16. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+17. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+18. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+19. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+20. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+21. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 ## Design Patterns
 
@@ -931,11 +937,140 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 13-18. Brownfield Retrofit Libraries (v3.11.0+)
+
+
+---
+
+## 13. math_utils.py (465 lines, v3.23.0+)
+
+**Purpose**: Fibonacci calculator with multiple algorithm implementations
+
+### Public API
+
+#### `calculate_fibonacci(n, method='iterative')`
+- **Purpose**: Calculate nth Fibonacci number using specified algorithm
+- **Parameters**:
+  - `n` (int): Non-negative integer index (0 <= n <= 10000)
+  - `method` (str): Algorithm to use - 'iterative' (default), 'recursive', or 'matrix'
+- **Returns**: `int` - The nth Fibonacci number
+- **Raises**: 
+  - `InvalidInputError` - If n is negative, > 10000, or not an integer
+  - `MethodNotSupportedError` - If method is not recognized
+- **Algorithms**:
+  - **iterative**: O(n) time, O(1) space - Best for most cases
+  - **recursive**: O(n) time with memoization - Good for n < 50
+  - **matrix**: O(log n) time - Fastest for very large n
+
+### Exception Hierarchy
+
+#### `FibonacciError`
+- Base exception for all fibonacci calculation errors
+
+#### `InvalidInputError(FibonacciError)`
+- Raised when input validation fails
+- Includes: negative numbers, non-integers, values > 10000
+
+#### `MethodNotSupportedError(FibonacciError)`
+- Raised when unknown algorithm method specified
+- Valid methods: 'iterative', 'recursive', 'matrix'
+
+### Internal Functions
+
+#### `_validate_input(n)`
+- **Purpose**: Input validation with DoS prevention
+- **Validation**:
+  - Type check (must be int)
+  - Range check (0 <= n <= 10000)
+  - Security: Max value prevents DoS attacks
+
+#### `_validate_method(method)`
+- **Purpose**: Validate algorithm method selection
+- **Allowed**: 'iterative', 'recursive', 'matrix'
+
+#### `_fibonacci_iterative(n)`
+- **Algorithm**: Iterative bottom-up calculation
+- **Complexity**: O(n) time, O(1) space
+- **Best for**: General use, n <= 10000
+
+#### `_fibonacci_recursive(n)`
+- **Algorithm**: Recursive with functools.lru_cache memoization
+- **Complexity**: O(n) time with cache, O(n) space
+- **Best for**: Small n (< 50), educational examples
+
+#### `_fibonacci_matrix(n)`
+- **Algorithm**: Matrix exponentiation
+- **Complexity**: O(log n) time via divide-and-conquer
+- **Best for**: Very large n, performance benchmarking
+
+### Features
+
+- **Multiple Algorithms**: Three implementations for different use cases
+- **Input Validation**: Type checking, range validation, DoS prevention
+- **Security Integration**: Audit logging via security_utils.py
+- **Performance Optimized**: Algorithm selection guidance for different input ranges
+- **Exception Hierarchy**: Custom exceptions following error-handling-patterns skill
+- **Comprehensive Tests**: 73 unit tests covering all algorithms and edge cases
+
+### Test Coverage
+
+- **Total**: 73 tests in `tests/unit/lib/test_math_utils.py`
+- **Coverage Areas**:
+  - Input validation (negative, zero, large values, type errors)
+  - Algorithm correctness (all three methods)
+  - Exception handling (custom exception hierarchy)
+  - Edge cases (F(0)=0, F(1)=1, large n)
+  - Performance characteristics (algorithm selection)
+
+### Usage Examples
+
+```python
+from plugins.autonomous_dev.lib.math_utils import calculate_fibonacci, InvalidInputError
+
+# Basic usage (default iterative)
+result = calculate_fibonacci(10)  # Returns: 55
+
+# Explicit algorithm selection
+result = calculate_fibonacci(100, method="matrix")  # Returns: 354224848179261915075
+
+# Error handling
+try:
+    result = calculate_fibonacci(-5)
+except InvalidInputError as e:
+    print(f"Invalid input: {e}")  # Prints: "n must be non-negative (got -5)"
+
+# Performance comparison
+import time
+n = 1000
+for method in ['iterative', 'recursive', 'matrix']:
+    start = time.time()
+    result = calculate_fibonacci(n, method=method)
+    elapsed = time.time() - start
+    print(f"{method}: {elapsed:.6f}s")
+```
+
+### Security
+
+- **DoS Prevention**: Maximum n=10000 prevents excessive computation
+- **Input Validation**: Type and range checking before computation
+- **Audit Logging**: All validation failures logged via security_utils
+- **No Arbitrary Code**: Pure mathematical computation, no eval/exec
+
+### Used By
+
+- Educational examples and algorithm demonstrations
+- Performance benchmarking and algorithm comparison
+- Test data generation for large integer calculations
+
+### Related Documentation
+
+- See `error-handling-patterns` skill for exception hierarchy design
+- See CLAUDE.md for library integration patterns
+
+## 14-19. Brownfield Retrofit Libraries (v3.11.0+)
 
 **Purpose**: 5-phase brownfield project retrofit system for existing project adoption
 
-### 13. brownfield_retrofit.py (470 lines) - Phase 0 Analysis
+### 19. brownfield_retrofit.py (470 lines) - Phase 0 Analysis
 
 #### Classes
 - `BrownfieldProject`: Project descriptor
@@ -961,7 +1096,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 - align_project_retrofit.py script
 - /align-project-retrofit command PHASE 0
 
-### 14. codebase_analyzer.py (870 lines) - Phase 1 Deep Analysis
+### 19. codebase_analyzer.py (870 lines) - Phase 1 Deep Analysis
 
 #### Key Functions
 - `analyze_codebase(project_root, tech_stack_hint)`: Comprehensive codebase analysis
@@ -982,7 +1117,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 - Documentation coverage analysis
 - Configuration file inventory
 
-### 15. alignment_assessor.py (666 lines) - Phase 2 Gap Assessment
+### 19. alignment_assessor.py (666 lines) - Phase 2 Gap Assessment
 
 #### Key Functions
 - `assess_alignment(codebase_analysis, project_root)`: Assessment of alignment gaps
@@ -1002,7 +1137,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 - Readiness assessment (ready, needs_work, not_ready)
 - Estimated retrofit effort (XS, S, M, L, XL)
 
-### 16. migration_planner.py (578 lines) - Phase 3 Plan Generation
+### 19. migration_planner.py (578 lines) - Phase 3 Plan Generation
 
 #### Key Functions
 - `generate_migration_plan(alignment_assessment, project_root, tech_stack)`: Generate migration plan
@@ -1023,7 +1158,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 - Step grouping by phase (setup, structure, tests, docs, integration)
 - Rollback considerations for each step
 
-### 17. retrofit_executor.py (725 lines) - Phase 4 Execution
+### 19. retrofit_executor.py (725 lines) - Phase 4 Execution
 
 #### Key Functions
 - `execute_migration(migration_plan, mode, project_root)`: Execute migration plan
@@ -1054,7 +1189,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 - 0o700 permissions
 - CWE-22/59/732 hardening
 
-### 18. retrofit_verifier.py (689 lines) - Phase 5 Verification
+### 19. retrofit_verifier.py (689 lines) - Phase 5 Verification
 
 #### Key Functions
 - `verify_retrofit_complete(execution_result, project_root, original_analysis)`: Verify retrofit
@@ -1081,6 +1216,319 @@ See `docs/SECURITY.md` for comprehensive security guide
 - Security: Path validation via security_utils, audit logging to security_audit.log
 - Integration: Called by /align-project-retrofit command (respective phases)
 - Related: GitHub Issue #59 (brownfield project retrofit)
+
+
+
+---
+
+## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
+
+**Purpose**: State-based auto-clearing for /batch-implement command with persistent state management
+
+### Data Classes
+
+#### `BatchState`
+Batch processing state with persistent storage.
+
+**Attributes**:
+- `batch_id` (str): Unique batch identifier (format: "batch-YYYYMMDD-HHMMSS")
+- `features_file` (str): Path to features file (empty for --issues batches)
+- `total_features` (int): Total number of features in batch
+- `features` (List[str]): List of feature descriptions
+- `current_index` (int): Index of current feature being processed
+- `completed_features` (List[int]): List of completed feature indices
+- `failed_features` (List[Dict]): List of failed feature records
+- `context_token_estimate` (int): Estimated context token count
+- `auto_clear_count` (int): Number of auto-clear events
+- `auto_clear_events` (List[Dict]): List of auto-clear event records
+- `created_at` (str): ISO 8601 timestamp of batch creation
+- `updated_at` (str): ISO 8601 timestamp of last update
+- `status` (str): Batch status ("in_progress", "completed", "failed")
+- `issue_numbers` (Optional[List[int]]): GitHub issue numbers for --issues flag (v3.24.0)
+- `source_type` (str): Source type ("file" or "issues") (v3.24.0)
+- `state_file` (str): Path to state file
+
+### Functions
+
+#### `create_batch_state(features, state_file, features_file="", issue_numbers=None, source_type="file")`
+- **Purpose**: Create new batch state with atomic write
+- **Parameters**:
+  - `features` (List[str]): List of feature descriptions
+  - `state_file` (Path): Path to state file
+  - `features_file` (str): Original features file path (optional)
+  - `issue_numbers` (Optional[List[int]]): GitHub issue numbers (v3.24.0)
+  - `source_type` (str): "file" or "issues" (v3.24.0)
+- **Returns**: BatchState object
+- **Security**: CWE-22 (path validation), CWE-732 (file permissions 0o600)
+
+**Example**:
+```python
+from batch_state_manager import create_batch_state
+
+# File-based batch
+state = create_batch_state(
+    features=["Add login", "Add logout"],
+    state_file=Path(".claude/batch_state.json"),
+    features_file="features.txt"
+)
+
+# GitHub issues batch (v3.24.0)
+state = create_batch_state(
+    features=["Issue #72: Add logging", "Issue #73: Fix bug"],
+    state_file=Path(".claude/batch_state.json"),
+    issue_numbers=[72, 73],
+    source_type="issues"
+)
+```
+
+#### `save_batch_state(state)`
+- **Purpose**: Save batch state with atomic write
+- **Parameters**: `state` (BatchState): State to save
+- **Returns**: None
+- **Security**: Atomic write (temp file + rename), file permissions 0o600
+
+#### `load_batch_state(state_file)`
+- **Purpose**: Load batch state from file
+- **Parameters**: `state_file` (Path): Path to state file
+- **Returns**: BatchState object
+- **Raises**: `BatchStateError` if file not found or corrupted
+- **Backward Compatibility**: Old state files load with defaults (issue_numbers=None, source_type="file")
+
+#### `update_batch_progress(state, feature_index, status="completed", error=None)`
+- **Purpose**: Update batch progress after feature completion
+- **Parameters**:
+  - `state` (BatchState): Current state
+  - `feature_index` (int): Index of completed feature
+  - `status` (str): "completed" or "failed"
+  - `error` (Optional[str]): Error message if failed
+- **Returns**: Updated BatchState object
+
+#### `record_auto_clear_event(state, tokens_before)`
+- **Purpose**: Record auto-clear event in state
+- **Parameters**:
+  - `state` (BatchState): Current state
+  - `tokens_before` (int): Token count before clearing
+- **Returns**: Updated BatchState object
+
+#### `should_auto_clear(state, threshold=150000)`
+- **Purpose**: Check if context should be auto-cleared
+- **Parameters**:
+  - `state` (BatchState): Current state
+  - `threshold` (int): Token threshold (default: 150,000)
+- **Returns**: bool (True if should clear)
+
+#### `get_next_pending_feature(state)`
+- **Purpose**: Get next feature to process
+- **Parameters**: `state` (BatchState): Current state
+- **Returns**: Optional[Tuple[int, str]] (index, feature description) or None if complete
+
+#### `cleanup_batch_state(state_file)`
+- **Purpose**: Delete state file after successful batch completion
+- **Parameters**: `state_file` (Path): Path to state file
+- **Returns**: None
+
+### Security Features
+
+1. **CWE-22 (Path Traversal Prevention)**: All paths validated via security_utils.validate_path()
+2. **CWE-59 (Symlink Resolution)**: Symlink detection before file operations
+3. **CWE-117 (Log Injection Prevention)**: Sanitize all log messages
+4. **CWE-732 (File Permissions)**: State files created with 0o600 permissions
+5. **Thread Safety**: Reentrant file locks for concurrent access protection
+6. **Atomic Writes**: Temp file + rename pattern prevents corrupted state
+
+### Integration
+
+- **Command**: `/batch-implement` (file-based and --issues flag)
+- **State File**: `.claude/batch_state.json` (persistent across crashes)
+- **Related**: GitHub Issues #76 (state management), #77 (--issues flag)
+
+### Enhanced Fields (v3.24.0)
+
+```python
+@dataclass
+class BatchState:
+    # ... existing fields ...
+    issue_numbers: Optional[List[int]] = None  # NEW: GitHub issue numbers
+    source_type: str = "file"  # NEW: "file" or "issues"
+```
+
+**Backward Compatibility**: Old state files (v3.23.0) load with default values:
+- `issue_numbers = None`
+- `source_type = "file"`
+
+---
+
+## 14. github_issue_fetcher.py (462 lines, v3.24.0+)
+
+**Purpose**: Fetch GitHub issue titles via gh CLI for /batch-implement --issues flag
+
+### Functions
+
+#### `validate_issue_numbers(issue_numbers)`
+- **Purpose**: Validate issue numbers before subprocess calls
+- **Parameters**: `issue_numbers` (List[int]): List of issue numbers to validate
+- **Returns**: None (raises on validation failure)
+- **Raises**: `ValueError` if validation fails
+- **Security**: CWE-20 (Input Validation)
+- **Validations**:
+  1. All numbers are positive integers
+  2. No duplicates
+  3. Maximum 100 issues per batch (prevent resource exhaustion)
+
+**Example**:
+```python
+from github_issue_fetcher import validate_issue_numbers
+
+# Valid
+validate_issue_numbers([72, 73, 74])  # OK
+
+# Invalid
+validate_issue_numbers([-5])  # ValueError: negative number
+validate_issue_numbers([72, 72])  # ValueError: duplicates
+validate_issue_numbers(range(150))  # ValueError: too many
+```
+
+#### `fetch_issue_title(issue_number, timeout=10)`
+- **Purpose**: Fetch single issue title via gh CLI
+- **Parameters**:
+  - `issue_number` (int): GitHub issue number
+  - `timeout` (int): Subprocess timeout in seconds (default: 10)
+- **Returns**: str (issue title)
+- **Raises**: 
+  - `IssueNotFoundError` if issue doesn't exist
+  - `GitHubAPIError` for other gh CLI errors
+- **Security**: CWE-78 (Command Injection Prevention)
+- **Implementation**: subprocess.run with list args, shell=False
+
+**Example**:
+```python
+from github_issue_fetcher import fetch_issue_title
+
+title = fetch_issue_title(72)
+# Returns: "Add logging feature"
+```
+
+#### `fetch_issue_titles(issue_numbers, skip_missing=True)`
+- **Purpose**: Batch fetch multiple issue titles
+- **Parameters**:
+  - `issue_numbers` (List[int]): List of issue numbers
+  - `skip_missing` (bool): If True, skip missing issues; if False, raise error (default: True)
+- **Returns**: Dict[int, str] (mapping of issue number to title)
+- **Raises**: `GitHubAPIError` if skip_missing=False and issue not found
+- **Graceful Degradation**: Skips missing issues by default, continues with available issues
+
+**Example**:
+```python
+from github_issue_fetcher import fetch_issue_titles
+
+titles = fetch_issue_titles([72, 73, 999])
+# Returns: {72: "Add logging", 73: "Fix bug"}
+# (999 skipped because it doesn't exist)
+```
+
+#### `format_feature_description(issue_number, title)`
+- **Purpose**: Format issue as feature description for /batch-implement
+- **Parameters**:
+  - `issue_number` (int): GitHub issue number
+  - `title` (str): Issue title from GitHub
+- **Returns**: str (formatted feature description)
+
+**Example**:
+```python
+from github_issue_fetcher import format_feature_description
+
+feature = format_feature_description(72, "Add logging feature")
+# Returns: "Issue #72: Add logging feature"
+```
+
+### Security Features
+
+1. **CWE-20 (Input Validation)**:
+   - Positive integers only
+   - Maximum 100 issues per batch
+   - No duplicates
+
+2. **CWE-78 (Command Injection Prevention)**:
+   - subprocess.run with list args (not string)
+   - shell=False
+   - No user input in command string
+
+3. **CWE-117 (Log Injection Prevention)**:
+   - Sanitize newlines and control characters in log messages
+   - Truncate titles to 200 characters
+
+4. **Audit Logging**:
+   - All gh CLI operations logged to security_audit.log
+   - Includes: issue numbers, operation type, success/failure
+
+### Integration
+
+- **Command**: `/batch-implement --issues 72 73 74`
+- **State Manager**: Enhanced batch_state_manager.py with issue_numbers and source_type fields
+- **Requirements**: gh CLI v2.0+, authenticated (gh auth login)
+- **Related**: GitHub Issue #77 (Add --issues flag to /batch-implement)
+
+### Usage Workflow
+
+```python
+from github_issue_fetcher import (
+    validate_issue_numbers,
+    fetch_issue_titles,
+    format_feature_description,
+)
+from batch_state_manager import create_batch_state
+
+# 1. Parse issue numbers from command args
+issue_numbers = [72, 73, 74]
+
+# 2. Validate
+validate_issue_numbers(issue_numbers)
+
+# 3. Fetch titles
+issue_titles = fetch_issue_titles(issue_numbers)
+# Returns: {72: "Add logging", 73: "Fix bug", 74: "Update docs"}
+
+# 4. Format as features
+features = [
+    format_feature_description(num, title)
+    for num, title in issue_titles.items()
+]
+# Returns: [
+#   "Issue #72: Add logging",
+#   "Issue #73: Fix bug",
+#   "Issue #74: Update docs"
+# ]
+
+# 5. Create batch state
+state = create_batch_state(
+    features=features,
+    state_file=".claude/batch_state.json",
+    issue_numbers=issue_numbers,
+    source_type="issues"
+)
+```
+
+### Error Handling
+
+```python
+from github_issue_fetcher import (
+    fetch_issue_titles,
+    GitHubAPIError,
+    IssueNotFoundError,
+)
+
+try:
+    titles = fetch_issue_titles([72, 73, 74])
+except IssueNotFoundError as e:
+    # Issue doesn't exist (only raised if skip_missing=False)
+    print(f"Issue not found: {e}")
+except GitHubAPIError as e:
+    # Other GitHub API errors (gh CLI not found, not authenticated, etc.)
+    print(f"GitHub API error: {e}")
+```
+
+---
+
 
 ---
 

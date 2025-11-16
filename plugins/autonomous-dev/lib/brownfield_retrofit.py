@@ -21,6 +21,9 @@ Security:
 - All paths validated via security_utils.validate_path()
 - Audit logging for all operations
 
+Relevant Skills:
+- project-alignment-validation: Alignment checklist for retrofit validation
+
 Usage:
     from brownfield_retrofit import BrownfieldRetrofit, RetrofitPhase
 
@@ -36,6 +39,11 @@ Usage:
 Date: 2025-11-11
 Feature: /align-project-retrofit command
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See api-integration-patterns skill for standardized design patterns.
 """
 
 import json

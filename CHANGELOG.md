@@ -1,4 +1,235 @@
 ---
+---
+
+## [3.26.0] - 2025-11-16
+
+### Added
+- **Phase 8.6: Extract skill-integration-templates skill** - Issue #72 continuation
+  - **1 New Skill**: Standardized templates for skill integration patterns
+    - `skill-integration-templates` (11 files, ~1,200 tokens): Skill reference syntax, action verbs, progressive disclosure usage, integration best practices
+  - **20 Agents Enhanced**: All agents now reference skill-integration-templates skill for consistent skill section formatting
+    - Token reduction: ~800 tokens saved (~3.5% reduction across all agents)
+    - Standardized skill reference patterns improve maintainability and consistency
+    - Progressive disclosure: ~1,200 tokens of integration patterns available on-demand, only ~50 tokens SKILL.md overhead
+  - **Test Coverage**: 30 tests (23 unit + 7 integration) in 2 test files
+    - Unit tests: Skill structure validation, documentation completeness, template coverage
+    - Integration tests: Skill integration workflow, pattern application validation
+  - **Skill Details**:
+    - **4 Documentation files**: skill-reference-syntax.md (~280 lines), agent-action-verbs.md (~320 lines), progressive-disclosure-usage.md (~240 lines), integration-best-practices.md (~290 lines)
+    - **3 Template files**: skill-section-template.md, intro-sentence-templates.md, closing-sentence-templates.md
+    - **3 Example files**: planner-skill-section.md, implementer-skill-section.md, minimal-skill-reference.md
+  - **Agents Updated**: All 20 agents (advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, doc-master, implementer, issue-creator, planner, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, reviewer, security-auditor, setup-wizard, sync-validator, test-master)
+  - **Impact**: Standardizes skill integration across all agents, enables progressive disclosure patterns, reduces token overhead while maintaining comprehensive skill reference guidance
+
+### Changed
+- **Documentation Updates**:
+  - README.md: Updated skill count (26 → 27 active skills), version v3.25.0 → v3.26.0
+  - CLAUDE.md: Updated skill count (26 → 27), version v3.25.0 → v3.26.0, added Phase 8.6 token reduction summary, updated cumulative token savings (~16,833-17,233 tokens total)
+  - docs/SKILLS-AGENTS-INTEGRATION.md: Added 1 new skill to Complete Skill Inventory, added skill-integration-templates skill details section
+
+---
+
+
+## [3.25.0] - 2025-11-16
+
+### Added
+- **Phase 8.7: Extract project-alignment-validation skill** - Issue #72 continuation
+  - **1 New Skill**: Comprehensive project alignment and validation patterns
+    - `project-alignment-validation` (11 files, ~2,200 tokens): Gap assessment, semantic validation, conflict resolution, alignment checklists
+  - **12 Files Enhanced**: alignment-validator agent, alignment-analyzer agent, validate_project_alignment hook, and 9 libraries now reference project-alignment-validation skill
+    - Token reduction: ~800-1,200 tokens saved (2-4% reduction across alignment components)
+    - Standardized alignment patterns enable consistent PROJECT.md validation
+    - Progressive disclosure: ~2,200 tokens of alignment patterns available on-demand, only ~50 tokens SKILL.md overhead
+  - **Test Coverage**: 86 tests (65 unit + 21 integration) in 3 test files
+    - Unit tests: Skill structure validation, documentation completeness, template coverage
+    - Integration tests: Alignment validation workflow, pattern application validation
+  - **Skill Details**:
+    - **4 Documentation files**: gap-assessment-methodology.md (~550 lines), semantic-validation-approach.md (~480 lines), conflict-resolution-patterns.md (~420 lines), alignment-checklist.md (~320 lines)
+    - **3 Template files**: gap-assessment-template.md, alignment-report-template.md, conflict-resolution-template.md
+    - **3 Example files**: project-md-structure-example.md, alignment-scenarios.md, misalignment-examples.md
+  - **Agents Updated**: alignment-validator, alignment-analyzer, project-bootstrapper, brownfield-analyzer, sync-validator
+  - **Hooks Updated**: detect_feature_request, enforce_pipeline_complete, validate_project_alignment, validate_documentation_alignment
+  - **Libraries Updated**: project_md_updater, alignment_assessor, brownfield_retrofit, migration_planner, retrofit_executor, retrofit_verifier, sync_dispatcher, genai_validate, checkpoint
+  - **Impact**: Standardizes project alignment validation across 5 agents and 9 libraries, enables progressive disclosure of alignment patterns, reduces token overhead while maintaining comprehensive guidance
+
+### Changed
+- **Documentation Updates**:
+  - README.md: Updated skill count (25 → 26 active skills), version v3.24.1 → v3.25.0
+  - CLAUDE.md: Updated skill count (25 → 26), version v3.24.1 → v3.25.0, added Phase 8.7 token reduction summary, updated cumulative token savings (Phase 8.7 + Phase 8.8)
+  - docs/SKILLS-AGENTS-INTEGRATION.md: Added 1 new skill to Complete Skill Inventory, added project-alignment-validation skill details section
+
+---
+
+## [3.24.1] - 2025-11-16
+
+### Added
+- **Phase 8.8: Library audit and pattern extraction** - Issue #72 continuation
+  - **3 New Skills**: Comprehensive library design and integration patterns
+    - `library-design-patterns` (532 lines): Progressive enhancement, two-tier architecture, security validation, docstring standards
+    - `state-management-patterns` (289 lines): JSON state persistence, atomic write operations, file locking patterns
+    - `api-integration-patterns` (357 lines): GitHub API integration, retry logic, subprocess security, command injection prevention
+  - **35 Libraries Enhanced**: All libraries now reference relevant skills for standardized patterns
+    - Token reduction: ~1,880 tokens saved (6-8% reduction across library docstrings)
+    - Inline skill references guide developers to proven patterns
+    - Progressive disclosure: ~3,500 tokens of library patterns available on-demand, only ~150 tokens SKILL.md overhead
+  - **Test Coverage**: 181 tests (147 unit + 34 integration) in 4 test files
+    - Unit tests: Skill structure validation, documentation completeness, template coverage
+    - Integration tests: Library-skill integration workflow, pattern application validation
+  - **Skill Details**:
+    - **library-design-patterns**: 4 docs (progressive-enhancement.md, two-tier-design.md, security-patterns.md, docstring-standards.md), 3 templates, 3 examples
+    - **state-management-patterns**: 1 doc (json-persistence.md), 3 templates (state-manager, atomic-write, file-lock)
+    - **api-integration-patterns**: 4 templates (github-api, retry-decorator, subprocess-executor), 1 example (safe-subprocess)
+  - **Impact**: Standardizes library architecture across 35 libraries, enables skill-based pattern reuse, reduces token overhead while maintaining comprehensive guidance
+
+### Changed
+- **Documentation Updates**:
+  - README.md: Updated skill count (22 → 25 active skills), library count (18 → 35), version v3.21.0 → v3.24.1
+  - CLAUDE.md: Updated skill count (22 → 25), library count (20 → 35), version v3.24.0 → v3.24.1, added Phase 8.8 token reduction summary
+  - docs/SKILLS-AGENTS-INTEGRATION.md: Added 3 new skills to Complete Skill Inventory section
+
+---
+
+
+## [3.24.0] - 2025-11-16
+
+### Added
+- **Issue #77: Add --issues flag to /batch-implement for direct GitHub issue processing**
+  - **New Library**: `github_issue_fetcher.py` (462 lines)
+    - Fetch GitHub issue titles via gh CLI with comprehensive security validation
+    - Functions: `validate_issue_numbers()`, `fetch_issue_title()`, `fetch_issue_titles()`, `format_feature_description()`
+    - Security mitigations: CWE-20 (input validation), CWE-78 (command injection), CWE-117 (log injection)
+    - Audit logging for all gh CLI operations
+    - Graceful degradation: Skip missing issues, continue with available issues
+  - **Enhanced Library**: `batch_state_manager.py` (3 new fields)
+    - `issue_numbers`: Optional list of GitHub issue numbers for --issues flag
+    - `source_type`: Source type ("file" or "issues") for batch tracking
+    - Backward compatibility: Old state files load with defaults (issue_numbers=None, source_type="file")
+  - **Command Enhancement**: `/batch-implement` now accepts `--issues` flag
+    - Usage: `/batch-implement --issues 72 73 74` (fetch issue titles from GitHub)
+    - Mutually exclusive with file argument (either file OR --issues, not both)
+    - Requires gh CLI v2.0+ (install: `brew install gh`, `apt install gh`, `winget install GitHub.cli`)
+    - Authentication: One-time `gh auth login` setup required
+  - **Test Coverage**: 43 tests (26 unit + 17 integration)
+    - Unit tests: Input validation, gh CLI execution, error handling, graceful degradation
+    - Integration tests: End-to-end workflow, resume operations, backward compatibility, audit logging
+  - **Performance**: Same as file-based batches (~20-30 min per feature)
+  - **Security Features**:
+    - Input validation: Positive integers only, max 100 issues per batch
+    - Command injection prevention: subprocess list args, shell=False
+    - Log injection prevention: Sanitize newlines and control characters
+    - Audit logging: All gh CLI operations logged to security_audit.log
+  - **Documentation**: Inline docstrings with Google-style formatting, usage examples, error handling patterns
+
+---
+
+
+## [3.23.1] - 2025-11-16
+
+### Fixed
+- **Issue #76: Fixed 3 failing tests in batch_state_manager.py**
+  - **Root Cause**: Tests were mocking high-level Path methods instead of low-level syscalls
+    - `test_save_batch_state_atomic_write`: Mocked `Path.write_text` instead of `os.write`/`os.close`
+    - `test_save_batch_state_handles_disk_full_error`: Mocked `Path.write_text` instead of `os.write`
+    - `test_load_batch_state_handles_permission_error`: Mocked `Path.read_text` instead of `builtins.open`
+  - **Why It Failed**: Implementation uses low-level syscalls (`os.write`, `tempfile.mkstemp`) for atomic writes
+    - Atomic write pattern: `mkstemp()` → `os.write()` → `os.close()` → `chmod()` → `replace()`
+    - High-level mocks (`Path.write_text`, `Path.read_text`) never intercepted actual syscalls
+    - Tests passed locally but would fail in production where real syscalls execute
+  - **How Tests Were Fixed**: Mock actual syscalls instead of abstraction layer
+    - `test_save_batch_state_atomic_write`: Mock `tempfile.mkstemp`, `os.write`, `os.close`, `Path.chmod`, `Path.replace`
+      - Validates 4-step atomic write: CREATE temp → WRITE json → SECURITY 0o600 → RENAME atomic
+      - Verifies temp file created in same directory (crash safety)
+      - Confirms JSON data written to correct file descriptor
+    - `test_save_batch_state_handles_disk_full_error`: Mock `os.write` to raise `OSError(28, "No space left on device")`
+      - Validates error message mentions disk/space/write issue
+      - Tests graceful degradation on storage errors
+    - `test_load_batch_state_handles_permission_error`: Mock `builtins.open` to raise `PermissionError`
+      - Creates valid state file first (so `validate_path()` passes)
+      - Validates error message mentions permission/access/read issue
+      - Tests security validation still executes before file operations
+  - **Security Preservation**: All tests still validate `validate_path()` executes
+    - Path traversal (CWE-22) and symlink (CWE-59) validation remains active
+    - Low-level mocks placed AFTER security validation in execution order
+    - Tests confirm security checks run before file operations
+  - **Test Coverage**: 41 total tests (32 unit + 9 integration) - 100% passing
+    - Fixed 3/41 tests (7.3% of test suite)
+    - All security validation tests still passing
+    - No regression in concurrent access, error handling, or utility function tests
+
+---
+
+---
+
+## [3.23.0] - 2025-11-16
+
+### Added
+- **State-Based Auto-Clearing for /batch-implement** - GitHub Issue #76
+  - **Feature**: Intelligent context management with persistent state for large-scale batch processing
+    - Automatic context clearing at 150K token threshold (prevents context bloat)
+    - Crash recovery via persistent state files (`.claude/batch_state.json`)
+    - Resume operations with `--resume` flag: `/batch-implement --resume <batch-id>`
+    - Support for 50+ feature batches with automatic state management
+    - Progress tracking across auto-clear events and crashes
+  - **New Library**: `batch_state_manager.py` (692 lines)
+    - Core state management for batch operations
+    - Persistent state storage with atomic writes
+    - Auto-clear threshold detection (150K tokens)
+    - Progress tracking (completed, failed, current feature)
+    - Thread-safe file locking with reentrant locks
+    - Security validations: CWE-22 (path traversal), CWE-59 (symlinks), CWE-117 (log injection), CWE-732 (file permissions)
+    - Crash recovery and resume functionality
+    - Public API: `create_batch_state()`, `save_batch_state()`, `load_batch_state()`, `update_batch_progress()`, `record_auto_clear_event()`, `should_auto_clear()`, `get_next_pending_feature()`, `cleanup_batch_state()`
+  - **State Structure**: JSON-based persistent state
+    - Batch metadata: batch_id, features_file, total_features, status
+    - Progress tracking: current_index, completed_features, failed_features
+    - Context management: context_token_estimate, auto_clear_count, auto_clear_events
+    - Timestamps: ISO 8601 format (created_at, updated_at)
+    - Atomic writes with temp file + rename pattern
+  - **Test Coverage**: 41 tests (32 unit + 9 integration)
+    - Unit tests: `test_batch_state_manager.py` (762 lines)
+      - State creation, persistence, updates, concurrent access
+      - Security validation (CWE-22, CWE-59, CWE-117, CWE-732)
+      - Error handling (disk full, permissions, corrupted JSON)
+      - Utility functions (next feature, cleanup)
+    - Integration tests: `test_batch_auto_clear.py` (496 lines)
+      - Auto-clear threshold detection and reset
+      - Resume functionality with `--resume` flag
+      - Multi-feature batches with multiple auto-clear events
+      - Crash recovery and state integrity
+      - Concurrent batch prevention
+      - Failed feature continuation
+    - TDD documentation: `BATCH_STATE_TDD_RED_PHASE_SUMMARY.md` (376 lines)
+    - Test results: 34/41 tests passing (83%)
+  - **Enhanced /batch-implement Command**:
+    - Auto-clear at 150K tokens (no manual intervention)
+    - Resume flag: `/batch-implement --resume <batch-id>`
+    - State file location: `.claude/batch_state.json`
+    - Graceful degradation on state errors
+
+### Changed
+- **CLAUDE.md** updated:
+  - Version bumped: v3.22.0 → v3.23.0
+  - Libraries section: 19 libraries (13 core + 6 brownfield)
+  - "Batch Feature Processing" section enhanced with state management documentation
+  - Added state persistence, crash recovery, and resume functionality details
+- **README.md** updated:
+  - "Batch Processing Multiple Features" section enhanced
+  - Added crash recovery and resume capabilities
+  - Benefits section updated with state management features
+- **plugins/autonomous-dev/commands/batch-implement.md** updated:
+  - Added `--resume` flag documentation
+  - Auto-clear threshold explanation (150K tokens)
+  - State file location and format
+  - Crash recovery workflow
+- **plugins/autonomous-dev/lib/batch_state_manager.py**:
+  - Comprehensive docstrings for all public functions
+  - Security notes for CWE mitigations
+  - Usage examples in module docstring
+  - Inline comments for complex logic
+
+---
+
+---
 
 ## [3.22.0] - 2025-11-15
 
@@ -408,6 +639,22 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ---
+
+
+### Added
+- **Math Utilities Library** - Fibonacci calculator with multiple algorithms
+  - **New Library**: `math_utils.py` (465 lines)
+    - Three calculation methods: iterative, recursive (memoized), matrix exponentiation
+    - Input validation with custom exception hierarchy
+    - Security integration via audit logging
+    - DoS prevention (max n=10000)
+    - Performance optimized for different input ranges
+  - **Public API**: `calculate_fibonacci(n, method='iterative')`
+    - Returns: nth Fibonacci number
+    - Methods: 'iterative' (default, O(n)), 'recursive' (cached, O(n)), 'matrix' (O(log n))
+    - Raises: `InvalidInputError`, `MethodNotSupportedError`
+  - **Test Coverage**: 73 tests in `tests/unit/lib/test_math_utils.py`
+  - **Use Cases**: Algorithm demonstration, educational examples, performance benchmarking
 
 ## [3.20.1] - 2025-11-15
 

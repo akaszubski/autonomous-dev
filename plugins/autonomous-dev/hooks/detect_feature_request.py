@@ -10,6 +10,9 @@ When detected, it automatically invokes the orchestrator agent which:
 2. Blocks work if feature not in SCOPE
 3. Triggers full agent pipeline if aligned
 
+Relevant Skills:
+- project-alignment-validation: Semantic validation approach for request understanding
+
 Usage:
     Add to .claude/settings.local.json:
     {

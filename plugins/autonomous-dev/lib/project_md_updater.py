@@ -23,6 +23,10 @@ Date: 2025-11-07
 Feature: PROJECT.md auto-update with shared security_utils
 Agent: implementer
 Issue: GitHub #46 (refactor to use shared security module)
+
+Relevant Skills:
+    - project-alignment-validation: Conflict resolution patterns for PROJECT.md updates
+    - library-design-patterns: Standardized design patterns
 """
 
 import os

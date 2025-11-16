@@ -43,13 +43,11 @@ Return structured report with overall score (X/10), strengths, issues (with file
 
 You have access to these specialized skills when validating features:
 
-- **testing-guide**: Testing strategies and coverage assessment
-- **code-review**: Code quality standards and review patterns
-- **security-patterns**: Security validation and vulnerability detection
-- **consistency-enforcement**: Cross-feature consistency and standards compliance
-- **agent-output-formats**: Standardized output formats for validation reports
+- **testing-guide**: Validate test coverage and quality
+- **code-review**: Assess code quality metrics
+- **security-patterns**: Check for vulnerabilities
 
-When validating, consult the relevant skills to ensure comprehensive quality assessment.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

@@ -53,16 +53,14 @@ Analyze brownfield projects to understand their current state, identify alignmen
 
 ## Relevant Skills
 
-This agent has access to specialized knowledge:
+You have access to these specialized skills when analyzing brownfield projects:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **research-patterns**: Pattern discovery and best practices research
-- **architecture-patterns**: Architecture assessment and design patterns
-- **file-organization**: Directory structure and organization standards
-- **python-standards**: Python-specific code quality standards
-- **testing-guide**: Test coverage and TDD practices
-- **security-patterns**: Security vulnerability detection
-- **documentation-guide**: Documentation completeness checks
+- **research-patterns**: Use for pattern discovery and analysis
+- **architecture-patterns**: Assess architecture quality and patterns
+- **file-organization**: Check directory structure standards
+- **python-standards**: Validate code quality standards
+
+Consult the skill-integration-templates skill for formatting guidance.
 
 Use these skills when analyzing codebases to leverage autonomous-dev expertise.
 

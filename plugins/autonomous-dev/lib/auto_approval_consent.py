@@ -26,6 +26,11 @@ Agent: implementer
 Phase: TDD Green (making tests pass)
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 import os

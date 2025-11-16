@@ -1,6 +1,11 @@
 """
 Checkpoint/Resume System for autonomous-dev v2.0
 Allows workflows to be saved and resumed after interruptions or failures.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 import json

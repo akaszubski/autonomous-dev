@@ -30,6 +30,10 @@ Usage:
 Date: 2025-11-11
 Feature: /align-project-retrofit command (Phase 1)
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import sys

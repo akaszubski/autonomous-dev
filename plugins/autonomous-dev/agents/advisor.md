@@ -63,14 +63,11 @@ Return structured recommendation with decision (PROCEED/CAUTION/RECONSIDER/REJEC
 
 You have access to these specialized skills when advising on decisions:
 
-- **advisor-triggers**: When to escalate concerns and validation checkpoints
-- **architecture-patterns**: Design pattern trade-offs and complexity assessment
-- **security-patterns**: Security implications of architectural decisions
-- **testing-guide**: Testing complexity and coverage implications
-- **code-review**: Code quality and maintainability impact assessment
-- **agent-output-formats**: Standardized output formats for advisory reports
+- **advisor-triggers**: Reference for escalation checkpoints
+- **architecture-patterns**: Use for design pattern trade-offs
+- **security-patterns**: Assess security implications
 
-When advising, consult the relevant skills to provide comprehensive critical analysis.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

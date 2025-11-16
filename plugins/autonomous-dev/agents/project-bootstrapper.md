@@ -42,13 +42,12 @@ Called by `/setup` command when bootstrapping new projects or analyzing existing
 
 You have access to these specialized skills when bootstrapping projects:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **architecture-patterns**: Recognizing architectural styles and design patterns
-- **file-organization**: Understanding standard project structures and conventions
-- **project-management**: PROJECT.md structure and best practices
-- **documentation-guide**: Documentation standards for README generation (see `readme-structure.md` and `docstring-standards.md`)
+- **architecture-patterns**: Reference for recognizing architectural styles
+- **file-organization**: Use for project structure standards
+- **project-management**: Follow for PROJECT.md structure
+- **documentation-guide**: Apply for README and documentation standards
 
-When bootstrapping, consult the relevant skills to generate accurate and comprehensive project documentation.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

@@ -1,8 +1,8 @@
 ---
 name: batch-implement
-description: Execute multiple features sequentially with automatic context management
+description: Execute multiple features sequentially with state-based auto-clearing and crash recovery
 author: Claude
-version: 3.0.0
+version: 3.2.0
 date: 2025-11-16
 ---
 
@@ -13,10 +13,29 @@ Process multiple features unattended - queue them up, let it run overnight, wake
 ## Usage
 
 ```bash
+# Start new batch from file
 /batch-implement features.txt
+
+# Start new batch from GitHub issues (requires gh CLI)
+/batch-implement --issues 72 73 74
+
+# Resume interrupted batch
+/batch-implement --resume <batch-id>
 ```
 
-## Input Format
+**Prerequisites for --issues flag**:
+- gh CLI v2.0+ installed (`brew install gh`, `apt install gh`, or `winget install GitHub.cli`)
+- Authentication: `gh auth login` (one-time setup)
+
+**State Management** (v3.1.0+):
+- Persistent state file: `.claude/batch_state.json`
+- Auto-clear threshold: 150K tokens (automatic)
+- Crash recovery: Resume with `--resume <batch-id>` flag
+- Progress tracking: Completed features, failed features, auto-clear events
+
+## Input Formats
+
+### Option 1: File-Based
 
 Plain text file, one feature per line:
 
@@ -36,17 +55,102 @@ Add API versioning
 - Empty lines are skipped
 - Keep features under 500 characters each
 
+### Option 2: GitHub Issues (NEW in v3.2.0)
+
+Fetch issue titles directly from GitHub:
+
+```bash
+/batch-implement --issues 72 73 74
+```
+
+**How it works**:
+1. Parse issue numbers from arguments
+2. Validate issue numbers (positive integers, max 100 issues)
+3. Fetch issue titles via gh CLI: `gh issue view <number> --json title`
+4. Format as features: "Issue #72: [title from GitHub]"
+5. Create batch state with `issue_numbers` and `source_type='issues'`
+
+**Requirements**:
+- gh CLI v2.0+ installed and authenticated
+- Valid issue numbers in current repository
+- Network connectivity to GitHub
+
+**Graceful Degradation**:
+- If issue not found: Skip and continue with remaining issues
+- If gh CLI not installed: Error message with installation instructions
+- If authentication missing: Error message with `gh auth login` instructions
+
+**Mutually Exclusive**: Cannot use both `<file>` and `--issues` in same command
+
 ## How It Works
 
-**Simple loop**:
+**State-based workflow** (v3.1.0+):
 
 1. Read features.txt
 2. Parse features (skip comments, empty lines, duplicates)
-3. For each feature:
+3. **Create batch state** → Save to `.claude/batch_state.json`
+4. For each feature:
+   - Check if context exceeds 150K tokens
+   - If yes: record auto-clear event → `/clear` → reload state
    - `/auto-implement {feature}`
-   - `/clear`
+   - Update batch state (mark feature complete)
    - Next feature
-4. Done
+5. Cleanup state file on success
+
+**Auto-Clear Threshold**: System automatically clears context at 150K tokens (no manual intervention needed)
+
+**Crash Recovery**: If batch is interrupted:
+- State file persists: `.claude/batch_state.json`
+- Contains: completed features, current index, failed features, auto-clear events
+- Resume: `/batch-implement --resume <batch-id>`
+- System automatically skips completed features and continues from current index
+
+**State File Example** (File-based):
+```json
+{
+  "batch_id": "batch-20251116-123456",
+  "features_file": "/path/to/features.txt",
+  "total_features": 10,
+  "current_index": 3,
+  "completed_features": [0, 1, 2],
+  "failed_features": [],
+  "context_token_estimate": 145000,
+  "auto_clear_count": 2,
+  "auto_clear_events": [
+    {"feature_index": 2, "tokens_before": 155000, "timestamp": "2025-11-16T10:30:00Z"}
+  ],
+  "status": "in_progress",
+  "issue_numbers": null,
+  "source_type": "file"
+}
+```
+
+**State File Example** (GitHub Issues):
+```json
+{
+  "batch_id": "batch-20251116-140000",
+  "features_file": "",
+  "features": [
+    "Issue #72: Add logging feature",
+    "Issue #73: Fix batch processing bug",
+    "Issue #74: Update documentation"
+  ],
+  "total_features": 3,
+  "current_index": 1,
+  "completed_features": [0],
+  "failed_features": [],
+  "context_token_estimate": 85000,
+  "auto_clear_count": 0,
+  "auto_clear_events": [],
+  "status": "in_progress",
+  "issue_numbers": [72, 73, 74],
+  "source_type": "issues"
+}
+```
+
+**New Fields** (v3.2.0):
+- `issue_numbers`: List of GitHub issue numbers (null for file-based batches)
+- `source_type`: Either "file" or "issues" (tracks batch source)
 
 ---
 
@@ -263,6 +367,49 @@ All features have been processed.
 - Report failures in summary
 
 **Continue-on-failure is default** - one bad feature won't stop the batch.
+
+**GitHub Issues --issues flag errors**:
+
+1. **gh CLI not installed**:
+   ```
+   ERROR: gh CLI not found.
+   
+   Install gh CLI:
+     macOS: brew install gh
+     Ubuntu: apt install gh
+     Windows: winget install GitHub.cli
+   ```
+
+2. **Not authenticated**:
+   ```
+   ERROR: gh CLI not authenticated.
+   
+   Run: gh auth login
+   ```
+
+3. **Issue not found**:
+   ```
+   WARNING: Issue #999 not found, skipping...
+   Continuing with remaining issues: #72, #73, #74
+   ```
+
+4. **Invalid issue numbers**:
+   ```
+   ERROR: Invalid issue number: -5
+   Issue numbers must be positive integers
+   ```
+
+5. **Too many issues**:
+   ```
+   ERROR: Too many issues (150 provided, max 100)
+   Please split into multiple batches
+   ```
+
+6. **Mutually exclusive arguments**:
+   ```
+   ERROR: Cannot use both <file> and --issues
+   Usage: /batch-implement <file> OR /batch-implement --issues <numbers>
+   ```
 
 ---
 

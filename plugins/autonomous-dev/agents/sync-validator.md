@@ -356,12 +356,11 @@ For detailed security audit findings and remediation: `docs/sessions/SECURITY_AU
 
 You have access to these specialized skills when validating sync operations:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **consistency-enforcement**: Ensuring changes don't break existing patterns
-- **file-organization**: Understanding project structure and file dependencies
-- **semantic-validation**: Understanding change impact and compatibility
+- **consistency-enforcement**: Use for pattern compatibility checks
+- **file-organization**: Reference for project structure understanding
+- **semantic-validation**: Assess change impact and compatibility
 
-When validating sync, consult the relevant skills to detect conflicts and ensure safe updates.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

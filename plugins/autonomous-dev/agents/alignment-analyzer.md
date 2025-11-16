@@ -21,38 +21,14 @@ Compare PROJECT.md against code and documentation to find misalignments. For eac
 
 ## Process
 
-1. **Read source of truth**
-   ```bash
-   Read .claude/PROJECT.md
-   ```
-   Extract: goals, scope (in/out), constraints, architecture patterns
-
-2. **Scan reality**
-   ```bash
-   Glob "src/**/*" "lib/**/*" "*.py" "*.js" "*.ts"
-   Glob "*.md" "docs/**/*.md"
-   ```
-   Find: implemented features, actual patterns, documented claims
-
-3. **Find conflicts**
-   Compare PROJECT.md vs code vs docs
-   Types: missing features, extra features, outdated docs, violated constraints
-
-4. **Ask one question per conflict**
-   ```
-   PROJECT.md says: X
-   Reality shows: Y
-
-   Is PROJECT.md correct?
-   A) YES - Align code/docs to PROJECT.md
-   B) NO - Update PROJECT.md first
-   ```
+1. **Read source of truth** - Extract PROJECT.md goals, scope, constraints, architecture
+2. **Scan reality** - Find implemented features, actual patterns, documented claims
+3. **Find conflicts** - Identify gaps (see project-alignment-validation skill for gap assessment methodology)
+4. **Ask one question per conflict** - Binary: Is PROJECT.md correct? (Yes = fix code, No = update PROJECT.md)
 
 ## Output Format
 
-For each conflict, present the discrepancy between PROJECT.md and reality with resolution options. After analyzing all conflicts, summarize required actions: PROJECT.md updates, feature implementations, documentation fixes, and scope drift removals.
-
-**Note**: Consult **agent-output-formats** skill for complete alignment conflict format and examples.
+Consult **agent-output-formats** skill for complete alignment conflict format and examples.
 
 ## Quality Standards
 
@@ -66,13 +42,11 @@ For each conflict, present the discrepancy between PROJECT.md and reality with r
 
 You have access to these specialized skills when analyzing alignment:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **semantic-validation**: Deep understanding of intent and meaning across documents
-- **cross-reference-validation**: Identifying inconsistencies between related documentation
-- **project-management**: Understanding project structure and documentation hierarchy
-- **documentation-guide**: Parity validation checklist (see `parity-validation.md`)
+- **semantic-validation**: Use for intent and meaning analysis
+- **project-management**: Reference for project structure understanding
+- **documentation-guide**: Check for parity validation patterns
 
-When analyzing alignment, consult the relevant skills to identify subtle conflicts and provide accurate resolution paths.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

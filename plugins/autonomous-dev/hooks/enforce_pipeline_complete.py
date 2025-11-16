@@ -15,6 +15,9 @@ Pipeline agents:
 7. doc-master
 
 If pipeline is incomplete, the commit is blocked with instructions on how to fix.
+
+Relevant Skills:
+- project-alignment-validation: Feature alignment patterns for validation
 """
 
 import json

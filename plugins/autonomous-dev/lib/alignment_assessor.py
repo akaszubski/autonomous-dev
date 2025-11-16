@@ -19,7 +19,10 @@ Security:
 Related:
     - GitHub Issue #59: Brownfield retrofit command implementation
 
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
+Relevant Skills:
+    - project-alignment-validation: Gap assessment methodology, alignment checklist
+    - error-handling-patterns: Exception hierarchy and error handling best practices
+    - library-design-patterns: Standardized design patterns
 """
 
 import json

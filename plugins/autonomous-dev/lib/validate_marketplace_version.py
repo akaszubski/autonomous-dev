@@ -36,7 +36,9 @@ Issue: GitHub #50 - Fix Marketplace Update UX
 Agent: implementer
 Related: version_detector.py, health_check.py
 
-See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import argparse

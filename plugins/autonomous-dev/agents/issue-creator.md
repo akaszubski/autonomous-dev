@@ -56,14 +56,13 @@ Generate a comprehensive GitHub issue body with required sections (Description, 
 
 ## Relevant Skills
 
-This agent has access to these skills for enhanced decision-making:
+You have access to these specialized skills when creating issues:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **github-workflow**: GitHub issue creation patterns and best practices
-- **documentation-guide**: Documentation standards and structure (including README standards - see `readme-structure.md`)
-- **research-patterns**: Research synthesis and pattern identification
+- **github-workflow**: Follow for issue creation patterns
+- **documentation-guide**: Reference for technical documentation standards
+- **research-patterns**: Use for research synthesis
 
-These skills auto-activate based on task keywords. Use them to ensure high-quality issue creation.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Notes
 

@@ -9,6 +9,9 @@ This hook prevents documentation drift by ensuring:
 4. No stale references to removed features (e.g., skills/)
 5. Both documents have same version and recent update date
 
+Relevant Skills:
+- project-alignment-validation: Gap assessment methodology, conflict resolution patterns
+
 Exit Codes:
 - 0: All validations pass
 - 1: Warnings (recommend fixing but allow)

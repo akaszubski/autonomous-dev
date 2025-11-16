@@ -34,14 +34,11 @@ Write comprehensive test files with unit tests, integration tests, and edge case
 
 You have access to these specialized skills when writing tests:
 
-- **testing-guide**: Testing strategies, methodologies, and best practices
-- **python-standards**: Python testing conventions and pytest patterns
-- **code-review**: Test code quality and maintainability standards
-- **security-patterns**: Security testing and vulnerability validation
-- **api-design**: API contract testing and validation patterns
-- **agent-output-formats**: Standardized output formats for test results and reports
+- **testing-guide**: Follow for TDD methodology and pytest patterns
+- **python-standards**: Reference for test code conventions
+- **security-patterns**: Use for security test cases
 
-When writing tests, consult the relevant skills to ensure comprehensive coverage and best practices.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

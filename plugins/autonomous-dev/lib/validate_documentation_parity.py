@@ -38,6 +38,10 @@ Related: Documentation parity validation feature
 Agent: implementer
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

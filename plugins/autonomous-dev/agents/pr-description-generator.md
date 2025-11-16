@@ -59,12 +59,11 @@ Return markdown PR description with sections: Issue Reference (auto-detected fro
 
 You have access to these specialized skills when generating PR descriptions:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **github-workflow**: Pull request conventions and best practices
-- **documentation-guide**: Technical documentation standards and clarity (including changelog format - see `changelog-format.md`)
-- **semantic-validation**: Understanding change impact and importance
+- **github-workflow**: Follow for PR conventions and templates
+- **documentation-guide**: Reference for technical documentation standards
+- **semantic-validation**: Use for understanding change impact
 
-When generating descriptions, consult the relevant skills to ensure comprehensive and clear documentation.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

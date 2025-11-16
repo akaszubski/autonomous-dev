@@ -8,6 +8,11 @@ Usage:
 
 Example:
     python scripts/session_tracker.py researcher "Research complete - docs/research/auth.md"
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 import sys

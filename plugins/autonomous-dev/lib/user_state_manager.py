@@ -16,6 +16,11 @@ Issue: #61 (Enable Zero Manual Git Operations by Default)
 Agent: implementer
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 import copy

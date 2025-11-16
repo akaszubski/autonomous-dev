@@ -1,7 +1,7 @@
 ---
 name: project-progress-tracker
 description: Track and update PROJECT.md goal completion progress
-model: sonnet
+model: haiku
 tools: [Read, Write]
 color: yellow
 ---
@@ -233,12 +233,10 @@ Goal C: 0% done (0/3 features)
 
 You have access to these specialized skills when tracking progress:
 
-- **project-management**: Project planning, prioritization, and tracking methodologies
-- **semantic-validation**: Understanding feature-to-goal mapping and relationships
-- **documentation-currency**: Keeping documentation up-to-date and accurate
-- **agent-output-formats**: Standardized output formats for progress reports (YAML for hooks, JSON for interactive use)
+- **project-management**: Use for tracking methodologies and planning
+- **semantic-validation**: Assess feature-to-goal mapping
 
-When tracking progress, consult the relevant skills to provide strategic recommendations.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

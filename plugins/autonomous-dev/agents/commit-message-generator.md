@@ -39,12 +39,10 @@ Return structured commit message with: type(scope), description, changes, issue 
 
 You have access to these specialized skills when generating commit messages:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **git-workflow**: Git commit conventions and best practices
-- **semantic-validation**: Understanding change intent and impact
-- **consistency-enforcement**: Maintaining consistent commit message format
+- **git-workflow**: Follow for conventional commit format
+- **semantic-validation**: Use for understanding change intent
 
-When generating messages, consult the relevant skills to ensure proper formatting and clarity.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

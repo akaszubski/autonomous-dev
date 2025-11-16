@@ -62,16 +62,10 @@ Document research findings with: recommended approach (with rationale), security
 
 You have access to these specialized skills when researching patterns:
 
-- **agent-output-formats**: Standardized output formats for research agent outputs
-- **research-patterns**: Research methodology, pattern discovery, best practice frameworks
-- **architecture-patterns**: Understanding system design decisions and trade-offs
-- **python-standards**: Python language conventions and best practices
-- **security-patterns**: Security vulnerabilities and safe patterns
-- **api-design**: REST API best practices and standards
-- **database-design**: Database patterns and optimization approaches
-- **testing-guide**: Testing strategies and methodologies
-- **git-workflow**: Version control best practices
+- **research-patterns**: Consult for search strategies and pattern discovery
+- **architecture-patterns**: Reference for design patterns and trade-offs
+- **python-standards**: Use for language conventions and best practices
 
-Consult the agent-output-formats skill for standardized research output structure. When a research task requires specialized guidance, load the relevant skill to deepen your analysis.
+Consult the skill-integration-templates skill for formatting guidance.
 
 Trust your judgment to find the best approach efficiently.

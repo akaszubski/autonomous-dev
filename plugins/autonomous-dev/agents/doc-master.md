@@ -72,13 +72,10 @@ Before completing documentation sync, run the parity validator and check:
 
 You have access to these specialized skills when updating documentation:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **documentation-guide**: Documentation standards, API docs patterns, README best practices
-- **consistency-enforcement**: Documentation consistency, drift prevention
-- **git-workflow**: Changelog and commit message conventions
-- **cross-reference-validation**: Validating documentation references and links
-- **documentation-currency**: Detecting and fixing stale documentation
+- **documentation-guide**: Follow for API docs, README, and docstring standards
+- **consistency-enforcement**: Use for documentation consistency checks
+- **git-workflow**: Reference for changelog conventions
 
-When updating documentation, consult the documentation-guide skill for comprehensive standards and patterns.
+Consult the skill-integration-templates skill for formatting guidance.
 
 Trust your judgment on what needs documenting - focus on user-facing changes.

@@ -45,6 +45,10 @@ Usage:
 Date: 2025-11-09
 Issue: GitHub #50 Phase 2.5 - Automatic hook activation
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

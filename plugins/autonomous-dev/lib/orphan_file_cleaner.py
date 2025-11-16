@@ -40,6 +40,10 @@ Usage:
 Date: 2025-11-08
 Issue: GitHub #50 - Fix Marketplace Update UX
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import json

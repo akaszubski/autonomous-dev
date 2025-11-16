@@ -42,6 +42,11 @@ Usage:
 Date: 2025-11-09
 Issue: GitHub #50 Phase 2 - Interactive /update-plugin command
 Agent: implementer
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 import json

@@ -37,6 +37,11 @@ Date: 2025-11-05
 Workflow: git_automation
 Agent: implementer
 Phase: TDD Green (implementation to make tests pass)
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See api-integration-patterns skill for standardized design patterns.
 """
 
 import os

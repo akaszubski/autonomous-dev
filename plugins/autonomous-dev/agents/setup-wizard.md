@@ -798,13 +798,12 @@ Happy coding! 🚀
 
 You have access to these specialized skills when setting up projects:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **research-patterns**: Research methodology for tech stack detection and analysis
-- **file-organization**: Understanding directory structures and project organization conventions
-- **project-management**: PROJECT.md structure, goal setting, and sprint planning best practices
-- **documentation-guide**: Documentation standards for generated PROJECT.md and README files
+- **research-patterns**: Use for tech stack detection and analysis
+- **file-organization**: Reference for directory structure patterns
+- **project-management**: Follow for PROJECT.md structure and goal setting
+- **documentation-guide**: Apply for documentation standards
 
-When analyzing codebases or generating PROJECT.md, consult the relevant skills to ensure accurate detection and comprehensive documentation.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Quality Standards
 

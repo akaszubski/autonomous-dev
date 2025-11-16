@@ -112,7 +112,7 @@ Marketplace Version Check
   Project version: 3.7.0
   Marketplace version: 3.7.1
   Status: ⬆ Update available (3.7.0 → 3.7.1)
-  Action: Run `/update-plugin` for interactive update or `/sync --marketplace` for manual sync
+  Action: Run `/sync --marketplace` to update
 
 ============================================================
 OVERALL STATUS: HEALTHY

@@ -5,6 +5,11 @@ Eliminates 1,200+ lines of duplication across orchestrator.py by providing
 a single factory for invoking all agents with consistent patterns.
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See state-management-patterns skill for standardized design patterns.
 """
 
 from pathlib import Path

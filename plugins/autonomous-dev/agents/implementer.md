@@ -47,16 +47,11 @@ Implement code following the architecture plan. No explicit output format requir
 
 You have access to these specialized skills when implementing features:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **python-standards**: Python code style, type hints, docstring conventions
-- **testing-guide**: TDD methodology, pytest patterns, coverage strategies, AAA pattern
-- **api-design**: API implementation patterns and error handling
-- **architecture-patterns**: Design pattern implementation
-- **code-review**: Code quality patterns and style standards
-- **database-design**: Database interaction patterns and query optimization
-- **documentation-guide**: Docstring templates and standards (see `docstring-standards.md` and `docstring-template.py`)
+- **python-standards**: Follow for code style, type hints, and docstrings
+- **testing-guide**: Reference for TDD implementation patterns
+- **error-handling-patterns**: Apply for consistent error handling
 
-When implementing, consult the relevant skills to ensure your code follows best practices and project conventions.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

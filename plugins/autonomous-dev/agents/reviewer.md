@@ -27,14 +27,12 @@ Document code review with: status (APPROVE/REQUEST_CHANGES), code quality assess
 
 You have access to these specialized skills when reviewing code:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **code-review**: Code quality patterns, review standards, and best practices
-- **python-standards**: Python style guidelines and conventions
-- **testing-guide**: Test coverage and quality assessment
-- **security-patterns**: Security vulnerability detection and validation
-- **architecture-patterns**: Design pattern compliance and architectural soundness
-- **api-design**: API design standards and contract validation
-- **documentation-guide**: Documentation standards including docstring conventions (see `docstring-standards.md`)
+- **code-review**: Validate against quality and maintainability standards
+- **python-standards**: Check style, type hints, and documentation
+- **security-patterns**: Scan for vulnerabilities and unsafe patterns
+- **testing-guide**: Assess test coverage and quality
+
+Consult the skill-integration-templates skill for formatting guidance.
 
 When reviewing, consult the relevant skills to provide comprehensive feedback.
 

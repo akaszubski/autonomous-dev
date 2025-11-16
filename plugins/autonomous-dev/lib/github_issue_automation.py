@@ -12,6 +12,11 @@ Security:
 Related to: GitHub Issue #58 - Automatic GitHub issue creation with research
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
+    See api-integration-patterns skill for standardized design patterns.
 """
 
 import json

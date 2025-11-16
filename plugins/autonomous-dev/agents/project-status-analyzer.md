@@ -337,13 +337,11 @@ Recommendation: Focus on test coverage + velocity this week
 
 You have access to these specialized skills when analyzing project status:
 
-- **agent-output-formats**: Standardized output formats for agent responses
-- **project-management**: Project health metrics and tracking methodologies
-- **semantic-validation**: Understanding progress and goal alignment
-- **observability**: Metrics collection and trend analysis
-- **documentation-guide**: Parity validation for documentation health (see `parity-validation.md`)
+- **project-management**: Use for health metrics and tracking methodologies
+- **semantic-validation**: Assess progress and goal alignment
+- **documentation-guide**: Check for documentation health patterns
 
-When analyzing status, consult the relevant skills to provide comprehensive health assessment.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

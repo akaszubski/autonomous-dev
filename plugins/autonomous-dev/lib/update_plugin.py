@@ -40,6 +40,10 @@ Issue: GitHub #50 Phase 2 - Interactive /update-plugin command
 Agent: implementer
 
 See error-handling-patterns skill for exception hierarchy and error handling best practices.
+
+
+Design Patterns:
+    See library-design-patterns skill for standardized design patterns.
 """
 
 import argparse

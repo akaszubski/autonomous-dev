@@ -13,6 +13,9 @@ What it checks:
 
 This is the GATEKEEPER for strict mode - nothing proceeds without alignment.
 
+Relevant Skills:
+- project-alignment-validation: Alignment checklist, semantic validation approach
+
 Usage:
     Add to .claude/settings.local.json PreCommit hooks:
     {

@@ -1,7 +1,7 @@
 ---
 name: alignment-validator
 description: Validate user requests against PROJECT.md goals, scope, and constraints
-model: sonnet
+model: haiku
 tools: [Read, Grep, Glob, Bash]
 ---
 
@@ -21,29 +21,14 @@ Validate user feature requests against PROJECT.md to determine if they align wit
 
 ## Process
 
-1. **Read PROJECT.md**
-   ```bash
-   Read .claude/PROJECT.md
-   ```
-   Extract: GOALS, SCOPE (included/excluded), CONSTRAINTS, SUCCESS CRITERIA
-
-2. **Analyze request**
-   - What is the user asking for?
-   - What problem are they solving?
-   - How does it map to PROJECT.md semantically?
-
-3. **Validate alignment**
-   - Does it serve any GOALS? (understand intent, not keywords)
-   - Is it within SCOPE? (e.g., "data persistence" = "database")
-   - Does it violate CONSTRAINTS? (LOC, dependencies, tech stack)
-
-4. **Return structured assessment**
+1. **Read PROJECT.md** - Extract GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+2. **Analyze request** - Understand intent and problem being solved
+3. **Validate alignment** - Use semantic validation (see project-alignment-validation skill)
+4. **Return structured assessment** - Confidence score and reasoning
 
 ## Output Format
 
-Return JSON with: aligned (bool), confidence (0.0-1.0), reasoning (serves_goals, within_scope, respects_constraints), concerns (list), and suggestion (modification guidance if misaligned).
-
-**Note**: Consult **agent-output-formats** skill for complete alignment validation format and examples.
+Consult **agent-output-formats** skill for complete alignment validation format and examples.
 
 ## Quality Standards
 
@@ -57,12 +42,10 @@ Return JSON with: aligned (bool), confidence (0.0-1.0), reasoning (serves_goals,
 
 You have access to these specialized skills when validating alignment:
 
-- **semantic-validation**: Understanding intent and meaning beyond keywords
-- **cross-reference-validation**: Checking consistency across project documentation
-- **consistency-enforcement**: Ensuring standards compliance and pattern adherence
-- **agent-output-formats**: Standardized output formats for alignment reports
+- **semantic-validation**: Use for intent and meaning analysis
+- **consistency-enforcement**: Check for standards compliance
 
-When validating alignment, consult the relevant skills to provide accurate semantic analysis.
+Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

@@ -4,7 +4,7 @@
 
 Claude Code plugin that automates the full software development lifecycle with PROJECT.md-first validation: alignment → research → plan → test → implement → review → security → documentation.
 
-**Version**: v3.21.0 | **Status**: Production Ready | **Last Updated**: 2025-11-15
+**Version**: v3.26.0 | **Status**: Production Ready | **Last Updated**: 2025-11-16
 
 ---
 
@@ -114,9 +114,9 @@ Claude Code will:
 
 **Typical time**: 20-30 minutes (fully automated)
 
-### Batch Processing Multiple Features (NEW in v3.22.0)
+### Batch Processing Multiple Features (Enhanced in v3.23.0)
 
-Process multiple features sequentially with automatic context management:
+Process multiple features sequentially with intelligent state management and crash recovery:
 
 ```bash
 # Create features file
@@ -130,19 +130,47 @@ Add rate limiting to API
 Add API versioning
 EOF
 
-# Execute all features
+# Execute all features (state managed automatically)
 /batch-implement sprint-backlog.txt
+
+# Or fetch features directly from GitHub issues (requires gh CLI)
+/batch-implement --issues 72 73 74
+
+# If interrupted or crashed, resume from where you left off
+/batch-implement --resume batch-20251116-123456
+```
+
+**Setup for --issues flag** (one-time):
+```bash
+# Install gh CLI
+brew install gh              # macOS
+# apt install gh             # Debian/Ubuntu
+# winget install GitHub.cli  # Windows
+
+# Authenticate
+gh auth login
 ```
 
 **Benefits**:
-- ✅ Automatic context clearing between features (prevents context bloat)
+- ✅ **GitHub integration** (fetch issues directly with --issues flag - v3.24.0)
+- ✅ **State-based auto-clearing** (automatic at 150K tokens - no manual intervention)
+- ✅ **Crash recovery** (persistent state in `.claude/batch_state.json`)
+- ✅ **Resume operations** (continue from last completed feature)
+- ✅ **50+ feature support** (proven with state management)
 - ✅ Progress tracking with timing per feature
 - ✅ Continue-on-failure mode (process all features even if some fail)
 - ✅ Summary report with success/failure counts
 
-**Use Cases**: Sprint backlogs, technical debt cleanup, feature parity, bulk refactoring
+**Use Cases**: Sprint backlogs (10-50 features), technical debt cleanup, feature parity, bulk refactoring, large-scale migrations (50+ features)
 
 **Typical time**: 20-30 minutes per feature (same as `/auto-implement`)
+
+**How it works**:
+- System creates persistent state file (`.claude/batch_state.json`)
+- Tracks progress: completed features, failed features, context token estimate
+- Auto-clears context at 150K token threshold (prevents bloat)
+- If crash/interruption: resume with `--resume <batch-id>` flag
+- State file cleaned up automatically on successful completion
 
 ### Individual Commands (If You Prefer Step-by-Step)
 
@@ -231,9 +259,9 @@ Both update to latest version automatically.
 
 **20 Commands** - Full SDLC automation
 **20 AI Agents** - Specialized for each task
-**22 Skills** - Deep domain knowledge (progressive disclosure)
+**27 Skills** - Deep domain knowledge (progressive disclosure)
 **42 Hooks** - Automatic quality enforcement
-**18 Libraries** - Reusable Python utilities
+**35 Libraries** - Reusable Python utilities
 
 **Philosophy**: Automation > Reminders > Hope
 

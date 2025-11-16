@@ -1,11 +1,4 @@
 {
-  "description": "Permission Batching Configuration - Reduce approval prompts by 80%",
-  "permissionBatching": {
-    "enabled": true,
-    "autoApproveSafeReads": true,
-    "autoApproveProjectWrites": true,
-    "batchWindowSeconds": 5
-  },
   "permissions": {
     "allow": [
       "Read:.*",
@@ -50,7 +43,8 @@
       "Bash:gh pr create.*",
       "Bash:npm test",
       "Bash:npm run.*",
-      "Bash:pytest.*"
+      "Bash:pytest.*",
+      "Bash(mkdir:*)"
     ],
     "deny": [
       "Read:.*\\.ssh/.*",
@@ -72,7 +66,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "description": "Batch permission approver",
         "hooks": [
           {
             "type": "command",
@@ -83,7 +76,6 @@
     ],
     "SubagentStop": [
       {
-        "description": "Automatic git operations after /auto-implement completes",
         "hooks": [
           {
             "type": "command",
@@ -92,5 +84,12 @@
         ]
       }
     ]
+  },
+  "description": "Permission Batching Configuration - Reduce approval prompts by 80%",
+  "permissionBatching": {
+    "enabled": true,
+    "autoApproveSafeReads": true,
+    "autoApproveProjectWrites": true,
+    "batchWindowSeconds": 5
   }
 }

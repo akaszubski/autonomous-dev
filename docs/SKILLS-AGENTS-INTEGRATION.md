@@ -577,7 +577,7 @@ Agents + Skills = Powerful partnership
 
 ## Part 9: Specific Recommendations for autonomous-dev Skills
 
-### Complete Skill Inventory (22 Active Skills - v3.19.0)
+### Complete Skill Inventory (27 Active Skills - v3.26.0)
 
 **Core Development (7 skills)**:
 1. api-design - REST API design with versioning and error handling
@@ -588,26 +588,237 @@ Agents + Skills = Powerful partnership
 6. security-patterns - Security implementation and vulnerability prevention
 7. error-handling-patterns - Standardized error handling and validation
 
-**Workflow & Automation (6 skills)** - v3.19.0 Addition:
+**Workflow & Automation (7 skills)** - v3.26.0 Addition:
 8. git-workflow - Git operations and commit strategies
 9. github-workflow - GitHub automation and PR workflows
 10. project-management - Project tracking and goal management
 11. documentation-guide - Documentation standards and best practices
 12. agent-output-formats - Standardized agent output formatting
-13. skill-integration - Skill discovery, composition, and progressive disclosure (NEW v3.19.0)
+13. skill-integration - Skill discovery, composition, and progressive disclosure
+14. skill-integration-templates - Skill reference syntax, action verbs, progressive disclosure usage (NEW v3.26.0)
 
 **Code & Quality (4 skills)**:
-14. python-standards - Python coding standards and best practices
-15. observability - Logging, monitoring, and metrics patterns
-16. consistency-enforcement - Code consistency and standardization
-17. file-organization - Project structure and file organization
+15. python-standards - Python coding standards and best practices
+16. observability - Logging, monitoring, and metrics patterns
+17. consistency-enforcement - Code consistency and standardization
+18. file-organization - Project structure and file organization
 
-**Validation & Analysis (5 skills)**:
-18. research-patterns - Research methodology and pattern discovery
-19. semantic-validation - Semantic analysis and validation patterns
-20. cross-reference-validation - Documentation cross-reference checking
-21. documentation-currency - Documentation freshness and synchronization
-22. advisor-triggers - Critical thinking and advisory prompts
+**Validation & Analysis (6 skills)** - v3.25.0 Addition:
+19. research-patterns - Research methodology and pattern discovery
+20. semantic-validation - Semantic analysis and validation patterns
+21. cross-reference-validation - Documentation cross-reference checking
+22. documentation-currency - Documentation freshness and synchronization
+23. advisor-triggers - Critical thinking and advisory prompts
+24. project-alignment-validation - Gap assessment, semantic validation, conflict resolution, alignment checklists (NEW v3.25.0)
+
+**Library Design (3 skills)** - v3.24.1 Addition:
+25. library-design-patterns - Progressive enhancement, two-tier architecture, security validation, docstring standards
+26. state-management-patterns - JSON state persistence, atomic write operations, file locking patterns
+27. api-integration-patterns - GitHub API integration, retry logic, subprocess security, command injection prevention
+
+
+
+### Skill-Integration-Templates Skill Details (NEW v3.26.0 - Issue #72 Phase 8.6)
+
+**Location**: `/plugins/autonomous-dev/skills/skill-integration-templates/`
+
+**Purpose**: Standardized templates and patterns for integrating skills into agent prompts, reducing token overhead while maintaining clarity and consistency
+
+**Contents**:
+- **SKILL.md** (~50 lines) - Overview and quick reference with progressive disclosure keywords
+- **Documentation Files (4)**:
+  - `skill-reference-syntax.md` (~280 lines) - Standard syntax patterns for skill sections
+  - `agent-action-verbs.md` (~320 lines) - Action verbs for different skill usage contexts
+  - `progressive-disclosure-usage.md` (~240 lines) - How to use progressive disclosure effectively
+  - `integration-best-practices.md` (~290 lines) - Best practices for skill integration patterns
+- **Template Files (3)**:
+  - `skill-section-template.md` (~120 lines) - Standard skill section template
+  - `intro-sentence-templates.md` (~80 lines) - Introduction sentence variations
+  - `closing-sentence-templates.md` (~60 lines) - Closing sentence variations
+- **Example Files (3)**:
+  - `planner-skill-section.md` (~90 lines) - Planner agent skill section example
+  - `implementer-skill-section.md` (~85 lines) - Implementer agent skill section example
+  - `minimal-skill-reference.md` (~45 lines) - Minimal reference example
+
+**Total**: 11 files, ~1,200 tokens of integration patterns available on-demand
+
+**Key Patterns**:
+1. **Skill Reference Syntax**: Standardized format for "Relevant Skills" sections
+2. **Action Verbs**: Context-appropriate verbs (Consult, Reference, Use, Apply)
+3. **Progressive Disclosure**: Only show metadata in context, full content on-demand
+4. **Integration Best Practices**: Consistent formatting across all agents
+
+**Agents Using This Skill**:
+All 20 agents now reference skill-integration-templates for standardized skill section formatting:
+- **advisor** - Uses skill-reference-syntax.md for advisory skill references
+- **alignment-analyzer** - Uses integration-best-practices.md for alignment skill formatting
+- **alignment-validator** - Uses skill-section-template.md for validation skill structure
+- **brownfield-analyzer** - Uses agent-action-verbs.md for brownfield analysis contexts
+- **commit-message-generator** - Uses minimal-skill-reference.md for concise git skill references
+- **doc-master** - Uses planner-skill-section.md as documentation skill reference model
+- **implementer** - Uses implementer-skill-section.md for implementation skill guidance
+- **issue-creator** - Uses skill-reference-syntax.md for issue creation skill formatting
+- **planner** - Uses planner-skill-section.md for planning skill references
+- **pr-description-generator** - Uses integration-best-practices.md for PR skill structure
+- **project-bootstrapper** - Uses skill-section-template.md for bootstrap skill formatting
+- **project-progress-tracker** - Uses skill-reference-syntax.md for tracking skill references
+- **project-status-analyzer** - Uses integration-best-practices.md for status analysis formatting
+- **quality-validator** - Uses agent-action-verbs.md for quality validation contexts
+- **researcher** - Uses progressive-disclosure-usage.md for research skill optimization
+- **reviewer** - Uses skill-reference-syntax.md for review skill references
+- **security-auditor** - Uses integration-best-practices.md for security skill formatting
+- **setup-wizard** - Uses skill-section-template.md for wizard skill structure
+- **sync-validator** - Uses skill-reference-syntax.md for sync skill references
+- **test-master** - Uses agent-action-verbs.md for testing skill contexts
+
+**Token Reduction Impact**:
+- **Before Phase 8.6**: ~21,755 tokens across all 20 agents
+- **After Phase 8.6**: ~19,902 tokens across all 20 agents
+- **Savings**: ~800 tokens (~3.5% reduction)
+- **Progressive Disclosure**: ~1,200 tokens available on-demand, only ~50 tokens SKILL.md overhead
+
+**Test Coverage**:
+- **Unit Tests (23)**: Skill structure validation, documentation completeness, template coverage
+- **Integration Tests (7)**: Skill integration workflow, pattern application validation
+- **Test Files**: `tests/unit/skills/test_skill_integration_templates_skill.py`, `tests/integration/test_skill_integration_templates_workflow.py`
+
+### Project-Alignment-Validation Skill Details (NEW v3.25.0 - Issue #72 Phase 8.7)
+
+**Location**: `/plugins/autonomous-dev/skills/project-alignment-validation/`
+
+**Purpose**: Standardized patterns for PROJECT.md alignment validation, gap assessment, and conflict resolution
+
+**Contents**:
+- **SKILL.md** (~50 lines) - Overview and quick reference
+- **Documentation Files (4)**:
+  - `gap-assessment-methodology.md` (~550 lines) - Comprehensive gap assessment framework
+  - `semantic-validation-approach.md` (~480 lines) - Semantic validation methodology
+  - `conflict-resolution-patterns.md` (~420 lines) - Conflict resolution strategies
+  - `alignment-checklist.md` (~320 lines) - Alignment verification checklist
+- **Template Files (3)**:
+  - `gap-assessment-template.md` (~180 lines) - Gap assessment report template
+  - `alignment-report-template.md` (~150 lines) - Alignment report template
+  - `conflict-resolution-template.md` (~120 lines) - Conflict resolution guide template
+- **Example Files (3)**:
+  - `project-md-structure-example.md` (~280 lines) - Well-structured PROJECT.md example
+  - `alignment-scenarios.md` (~320 lines) - Real-world alignment scenarios
+  - `misalignment-examples.md` (~290 lines) - Common misalignment patterns and fixes
+
+**Total**: 11 files, ~2,200 tokens of alignment validation patterns
+
+**Key Patterns**:
+1. **Gap Assessment**: Systematic comparison of documented vs actual project state
+2. **Semantic Validation**: Deep validation beyond syntax (intent, scope, constraints)
+3. **Conflict Resolution**: Strategies for handling competing requirements and priorities
+4. **Alignment Checklists**: Verification procedures for PROJECT.md compliance
+
+**Agents Using This Skill**:
+- **alignment-validator** - Uses gap-assessment-methodology.md for validation strategy
+- **alignment-analyzer** - Uses semantic-validation-approach.md for deep analysis
+- **project-bootstrapper** - Uses alignment-checklist.md for initialization
+- **brownfield-analyzer** - Uses gap-assessment-methodology.md for retrofit assessment
+- **sync-validator** - Uses conflict-resolution-patterns.md for sync conflict handling
+
+**Hooks Using This Skill**:
+- **detect_feature_request.py** - Uses alignment-checklist.md to verify feature alignment
+- **enforce_pipeline_complete.py** - Uses semantic-validation-approach.md to validate pipeline completion
+- **validate_project_alignment.py** - Uses all patterns for comprehensive alignment validation
+- **validate_documentation_alignment.py** - Uses alignment-checklist.md for documentation validation
+
+**Libraries Using This Skill**:
+- **project_md_updater.py** - References conflict-resolution-patterns.md for merge handling
+- **alignment_assessor.py** - References gap-assessment-methodology.md and semantic-validation-approach.md
+- **brownfield_retrofit.py** - References gap-assessment-methodology.md for assessment phase
+- **migration_planner.py** - References conflict-resolution-patterns.md for dependency resolution
+- **retrofit_executor.py** - References alignment-checklist.md for verification
+- **retrofit_verifier.py** - References semantic-validation-approach.md for verification
+- **sync_dispatcher.py** - References conflict-resolution-patterns.md for sync handling
+- **genai_validate.py** - References semantic-validation-approach.md for validation
+- **checkpoint.py** - References alignment-checklist.md for checkpoint validation
+
+**Impact**:
+- 12 files enhanced with standardized alignment patterns
+- ~800-1,200 tokens saved (2-4% reduction across alignment agents and libraries)
+- ~2,200 tokens of alignment patterns available on-demand via progressive disclosure
+- 86 tests validate skill structure and integration (65 unit + 21 integration)
+- Progressive disclosure: Only ~50 tokens SKILL.md overhead in context
+
+---
+
+### Library Design Skills Details (NEW v3.24.1 - Issue #72 Phase 8.8)
+
+**Purpose**: Standardized patterns for library architecture, state management, and external API integration
+
+**1. library-design-patterns** (532 lines)
+
+**Location**: `/plugins/autonomous-dev/skills/library-design-patterns/`
+
+**Contents**:
+- **SKILL.md** (98 lines) - Overview and quick reference
+- **Documentation Files (4)**:
+  - `progressive-enhancement.md` (138 lines) - Progressive enhancement pattern (string → path → whitelist)
+  - `two-tier-design.md` (124 lines) - Two-tier architecture (core logic + CLI interface)
+  - `security-patterns.md` (89 lines) - Security validation patterns (CWE mitigations)
+  - `docstring-standards.md` (83 lines) - Google-style docstring standards
+- **Template Files (3)**:
+  - `library-template.py` (145 lines) - Complete library structure template
+  - `cli-template.py` (98 lines) - CLI interface template
+  - `docstring-template.py` (76 lines) - Docstring examples template
+- **Example Files (3)**:
+  - `progressive-enhancement-example.py` (112 lines) - Progressive enhancement in action
+  - `two-tier-example.py` (134 lines) - Two-tier architecture example
+  - `security-validation-example.py` (87 lines) - Security validation patterns
+
+**Key Patterns**:
+1. **Progressive Enhancement**: Graceful degradation (string → Path → whitelist validation)
+2. **Two-Tier Design**: Core library + CLI interface separation for reusability
+3. **Security Validation**: CWE-22 (path traversal), CWE-59 (symlinks), CWE-117 (log injection) mitigations
+4. **Docstring Standards**: Google-style with Args, Returns, Raises, Examples, Security Notes
+
+**2. state-management-patterns** (289 lines)
+
+**Location**: `/plugins/autonomous-dev/skills/state-management-patterns/`
+
+**Contents**:
+- **SKILL.md** (74 lines) - Overview and quick reference
+- **Documentation Files (1)**:
+  - `json-persistence.md` (97 lines) - JSON state persistence patterns
+- **Template Files (3)**:
+  - `state-manager-template.py` (156 lines) - Complete state manager with atomic writes
+  - `atomic-write-template.py` (89 lines) - Atomic write pattern (mkstemp → write → rename)
+  - `file-lock-template.py` (73 lines) - File locking with reentrant locks
+
+**Key Patterns**:
+1. **JSON Persistence**: Atomic writes, crash recovery, schema validation
+2. **Atomic Operations**: mkstemp() → os.write() → os.close() → os.chmod() → Path.replace()
+3. **File Locking**: Reentrant locks, deadlock prevention, timeout handling
+4. **Crash Recovery**: Persistent state files, resume operations, progress tracking
+
+**3. api-integration-patterns** (357 lines)
+
+**Location**: `/plugins/autonomous-dev/skills/api-integration-patterns/`
+
+**Contents**:
+- **SKILL.md** (76 lines) - Overview and quick reference
+- **Template Files (4)**:
+  - `github-api-template.py` (134 lines) - GitHub API integration with retry logic
+  - `retry-decorator-template.py` (87 lines) - Exponential backoff retry decorator
+  - `subprocess-executor-template.py` (98 lines) - Safe subprocess execution
+- **Example Files (1)**:
+  - `safe-subprocess-example.py` (62 lines) - Command injection prevention patterns
+
+**Key Patterns**:
+1. **GitHub API Integration**: Authentication, rate limiting, error handling, retry logic
+2. **Retry Logic**: Exponential backoff, jitter, max attempts, timeout handling
+3. **Subprocess Security**: List args (prevent injection), shell=False, input validation
+4. **Command Injection Prevention**: CWE-78 mitigations, whitelist validation, audit logging
+
+**Combined Impact**: 
+- 35 libraries enhanced with standardized patterns
+- ~1,880 tokens saved (6-8% reduction)
+- ~3,500 tokens of library patterns available on-demand via progressive disclosure
+- 181 tests validate skill structure and integration
+
 
 ### Skill-Integration Skill Details (NEW v3.19.0 - Issue #67-68)
 

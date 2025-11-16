@@ -421,66 +421,39 @@ Identify which agents are missing and invoke them NOW before proceeding.
 
 ### STEP 5: Report Completion
 
-**AFTER** all 7 agents complete successfully, the workflow continues automatically.
+**AFTER** all 7 agents complete successfully, offer to commit and push changes.
 
-**IMPORTANT**: Git operations are OPTIONAL and consent-based via environment variables (disabled by default). If automation is disabled or prerequisites fail, feature is still successful (graceful degradation).
+**IMPORTANT**: This step is OPTIONAL and consent-based. If user declines or prerequisites fail, feature is still successful (graceful degradation).
 
-#### Automatic Git Operations (SubagentStop Hook)
+#### Check Prerequisites
 
-When quality-validator agent completes:
+Before offering git automation, verify:
 
-1. **SubagentStop hook triggers** `auto_git_workflow.py` (SubagentStop lifecycle)
-2. **Hook checks environment variables**:
-   - `AUTO_GIT_ENABLED`: Master switch (default: false)
-   - `AUTO_GIT_PUSH`: Enable push (default: false)
-   - `AUTO_GIT_PR`: Enable PR creation (default: false)
-3. **If disabled (default)**: Feature completes successfully, user commits manually
-4. **If enabled**:
-   - Invokes `auto_implement_git_integration.execute_step8_git_operations()`
-   - Calls commit-message-generator agent (creates conventional commit message)
-   - Stages changes, commits with agent message
-   - Optionally pushes to remote (if AUTO_GIT_PUSH=true)
-   - Optionally creates PR (if AUTO_GIT_PR=true with gh CLI)
-5. **Error handling**: If any prerequisite fails (git not available, config missing, merge conflicts), provides manual fallback instructions
+```python
+from git_operations import validate_git_repo, check_git_config
 
-#### Setup (Optional - For Automatic Git Operations)
+# Check git is available
+is_valid, error = validate_git_repo()
+if not is_valid:
+    # Log warning but continue
+    print(f"⚠️  Git automation unavailable: {error}")
+    print("✅ Feature complete! Commit manually when ready.")
+    # SKIP to Step 9
 
-To enable automatic git operations, set environment variables in `.env`:
-
-```bash
-# Master switch
-AUTO_GIT_ENABLED=true
-
-# Enable push to remote
-AUTO_GIT_PUSH=true
-
-# Enable PR creation (requires gh CLI)
-AUTO_GIT_PR=true
+# Check git config
+is_configured, error = check_git_config()
+if not is_configured:
+    # Log warning but continue
+    print(f"⚠️  Git config incomplete: {error}")
+    print("Set with: git config --global user.name 'Your Name'")
+    print("         git config --global user.email 'your@email.com'")
+    print("✅ Feature complete! Commit manually when ready.")
+    # SKIP to Step 9
 ```
 
-**Prerequisite validation** before automation executes:
-- git CLI is installed and in PATH
-- git configuration: user.name and user.email set
-- Repository is in valid state (not detached HEAD)
-- No merge conflicts
-- Working directory is clean (all changes staged)
+#### Offer Commit and Push (User Consent Required)
 
-**If prerequisites fail**, hook provides manual instructions:
-
-```
-⚠️  Git automation unavailable: [reason]
-
-Commit manually when ready:
-  git add .
-  git commit -m "feat: [feature name]"
-  git push
-```
-
-#### Manual Git Operations (Fallback If Automation Disabled or Failed)
-
-If AUTO_GIT_ENABLED=false (default) OR if automatic operations fail with prerequisite errors, ask user for consent:
-
-**Note**: Automatic operations are safer and recommended. This manual flow is a fallback only.
+If prerequisites passed, ask user for consent:
 
 ```
 ✅ Feature implementation complete!

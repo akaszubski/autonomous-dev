@@ -1,6 +1,6 @@
 # Performance Optimization
 
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-14
 **Related Issue**: [#46 - Multi-Phase Optimization](https://github.com/akaszubski/autonomous-dev/issues/46)
 
 This document tracks the performance optimization journey for the `/auto-implement` autonomous development workflow.
@@ -125,6 +125,106 @@ with PerformanceTimer("agent_execution", {"agent": "researcher"}):
 
 ---
 
+### Phase 8.5: Profiler Integration (COMPLETE)
+
+**Goal**: Integrate profiling analysis into workflow for real-time bottleneck detection
+
+**Implementation**:
+- New function: `analyze_performance_logs()` in `performance_profiler.py` (81 lines, 888 total lines)
+- **Comprehensive Analysis API**:
+  - Loads metrics from JSON log file
+  - Aggregates metrics by agent (min, max, avg, p95, count)
+  - Detects top 3 slowest agents automatically
+  - Returns structured metrics for downstream analysis
+- **Enhanced PerformanceTimer**:
+  - Added ISO 8601 timestamp with Z suffix for UTC compatibility
+  - Timestamp field included in JSON output
+  - Backward compatible with existing code
+- **Enhanced Metrics**:
+  - `calculate_aggregate_metrics()` now includes count field
+  - Improved docstrings with examples
+- **Path Validation**:
+  - Flexible `logs/` directory detection for cross-platform compatibility
+  - CWE-22 path traversal prevention
+
+**Features**:
+```python
+# Analyze performance logs with bottleneck detection
+from performance_profiler import analyze_performance_logs
+
+metrics = analyze_performance_logs()
+print(f"Slowest agent: {metrics['top_slowest_agents'][0]['agent_name']}")
+print(f"Average time: {metrics['researcher']['avg']:.2f}s")
+
+# Custom log file
+metrics = analyze_performance_logs(Path("/path/to/custom.json"))
+```
+
+**Integration**:
+- Python API for automated analysis
+- JSON output for parsing and reporting
+- Real-time bottleneck detection for Phase 9+ optimization
+
+**Results**:
+- **Test coverage**: 27/27 tests passing (100%)
+  - PerformanceTimer wrapping and measurement
+  - JSON metrics logging validation
+  - Aggregate metrics calculation
+  - Bottleneck detection
+  - Path traversal prevention (CWE-22)
+  - ISO 8601 timestamp format validation
+- **Documentation**: Comprehensive docstrings with examples, security notes, performance characteristics
+- **Infrastructure**: Foundation for Phase 9 model optimization and Phase 10 smart agent selection
+
+**Key Insight**: Real-time metrics enable informed optimization decisions
+
+---
+
+### Phase 9: Model Downgrade Strategy (INVESTIGATIVE - In Progress)
+
+**Goal**: Identify optimization opportunities through model cost analysis
+
+**Current Status**: 11/19 tests passing (58%) - Investigation phase
+
+**Investigation Areas**:
+1. **Researcher Agent**: Haiku model verified to be optimal
+   - Current: Haiku (switched in Phase 4)
+   - Analysis: Web search doesn't need Sonnet, no downgrade needed
+   - Test results: Baseline comparisons completed
+
+2. **Planner Agent**: Analyzing Sonnet requirements
+   - Current: Sonnet
+   - Analysis: Architecture design may benefit from Sonnet's advanced reasoning
+   - Investigation: Testing Opus downgrade feasibility
+
+3. **Other Agents**: Cost-benefit analysis pending
+   - Implementer: Sonnet (code generation requires quality)
+   - Test-Master: Sonnet (test design is complex)
+   - Other agents: Candidate identification in progress
+
+**Framework**:
+- Performance impact analysis infrastructure
+- Quality metrics collection system
+- Cost-benefit calculation module
+- Model substitution testing capability
+
+**Test File**: `tests/unit/performance/test_phase9_model_downgrade.py` (23,180 bytes)
+- Model candidate identification tests
+- Performance comparison tests
+- Quality impact assessment tests
+- Cost savings calculation tests
+- Regression detection tests
+
+**Estimated Impact** (pending completion):
+- Research phase: Identify 2-3 agents suitable for downgrade
+- Potential savings: $0.50-1.00 per feature (model cost reduction)
+- Quality impact: Must maintain 100% test pass rate
+- Timeline: Complete investigation by 2025-11-30
+
+**Key Insight**: Cost optimization requires data-driven model selection
+
+---
+
 ## Cumulative Results
 
 | Phase | Baseline (min) | Savings (min) | Improvement (%) |
@@ -204,6 +304,23 @@ python scripts/agent_tracker.py verify-parallel
 
 # Generate performance report
 python plugins/autonomous-dev/lib/performance_profiler.py --report
+
+# Analyze performance logs with bottleneck detection (Phase 8.5+)
+python -c "
+from pathlib import Path
+from plugins.autonomous_dev.lib.performance_profiler import analyze_performance_logs
+
+# Analyze default log file
+metrics = analyze_performance_logs()
+print('Per-agent metrics:')
+for agent, data in sorted(metrics.items()):
+    if agent != 'top_slowest_agents':
+        print(f'  {agent}: avg={data[\"avg\"]:.2f}s, p95={data[\"p95\"]:.2f}s, count={data[\"count\"]}')
+
+print('\nTop 3 slowest agents:')
+for i, agent in enumerate(metrics['top_slowest_agents'], 1):
+    print(f'  {i}. {agent[\"agent_name\"]}: {agent[\"avg_duration\"]:.2f}s avg')
+"
 ```
 
 ## Best Practices
