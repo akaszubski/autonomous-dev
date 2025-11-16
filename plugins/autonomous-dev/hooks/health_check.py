@@ -18,7 +18,7 @@ Usage:
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 # Add lib to path for error_messages module
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
@@ -457,6 +457,62 @@ class PluginHealthCheck:
 
         # Exit code based on overall status
         sys.exit(0 if self.results["overall"] == "HEALTHY" else 1)
+
+
+def run_health_check(project_dir: Path = None) -> Dict[str, Any]:
+    """Run health check and return results (for integration tests).
+
+    Args:
+        project_dir: Optional project directory (for testing)
+
+    Returns:
+        Dictionary with health check results including installation validation
+    """
+    # Import installation validator
+    try:
+        from plugins.autonomous_dev.lib.installation_validator import InstallationValidator
+        from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
+    except ImportError:
+        # Fallback for testing
+        InstallationValidator = None
+
+    # Run standard health check
+    checker = PluginHealthCheck(verbose=False)
+    agent_pass, agent_total = checker.validate_agents()
+    skill_pass, skill_total = checker.validate_skills()
+    hook_pass, hook_total = checker.validate_hooks()
+    cmd_pass, cmd_total = checker.validate_commands()
+
+    results = {
+        "agents": {"passed": agent_pass, "total": agent_total},
+        "hooks": {"passed": hook_pass, "total": hook_total},
+        "commands": {"passed": cmd_pass, "total": cmd_total},
+    }
+
+    # Add installation validation if available
+    if InstallationValidator and project_dir:
+        try:
+            # Find plugin source (marketplace location)
+            marketplace_dir = Path.home() / ".claude" / "plugins" / "marketplaces" / "autonomous-dev"
+            plugin_source = marketplace_dir / "plugins" / "autonomous-dev"
+
+            if plugin_source.exists():
+                dest_dir = project_dir / ".claude"
+                validator = InstallationValidator(plugin_source, dest_dir)
+                validation_result = validator.validate()
+
+                results["installation"] = {
+                    "status": validation_result.status,
+                    "coverage": validation_result.coverage,
+                    "missing_files": validation_result.missing_files,
+                    "total_expected": validation_result.total_expected,
+                    "total_found": validation_result.total_found,
+                }
+        except Exception:
+            # Installation validation failed, but don't block health check
+            pass
+
+    return results
 
 
 def main():

@@ -245,11 +245,13 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (21 Documented Libraries)
+### Libraries (26 Documented Libraries)
 
-21 reusable Python libraries for security, validation, automation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
+26 reusable Python libraries for security, validation, automation, installation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
-**Core Libraries** (15): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, github_issue_automation, batch_state_manager, github_issue_fetcher, math_utils
+**Core Libraries** (16): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, github_issue_automation, batch_state_manager, github_issue_fetcher, path_utils, validation
+
+**Installation Libraries** (4): file_discovery, copy_system, installation_validator, install_orchestrator
 
 **Brownfield Retrofit** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
 

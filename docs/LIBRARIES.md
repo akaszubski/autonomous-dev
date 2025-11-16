@@ -3,11 +3,11 @@
 **Last Updated**: 2025-11-17
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 22 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 26 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **22 shared libraries** organized into four categories:
+The autonomous-dev plugin includes **26 shared libraries** organized into five categories:
 
 ### Core Libraries (16)
 
@@ -28,18 +28,25 @@ The autonomous-dev plugin includes **22 shared libraries** organized into four c
 15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
 16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
 
+### Installation Libraries (4) - NEW in v3.29.0
+
+17. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
+18. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
+19. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
+20. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
+
 ### Utility Libraries (1)
 
-17. **math_utils.py** - Fibonacci calculator with multiple algorithms
+21. **math_utils.py** - Fibonacci calculator with multiple algorithms
 
 ### Brownfield Retrofit Libraries (6)
 
-18. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-19. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-20. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-21. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-22. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-23. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+22. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+23. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+24. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+25. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+26. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+27. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 ## Design Patterns
 
@@ -1223,7 +1230,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 
 ---
 
-## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
+## 14. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
 
 **Purpose**: State-based auto-clearing for /batch-implement command with persistent state management
 
@@ -1360,7 +1367,7 @@ class BatchState:
 
 ---
 
-## 14. github_issue_fetcher.py (462 lines, v3.24.0+)
+## 15. github_issue_fetcher.py (462 lines, v3.24.0+)
 
 **Purpose**: Fetch GitHub issue titles via gh CLI for /batch-implement --issues flag
 
@@ -1531,7 +1538,7 @@ except GitHubAPIError as e:
 
 ---
 
-## 15. path_utils.py (187 lines, v3.28.0+)
+## 16. path_utils.py (187 lines, v3.28.0+)
 
 **Purpose**: Dynamic PROJECT_ROOT detection and path resolution for tracking infrastructure
 
@@ -1645,7 +1652,7 @@ session_dir = get_session_dir()  # Works from any subdirectory
 
 ---
 
-## 16. validation.py (286 lines, v3.28.0+)
+## 17. validation.py (286 lines, v3.28.0+)
 
 **Purpose**: Tracking infrastructure security validation (input sanitization and path traversal prevention)
 
@@ -1767,6 +1774,364 @@ validate_message("msg\x00with\x01control")  # Control chars
 - See `security-patterns` skill for validation principles
 - See `library-design-patterns` skill for input validation design
 - See Issue #79 for security implications and threat model
+
+---
+
+## 18. file_discovery.py (310 lines, v3.29.0+)
+
+**Purpose**: Comprehensive file discovery with intelligent exclusion patterns for 100% coverage
+
+### Classes
+
+#### `DiscoveryResult`
+- **Purpose**: Result dataclass for file discovery operation
+- **Attributes**:
+  - `files` (List[Path]): List of discovered files (absolute paths)
+  - `count` (int): Total number of files discovered
+  - `excluded_count` (int): Number of files excluded
+  - `directories` (List[Path]): List of discovered directories
+
+### Key Methods
+
+#### `FileDiscovery.discover_all_files()`
+- **Purpose**: Recursively discover all files in plugin directory
+- **Returns**: `DiscoveryResult`
+- **Features**:
+  - Recursive directory traversal (finds all 201+ files)
+  - Intelligent exclusion patterns (cache, build artifacts, hidden files)
+  - Nested skill structure support (skills/[name].skill/docs/...)
+  - Performance optimized (patterns compiled, single pass)
+
+#### `FileDiscovery.discover_by_type(file_type)`
+- **Purpose**: Discover files matching specific type
+- **Parameters**: `file_type` (str): File type (e.g., "py", "md", "json")
+- **Returns**: `DiscoveryResult`
+
+#### `FileDiscovery.generate_manifest()`
+- **Purpose**: Generate installation manifest from discovered files
+- **Returns**: `dict` (manifest structure)
+- **Features**: Categorizes files (agents, commands, hooks, skills, lib, scripts, config, templates)
+
+#### `FileDiscovery.validate_against_manifest(manifest)`
+- **Purpose**: Compare discovered files vs manifest
+- **Returns**: `dict` with missing/extra files
+- **Features**: Detects file coverage gaps
+
+### Exclusion Patterns
+
+**Built-in patterns** (configurable):
+- Cache: `__pycache__`, `.pytest_cache`, `.eggs`, `*.egg-info`
+- Build artifacts: `*.pyc`, `*.pyo`, `*.pyd`
+- Version control: `.git`, `.gitignore`, `.gitattributes`
+- IDE: `.vscode`, `.idea`
+- Temp/backup: `*.tmp`, `*.bak`, `*.log`, `*~`, `*.swp`, `*.swo`
+- System: `.DS_Store`
+
+### Security
+- Path validation via security_utils
+- Symlink detection and handling
+- Safe recursive traversal (prevents infinite loops)
+
+### Test Coverage
+- 60+ unit tests (discovery, exclusions, nested structures, edge cases)
+- Integration tests with actual plugin directory
+
+### Used By
+- install_orchestrator.py for installation planning
+- copy_system.py for determining what to copy
+
+### Related
+- GitHub Issue #80 (Bootstrap overhaul - 100% file coverage)
+
+---
+
+## 19. copy_system.py (244 lines, v3.29.0+)
+
+**Purpose**: Structure-preserving file copying with permission handling
+
+### Classes
+
+#### `CopyError`
+- **Purpose**: Exception raised during copy operations
+
+#### `CopyResult`
+- **Purpose**: Result dataclass for copy operation
+- **Attributes**:
+  - `success` (bool): Whether copy succeeded
+  - `copied_count` (int): Number of files successfully copied
+  - `failed_count` (int): Number of files that failed
+  - `message` (str): Human-readable result
+  - `failed_files` (List[dict]): Details of failed copies
+
+### Key Methods
+
+#### `CopySystem.copy_all()`
+- **Purpose**: Copy all discovered files with structure preservation
+- **Returns**: `CopyResult`
+- **Features**:
+  - Directory structure preservation (lib/foo.py → .claude/lib/foo.py)
+  - Executable permissions for scripts (scripts/*.py get +x)
+  - Timestamp preservation
+  - Progress reporting with callbacks
+  - Error handling with optional continuation
+
+#### `CopySystem.copy_file(source, destination)`
+- **Purpose**: Copy single file with validation
+- **Parameters**:
+  - `source` (Path): Source file
+  - `destination` (Path): Destination file
+- **Returns**: `bool`
+- **Features**: Creates parent directories, validates permissions
+
+#### `CopySystem.set_executable_permission(file_path)`
+- **Purpose**: Set executable bit for scripts
+- **Parameters**: `file_path` (Path): File to make executable
+- **Security**: Only applies to allowed patterns (scripts/*.py, hooks/*.py)
+
+### Progress Callback
+
+#### `CopySystem.copy_all(progress_callback=callback)`
+- **Signature**: `callback(current: int, total: int, file_path: Path)`
+- **Purpose**: Real-time progress reporting during copy
+- **Example**: Display progress bar, log operations
+
+### Security
+- Path validation via security_utils
+- Destination path must be within allowed directories
+- Permission preservation (respects umask)
+- Rollback support (can recover from partial copies)
+
+### Error Handling
+- Per-file error handling (one failure doesn't block others)
+- Optional strict mode (fail on first error)
+- Detailed error information (source, destination, reason)
+
+### Test Coverage
+- 45+ unit tests (file copying, permissions, nested dirs, rollback, error cases)
+- Integration tests with real filesystem
+
+### Used By
+- install_orchestrator.py for file installation
+
+### Related
+- GitHub Issue #80 (Bootstrap overhaul - structure-preserving copy)
+
+---
+
+## 20. installation_validator.py (435 lines, v3.29.0+)
+
+**Purpose**: Ensures complete file coverage and detects installation issues
+
+### Classes
+
+#### `ValidationError`
+- **Purpose**: Exception raised when validation encounters critical error
+
+#### `ValidationResult`
+- **Purpose**: Result dataclass for validation operation
+- **Attributes**:
+  - `success` (bool): Whether validation passed
+  - `coverage_percent` (float): File coverage percentage (actual/expected*100)
+  - `actual_files` (int): Number of files actually installed
+  - `expected_files` (int): Number of files expected
+  - `missing_files` (List[str]): Files in source but not destination
+  - `extra_files` (List[str]): Files in destination but not source
+  - `message` (str): Human-readable summary
+
+### Key Methods
+
+#### `InstallationValidator.validate()`
+- **Purpose**: Validate complete installation
+- **Returns**: `ValidationResult`
+- **Features**:
+  - File coverage calculation (actual/expected * 100)
+  - Missing file detection (source files not in destination)
+  - Extra file detection (unexpected files in destination)
+  - Directory structure validation
+  - Detailed reporting
+
+#### `InstallationValidator.validate_coverage(min_percent)`
+- **Purpose**: Check if coverage meets minimum threshold
+- **Parameters**: `min_percent` (float): Minimum required coverage (e.g., 95.0)
+- **Returns**: `bool`
+- **Raises**: `ValidationError` if coverage below threshold
+
+#### `InstallationValidator.from_manifest(manifest_path, dest_dir)` (classmethod)
+- **Purpose**: Validate using installation manifest
+- **Parameters**:
+  - `manifest_path` (Path): Path to installation_manifest.json
+  - `dest_dir` (Path): Installation destination directory
+- **Returns**: `InstallationValidator` instance
+
+#### `InstallationValidator.generate_report(result)`
+- **Purpose**: Generate human-readable validation report
+- **Returns**: `str` (formatted report)
+- **Features**: Includes coverage percentage, missing files, remediation steps
+
+### Coverage Requirements
+
+**100% Coverage Baseline**:
+- All 201+ files in plugin directory expected
+- Current baseline: 76% coverage (152/201 files)
+- Goal: 95%+ coverage (190+ files)
+
+### Validation Levels
+
+1. **Critical**: Directory structure issues (lib/ missing, etc.)
+2. **High**: Key files missing (agents/*.md, commands/*.md)
+3. **Medium**: Optional enhancements missing (some lib files)
+4. **Low**: Metadata files missing (*.log, session files)
+
+### Security
+- Path validation via security_utils
+- File size limits on reading
+- Safe manifest parsing (JSON schema validation)
+
+### Test Coverage
+- 50+ unit tests (coverage calculation, missing file detection, manifest validation)
+- Integration tests with real installations
+
+### Used By
+- install_orchestrator.py for post-installation verification
+- /health-check command for installation integrity validation
+
+### Related
+- GitHub Issue #80 (Bootstrap overhaul - coverage validation)
+
+---
+
+## 21. install_orchestrator.py (495 lines, v3.29.0+)
+
+**Purpose**: Coordinates complete installation workflow (fresh install, upgrade, rollback)
+
+### Classes
+
+#### `InstallationType` (enum)
+- `FRESH`: New installation
+- `UPGRADE`: Update existing installation
+- `REPAIR`: Fix broken installation
+
+#### `InstallationResult`
+- **Purpose**: Result dataclass for installation operation
+- **Attributes**:
+  - `success` (bool): Whether installation succeeded
+  - `installation_type` (InstallationType): Type of installation performed
+  - `message` (str): Human-readable result
+  - `files_installed` (int): Number of files installed
+  - `coverage_percent` (float): File coverage percentage
+  - `backup_path` (Path|None): Path to backup (if created during upgrade)
+  - `rollback_performed` (bool): Whether rollback was executed
+  - `validation_result` (ValidationResult): Post-installation validation
+
+### Key Methods
+
+#### `InstallOrchestrator.fresh_install()`
+- **Purpose**: Perform fresh installation
+- **Returns**: `InstallationResult`
+- **Features**:
+  - Discovers all files
+  - Creates installation marker
+  - Validates coverage (expects 95%+)
+  - No backup needed (new installation)
+
+#### `InstallOrchestrator.upgrade_install()`
+- **Purpose**: Upgrade existing installation
+- **Returns**: `InstallationResult`
+- **Features**:
+  - Automatic backup before upgrade
+  - Preserves user settings and customizations
+  - Validates coverage after upgrade
+  - Rollback on validation failure
+
+#### `InstallOrchestrator.repair_install()`
+- **Purpose**: Repair broken installation
+- **Returns**: `InstallationResult`
+- **Features**:
+  - Detects missing files
+  - Recopies missing files
+  - Preserves existing correct files
+  - Full validation after repair
+
+#### `InstallOrchestrator.auto_detect(project_dir)` (classmethod)
+- **Purpose**: Auto-detect installation type and execute
+- **Parameters**: `project_dir` (Path): Project directory
+- **Returns**: `InstallationResult`
+- **Logic**:
+  - No .claude/: FRESH installation
+  - Has .claude/ + recent marker: UPGRADE
+  - Has .claude/ + old/missing files: REPAIR
+
+#### `InstallOrchestrator.rollback(backup_dir)`
+- **Purpose**: Restore from backup on failure
+- **Parameters**: `backup_dir` (Path): Path to backup directory
+- **Security**: Path validation, symlink blocking
+
+### Manifest System
+
+**Installation Manifest** (`config/installation_manifest.json`):
+- Lists all required directories
+- Defines exclusion patterns
+- Specifies executable patterns
+- Marks files to preserve on upgrade
+
+### Installation Marker
+
+**Purpose**: Track installation state and coverage
+
+**Location**: `.claude/.install_marker.json`
+
+**Content**:
+```json
+{
+  "version": "3.29.0",
+  "installed_at": "2025-11-17T10:30:00Z",
+  "installation_type": "fresh",
+  "coverage_percent": 98.5,
+  "files_installed": 201,
+  "marker_version": 1
+}
+```
+
+### Workflow Integration
+
+**Fresh Install**:
+1. Discover all files
+2. Copy with structure preservation
+3. Validate coverage (expect 95%+)
+4. Create installation marker
+5. Activate hooks (optional)
+
+**Upgrade Install**:
+1. Create timestamped backup
+2. Discover all files
+3. Copy with preservation of user files
+4. Validate coverage
+5. Update installation marker
+6. Rollback on failure
+
+**Repair Install**:
+1. Detect missing files (compare against manifest)
+2. Copy missing files only
+3. Validate coverage
+4. Update installation marker
+
+### Security
+- All paths validated via security_utils
+- Backup directory permissions 0o700 (user-only)
+- Atomic marker file writes (tempfile + rename)
+- Audit logging to security audit
+
+### Test Coverage
+- 60+ unit tests (fresh install, upgrade, repair, rollback scenarios)
+- Integration tests with complete workflows
+
+### Used By
+- `install.sh` bootstrap script
+- `/setup` command
+- `/health-check` command (validation)
+
+### Related
+- GitHub Issue #80 (Bootstrap overhaul - orchestrated installation)
 
 ---
 
