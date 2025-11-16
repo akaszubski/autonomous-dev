@@ -4,7 +4,7 @@
 
 Claude Code plugin that automates the full software development lifecycle with PROJECT.md-first validation: alignment → research → plan → test → implement → review → security → documentation.
 
-**Version**: v3.27.0 | **Status**: Production Ready | **Last Updated**: 2025-11-16
+**Version**: v3.8.0 | **Status**: Production Ready | **Last Updated**: 2025-11-16
 
 ---
 
@@ -65,31 +65,45 @@ No work happens until alignment is fixed. This saves hours of wasted implementat
 
 Verify: Open Claude Code and type `/version`
 
-### Installation (4 Steps)
+### Installation (3 Steps)
 
-**Step 1: Add plugin marketplace**
+**Step 1: Add plugin**
 ```bash
-# In Claude Code
+# In Claude Code, type these commands:
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
-**Step 2: Restart Claude Code**
-- **macOS**: `Cmd+Q`
-- **Windows/Linux**: `Ctrl+Q`
-- Wait 5 seconds, then reopen
+**Step 2: Restart Claude Code** (REQUIRED!)
+- **macOS**: Press `Cmd+Q`
+- **Windows/Linux**: Press `Ctrl+Q`
+- Wait 5 seconds, then reopen Claude Code
 
-**Step 3: Bootstrap your project**
+**Step 3: Verify installation**
 ```bash
-# In your project directory
+# In Claude Code, type:
+/auto-implement
+```
+You should see the command autocomplete.
+
+**Done!** All 20 commands are now available.
+
+---
+
+### Optional: Bootstrap Your Project
+
+If you want to use the plugin in a specific project directory, you can bootstrap it:
+
+```bash
+# In your project directory (terminal):
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-**Step 4: Restart Claude Code again**
-- `Cmd+Q` (Mac) or `Ctrl+Q` (Windows/Linux)
-- Reopen Claude Code
+This creates:
+- `.claude/PROJECT.md` - Strategic alignment file
+- `.claude/knowledge/` - Knowledge base (optional)
 
-**Done!** All commands are now available.
+**Note**: Bootstrapping is optional. Commands work without it, but PROJECT.md alignment validation requires a PROJECT.md file.
 
 ---
 
@@ -210,14 +224,26 @@ Instead of the full workflow, run individual agents:
 **When new version released:**
 
 ```bash
-# Option 1: One command (easiest)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-
-# Option 2: Built-in command
+# In Claude Code, type:
 /update-plugin
 ```
 
-Both update to latest version automatically.
+This will:
+- Check for latest version
+- Back up current version
+- Update the plugin
+- Prompt for Claude Code restart
+
+**Manual update** (if `/update-plugin` fails):
+```bash
+# In terminal:
+rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
+
+# Then in Claude Code:
+/plugin install autonomous-dev
+
+# Restart Claude Code (Cmd+Q or Ctrl+Q)
+```
 
 ---
 
@@ -261,7 +287,7 @@ Both update to latest version automatically.
 **20 AI Agents** - Specialized for each task
 **27 Skills** - Deep domain knowledge (progressive disclosure)
 **42 Hooks** - Automatic quality enforcement
-**35 Libraries** - Reusable Python utilities
+**21 Libraries** - Reusable Python utilities
 
 **Philosophy**: Automation > Reminders > Hope
 
