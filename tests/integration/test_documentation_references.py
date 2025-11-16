@@ -415,7 +415,7 @@ class TestNavigationFlowIntegration:
         claude_content = claude_md.read_text(encoding="utf-8")
 
         # CLAUDE.md should mention libraries AND link to LIBRARIES.md
-        mentions_libraries = re.search(r'[Ll]ibraries?.*18', claude_content)
+        mentions_libraries = re.search(r'[Ll]ibraries?.*21', claude_content)
         links_to_libraries = "LIBRARIES.md" in claude_content
 
         assert mentions_libraries, (

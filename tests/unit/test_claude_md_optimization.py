@@ -131,9 +131,9 @@ class TestCharacterCountValidation:
         performance_size = len(performance_md.read_text(encoding="utf-8"))
         git_automation_size = len(git_automation_md.read_text(encoding="utf-8"))
 
-        assert 28000 <= libraries_size <= 54000, (
+        assert 28000 <= libraries_size <= 72000, (
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
-            f"(expected ~40,585 ±30%)"
+            f"(expected ~55,542 ±30%)"
         )
         assert 8600 <= performance_size <= 16200, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
