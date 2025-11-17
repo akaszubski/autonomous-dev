@@ -108,8 +108,37 @@ python scripts/agent_tracker.py status
 
 ⚠️ **CHECKPOINT 1**: Call `verify_parallel_exploration()` to validate:
 
+NOTE: This checkpoint uses portable path detection (Issue #85) that works on any machine:
+- Attempts to use `path_utils.get_project_root()` if available
+- Falls back to walking directory tree until `.git` or `.claude` marker found
+- Works from any subdirectory in the project (not just from project root)
+- Same approach as tracking infrastructure (session_tracker, batch_state_manager)
+
 ```bash
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+python3 << 'EOF'
+import sys
+from pathlib import Path
+
+# Dynamically detect project root (works from any directory)
+try:
+    # Try using path_utils if available
+    sys.path.insert(0, str(Path(__file__).parent.resolve()))
+    from plugins.autonomous_dev.lib.path_utils import get_project_root
+    project_root = get_project_root()
+except ImportError:
+    # Fallback: Walk up until we find .git or .claude
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / ".git").exists() or (current / ".claude").exists():
+            project_root = current
+            break
+        current = current.parent
+    else:
+        raise FileNotFoundError("Could not find project root (.git or .claude marker)")
+
+# Add project root to sys.path so scripts/ can be imported
+sys.path.insert(0, str(project_root))
+
 from scripts.agent_tracker import AgentTracker
 tracker = AgentTracker()
 success = tracker.verify_parallel_exploration()
@@ -340,8 +369,37 @@ python scripts/agent_tracker.py status
 
 After all three validators (reviewer, security-auditor, doc-master) complete, verify parallel execution succeeded and check efficiency metrics:
 
+NOTE: This checkpoint uses the same portable path detection as CHECKPOINT 1 (Issue #85):
+- Attempts to use `path_utils.get_project_root()` if available
+- Falls back to walking directory tree until `.git` or `.claude` marker found
+- Works from any subdirectory in the project (not just from project root)
+- Consistent with tracking infrastructure and batch processing
+
 ```bash
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+python3 << 'EOF'
+import sys
+from pathlib import Path
+
+# Dynamically detect project root (works from any directory)
+try:
+    # Try using path_utils if available
+    sys.path.insert(0, str(Path(__file__).parent.resolve()))
+    from plugins.autonomous_dev.lib.path_utils import get_project_root
+    project_root = get_project_root()
+except ImportError:
+    # Fallback: Walk up until we find .git or .claude
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / ".git").exists() or (current / ".claude").exists():
+            project_root = current
+            break
+        current = current.parent
+    else:
+        raise FileNotFoundError("Could not find project root (.git or .claude marker)")
+
+# Add project root to sys.path so scripts/ can be imported
+sys.path.insert(0, str(project_root))
+
 from scripts.agent_tracker import AgentTracker
 tracker = AgentTracker()
 success = tracker.verify_parallel_validation()

@@ -1,3 +1,26 @@
+## [3.30.0] - 2025-11-17
+
+### Fixed
+- **Hardcoded Developer Paths in auto-implement.md** - Issue #85
+  - **Problem**: CHECKPOINT 1 and CHECKPOINT 4.1 contained hardcoded `/Users/akaszubski/Documents/GitHub/autonomous-dev` path
+  - **Impact**: `/auto-implement` workflow failed on non-developer machines (import errors for scripts)
+  - **Solution**: Both checkpoints now use dynamic path detection via `path_utils.get_project_root()`
+    - Attempts to import `path_utils.get_project_root()` for primary detection
+    - Falls back to walking up directory tree until `.git` or `.claude` marker found
+    - Works from any subdirectory in the project (not just root)
+  - **Files Changed**:
+    - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 362)
+  - **Testing**: Verified checkpoints work on non-developer machines during `/auto-implement` workflow
+  - **Backward Compatibility**: Existing workflows unaffected (uses same path detection as session/batch tracking)
+
+### Documentation
+- **[plugins/autonomous-dev/commands/auto-implement.md](plugins/autonomous-dev/commands/auto-implement.md)**:
+  - Added inline comment explaining portable path detection strategy
+  - Document clarifies why both CHECKPOINT 1 and CHECKPOINT 4.1 use identical path detection logic
+  - Reference to Issue #79 (path_utils library) for architectural context
+
+---
+
 ## [3.29.0] - 2025-11-17
 
 ### Added
