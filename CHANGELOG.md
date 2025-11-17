@@ -1,6 +1,44 @@
 ## [Unreleased]
 
 ### Fixed
+- **Context Clearing in /batch-implement** - Issue #88
+  - **Problem**: `/clear` is a conversational command that cannot be programmatically invoked (no SlashCommand API)
+  - **Previous Approach**: Attempted to invoke `/clear` directly via subprocess/heredoc (architectural limitation)
+  - **Solution**: Hybrid approach - detect threshold (150K tokens), pause batch, notify user, auto-resume
+  - **User Workflow**:
+    1. System processes features normally
+    2. At 150K tokens: `should_clear_context(state)` returns True
+    3. Batch pauses: `pause_batch_for_clear(state_file, state, tokens)` sets status="paused"
+    4. User notification displays batch ID and pause reason
+    5. User manually runs `/clear` (clears conversation)
+    6. User resumes: `/batch-implement --resume <batch-id>`
+    7. System resets token estimate, continues from next feature
+    8. Multiple pause/resume cycles supported for 50+ feature batches
+  - **Benefits**:
+    - Supports 50+ features without context bloat
+    - Graceful UX (clear instructions)
+    - No architectural hacks or workarounds
+    - State persists across clear events
+    - Backward compatible with existing batches
+  - **API Changes** (4 new functions in batch_state_manager.py):
+    - `should_clear_context(state: BatchState) -> bool`: Check if context >= 150K threshold
+    - `estimate_context_tokens(text: str) -> int`: Conservative token estimation (1 token ≈ 4 chars)
+    - `get_clear_notification_message(state: BatchState) -> str`: Format user-facing pause notification
+    - `pause_batch_for_clear(state_file, state, tokens_before_clear) -> None`: Pause batch with state persistence
+  - **State Extensions**:
+    - `context_token_estimate`: Tracks cumulative context tokens during batch
+    - `context_tokens_before_clear`: Records tokens before clear event
+    - `paused_at_feature_index`: Tracks pause points for recovery
+    - `auto_clear_events`: List of pause events with timestamps and token counts
+    - `auto_clear_count`: Counter for pause/resume cycles
+  - **Files Changed**:
+    - `plugins/autonomous-dev/lib/batch_state_manager.py`: Added 4 functions + state extensions
+    - `plugins/autonomous-dev/commands/batch-implement.md`: Updated workflow section with hybrid approach documentation
+  - **Testing**: 54 tests (34 unit + 20 integration)
+    - `tests/unit/test_batch_state_manager_clear_threshold.py`: Token threshold detection
+    - `tests/integration/test_batch_implement_context_clearing.py`: Full pause/resume workflow
+    - Backward compatibility: All existing batch state tests passing
+
 - **Checkpoint Verification Path Detection in /auto-implement** - Issue #82
   - **Problem**: CHECKPOINT 1 and CHECKPOINT 4.1 used `Path(__file__)` which causes NameError in heredoc context (stdin execution)
   - **Root Cause**: The `__file__` variable is not defined when Python code runs from stdin/heredoc, unlike normal file execution

@@ -183,10 +183,12 @@ class BatchState:
         auto_clear_events: List of auto-clear event records
         created_at: ISO 8601 timestamp of batch creation
         updated_at: ISO 8601 timestamp of last update
-        status: Batch status (in_progress, completed, failed)
+        status: Batch status (in_progress/running, paused, completed, failed)
         issue_numbers: Optional list of GitHub issue numbers (for --issues flag)
         source_type: Source type ("file" or "issues")
         state_file: Path to state file
+        context_tokens_before_clear: Token count before clear (for paused batches)
+        paused_at_feature_index: Feature index where batch was paused
     """
     batch_id: str
     features_file: str
@@ -204,6 +206,8 @@ class BatchState:
     issue_numbers: Optional[List[int]] = None
     source_type: str = "file"
     state_file: str = ""
+    context_tokens_before_clear: int = 0
+    paused_at_feature_index: int = -1
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -361,6 +365,8 @@ def create_batch_state(
         issue_numbers=issue_numbers,
         source_type=source_type,
         state_file=state_file or "",
+        context_tokens_before_clear=0,
+        paused_at_feature_index=-1,
     )
 
 
@@ -565,7 +571,7 @@ def load_batch_state(state_file: Path | str) -> BatchState:
             if missing_fields:
                 raise BatchStateError(f"Missing required fields: {missing_fields}")
 
-            # Backward compatibility: Add default values for new fields (Issue #77)
+            # Backward compatibility: Add default values for new fields (Issue #77, #88)
             # Old state files (pre-v3.23.0) don't have issue_numbers, source_type, state_file
             if 'issue_numbers' not in data:
                 data['issue_numbers'] = None
@@ -573,6 +579,13 @@ def load_batch_state(state_file: Path | str) -> BatchState:
                 data['source_type'] = 'file'
             if 'state_file' not in data:
                 data['state_file'] = str(state_file)
+            # Issue #88: Hybrid context clearing fields
+            if 'context_tokens_before_clear' not in data:
+                data['context_tokens_before_clear'] = 0
+            if 'paused_at_feature_index' not in data:
+                data['paused_at_feature_index'] = -1
+            # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
+            # (Both are valid active states)
 
             # Create BatchState from data
             state = BatchState(**data)
@@ -756,6 +769,165 @@ def should_auto_clear(state: BatchState) -> bool:
         ...     pass
     """
     return state.context_token_estimate >= CONTEXT_THRESHOLD
+
+
+def should_clear_context(state: BatchState) -> bool:
+    """Check if context should be cleared (hybrid approach).
+
+    This is the user-facing function for the hybrid clear approach.
+    Returns True when context reaches 150K token threshold.
+
+    Args:
+        state: Batch state
+
+    Returns:
+        True if context token estimate >= 150K tokens
+
+    Example:
+        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> if should_clear_context(state):
+        ...     # Pause batch and notify user
+        ...     pause_batch_for_clear(state_file, state, state.context_token_estimate)
+    """
+    return state.context_token_estimate >= CONTEXT_THRESHOLD
+
+
+def estimate_context_tokens(text: str) -> int:
+    """Estimate token count for text (conservative approach).
+
+    Uses a conservative estimate of 1 token ≈ 4 characters.
+    This is intentionally conservative to avoid underestimating.
+
+    Args:
+        text: Text to estimate tokens for
+
+    Returns:
+        Estimated token count (chars / 4)
+
+    Example:
+        >>> text = "Hello world! " * 100
+        >>> tokens = estimate_context_tokens(text)
+        >>> tokens
+        325
+    """
+    if not text:
+        return 0
+
+    # Conservative estimate: 1 token ≈ 4 characters
+    # This is intentionally conservative to trigger clearing before hitting actual limit
+    return len(text) // 4
+
+
+def get_clear_notification_message(state: BatchState) -> str:
+    """Format user notification message for context clearing.
+
+    Creates a clear, actionable message instructing the user to:
+    1. Manually run /clear
+    2. Resume batch with /batch-implement --resume <batch-id>
+
+    Args:
+        state: Batch state
+
+    Returns:
+        Formatted notification message (multi-line, readable)
+
+    Example:
+        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> message = get_clear_notification_message(state)
+        >>> print(message)
+        ========================================
+        CONTEXT LIMIT REACHED
+        ========================================
+        ...
+    """
+    # Calculate progress
+    progress_pct = int((state.current_index / state.total_features) * 100) if state.total_features > 0 else 0
+
+    # Format token count (e.g., "155,000" or "155K")
+    tokens_formatted = f"{state.context_token_estimate:,}"
+
+    message = f"""========================================
+CONTEXT LIMIT REACHED
+========================================
+
+Current context: {tokens_formatted} tokens (threshold: {CONTEXT_THRESHOLD:,})
+Progress: {state.current_index}/{state.total_features} features ({progress_pct}%)
+Batch ID: {state.batch_id}
+
+The batch has been paused to prevent context overflow.
+
+NEXT STEPS:
+1. Manually run: /clear
+2. Resume batch: /batch-implement --resume {state.batch_id}
+
+The batch will continue from feature {state.current_index + 1}/{state.total_features}.
+All completed features are saved and will be skipped on resume.
+
+========================================
+"""
+    return message
+
+
+def pause_batch_for_clear(
+    state_file: Path | str,
+    state: BatchState,
+    tokens_before_clear: int,
+) -> None:
+    """Pause batch and prepare for user-triggered context clear.
+
+    This function:
+    1. Sets status to "paused"
+    2. Records pause event in auto_clear_events
+    3. Increments auto_clear_count
+    4. Saves state to disk
+
+    After calling this function, the user must manually:
+    1. Run /clear
+    2. Run /batch-implement --resume <batch-id>
+
+    Args:
+        state_file: Path to state file
+        state: Batch state (modified in-place)
+        tokens_before_clear: Token count before clear
+
+    Raises:
+        BatchStateError: If save fails
+
+    Example:
+        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> if should_clear_context(state):
+        ...     pause_batch_for_clear(
+        ...         state_file=Path(".claude/batch_state.json"),
+        ...         state=state,
+        ...         tokens_before_clear=state.context_token_estimate
+        ...     )
+        ...     # Display notification
+        ...     print(get_clear_notification_message(state))
+    """
+    # Update state (in-place modification)
+    state.status = "paused"
+    state.context_tokens_before_clear = tokens_before_clear
+    state.paused_at_feature_index = state.current_index
+
+    # Record pause event
+    pause_event = {
+        "feature_index": state.current_index,
+        "context_tokens_before_clear": tokens_before_clear,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+    state.auto_clear_events.append(pause_event)
+    state.auto_clear_count += 1
+
+    # Persist to disk
+    save_batch_state(state_file, state)
+
+    # Audit log
+    audit_log("batch_pause_for_clear", "success", {
+        "batch_id": state.batch_id,
+        "feature_index": state.current_index,
+        "tokens_before": tokens_before_clear,
+        "pause_count": state.auto_clear_count,
+    })
 
 
 def get_next_pending_feature(state: BatchState) -> Optional[str]:

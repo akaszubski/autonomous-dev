@@ -2,27 +2,35 @@
 """
 Integration tests for state-based auto-clearing in /batch-implement workflow.
 
+UPDATED for Issue #88: Hybrid approach (user-triggered clearing, not programmatic).
+
 TDD Mode: These tests are written BEFORE implementation.
 All tests should FAIL initially (ImportError: module not found).
 
 Test Strategy:
-- Test end-to-end workflow: /batch-implement → auto-clear at 150K tokens → resume
-- Test multi-feature batches with multiple auto-clear events
+- Test end-to-end workflow: /batch-implement → detect threshold → pause → notify user
+- Test multi-feature batches with multiple pause/resume events
 - Test crash recovery and resume functionality
-- Test state integrity after auto-clear
+- Test state integrity after manual /clear
 - Test concurrent batch prevention
-- Test failed feature continuation after auto-clear
+- Test failed feature continuation after pause
 
-Workflow Sequence:
+Workflow Sequence (Updated for Issue #88):
 1. /batch-implement reads features.txt
 2. Process feature 1 → /auto-implement → track tokens
 3. Check context threshold (150K tokens)
-4. If threshold exceeded: /clear → record event → resume at next feature
+4. If threshold exceeded:
+   a. Display notification to user with resume command
+   b. Pause batch (status="paused")
+   c. User manually runs /clear
+   d. User runs /batch-implement --resume <batch-id>
+   e. Continue from current_index
 5. Repeat until all features processed
 6. Cleanup state file on completion
 
-Date: 2025-11-16
+Date: 2025-11-16 (Updated: 2025-11-17 for Issue #88)
 Feature: State-based auto-clearing for /batch-implement
+Issue: #88 (/batch-implement cannot execute /clear programmatically)
 Agent: test-master
 Phase: TDD Red (tests written BEFORE implementation)
 """
@@ -51,6 +59,9 @@ try:
         update_batch_progress,
         record_auto_clear_event,
         should_auto_clear,
+        should_clear_context,  # New for Issue #88
+        pause_batch_for_clear,  # New for Issue #88
+        get_clear_notification_message,  # New for Issue #88
         cleanup_batch_state,
         get_next_pending_feature,
         BatchStateError,
