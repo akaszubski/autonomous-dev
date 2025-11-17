@@ -17,10 +17,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-# Add plugin scripts to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "scripts"))
-
-from health_check import PluginHealthCheck
+# Import from hooks directory using proper module path
+from plugins.autonomous_dev.hooks.health_check import PluginHealthCheck
 
 
 class TestHealthCheck:

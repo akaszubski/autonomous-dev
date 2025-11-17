@@ -630,14 +630,29 @@ class TestNoOrphanedReferences:
         )
 
     def test_no_documentation_references_wrappers(self):
-        """Test that documentation does not reference removed wrappers."""
-        # WILL FAIL: Documentation may reference old wrappers
+        """Test that documentation does not reference removed wrappers.
+
+        Note: Allows historical references in:
+        - tests/ (TDD documentation)
+        - docs/tdd/ (TDD documentation)
+        - docs/sessions/ (historical logs)
+
+        But requires active documentation to be clean.
+        """
         orphaned_files = []
 
         # Check all markdown files
         for md_file in PROJECT_ROOT.rglob("*.md"):
-            # Skip this test file's directory
-            if "test_issue86" in str(md_file):
+            # Skip test directories and historical documentation
+            skip_patterns = [
+                "test_issue86",  # This test file
+                "tests/",  # TDD documentation (historical)
+                "docs/tdd/",  # TDD documentation (historical)
+                "docs/sessions/",  # Session logs (historical)
+                "CHANGELOG.md",  # Changelog documents file lifecycle (when added, when removed)
+            ]
+
+            if any(pattern in str(md_file) for pattern in skip_patterns):
                 continue
 
             try:
@@ -653,8 +668,9 @@ class TestNoOrphanedReferences:
         assert len(orphaned_files) == 0, (
             f"Found documentation references to removed wrappers:\n"
             f"Files: {orphaned_files}\n"
-            f"Expected: No documentation references to removed files\n"
-            f"Action: Update documentation to reference gh CLI\n"
+            f"Expected: No documentation references to removed files in active docs\n"
+            f"Note: Historical TDD docs and session logs are allowed to have references\n"
+            f"Action: Update active documentation to reference gh CLI\n"
             f"Issue: #86"
         )
 
