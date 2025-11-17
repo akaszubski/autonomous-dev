@@ -1,3 +1,33 @@
+## [Unreleased]
+
+### Fixed
+- **Checkpoint Verification Path Detection in /auto-implement** - Issue #82
+  - **Problem**: CHECKPOINT 1 and CHECKPOINT 4.1 used `Path(__file__)` which causes NameError in heredoc context (stdin execution)
+  - **Root Cause**: The `__file__` variable is not defined when Python code runs from stdin/heredoc, unlike normal file execution
+  - **Impact**: Checkpoints failed unexpectedly with NameError during `/auto-implement` workflow
+  - **Solution**: Removed `Path(__file__)` usage entirely, now uses only portable directory walking
+    - Walks up directory tree until `.git` or `.claude` marker found
+    - Works from any subdirectory in the project (not just root)
+    - Compatible with heredoc execution context
+    - Simpler code (no try/except complexity)
+  - **Files Changed**:
+    - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 (lines 119-133) and CHECKPOINT 4.1 (lines 376-390)
+  - **Performance**: No overhead change (same ~10-50ms path detection)
+  - **Backward Compatibility**: Fully backward compatible (same behavior, more reliable)
+  - **Testing**: 23 tests added (22 new + 1 regression test)
+    - `tests/integration/test_checkpoint_heredoc_execution.py`: Core heredoc execution tests
+    - `tests/integration/test_auto_implement_checkpoint_portability.py`: Extended with regression test
+
+### Documentation
+- **[plugins/autonomous-dev/commands/auto-implement.md](plugins/autonomous-dev/commands/auto-implement.md)**:
+  - Updated CHECKPOINT 1 notes to explain portable path detection works from heredoc context
+  - Updated CHECKPOINT 4.1 notes to clarify same logic as CHECKPOINT 1
+  - Improved error message for clearer debugging when project root not found
+  - Added comment: "Compatible with heredoc execution context (avoids `__file__` variable)"
+  - Removed mention of `path_utils.get_project_root()` (not needed without `Path(__file__)`)
+
+---
+
 ## [3.30.0] - 2025-11-17
 
 ### Fixed

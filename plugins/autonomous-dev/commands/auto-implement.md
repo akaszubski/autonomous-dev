@@ -109,9 +109,9 @@ python scripts/agent_tracker.py status
 ⚠️ **CHECKPOINT 1**: Call `verify_parallel_exploration()` to validate:
 
 NOTE: This checkpoint uses portable path detection (Issue #85) that works on any machine:
-- Attempts to use `path_utils.get_project_root()` if available
-- Falls back to walking directory tree until `.git` or `.claude` marker found
+- Walks directory tree upward until `.git` or `.claude` marker found
 - Works from any subdirectory in the project (not just from project root)
+- Compatible with heredoc execution context (avoids `__file__` variable)
 - Same approach as tracking infrastructure (session_tracker, batch_state_manager)
 
 ```bash
@@ -119,22 +119,18 @@ python3 << 'EOF'
 import sys
 from pathlib import Path
 
-# Dynamically detect project root (works from any directory)
-try:
-    # Try using path_utils if available
-    sys.path.insert(0, str(Path(__file__).parent.resolve()))
-    from plugins.autonomous_dev.lib.path_utils import get_project_root
-    project_root = get_project_root()
-except ImportError:
-    # Fallback: Walk up until we find .git or .claude
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".git").exists() or (current / ".claude").exists():
-            project_root = current
-            break
-        current = current.parent
-    else:
-        raise FileNotFoundError("Could not find project root (.git or .claude marker)")
+# Portable project root detection (works from any directory)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        project_root = current
+        break
+    current = current.parent
+else:
+    raise FileNotFoundError(
+        "Could not find project root. Expected .git or .claude directory marker.\n"
+        "Make sure you are running this command from within the repository."
+    )
 
 # Add project root to sys.path so scripts/ can be imported
 sys.path.insert(0, str(project_root))
@@ -370,9 +366,9 @@ python scripts/agent_tracker.py status
 After all three validators (reviewer, security-auditor, doc-master) complete, verify parallel execution succeeded and check efficiency metrics:
 
 NOTE: This checkpoint uses the same portable path detection as CHECKPOINT 1 (Issue #85):
-- Attempts to use `path_utils.get_project_root()` if available
-- Falls back to walking directory tree until `.git` or `.claude` marker found
+- Walks directory tree upward until `.git` or `.claude` marker found
 - Works from any subdirectory in the project (not just from project root)
+- Compatible with heredoc execution context (avoids `__file__` variable)
 - Consistent with tracking infrastructure and batch processing
 
 ```bash
@@ -380,22 +376,18 @@ python3 << 'EOF'
 import sys
 from pathlib import Path
 
-# Dynamically detect project root (works from any directory)
-try:
-    # Try using path_utils if available
-    sys.path.insert(0, str(Path(__file__).parent.resolve()))
-    from plugins.autonomous_dev.lib.path_utils import get_project_root
-    project_root = get_project_root()
-except ImportError:
-    # Fallback: Walk up until we find .git or .claude
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".git").exists() or (current / ".claude").exists():
-            project_root = current
-            break
-        current = current.parent
-    else:
-        raise FileNotFoundError("Could not find project root (.git or .claude marker)")
+# Portable project root detection (works from any directory)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        project_root = current
+        break
+    current = current.parent
+else:
+    raise FileNotFoundError(
+        "Could not find project root. Expected .git or .claude directory marker.\n"
+        "Make sure you are running this command from within the repository."
+    )
 
 # Add project root to sys.path so scripts/ can be imported
 sys.path.insert(0, str(project_root))

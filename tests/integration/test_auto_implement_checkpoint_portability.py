@@ -1027,6 +1027,92 @@ class TestRegressionPrevention:
                 f"Checkpoint {i+1} missing path_utils import or fallback logic"
             )
 
+    def test_checkpoint_heredocs_do_not_use_file_variable(self):
+        """REGRESSION TEST: Prevent Path(__file__) from being reintroduced.
+
+        Issue #82: Path(__file__) causes NameError when code runs from stdin/heredoc.
+        This test ensures we never reintroduce this bug.
+
+        Arrange:
+        - Read auto-implement.md
+        - Find CHECKPOINT sections
+
+        Act:
+        - Search for __file__ usage in heredocs
+
+        Assert:
+        - No heredoc contains Path(__file__)
+        - No heredoc contains str(__file__)
+        - No heredoc contains __file__.parent
+
+        TDD: This test should FAIL initially (Path(__file__) still present).
+        """
+        auto_implement = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        if not auto_implement.exists():
+            pytest.skip("auto-implement.md not found (expected during TDD)")
+
+        content = auto_implement.read_text()
+
+        # Find checkpoint sections (they contain EOF heredocs)
+        checkpoint_sections = []
+        lines = content.split("\n")
+        in_heredoc = False
+        current_heredoc = []
+        heredoc_line_start = 0
+
+        for line_num, line in enumerate(lines, 1):
+            if "python3 << 'EOF'" in line:
+                in_heredoc = True
+                current_heredoc = []
+                heredoc_line_start = line_num
+            elif in_heredoc:
+                if line.strip() == "EOF":
+                    in_heredoc = False
+                    checkpoint_sections.append({
+                        "code": "\n".join(current_heredoc),
+                        "start_line": heredoc_line_start,
+                        "end_line": line_num
+                    })
+                else:
+                    current_heredoc.append(line)
+
+        # Check each checkpoint does NOT use __file__
+        forbidden_patterns = [
+            "Path(__file__)",
+            "str(__file__)",
+            "__file__.parent",
+            "from __file__",
+        ]
+
+        violations = []
+        for i, section in enumerate(checkpoint_sections, 1):
+            code = section["code"]
+            for pattern in forbidden_patterns:
+                if pattern in code:
+                    # Find the exact line
+                    for line_offset, line in enumerate(code.split("\n")):
+                        if pattern in line and not line.strip().startswith("#"):
+                            line_num = section["start_line"] + line_offset + 1
+                            violations.append(
+                                f"Checkpoint {i} (line {line_num}): {line.strip()}"
+                            )
+
+        # Note: This WILL FAIL initially (TDD red phase)
+        # It should PASS after Path(__file__) is removed
+        assert len(violations) == 0, (
+            f"Found Path(__file__) usage in checkpoint heredocs (Issue #82):\n"
+            f"{chr(10).join(violations)}\n\n"
+            f"PROBLEM: Path(__file__) causes NameError when code runs from stdin/heredoc\n"
+            f"because __file__ is not defined in heredoc context.\n\n"
+            f"SOLUTION: Use directory walking instead:\n"
+            f"  current = Path.cwd()\n"
+            f"  while current != current.parent:\n"
+            f"      if (current / '.git').exists() or (current / '.claude').exists():\n"
+            f"          project_root = current\n"
+            f"          break\n"
+        )
+
 
 # ============================================================================
 # SUMMARY
