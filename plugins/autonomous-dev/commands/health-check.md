@@ -179,5 +179,5 @@ Action: Reinstall plugin with /plugin uninstall autonomous-dev && /plugin instal
 **Invoke the health check script to validate plugin component integrity.**
 
 ```bash
-python "$(dirname "$0")/../scripts/health_check.py"
+python "$(dirname "$0")/../hooks/health_check.py"
 ```

@@ -319,14 +319,15 @@ class PluginUpdater:
         """Perform plugin update with backup and rollback.
 
         Complete update workflow:
-        1. Check for updates (version comparison)
-        2. Skip if already up-to-date
-        3. Create backup (if auto_backup=True)
-        4. Perform sync via sync_dispatcher
-        5. Verify update success
-        6. Activate hooks (if activate_hooks=True and sync successful)
-        7. Rollback on failure
-        8. Cleanup backup on success
+        1. Pre-install cleanup (remove .claude/lib/ duplicates)
+        2. Check for updates (version comparison)
+        3. Skip if already up-to-date
+        4. Create backup (if auto_backup=True)
+        5. Perform sync via sync_dispatcher
+        6. Verify update success
+        7. Activate hooks (if activate_hooks=True and sync successful)
+        8. Rollback on failure
+        9. Cleanup backup on success
 
         Args:
             auto_backup: Whether to create backup before update (default: True)
@@ -341,17 +342,34 @@ class PluginUpdater:
             >>> result = updater.update()
             >>> print(result.summary)
         """
+        from plugins.autonomous_dev.lib.orphan_file_cleaner import OrphanFileCleaner
+
         backup_path = None
         old_version = None
         new_version = None
 
         try:
-            # Step 1: Check for updates
+            # Step 1: Pre-install cleanup (remove duplicate libraries)
+            cleaner = OrphanFileCleaner(project_root=self.project_root)
+            cleanup_result = cleaner.pre_install_cleanup()
+
+            if not cleanup_result.success:
+                # Log warning but continue update
+                audit_log(
+                    "plugin_updater",
+                    "cleanup_warning",
+                    {
+                        "operation": "update",
+                        "cleanup_error": cleanup_result.error_message,
+                    },
+                )
+
+            # Step 2: Check for updates
             comparison = self.check_for_updates()
             old_version = comparison.project_version
             expected_version = comparison.marketplace_version
 
-            # Step 2: Skip if already up-to-date
+            # Step 3: Skip if already up-to-date
             if comparison.status == VersionComparison.UP_TO_DATE:
                 return UpdateResult(
                     success=True,
@@ -364,11 +382,11 @@ class PluginUpdater:
                     details={},
                 )
 
-            # Step 3: Create backup (if enabled)
+            # Step 4: Create backup (if enabled)
             if auto_backup:
                 backup_path = self._create_backup()
 
-            # Step 4: Perform sync via sync_dispatcher
+            # Step 5: Perform sync via sync_dispatcher
             # Find marketplace plugins file
             marketplace_file = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 

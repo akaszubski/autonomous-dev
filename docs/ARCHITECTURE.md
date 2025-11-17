@@ -101,9 +101,9 @@ autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent
 
 ## Libraries: Reusable Python Utilities
 
-**19 shared libraries** for security, validation, automation:
+**25 shared libraries** for security, validation, automation, installation, and brownfield retrofit:
 
-**Core Libraries** (12):
+**Core Libraries** (11):
 1. security_utils.py - Security validation and audit logging
 2. project_md_updater.py - Atomic PROJECT.md updates
 3. version_detector.py - Semantic version comparison
@@ -115,15 +115,27 @@ autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent
 9. hook_activator.py - Automatic hook activation
 10. validate_documentation_parity.py - Documentation consistency
 11. auto_implement_git_integration.py - Automatic git operations
-12. github_issue_automation.py - GitHub issue creation
+
+**Additional Core Libraries** (5):
+12. batch_state_manager.py - State-based auto-clearing for /batch-implement
+13. github_issue_fetcher.py - GitHub issue fetching via gh CLI
+14. path_utils.py - Dynamic PROJECT_ROOT detection and path resolution
+15. validation.py - Tracking infrastructure security validation
+16. agent_invoker.py - Subagent invocation and management
+
+**Installation Libraries** (4) - NEW in v3.29.0:
+17. file_discovery.py - Comprehensive file discovery with exclusion patterns
+18. copy_system.py - Structure-preserving file copying with permission handling
+19. installation_validator.py - Coverage validation and missing file detection
+20. install_orchestrator.py - Coordinates complete installation workflows
 
 **Brownfield Retrofit Libraries** (6):
-13. brownfield_retrofit.py - Phase 0: Project analysis
-14. codebase_analyzer.py - Phase 1: Deep codebase analysis
-15. alignment_assessor.py - Phase 2: Gap assessment
-16. migration_planner.py - Phase 3: Migration planning
-17. retrofit_executor.py - Phase 4: Step-by-step execution
-18. retrofit_verifier.py - Phase 5: Verification
+21. brownfield_retrofit.py - Phase 0: Project analysis
+22. codebase_analyzer.py - Phase 1: Deep codebase analysis
+23. alignment_assessor.py - Phase 2: Gap assessment
+24. migration_planner.py - Phase 3: Migration planning
+25. retrofit_executor.py - Phase 4: Step-by-step execution
+26. retrofit_verifier.py - Phase 5: Verification
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist) for graceful error recovery.
 

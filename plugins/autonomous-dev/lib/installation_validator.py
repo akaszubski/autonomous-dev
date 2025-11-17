@@ -321,6 +321,71 @@ class InstallationValidator:
         missing = expected_set - actual_set
         return sorted(list(missing))
 
+    def validate_no_duplicate_libs(self) -> List[str]:
+        """Validate that no duplicate libraries exist in .claude/lib/.
+
+        Checks for Python files in .claude/lib/ directory that would conflict
+        with libraries in plugins/autonomous-dev/lib/. Returns warning messages
+        with cleanup instructions if duplicates are found.
+
+        Returns:
+            List of warning messages (empty if no duplicates found)
+
+        Example:
+            >>> validator = InstallationValidator(source_dir, dest_dir)
+            >>> warnings = validator.validate_no_duplicate_libs()
+            >>> if warnings:
+            ...     for warning in warnings:
+            ...         print(warning)
+        """
+        from plugins.autonomous_dev.lib.orphan_file_cleaner import OrphanFileCleaner
+
+        warnings = []
+
+        # Use OrphanFileCleaner to detect duplicate libraries
+        try:
+            # Get project root (parent of .claude directory)
+            project_root = self.dest_dir.parent if self.dest_dir.name == ".claude" else self.dest_dir
+
+            cleaner = OrphanFileCleaner(project_root=project_root)
+            duplicates = cleaner.find_duplicate_libs()
+
+            if duplicates:
+                # Generate warning with cleanup instructions
+                count = len(duplicates)
+                warning = (
+                    f"Found {count} duplicate library file{'s' if count != 1 else ''} in .claude/lib/. "
+                    f"These files conflict with plugins.autonomous_dev.lib and should be removed. "
+                    f"To fix: rm -rf .claude/lib/ or use the pre_install_cleanup() method. "
+                    f"All libraries should be imported from plugins.autonomous_dev.lib."
+                )
+                warnings.append(warning)
+
+                # Audit log the detection
+                audit_log(
+                    "installation_validator",
+                    "duplicate_libs_detected",
+                    {
+                        "operation": "validate_no_duplicate_libs",
+                        "duplicate_count": count,
+                        "duplicates": [str(d) for d in duplicates[:10]],  # First 10
+                    },
+                )
+
+        except Exception as e:
+            # If detection fails, return warning about the failure
+            warnings.append(f"Failed to check for duplicate libraries: {e}")
+            audit_log(
+                "installation_validator",
+                "validation_error",
+                {
+                    "operation": "validate_no_duplicate_libs",
+                    "error": str(e),
+                },
+            )
+
+        return warnings
+
     def validate_structure(self) -> bool:
         """Validate directory structure.
 

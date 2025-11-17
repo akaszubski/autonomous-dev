@@ -7,9 +7,9 @@ This document provides detailed API documentation for all 26 shared libraries in
 
 ## Overview
 
-The autonomous-dev plugin includes **26 shared libraries** organized into five categories:
+The autonomous-dev plugin includes **26 shared libraries** organized into six categories:
 
-### Core Libraries (16)
+### Core Libraries (15)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -22,11 +22,10 @@ The autonomous-dev plugin includes **26 shared libraries** organized into five c
 9. **hook_activator.py** - Automatic hook activation during updates
 10. **validate_documentation_parity.py** - Documentation consistency validation
 11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
-12. **github_issue_automation.py** - GitHub issue creation with research
-13. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
-14. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
-15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
-16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
+12. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
+13. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
+14. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
+15. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
@@ -241,66 +240,148 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 4. orphan_file_cleaner.py (514 lines, v3.7.1+)
+## 4. orphan_file_cleaner.py (778 lines, v3.7.1+ → v3.29.1)
 
-**Purpose**: Orphaned file detection and cleanup
+**Purpose**: Orphaned file detection and cleanup + duplicate library prevention
+
+**New in v3.29.1 (Issue #81)**: Duplicate library detection and pre-install cleanup to prevent `.claude/lib/` import conflicts
 
 ### Classes
 
 #### `OrphanFile`
 - **Purpose**: Representation of an orphaned file
 - **Attributes**:
-  - `file_path` (Path): Path to orphaned file
-  - `file_type` (str): Type of file ("command", "hook", "agent")
-  - `reason` (str): Reason why file is orphaned
+  - `path` (Path): Full path to orphaned file
+  - `category` (str): File category ("command", "hook", "agent")
+  - `is_orphan` (bool): Whether file is confirmed orphan (always True)
+  - `reason` (str): Human-readable reason why file is orphaned
 
 #### `CleanupResult`
 - **Purpose**: Result dataclass for cleanup operation
 - **Attributes**:
   - `orphans_detected` (int): Number of orphans detected
   - `orphans_deleted` (int): Number of orphans deleted
-  - `orphans_failed` (int): Number of orphans that failed to delete
-  - `orphan_files` (List[OrphanFile]): List of orphan files
-  - `message` (str): Human-readable summary
+  - `dry_run` (bool): Whether this was a dry-run (no deletions)
+  - `errors` (int): Number of errors encountered
+  - `orphans` (List[OrphanFile]): List of detected orphan files
+  - `success` (bool): Whether cleanup succeeded
+  - `error_message` (str): Optional error message for failed operations
+  - `files_removed` (int): Alias for orphans_deleted (for pre-install cleanup compatibility)
+- **Properties**:
+  - `summary` (str): Auto-generated human-readable summary of cleanup result
 
 ### Functions
 
 #### `detect_orphans()` - Detect orphaned files
 
-**Signature**: `detect_orphans(project_root)`
+**Signature**: `detect_orphans(project_root, plugin_name="autonomous-dev")`
 
 - **Purpose**: Detect orphaned files in commands/hooks/agents directories
-- **Parameters**: `project_root` (str|Path): Project root directory
+- **Parameters**:
+  - `project_root` (str|Path): Project root directory
+  - `plugin_name` (str): Plugin name (default: "autonomous-dev")
 - **Returns**: `List[OrphanFile]`
 - **Features**: Detects files not registered in plugin.json
 
-#### `cleanup_orphans(project_root, dry_run, confirm)`
+#### `cleanup_orphans(project_root, dry_run, confirm, plugin_name)`
 - **Purpose**: Clean up orphaned files with mode control
 - **Parameters**:
   - `project_root` (str|Path): Project root directory
-  - `dry_run` (bool): If True, report only (don't delete)
-  - `confirm` (bool): If True, ask user before each deletion
+  - `dry_run` (bool): If True, report only (don't delete), default: True
+  - `confirm` (bool): If True, ask user before each deletion, default: False
+  - `plugin_name` (str): Plugin name (default: "autonomous-dev")
 - **Returns**: `CleanupResult`
 - **Modes**:
   - `dry_run=True`: Report orphans without deleting
   - `confirm=True`: Ask user to confirm each deletion
-  - Auto mode: Delete all orphans without prompts
+  - `dry_run=False, confirm=False`: Auto mode - delete all orphans without prompts
+
+#### `OrphanFileCleaner.find_duplicate_libs()` - NEW in v3.29.1
+
+**Signature**: `find_duplicate_libs() -> List[Path]`
+
+- **Purpose**: Detect Python files in `.claude/lib/` directory (duplicate library location)
+- **Details**:
+  - Identifies duplicate libraries in legacy `.claude/lib/` location
+  - These files conflict with canonical location: `plugins/autonomous-dev/lib/`
+  - Prevents import conflicts (CWE-627) when installing/updating plugin
+- **Returns**: List of Path objects for duplicate library files found
+  - Excludes `__init__.py` and `__pycache__` directories
+  - Includes files in nested subdirectories
+  - Returns empty list if `.claude/lib/` doesn't exist
+- **Security**: All paths validated via `security_utils.validate_path()`
+- **Example**:
+  ```python
+  cleaner = OrphanFileCleaner(project_root)
+  duplicates = cleaner.find_duplicate_libs()
+  print(f"Found {len(duplicates)} duplicate libraries")
+  ```
+
+#### `OrphanFileCleaner.pre_install_cleanup()` - NEW in v3.29.1
+
+**Signature**: `pre_install_cleanup() -> CleanupResult`
+
+- **Purpose**: Remove `.claude/lib/` directory before installation to prevent duplicates
+- **Details**:
+  - Performs pre-installation cleanup by removing legacy `.claude/lib/` directory
+  - Prevents import conflicts when installing or updating plugin
+  - Idempotent: Safe to call even if `.claude/lib/` doesn't exist
+- **Returns**: `CleanupResult` with:
+  - `success` (bool): Whether cleanup succeeded
+  - `files_removed` (int): Count of duplicate files removed
+  - `error_message` (str): Error description if cleanup failed
+- **Behavior**:
+  - Returns success immediately if `.claude/lib/` doesn't exist (idempotent)
+  - Handles symlinks safely: removes symlink itself, preserves target (CWE-59)
+  - Logs all operations to audit trail with timestamp and file count
+  - Gracefully handles permission errors with clear error messages
+  - Validates all paths before removal (CWE-22 prevention)
+- **Integration**: Called by:
+  - `install_orchestrator.py` (fresh install and upgrade)
+  - `plugin_updater.py` (plugin update workflow)
+- **Example**:
+  ```python
+  cleaner = OrphanFileCleaner(project_root)
+  result = cleaner.pre_install_cleanup()
+  if result.success:
+      print(f"Removed {result.files_removed} duplicate files")
+  else:
+      print(f"Error: {result.error_message}")
+  ```
 
 ### Security
-- Path validation via security_utils
-- Audit logging to `logs/orphan_cleanup_audit.log` (JSON format)
+- Path validation via security_utils.validate_path()
+  - Prevents path traversal attacks (CWE-22)
+  - Blocks symlink-based attacks (CWE-59)
+  - Rejects path traversal patterns (.., absolute system paths)
+- Audit logging:
+  - Global security audit log (security_utils.audit_log)
+  - Project-specific audit log: `logs/orphan_cleanup_audit.log` (JSON format)
+  - All file operations logged with timestamp, user, operation type
 
 ### Error Handling
 - Graceful per-file failures (one orphan failure doesn't block others)
+- Permission errors reported clearly without aborting cleanup
+- Symlinks handled specially to prevent CWE-59 attacks
 
 ### Test Coverage
-- 22 unit tests (detection, cleanup, permissions, dry-run)
+- 62 unit tests (v3.29.1 additions):
+  - Detection: 6 tests (empty dir, missing dir, nested files, etc.)
+  - Cleanup: 6 tests (idempotent, symlinks, readonly files, etc.)
+  - Integration: 10+ tests (install_orchestrator, plugin_updater)
+  - Edge cases: 8 tests (large directories, permission errors, etc.)
+- Original 22 tests for orphan detection/cleanup maintained
+- Total coverage: 62+ tests
 
 ### Used By
 - sync_dispatcher.py for marketplace sync cleanup
+- install_orchestrator.py for fresh install and upgrade (pre_install_cleanup)
+- plugin_updater.py for plugin update workflow (pre_install_cleanup)
+- installation_validator.py for validation warnings (find_duplicate_libs)
 
 ### Related
-- GitHub Issue #50
+- GitHub Issue #50 (Fix Marketplace Update UX)
+- GitHub Issue #81 (Prevent .claude/lib/ Duplicate Library Imports) - NEW
 
 ---
 
@@ -860,97 +941,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 12. github_issue_automation.py (645 lines, v3.10.0+)
-
-**Purpose**: Automated GitHub issue creation with research integration
-
-### Classes
-
-#### `IssueCreationError` (base exception)
-- Base class for issue creation errors
-
-#### `GhCliError` (IssueCreationError)
-- Raised when gh CLI operations fail
-
-#### `ValidationError` (IssueCreationError)
-- Raised when input validation fails
-
-#### `IssueCreationResult`
-- **Purpose**: Result dataclass for issue creation
-- **Attributes**:
-  - `success` (bool): Whether issue was created
-  - `issue_number` (int|None): Issue number (if created)
-  - `issue_url` (str|None): Issue URL (if created)
-  - `error` (str|None): Error message (if failed)
-  - `details` (dict): Additional details
-
-### Key Functions
-
-#### `create_github_issue(title, body, labels, assignee, project_root)`
-- **Purpose**: Main entry point orchestrating complete workflow
-- **Parameters**:
-  - `title` (str): Issue title
-  - `body` (str): Issue body (generated by issue-creator agent)
-  - `labels` (List[str]): Optional labels
-  - `assignee` (str|None): Optional assignee
-  - `project_root` (str|Path): Project root directory
-- **Returns**: `IssueCreationResult`
-
-#### `validate_issue_title(title)`
-- **Purpose**: Validate title for security and format
-- **Security**: CWE-78, CWE-117, CWE-20
-
-#### `validate_issue_body(body)`
-- **Purpose**: Validate body length and content
-- **Limit**: Max 65,000 characters (GitHub limit)
-
-#### `check_gh_cli_installed()`, `check_gh_cli_authenticated()`
-- **Purpose**: Verify gh CLI prerequisites
-
-#### `create_issue_via_gh_cli(title, body, labels, assignee)`
-- **Purpose**: Execute gh issue create command
-- **Security**: Subprocess safety, command injection prevention
-
-#### `parse_issue_response(response)`
-- **Purpose**: Parse gh CLI JSON output
-
-#### `format_fallback_instructions(title, body, labels, assignee)`
-- **Purpose**: Generate manual fallback steps
-
-### Features
-- Research integration: Accepts issue body generated by issue-creator agent
-- Label support: Optional labels from repository defaults or custom
-- Assignee support: Optional assignee assignment
-- Error handling: Non-blocking with detailed fallback instructions
-- Timeout handling: Network timeout recovery
-- JSON output: Machine-readable result format
-
-### Security
-- Input validation (CWE-78, CWE-117, CWE-20)
-- Subprocess safety
-- Audit logging
-
-### Integration
-- Called by create_issue.py CLI script
-- /create-issue command STEP 3
-
-### Error Handling
-- Graceful with manual fallback instructions
-
-### Used By
-- create_issue.py script
-- /create-issue command
-
-### Related
-- GitHub Issue #58 (GitHub issue automation)
-
----
-
-
-
----
-
-## 13. math_utils.py (465 lines, v3.23.0+)
+## 12. math_utils.py (465 lines, v3.23.0+)
 
 **Purpose**: Fibonacci calculator with multiple algorithm implementations
 
@@ -1075,11 +1066,11 @@ for method in ['iterative', 'recursive', 'matrix']:
 - See `error-handling-patterns` skill for exception hierarchy design
 - See CLAUDE.md for library integration patterns
 
-## 14-19. Brownfield Retrofit Libraries (v3.11.0+)
+## 21-26. Brownfield Retrofit Libraries (v3.11.0+)
 
 **Purpose**: 5-phase brownfield project retrofit system for existing project adoption
 
-### 19. brownfield_retrofit.py (470 lines) - Phase 0 Analysis
+### 21. brownfield_retrofit.py (470 lines) - Phase 0 Analysis
 
 #### Classes
 - `BrownfieldProject`: Project descriptor
@@ -1105,7 +1096,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 - align_project_retrofit.py script
 - /align-project-retrofit command PHASE 0
 
-### 19. codebase_analyzer.py (870 lines) - Phase 1 Deep Analysis
+### 22. codebase_analyzer.py (870 lines) - Phase 1 Deep Analysis
 
 #### Key Functions
 - `analyze_codebase(project_root, tech_stack_hint)`: Comprehensive codebase analysis
@@ -1126,7 +1117,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 - Documentation coverage analysis
 - Configuration file inventory
 
-### 19. alignment_assessor.py (666 lines) - Phase 2 Gap Assessment
+### 23. alignment_assessor.py (666 lines) - Phase 2 Gap Assessment
 
 #### Key Functions
 - `assess_alignment(codebase_analysis, project_root)`: Assessment of alignment gaps
@@ -1146,7 +1137,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 - Readiness assessment (ready, needs_work, not_ready)
 - Estimated retrofit effort (XS, S, M, L, XL)
 
-### 19. migration_planner.py (578 lines) - Phase 3 Plan Generation
+### 24. migration_planner.py (578 lines) - Phase 3 Plan Generation
 
 #### Key Functions
 - `generate_migration_plan(alignment_assessment, project_root, tech_stack)`: Generate migration plan
@@ -1167,7 +1158,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 - Step grouping by phase (setup, structure, tests, docs, integration)
 - Rollback considerations for each step
 
-### 19. retrofit_executor.py (725 lines) - Phase 4 Execution
+### 25. retrofit_executor.py (725 lines) - Phase 4 Execution
 
 #### Key Functions
 - `execute_migration(migration_plan, mode, project_root)`: Execute migration plan
@@ -1198,7 +1189,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 - 0o700 permissions
 - CWE-22/59/732 hardening
 
-### 19. retrofit_verifier.py (689 lines) - Phase 5 Verification
+### 26. retrofit_verifier.py (689 lines) - Phase 5 Verification
 
 #### Key Functions
 - `verify_retrofit_complete(execution_result, project_root, original_analysis)`: Verify retrofit
@@ -1230,7 +1221,7 @@ for method in ['iterative', 'recursive', 'matrix']:
 
 ---
 
-## 14. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
+## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
 
 **Purpose**: State-based auto-clearing for /batch-implement command with persistent state management
 
@@ -1367,7 +1358,7 @@ class BatchState:
 
 ---
 
-## 15. github_issue_fetcher.py (462 lines, v3.24.0+)
+## 14. github_issue_fetcher.py (462 lines, v3.24.0+)
 
 **Purpose**: Fetch GitHub issue titles via gh CLI for /batch-implement --issues flag
 
@@ -1538,7 +1529,7 @@ except GitHubAPIError as e:
 
 ---
 
-## 16. path_utils.py (187 lines, v3.28.0+)
+## 15. path_utils.py (187 lines, v3.28.0+)
 
 **Purpose**: Dynamic PROJECT_ROOT detection and path resolution for tracking infrastructure
 
@@ -1652,7 +1643,7 @@ session_dir = get_session_dir()  # Works from any subdirectory
 
 ---
 
-## 17. validation.py (286 lines, v3.28.0+)
+## 16. validation.py (286 lines, v3.28.0+)
 
 **Purpose**: Tracking infrastructure security validation (input sanitization and path traversal prevention)
 
@@ -1777,7 +1768,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 18. file_discovery.py (310 lines, v3.29.0+)
+## 17. file_discovery.py (310 lines, v3.29.0+)
 
 **Purpose**: Comprehensive file discovery with intelligent exclusion patterns for 100% coverage
 
@@ -1845,7 +1836,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 19. copy_system.py (244 lines, v3.29.0+)
+## 18. copy_system.py (244 lines, v3.29.0+)
 
 **Purpose**: Structure-preserving file copying with permission handling
 
@@ -1918,9 +1909,11 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 20. installation_validator.py (435 lines, v3.29.0+)
+## 19. installation_validator.py (586 lines, v3.29.0+ → v3.29.1)
 
-**Purpose**: Ensures complete file coverage and detects installation issues
+**Purpose**: Ensures complete file coverage and detects installation issues + duplicate library validation
+
+**Enhanced in v3.29.1 (Issue #81)**: Added duplicate library detection and cleanup recommendations
 
 ### Classes
 
@@ -1930,13 +1923,18 @@ validate_message("msg\x00with\x01control")  # Control chars
 #### `ValidationResult`
 - **Purpose**: Result dataclass for validation operation
 - **Attributes**:
-  - `success` (bool): Whether validation passed
-  - `coverage_percent` (float): File coverage percentage (actual/expected*100)
-  - `actual_files` (int): Number of files actually installed
-  - `expected_files` (int): Number of files expected
-  - `missing_files` (List[str]): Files in source but not destination
-  - `extra_files` (List[str]): Files in destination but not source
-  - `message` (str): Human-readable summary
+  - `status` (str): "complete" if 100% coverage, "incomplete" otherwise
+  - `coverage` (float): File coverage percentage (0-100)
+  - `total_expected` (int): Total files expected from source
+  - `total_found` (int): Total files found in destination
+  - `missing_files` (int): Count of missing files
+  - `extra_files` (int): Count of extra files
+  - `missing_file_list` (List[str]): Paths of missing files
+  - `extra_file_list` (List[str]): Paths of extra files
+  - `structure_valid` (bool): Whether directory structure is valid
+  - `errors` (List[str]): List of error messages
+  - `sizes_match` (bool|None): Whether file sizes match manifest (if applicable)
+  - `size_errors` (List[str]|None): Files with size mismatches (if applicable)
 
 ### Key Methods
 
@@ -1950,11 +1948,38 @@ validate_message("msg\x00with\x01control")  # Control chars
   - Directory structure validation
   - Detailed reporting
 
-#### `InstallationValidator.validate_coverage(min_percent)`
-- **Purpose**: Check if coverage meets minimum threshold
-- **Parameters**: `min_percent` (float): Minimum required coverage (e.g., 95.0)
-- **Returns**: `bool`
-- **Raises**: `ValidationError` if coverage below threshold
+#### `InstallationValidator.validate_sizes()` - NEW in v3.29.1
+- **Purpose**: Validate file sizes against manifest
+- **Parameters**: None (uses internal manifest)
+- **Returns**: `Dict` with `sizes_match` (bool) and `size_errors` (List[str])
+- **Raises**: `ValidationError` if no manifest provided
+- **Features**: Detects corrupted downloads or partial installs
+
+#### `InstallationValidator.validate_no_duplicate_libs()` - NEW in v3.29.1
+
+**Signature**: `validate_no_duplicate_libs() -> List[str]`
+
+- **Purpose**: Validate that no duplicate libraries exist in `.claude/lib/`
+- **Details**:
+  - Checks for Python files in `.claude/lib/` that conflict with canonical location
+  - Uses `OrphanFileCleaner.find_duplicate_libs()` for detection
+  - Returns warning messages with cleanup instructions if duplicates found
+- **Returns**: `List[str]` of warning messages
+  - Empty list if no duplicates found
+  - Warnings include file count and cleanup instructions if duplicates detected
+- **Behavior**:
+  - Returns empty list if `.claude/lib/` doesn't exist
+  - Returns empty list if `.claude/lib/` is empty
+  - Provides clear remediation steps in warning messages
+  - Audit logs detection results
+- **Example**:
+  ```python
+  validator = InstallationValidator(source_dir, dest_dir)
+  warnings = validator.validate_no_duplicate_libs()
+  if warnings:
+      for warning in warnings:
+          print(f"WARNING: {warning}")
+  ```
 
 #### `InstallationValidator.from_manifest(manifest_path, dest_dir)` (classmethod)
 - **Purpose**: Validate using installation manifest
@@ -1963,10 +1988,38 @@ validate_message("msg\x00with\x01control")  # Control chars
   - `dest_dir` (Path): Installation destination directory
 - **Returns**: `InstallationValidator` instance
 
+#### `InstallationValidator.from_manifest_dict(manifest, dest_dir)` (classmethod)
+- **Purpose**: Create validator from manifest dictionary
+- **Parameters**:
+  - `manifest` (Dict): Manifest dictionary
+  - `dest_dir` (Path): Installation destination directory
+- **Returns**: `InstallationValidator` instance
+- **New in v3.29.1**: For testing and programmatic use
+
 #### `InstallationValidator.generate_report(result)`
 - **Purpose**: Generate human-readable validation report
-- **Returns**: `str` (formatted report)
-- **Features**: Includes coverage percentage, missing files, remediation steps
+- **Parameters**: `result` (ValidationResult): Validation result to format
+- **Returns**: `str` (formatted report with symbols and sections)
+- **Features**:
+  - Coverage percentage with status symbols
+  - Missing and extra files listing (first 10 shown)
+  - Directory structure validation status
+  - File size validation status (if applicable)
+  - Detailed error messages
+
+#### `InstallationValidator.calculate_coverage(expected, actual)`
+- **Purpose**: Calculate coverage percentage
+- **Parameters**:
+  - `expected` (int): Number of expected files
+  - `actual` (int): Number of actual files
+- **Returns**: `float` Coverage percentage (0-100, rounded to 2 decimal places)
+
+#### `InstallationValidator.find_missing_files(expected_files, actual_files)`
+- **Purpose**: Find files that are expected but not present
+- **Parameters**:
+  - `expected_files` (List[Path]): Expected file paths
+  - `actual_files` (List[Path]): Actual file paths
+- **Returns**: `List[str]` of missing file paths (sorted)
 
 ### Coverage Requirements
 
@@ -1977,30 +2030,41 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ### Validation Levels
 
-1. **Critical**: Directory structure issues (lib/ missing, etc.)
+1. **Critical**: Directory structure issues (lib/ missing, etc.) OR duplicate libraries found
 2. **High**: Key files missing (agents/*.md, commands/*.md)
 3. **Medium**: Optional enhancements missing (some lib files)
 4. **Low**: Metadata files missing (*.log, session files)
 
 ### Security
-- Path validation via security_utils
+- Path validation via security_utils.validate_path()
+  - Prevents path traversal attacks (CWE-22)
+  - Blocks symlink-based attacks (CWE-59)
 - File size limits on reading
 - Safe manifest parsing (JSON schema validation)
+- Duplicate library detection prevents import conflicts (CWE-627)
 
 ### Test Coverage
-- 50+ unit tests (coverage calculation, missing file detection, manifest validation)
-- Integration tests with real installations
+- 60+ unit tests (v3.29.1 additions):
+  - Basic validation: 10 tests
+  - Duplicate detection: 6 tests (empty, missing, warnings, counts)
+  - Cleanup instructions: 3 tests
+  - Edge cases: 5+ tests
+- Original 40+ tests for coverage/manifest validation maintained
+- Total coverage: 60+ tests
 
 ### Used By
 - install_orchestrator.py for post-installation verification
+- plugin_updater.py for pre-update duplicate validation
 - /health-check command for installation integrity validation
+- orphan_file_cleaner.py for duplicate library warnings
 
 ### Related
 - GitHub Issue #80 (Bootstrap overhaul - coverage validation)
+- GitHub Issue #81 (Prevent .claude/lib/ Duplicate Library Imports) - NEW
 
 ---
 
-## 21. install_orchestrator.py (495 lines, v3.29.0+)
+## 20. install_orchestrator.py (495 lines, v3.29.0+)
 
 **Purpose**: Coordinates complete installation workflow (fresh install, upgrade, rollback)
 
@@ -2142,9 +2206,10 @@ validate_message("msg\x00with\x01control")  # Control chars
 **Non-blocking Enhancements**: Version detection, orphan cleanup, hook activation, parity validation, git automation, issue automation, and brownfield retrofit don't block core operations
 
 **Two-tier Design**:
-- Core logic libraries (plugin_updater.py, auto_implement_git_integration.py, github_issue_automation.py, brownfield_retrofit.py + 5 phase libraries)
-- CLI interface scripts (update_plugin.py, auto_git_workflow.py, create_issue.py, align_project_retrofit.py)
+- Core logic libraries (plugin_updater.py, auto_implement_git_integration.py, brownfield_retrofit.py + 5 phase libraries)
+- CLI interface scripts (update_plugin.py, auto_git_workflow.py, align_project_retrofit.py)
 - Enables reuse and testing
+- Note: /create-issue uses direct gh CLI (no wrapper library)
 
 **Optional Features**: Feature automation and other enhancements are controlled by flags/hooks
 

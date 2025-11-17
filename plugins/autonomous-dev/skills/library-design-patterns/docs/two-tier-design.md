@@ -366,7 +366,6 @@ if __name__ == "__main__":
 | plugin_updater.py | update_plugin.py | Plugin update logic |
 | security_utils.py | (imported by libraries) | Path validation |
 | batch_state_manager.py | (imported by /batch-implement) | State management |
-| github_issue_automation.py | (imported by /create-issue) | Issue creation |
 
 ### Design Principles
 

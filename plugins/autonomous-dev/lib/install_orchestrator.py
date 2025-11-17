@@ -205,11 +205,12 @@ class InstallOrchestrator:
         """Perform fresh installation.
 
         Workflow:
-        1. Discover all files in plugin directory
-        2. Copy all files to .claude directory
-        3. Set executable permissions on scripts
-        4. Create installation marker file
-        5. Validate coverage
+        1. Pre-install cleanup (remove .claude/lib/ duplicates)
+        2. Discover all files in plugin directory
+        3. Copy all files to .claude directory
+        4. Set executable permissions on scripts
+        5. Create installation marker file
+        6. Validate coverage
 
         Returns:
             InstallResult with status and metrics
@@ -217,20 +218,30 @@ class InstallOrchestrator:
         Raises:
             InstallError: If installation fails
         """
+        from plugins.autonomous_dev.lib.orphan_file_cleaner import OrphanFileCleaner
+
         errors = []
 
         try:
-            # Step 1: Discover all files
+            # Step 1: Pre-install cleanup (remove duplicate libraries)
+            cleaner = OrphanFileCleaner(project_root=self.project_dir)
+            cleanup_result = cleaner.pre_install_cleanup()
+
+            if not cleanup_result.success:
+                # Log warning but continue installation
+                errors.append(f"Pre-install cleanup warning: {cleanup_result.error_message}")
+
+            # Step 2: Discover all files
             files = self.discovery.discover_all_files()
             total_files = len(files)
 
             if total_files == 0:
                 raise InstallError("No files discovered in plugin directory")
 
-            # Step 2: Ensure .claude directory exists
+            # Step 3: Ensure .claude directory exists
             self.claude_dir.mkdir(parents=True, exist_ok=True)
 
-            # Step 3: Copy all files using CopySystem
+            # Step 4: Copy all files using CopySystem
             copy_system = CopySystem(self.plugin_dir, self.claude_dir)
             copy_result = copy_system.copy_all(
                 files=files,
@@ -243,13 +254,13 @@ class InstallOrchestrator:
             if copy_result["errors"] > 0:
                 errors.extend(copy_result["error_list"])
 
-            # Step 4: Set executable permissions on scripts
+            # Step 5: Set executable permissions on scripts
             self._set_executable_permissions()
 
-            # Step 5: Create installation marker
+            # Step 6: Create installation marker
             self._create_marker_file(files_copied)
 
-            # Step 6: Validate coverage
+            # Step 7: Validate coverage
             validator = InstallationValidator(self.plugin_dir, self.claude_dir)
             validation = validator.validate()
 
@@ -272,13 +283,14 @@ class InstallOrchestrator:
         """Perform upgrade installation with backup.
 
         Workflow:
-        1. Create backup of existing installation
-        2. Discover files
-        3. Copy files (preserving user customizations if possible)
-        4. Set permissions
-        5. Update marker file
-        6. Validate
-        7. On failure: rollback
+        1. Pre-install cleanup (remove .claude/lib/ duplicates)
+        2. Create backup of existing installation
+        3. Discover files
+        4. Copy files (preserving user customizations if possible)
+        5. Set permissions
+        6. Update marker file
+        7. Validate
+        8. On failure: rollback
 
         Returns:
             InstallResult with backup directory
@@ -286,18 +298,28 @@ class InstallOrchestrator:
         Raises:
             InstallError: If upgrade fails and rollback fails
         """
+        from plugins.autonomous_dev.lib.orphan_file_cleaner import OrphanFileCleaner
+
         errors = []
         backup_dir = None
 
         try:
-            # Step 1: Create backup
+            # Step 1: Pre-install cleanup (remove duplicate libraries)
+            cleaner = OrphanFileCleaner(project_root=self.project_dir)
+            cleanup_result = cleaner.pre_install_cleanup()
+
+            if not cleanup_result.success:
+                # Log warning but continue installation
+                errors.append(f"Pre-install cleanup warning: {cleanup_result.error_message}")
+
+            # Step 2: Create backup
             backup_dir = self._create_backup()
 
-            # Step 2: Discover files
+            # Step 3: Discover files
             files = self.discovery.discover_all_files()
             total_files = len(files)
 
-            # Step 3: Copy files (filter out preserved files)
+            # Step 4: Copy files (filter out preserved files)
             files_to_copy = []
             for source_file in files:
                 rel_path = source_file.relative_to(self.plugin_dir)
@@ -320,13 +342,13 @@ class InstallOrchestrator:
             if copy_result["errors"] > 0:
                 errors.extend(copy_result["error_list"])
 
-            # Step 4: Set permissions
+            # Step 5: Set permissions
             self._set_executable_permissions()
 
-            # Step 5: Update marker
+            # Step 6: Update marker
             self._create_marker_file(files_copied)
 
-            # Step 6: Validate
+            # Step 7: Validate
             validator = InstallationValidator(self.plugin_dir, self.claude_dir)
             validation = validator.validate()
 

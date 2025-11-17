@@ -99,6 +99,8 @@ class CleanupResult:
         errors: Number of errors encountered (or list of error messages)
         orphans: List of detected orphan files
         success: Whether cleanup succeeded (auto-set from errors)
+        error_message: Optional error message for failed operations
+        files_removed: Optional parameter, alias for orphans_deleted
     """
 
     orphans_detected: int = 0
@@ -107,10 +109,19 @@ class CleanupResult:
     errors: int = 0
     orphans: List[OrphanFile] = field(default_factory=list)
     success: bool = True
+    error_message: str = ""
+    files_removed: int = 0
 
     def __post_init__(self):
-        """Set success flag based on errors."""
-        self.success = self.errors == 0
+        """Set success flag based on errors and sync files_removed with orphans_deleted."""
+        # If files_removed is provided and differs from orphans_deleted, use files_removed
+        if self.files_removed > 0 and self.orphans_deleted == 0:
+            self.orphans_deleted = self.files_removed
+        elif self.orphans_deleted > 0 and self.files_removed == 0:
+            self.files_removed = self.orphans_deleted
+
+        # Set success flag
+        self.success = self.errors == 0 and not self.error_message
 
     @property
     def summary(self) -> str:
@@ -324,6 +335,219 @@ class OrphanFileCleaner:
                 files.append(file_path)
 
         return files
+
+    def find_duplicate_libs(self) -> List[Path]:
+        """Find Python files in .claude/lib/ directory (duplicate library location).
+
+        This method detects duplicate libraries in the legacy .claude/lib/ location
+        that should be removed to prevent import conflicts. The canonical location
+        for libraries is plugins/autonomous-dev/lib/.
+
+        Returns:
+            List of Path objects for duplicate library files found.
+            Excludes __init__.py and __pycache__ directories.
+
+        Note:
+            Returns empty list if .claude/lib/ doesn't exist or is empty.
+
+        Example:
+            >>> cleaner = OrphanFileCleaner(project_root)
+            >>> duplicates = cleaner.find_duplicate_libs()
+            >>> print(f"Found {len(duplicates)} duplicate libraries")
+        """
+        # Path to legacy lib directory
+        lib_dir = self.project_root / ".claude" / "lib"
+
+        # Return empty list if directory doesn't exist
+        if not lib_dir.exists():
+            return []
+
+        duplicates = []
+
+        # Recursively find all Python files
+        for py_file in lib_dir.rglob("*.py"):
+            # Skip __pycache__ directories
+            if "__pycache__" in str(py_file):
+                continue
+
+            # Skip __init__.py files (they're infrastructure, not duplicates)
+            if py_file.name == "__init__.py":
+                continue
+
+            # Add to duplicates list
+            duplicates.append(py_file)
+
+        return duplicates
+
+    def pre_install_cleanup(self) -> CleanupResult:
+        """Remove .claude/lib/ directory before installation to prevent duplicates.
+
+        This method performs pre-installation cleanup by removing the legacy
+        .claude/lib/ directory. This prevents import conflicts when installing
+        or updating the plugin, as all libraries should reside in
+        plugins/autonomous-dev/lib/.
+
+        Returns:
+            CleanupResult with success status, files_removed count, and error_message.
+
+        Note:
+            - Idempotent: Safe to call even if .claude/lib/ doesn't exist
+            - Logs operation to audit trail
+            - Handles permission errors gracefully
+
+        Security:
+            - Validates all paths before removal
+            - Audit logs all operations
+            - Handles symlinks safely (removes link, not target)
+
+        Example:
+            >>> cleaner = OrphanFileCleaner(project_root)
+            >>> result = cleaner.pre_install_cleanup()
+            >>> if result.success:
+            ...     print(f"Removed {result.files_removed} duplicate files")
+        """
+        import shutil
+
+        lib_dir = self.project_root / ".claude" / "lib"
+
+        # If directory doesn't exist, nothing to clean
+        if not lib_dir.exists():
+            return CleanupResult(
+                orphans_detected=0,
+                orphans_deleted=0,
+                dry_run=False,
+                errors=0,
+                success=True,
+                error_message="",
+            )
+
+        try:
+            # Handle symlinks specially BEFORE validate_path (which rejects symlinks)
+            if lib_dir.is_symlink():
+                # For symlinks, just unlink the symlink itself (don't follow it)
+                # Skip validate_path for symlinks since it rejects them (CWE-59 protection)
+                file_count = 0  # Symlinks don't count as files removed
+
+                # Audit log the symlink removal
+                audit_log(
+                    "orphan_cleanup",
+                    "success",
+                    {
+                        "operation": "pre_install_cleanup",
+                        "path": str(lib_dir),
+                        "type": "symlink",
+                        "files_removed": 0,
+                    },
+                )
+
+                lib_dir.unlink()
+
+                return CleanupResult(
+                    orphans_detected=0,
+                    orphans_deleted=0,
+                    dry_run=False,
+                    errors=0,
+                    success=True,
+                    error_message="",
+                )
+
+            # For regular directories, validate path before removal (security check)
+            try:
+                validated_path = validate_path(lib_dir, ".claude/lib directory")
+            except ValueError as e:
+                audit_log(
+                    "orphan_cleanup",
+                    "security_violation",
+                    {
+                        "operation": "pre_install_cleanup",
+                        "path": str(lib_dir),
+                        "error": str(e),
+                    },
+                )
+                return CleanupResult(
+                    orphans_detected=0,
+                    orphans_deleted=0,
+                    dry_run=False,
+                    errors=1,
+                    success=False,
+                    error_message=f"Security validation failed: {e}",
+                )
+
+            # Count files before removal (for reporting)
+            file_count = 0
+            for py_file in lib_dir.rglob("*.py"):
+                if "__pycache__" not in str(py_file) and py_file.name != "__init__.py":
+                    file_count += 1
+
+            # Remove the entire .claude/lib/ directory
+            shutil.rmtree(validated_path)
+
+            # Audit log the cleanup
+            audit_log(
+                "orphan_cleanup",
+                "success",
+                {
+                    "operation": "pre_install_cleanup",
+                    "path": str(lib_dir),
+                    "files_removed": file_count,
+                },
+            )
+
+            # Project-specific audit log
+            self._write_audit_log(
+                operation="pre_install_cleanup",
+                path=str(lib_dir),
+                category="lib",
+                files_removed=file_count,
+                status="removed",
+            )
+
+            return CleanupResult(
+                orphans_detected=file_count,
+                orphans_deleted=file_count,
+                dry_run=False,
+                errors=0,
+                success=True,
+                error_message="",
+            )
+
+        except PermissionError as e:
+            audit_log(
+                "orphan_cleanup",
+                "permission_denied",
+                {
+                    "operation": "pre_install_cleanup",
+                    "path": str(lib_dir),
+                    "error": str(e),
+                },
+            )
+            return CleanupResult(
+                orphans_detected=file_count if 'file_count' in locals() else 0,
+                orphans_deleted=0,
+                dry_run=False,
+                errors=1,
+                success=False,
+                error_message=f"Permission denied: {e}",
+            )
+
+        except Exception as e:
+            audit_log(
+                "orphan_cleanup",
+                "failure",
+                {
+                    "operation": "pre_install_cleanup",
+                    "path": str(lib_dir),
+                    "error": str(e),
+                },
+            )
+            return CleanupResult(
+                orphans_detected=file_count if 'file_count' in locals() else 0,
+                orphans_deleted=0,
+                dry_run=False,
+                errors=1,
+                success=False,
+                error_message=str(e),
+            )
 
     def detect_orphans(self) -> List[OrphanFile]:
         """Detect orphaned files in all categories.

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""GitHub issue creation example from github_issue_automation.py.
+"""GitHub issue creation example using gh CLI directly.
 
-See: plugins/autonomous-dev/lib/github_issue_automation.py
+This demonstrates the pattern used in commands/create-issue.md.
+For production use, prefer Bash validation (see create-issue.md).
 """
 
 import subprocess

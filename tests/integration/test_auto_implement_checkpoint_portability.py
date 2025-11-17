@@ -982,7 +982,10 @@ class TestRegressionPrevention:
             )
 
     def test_checkpoint_heredocs_contain_path_utils_import(self):
-        """Test checkpoint heredocs try to import path_utils.
+        """Test checkpoint heredocs use portable directory walking (no Path(__file__)).
+
+        Issue #82: The fix replaces broken Path(__file__) + try/except logic
+        with simple directory walking that works in heredoc context.
 
         Arrange:
         - Read auto-implement.md
@@ -992,9 +995,9 @@ class TestRegressionPrevention:
         - Extract heredoc Python code
 
         Assert:
-        - Contains 'from path_utils import get_project_root'
-        - Contains fallback logic
-        - Uses try/except ImportError
+        - Contains directory walking logic (Path.cwd())
+        - Checks for .git or .claude markers
+        - NO Path(__file__) usage
         """
         auto_implement = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
 
@@ -1020,11 +1023,19 @@ class TestRegressionPrevention:
                 else:
                     current_heredoc.append(line)
 
-        # Check each checkpoint has proper imports
+        # Check each checkpoint uses directory walking (not Path(__file__))
         for i, section in enumerate(checkpoint_sections):
-            # Note: This WILL FAIL initially (TDD red phase)
-            assert "from path_utils import get_project_root" in section or "except ImportError" in section, (
-                f"Checkpoint {i+1} missing path_utils import or fallback logic"
+            # Should use Path.cwd() for directory walking
+            assert "Path.cwd()" in section or "Path(os.getcwd())" in section, (
+                f"Checkpoint {i+1} should use Path.cwd() for directory walking"
+            )
+            # Should check for .git or .claude markers
+            assert '".git"' in section or ".git" in section, (
+                f"Checkpoint {i+1} should check for .git marker"
+            )
+            # Should NOT use Path(__file__) (regression prevention)
+            assert "Path(__file__)" not in section, (
+                f"Checkpoint {i+1} should NOT use Path(__file__) (Issue #82)"
             )
 
     def test_checkpoint_heredocs_do_not_use_file_variable(self):

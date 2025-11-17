@@ -72,20 +72,107 @@ Extract the issue title and body from the issue-creator agent output.
 
 **Body**: Use the complete markdown output from issue-creator agent
 
-Execute the gh CLI command to create the issue:
+Use the Bash tool to execute the gh CLI command with inline validation:
 
 ```bash
-python plugins/autonomous-dev/scripts/create_issue.py \
-  --title "TITLE_HERE" \
-  --body "BODY_HERE" \
-  --project-root .
+# Validation function
+validate_and_create_issue() {
+  local title="$1"
+  local body="$2"
+
+  # Check gh CLI is installed
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Error: gh CLI is not installed"
+    echo ""
+    echo "Install gh CLI:"
+    echo "  macOS: brew install gh"
+    echo "  Linux: See https://cli.github.com/"
+    echo "  Windows: Download from https://cli.github.com/"
+    echo ""
+    echo "After installing, authenticate:"
+    echo "  gh auth login"
+    return 1
+  fi
+
+  # Check gh CLI is authenticated
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Error: gh CLI is not authenticated"
+    echo ""
+    echo "Run this command to authenticate:"
+    echo "  gh auth login"
+    echo ""
+    echo "Follow the prompts to complete authentication."
+    return 1
+  fi
+
+  # Validate title is not empty
+  if [ -z "$title" ]; then
+    echo "Error: Title cannot be empty"
+    return 1
+  fi
+
+  # Validate title length (GitHub limit: 256 characters)
+  if [ ${#title} -gt 256 ]; then
+    echo "Error: Title exceeds maximum length of 256 characters"
+    echo "Current length: ${#title}"
+    return 1
+  fi
+
+  # Validate title does not contain shell metacharacters (CWE-78)
+  if echo "$title" | grep -q '[;|`$]'; then
+    echo "Error: Title contains invalid shell metacharacters"
+    echo "Invalid characters: ; | \` $ && ||"
+    echo "Valid characters: A-Z a-z 0-9 space - _ : . ( ) [ ]"
+    return 1
+  fi
+
+  # Validate body is not empty
+  if [ -z "$body" ]; then
+    echo "Error: Body cannot be empty"
+    return 1
+  fi
+
+  # Validate body length (GitHub limit: 65000 characters)
+  if [ ${#body} -gt 65000 ]; then
+    echo "Error: Body exceeds maximum length of 65000 characters"
+    echo "Current length: ${#body}"
+    return 1
+  fi
+
+  # Create the issue using gh CLI
+  local output
+  if ! output=$(gh issue create --title "$title" --body "$body" 2>&1); then
+    echo "Error: Failed to create GitHub issue"
+    echo "$output"
+    return 1
+  fi
+
+  # Extract issue number from URL (format: https://github.com/owner/repo/issues/123)
+  local issue_url="$output"
+  local issue_number=$(echo "$issue_url" | grep -o 'issues/[0-9]*' | cut -d'/' -f2)
+
+  # Display success message
+  echo "✓ Issue created successfully"
+  echo "  Issue #$issue_number: $issue_url"
+
+  # Log to session tracker
+  python plugins/autonomous-dev/scripts/session_tracker.py "create-issue" \
+    "Created GitHub issue #$issue_number: $title"
+
+  return 0
+}
+
+# Call validation function with title and body
+validate_and_create_issue "TITLE_HERE" "BODY_HERE"
 ```
 
 **Security Notes**:
-- The create_issue.py script validates all inputs (CWE-78, CWE-117, CWE-20)
-- Uses subprocess list args (no shell=True) to prevent command injection
-- Validates title/body length limits
-- Rejects shell metacharacters
+- Validates all inputs before gh CLI execution (CWE-78, CWE-20)
+- Checks for shell metacharacters (;|`$&&||) to prevent command injection
+- Validates title/body length limits (GitHub API constraints)
+- Rejects empty title/body
+- Uses quoted variables to prevent word splitting
+- No shell=True equivalent (gh CLI subprocess is safe)
 
 ---
 
@@ -272,13 +359,13 @@ Use `/create-issue` when you need:
 - **issue-creator**: Generate structured issue body (Sonnet model, 1-2 min)
 
 **Tools Used**:
-- gh CLI: GitHub issue creation
-- create_issue.py: Python wrapper with security validation
+- gh CLI: GitHub issue creation (direct invocation via Bash tool)
+- Bash validation: Inline security checks before gh CLI execution
 
 **Security**:
-- CWE-78: Command injection prevention (subprocess list args)
-- CWE-117: Log injection prevention (control character sanitization)
-- CWE-20: Input validation (length limits, format validation)
+- CWE-78: Command injection prevention (shell metacharacter validation, quoted variables)
+- CWE-20: Input validation (length limits, empty checks, format validation)
+- Bash validation: Inline checks for dangerous characters (;|`$&&||)
 
 **Permissions**:
 - Read-only during research phase
