@@ -161,9 +161,16 @@ EOF
 
 ### STEP 2: Invoke Test-Master Agent (TDD - Tests BEFORE Implementation)
 
-⚠️ **ACTION REQUIRED**: Invoke Task tool NOW.
+⚠️ **ACTION REQUIRED**: Invoke Task tool NOW with timeout enforcement.
 
 **This is the TDD checkpoint** - Tests MUST be written BEFORE implementation.
+
+**CRITICAL - Issue #90 Fix**: Test-master can run for 5-15 minutes writing comprehensive test suites. **Enforce 20-minute timeout to prevent indefinite freeze** (subprocess pipe deadlock when pytest generates large output). The timeout provides graceful degradation: if test-master exceeds 20 minutes, workflow continues with clear error message rather than freezing indefinitely.
+
+**Timeout Rationale**:
+- Typical test-master execution: 5-15 minutes
+- Safety buffer: 5 minutes
+- Total: 20 minutes (1200 seconds)
 
 **CORRECT** ✅: Call Task tool with:
 
@@ -182,6 +189,7 @@ Include:
 Output: Test files that currently FAIL (no implementation yet)."
 
 model: "sonnet"
+timeout: 1200  # 20 minutes - prevents indefinite freeze (Issue #90)
 ```
 
 **DO IT NOW**.

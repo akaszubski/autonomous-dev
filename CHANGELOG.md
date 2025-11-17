@@ -1,5 +1,131 @@
 ## [Unreleased]
 
+### Added
+- **Prevent /auto-implement Freeze During test-master Execution** - Issue #90 Phase 1
+  - **Problem**: `/auto-implement` workflow freezes indefinitely during test-master agent's pytest execution
+    - PRIMARY (85%): Subprocess pipe deadlock when pytest output exceeds 64KB pipe buffer (~2,300 lines for 82 tests)
+    - SECONDARY (75%): No timeout enforcement on test-master agent (can run indefinitely)
+    - Reproducible 100% on Issue #82 across 2 different computers
+  - **Impact**: Autonomous workflow blocked, requires full restart (Cmd+Q), all progress lost
+  - **Solution Phase 1 (Immediate Fix - <2 hours)**:
+    1. Add explicit 20-minute timeout to test-master agent invocation
+    2. Reduce pytest verbosity from verbose to minimal output (98% reduction)
+  - **Changes**:
+    - Enhanced `plugins/autonomous-dev/commands/auto-implement.md` STEP 2:
+      - Added timeout parameter: `timeout: 1200` (20 minutes) to test-master Task tool invocation
+      - Added timeout rationale: Typical execution 5-15 minutes + 5-minute safety buffer
+      - Added graceful degradation documentation: Workflow continues with clear error on timeout
+      - References Issue #90 for context
+    - Enhanced `plugins/autonomous-dev/agents/test-master.md` Workflow section:
+      - Updated pytest command: `pytest --tb=line -q` (minimal verbosity)
+      - Output reduction: ~98% (2,300 lines → 50 lines summary)
+      - Preserves failures and error messages for debugging
+      - Prevents subprocess pipe deadlock (Issue #90)
+  - **Testing**: Added comprehensive test suite (`tests/unit/test_issue90_timeout_fixes.py`):
+    - 12 total unit tests (100% passing)
+    - Timeout verification: auto-implement.md includes timeout parameter, value is reasonable (1200s)
+    - Pytest flags verification: test-master.md uses minimal verbosity flags (`--tb=line -q`)
+    - Documentation verification: References Issue #90, explains freeze prevention
+    - Graceful degradation: Documents timeout behavior and workflow continuation
+    - Backward compatibility: Existing functionality preserved
+  - **Success Metrics**:
+    - ✅ Timeout prevents indefinite freeze (20-minute max execution)
+    - ✅ Pytest output reduced 98% (100KB → 2KB, prevents pipe deadlock)
+    - ✅ Clear error messages on timeout (not silent failure)
+    - ✅ Graceful degradation (workflow continues even if timeout)
+    - ✅ All 12 tests passing
+  - **Future Phases**:
+    - Phase 2 (Short-term): Add token budget monitoring before invoking agents
+    - Phase 3 (Long-term): Stream pytest output via background execution + BashOutput tool
+  - **Related Issues**: GitHub Issue #82 (checkpoint verification - trigger for freeze), GitHub Issue #74 (batch processing context management)
+
+- **Prevent .claude/lib/ Duplicate Library Imports** - Issue #81
+  - **Problem**: Legacy `.claude/lib/` directory can contain duplicate copies of libraries that should be imported from `plugins/autonomous-dev/lib/`, causing import conflicts and version mismatches
+  - **Impact**: Plugin installations could have conflicting library versions in two locations (CWE-627)
+  - **Solution**: Duplicate library detection and pre-install cleanup with three key enhancements:
+    - **Duplicate Detection**: New method `OrphanFileCleaner.find_duplicate_libs()` detects Python files in `.claude/lib/`
+    - **Pre-Install Cleanup**: New method `OrphanFileCleaner.pre_install_cleanup()` removes `.claude/lib/` directory before installation
+    - **Validation Warnings**: New method `InstallationValidator.validate_no_duplicate_libs()` warns about duplicates during validation
+  - **Changes**:
+    - Enhanced `plugins/autonomous-dev/lib/orphan_file_cleaner.py` (514 → 778 lines):
+      - Added `find_duplicate_libs()` method: Detects Python files in `.claude/lib/` directory
+      - Added `pre_install_cleanup()` method: Removes `.claude/lib/` directory before installation (idempotent)
+      - Updated `CleanupResult` dataclass with new attributes (`success`, `error_message`, `files_removed`)
+      - Updated `CleanupResult.summary` property for pre-install cleanup reporting
+      - Enhanced audit logging with project-specific audit trail (`logs/orphan_cleanup_audit.log`)
+      - Security: Path validation (CWE-22), symlink safety (CWE-59), all operations audited
+    - Enhanced `plugins/autonomous-dev/lib/installation_validator.py` (435 → 586 lines):
+      - Added `validate_no_duplicate_libs()` method: Warns about duplicates with cleanup instructions
+      - Added `validate_sizes()` method: Validates file sizes against manifest
+      - Added `from_manifest_dict()` classmethod: For programmatic manifest validation
+      - Updated `ValidationResult` dataclass attributes
+      - Security: Audit logs duplicate detection events
+    - Integrated into `plugins/autonomous-dev/lib/install_orchestrator.py`:
+      - Calls `pre_install_cleanup()` before fresh installs (line 228)
+      - Calls `pre_install_cleanup()` before upgrade installs (line 309)
+    - Integrated into `plugins/autonomous-dev/lib/plugin_updater.py`:
+      - Calls `pre_install_cleanup()` in update workflow (line 354)
+  - **Security**:
+    - **CWE-22 (Path Traversal)**: All paths validated via `security_utils.validate_path()`
+    - **CWE-59 (Symlink Following)**: Symlinks detected and handled safely (remove link, preserve target)
+    - **CWE-627 (Library Import Conflict)**: Duplicate detection prevents conflicting imports
+    - **Audit Logging**: All operations logged to global and project-specific audit trails
+  - **Behavior**:
+    - `find_duplicate_libs()`: Returns empty list if `.claude/lib/` doesn't exist
+    - `pre_install_cleanup()`: Idempotent - safe to call repeatedly
+    - `validate_no_duplicate_libs()`: Returns empty list if no duplicates (no false positives)
+    - All three methods handle nested directories and edge cases gracefully
+  - **Testing**: Added comprehensive test suite (`tests/unit/test_issue81_duplicate_prevention.py`):
+    - 62 total unit tests (across all three methods)
+    - Duplicate detection: 6 tests (empty dir, missing dir, nested files, ignore pycache, etc.)
+    - Pre-install cleanup: 8 tests (remove, idempotent, permissions, symlinks, etc.)
+    - Validation warnings: 5 tests (detect, warn, cleanup instructions, counts, etc.)
+    - Integration: 10+ tests (install_orchestrator, plugin_updater, cleanup order)
+    - Edge cases: 10+ tests (symlinks, readonly files, large directories, preservation)
+    - No actual duplicates: 3 tests (validate repository state)
+  - **Documentation**: Updated API documentation:
+    - Enhanced `docs/LIBRARIES.md` sections 4 and 19 with new methods and examples
+    - Added security coverage notes (CWE-22, CWE-59, CWE-627)
+    - Updated `orphan_file_cleaner.py` section (514 → 778 lines, 22+ → 62+ tests)
+    - Updated `installation_validator.py` section (435 → 586 lines, 40+ → 60+ tests)
+  - **Backward Compatibility**: All changes are backward compatible
+    - Existing orphan detection and cleanup methods unchanged
+    - New methods are additions, not modifications
+    - `CleanupResult` attributes are all optional (new attributes with defaults)
+
+### Changed
+- **Remove GitHub Issue Creation Wrappers** - Issue #86
+  - **Problem**: Python wrappers (create_issue.py, github_issue_automation.py) added unnecessary abstraction layer over gh CLI
+  - **Impact**: Extra maintenance burden, duplicates gh CLI functionality, harder to understand
+  - **Solution**: Remove wrappers, use gh CLI directly in create-issue.md with inline Bash validation
+  - **Changes**:
+    - Deleted `plugins/autonomous-dev/scripts/create_issue.py` (239 lines)
+    - Deleted `plugins/autonomous-dev/lib/github_issue_automation.py` (645 lines)
+    - Updated `plugins/autonomous-dev/commands/create-issue.md` to use direct gh CLI
+    - Added inline Bash validation function (validates shell metacharacters, length limits, empty inputs)
+    - Updated skill examples to reference direct gh CLI pattern
+    - Updated CLAUDE.md: Libraries count 26 → 25 (removed github_issue_automation)
+    - Updated LIBRARIES.md: Removed section 12, renumbered sections 13-26 → 12-25
+  - **Security**: Maintains CWE-78 and CWE-20 compliance
+    - Shell metacharacter validation (;|`$&&||)
+    - Title length limit (256 chars)
+    - Body length limit (65000 chars)
+    - Empty input rejection
+    - Quoted variables prevent word splitting
+  - **Validation Logic** (Bash function in create-issue.md):
+    - `command -v gh`: Check gh CLI installed
+    - `gh auth status`: Check gh CLI authenticated
+    - Input validation before gh CLI execution
+    - Issue number extraction from gh CLI output
+    - Session logging via session_tracker.py
+  - **Benefits**:
+    - Simpler architecture (no wrapper layer)
+    - Direct gh CLI usage (standard tool, well-documented)
+    - Easier to understand and maintain
+    - Fewer lines of code (884 lines removed)
+  - **Testing**: 38 tests validate wrapper removal and gh CLI integration
+
+
 ### Fixed
 - **Context Clearing in /batch-implement** - Issue #88
   - **Problem**: `/clear` is a conversational command that cannot be programmatically invoked (no SlashCommand API)
