@@ -58,7 +58,9 @@ echo ""
 
 # Use Python orchestrator for installation
 # Note: Cannot use 'python3 -m plugins.autonomous_dev' because directory has hyphen
-# Use direct file execution instead
+# Add plugin directory to PYTHONPATH for imports to work
+export PYTHONPATH="$PLUGIN_DIR:${PYTHONPATH:-}"
+
 python3 "$PLUGIN_DIR/lib/install_orchestrator.py" \
     --plugin-dir "$PLUGIN_DIR" \
     --project-dir "$PROJECT_DIR" \

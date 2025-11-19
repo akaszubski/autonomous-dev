@@ -49,14 +49,25 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
-from .file_discovery import FileDiscovery
-from .copy_system import CopySystem
-from .installation_validator import InstallationValidator, ValidationResult
-
-# Security utilities for path validation and audit logging
+# Import dependencies - handle both package import and direct script execution
 try:
-    from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+    # Try relative imports first (when used as package)
+    from .file_discovery import FileDiscovery
+    from .copy_system import CopySystem
+    from .installation_validator import InstallationValidator, ValidationResult
+    from .security_utils import validate_path, audit_log
 except ImportError:
+    # Fall back to same-directory imports (when run as script)
+    import sys
+    from pathlib import Path
+    # Add lib directory to path for direct execution
+    lib_dir = Path(__file__).parent
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+
+    from file_discovery import FileDiscovery
+    from copy_system import CopySystem
+    from installation_validator import InstallationValidator, ValidationResult
     from security_utils import validate_path, audit_log
 
 
