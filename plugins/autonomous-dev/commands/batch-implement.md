@@ -1,9 +1,9 @@
 ---
 name: batch-implement
-description: Execute multiple features sequentially with state-based auto-clearing and crash recovery
+description: Execute multiple features sequentially with automatic context management and crash recovery
 author: Claude
-version: 3.2.0
-date: 2025-11-16
+version: 3.3.0
+date: 2025-11-17
 ---
 
 # /batch-implement - Overnight Feature Queue
@@ -19,7 +19,7 @@ Process multiple features unattended - queue them up, let it run overnight, wake
 # Start new batch from GitHub issues (requires gh CLI)
 /batch-implement --issues 72 73 74
 
-# Resume interrupted batch
+# Continue after crash
 /batch-implement --resume <batch-id>
 ```
 
@@ -29,9 +29,9 @@ Process multiple features unattended - queue them up, let it run overnight, wake
 
 **State Management** (v3.1.0+):
 - Persistent state file: `.claude/batch_state.json`
-- Auto-clear threshold: 150K tokens (automatic)
-- Crash recovery: Resume with `--resume <batch-id>` flag
-- Progress tracking: Completed features, failed features, auto-clear events
+- Automatic compression: Claude Code manages context automatically (no manual intervention)
+- Crash recovery: Continue with `--resume <batch-id>` flag
+- Progress tracking: Completed features, failed features, processing history
 
 ## Input Formats
 
@@ -90,19 +90,17 @@ Fetch issue titles directly from GitHub:
 2. Parse features (skip comments, empty lines, duplicates)
 3. **Create batch state** → Save to `.claude/batch_state.json`
 4. For each feature:
-   - Check if context exceeds 150K tokens
-   - If yes: record auto-clear event → `/clear` → reload state
    - `/auto-implement {feature}`
    - Update batch state (mark feature complete)
    - Next feature
 5. Cleanup state file on success
 
-**Auto-Clear Threshold**: System automatically clears context at 150K tokens (no manual intervention needed)
+**Automatic Compression**: Claude Code manages context automatically with its 200K token budget. The system compresses context in the background when needed - no manual intervention required.
 
 **Crash Recovery**: If batch is interrupted:
 - State file persists: `.claude/batch_state.json`
-- Contains: completed features, current index, failed features, auto-clear events
-- Resume: `/batch-implement --resume <batch-id>`
+- Contains: completed features, current index, failed features, processing history
+- Continue: `/batch-implement --resume <batch-id>`
 - System automatically skips completed features and continues from current index
 
 **State File Example** (File-based):
@@ -158,7 +156,7 @@ Fetch issue titles directly from GitHub:
 
 Invoke the batch orchestration workflow to process features sequentially with automatic context management.
 
-**You (Claude) orchestrate this workflow manually** - read features, loop through each one, invoke /auto-implement, clear context, next.
+**You (Claude) orchestrate this workflow** - read features, loop through each one, invoke /auto-implement, next.
 
 ARGUMENTS: {{ARGUMENTS}} (path to features.txt)
 
@@ -235,28 +233,7 @@ This gives visual progress tracking during batch execution.
 
 4. **Mark todo as completed** using TodoWrite
 
-5. **Check context threshold** using batch_state_manager:
-   ```python
-   from batch_state_manager import should_clear_context, pause_batch_for_clear, get_clear_notification_message
-
-   # Check if context needs clearing
-   if should_clear_context(current_state):
-       # Pause batch
-       pause_batch_for_clear(state_file, current_state, current_state.context_token_estimate)
-
-       # Display notification to user
-       notification = get_clear_notification_message(current_state)
-       print(notification)
-
-       # STOP processing - wait for user to manually run /clear and resume
-       return
-   ```
-
-   **CRITICAL**: This prevents context bloat. System pauses at 150K tokens and waits for user to:
-   1. Manually run `/clear`
-   2. Resume with `/batch-implement --resume <batch-id>`
-
-6. **Continue to next feature** (only if context is below threshold)
+5. **Continue to next feature**
 
 ---
 
@@ -296,7 +273,7 @@ AUTO_GIT_PUSH=true
 AUTO_GIT_PR=false  # Optional - set true if you want auto PRs
 ```
 
-Without these, the batch will pause for permission prompts.
+Without these, permission prompts will interrupt the workflow.
 
 ---
 
@@ -427,81 +404,23 @@ All features have been processed.
 
 ---
 
-## Context Clearing Workflow (Hybrid Approach)
+## Automatic Context Management
 
-**Problem**: Claude Code's /clear command cannot be executed programmatically (no SlashCommand API).
-
-**Solution**: Hybrid approach - detect threshold, pause batch, notify user, wait for manual clear, auto-resume.
+Claude Code automatically manages context with its 200K token budget. The system compresses and prunes context in the background when needed - fully automatic with no user intervention required.
 
 ### How It Works
 
-1. **Process features normally** until context reaches 150K tokens
-2. **Detect threshold**: `should_clear_context(state)` returns True
-3. **Pause batch**: `pause_batch_for_clear(state_file, state, tokens)` sets status="paused"
-4. **Display notification**:
-   ```
-   ========================================
-   CONTEXT LIMIT REACHED
-   ========================================
-
-   Current context: 155,000 tokens (threshold: 150,000)
-   Progress: 7/10 features (70%)
-   Batch ID: batch-20251117-123456
-
-   The batch has been paused to prevent context overflow.
-
-   NEXT STEPS:
-   1. Manually run: /clear
-   2. Resume batch: /batch-implement --resume batch-20251117-123456
-
-   The batch will continue from feature 8/10.
-   All completed features are saved and will be skipped on resume.
-   ========================================
-   ```
-5. **User manually runs /clear** (clears conversation context)
-6. **User runs resume command**: `/batch-implement --resume batch-20251117-123456`
-7. **System loads paused state**, resets token estimate to baseline, continues from current_index
-8. **Process remaining features** until complete (or next threshold)
-
-### Resume Behavior
-
-When `/batch-implement --resume <batch-id>` is executed:
-
-1. **Load state** from `.claude/batch_state.json`
-2. **Validate status** is "paused" (error if not found or status != "paused")
-3. **Reset token estimate** to baseline (assumes user ran /clear)
-4. **Change status** to "running"
-5. **Continue from current_index** (skip completed features)
-6. **Process remaining features** normally
-
-### Multiple Pause/Resume Cycles
-
-For large batches (20+ features), multiple pause/resume cycles may occur:
-
-```
-Features 1-8  → Pause (155K tokens)   → User: /clear + /batch-implement --resume
-Features 9-16 → Pause (152K tokens)   → User: /clear + /batch-implement --resume
-Features 17-20 → Complete (90K tokens) → Done
-```
-
-**State file tracks all pause events**:
-```json
-{
-  "auto_clear_count": 2,
-  "auto_clear_events": [
-    {"feature_index": 7, "context_tokens_before_clear": 155000, "timestamp": "..."},
-    {"feature_index": 15, "context_tokens_before_clear": 152000, "timestamp": "..."}
-  ]
-}
-```
+1. **Claude Code tracks context internally** (200K token budget)
+2. **Automatic compression** when approaching limits (transparent to user)
+3. **Background pruning** removes less-relevant context
+4. **Continuous processing** without pauses or interruptions
 
 ### Benefits
 
-- **Unattended until threshold**: Process features automatically until context full
-- **Graceful pause**: State persisted, no data loss
-- **Manual control**: User controls when to clear (knows context is safe to clear)
-- **Automatic resume**: Simple command to continue
-- **Scalable**: Supports 50+ features with multiple pause/resume cycles
+- **Fully unattended**: Process 50+ features without interruption
+- **No user intervention**: System handles context automatically
+- **Simplified workflow**: Continuous processing with no interruptions
+- **Trust platform capabilities**: Leverage Claude Code's built-in context management
 
 ---
 
@@ -512,7 +431,7 @@ Features 17-20 → Complete (90K tokens) → Done
 3. **Feature order**: Put critical features first (in case batch interrupted)
 4. **Feature size**: Keep features small and focused (easier to debug failures)
 5. **Overnight runs**: Perfect for 10-20 features while you sleep
-6. **Check periodically**: For large batches (20+ features), check every few hours for pause notifications
+6. **Trust the platform**: Claude Code manages context automatically - no manual intervention needed
 
 ---
 

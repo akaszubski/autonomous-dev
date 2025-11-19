@@ -30,6 +30,7 @@ Phase: TDD Green (implementation to make tests pass)
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -41,6 +42,40 @@ sys.path.insert(
 )
 
 from security_utils import validate_path, audit_log
+
+# Import github_issue_closer for issue closing functionality (Issue #91)
+try:
+    from github_issue_closer import (
+        extract_issue_number,
+        validate_issue_state,
+        generate_close_summary,
+        close_github_issue,
+        prompt_user_consent,
+        IssueAlreadyClosedError,
+        IssueNotFoundError,
+        GitHubAPIError,
+    )
+    ISSUE_CLOSE_AVAILABLE = True
+except ImportError:
+    # Graceful degradation - issue closing not available
+    ISSUE_CLOSE_AVAILABLE = False
+
+
+# Alias for test compatibility
+def log_audit_event(event: Dict[str, Any]) -> None:
+    """
+    Log audit event (alias for security_utils.audit_log).
+
+    Provided for test compatibility and consistent naming.
+
+    Args:
+        event: Event dictionary with action, issue_number, status, etc.
+    """
+    audit_log(
+        event_type=event.get('action', 'github_issue_operation'),
+        status=event.get('status', 'unknown'),
+        context=event,
+    )
 
 
 def should_trigger_git_workflow(agent_name: Optional[str]) -> bool:
@@ -406,6 +441,198 @@ def trigger_git_operations(
                 os.environ[key] = old_value
 
 
+def handle_issue_close(command_args: str, workflow_metadata: Dict[str, Any]) -> bool:
+    """
+    Handle GitHub issue auto-close after successful git workflow.
+
+    Workflow:
+    1. Extract issue number from command args
+    2. If no issue number, skip (graceful)
+    3. Prompt user for consent
+    4. If user declines, skip (graceful)
+    5. Validate issue state (exists and open)
+    6. If already closed, skip (idempotent)
+    7. Generate close summary from workflow metadata
+    8. Close issue via gh CLI
+    9. Log audit event
+
+    Args:
+        command_args: Original command args from /auto-implement
+        workflow_metadata: Workflow metadata from git operations
+            Expected keys:
+            - pr_url (optional): Pull request URL
+            - commit_hash: Git commit hash
+            - files_changed: List of changed file paths
+            - agents_passed (optional): List of agent names
+
+    Returns:
+        True if issue closed successfully, False if skipped or failed
+
+    Security:
+        - CWE-20: Input validation via github_issue_closer
+        - CWE-78: Command injection prevention via github_issue_closer
+        - Audit logging: All operations logged
+
+    Examples:
+        >>> metadata = {'commit_hash': 'abc123', 'files_changed': ['file1.py']}
+        >>> handle_issue_close("implement issue #8", metadata)
+        True
+        >>> handle_issue_close("implement feature", metadata)
+        False  # No issue number, skipped
+    """
+    # Check if issue closing is available
+    if not ISSUE_CLOSE_AVAILABLE:
+        audit_log(
+            event_type='handle_issue_close',
+            status='skipped',
+            context={
+                'reason': 'github_issue_closer library not available',
+            },
+        )
+        return False
+
+    # STEP 1: Extract issue number from command args
+    try:
+        issue_number = extract_issue_number(command_args)
+    except Exception as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'extract_issue_number',
+                'error': str(e),
+            },
+        )
+        return False
+
+    # STEP 2: If no issue number, skip gracefully
+    if issue_number is None:
+        audit_log(
+            event_type='handle_issue_close',
+            status='skipped',
+            context={
+                'reason': 'No issue number in command args',
+                'command_args': command_args,
+            },
+        )
+        return False
+
+    # STEP 3: Prompt user for consent
+    try:
+        consent = prompt_user_consent(issue_number)
+    except Exception as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'prompt_user_consent',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+
+    # STEP 4: If user declines, skip gracefully
+    if not consent:
+        audit_log(
+            event_type='handle_issue_close',
+            status='skipped',
+            context={
+                'reason': 'User declined consent',
+                'issue_number': issue_number,
+            },
+        )
+        return False
+
+    # STEP 5: Validate issue state (exists and open)
+    try:
+        validate_issue_state(issue_number)
+    except IssueAlreadyClosedError as e:
+        # STEP 6: Already closed - idempotent success
+        audit_log(
+            event_type='handle_issue_close',
+            status='already_closed',
+            context={
+                'issue_number': issue_number,
+                'reason': str(e),
+            },
+        )
+        return True  # Idempotent - already closed is success
+    except (IssueNotFoundError, GitHubAPIError) as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'validate_issue_state',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+    except Exception as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'validate_issue_state',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+
+    # STEP 7: Generate close summary from workflow metadata
+    try:
+        summary = generate_close_summary(issue_number, workflow_metadata)
+    except Exception as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'generate_close_summary',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+
+    # STEP 8: Close issue via gh CLI
+    try:
+        result = close_github_issue(issue_number, summary)
+
+        # STEP 9: Log audit event for successful close
+        log_audit_event({
+            'action': 'handle_issue_close',
+            'issue_number': issue_number,
+            'status': 'success',
+            'closed': result,
+        })
+
+        return result
+    except (IssueNotFoundError, GitHubAPIError) as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'close_github_issue',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+    except Exception as e:
+        audit_log(
+            event_type='handle_issue_close',
+            status='failed',
+            context={
+                'step': 'close_github_issue',
+                'issue_number': issue_number,
+                'error': str(e),
+            },
+        )
+        return False
+
+
 def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Main hook entry point (SubagentStop lifecycle).
@@ -510,6 +737,43 @@ def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
     try:
         result = trigger_git_operations(workflow_metadata, consent)
 
+        # STEP 8.1: Handle issue closing (Issue #91)
+        # Only attempt if git operations succeeded and push enabled
+        issue_close_result = False
+        if result.get('success') and consent.get('push_enabled'):
+            # Extract command args from session data for issue number
+            command_args = session_data.get('feature_request') or session_data.get('request', '')
+
+            # Build metadata for close summary
+            close_metadata = {
+                'pr_url': result.get('pr_url'),
+                'commit_hash': result.get('commit_sha'),
+                'files_changed': result.get('files_changed', []),
+                'agents_passed': [
+                    'researcher',
+                    'planner',
+                    'test-master',
+                    'implementer',
+                    'reviewer',
+                    'security-auditor',
+                    'doc-master',
+                ],
+            }
+
+            # Attempt to close issue (graceful degradation)
+            try:
+                issue_close_result = handle_issue_close(command_args, close_metadata)
+            except Exception as e:
+                # Log but don't fail the workflow
+                audit_log(
+                    event_type='handle_issue_close',
+                    status='failed',
+                    context={
+                        'error': str(e),
+                        'reason': 'Exception during issue close',
+                    },
+                )
+
         audit_log(
             event_type='hook_execution',
             status='success' if result.get('success') else 'failed',
@@ -518,6 +782,7 @@ def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
                 'workflow_metadata': workflow_metadata,
                 'consent': consent,
                 'result': result,
+                'issue_closed': issue_close_result,
             },
         )
 
@@ -526,6 +791,7 @@ def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
             'success': result.get('success', False),
             'reason': result.get('error') or result.get('reason', 'Git operations completed'),
             'details': result,  # Include full result (commit_sha, pr_url, etc.)
+            'issue_closed': issue_close_result,
         }
 
     except Exception as e:

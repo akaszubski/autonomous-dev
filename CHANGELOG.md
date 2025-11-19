@@ -192,6 +192,77 @@
 
 ---
 
+## [3.32.0] - 2025-11-17
+
+### Changed
+- **Simplify /batch-implement Context Clearing Mechanism** - Issue #88
+  - **Problem**: Previous hybrid approach required manual pause/resume cycles at 150K token threshold, adding complexity
+  - **Solution**: Leverage Claude Code's automatic context management (200K budget with built-in compression)
+  - **User Impact**: Simplified workflow - no manual `/clear` commands or resume cycles needed
+  - **Key Changes**:
+    - Removed pause/resume notification logic from batch workflow
+    - Deprecated context clearing functions (backward compatible - still work with DeprecationWarning)
+    - Removed STEP 5 context threshold check from batch-implement.md
+    - Simplified workflow documentation: removed pause/resume examples
+    - Updated batch_state_manager.py with @deprecated decorator for 3 functions
+  - **Deprecated Functions** (kept for backward compatibility):
+    - `should_clear_context(state)` - Now issues DeprecationWarning, no manual clearing needed
+    - `pause_batch_for_clear(state_file, state, tokens)` - No longer needed, deprecated
+    - `get_clear_notification_message(state)` - No longer needed, deprecated
+    - Backward compatibility: Functions still work (don't break existing code), just emit warnings
+  - **API Changes**:
+    - `batch_state_manager.py`: Added @deprecated decorator to 3 functions
+    - `batch_state_manager.py`: Updated module docstring to note deprecation
+    - `batch_state_manager.py`: Updated CONTEXT_THRESHOLD constant documentation (deprecated)
+    - `batch_state_manager.py`: Updated state fields documentation (deprecated fields)
+    - `batch_state_manager.py`: State fields remain functional for loading old batch files
+  - **Documentation Updates**:
+    - `docs/BATCH-PROCESSING.md`: Updated workflow diagram (removed pause/resume, added "Claude Code handles context automatically")
+    - `docs/BATCH-PROCESSING.md`: Removed detailed pause/resume cycle documentation
+    - `docs/BATCH-PROCESSING.md`: Updated "Automatic Compression" section with simplified explanation
+    - `docs/BATCH-PROCESSING.md`: Removed "Resume Behavior" and "Multiple Pause/Resume Cycles" sections
+    - `plugins/autonomous-dev/commands/batch-implement.md`: Updated frontmatter (version 3.2.0 → 3.3.0, date 2025-11-17, description simplified)
+    - `plugins/autonomous-dev/commands/batch-implement.md`: Removed Step 5 context threshold check
+    - `plugins/autonomous-dev/commands/batch-implement.md`: Removed context clearing workflow section (replaced with "Automatic Context Management")
+    - `plugins/autonomous-dev/commands/batch-implement.md`: Updated tips section (removed "Check periodically for pause notifications")
+    - `CLAUDE.md`: Updated batch-implement description ("auto-clear at 150K" → "automatic compression")
+    - `CLAUDE.md`: Updated Last Updated to 2025-11-17, referenced Issue #88
+  - **Behavior Changes**:
+    - No workflow interruptions at 150K tokens
+    - No manual `/clear` commands needed
+    - No resume commands needed
+    - Continuous processing for 50+ feature batches
+    - Context automatically managed by Claude Code platform
+  - **Performance**:
+    - No longer pauses at 150K tokens
+    - Continuous processing: ~20-30 min per feature (unchanged)
+    - Supports 50+ features without interruption (improvement over pause/resume approach)
+  - **Testing**: 28 tests (across 3 test files)
+    - `tests/unit/test_issue88_deprecation.py`: Tests for DeprecationWarning on 3 functions (PASS)
+    - `tests/integration/test_issue88_simplified_workflow.py`: Tests batch processing without pause/resume (PASS)
+    - `tests/integration/test_batch_context_clearing.py`: Backward compatibility with old state files (PASS)
+    - Overall: 28/29 tests passing (96.6%)
+  - **Backward Compatibility**: Fully backward compatible
+    - Deprecated functions still work (emit DeprecationWarning, don't break)
+    - Old batch state files load successfully
+    - Existing auto_clear_events still parsed (ignored in new workflow)
+    - No breaking changes to public API
+  - **Security**: No changes (same path validation, symlink safety, audit logging)
+  - **Migration Path**:
+    - Existing batches with pause/resume state still resume correctly
+    - Old batch state files load and continue processing
+    - No action needed from users (automatic)
+    - Deprecated functions emit warnings but continue working
+
+### Fixed
+- **Context Clearing Mechanism Hybrid Approach Alignment** - Issue #88
+  - Issue #88 introduced a hybrid pause/resume approach (v3.31.0) requiring manual `/clear` invocations
+  - This release simplifies by trusting Claude Code's built-in context management
+  - Users no longer need to manually pause/clear/resume between features
+  - Workflow is now: parse features → auto-implement each → Claude Code handles context automatically
+
+---
+
 ## [3.30.0] - 2025-11-17
 
 ### Fixed

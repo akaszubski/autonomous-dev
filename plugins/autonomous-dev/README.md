@@ -1,12 +1,12 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.21.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.22.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.21.0
-**Last Updated**: 2025-11-15
-**Status**: Issue #73: MCP Auto-Approval for Subagent Tool Calls
+**Version**: v3.22.0
+**Last Updated**: 2025-11-18
+**Status**: Issue #91: Auto-close GitHub issues after /auto-implement
 
 Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 22 active skills, 42+ automated hooks, and PROJECT.md-first architecture.
 

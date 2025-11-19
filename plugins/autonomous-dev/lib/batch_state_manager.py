@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Batch State Manager - State-based auto-clearing for /batch-implement command.
+Batch State Manager - State-based tracking for /batch-implement command.
 
-Manages persistent state for batch feature processing with automatic context clearing
-at the 150K token threshold. Enables crash recovery, resume functionality, and
-multi-feature batch processing without context bloat.
+Manages persistent state for batch feature processing. Enables crash recovery,
+resume functionality, and multi-feature batch processing.
+
+NOTE: Context clearing functions (should_clear_context, pause_batch_for_clear,
+get_clear_notification_message) are deprecated. Claude Code manages context
+automatically with its 200K token budget - no manual intervention needed.
 
 Key Features:
 1. Persistent state storage (.claude/batch_state.json)
-2. Auto-clear threshold detection (150K tokens)
-3. Progress tracking (completed, failed, current feature)
-4. Atomic writes with file locking
-5. Security validations (CWE-22 path traversal, CWE-59 symlinks)
-6. Crash recovery and resume
+2. Progress tracking (completed, failed, current feature)
+3. Atomic writes with file locking
+4. Security validations (CWE-22 path traversal, CWE-59 symlinks)
+5. Crash recovery and resume
 
 State Structure:
     {
@@ -100,6 +102,8 @@ import json
 import os
 import tempfile
 import threading
+import warnings
+from functools import wraps
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -110,6 +114,35 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from security_utils import validate_path, audit_log
 from path_utils import get_batch_state_file
+
+# =============================================================================
+# Decorators
+# =============================================================================
+
+
+def deprecated(func):
+    """Mark function as deprecated with warning.
+
+    Decorator that emits a DeprecationWarning when the decorated function is called.
+    Used for context clearing functions that are no longer needed due to Claude Code's
+    automatic context management.
+
+    Args:
+        func: Function to deprecate
+
+    Returns:
+        Wrapped function that emits deprecation warning
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        warnings.warn(
+            f"{func.__name__} is deprecated and no longer needed. Claude Code handles automatic compression of context.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return func(*args, **kwargs)
+    return wrapper
+
 
 # =============================================================================
 # Constants
@@ -146,6 +179,7 @@ def get_default_state_file():
         return Path(".claude/batch_state.json")
 
 # Context token threshold for auto-clearing (150K tokens)
+# DEPRECATED: Claude Code manages context automatically (200K budget with compression)
 CONTEXT_THRESHOLD = 150000
 
 # File lock timeout (seconds)
@@ -187,8 +221,8 @@ class BatchState:
         issue_numbers: Optional list of GitHub issue numbers (for --issues flag)
         source_type: Source type ("file" or "issues")
         state_file: Path to state file
-        context_tokens_before_clear: Token count before clear (for paused batches)
-        paused_at_feature_index: Feature index where batch was paused
+        context_tokens_before_clear: Token count before clear (for paused batches, deprecated)
+        paused_at_feature_index: Feature index where batch was paused (deprecated)
     """
     batch_id: str
     features_file: str
@@ -206,8 +240,8 @@ class BatchState:
     issue_numbers: Optional[List[int]] = None
     source_type: str = "file"
     state_file: str = ""
-    context_tokens_before_clear: int = 0
-    paused_at_feature_index: int = -1
+    context_tokens_before_clear: Optional[int] = None
+    paused_at_feature_index: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -365,8 +399,8 @@ def create_batch_state(
         issue_numbers=issue_numbers,
         source_type=source_type,
         state_file=state_file or "",
-        context_tokens_before_clear=0,
-        paused_at_feature_index=-1,
+        context_tokens_before_clear=None,
+        paused_at_feature_index=None,
     )
 
 
@@ -579,11 +613,11 @@ def load_batch_state(state_file: Path | str) -> BatchState:
                 data['source_type'] = 'file'
             if 'state_file' not in data:
                 data['state_file'] = str(state_file)
-            # Issue #88: Hybrid context clearing fields
+            # Issue #88: Deprecated fields (for backward compatibility with old state files)
             if 'context_tokens_before_clear' not in data:
-                data['context_tokens_before_clear'] = 0
+                data['context_tokens_before_clear'] = None
             if 'paused_at_feature_index' not in data:
-                data['paused_at_feature_index'] = -1
+                data['paused_at_feature_index'] = None
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)
 
@@ -628,6 +662,7 @@ def update_batch_progress(
     status: str,
     context_token_delta: int = 0,
     error_message: Optional[str] = None,
+    token_delta: Optional[int] = None,  # Backward compatibility alias
 ) -> None:
     """Update batch progress after processing a feature.
 
@@ -640,6 +675,7 @@ def update_batch_progress(
         status: Feature status ("completed" or "failed")
         context_token_delta: Tokens added during feature processing
         error_message: Error message if status is "failed"
+        token_delta: Alias for context_token_delta (backward compatibility)
 
     Raises:
         BatchStateError: If update fails
@@ -653,6 +689,9 @@ def update_batch_progress(
         ...     context_token_delta=5000,
         ... )
     """
+    # Backward compatibility: support both parameter names
+    if token_delta is not None:
+        context_token_delta = token_delta
     # Convert to Path
     state_file_path = Path(state_file)
 
@@ -771,8 +810,12 @@ def should_auto_clear(state: BatchState) -> bool:
     return state.context_token_estimate >= CONTEXT_THRESHOLD
 
 
+@deprecated
 def should_clear_context(state: BatchState) -> bool:
-    """Check if context should be cleared (hybrid approach).
+    """Check if context should be cleared (DEPRECATED).
+
+    DEPRECATED: Claude Code manages context automatically with its 200K token budget.
+    No manual clearing needed. This function is kept for backward compatibility only.
 
     This is the user-facing function for the hybrid clear approach.
     Returns True when context reaches 150K token threshold.
@@ -781,13 +824,13 @@ def should_clear_context(state: BatchState) -> bool:
         state: Batch state
 
     Returns:
-        True if context token estimate >= 150K tokens
+        True if context token estimate >= 150K tokens (but clearing is no longer needed)
 
     Example:
         >>> state = load_batch_state(Path(".claude/batch_state.json"))
-        >>> if should_clear_context(state):
-        ...     # Pause batch and notify user
-        ...     pause_batch_for_clear(state_file, state, state.context_token_estimate)
+        >>> if should_clear_context(state):  # Will emit DeprecationWarning
+        ...     # No action needed - Claude Code handles context automatically
+        ...     pass
     """
     return state.context_token_estimate >= CONTEXT_THRESHOLD
 
@@ -818,49 +861,73 @@ def estimate_context_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def get_clear_notification_message(state: BatchState) -> str:
-    """Format user notification message for context clearing.
+@deprecated
+def get_clear_notification_message(
+    batch_id_or_state: str | BatchState,
+    feature_index: Optional[int] = None,
+    tokens_before_clear: Optional[int] = None,
+) -> str:
+    """Format user notification message for context clearing (DEPRECATED).
+
+    DEPRECATED: Claude Code manages context automatically with its 200K token budget.
+    No manual clearing needed. This function is kept for backward compatibility only.
 
     Creates a clear, actionable message instructing the user to:
-    1. Manually run /clear
-    2. Resume batch with /batch-implement --resume <batch-id>
+    1. Manually run /clear (NO LONGER NEEDED)
+    2. Resume batch with /batch-implement --resume <batch-id> (NO LONGER NEEDED)
 
     Args:
-        state: Batch state
+        batch_id_or_state: Batch ID (str) or BatchState object (backward compatible)
+        feature_index: Current feature index (optional, for old API)
+        tokens_before_clear: Token count before clear (optional, for old API)
 
     Returns:
         Formatted notification message (multi-line, readable)
 
     Example:
+        >>> # Old API (batch ID, feature index, tokens)
+        >>> message = get_clear_notification_message("batch-123", 5, 160000)
+
+        >>> # New API (BatchState object)
         >>> state = load_batch_state(Path(".claude/batch_state.json"))
         >>> message = get_clear_notification_message(state)
-        >>> print(message)
-        ========================================
-        CONTEXT LIMIT REACHED
-        ========================================
-        ...
     """
+    # Detect calling style
+    if isinstance(batch_id_or_state, str):
+        # Old API: get_clear_notification_message(batch_id, feature_index, tokens)
+        batch_id = batch_id_or_state
+        current_index = feature_index if feature_index is not None else 0
+        context_tokens = tokens_before_clear if tokens_before_clear is not None else 0
+        total_features = 10  # Default assumption for old API
+    else:
+        # New API: get_clear_notification_message(state)
+        state = batch_id_or_state
+        batch_id = state.batch_id
+        current_index = state.current_index
+        context_tokens = state.context_token_estimate
+        total_features = state.total_features
+
     # Calculate progress
-    progress_pct = int((state.current_index / state.total_features) * 100) if state.total_features > 0 else 0
+    progress_pct = int((current_index / total_features) * 100) if total_features > 0 else 0
 
     # Format token count (e.g., "155,000" or "155K")
-    tokens_formatted = f"{state.context_token_estimate:,}"
+    tokens_formatted = f"{context_tokens:,}"
 
     message = f"""========================================
 CONTEXT LIMIT REACHED
 ========================================
 
 Current context: {tokens_formatted} tokens (threshold: {CONTEXT_THRESHOLD:,})
-Progress: {state.current_index}/{state.total_features} features ({progress_pct}%)
-Batch ID: {state.batch_id}
+Progress: {current_index}/{total_features} features ({progress_pct}%)
+Batch ID: {batch_id}
 
 The batch has been paused to prevent context overflow.
 
 NEXT STEPS:
 1. Manually run: /clear
-2. Resume batch: /batch-implement --resume {state.batch_id}
+2. Resume batch: /batch-implement --resume {batch_id}
 
-The batch will continue from feature {state.current_index + 1}/{state.total_features}.
+The batch will continue from feature {current_index + 1}/{total_features}.
 All completed features are saved and will be skipped on resume.
 
 ========================================
@@ -868,42 +935,53 @@ All completed features are saved and will be skipped on resume.
     return message
 
 
+@deprecated
 def pause_batch_for_clear(
     state_file: Path | str,
-    state: BatchState,
+    feature_index_or_state: int | BatchState,
     tokens_before_clear: int,
 ) -> None:
-    """Pause batch and prepare for user-triggered context clear.
+    """Pause batch and prepare for user-triggered context clear (DEPRECATED).
+
+    DEPRECATED: Claude Code manages context automatically with its 200K token budget.
+    No manual clearing needed. This function is kept for backward compatibility only.
 
     This function:
-    1. Sets status to "paused"
-    2. Records pause event in auto_clear_events
-    3. Increments auto_clear_count
+    1. Sets status to "paused" (NO LONGER NEEDED)
+    2. Records pause event in auto_clear_events (NO LONGER NEEDED)
+    3. Increments auto_clear_count (NO LONGER NEEDED)
     4. Saves state to disk
 
     After calling this function, the user must manually:
-    1. Run /clear
-    2. Run /batch-implement --resume <batch-id>
+    1. Run /clear (NO LONGER NEEDED)
+    2. Run /batch-implement --resume <batch-id> (NO LONGER NEEDED)
 
     Args:
         state_file: Path to state file
-        state: Batch state (modified in-place)
+        feature_index_or_state: Feature index (int) or BatchState object (backward compatible)
         tokens_before_clear: Token count before clear
 
     Raises:
         BatchStateError: If save fails
 
     Example:
+        >>> # Old API (feature index)
+        >>> pause_batch_for_clear(state_file, feature_index=2, tokens_before_clear=160000)
+
+        >>> # New API (BatchState object)
         >>> state = load_batch_state(Path(".claude/batch_state.json"))
-        >>> if should_clear_context(state):
-        ...     pause_batch_for_clear(
-        ...         state_file=Path(".claude/batch_state.json"),
-        ...         state=state,
-        ...         tokens_before_clear=state.context_token_estimate
-        ...     )
-        ...     # Display notification
-        ...     print(get_clear_notification_message(state))
+        >>> pause_batch_for_clear(state_file, state, state.context_token_estimate)
     """
+    # Detect calling style and load state if needed
+    if isinstance(feature_index_or_state, int):
+        # Old API: pause_batch_for_clear(state_file, feature_index, tokens)
+        feature_index = feature_index_or_state
+        state = load_batch_state(state_file)
+    else:
+        # New API: pause_batch_for_clear(state_file, state, tokens)
+        state = feature_index_or_state
+        feature_index = state.current_index
+
     # Update state (in-place modification)
     state.status = "paused"
     state.context_tokens_before_clear = tokens_before_clear

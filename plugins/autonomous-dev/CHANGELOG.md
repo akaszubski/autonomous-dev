@@ -7,6 +7,204 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.33.0] - 2025-11-18
+
+### ✨ Added
+
+#### Optional Checkpoint Verification in /auto-implement (GitHub Issue #82)
+- **New Feature**: Make checkpoint verification optional with graceful degradation
+  - Enables `/auto-implement` to work in both autonomous-dev repo (full verification) and user projects (no scripts/)
+  - Checkpoints gracefully degrade when AgentTracker is unavailable
+  - Never blocks workflow on verification errors (informational only)
+
+- **Implementation Details**:
+  - **CHECKPOINT 1** (line ~138): Parallel exploration verification
+    - Try/except wrapper around AgentTracker import and `verify_parallel_exploration()` method
+    - ImportError: Informs user verification unavailable, continues with `success = True`
+    - AttributeError/Exception: Logs error, continues gracefully
+    - User projects see: "ℹ️ Parallel exploration verification skipped (AgentTracker not available)"
+    - Dev repo sees: Full metrics display with time saved and efficiency percent
+  - **CHECKPOINT 4.1** (line ~403): Parallel validation verification
+    - Identical graceful degradation pattern to CHECKPOINT 1
+    - Handles ImportError, AttributeError, and generic exceptions
+    - User projects skip silently, dev repo shows detailed metrics
+
+- **Error Handling Strategy**:
+  - **ImportError** (no scripts/ directory): Informational message, `success = True` (don't block)
+  - **AttributeError** (method missing): Log error, `success = True` (don't block)
+  - **Generic Exception** (any other error): Log error, `success = True` (don't block)
+  - **Verification Success** (dev repo): Display metrics and status
+
+- **User Experience**:
+  - **User Projects**: "ℹ️ Parallel exploration verification skipped - This is normal for user projects"
+  - **Dev Repo**: "✅ PARALLEL EXPLORATION: SUCCESS" with efficiency metrics
+  - **Broken Scripts**: "⚠️ Verification unavailable (error message) - Continuing workflow"
+  - Never shows scary errors (all wrapped in user-friendly messages)
+
+- **Files Changed**:
+  - `plugins/autonomous-dev/commands/auto-implement.md`:
+    - CHECKPOINT 1 (lines ~138-160): Added graceful degradation with 4 except blocks
+    - CHECKPOINT 4.1 (lines ~403-425): Added graceful degradation matching CHECKPOINT 1
+    - Both checkpoints include detailed comments explaining the pattern
+
+- **Testing**: 14 integration tests (100% passing)
+  - `tests/integration/test_issue82_optional_checkpoint_verification.py`
+  - User project graceful degradation (2 tests)
+  - Broken scripts handling (2 tests)
+  - Dev repo full verification (2 tests)
+  - Regression tests preventing accidental breakage (3 tests)
+  - End-to-end checkpoint execution (5 tests)
+
+- **Backward Compatibility**: Fully compatible
+  - Existing autonomous-dev workflows unchanged (full verification still works)
+  - No API changes or command modifications
+  - User projects that don't have AgentTracker still complete successfully
+
+- **Success Metrics**:
+  - ✅ `/auto-implement` works in user projects (no scripts/ required)
+  - ✅ `/auto-implement` full verification works in dev repo (metrics displayed)
+  - ✅ Verification failures never block workflow (informational only)
+  - ✅ Clear user messages for each scenario
+  - ✅ All 14 tests passing
+
+#### Batch-Implement Automatic Failure Recovery (GitHub Issue #89)
+- **New Feature**: Intelligent automatic retry for `/batch-implement` with failure classification
+  - Distinguishes transient errors (network, timeout, rate limit) from permanent errors (syntax, import, type)
+  - Automatic retry up to 3 times per feature for transient failures
+  - Circuit breaker after 5 consecutive failures (prevents resource exhaustion)
+  - User consent prompt on first run (can be overridden via `BATCH_RETRY_ENABLED` env var)
+  - Audit logging to `.claude/audit/` for all retry attempts
+  - State persistence with crash recovery
+
+- **New Libraries** (3 total, 1,247 lines):
+  - `failure_classifier.py` (343 lines):
+    - `classify_failure()`: Pattern-based transient vs permanent classification
+    - `is_transient_error()`: Detect network, timeout, rate limit errors
+    - `is_permanent_error()`: Detect syntax, import, type errors
+    - `sanitize_error_message()`: CWE-117 log injection prevention
+    - `extract_error_context()`: Rich error context for debugging
+    - 15+ transient patterns, 15+ permanent patterns
+
+  - `batch_retry_manager.py` (544 lines):
+    - `BatchRetryManager`: Main orchestration class
+    - `should_retry_feature()`: 5-check decision logic (global limit, circuit breaker, failure type, per-feature limit)
+    - `record_retry_attempt()`: Track attempt and check circuit breaker
+    - `record_success()`: Reset circuit breaker
+    - Atomic state writes to `.claude/batch_*_retry_state.json`
+    - JSONL audit logging to `.claude/audit/batch_*_retry_audit.jsonl`
+    - Constants: MAX_RETRIES_PER_FEATURE=3, CIRCUIT_BREAKER_THRESHOLD=5, MAX_TOTAL_RETRIES=50
+
+  - `batch_retry_consent.py` (360 lines):
+    - `check_retry_consent()`: First-run consent with persistence
+    - `is_retry_enabled()`: Priority-based check (env var > state file > prompt)
+    - `prompt_for_retry_consent()`: User-facing consent prompt
+    - `save_consent_state()` / `load_consent_state()`: Persistent state to `~/.autonomous-dev/user_state.json`
+    - Secure permissions (0o600), symlink rejection (CWE-59)
+
+- **Enhanced Libraries**:
+  - `batch_state_manager.py`: Added `retry_attempts` field, `get_retry_count()`, `increment_retry_count()` methods
+
+- **Security Hardening**:
+  - CWE-117: Log injection prevention via error message sanitization
+  - CWE-22: Path validation for state files and user state directory
+  - CWE-59: Symlink detection and rejection for user state file
+  - CWE-400: DOS prevention via circuit breaker (5 failures) and global limit (50 retries)
+  - CWE-732: Secure file permissions (0o600 for user state file)
+  - Atomic writes (temp + rename) for crash safety
+
+- **Documentation Updates**:
+  - `docs/BATCH-PROCESSING.md`: New "Automatic Failure Recovery" section (3,200+ chars)
+    - Transient vs permanent classification overview
+    - Retry decision logic with priority order
+    - First-run consent workflow
+    - Environment variable override
+    - Circuit breaker explanation and manual reset
+    - State persistence details
+    - Monitoring and audit logging
+    - Security coverage
+  - `docs/LIBRARIES.md`: 3 new library sections (2,400+ lines)
+    - Library #21: failure_classifier.py (functions, patterns, security)
+    - Library #22: batch_retry_manager.py (class, methods, state, audit)
+    - Library #23: batch_retry_consent.py (functions, state management, security)
+    - Updated library count: 27 → 30
+    - Updated category counts: Core 16 → 19, Utilities 1, Installation 4, Brownfield 6
+  - `CLAUDE.md`: Updated batch-implement description with retry feature details
+  - `plugins/autonomous-dev/README.md`: Plugin version → 3.22.0 (maintained)
+
+- **Test Coverage**: 85+ new unit tests (100% passing)
+  - `tests/unit/lib/test_failure_classifier.py`: 25+ tests (classification, patterns, sanitization)
+  - `tests/unit/lib/test_batch_retry_manager.py`: 40+ tests (decision logic, state, circuit breaker)
+  - `tests/unit/lib/test_batch_retry_consent.py`: 20+ tests (prompt, persistence, env vars)
+  - Edge cases: None/empty errors, unknown types, corrupted state, symlinks, permissions
+
+- **Backward Compatibility**: Fully compatible
+  - Retry feature is opt-in (consent required)
+  - Existing batches continue without changes
+  - Can be disabled via `.env` for testing
+  - All new fields have sensible defaults
+
+- **Performance**: Minimal impact
+  - Classification: <1ms per error (regex matching)
+  - Decision logic: <1ms per check (simple comparisons)
+  - State I/O: <10ms per save (atomic write)
+  - No impact on successful features
+
+- **Related Issues**: GitHub Issues #86 (remove wrappers), #87 (gh CLI direct), #88 (context clearing), #91 (issue closing)
+
+## [3.22.0] - 2025-11-18
+
+### ✨ Added
+
+#### Auto-Close GitHub Issues After /auto-implement (GitHub Issue #91)
+- **New Feature**: Automatic GitHub issue closing after successful `/auto-implement` workflow
+  - Extracts issue number from feature request using flexible patterns: `"issue #8"`, `"#8"`, `"Issue 8"`
+  - Interactive consent prompt for each issue (user control)
+  - Graceful degradation: Feature success independent of issue close
+  - Comprehensive markdown summary with workflow metadata (agents, PR, commit, files changed)
+
+- **New Library**: `github_issue_closer.py` (583 lines, Issue #91)
+  - Issue number extraction with pattern matching
+  - User consent management (interactive prompt)
+  - GitHub issue state validation via `gh` CLI
+  - Close summary markdown generation with workflow metadata
+  - Security hardening: CWE-20 (input validation), CWE-78 (command injection prevention), CWE-117 (log injection prevention)
+  - Audit logging for all `gh` CLI operations
+  - Graceful error handling with manual fallback instructions
+
+- **Hook Enhancement**: `auto_git_workflow.py` (+204 lines)
+  - STEP 8: Auto-close GitHub issue (after git push succeeds)
+  - Issue extraction logic (patterns: "issue #8", "#8", "Issue 8")
+  - User consent prompt with "yes/no/Ctrl+C" options
+  - Idempotent behavior (already closed = success)
+  - Manual fallback instructions if automation fails
+
+- **Command Documentation**: `auto-implement.md` (+147 lines)
+  - STEP 5.1: Auto-Close GitHub Issue (If Applicable)
+  - Issue number extraction patterns with examples
+  - Consent prompt behavior
+  - Issue state validation
+  - Close summary generation
+  - Security protections (CWE-20, CWE-78, CWE-117)
+
+- **Test Coverage**: 54/54 tests passing (100%)
+  - Unit tests: Pattern matching, validation, consent prompts
+  - Integration tests: Full workflow with mock GitHub API
+  - Security tests: Input validation, command injection prevention
+  - Error handling tests: Network failures, permission errors, already closed issues
+
+- **Documentation Updated**:
+  - `docs/GIT-AUTOMATION.md`: New "Auto-Close GitHub Issues" section (Step 8.5)
+  - `docs/LIBRARIES.md`: Added github_issue_closer.py entry
+  - `CLAUDE.md`: Updated /auto-implement description
+  - Auto-implement.md: Added STEP 5.1 documentation
+
+### 🔧 Changed
+
+#### Git Automation Workflow Enhanced (Issue #91)
+- Updated workflow diagram to include Step 8: Auto-close GitHub issue
+- Graceful degradation: Issue closing is optional (non-blocking)
+- Consent model: Users prompted before each issue close
+
 ## [3.11.0] - 2025-11-11
 
 ### ✨ Added

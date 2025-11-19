@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-11-18
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.8.0
 
@@ -25,7 +25,7 @@
 **Commands (20 active, includes /align-project-retrofit for brownfield adoption and /batch-implement for sequential processing)**:
 
 **Core Workflow (11)**:
-- `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents)
+- `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents, auto-close GitHub issues v3.22.0)
 - `/batch-implement <file>` - Sequential feature processing with automatic context management (prevents context bloat) - GitHub #74
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
@@ -151,9 +151,9 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMA
 
 ---
 
-## Batch Feature Processing (Enhanced in v3.24.0)
+## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88)
 
-Process multiple features sequentially with intelligent state management and automatic context clearing. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
+Process multiple features sequentially with intelligent state management and automatic context management. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
 
 **Command**: `/batch-implement <features-file>` or `/batch-implement --issues <issue-numbers>` or `/batch-implement --resume <batch-id>`
 
@@ -161,17 +161,17 @@ Process multiple features sequentially with intelligent state management and aut
 - **File-based input**: Plain text file, one feature per line
 - **GitHub Issues**: Fetch titles via `--issues` flag (requires gh CLI v2.0+)
 - **State management**: `.claude/batch_state.json` tracks progress across crashes
-- **Auto-clear**: Clears context at 150K tokens (no manual intervention)
+- **Automatic compression**: Claude Code manages context automatically (no manual intervention)
 - **Resume support**: `--resume <batch-id>` continues from last completed feature
-- **50+ features**: State-based tracking prevents context bloat
+- **50+ features**: Scales indefinitely with automatic context management
 
-**Performance**: ~20-30 min per feature, automatic context clearing maintains <8K tokens indefinitely
+**Performance**: ~20-30 min per feature, automatic context compression maintains optimal token budget throughout batch
 
 ---
 
 ## Git Automation Control
 
-Automatic git operations (commit, push, PR creation) are **enabled by default** after `/auto-implement` completes (v3.12.0+). See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
+Automatic git operations (commit, push, PR creation, issue closing) are **enabled by default** after `/auto-implement` completes (v3.12.0+, issue closing added v3.22.0). See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
 **Control**:
 - **First-run consent**: Interactive prompt on first use (default: enabled)
@@ -466,4 +466,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-16 (Enhanced testing-guide skill - GitHub Issue #65, Skill-Based Token Reduction - GitHub Issues #63, #64, #72)
+**Last Updated**: 2025-11-17 (Fixed /batch-implement context clearing mechanism - GitHub Issue #88, Simplified workflow from pause/resume to automatic compression)

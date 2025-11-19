@@ -1,13 +1,13 @@
 # Git Automation Control
 
-**Last Updated**: 2025-11-11
-**Related Issue**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61)
+**Last Updated**: 2025-11-18
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
 
 ## Overview
 
-Automatic git operations (commit, push, PR creation) provide a seamless end-to-end workflow for feature implementation. This feature is **enabled by default** as of v3.12.0 (opt-out model with first-run consent).
+Automatic git operations (commit, push, PR creation, issue closing) provide a seamless end-to-end workflow for feature implementation. This feature is **enabled by default** as of v3.12.0 (opt-out model with first-run consent). Issue closing was added in v3.22.0 (Issue #91).
 
 ## Status
 
@@ -108,6 +108,11 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 7. Push commit to remote
    ↓ (if AUTO_GIT_PR=true)
 8. Create pull request with pr-description-generator agent
+   ↓ (if git push succeeded)
+8.5. Auto-close GitHub issue (if issue number found in feature request)
+     - Extract issue number from command args
+     - Prompt user for consent (interactive)
+     - Close issue via gh CLI with workflow summary
 ```
 
 ### Workflow Steps
@@ -146,6 +151,38 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 - Invokes `pr-description-generator` agent
 - Creates GitHub PR with comprehensive description
 - Includes summary, test plan, and related issues
+
+**Step 8.5: Auto-Close GitHub Issue (Optional - v3.22.0, Issue #91)**
+- Runs after git push succeeds (Step 7)
+- Only if issue number found in feature request
+- Features:
+  - **Issue Number Extraction**: Flexible pattern matching
+    - Patterns: `"issue #8"`, `"#8"`, `"Issue 8"` (case-insensitive)
+    - First occurrence if multiple mentions
+  - **User Consent Prompt**: Interactive - `"Close issue #8 (title)? [yes/no]:`
+    - User says "yes"/"y": Proceed with closing
+    - User says "no"/"n": Skip closing (feature still successful)
+    - User presses Ctrl+C: Cancel entire workflow
+  - **Issue State Validation**: Validates via `gh` CLI
+    - Issue exists (not 404)
+    - Issue is currently open (can close)
+    - User has permission to close
+  - **Close Summary**: Markdown summary with workflow metadata
+    - All agents passed (researcher, planner, test-master, etc.)
+    - Pull request URL
+    - Commit hash
+    - Files changed count and names
+  - **gh CLI Operation**: Safe subprocess call
+    - Security: CWE-20 (validates issue number 1-999999)
+    - Security: CWE-78 (subprocess list args, shell=False)
+    - Security: CWE-117 (sanitizes file names in summary)
+    - Audit logs to security_audit.log
+  - **Error Handling**: Graceful degradation
+    - Issue already closed: Skip (idempotent)
+    - Issue not found: Skip with warning
+    - gh CLI unavailable: Skip with manual instructions
+    - Network error: Skip with retry instructions
+    - All failures non-blocking (feature still successful)
 
 ### Graceful Degradation
 
@@ -396,6 +433,44 @@ cat logs/security_audit.log | grep "commit_message_validation"
 - Manual override: Disable automation and commit manually
 - Report issue: If agent consistently generates invalid messages
 
+---
+
+### Issue not auto-closed (v3.22.0+, Issue #91)
+
+**Symptoms**: Feature completes with git automation, but GitHub issue not closed
+
+**Diagnosis**:
+```bash
+# Check if issue number was detected
+# (Should appear in workflow output or in auto_git_workflow.py debug logs)
+
+# Check if gh CLI is installed
+gh --version
+
+# Check if you have permission to close the issue
+gh issue view <issue-number> --json state
+```
+
+**Solutions**:
+- **No issue number found**: Ensure feature request includes issue pattern
+  - Examples: `"issue #8"`, `"#8"`, `"Issue 8"`
+  - Check: `/auto-implement implement issue #8` (must have issue number)
+- **User declined consent**: Step 8.5 prompts for consent
+  - If you said "no", issue closing is skipped (expected behavior)
+  - Re-run /auto-implement with same issue to get prompt again
+- **gh CLI not installed**: Issue closing requires gh CLI
+  - Install: `brew install gh` (Mac) or [GitHub CLI](https://cli.github.com/)
+  - Authenticate: `gh auth login`
+- **Issue already closed**: Gracefully skipped (idempotent)
+  - Re-opening issue will allow closing again on next /auto-implement
+- **Permission error**: You may not have permission to close issue
+  - Check: `gh issue view <issue-number>`
+  - Solution: Only repo maintainers can close issues (not collaborators)
+- **Network error**: Temporary gh API failure
+  - Solution: Manual close: `gh issue close <issue-number>`
+
+---
+
 ## Performance Impact
 
 Git automation adds **minimal overhead** to `/auto-implement` workflow:
@@ -407,14 +482,16 @@ Git automation adds **minimal overhead** to `/auto-implement` workflow:
 | Git commit | < 1 |
 | Git push | 1-5 (network dependent) |
 | PR creation (pr-description-generator) | 10-20 |
+| Issue closing (v3.22.0, Issue #91) | 1-3 (user prompt + gh CLI) |
 
-**Total overhead**: 15-40 seconds (with full automation enabled)
+**Total overhead**: 15-50 seconds (with full automation including issue closing)
 
 ## Related Documentation
 
 - [CLAUDE.md](../CLAUDE.md) - Main project documentation
-- [LIBRARIES.md](LIBRARIES.md) - Library API reference (includes auto_implement_git_integration.py)
+- [LIBRARIES.md](LIBRARIES.md) - Library API reference (includes auto_implement_git_integration.py and github_issue_closer.py)
 - [GitHub Issue #58](https://github.com/akaszubski/autonomous-dev/issues/58) - Git automation implementation
+- [GitHub Issue #91](https://github.com/akaszubski/autonomous-dev/issues/91) - Auto-close GitHub issues after /auto-implement
 - [plugins/autonomous-dev/README.md](../plugins/autonomous-dev/README.md) - User guide
 
 ## Contributing

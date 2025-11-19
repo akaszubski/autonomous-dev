@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-17
+**Last Updated**: 2025-11-18
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 26 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 27 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **26 shared libraries** organized into six categories:
+The autonomous-dev plugin includes **27 shared libraries** organized into six categories:
 
-### Core Libraries (15)
+### Core Libraries (16)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -24,8 +24,9 @@ The autonomous-dev plugin includes **26 shared libraries** organized into six ca
 11. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
 12. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
 13. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
-14. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
-15. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
+14. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
+15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
+16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
@@ -45,7 +46,7 @@ The autonomous-dev plugin includes **26 shared libraries** organized into six ca
 24. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
 25. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
 26. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-27. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+27. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (27 total libraries)
 
 ## Design Patterns
 
@@ -938,6 +939,123 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Related
 - GitHub Issue #58 (automatic git operations integration)
+
+---
+
+## 12. github_issue_closer.py (583 lines, v3.22.0+, Issue #91)
+
+**Purpose**: Auto-close GitHub issues after successful `/auto-implement` workflow
+
+### Functions
+
+#### `extract_issue_number(command_args)`
+- **Purpose**: Extract GitHub issue number from feature request
+- **Parameters**: `command_args` (str): Feature request text
+- **Returns**: `int | None` - Issue number (1-999999) or None if not found
+- **Features**: Flexible pattern matching
+  - Patterns: `"issue #8"`, `"#8"`, `"Issue 8"` (case-insensitive)
+  - Extracts first occurrence if multiple mentions
+  - Validates issue number is positive integer (1-999999)
+- **Security**: CWE-20 (input validation), range checking
+- **Examples**:
+  ```python
+  extract_issue_number("implement issue #8")  # Returns: 8
+  extract_issue_number("Add feature for #42")  # Returns: 42
+  extract_issue_number("Issue 91 implementation")  # Returns: 91
+  ```
+
+#### `prompt_user_consent(issue_number)`
+- **Purpose**: Interactive consent prompt before closing issue
+- **Parameters**: `issue_number` (int): GitHub issue number
+- **Returns**: `bool` - True if user consents, False if declines
+- **Features**:
+  - Displays issue title (via `gh issue view`)
+  - Prompt: `"Close issue #8 (issue title)? [yes/no]:`
+  - Accepts: "yes", "y" (True), "no", "n" (False)
+  - Ctrl+C propagates KeyboardInterrupt (cancels workflow)
+- **Error Handling**: Network errors fall back to generic prompt
+- **Non-blocking**: Graceful degradation if gh CLI unavailable
+
+#### `validate_issue_state(issue_number)`
+- **Purpose**: Verify issue exists and is open via gh CLI
+- **Parameters**: `issue_number` (int): GitHub issue number
+- **Raises**: `IssueNotFoundError` if issue doesn't exist or is closed
+- **Features**:
+  - Calls `gh issue view <number>`
+  - Checks issue state (open/closed)
+  - Validates user has permission to close
+- **Security**: CWE-20 (validates issue number)
+- **Idempotent**: Already closed issues skip gracefully
+
+#### `generate_close_summary(issue_number, metadata)`
+- **Purpose**: Generate markdown summary for issue close comment
+- **Parameters**:
+  - `issue_number` (int): GitHub issue number
+  - `metadata` (dict): Workflow metadata
+    - `pr_url` (str): Pull request URL
+    - `commit_hash` (str): Commit hash
+    - `files_changed` (list): Changed file names
+    - `agents_passed` (list): Agent names (researcher, planner, etc.)
+- **Returns**: `str` - Markdown summary
+- **Features**: Professional formatting with workflow metadata
+- **Security**: CWE-117 (sanitizes newlines/control chars from file names)
+
+#### `close_github_issue(issue_number, summary)`
+- **Purpose**: Close GitHub issue via gh CLI with summary
+- **Parameters**:
+  - `issue_number` (int): GitHub issue number
+  - `summary` (str): Markdown summary for close comment
+- **Returns**: `dict` - Result with success/failure info
+- **Security**:
+  - CWE-20: Validates issue number (1-999999)
+  - CWE-78: Subprocess list args (shell=False)
+  - CWE-117: Sanitizes summary text
+  - Audit logs all gh CLI operations
+- **Error Handling**: Returns error dict (non-blocking)
+
+### Exceptions
+
+#### `GitHubAPIError`
+- Base exception for GitHub API errors
+- Contains: error message, original exception, traceback
+
+#### `IssueNotFoundError`
+- Raised when issue doesn't exist or is closed
+- Subclass of GitHubAPIError
+
+#### `IssueAlreadyClosedError`
+- Raised when issue is already closed (can be ignored - idempotent)
+- Subclass of GitHubAPIError
+
+### Integration
+
+- Invoked by auto_git_workflow.py hook (SubagentStop) after git push
+- STEP 8 of /auto-implement workflow: Auto-close GitHub issue
+- Non-blocking feature (feature success independent of issue close)
+
+### Security Features
+
+- **CWE-20** (Input Validation): Issue number range checking (1-999999)
+- **CWE-78** (Command Injection): Subprocess list args (shell=False)
+- **CWE-117** (Log Injection): Sanitizes newlines/control chars
+- **Audit Logging**: All gh CLI operations logged to security_audit.log
+
+### Error Handling
+
+All errors gracefully degrade:
+- Issue not found: Skip with warning (feature still successful)
+- Issue already closed: Skip gracefully (idempotent)
+- gh CLI unavailable: Skip with manual instructions (non-blocking)
+- Network error: Skip with retry instructions (feature still successful)
+- User declines consent: Skip (user control)
+
+### Used By
+- auto_git_workflow.py hook
+- /auto-implement Step 8 (auto-close GitHub issue)
+
+### Related
+- GitHub Issue #91 (Auto-close GitHub issues after /auto-implement)
+- github_issue_fetcher.py (Issue fetching via gh CLI)
 
 ---
 
