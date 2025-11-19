@@ -1,6 +1,6 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-11-15
+**Last Updated**: 2025-11-19
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
 **Version**: v3.20.1 (Issue #68 Phase 3: github-workflow Documentation Expansion COMPLETE + Skill integration + Performance profiler - Issues #67-68, #46 Phase 8.5, #66, #62-65, #72)
 
@@ -297,7 +297,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 
 **ROOT Level** (Development workspace - NOT distributed):
 - `docs/` - Dev/contributor documentation (CONTRIBUTING.md, DEVELOPMENT.md, etc.)
-- `scripts/` - Build/sync scripts for development (validate_structure.py, session_tracker.py)
+- `scripts/` - Build/sync scripts for development (validate_structure.py, session_tracker.py [DEPRECATED v3.28.0+, delegates to lib])
 - `tests/` - Repository infrastructure tests
 - Root `.md` files - Only essential: README.md, CHANGELOG.md, CLAUDE.md, CONTRIBUTING.md
 
@@ -457,10 +457,17 @@ Production Code (Professional Quality Guaranteed)
 - Next agent reads session file for context
 - Keeps context under 8K tokens per feature
 
-**Session Tracker**: `scripts/session_tracker.py`
-- Logs: Agent name, timestamp, message
-- Creates: Session files in `docs/sessions/`
-- Used by: All agents when completing work
+**Session Tracker Infrastructure** (Issue #79, v3.28.0+):
+- **Libraries**:
+  - `plugins/autonomous-dev/lib/path_utils.py` - Dynamic project root detection (works from any directory)
+  - `plugins/autonomous-dev/lib/validation.py` - Security validation for paths
+  - `plugins/autonomous-dev/lib/session_tracker.py` - Core implementation
+- **CLI Wrapper**: `plugins/autonomous-dev/scripts/session_tracker.py`
+  - Logs: Agent name, timestamp, message
+  - Creates: Session files in `docs/sessions/`
+  - Used by: All agents when completing work
+- **Deprecated**: `scripts/session_tracker.py` (delegates to lib, removed v4.0.0)
+- **Key Feature**: Portable paths work from user projects and subdirectories via dynamic project root detection
 
 ---
 

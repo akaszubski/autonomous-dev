@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/detect_feature_request.py && echo '[Auto-Orchestration] Invoking orchestrator for PROJECT.md validation...'"
+            "command": "python plugins/autonomous-dev/hooks/detect_feature_request.py && echo '[Auto-Orchestration] Invoking orchestrator for PROJECT.md validation...'"
           }
         ]
       }
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_format.py"
+            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
           }
         ]
       },
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_format.py"
+            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
           }
         ]
       }
@@ -68,31 +68,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/validate_project_alignment.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/validate_project_alignment.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/enforce_orchestrator.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/enforce_orchestrator.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/enforce_tdd.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/enforce_tdd.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_fix_docs.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/auto_fix_docs.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validate_session_quality.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/validate_session_quality.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_test.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/auto_test.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/security_scan.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/security_scan.py || exit 1"
           }
         ]
       }
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/session_tracker.py subagent 'Subagent completed task'"
+            "command": "python plugins/autonomous-dev/hooks/session_tracker.py subagent 'Subagent completed task'"
           }
         ]
       }

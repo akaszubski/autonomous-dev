@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
 """
+Agent Pipeline Tracker - DEPRECATED - Use lib/agent_tracker.py instead
+
+DEPRECATION NOTICE (GitHub Issue #79):
+=====================================================
+This scripts/agent_tracker.py is DEPRECATED and will be removed in v4.0.0.
+
+The implementation has moved to plugins/autonomous-dev/lib/agent_tracker.py
+for portable path detection and better integration.
+
+Migration:
+- For CLI usage: Use plugins/autonomous-dev/scripts/agent_tracker.py (installed plugin)
+- For imports: Use plugins/autonomous_dev/lib/agent_tracker import AgentTracker
+
+This file remains temporarily for backward compatibility but delegates
+to the lib implementation.
+
+Date: 2025-11-19
+Issue: GitHub #79 (Tracking infrastructure portability)
+=====================================================
+
 Agent Pipeline Tracker - Structured logging for agent invocations with security hardening
 
 Tracks which agents ran, when, and their status to enable:
@@ -1798,6 +1818,32 @@ class AgentTracker:
 
 
 def main():
+    """DEPRECATED: Delegates to lib/agent_tracker.py implementation.
+
+    This function is kept for backward compatibility but all logic
+    has moved to plugins/autonomous-dev/lib/agent_tracker.py.
+    """
+    # Import the library implementation
+    lib_dir = Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"
+    sys.path.insert(0, str(lib_dir))
+
+    # Show deprecation warning
+    import warnings
+    warnings.warn(
+        "scripts/agent_tracker.py is deprecated. "
+        "Use plugins/autonomous-dev/scripts/agent_tracker.py instead. "
+        "See GitHub Issue #79.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    # Delegate to library implementation
+    from agent_tracker import main as lib_main
+    lib_main()
+
+
+def _legacy_main():
+    """Legacy main function (no longer used - kept for reference only)."""
     if len(sys.argv) < 2:
         print("Usage: agent_tracker.py <command> [args...]")
         print("\nCommands:")

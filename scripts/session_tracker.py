@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
 """
+Session Tracker - DEPRECATED - Use lib/session_tracker.py instead
+
+DEPRECATION NOTICE (GitHub Issue #79):
+=====================================================
+This scripts/session_tracker.py is DEPRECATED and will be removed in v4.0.0.
+
+The implementation has moved to plugins/autonomous-dev/lib/session_tracker.py
+for portable path detection and better integration.
+
+Migration:
+- For CLI usage: Use plugins/autonomous-dev/scripts/session_tracker.py (installed plugin)
+- For imports: Use plugins/autonomous_dev/lib/session_tracker import SessionTracker
+
+This file remains temporarily for backward compatibility but delegates
+to the lib implementation.
+
+Date: 2025-11-19
+Issue: GitHub #79 (Tracking infrastructure portability)
+=====================================================
+
 Session Tracker - Prevents context bloat
 Logs agent actions to file instead of keeping in context
 
@@ -11,66 +31,26 @@ Example:
 """
 
 import sys
-from datetime import datetime
+import warnings
 from pathlib import Path
 
-# Add lib directory to path for imports (Issue #79)
-lib_dir = Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"
-sys.path.insert(0, str(lib_dir))
-from path_utils import get_session_dir
+# Show deprecation warning when used as CLI
+if __name__ == "__main__":
+    warnings.warn(
+        "\n"
+        "scripts/session_tracker.py is DEPRECATED (GitHub Issue #79)\n"
+        "Use plugins/autonomous-dev/scripts/session_tracker.py instead\n"
+        "This file will be removed in v4.0.0\n",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
+# Add project root to path for plugins import
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-class SessionTracker:
-    def __init__(self):
-        # Use path_utils for dynamic PROJECT_ROOT resolution (Issue #79)
-        # This fixes hardcoded Path("docs/sessions") which failed from subdirectories
-        self.session_dir = get_session_dir(create=True)
-
-        # Find or create session file for today
-        today = datetime.now().strftime("%Y%m%d")
-        session_files = list(self.session_dir.glob(f"{today}-*.md"))
-
-        if session_files:
-            # Use most recent session file from today
-            self.session_file = sorted(session_files)[-1]
-        else:
-            # Create new session file
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            self.session_file = self.session_dir / f"{timestamp}-session.md"
-
-            # Initialize with header
-            self.session_file.write_text(
-                f"# Session {timestamp}\n\n"
-                f"**Started**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                f"---\n\n"
-            )
-
-    def log(self, agent_name, message):
-        """Log agent action to session file"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        entry = f"**{timestamp} - {agent_name}**: {message}\n\n"
-
-        # Append to session file
-        with open(self.session_file, "a") as f:
-            f.write(entry)
-
-        # Print confirmation
-        print(f"✅ Logged: {agent_name} - {message}")
-        print(f"📄 Session: {self.session_file.name}")
-
-
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: session_tracker.py <agent_name> <message>")
-        print("\nExample:")
-        print('  session_tracker.py researcher "Research complete - docs/research/auth.md"')
-        sys.exit(1)
-
-    tracker = SessionTracker()
-    agent_name = sys.argv[1]
-    message = " ".join(sys.argv[2:])
-    tracker.log(agent_name, message)
-
+# Delegate to lib implementation
+from plugins.autonomous_dev.lib.session_tracker import main
 
 if __name__ == "__main__":
     main()

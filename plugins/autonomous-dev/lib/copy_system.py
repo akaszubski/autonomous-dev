@@ -256,17 +256,18 @@ def rollback(backup_dir: Path, dest_dir: Path) -> bool:
         >>> success = rollback(backup_dir, project_dir / ".claude")
     """
     try:
+        # Check if backup exists before removing destination
+        if not backup_dir.exists():
+            # No backup to restore - don't modify destination
+            return False
+
         # Remove current installation
         if dest_dir.exists():
             shutil.rmtree(dest_dir)
 
         # Restore from backup
-        if backup_dir.exists():
-            shutil.copytree(backup_dir, dest_dir)
-            return True
-        else:
-            # No backup to restore
-            return False
+        shutil.copytree(backup_dir, dest_dir)
+        return True
 
     except Exception as e:
         print(f"Rollback failed: {e}")

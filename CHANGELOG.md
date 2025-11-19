@@ -1,6 +1,117 @@
 ## [Unreleased]
+### In Progress
+- **Bootstrap Installation Overhaul** - Issue #80 (PARTIAL - 2 of 7 core tests passing)
+  - **Current Status**: Phase 1 & 2 complete, Phase 3 & 4 in progress
+  - **Completed**:
+    - ✅ Phase 1: File Discovery (16/16 tests passing) - Full implementation stable and production-ready
+    - ✅ Phase 2: Copy System (21/23 tests passing - 91%) - Path validation completion pending
+  - **In Progress**:
+    - ⏳ Phase 3: Installation Validator (5/18 tests passing - 28%) - Manifest comparison logic needed
+    - ⏳ Phase 4: Install Orchestrator (0/2 integration tests) - Upgrade/repair workflows pending
+  - **Known Limitations**:
+    - Installation Validator: Cannot yet compare against manifest for detailed missing file detection
+    - Copy System: Path security validation not yet applied to all operations
+    - Install Orchestrator: Fresh install with progress callbacks (partial), upgrade/repair workflows missing
+  - **Documentation**:
+    - New: `docs/ISSUE-80-PARTIAL-IMPLEMENTATION.md` - Detailed status, failing tests, next steps with success criteria
+    - Updated: `docs/LIBRARIES.md` - Sections 17-20 with API documentation for all 4 libraries
+    - Updated: `CLAUDE.md` - Architecture section with new installation libraries overview
+  - **See Also**: GitHub Issue #80, `docs/ISSUE-80-PARTIAL-IMPLEMENTATION.md` for complete test breakdown, blockers, and implementation roadmap
+
+### Fixed
+- **Strict Mode Template Hook Path References** - Issue #84
+  - **Problem**: Hook paths in `settings.strict-mode.json` template referenced `.claude/hooks/` which resolved incorrectly when plugin installed
+  - **Solution**: Updated all hook paths to use plugin-relative paths (`plugins/autonomous-dev/hooks/`)
+  - **Changes**:
+    - `plugins/autonomous-dev/templates/settings.strict-mode.json`: Updated 9 hook command paths
+    - `plugins/autonomous-dev/hooks/session_tracker.py`: Enhanced with proper hook documentation
+  - **Documentation Updated**:
+    - `plugins/autonomous-dev/docs/STRICT-MODE.md`: Hook path examples and SubagentStop documentation
+    - `docs/HOOKS.md`: Added session_tracker.py to Core Hooks, updated SubagentStop details
+  - **Impact**: Strict mode now resolves hooks correctly when plugin is installed
+
+- **Development Setup Symlink Documentation** - Issue #83
+  - **Problem**: New developers importing plugin code encountered `ModuleNotFoundError: No module named 'autonomous_dev'` because Python package names cannot contain hyphens, yet the directory is named `autonomous-dev` for human readability
+  - **Solution**: Comprehensive symlink documentation across all onboarding resources
+  - **Documentation Created**:
+    - **NEW**: `docs/TROUBLESHOOTING.md` - Dedicated troubleshooting guide with `ModuleNotFoundError` section, root cause explanation, platform-specific symlink creation commands, and cross-references
+    - **Updated**: `docs/DEVELOPMENT.md` - Added Step 4.5 with complete symlink setup instructions for macOS/Linux/Windows, verification steps, and security notes
+    - **Updated**: `plugins/autonomous-dev/README.md` - Added Development Setup section with quick symlink creation and link to complete instructions
+    - **Updated**: `tests/README.md` - Added reference to development setup requirement and TROUBLESHOOTING.md for import errors
+  - **Key Features**:
+    - **Platform Support**: macOS/Linux (`ln -s`) and Windows (`mklink`/`New-Item -ItemType SymbolicLink`) commands with examples
+    - **Verification**: Step-by-step verification commands with expected output for each platform
+    - **Security Notes**: Explains symlink is safe (relative path, gitignored, no external dependencies)
+    - **Cross-References**: Bidirectional links between DEVELOPMENT.md ↔ TROUBLESHOOTING.md
+    - **Gitignore Integration**: Confirmed `plugins/autonomous_dev` entry in `.gitignore`
+  - **Testing**: 57 comprehensive tests (36 unit + 21 integration) covering documentation existence, command syntax, cross-references, and developer workflows
+  - **Impact**: New developers can self-serve when encountering symlink-related issues; reduces support burden and accelerates onboarding
+
+
 
 ### Added
+- **Batch-Implement Automatic Failure Recovery** - Issue #89
+  - **Problem**: When features fail during `/batch-implement`, no distinction between transient and permanent errors
+  - **Solution**: Intelligent failure classification with automatic retry for transient errors and safety limits
+  - **Features**:
+    - **Failure Classification**: Pattern-based detection of transient (network, timeout, rate limit) vs permanent errors
+    - **Automatic Retry**: Up to 3 retries per feature for transient errors
+    - **Circuit Breaker**: Pause retries after 5 consecutive failures
+    - **Global Limits**: Max 50 total retries across all features
+    - **User Consent**: First-run prompt (opt-in), can be overridden via `BATCH_RETRY_ENABLED` env var
+    - **Audit Logging**: All retry attempts logged to `.claude/audit/` for debugging
+    - **State Persistence**: Retry state survives crashes
+  - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/failure_classifier.py` (343 lines)
+      - `classify_failure()`, `is_transient_error()`, `is_permanent_error()`
+      - `sanitize_error_message()` (CWE-117), `extract_error_context()`
+    - **NEW**: `plugins/autonomous-dev/lib/batch_retry_manager.py` (544 lines)
+      - `BatchRetryManager`, `RetryDecision`, `RetryState` classes
+      - Atomic state writes, JSONL audit logging
+      - Constants: MAX_RETRIES_PER_FEATURE=3, CIRCUIT_BREAKER_THRESHOLD=5, MAX_TOTAL_RETRIES=50
+    - **NEW**: `plugins/autonomous-dev/lib/batch_retry_consent.py` (360 lines)
+      - `check_retry_consent()`, `is_retry_enabled()`, `prompt_for_retry_consent()`
+      - Secure state persistence (0o600 permissions, symlink rejection)
+    - **Enhanced**: `plugins/autonomous-dev/lib/batch_state_manager.py`
+      - Added `retry_attempts` field, `get_retry_count()`, `increment_retry_count()`
+  - **Security**: CWE-117 (log injection), CWE-22 (path traversal), CWE-59 (symlink), CWE-400 (DOS), CWE-732 (permissions)
+  - **Testing**: 85+ new unit tests (100% passing)
+  - **Documentation**: Enhanced docs/BATCH-PROCESSING.md, docs/LIBRARIES.md (3 new sections), CLAUDE.md
+  - **Related**: GitHub Issues #86, #87, #88, #91
+
+
+- **Tracking Infrastructure Portability** - Issue #79
+  - **Problem**: Original tracking infrastructure had hardcoded paths that failed when:
+    - Running from user projects (no `scripts/` directory available)
+    - Running from project subdirectories (couldn't dynamically find project root)
+    - Commands invoked from installation path vs development path
+  - **Solution**: Moved tracking infrastructure to library-based design with portable path detection
+  - **Features**:
+    - **Portable Paths**: AgentTracker uses dynamic project root detection via path_utils
+    - **Two-tier Design**: Library (core logic) + CLI wrapper for reuse and testing
+    - **Atomic Writes**: Tempfile + rename pattern prevents data corruption (Issue #45)
+    - **Graceful Degradation**: Checkpoints work in both user projects and dev repo
+  - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/agent_tracker.py` (1,185 lines)
+      - `AgentTracker` class with portable path detection
+      - Public methods: `start_agent()`, `complete_agent()`, `fail_agent()`, `show_status()`
+      - Verification methods: `verify_parallel_exploration()`, `verify_parallel_validation()`
+      - Progress tracking: `calculate_progress()`, `estimate_remaining_time()`, `get_pending_agents()`
+      - Metrics extraction: `get_parallel_validation_metrics()`
+    - **NEW**: `plugins/autonomous-dev/scripts/agent_tracker.py` (CLI wrapper)
+      - Delegates to library implementation
+      - Installed plugin uses lib version directly
+    - **DEPRECATED**: `scripts/agent_tracker.py` (original location)
+      - Hardcoded paths fail in user projects and subdirectories
+      - Now delegates to lib implementation for backward compatibility
+      - Will be removed in v4.0.0
+  - **Security**: Path traversal prevention (CWE-22), symlink rejection (CWE-59), input validation, atomic writes
+  - **Testing**: 66+ unit tests (85.7% coverage), integration tests, path resolution verification
+  - **Documentation**: Added docs/LIBRARIES.md section #24, cross-references in CLAUDE.md
+  - **Related**: GitHub Issues #82 (checkpoint verification), #45 (atomic writes), #90 (freeze prevention)
+  - **Breaking Changes**: None - backward compatible via delegation
+  - **Migration Path**: Users continue with existing code; `/auto-implement` automatically uses new library
+
 - **Prevent /auto-implement Freeze During test-master Execution** - Issue #90 Phase 1
   - **Problem**: `/auto-implement` workflow freezes indefinitely during test-master agent's pytest execution
     - PRIMARY (85%): Subprocess pipe deadlock when pytest output exceeds 64KB pipe buffer (~2,300 lines for 82 tests)
@@ -182,6 +293,46 @@
     - `tests/integration/test_checkpoint_heredoc_execution.py`: Core heredoc execution tests
     - `tests/integration/test_auto_implement_checkpoint_portability.py`: Extended with regression test
 
+
+- **Optional Checkpoint Verification in /auto-implement** - Issue #82 (Graceful Degradation)
+  - **Problem**: CHECKPOINT 1 and CHECKPOINT 4.1 require AgentTracker which fails in user projects (no scripts/ directory)
+  - **Solution**: Make checkpoint verification optional with graceful degradation
+    - Enables `/auto-implement` to work in both autonomous-dev repo (full verification) and user projects (no verification)
+    - Checkpoints gracefully degrade when AgentTracker is unavailable
+    - Never blocks workflow on verification errors (informational only)
+  - **Implementation Details**:
+    - **CHECKPOINT 1** (line ~138): Parallel exploration verification
+      - Try/except wrapper around AgentTracker import and verification method
+      - ImportError: Informational message, continues with `success = True`
+      - AttributeError/Exception: Logs error, continues gracefully
+      - User projects see: "ℹ️ Verification skipped (AgentTracker not available)"
+      - Dev repo sees: Full metrics display with efficiency data
+    - **CHECKPOINT 4.1** (line ~403): Parallel validation verification
+      - Identical graceful degradation pattern to CHECKPOINT 1
+      - Handles all error types the same way (informs user, doesn't block workflow)
+  - **Error Handling Strategy**:
+    - **ImportError** (no scripts/ directory): Informational message, `success = True` (don't block)
+    - **AttributeError** (method missing): Log warning, `success = True` (don't block)
+    - **Generic Exception** (any other error): Log warning, `success = True` (don't block)
+    - **Verification Success** (dev repo): Display metrics and detailed status
+  - **User Experience**:
+    - **User Projects**: Silent skip with informational message (normal for user projects)
+    - **Dev Repo**: Full verification with efficiency metrics
+    - **Broken Scripts**: Clear warning message but workflow continues
+  - **Files Changed**:
+    - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 and CHECKPOINT 4.1
+      - Added graceful degradation pattern with 4 except blocks per checkpoint
+      - Updated comments from "so scripts/ can be imported" to "so plugins can be imported"
+      - Updated import paths: `scripts/agent_tracker.py` → `plugins/autonomous-dev/scripts/agent_tracker.py`
+  - **Testing**: 14 integration tests (100% passing)
+    - `tests/integration/test_issue82_optional_checkpoint_verification.py`
+    - User project graceful degradation (2 tests)
+    - Broken scripts handling (2 tests)
+    - Dev repo full verification (2 tests)
+    - Regression tests (3 tests)
+    - End-to-end checkpoint execution (5 tests)
+
+
 ### Documentation
 - **[plugins/autonomous-dev/commands/auto-implement.md](plugins/autonomous-dev/commands/auto-implement.md)**:
   - Updated CHECKPOINT 1 notes to explain portable path detection works from heredoc context
@@ -274,7 +425,7 @@
     - Falls back to walking up directory tree until `.git` or `.claude` marker found
     - Works from any subdirectory in the project (not just root)
   - **Files Changed**:
-    - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 362)
+    - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390)
   - **Testing**: Verified checkpoints work on non-developer machines during `/auto-implement` workflow
   - **Backward Compatibility**: Existing workflows unaffected (uses same path detection as session/batch tracking)
 

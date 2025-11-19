@@ -256,7 +256,7 @@ rm -rf ~/.claude/plugins/marketplaces/autonomous-dev
 - **[PROJECT.md Philosophy](docs/MAINTAINING-PHILOSOPHY.md)** - Why PROJECT.md-first development works
 - **[Workflows & Examples](docs/WORKFLOWS.md)** - Real-world usage patterns and examples
 - **[Command Reference](plugins/autonomous-dev/commands/)** - Complete list of commands and what they do
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions (coming soon)
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions for developers
 
 **For Contributors**:
 - **[Development Guide](docs/DEVELOPMENT.md)** - How to contribute to the plugin

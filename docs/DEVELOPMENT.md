@@ -160,6 +160,61 @@ ls -la .claude/hooks/*.py | wc -l      # Should be 28+
 cat .claude/settings.local.json | grep detect_feature_request
 ```
 
+### Step 4.5: Create Development Symlink
+
+**Why This Is Needed**: Python package names cannot contain hyphens. The plugin
+directory is `autonomous-dev` (with hyphen for clarity), but Python imports require
+`autonomous_dev` (with underscore). A symlink bridges this gap.
+
+**Security Note**: This symlink is safe - it uses a relative path within the repository
+and is automatically gitignored.
+
+#### macOS/Linux
+
+```bash
+cd plugins
+ln -s autonomous-dev autonomous_dev
+```
+
+#### Windows (Command Prompt - Run as Administrator)
+
+```cmd
+cd plugins
+mklink /D autonomous_dev autonomous-dev
+```
+
+#### Windows (PowerShell - Run as Administrator)
+
+```powershell
+cd plugins
+New-Item -ItemType SymbolicLink -Path "autonomous_dev" -Target "autonomous-dev"
+```
+
+#### Verify Symlink Creation
+
+**macOS/Linux**:
+```bash
+ls -la plugins/ | grep autonomous_dev
+# Expected output: autonomous_dev -> autonomous-dev
+```
+
+**Windows**:
+```cmd
+dir plugins\ | findstr autonomous_dev
+# Expected output: <SYMLINKD> autonomous_dev [autonomous-dev]
+```
+
+#### Test Import
+
+```bash
+python -c "from autonomous_dev.lib import security_utils; print('✓ Import works')"
+# Should print: ✓ Import works
+```
+
+**Troubleshooting**: If you encounter `ModuleNotFoundError`, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+**Note**: The symlink is gitignored automatically (see `.gitignore`). Do not commit it to the repository.
+
 ### Step 5: Restart Claude Code One More Time
 
 ```bash
@@ -614,14 +669,18 @@ ls -la docs/sessions/
 # 2. Check SubagentStop hook configured
 cat .claude/settings.local.json | grep SubagentStop
 
-# 3. Check session tracker script exists
+# 3. Check session tracker script exists (deprecated v3.28.0+, see Issue #79)
 ls -la scripts/session_tracker.py
+# OR: ls -la plugins/autonomous-dev/scripts/session_tracker.py (current location)
 ```
 
 **Fix**:
 - If directory missing: `mkdir -p docs/sessions/`
 - If hook missing: Add SubagentStop hook to settings
-- If script missing: Copy from repo
+- If script missing (root): Now delegated to lib version, use plugin version instead
+- **Note**: `scripts/session_tracker.py` deprecated v3.28.0 (Issue #79), will be removed v4.0.0
+  - Use `plugins/autonomous-dev/scripts/session_tracker.py` for current implementations
+  - Library: `plugins/autonomous-dev/lib/path_utils.py` handles dynamic project root detection
 
 ---
 

@@ -1,9 +1,9 @@
 ---
 name: batch-implement
-description: Execute multiple features sequentially with automatic context management and crash recovery
+description: Execute multiple features sequentially with automatic context management, crash recovery, and intelligent retry
 author: Claude
-version: 3.3.0
-date: 2025-11-17
+version: 3.33.0
+date: 2025-11-19
 ---
 
 # /batch-implement - Overnight Feature Queue
@@ -160,6 +160,38 @@ Invoke the batch orchestration workflow to process features sequentially with au
 
 ARGUMENTS: {{ARGUMENTS}} (path to features.txt)
 
+**Python Libraries** (use via Bash tool):
+
+```python
+# Failure classification
+from plugins.autonomous_dev.lib.failure_classifier import (
+    classify_failure,        # Classify errors as transient/permanent
+    sanitize_error_message,  # Sanitize error messages for safe logging
+    sanitize_feature_name,   # Sanitize feature names (CWE-117, CWE-22)
+    FailureType,            # Enum: TRANSIENT, PERMANENT
+)
+
+# Retry management
+from plugins.autonomous_dev.lib.batch_retry_manager import (
+    BatchRetryManager,       # Orchestrate retry logic
+    should_retry_feature,    # Decide if feature should be retried
+    record_retry_attempt,    # Record a retry attempt
+    MAX_RETRIES_PER_FEATURE, # Constant: 3
+    MAX_TOTAL_RETRIES,       # Constant: 50
+)
+
+# Consent management
+from plugins.autonomous_dev.lib.batch_retry_consent import (
+    check_retry_consent,     # Check/prompt for user consent
+    is_retry_enabled,        # Check if retry is enabled
+)
+
+# Batch state management (existing)
+from plugins.autonomous_dev.lib.batch_state_manager import (
+    create_batch_state, save_batch_state, load_batch_state, update_batch_progress
+)
+```
+
 ### STEP 1: Read and Parse Features
 
 **Action**: Use the Read tool to read the features file
@@ -231,9 +263,56 @@ This gives visual progress tracking during batch execution.
    - Review + Security + Docs (parallel)
    - Git automation (if enabled)
 
-4. **Mark todo as completed** using TodoWrite
+4. **Check for failure and retry if needed** (Issue #89, v3.33.0+):
 
-5. **Continue to next feature**
+   If /auto-implement failed:
+
+   a. **Classify failure type** using `failure_classifier.classify_failure()`:
+      - Check error message against patterns
+      - Return `FailureType.TRANSIENT` or `FailureType.PERMANENT`
+
+   b. **Check retry consent** using `batch_retry_consent.is_retry_enabled()`:
+      - First-run: Prompt user for consent (save to ~/.autonomous-dev/user_state.json)
+      - Subsequent runs: Use saved consent state
+      - Environment override: Check BATCH_RETRY_ENABLED env var
+
+   c. **Decide whether to retry** using `batch_retry_manager.should_retry_feature()`:
+      - Check user consent (highest priority)
+      - Check global retry limit (max 50 total retries)
+      - Check circuit breaker (5 consecutive failures → pause)
+      - Check failure type (permanent → don't retry)
+      - Check per-feature retry limit (max 3 retries per feature)
+
+   d. **If should retry**:
+      - Record retry attempt using `batch_retry_manager.record_retry_attempt()`
+      - Display retry message: "⚠️  Transient failure detected. Retrying ({retry_count}/{MAX_RETRIES_PER_FEATURE})..."
+      - Invoke `/auto-implement {feature}` again
+      - Loop back to step 4 (check for failure again)
+
+   e. **If should NOT retry**:
+      - Record failure in batch state
+      - Log to audit file (.claude/audit/{batch_id}_retry_audit.jsonl)
+      - Display failure message with reason
+      - Continue to next feature
+
+   **Transient Failures** (automatically retried):
+   - ConnectionError, TimeoutError, HTTPError
+   - API rate limits (429 Too Many Requests)
+   - Temporary network issues
+
+   **Permanent Failures** (never retried):
+   - SyntaxError, ImportError, AttributeError, TypeError
+   - Test failures (AssertionError)
+   - Validation errors
+
+   **Safety Limits**:
+   - Max 3 retries per feature
+   - Max 50 total retries across batch
+   - Circuit breaker after 5 consecutive failures
+
+5. **Mark todo as completed** using TodoWrite (if feature succeeded)
+
+6. **Continue to next feature**
 
 ---
 
@@ -271,9 +350,21 @@ MCP_AUTO_APPROVE=true
 AUTO_GIT_ENABLED=true
 AUTO_GIT_PUSH=true
 AUTO_GIT_PR=false  # Optional - set true if you want auto PRs
+
+# Automatic retry for transient failures (NEW in v3.33.0)
+# First-run: Interactive prompt (saved to ~/.autonomous-dev/user_state.json)
+# Override: Set BATCH_RETRY_ENABLED=true to skip prompt
+BATCH_RETRY_ENABLED=true  # Optional - enable automatic retry
 ```
 
 Without these, permission prompts will interrupt the workflow.
+
+**Automatic Retry** (v3.33.0+):
+- **First Run**: You'll be prompted to enable automatic retry
+- **Consent Storage**: Your choice is saved to `~/.autonomous-dev/user_state.json`
+- **Environment Override**: Set `BATCH_RETRY_ENABLED=true` in `.env` to skip prompt
+- **Safety**: Max 3 retries per feature, max 50 total retries, circuit breaker after 5 consecutive failures
+- **Audit**: All retry attempts logged to `.claude/audit/{batch_id}_retry_audit.jsonl`
 
 ---
 

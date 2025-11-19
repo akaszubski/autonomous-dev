@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-18
+**Last Updated**: 2025-11-19
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.8.0
 
@@ -26,7 +26,7 @@
 
 **Core Workflow (11)**:
 - `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents, auto-close GitHub issues v3.22.0)
-- `/batch-implement <file>` - Sequential feature processing with automatic context management (prevents context bloat) - GitHub #74
+- `/batch-implement <file>` - Sequential feature processing with automatic context management and intelligent retry for transient failures (prevents context bloat) - GitHub #74, #89
 - `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
 - `/align-claude` - Fix documentation drift (validation script)
 - `/align-project-retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - GitHub #59
@@ -77,14 +77,28 @@
 Agents log to `docs/sessions/` instead of context:
 
 ```bash
-# Log action
-python scripts/session_tracker.py agent_name "message"
+# Log action (works from any directory, including user projects)
+python plugins/autonomous-dev/scripts/session_tracker.py agent_name "message"
 
 # View latest session
 cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 ```
 
 **Result**: Context stays small (200 tokens vs 5,000+ tokens)
+
+**Note**: Issue #79 (v3.28.0+) moved session tracking to portable library-based design:
+- `plugins/autonomous-dev/lib/path_utils.py` - Dynamic project root detection
+- `plugins/autonomous-dev/lib/validation.py` - Security validation for paths
+- `plugins/autonomous-dev/scripts/session_tracker.py` - CLI wrapper (current location)
+- `scripts/session_tracker.py` - DEPRECATED (removed v4.0.0), delegates to lib version
+- Works from any directory (user projects, subdirectories) via `path_utils.get_session_dir()`
+- See `docs/LIBRARIES.md` (sections 15-16) and GitHub Issue #79 for complete details
+
+**Related**: Issue #85 (v3.30.0+) fixed `/auto-implement` checkpoints to use portable path detection:
+- CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390) replaced hardcoded paths with dynamic detection
+- Same portable path detection strategy as tracking infrastructure (path_utils and fallback)
+- Works from any directory on any machine (not just developer's path)
+- See `plugins/autonomous-dev/commands/auto-implement.md` for checkpoint implementation details
 
 ---
 
@@ -151,7 +165,7 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMA
 
 ---
 
-## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88)
+## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88, Automatic retry v3.33.0 - Issue #89)
 
 Process multiple features sequentially with intelligent state management and automatic context management. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
 
@@ -163,6 +177,11 @@ Process multiple features sequentially with intelligent state management and aut
 - **State management**: `.claude/batch_state.json` tracks progress across crashes
 - **Automatic compression**: Claude Code manages context automatically (no manual intervention)
 - **Resume support**: `--resume <batch-id>` continues from last completed feature
+- **Automatic retry** (v3.33.0, Issue #89): Intelligent classification and retry for transient failures
+  - **Transient**: Network errors, timeouts, API rate limits (automatically retried up to 3x)
+  - **Permanent**: Syntax errors, import errors, type errors (never retried)
+  - **Safety limits**: Max 3 retries per feature, circuit breaker after 5 consecutive failures
+  - **Consent-based**: First-run prompt (can be overridden via `BATCH_RETRY_ENABLED` env var)
 - **50+ features**: Scales indefinitely with automatic context management
 
 **Performance**: ~20-30 min per feature, automatic context compression maintains optimal token budget throughout batch
@@ -257,9 +276,9 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (42 total automation)
+### Hooks (43 total automation)
 
-42 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+43 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
 **Core Hooks** (11): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool
 
@@ -300,6 +319,22 @@ python .claude/hooks/validate_claude_alignment.py
 4. Hooks ensure all features stay in sync
 
 ## Troubleshooting
+
+### "ModuleNotFoundError: No module named 'autonomous_dev'"
+
+**Symptom**: When running tests or importing from the plugin:
+```python
+ModuleNotFoundError: No module named 'autonomous_dev'
+```
+
+**Solution**: Create a development symlink for Python imports.
+
+See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for complete instructions:
+- macOS/Linux: `cd plugins && ln -s autonomous-dev autonomous_dev`
+- Windows: `cd plugins && mklink /D autonomous_dev autonomous-dev` (Command Prompt as Admin)
+- Then test: `python -c "from autonomous_dev.lib import security_utils; print('OK')"`
+
+This is a one-time setup issue specific to Python import requirements.
 
 ### "Context budget exceeded"
 
@@ -466,4 +501,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-17 (Fixed /batch-implement context clearing mechanism - GitHub Issue #88, Simplified workflow from pause/resume to automatic compression)
+**Last Updated**: 2025-11-18 (Added automatic failure recovery for /batch-implement - GitHub Issue #89, intelligent retry with transient classification and circuit breaker)

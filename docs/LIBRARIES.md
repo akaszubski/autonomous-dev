@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-18
+**Last Updated**: 2025-11-19
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 27 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 30 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **27 shared libraries** organized into six categories:
+The autonomous-dev plugin includes **30 shared libraries** organized into seven categories:
 
-### Core Libraries (16)
+### Core Libraries (19)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -27,26 +27,29 @@ The autonomous-dev plugin includes **27 shared libraries** organized into six ca
 14. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
 15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
 16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
+17. **failure_classifier.py** - Error classification (transient vs permanent) for /batch-implement (v3.33.0, Issue #89)
+18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
+19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
-17. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
-18. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
-19. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
-20. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
+20. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
+21. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
+22. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
+23. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
 
 ### Utility Libraries (1)
 
-21. **math_utils.py** - Fibonacci calculator with multiple algorithms
+24. **math_utils.py** - Fibonacci calculator with multiple algorithms
 
 ### Brownfield Retrofit Libraries (6)
 
-22. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-23. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-24. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-25. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-26. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-27. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (27 total libraries)
+25. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+26. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+27. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+28. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+29. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+30. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (30 total libraries)
 
 ## Design Patterns
 
@@ -1886,7 +1889,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 17. file_discovery.py (310 lines, v3.29.0+)
+## 17. file_discovery.py (354 lines, v3.29.0+)
 
 **Purpose**: Comprehensive file discovery with intelligent exclusion patterns for 100% coverage
 
@@ -1928,13 +1931,20 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ### Exclusion Patterns
 
-**Built-in patterns** (configurable):
-- Cache: `__pycache__`, `.pytest_cache`, `.eggs`, `*.egg-info`
-- Build artifacts: `*.pyc`, `*.pyo`, `*.pyd`
+**Built-in patterns** (configurable, with two-tier matching strategy):
+
+**Exact Patterns** (EXCLUDE_PATTERNS set):
+- Cache: `__pycache__`, `.pytest_cache`, `.eggs`, `*.egg-info`, `*.egg`
+- Build artifacts: `*.pyc`, `*.pyo`, `*.pyd`, `build`, `dist`
 - Version control: `.git`, `.gitignore`, `.gitattributes`
 - IDE: `.vscode`, `.idea`
 - Temp/backup: `*.tmp`, `*.bak`, `*.log`, `*~`, `*.swp`, `*.swo`
 - System: `.DS_Store`
+
+**Partial Patterns** (EXCLUDE_DIR_PATTERNS list - enhanced in v3.29.0+):
+- Directory name pattern matching: `.egg-info`, `__pycache__`, `.pytest_cache`, `.git`, `.eggs`, `build`, `dist`
+- Detects patterns within directory names (e.g., `foo-1.0.0.egg-info` matches `.egg-info` pattern)
+- Prevents false negatives from naming variations
 
 ### Security
 - Path validation via security_utils
@@ -1954,7 +1964,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 18. copy_system.py (244 lines, v3.29.0+)
+## 18. copy_system.py (274 lines, v3.29.0+)
 
 **Purpose**: Structure-preserving file copying with permission handling
 
@@ -1997,6 +2007,21 @@ validate_message("msg\x00with\x01control")  # Control chars
 - **Parameters**: `file_path` (Path): File to make executable
 - **Security**: Only applies to allowed patterns (scripts/*.py, hooks/*.py)
 
+#### `CopySystem.rollback(backup_dir, dest_dir)` - ENHANCED in v3.29.0+
+- **Purpose**: Restore installation from backup on failure (with early validation)
+- **Parameters**:
+  - `backup_dir` (Path): Path to backup directory
+  - `dest_dir` (Path): Destination directory to restore to
+- **Returns**: `bool` (True if rollback succeeded, False otherwise)
+- **Features**:
+  - Early validation: Checks backup exists before removing destination
+  - Safe removal: Only removes destination if backup is available
+  - Atomic restore: Copies entire backup directory structure
+  - Security: Path validation, symlink protection
+- **Enhancement (v3.29.0+)**: Added early backup existence check before removing destination
+  - Prevents accidental deletion if backup is missing
+  - More robust error handling and recovery
+
 ### Progress Callback
 
 #### `CopySystem.copy_all(progress_callback=callback)`
@@ -2027,7 +2052,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 19. installation_validator.py (586 lines, v3.29.0+ → v3.29.1)
+## 19. installation_validator.py (632 lines, v3.29.0+ → v3.29.1)
 
 **Purpose**: Ensures complete file coverage and detects installation issues + duplicate library validation
 
@@ -2053,17 +2078,25 @@ validate_message("msg\x00with\x01control")  # Control chars
   - `errors` (List[str]): List of error messages
   - `sizes_match` (bool|None): Whether file sizes match manifest (if applicable)
   - `size_errors` (List[str]|None): Files with size mismatches (if applicable)
+  - `missing_by_category` (Dict[str, int]|None): Missing files categorized by directory (NEW in v3.29.0+)
+  - `critical_missing` (List[str]|None): List of critical missing files (NEW in v3.29.0+)
 
 ### Key Methods
 
-#### `InstallationValidator.validate()`
+#### `InstallationValidator.validate(threshold=100.0)`
 - **Purpose**: Validate complete installation
+- **Parameters**:
+  - `threshold` (float, optional): Coverage threshold percentage (default: 100.0, can be 99.5 for flexible validation)
 - **Returns**: `ValidationResult`
 - **Features**:
   - File coverage calculation (actual/expected * 100)
   - Missing file detection (source files not in destination)
   - Extra file detection (unexpected files in destination)
   - Directory structure validation
+  - File categorization by directory (NEW in v3.29.0+)
+  - Critical file identification (NEW in v3.29.0+)
+  - File size validation (NEW in v3.29.0+)
+  - Threshold-based status determination (flexible pass/fail criteria)
   - Detailed reporting
 
 #### `InstallationValidator.validate_sizes()` - NEW in v3.29.1
@@ -2072,6 +2105,38 @@ validate_message("msg\x00with\x01control")  # Control chars
 - **Returns**: `Dict` with `sizes_match` (bool) and `size_errors` (List[str])
 - **Raises**: `ValidationError` if no manifest provided
 - **Features**: Detects corrupted downloads or partial installs
+
+#### `InstallationValidator.categorize_missing_files(missing_file_list)` - NEW in v3.29.0+
+
+**Signature**: `categorize_missing_files(missing_file_list: List[str]) -> Dict[str, int]`
+
+- **Purpose**: Categorize missing files by directory for detailed reporting
+- **Parameters**: `missing_file_list` (List[str]): List of missing file paths
+- **Returns**: `Dict[str, int]` mapping directory to count
+  - Example: `{"scripts": 2, "lib": 5, "agents": 1}`
+- **Features**:
+  - Groups missing files by first directory component
+  - Provides summary for quick problem diagnosis
+  - Used in `validate()` method to populate `missing_by_category`
+
+#### `InstallationValidator.identify_critical_files(missing_file_list)` - NEW in v3.29.0+
+
+**Signature**: `identify_critical_files(missing_file_list: List[str]) -> List[str]`
+
+- **Purpose**: Identify critical missing files that must be installed
+- **Parameters**: `missing_file_list` (List[str]): List of missing file paths
+- **Returns**: `List[str]` of critical missing files
+- **Critical Patterns**:
+  - `scripts/setup.py`
+  - `lib/security_utils.py`
+  - `lib/install_orchestrator.py`
+  - `lib/file_discovery.py`
+  - `lib/copy_system.py`
+  - `lib/installation_validator.py`
+- **Features**:
+  - Identifies essential files for plugin operation
+  - Used in `validate()` method to populate `critical_missing`
+  - Helps prioritize missing file recovery
 
 #### `InstallationValidator.validate_no_duplicate_libs()` - NEW in v3.29.1
 
@@ -2182,7 +2247,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ---
 
-## 20. install_orchestrator.py (495 lines, v3.29.0+)
+## 20. install_orchestrator.py (602 lines, v3.29.0+)
 
 **Purpose**: Coordinates complete installation workflow (fresh install, upgrade, rollback)
 
@@ -2277,19 +2342,22 @@ validate_message("msg\x00with\x01control")  # Control chars
 ### Workflow Integration
 
 **Fresh Install**:
-1. Discover all files
-2. Copy with structure preservation
-3. Validate coverage (expect 95%+)
-4. Create installation marker
-5. Activate hooks (optional)
+1. Pre-install cleanup (remove duplicate .claude/lib/ libraries)
+2. Discover all files
+3. Copy with structure preservation
+4. Validate coverage (expect 95%+)
+5. Create installation marker
+6. Activate hooks (optional)
 
 **Upgrade Install**:
-1. Create timestamped backup
-2. Discover all files
-3. Copy with preservation of user files
-4. Validate coverage
-5. Update installation marker
-6. Rollback on failure
+1. Pre-install cleanup (remove duplicate .claude/lib/ libraries)
+2. Create timestamped backup
+3. Discover files
+4. Copy files (preserving user customizations if possible)
+5. Set permissions
+6. Update marker file
+7. Validate
+8. On failure: rollback
 
 **Repair Install**:
 1. Detect missing files (compare against manifest)
@@ -2314,6 +2382,781 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ### Related
 - GitHub Issue #80 (Bootstrap overhaul - orchestrated installation)
+
+---
+
+## 21. failure_classifier.py (343 lines, v3.33.0+)
+
+**Purpose**: Classify /auto-implement failures as transient vs permanent for intelligent retry logic.
+
+### Overview
+
+Analyzes error messages to determine if a failed feature attempt should be retried (transient errors like network issues) or marked failed (permanent errors like syntax errors). Used by batch_retry_manager.py to make retry decisions.
+
+### Enums
+
+#### `FailureType`
+- `TRANSIENT` - Retriable error (network, timeout, rate limit)
+- `PERMANENT` - Non-retriable error (syntax, import, type errors)
+
+### Functions
+
+#### `classify_failure(error_message)`
+- **Purpose**: Classify error message as transient or permanent
+- **Parameters**: `error_message` (str|None): Raw error message
+- **Returns**: `FailureType.TRANSIENT` or `FailureType.PERMANENT`
+- **Logic**:
+  1. Check transient patterns (network, timeout, rate limit)
+  2. Check permanent patterns (syntax, import, type errors)
+  3. Default to PERMANENT for safety (unknown errors not retried)
+- **Examples**:
+  ```python
+  classify_failure("ConnectionError: Failed to connect")  # TRANSIENT
+  classify_failure("SyntaxError: invalid syntax")  # PERMANENT
+  classify_failure("WeirdUnknownError")  # PERMANENT (safe default)
+  ```
+
+#### `is_transient_error(error_message)`
+- **Purpose**: Check if error indicates transient failure
+- **Parameters**: `error_message` (str|None): Error message
+- **Returns**: `True` if transient, `False` otherwise
+- **Patterns Detected**:
+  - ConnectionError, NetworkError
+  - TimeoutError
+  - RateLimitError, HTTP 429/503
+  - HTTP 502/504 (Bad Gateway, Gateway Timeout)
+  - TemporaryFailure, Service Unavailable
+
+#### `is_permanent_error(error_message)`
+- **Purpose**: Check if error indicates permanent failure
+- **Parameters**: `error_message` (str|None): Error message
+- **Returns**: `True` if permanent, `False` otherwise
+- **Patterns Detected**:
+  - SyntaxError, IndentationError
+  - ImportError, ModuleNotFoundError
+  - TypeError, AttributeError, NameError
+  - ValueError, KeyError, IndexError
+  - AssertionError, ZeroDivisionError
+
+#### `sanitize_error_message(error_message)`
+- **Purpose**: Sanitize error message for safe logging (CWE-117 prevention)
+- **Parameters**: `error_message` (str|None): Raw error message
+- **Returns**: `str` (sanitized message)
+- **Security**:
+  - Removes newlines (prevent log injection)
+  - Removes carriage returns (prevent log injection)
+  - Truncates to 1000 chars (prevent resource exhaustion)
+- **Examples**:
+  ```python
+  sanitize_error_message("Error\nFAKE LOG: Admin")  # "Error FAKE LOG: Admin"
+  sanitize_error_message("E" * 10000)  # "EEEE...[truncated]"
+  ```
+
+#### `extract_error_context(error_message, feature_name)`
+- **Purpose**: Extract rich error context for debugging
+- **Parameters**:
+  - `error_message` (str|None): Raw error message
+  - `feature_name` (str): Name of feature being processed
+- **Returns**: `Dict` with error context
+- **Context Fields**:
+  - `error_type` (str): Type extracted from message
+  - `error_message` (str): Sanitized message
+  - `feature_name` (str): Original feature name
+  - `timestamp` (str): ISO 8601 timestamp
+  - `failure_type` (str): "transient" or "permanent"
+- **Examples**:
+  ```python
+  context = extract_error_context("SyntaxError: invalid", "Add auth")
+  # {
+  #   "error_type": "SyntaxError",
+  #   "error_message": "SyntaxError: invalid",
+  #   "feature_name": "Add auth",
+  #   "timestamp": "2025-11-19T10:00:00Z",
+  #   "failure_type": "permanent"
+  # }
+  ```
+
+### Security
+- **CWE-117**: Log injection prevention via newline/carriage return removal
+- **Resource Exhaustion**: Max 1000-char error messages prevent DOS
+- **Safe Defaults**: Unknown errors → permanent (don't retry)
+
+### Constants
+
+- `TRANSIENT_ERROR_PATTERNS`: List of 15+ regex patterns for transient errors
+- `PERMANENT_ERROR_PATTERNS`: List of 15+ regex patterns for permanent errors
+- `MAX_ERROR_MESSAGE_LENGTH`: 1000 chars (truncate longer messages)
+
+### Test Coverage
+- 25+ unit tests covering classification, sanitization, context extraction
+- Edge cases: None, empty, unknown error types, long messages
+
+### Used By
+- batch_retry_manager.py for retry decisions
+- /batch-implement command for retry logic
+
+### Related
+- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- error-handling-patterns skill for exception hierarchy
+
+---
+
+## 22. batch_retry_manager.py (544 lines, v3.33.0+)
+
+**Purpose**: Orchestrate retry logic with safety limits and circuit breaker for /batch-implement.
+
+### Overview
+
+Manages automatic retry of failed features with intelligent safeguards:
+- Per-feature retry tracking (max 3 per feature)
+- Circuit breaker (pause after 5 consecutive failures)
+- Global retry limit (max 50 total retries)
+- Persistent state (survive crashes)
+- Audit logging (all retries tracked)
+
+### Data Classes
+
+#### `RetryDecision`
+- **Purpose**: Decision about whether to retry a feature
+- **Attributes**:
+  - `should_retry` (bool): Whether to retry
+  - `reason` (str): Reason for decision (e.g., "under_retry_limit", "circuit_breaker_open")
+  - `retry_count` (int): Current retry count for feature
+
+#### `RetryState`
+- **Purpose**: Persistent retry state for a batch
+- **Attributes**:
+  - `batch_id` (str): Batch identifier
+  - `retry_counts` (Dict[int, int]): Per-feature retry counts
+  - `global_retry_count` (int): Total retries across all features
+  - `consecutive_failures` (int): Consecutive failures (for circuit breaker)
+  - `circuit_breaker_open` (bool): Whether circuit breaker is triggered
+  - `created_at` (str): ISO 8601 creation timestamp
+  - `updated_at` (str): ISO 8601 last update timestamp
+
+### Main Class
+
+#### `BatchRetryManager`
+- **Purpose**: Main class for retry orchestration
+
+##### Constructor
+```python
+BatchRetryManager(batch_id: str, state_dir: Optional[Path] = None)
+```
+
+##### Key Methods
+
+###### `should_retry_feature(feature_index, failure_type)`
+- **Purpose**: Decide if feature should be retried
+- **Parameters**:
+  - `feature_index` (int): Index of failed feature
+  - `failure_type` (FailureType): Classification of failure
+- **Returns**: `RetryDecision` with decision and reason
+- **Decision Logic** (in order):
+  1. Check global retry limit (max 50 total retries)
+  2. Check circuit breaker (5 consecutive failures)
+  3. Check failure type (permanent → no retry)
+  4. Check per-feature limit (max 3 retries)
+  5. If all pass → allow retry
+- **Examples**:
+  ```python
+  manager = BatchRetryManager("batch-123")
+  decision = manager.should_retry_feature(0, FailureType.TRANSIENT)
+  if decision.should_retry:
+      # Retry feature...
+  ```
+
+###### `record_retry_attempt(feature_index, error_message)`
+- **Purpose**: Record a retry attempt
+- **Parameters**:
+  - `feature_index` (int): Index of feature being retried
+  - `error_message` (str): Error from failed attempt
+- **Side Effects**:
+  - Increments per-feature retry count
+  - Increments global retry count
+  - Increments consecutive failure count
+  - Checks circuit breaker threshold
+  - Saves state atomically
+  - Logs to audit trail
+
+###### `record_success(feature_index)`
+- **Purpose**: Record successful feature completion
+- **Parameters**: `feature_index` (int): Index of successful feature
+- **Side Effects**:
+  - Resets consecutive failure count (circuit breaker reset)
+  - Saves state atomically
+
+###### `check_circuit_breaker()`
+- **Purpose**: Check if circuit breaker is open
+- **Returns**: `True` if open (retries blocked), `False` otherwise
+
+###### `reset_circuit_breaker()`
+- **Purpose**: Manually reset circuit breaker after investigation
+- **Use Case**: After investigating root cause of consecutive failures
+
+###### `get_retry_count(feature_index)`
+- **Purpose**: Get retry count for specific feature
+- **Parameters**: `feature_index` (int): Feature index
+- **Returns**: `int` (number of retries, 0 if never retried)
+
+###### `get_global_retry_count()`
+- **Purpose**: Get total retries across all features
+- **Returns**: `int` (total retries)
+
+### Constants
+
+- `MAX_RETRIES_PER_FEATURE = 3`: Max retries per feature
+- `CIRCUIT_BREAKER_THRESHOLD = 5`: Consecutive failures to open circuit
+- `MAX_TOTAL_RETRIES = 50`: Global retry limit across batch
+
+### Convenience Functions
+
+Module provides standalone functions for quick use without class:
+
+- `should_retry_feature(batch_id, feature_index, failure_type, state_dir)` - Check if retry allowed
+- `record_retry_attempt(batch_id, feature_index, error_message, state_dir)` - Record attempt
+- `check_circuit_breaker(batch_id, state_dir)` - Check breaker status
+- `get_retry_count(batch_id, feature_index, state_dir)` - Get retry count
+- `reset_circuit_breaker(batch_id, state_dir)` - Reset breaker
+
+### State Persistence
+
+Retry state saved to `.claude/batch_*_retry_state.json`:
+
+```json
+{
+  "batch_id": "batch-20251118-123456",
+  "retry_counts": { "0": 2, "5": 1 },
+  "global_retry_count": 5,
+  "consecutive_failures": 0,
+  "circuit_breaker_open": false,
+  "created_at": "2025-11-19T10:00:00Z",
+  "updated_at": "2025-11-19T10:15:00Z"
+}
+```
+
+State file uses atomic writes (tempfile + rename) for crash safety.
+
+### Audit Logging
+
+All retry attempts logged to `.claude/audit/batch_*_retry_audit.jsonl` with entries:
+
+```json
+{
+  "timestamp": "2025-11-19T10:00:00Z",
+  "event_type": "retry_attempt",
+  "batch_id": "batch-123",
+  "feature_index": 0,
+  "retry_count": 1,
+  "global_retry_count": 5,
+  "error_message": "ConnectionError: Failed"
+}
+```
+
+### Security
+- Atomic writes (temp file + rename)
+- Path validation for state directories
+- Error message sanitization (CWE-117)
+- Circuit breaker prevents resource exhaustion
+- Audit logging for all decisions
+
+### Test Coverage
+- 40+ unit tests covering:
+  - Retry decision logic (all 5 checks)
+  - State persistence (load/save)
+  - Circuit breaker (open/close/reset)
+  - Consecutive failure tracking
+  - Edge cases (corrupted state, missing files)
+
+### Used By
+- /batch-implement command for automatic retry
+- failure_classifier.py for error classification
+
+### Related
+- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- state-management-patterns skill for persistence patterns
+
+---
+
+## 23. batch_retry_consent.py (360 lines, v3.33.0+)
+
+**Purpose**: First-run consent prompt and persistent state for automatic retry feature.
+
+### Overview
+
+Interactive consent system for /batch-implement automatic retry:
+- First-run prompt (explains feature, safety limits)
+- Persistent state storage (`~/.autonomous-dev/user_state.json`)
+- Environment variable override (`BATCH_RETRY_ENABLED`)
+- Secure file permissions (0o600 user-only)
+- Path validation (prevent symlink attacks)
+
+### Constants
+
+- `DEFAULT_USER_STATE_FILE = ~/.autonomous-dev/user_state.json`: Default state location
+- `ENV_VAR_BATCH_RETRY = "BATCH_RETRY_ENABLED"`: Environment variable name
+
+### Main Functions
+
+#### `check_retry_consent()`
+- **Purpose**: Check if user has consented to automatic retry
+- **Workflow**:
+  1. Check if already set in state file
+  2. If not set, prompt user
+  3. Save response to state file
+  4. Return response
+- **Returns**: `True` if enabled, `False` if disabled
+- **First Run**: Displays consent prompt, saves choice to `~/.autonomous-dev/user_state.json`
+- **Subsequent Runs**: Reads from state file (no prompt)
+
+#### `is_retry_enabled()`
+- **Purpose**: Check if automatic retry is enabled
+- **Priority Order**:
+  1. Check environment variable `BATCH_RETRY_ENABLED` (highest priority)
+  2. Check user state file `~/.autonomous-dev/user_state.json`
+  3. Prompt user if not set (with check_retry_consent)
+- **Returns**: `True` if enabled, `False` if disabled
+- **Examples**:
+  ```python
+  # Environment variable overrides state file
+  os.environ["BATCH_RETRY_ENABLED"] = "false"
+  is_retry_enabled()  # False (env var checked first)
+
+  # Fall back to state file if env var not set
+  os.environ.pop("BATCH_RETRY_ENABLED", None)
+  is_retry_enabled()  # Reads from state file or prompts
+  ```
+
+#### `prompt_for_retry_consent()`
+- **Purpose**: Display first-run consent prompt and get user response
+- **Returns**: `True` if user consented (yes/y/Y/Enter), `False` otherwise
+- **Prompt Displays**:
+  - Automatic retry feature explanation
+  - Types of errors retried (network, timeout, rate limit)
+  - Max 3 retries per feature
+  - Circuit breaker after 5 consecutive failures
+  - How to disable via `.env` file
+- **Default Behavior**: Enter/no response → False (conservative default)
+
+### State File Management
+
+#### `save_consent_state(retry_enabled)`
+- **Purpose**: Save consent decision to state file
+- **Parameters**: `retry_enabled` (bool): Whether retry is enabled
+- **Features**:
+  - Creates directory if needed: `~/.autonomous-dev/`
+  - Sets file permissions to 0o600 (user-only read/write)
+  - Atomic write (tempfile + rename)
+  - Preserves existing state (merges with existing keys)
+
+#### `load_consent_state()`
+- **Purpose**: Load saved consent decision
+- **Returns**: `True` if enabled, `False` if disabled, `None` if not set
+- **Security**: Rejects symlinks (CWE-59 prevention)
+- **Graceful**: Returns `None` if file corrupted or missing
+
+#### `get_user_state_file()`
+- **Purpose**: Get path to user state file
+- **Returns**: `Path` object pointing to `~/.autonomous-dev/user_state.json`
+- **Note**: Can be overridden for testing
+
+### Exceptions
+
+#### `ConsentError`
+- **Purpose**: Exception for consent-related errors
+- **Raised When**:
+  - User state file is a symlink (CWE-59)
+  - Cannot write to user state directory
+  - File corruption prevents parsing
+
+### Security
+
+- **CWE-22**: Path validation (rejects traversal attempts)
+- **CWE-59**: Symlink rejection for user state file (prevents symlink attacks)
+- **CWE-732**: File permissions secured to 0o600 (user-only read/write)
+- **Atomic Writes**: Temp file + rename prevents partial writes
+
+### State File Format
+
+User state stored in `~/.autonomous-dev/user_state.json`:
+
+```json
+{
+  "batch_retry_enabled": true,
+  "other_keys": "..."
+}
+```
+
+### Test Coverage
+- 20+ unit tests covering:
+  - Consent prompt (yes/no/invalid responses)
+  - State file persistence (save/load)
+  - Environment variable override
+  - Symlink detection and rejection
+  - File permissions validation
+  - First-run vs subsequent-run behavior
+
+### Used By
+- /batch-implement command (check before retry)
+- batch_retry_manager.py (respects consent setting)
+
+### Related
+- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- error-handling-patterns skill for exception hierarchy
+
+## 24. agent_tracker.py (1,185 lines, v3.34.0+, Issue #79)
+
+**Purpose**: Portable tracking infrastructure for agent execution with dynamic project root detection
+
+**Problem Solved (Issue #79)**: Original `scripts/agent_tracker.py` had hardcoded paths that failed when:
+- Running from user projects (no `scripts/` directory)
+- Running from project subdirectories (couldn't find project root)
+- Commands invoked from installation path vs development path
+
+**Solution**: Library-based implementation in `plugins/autonomous-dev/lib/agent_tracker.py` with:
+- Dynamic project root detection via path_utils
+- Portable path resolution (no hardcoded paths)
+- Atomic file writes for data consistency
+- Comprehensive error handling with context
+
+### Classes
+
+#### `AgentTracker`
+- **Purpose**: Track agent execution with structured logging
+- **Initialization**: `AgentTracker(session_file=None)`
+  - `session_file` (Optional[str]): Path to session file for testing
+  - If None: Creates/finds session file automatically using path_utils
+  - Raises `ValueError` if session_file path is outside project (path traversal prevention)
+- **Features**:
+  - Auto-detects project root from any subdirectory
+  - Creates `docs/sessions/` directory if missing
+  - Finds or creates JSON session files with timestamp naming: `YYYYMMDD-HHMMSS-pipeline.json`
+  - Atomic writes using tempfile + rename pattern (Issue #45 security)
+  - Path validation via shared security_utils module
+
+### Public Methods
+
+#### Agent Lifecycle Methods
+
+#### `start_agent(agent_name, message)`
+- **Purpose**: Log agent start time
+- **Parameters**:
+  - `agent_name` (str): Agent name (validated via security_utils)
+  - `message` (str): Start message (max 10KB)
+- **Records**:
+  - Start timestamp (ISO format)
+  - Agent name and status ("started")
+  - Initial message
+- **Security**: Input validation prevents injection attacks
+
+#### `complete_agent(agent_name, message, tools=None, tools_used=None, github_issue=None)`
+- **Purpose**: Log agent completion with optional metrics
+- **Parameters**:
+  - `agent_name` (str): Agent name
+  - `message` (str): Completion message
+  - `tools` (Optional[List[str]]): Tools declared to use (metadata)
+  - `tools_used` (Optional[List[str]]): Tools actually used (audit trail)
+  - `github_issue` (Optional[int]): Linked GitHub issue number
+- **Records**:
+  - Completion timestamp (ISO format)
+  - Duration in seconds (auto-calculated from start)
+  - Message and tool usage
+  - Links to GitHub issue if provided
+- **Returns**: Boolean indicating success
+- **Error Handling**: Logs errors without raising (non-blocking)
+
+#### `fail_agent(agent_name, message)`
+- **Purpose**: Log agent failure
+- **Parameters**:
+  - `agent_name` (str): Agent name
+  - `message` (str): Failure message
+- **Records**:
+  - Failure timestamp
+  - Error message with context
+  - Status set to "failed"
+- **Security**: Error messages sanitized to prevent log injection
+
+#### Pipeline Status Methods
+
+#### `set_github_issue(issue_number)`
+- **Purpose**: Link session to GitHub issue number
+- **Parameters**: `issue_number` (int): GitHub issue (1-999999)
+- **Uses**: GitHub Issue metadata in STEP 5 checkpoints
+
+#### `show_status()`
+- **Purpose**: Display current pipeline status with colors and emojis
+- **Output**:
+  - Session ID and start time
+  - List of agents (started/completed/failed/pending)
+  - Progress percentage (agents completed / total expected)
+  - Tree view of execution flow
+  - Duration metrics (actual, average, estimated remaining)
+- **Color Coding**: Uses ANSI colors for status visualization
+
+#### Progress Tracking Methods
+
+#### `get_expected_agents() -> List[str]`
+- **Purpose**: Return list of expected agents for workflow
+- **Returns**: List of agent names (hardcoded per workflow type)
+- **Used By**: Progress calculations, pipeline verification
+
+#### `calculate_progress() -> int`
+- **Purpose**: Calculate workflow completion percentage
+- **Returns**: Integer 0-100
+- **Calculation**: `(agents_completed / agents_expected) * 100`
+
+#### `get_average_agent_duration() -> Optional[int]`
+- **Purpose**: Calculate average duration of completed agents
+- **Returns**: Seconds (or None if no agents completed)
+- **Uses**: Estimation of remaining time
+
+#### `estimate_remaining_time() -> Optional[int]`
+- **Purpose**: Estimate time until workflow completion
+- **Returns**: Seconds (or None if insufficient data)
+- **Calculation**: `(pending_agents * average_duration) + safety_buffer`
+
+#### `get_pending_agents() -> List[str]`
+- **Purpose**: List agents not yet started
+- **Returns**: List of agent names
+- **Uses**: Progress tracking and timeout calculations
+
+#### `get_running_agent() -> Optional[str]`
+- **Purpose**: Get currently running agent
+- **Returns**: Agent name (or None if none running)
+- **Uses**: Checkpoint verification, deadlock detection
+
+#### Verification Methods
+
+#### `verify_parallel_exploration() -> bool`
+- **Purpose**: Verify parallel exploration checkpoint (STEP 1)
+- **Checks**:
+  - researcher agent completed
+  - planner agent completed
+  - Execution time ≤ 10 minutes (typical: 5-8 minutes)
+- **Returns**: True if verification passed
+- **Output**: Displays efficiency metrics and time saved
+- **Used By**: auto-implement.md CHECKPOINT 1 (line 109)
+- **Graceful Degradation**: Returns False if AgentTracker unavailable (non-blocking)
+
+#### `verify_parallel_validation() -> bool`
+- **Purpose**: Verify parallel validation checkpoint (STEP 4.1)
+- **Checks**:
+  - reviewer agent completed
+  - security-auditor agent completed
+  - doc-master agent completed
+  - Execution time ≤ 5 minutes (typical: 2-3 minutes)
+- **Returns**: True if verification passed
+- **Output**: Displays efficiency metrics
+- **Used By**: auto-implement.md CHECKPOINT 4.1 (line 390)
+- **Graceful Degradation**: Returns False if unavailable (non-blocking)
+
+#### `get_parallel_validation_metrics() -> Dict[str, Any]`
+- **Purpose**: Extract metrics from parallel validation execution
+- **Returns**: Dictionary with:
+  - `reviewer_duration`: seconds
+  - `security_auditor_duration`: seconds
+  - `doc_master_duration`: seconds
+  - `parallel_time`: max of above (actual duration)
+  - `sequential_time`: sum of above (if run sequentially)
+  - `time_saved`: sequential - parallel
+  - `efficiency_percent`: (time_saved / sequential) * 100
+- **Uses**: Checkpoint display and performance analysis
+
+#### `is_pipeline_complete() -> bool`
+- **Purpose**: Check if all expected agents completed
+- **Returns**: True if all agents in "completed" or "failed" state
+- **Uses**: Workflow completion detection
+
+#### `is_agent_tracked(agent_name) -> bool`
+- **Purpose**: Check if agent has been logged
+- **Parameters**: `agent_name` (str): Agent to check
+- **Returns**: True if agent found in session
+
+#### Environment Tracking
+
+#### `auto_track_from_environment(message=None) -> bool`
+- **Purpose**: Auto-detect running agent from environment variable
+- **Parameters**: `message` (Optional[str]): Optional override message
+- **Reads**: `AGENT_NAME` environment variable set by orchestrator
+- **Returns**: True if auto-tracking succeeded
+- **Security**: Validates agent name format before logging
+
+### Formatting & Display Methods
+
+#### `get_agent_emoji(status) -> str`
+- **Purpose**: Get emoji for agent status
+- **Status Mappings**:
+  - "started" → "▶️"
+  - "completed" → "✅"
+  - "failed" → "❌"
+  - "pending" → "⏳"
+
+#### `get_agent_color(status) -> str`
+- **Purpose**: Get ANSI color code for status
+- **Colors**: Green (completed), Red (failed), Yellow (started), Gray (pending)
+
+#### `get_display_metadata() -> Dict[str, Any]`
+- **Purpose**: Get formatted metadata for display
+- **Returns**: Dictionary with:
+  - `session_id`: Unique session identifier
+  - `started`: Human-readable start time
+  - `duration`: Total elapsed time
+  - `progress`: Completion percentage
+  - `agents_summary`: Count by status
+
+#### `get_tree_view_data() -> Dict[str, Any]`
+- **Purpose**: Get tree structure for ASCII tree display
+- **Returns**: Hierarchical dictionary representing workflow execution
+
+### Session Data Format
+
+JSON session files stored in `docs/sessions/YYYYMMDD-HHMMSS-pipeline.json`:
+
+```json
+{
+  "session_id": "20251119-143022",
+  "started": "2025-11-19T14:30:22.123456",
+  "github_issue": 79,
+  "agents": [
+    {
+      "agent": "researcher",
+      "status": "completed",
+      "started_at": "2025-11-19T14:30:25",
+      "completed_at": "2025-11-19T14:35:10",
+      "duration_seconds": 285,
+      "message": "Found 3 JWT patterns",
+      "tools_used": ["WebSearch", "Grep", "Read"]
+    }
+  ]
+}
+```
+
+### Security Features
+
+#### Path Traversal Prevention (CWE-22)
+- All paths validated to stay within project root
+- Rejects `..` sequences in path strings
+- Uses shared `validate_path()` from security_utils
+- Audit logging of all validation attempts
+
+#### Symlink Attack Prevention (CWE-59)
+- Rejects symlinks that could bypass restrictions
+- Path normalization prevents escape attempts
+- Atomic file writes prevent partial reads
+
+#### Input Validation
+- Agent names: 1-255 chars, alphanumeric + hyphen/underscore only
+- Messages: Max 10KB to prevent log bloat
+- GitHub issue: Positive integers 1-999999 only
+- Control character filtering prevents log injection (CWE-117)
+
+#### Atomic File Writes (Issue #45)
+- Uses tempfile + rename pattern for consistency
+- Process crash during write: Original file unchanged
+- Prevents readers from seeing corrupted/partial JSON
+- On POSIX: Rename is guaranteed atomic by OS
+
+### CLI Wrapper
+
+**File**: `plugins/autonomous-dev/scripts/agent_tracker.py`
+- **Purpose**: CLI interface for library functionality
+- **Design**: Delegates to `plugins/autonomous-dev/lib/agent_tracker.py`
+- **Commands**:
+  - `start <agent_name> <message>`: Start agent tracking
+  - `complete <agent_name> <message> [--tools tool1,tool2]`: Complete agent
+  - `fail <agent_name> <message>`: Log failure
+  - `status`: Display current status
+- **Backward Compatibility**: Installed plugin uses lib version directly
+
+### Deprecation (Issue #79)
+
+**Deprecated**: `scripts/agent_tracker.py` (original location)
+- **Reason**: Hardcoded paths fail in user projects and subdirectories
+- **Migration**:
+  - For CLI: Use `plugins/autonomous-dev/scripts/agent_tracker.py` (installed plugin)
+  - For imports: Use `from plugins.autonomous-dev.lib.agent_tracker import AgentTracker`
+  - Existing code continues to work (delegates to library implementation)
+  - Will be removed in v4.0.0
+
+### Usage Examples
+
+#### Basic Usage (Standard Mode)
+```python
+from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
+
+# Create tracker (auto-detects project root)
+tracker = AgentTracker()
+
+# Log agent start
+tracker.start_agent("researcher", "Researching JWT patterns")
+
+# Log agent completion
+tracker.complete_agent("researcher", "Found 3 patterns",
+                       tools_used=["WebSearch", "Grep", "Read"],
+                       github_issue=79)
+
+# Display status
+tracker.show_status()
+```
+
+#### Testing with Explicit Session File
+```python
+from pathlib import Path
+tracker = AgentTracker(session_file="/tmp/test-session.json")
+tracker.start_agent("test-agent", "Testing")
+```
+
+#### Checkpoint Verification (auto-implement.md)
+```python
+tracker = AgentTracker()
+
+# Verify parallel exploration (STEP 1)
+if tracker.verify_parallel_exploration():
+    print("✅ PARALLEL EXPLORATION: SUCCESS")
+    metrics = tracker.get_parallel_validation_metrics()
+    print(f"Time saved: {metrics['time_saved']}s ({metrics['efficiency_percent']}%)")
+else:
+    print("⚠️ Parallel exploration verification failed")
+    # Workflow continues regardless (graceful degradation)
+```
+
+### Error Handling
+
+All exceptions include context and guidance:
+```python
+try:
+    tracker = AgentTracker(session_file="../../etc/passwd")
+except ValueError as e:
+    # Error includes: what went wrong, why, and what's expected
+    # Example: "Path traversal attempt detected: /etc/passwd"
+    print(e)
+```
+
+### Test Coverage
+- 66+ unit tests (85.7% coverage) in `tests/unit/lib/test_agent_tracker_issue79.py`
+- Integration tests for checkpoint verification
+- Path resolution from nested subdirectories
+- Atomic write pattern verification
+- Security validation (path traversal, symlinks, input bounds)
+
+### Used By
+- `/auto-implement` command checkpoints (parallel exploration, parallel validation)
+- `/batch-implement` for pipeline tracking
+- Dogfooding infrastructure in autonomous-dev repo
+- Optional checkpoint verification (graceful degradation in user projects)
+
+### Related
+- GitHub Issue #79 (Dogfooding bug - tracking infrastructure hardcoded paths)
+- GitHub Issue #82 (Optional checkpoint verification with graceful degradation)
+- GitHub Issue #45 (Atomic write pattern and security hardening)
+- path_utils.py (Dynamic project root detection)
+- security_utils.py (Path validation and input bounds checking)
+
+### Design Patterns
+- **Two-tier Design**: Library (core logic) + CLI wrapper (interface)
+- **Progressive Enhancement**: Features gracefully degrade if infrastructure unavailable
+- **Atomic Writes**: Tempfile + rename for consistency
+- **Path Portability**: Uses path_utils instead of hardcoded paths
 
 ---
 

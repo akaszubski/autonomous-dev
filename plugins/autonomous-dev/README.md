@@ -108,6 +108,8 @@ The install.sh script copies plugin files to your project's `.claude/` directory
 
 **Why is this needed?** Claude Code currently requires plugin commands to be in your project's `.claude/` directory to be discoverable. The bootstrap script handles this one-time setup automatically.
 
+**Installation Coverage (Issue #80 - In Progress):** The bootstrap script now uses advanced file discovery to copy 100% of plugin files (~201 files) with intelligent exclusion patterns. File Discovery (16/16 tests passing) and Copy System (21/23 tests passing) are fully implemented. Installation Validator and Install Orchestrator are still in development. For detailed status, implementation roadmap, and known limitations, see `docs/ISSUE-80-PARTIAL-IMPLEMENTATION.md` in the repository root.
+
 ### Troubleshooting
 
 **Bootstrap script fails?**

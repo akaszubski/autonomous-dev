@@ -65,6 +65,9 @@ EXCLUDE_PATTERNS = {
     ".pytest_cache",
     "*.egg-info",
     ".eggs",
+    "*.egg",
+    "build",
+    "dist",
 
     # Version control
     ".git",
@@ -84,6 +87,17 @@ EXCLUDE_PATTERNS = {
     "*.log",
     "*~",
 }
+
+# Directory patterns to exclude (partial match)
+EXCLUDE_DIR_PATTERNS = [
+    ".egg-info",
+    "__pycache__",
+    ".pytest_cache",
+    ".git",
+    ".eggs",
+    "build",
+    "dist",
+]
 
 # Hidden files to INCLUDE (exceptions to hidden file exclusion)
 INCLUDE_HIDDEN = {
@@ -192,9 +206,14 @@ class FileDiscovery:
         # Check if in excluded directory
         parts = path.relative_to(self.plugin_dir).parts
         for part in parts:
-            # Excluded directory names
+            # Excluded directory names (exact match)
             if part in EXCLUDE_PATTERNS:
                 return True
+
+            # Excluded directory patterns (partial match for .egg-info, etc.)
+            for dir_pattern in EXCLUDE_DIR_PATTERNS:
+                if dir_pattern in part:
+                    return True
 
             # Hidden directories (except allowed)
             if part.startswith(".") and part not in INCLUDE_HIDDEN:

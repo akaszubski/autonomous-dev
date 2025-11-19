@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-11-16
-**Total Hooks**: 42
+**Last Updated**: 2025-11-19
+**Total Hooks**: 43 (added session_tracker.py - Issue #84)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -14,7 +14,7 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ---
 
-## Core Hooks (11)
+## Core Hooks (12)
 
 Essential hooks for autonomous development workflow.
 
@@ -84,11 +84,20 @@ Essential hooks for autonomous development workflow.
 **Reduces**: Permission prompts from 50+ to 0
 **Lifecycle**: PreToolUse
 
+### session_tracker.py
+
+**Purpose**: Log agent completion to prevent context bloat (Issue #84)
+**Action**: Writes agent actions to docs/sessions/ instead of conversation
+**Lifecycle**: SubagentStop
+**Location**: `plugins/autonomous-dev/hooks/session_tracker.py`
+
 ---
 
-## Optional/Extended Hooks (20)
+## Optional/Extended Hooks (19)
 
 Additional hooks for enhanced workflow automation.
+
+Note: session_tracker.py moved to Core Hooks as essential for context management (Issue #84).
 
 ### auto_enforce_coverage.py
 
@@ -198,10 +207,14 @@ Special hooks that respond to Claude Code lifecycle events.
 
 **Purpose**: Log agent completion and trigger automation
 **Actions**:
-- Log agent completion to session
+- session_tracker.py: Log agent completion to docs/sessions/ (prevents context bloat - Issue #84)
 - Auto-update PROJECT.md progress (v3.4.0+)
 - Auto-detect Task tool agents (v3.8.3+)
-- Trigger auto_git_workflow.py (quality-validator completion)
+- auto_git_workflow.py: Trigger git operations on quality-validator completion
+
+**Hooks in this lifecycle**:
+- `session_tracker.py`: Logs agent actions to session file
+- `auto_git_workflow.py`: Commits and pushes changes after quality validation
 
 **Trigger**: When agent completes execution
 

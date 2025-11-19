@@ -5,7 +5,7 @@
 # Run this AFTER: /plugin install autonomous-dev
 #
 # Usage:
-#   bash install.sh
+#   bash install.sh [PLUGIN_DIR] [PROJECT_DIR]
 #   OR
 #   curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh | bash
 #
@@ -17,8 +17,15 @@ echo "🚀 Autonomous Dev Plugin - Bootstrap"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Detect plugin directory
-PLUGIN_DIR="$HOME/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev"
+# Detect plugin directory (from args or default)
+if [ -n "$1" ]; then
+    PLUGIN_DIR="$1"
+elif [ -n "$PLUGIN_DIR" ]; then
+    # Use environment variable if set
+    :
+else
+    PLUGIN_DIR="$HOME/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev"
+fi
 
 if [ ! -d "$PLUGIN_DIR" ]; then
     echo "❌ Plugin not found at: $PLUGIN_DIR"
@@ -34,82 +41,30 @@ fi
 echo "✅ Found plugin at: $PLUGIN_DIR"
 echo ""
 
-# Determine project directory
-if [ -z "$CLAUDE_PROJECT_DIR" ]; then
-    PROJECT_DIR="$(pwd)"
-else
+# Determine project directory (from args, env, or cwd)
+if [ -n "$2" ]; then
+    PROJECT_DIR="$2"
+elif [ -n "$PROJECT_DIR" ]; then
+    # Use environment variable if set
+    :
+elif [ -n "$CLAUDE_PROJECT_DIR" ]; then
     PROJECT_DIR="$CLAUDE_PROJECT_DIR"
+else
+    PROJECT_DIR="$(pwd)"
 fi
-
-CLAUDE_DIR="$PROJECT_DIR/.claude"
 
 echo "📁 Project directory: $PROJECT_DIR"
-echo "📁 Claude directory: $CLAUDE_DIR"
 echo ""
 
-# Create .claude directory structure
-echo "📂 Creating directory structure..."
-mkdir -p "$CLAUDE_DIR"/{commands,hooks,templates,agents,skills}
+# Use Python orchestrator for installation
+# Note: Cannot use 'python3 -m plugins.autonomous_dev' because directory has hyphen
+# Use direct file execution instead
+python3 "$PLUGIN_DIR/lib/install_orchestrator.py" \
+    --plugin-dir "$PLUGIN_DIR" \
+    --project-dir "$PROJECT_DIR" \
+    --fresh-install \
+    --show-progress
 
-# Copy commands
-echo "📋 Copying commands..."
-if [ -d "$PLUGIN_DIR/commands" ]; then
-    cp "$PLUGIN_DIR"/commands/*.md "$CLAUDE_DIR/commands/" 2>/dev/null || true
-    CMD_COUNT=$(ls -1 "$CLAUDE_DIR/commands"/*.md 2>/dev/null | wc -l)
-    echo "   ✅ Copied $CMD_COUNT command files"
-else
-    echo "   ⚠️  Commands directory not found in plugin"
-fi
-
-# Copy hooks
-echo "🎣 Copying hooks..."
-if [ -d "$PLUGIN_DIR/hooks" ]; then
-    cp -r "$PLUGIN_DIR"/hooks/* "$CLAUDE_DIR/hooks/" 2>/dev/null || true
-    HOOK_COUNT=$(find "$CLAUDE_DIR/hooks" -name "*.py" 2>/dev/null | wc -l)
-    echo "   ✅ Copied $HOOK_COUNT hook files"
-else
-    echo "   ⚠️  Hooks directory not found in plugin"
-fi
-
-# Copy templates
-echo "📄 Copying templates..."
-if [ -d "$PLUGIN_DIR/templates" ]; then
-    cp -r "$PLUGIN_DIR"/templates/* "$CLAUDE_DIR/templates/" 2>/dev/null || true
-    TMPL_COUNT=$(find "$CLAUDE_DIR/templates" -type f 2>/dev/null | wc -l)
-    echo "   ✅ Copied $TMPL_COUNT template files"
-else
-    echo "   ⚠️  Templates directory not found in plugin"
-fi
-
-# Optional: Copy agents and skills (if they want local copies)
-echo ""
-echo "📚 Copying agents and skills (optional)..."
-if [ -d "$PLUGIN_DIR/agents" ]; then
-    cp "$PLUGIN_DIR"/agents/*.md "$CLAUDE_DIR/agents/" 2>/dev/null || true
-    AGENT_COUNT=$(ls -1 "$CLAUDE_DIR/agents"/*.md 2>/dev/null | wc -l)
-    echo "   ✅ Copied $AGENT_COUNT agent files"
-fi
-
-if [ -d "$PLUGIN_DIR/skills" ]; then
-    cp -r "$PLUGIN_DIR"/skills/* "$CLAUDE_DIR/skills/" 2>/dev/null || true
-    SKILL_COUNT=$(find "$CLAUDE_DIR/skills" -type d -name "*.skill" 2>/dev/null | wc -l)
-    echo "   ✅ Copied $SKILL_COUNT skill directories"
-fi
-
-# Create marker file
-echo "autonomous-dev-plugin" > "$CLAUDE_DIR/.autonomous-dev-bootstrapped"
-
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Bootstrap Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📋 What was installed:"
-echo "   • Commands: .claude/commands/"
-echo "   • Hooks: .claude/hooks/"
-echo "   • Templates: .claude/templates/"
-echo "   • Agents: .claude/agents/"
-echo "   • Skills: .claude/skills/"
 echo ""
 echo "🔄 Next Steps:"
 echo ""
@@ -126,9 +81,6 @@ echo "   /health-check"
 echo ""
 echo "💡 To update plugin files later:"
 echo "   /update-plugin"
-echo ""
-echo "   Or re-run this script:"
-echo "   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)"
 echo ""
 echo "Happy coding! 🚀"
 echo ""

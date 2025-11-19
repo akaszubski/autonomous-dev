@@ -100,7 +100,7 @@ This command simply wraps the `agent_tracker.py` script:
 
 ```bash
 # Show pipeline status
-python scripts/agent_tracker.py status
+python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
 The script:

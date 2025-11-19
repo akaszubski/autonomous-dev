@@ -72,6 +72,8 @@ class ValidationResult:
         errors: List of error messages
         sizes_match: Whether file sizes match manifest (if applicable)
         size_errors: Files with size mismatches (if applicable)
+        missing_by_category: Missing files categorized by directory
+        critical_missing: List of critical missing files
     """
     status: str
     coverage: float
@@ -85,6 +87,8 @@ class ValidationResult:
     errors: List[str]
     sizes_match: Optional[bool] = None
     size_errors: Optional[List[str]] = None
+    missing_by_category: Optional[Dict[str, int]] = None
+    critical_missing: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -190,8 +194,12 @@ class InstallationValidator:
         instance.manifest = manifest
         return instance
 
-    def validate(self) -> ValidationResult:
+    def validate(self, threshold: float = 100.0, check_sizes: bool = False) -> ValidationResult:
         """Validate installation completeness.
+
+        Args:
+            threshold: Coverage threshold percentage (default: 100.0, can be 99.5)
+            check_sizes: Whether to validate file sizes match (default: False)
 
         Returns:
             ValidationResult with coverage, missing files, etc.
@@ -241,8 +249,46 @@ class InstallationValidator:
         # Validate directory structure
         structure_valid = self.validate_structure()
 
-        # Determine status
-        status = "complete" if coverage == 100.0 and missing_count == 0 else "incomplete"
+        # Categorize missing files by directory
+        missing_by_category = self.categorize_missing_files(missing_file_list)
+
+        # Identify critical missing files
+        critical_missing = self.identify_critical_files(missing_file_list)
+
+        # Validate file sizes if requested
+        sizes_match = None
+        size_errors = None
+        if check_sizes:
+            sizes_match = True
+            size_errors = []
+
+            if self.manifest and "files" in self.manifest:
+                # Use manifest for size validation
+                manifest_sizes = {f["path"]: f["size"] for f in self.manifest["files"]}
+                for file_path in expected_files:
+                    dest_file = self.dest_dir / file_path
+                    if dest_file.exists():
+                        expected_size = manifest_sizes.get(str(file_path))
+                        if expected_size is not None:
+                            actual_size = dest_file.stat().st_size
+                            if actual_size != expected_size:
+                                sizes_match = False
+                                size_errors.append(str(file_path))
+            elif self.source_dir.exists():
+                # Use source files for size validation
+                for file_path in expected_files:
+                    source_file = self.source_dir / file_path
+                    dest_file = self.dest_dir / file_path
+
+                    if source_file.exists() and dest_file.exists():
+                        source_size = source_file.stat().st_size
+                        dest_size = dest_file.stat().st_size
+                        if source_size != dest_size:
+                            sizes_match = False
+                            size_errors.append(str(file_path))
+
+        # Determine status based on threshold
+        status = "complete" if coverage >= threshold else "incomplete"
 
         return ValidationResult(
             status=status,
@@ -255,6 +301,10 @@ class InstallationValidator:
             extra_file_list=extra_file_list,
             structure_valid=structure_valid,
             errors=errors,
+            missing_by_category=missing_by_category,
+            critical_missing=critical_missing,
+            sizes_match=sizes_match,
+            size_errors=size_errors,
         )
 
     def validate_sizes(self) -> Dict[str, Any]:
@@ -406,6 +456,60 @@ class InstallationValidator:
 
         return True
 
+    def categorize_missing_files(self, missing_file_list: List[str]) -> Dict[str, int]:
+        """Categorize missing files by directory.
+
+        Args:
+            missing_file_list: List of missing file paths
+
+        Returns:
+            Dictionary mapping category to count
+            Example: {"scripts": 2, "lib": 5, "agents": 1}
+        """
+        categories = {}
+
+        for file_path in missing_file_list:
+            # Get first directory component
+            parts = Path(file_path).parts
+            if parts:
+                category = parts[0]
+                categories[category] = categories.get(category, 0) + 1
+
+        return categories
+
+    def identify_critical_files(self, missing_file_list: List[str]) -> List[str]:
+        """Identify critical missing files.
+
+        Critical files are essential for plugin operation:
+        - scripts/setup.py
+        - lib/security_utils.py
+        - lib/install_orchestrator.py
+        - lib/file_discovery.py
+        - lib/copy_system.py
+        - lib/installation_validator.py
+
+        Args:
+            missing_file_list: List of missing file paths
+
+        Returns:
+            List of critical missing files
+        """
+        critical_patterns = [
+            "scripts/setup.py",
+            "lib/security_utils.py",
+            "lib/install_orchestrator.py",
+            "lib/file_discovery.py",
+            "lib/copy_system.py",
+            "lib/installation_validator.py",
+        ]
+
+        critical_missing = []
+        for file_path in missing_file_list:
+            if file_path in critical_patterns:
+                critical_missing.append(file_path)
+
+        return critical_missing
+
     def generate_report(self, result: ValidationResult) -> str:
         """Generate human-readable validation report.
 
@@ -474,14 +578,23 @@ class InstallationValidator:
 
         return "\n".join(lines)
 
-    def get_status_code(self) -> int:
+    def get_status_code(self, threshold: float = 100.0) -> int:
         """Get exit status code based on validation.
 
+        Args:
+            threshold: Coverage threshold percentage (default: 100.0, can be 99.5)
+
         Returns:
-            0 if installation is complete, 1 otherwise
+            0 if installation meets threshold
+            1 if installation incomplete but no errors
+            2 if validation error occurred
         """
-        result = self.validate()
-        return 0 if result.status == "complete" else 1
+        try:
+            result = self.validate(threshold=threshold)
+            return 0 if result.status == "complete" else 1
+        except (FileNotFoundError, ValidationError, Exception):
+            # Validation error - return error status code
+            return 2
 
 
 # CLI interface for standalone usage

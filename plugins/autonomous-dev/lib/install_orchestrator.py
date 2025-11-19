@@ -75,12 +75,19 @@ class InstallResult:
         coverage: Coverage percentage (0-100)
         errors: List of error messages
         backup_dir: Optional backup directory path
+        customizations_detected: Optional list of user customizations found
+        files_added: Optional number of new files added during upgrade
+        files_restored: Optional number of files restored during rollback
     """
     status: str
     files_copied: int
     coverage: float
     errors: List[str]
     backup_dir: Optional[Path] = None
+    customizations_detected: Optional[int] = None
+    customized_files: Optional[List[str]] = None
+    files_added: Optional[int] = None
+    files_restored: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -201,7 +208,7 @@ class InstallOrchestrator:
             f"Searched: {', '.join(str(p) for p in search_paths)}"
         )
 
-    def fresh_install(self) -> InstallResult:
+    def fresh_install(self, progress_callback: Optional[callable] = None, show_progress: bool = False) -> InstallResult:
         """Perform fresh installation.
 
         Workflow:
@@ -212,6 +219,10 @@ class InstallOrchestrator:
         5. Create installation marker file
         6. Validate coverage
 
+        Args:
+            progress_callback: Optional callback(current, total, message) for progress updates
+            show_progress: Whether to print progress to stdout (default: False)
+
         Returns:
             InstallResult with status and metrics
 
@@ -221,6 +232,11 @@ class InstallOrchestrator:
         from plugins.autonomous_dev.lib.orphan_file_cleaner import OrphanFileCleaner
 
         errors = []
+        backup_dir = None
+
+        # Create backup BEFORE try block if .claude exists (for rollback on failure)
+        if self.claude_dir.exists():
+            backup_dir = self._create_backup()
 
         try:
             # Step 1: Pre-install cleanup (remove duplicate libraries)
@@ -232,35 +248,53 @@ class InstallOrchestrator:
                 errors.append(f"Pre-install cleanup warning: {cleanup_result.error_message}")
 
             # Step 2: Discover all files
+            if progress_callback:
+                progress_callback(0, 100, "Discovering plugin files...")
+
             files = self.discovery.discover_all_files()
             total_files = len(files)
 
             if total_files == 0:
                 raise InstallError("No files discovered in plugin directory")
 
+            if progress_callback:
+                progress_callback(10, 100, f"Discovered {total_files} files")
+
             # Step 3: Ensure .claude directory exists
             self.claude_dir.mkdir(parents=True, exist_ok=True)
 
             # Step 4: Copy all files using CopySystem
+            if progress_callback:
+                progress_callback(20, 100, "Installing files...")
+
             copy_system = CopySystem(self.plugin_dir, self.claude_dir)
+
+            # Create wrapper callback that adds progress display
+            def combined_callback(current: int, total: int, message: str):
+                if show_progress:
+                    percentage = int((current / total) * 100) if total > 0 else 0
+                    print(f"[{current}/{total}] {message} ({percentage}%)")
+                if progress_callback:
+                    progress_callback(current, total, message)
+
             copy_result = copy_system.copy_all(
                 files=files,
                 overwrite=True,
                 preserve_timestamps=True,
-                continue_on_error=True
+                continue_on_error=False,  # Don't continue on error - we'll rollback
+                progress_callback=combined_callback if (show_progress or progress_callback) else None
             )
 
             files_copied = copy_result["files_copied"]
             if copy_result["errors"] > 0:
                 errors.extend(copy_result["error_list"])
+                # If there were errors, raise to trigger rollback
+                raise InstallError(f"Copy errors occurred: {copy_result['errors']} errors")
 
             # Step 5: Set executable permissions on scripts
             self._set_executable_permissions()
 
-            # Step 6: Create installation marker
-            self._create_marker_file(files_copied)
-
-            # Step 7: Validate coverage
+            # Step 6: Validate coverage
             validator = InstallationValidator(self.plugin_dir, self.claude_dir)
             validation = validator.validate()
 
@@ -268,6 +302,10 @@ class InstallOrchestrator:
 
             if validation.status != "complete":
                 errors.append(f"Incomplete installation: {validation.coverage}% coverage")
+                raise InstallError(f"Incomplete installation: {validation.coverage}% coverage")
+
+            # Step 7: Create installation marker with coverage
+            self._create_marker_file(files_copied, validation.coverage)
 
             return InstallResult(
                 status=status,
@@ -277,9 +315,23 @@ class InstallOrchestrator:
             )
 
         except Exception as e:
+            # Rollback on failure if backup exists
+            if backup_dir and backup_dir.exists():
+                if show_progress:
+                    print(f"Installation failed, rolling back...")
+                try:
+                    self.rollback(backup_dir)
+                except Exception as rollback_error:
+                    raise InstallError(
+                        f"Installation failed and rollback failed: {e}, {rollback_error}"
+                    )
             raise InstallError(f"Fresh installation failed: {e}")
 
-    def upgrade_install(self) -> InstallResult:
+    def upgrade(self, progress_callback: Optional[callable] = None, show_progress: bool = False) -> InstallResult:
+        """Alias for upgrade_install() for backward compatibility."""
+        return self.upgrade_install(progress_callback=progress_callback, show_progress=show_progress)
+
+    def upgrade_install(self, progress_callback: Optional[callable] = None, show_progress: bool = False) -> InstallResult:
         """Perform upgrade installation with backup.
 
         Workflow:
@@ -319,11 +371,26 @@ class InstallOrchestrator:
             files = self.discovery.discover_all_files()
             total_files = len(files)
 
-            # Step 4: Copy files (filter out preserved files)
+            # Step 4: Detect customizations and prepare file list
             files_to_copy = []
+            customized_files = []
+            new_files = []
+
             for source_file in files:
                 rel_path = source_file.relative_to(self.plugin_dir)
                 dest_file = self.claude_dir / rel_path
+
+                # Track if this is a new file (doesn't exist in destination)
+                if not dest_file.exists():
+                    new_files.append(str(rel_path))
+
+                # Check if file was customized by user
+                if dest_file.exists():
+                    # Compare file contents to detect customization
+                    source_content = source_file.read_bytes()
+                    dest_content = dest_file.read_bytes()
+                    if source_content != dest_content:
+                        customized_files.append(str(rel_path))
 
                 # Only copy if not preserved or doesn't exist
                 if not self._should_preserve(dest_file) or not dest_file.exists():
@@ -345,10 +412,7 @@ class InstallOrchestrator:
             # Step 5: Set permissions
             self._set_executable_permissions()
 
-            # Step 6: Update marker
-            self._create_marker_file(files_copied)
-
-            # Step 7: Validate
+            # Step 6: Validate
             validator = InstallationValidator(self.plugin_dir, self.claude_dir)
             validation = validator.validate()
 
@@ -364,12 +428,18 @@ class InstallOrchestrator:
                     backup_dir=backup_dir,
                 )
 
+            # Step 7: Update marker with coverage
+            self._create_marker_file(files_copied, validation.coverage)
+
             return InstallResult(
                 status="success",
                 files_copied=files_copied,
                 coverage=validation.coverage,
                 errors=errors,
                 backup_dir=backup_dir,
+                customizations_detected=len(customized_files),
+                customized_files=customized_files,
+                files_added=len(new_files),
             )
 
         except Exception as e:
@@ -382,24 +452,40 @@ class InstallOrchestrator:
                     )
             raise InstallError(f"Upgrade installation failed: {e}")
 
-    def rollback(self, backup_dir: Path) -> bool:
+    def rollback(self, backup_dir: Path) -> InstallResult:
         """Rollback installation from backup.
 
         Args:
             backup_dir: Path to backup directory
 
         Returns:
-            True if rollback succeeded
+            InstallResult with success or failure status
 
         Raises:
-            InstallError: If rollback fails
+            InstallError: If rollback fails critically
         """
-        backup_dir = Path(backup_dir)
+        backup_dir = Path(backup_dir).resolve()
 
         if not backup_dir.exists():
-            raise InstallError(f"Backup directory not found: {backup_dir}")
+            # Gracefully handle missing backup
+            return InstallResult(
+                status="failure",
+                files_copied=0,
+                coverage=0.0,
+                errors=[f"Backup directory not found: {backup_dir}"],
+                backup_dir=backup_dir,
+                files_restored=0
+            )
 
         try:
+            # CRITICAL: If backup is inside .claude, move it outside first
+            # Otherwise rmtree will delete the backup we're trying to restore from
+            temp_backup = None
+            if backup_dir.is_relative_to(self.claude_dir):
+                temp_backup = self.project_dir / backup_dir.name
+                shutil.move(str(backup_dir), str(temp_backup))
+                backup_dir = temp_backup
+
             # Remove current installation
             if self.claude_dir.exists():
                 shutil.rmtree(self.claude_dir)
@@ -407,10 +493,40 @@ class InstallOrchestrator:
             # Restore from backup
             shutil.copytree(backup_dir, self.claude_dir)
 
-            return True
+            # Count restored files (all files including nested)
+            discovery = FileDiscovery(self.claude_dir)
+            all_restored_files = discovery.discover_all_files()
+            files_restored = len(all_restored_files)
+
+            # Audit log for restoration
+            audit_log("install_orchestrator", "rollback_complete", {
+                "backup_dir": str(backup_dir),
+                "files_restored": files_restored,
+                "claude_dir": str(self.claude_dir)
+            })
+
+            # Clean up temporary backup if we moved it
+            if temp_backup and temp_backup.exists():
+                shutil.rmtree(temp_backup)
+
+            return InstallResult(
+                status="success",
+                files_copied=0,
+                coverage=100.0,
+                errors=[],
+                backup_dir=backup_dir,
+                files_restored=files_restored
+            )
 
         except Exception as e:
-            raise InstallError(f"Rollback failed: {e}")
+            return InstallResult(
+                status="failure",
+                files_copied=0,
+                coverage=0.0,
+                errors=[f"Rollback failed: {e}"],
+                backup_dir=backup_dir,
+                files_restored=0
+            )
 
     def _create_backup(self) -> Path:
         """Create backup of existing installation.
@@ -446,11 +562,12 @@ class InstallOrchestrator:
                     # world-writable files
                     file_path.chmod(0o755)
 
-    def _create_marker_file(self, files_installed: int):
+    def _create_marker_file(self, files_installed: int, coverage: float = 100.0):
         """Create installation marker file.
 
         Args:
             files_installed: Number of files installed
+            coverage: Installation coverage percentage
         """
         marker_file = self.claude_dir / ".autonomous-dev-installed"
 
@@ -458,6 +575,7 @@ class InstallOrchestrator:
             "version": "3.8.0",  # Should match plugin version
             "timestamp": datetime.now().isoformat(),
             "files_installed": files_installed,
+            "coverage": coverage,
             "plugin_dir": str(self.plugin_dir),
         }
 
@@ -491,32 +609,50 @@ class InstallOrchestrator:
         return False
 
 
-# CLI interface for standalone usage
-if __name__ == "__main__":
+def main():
+    """CLI entry point for installation orchestrator."""
     import sys
     import argparse
 
     parser = argparse.ArgumentParser(description="Install autonomous-dev plugin")
-    parser.add_argument("--source", type=Path, help="Source plugin directory")
-    parser.add_argument("--dest", type=Path, required=True, help="Destination project directory")
-    parser.add_argument("--mode", choices=["fresh", "upgrade"], default="fresh", help="Installation mode")
+    parser.add_argument("--plugin-dir", type=Path, help="Plugin source directory")
+    parser.add_argument("--project-dir", type=Path, help="Project directory")
+    parser.add_argument("--source", type=Path, help="Source plugin directory (alias for --plugin-dir)")
+    parser.add_argument("--dest", type=Path, help="Destination project directory (alias for --project-dir)")
+    parser.add_argument("--fresh-install", action="store_true", help="Perform fresh installation")
+    parser.add_argument("--upgrade", action="store_true", help="Perform upgrade installation")
+    parser.add_argument("--mode", choices=["fresh", "upgrade"], help="Installation mode (legacy)")
+    parser.add_argument("--show-progress", action="store_true", help="Show progress indicators")
     parser.add_argument("--auto-detect", action="store_true", help="Auto-detect marketplace directory")
 
     args = parser.parse_args()
 
-    try:
-        if args.auto_detect:
-            orchestrator = InstallOrchestrator.auto_detect(args.dest)
-        elif args.source:
-            orchestrator = InstallOrchestrator(args.source, args.dest)
-        else:
-            print("❌ Error: --source required unless --auto-detect is used", file=sys.stderr)
-            sys.exit(1)
+    # Handle argument aliases
+    plugin_dir = args.plugin_dir or args.source
+    project_dir = args.project_dir or args.dest
 
-        if args.mode == "fresh":
-            result = orchestrator.fresh_install()
+    if not project_dir:
+        print("❌ Error: --project-dir (or --dest) is required", file=sys.stderr)
+        return 1
+
+    try:
+        # Create orchestrator
+        if args.auto_detect:
+            orchestrator = InstallOrchestrator.auto_detect(project_dir)
+        elif plugin_dir:
+            orchestrator = InstallOrchestrator(plugin_dir, project_dir)
         else:
-            result = orchestrator.upgrade_install()
+            print("❌ Error: --plugin-dir (or --source) required unless --auto-detect is used", file=sys.stderr)
+            return 1
+
+        # Determine mode
+        if args.fresh_install or args.mode == "fresh":
+            result = orchestrator.fresh_install(show_progress=args.show_progress)
+        elif args.upgrade or args.mode == "upgrade":
+            result = orchestrator.upgrade_install(show_progress=args.show_progress)
+        else:
+            # Default to fresh install
+            result = orchestrator.fresh_install(show_progress=args.show_progress)
 
         print(f"{'✅' if result.status == 'success' else '❌'} Installation {result.status}")
         print(f"📊 Files copied: {result.files_copied}")
@@ -527,11 +663,17 @@ if __name__ == "__main__":
             for error in result.errors:
                 print(f"  - {error}")
 
-        sys.exit(0 if result.status == "success" else 1)
+        return 0 if result.status == "success" else 1
 
     except InstallError as e:
         print(f"❌ Installation Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        return 1
     except Exception as e:
         print(f"❌ Unexpected Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+
+# CLI interface for standalone usage
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

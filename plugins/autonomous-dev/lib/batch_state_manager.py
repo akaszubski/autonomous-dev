@@ -115,6 +115,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 from security_utils import validate_path, audit_log
 from path_utils import get_batch_state_file
 
+# Import sanitization functions
+try:
+    from failure_classifier import sanitize_feature_name
+except ImportError:
+    # Fallback for tests
+    def sanitize_feature_name(name: str) -> str:
+        """Fallback sanitization."""
+        return name.replace("\n", " ").replace("\r", " ")
+
 # =============================================================================
 # Decorators
 # =============================================================================
@@ -223,6 +232,7 @@ class BatchState:
         state_file: Path to state file
         context_tokens_before_clear: Token count before clear (for paused batches, deprecated)
         paused_at_feature_index: Feature index where batch was paused (deprecated)
+        retry_attempts: Dict mapping feature index to retry count (Issue #89)
     """
     batch_id: str
     features_file: str
@@ -242,6 +252,7 @@ class BatchState:
     state_file: str = ""
     context_tokens_before_clear: Optional[int] = None
     paused_at_feature_index: Optional[int] = None
+    retry_attempts: Dict[int, int] = field(default_factory=dict)  # Issue #89: Track retry counts per feature
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -368,10 +379,20 @@ def create_batch_state(
     if not features_list:
         raise BatchStateError("Cannot create batch state with no features")
 
+    # Sanitize feature names (CWE-117 log injection, CWE-22 path traversal)
+    sanitized_features = [sanitize_feature_name(f) for f in features_list]
+
     # Validate features_file path (security) - check for obvious path traversal
     # Note: features_file is just metadata, not actively accessed
     if features_file and (".." in features_file or features_file.startswith("/tmp/../../")):
         raise BatchStateError(f"Invalid features file path: path traversal detected")
+
+    # Validate batch_id for path traversal (CWE-22)
+    if batch_id and (".." in batch_id or "/" in batch_id or "\\" in batch_id):
+        raise BatchStateError(
+            f"Invalid batch_id: contains path traversal or directory separators. "
+            f"batch_id must be a simple identifier without path components."
+        )
 
     # Generate unique batch ID with timestamp (including microseconds for uniqueness)
     # Use provided batch_id if given, otherwise generate one
@@ -385,8 +406,8 @@ def create_batch_state(
     return BatchState(
         batch_id=batch_id,
         features_file=features_file,
-        total_features=len(features_list),
-        features=features_list,
+        total_features=len(sanitized_features),
+        features=sanitized_features,
         current_index=0,
         completed_features=[],
         failed_features=[],
@@ -618,6 +639,9 @@ def load_batch_state(state_file: Path | str) -> BatchState:
                 data['context_tokens_before_clear'] = None
             if 'paused_at_feature_index' not in data:
                 data['paused_at_feature_index'] = None
+            # Issue #89: Retry tracking (for backward compatibility with old state files)
+            if 'retry_attempts' not in data:
+                data['retry_attempts'] = {}
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)
 
@@ -1074,6 +1098,129 @@ def cleanup_batch_state(state_file: Path | str) -> None:
                 "path": str(state_file),
             })
             raise BatchStateError(f"Failed to cleanup batch state: {e}")
+
+
+# =============================================================================
+# Retry Count Tracking (Issue #89)
+# =============================================================================
+
+def get_retry_count(state: BatchState, feature_index: int) -> int:
+    """
+    Get retry count for a specific feature.
+
+    Args:
+        state: Batch state
+        feature_index: Index of feature
+
+    Returns:
+        Number of retry attempts (0 if never retried)
+
+    Examples:
+        >>> state = load_batch_state(state_file)
+        >>> retry_count = get_retry_count(state, 0)
+        >>> print(f"Feature 0 has been retried {retry_count} times")
+    """
+    return state.retry_attempts.get(feature_index, 0)
+
+
+def increment_retry_count(state_file: Path | str, feature_index: int) -> None:
+    """
+    Increment retry count for a feature.
+
+    Thread-safe update using file locking.
+
+    Args:
+        state_file: Path to batch state file
+        feature_index: Index of feature to increment
+
+    Examples:
+        >>> increment_retry_count(state_file, 0)  # Increment retry count for feature 0
+    """
+    state_path = Path(state_file)
+
+    with _get_file_lock(state_path):
+        # Load current state
+        state = load_batch_state(state_path)
+
+        # Increment retry count
+        current_count = state.retry_attempts.get(feature_index, 0)
+        state.retry_attempts[feature_index] = current_count + 1
+
+        # Update timestamp
+        state.updated_at = datetime.utcnow().isoformat() + "Z"
+
+        # Save updated state
+        save_batch_state(state_path, state)
+
+        # Audit log
+        audit_log("retry_count_incremented", "info", {
+            "feature_index": feature_index,
+            "new_count": state.retry_attempts[feature_index],
+        })
+
+
+def mark_feature_status(
+    state_file: Path | str,
+    feature_index: int,
+    status: str,
+    error_message: Optional[str] = None,
+    retry_count: Optional[int] = None,
+) -> None:
+    """
+    Mark feature status (completed or failed) with optional retry tracking.
+
+    Thread-safe update using file locking.
+
+    Args:
+        state_file: Path to batch state file
+        feature_index: Index of feature to mark
+        status: Status ("completed" or "failed")
+        error_message: Error message if failed
+        retry_count: Optional retry count to record
+
+    Examples:
+        >>> mark_feature_status(state_file, 0, "completed")
+        >>> mark_feature_status(state_file, 1, "failed", "SyntaxError", retry_count=2)
+    """
+    state_path = Path(state_file)
+
+    with _get_file_lock(state_path):
+        # Load current state
+        state = load_batch_state(state_path)
+
+        if status == "completed":
+            if feature_index not in state.completed_features:
+                state.completed_features.append(feature_index)
+            # Remove from failed if it was there (retry succeeded)
+            state.failed_features = [
+                f for f in state.failed_features
+                if f.get("feature_index") != feature_index
+            ]
+
+        elif status == "failed":
+            # Add to failed list if not already there
+            if not any(f.get("feature_index") == feature_index for f in state.failed_features):
+                failure_record = {
+                    "feature_index": feature_index,
+                    "error_message": error_message or "Unknown error",
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }
+                if retry_count is not None:
+                    failure_record["retry_count"] = retry_count
+                state.failed_features.append(failure_record)
+
+        # Update timestamp
+        state.updated_at = datetime.utcnow().isoformat() + "Z"
+
+        # Save updated state
+        save_batch_state(state_path, state)
+
+        # Audit log
+        audit_log("feature_status_updated", "info", {
+            "feature_index": feature_index,
+            "status": status,
+            "retry_count": retry_count,
+        })
 
 
 # =============================================================================

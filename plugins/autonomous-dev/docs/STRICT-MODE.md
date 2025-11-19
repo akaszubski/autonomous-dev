@@ -263,11 +263,19 @@ python hooks/enforce_file_organization.py --fix  # Auto-fix structure
 # Blocks commit if any fail
 ```
 
-### PostToolUse Hook
+### PostFileEdit Hook
 ```python
 # Runs AFTER file edits
 → Auto-format code (black, prettier)
 → Maintains consistent style automatically
+```
+
+### SubagentStop Hook
+```python
+# Runs AFTER subagent completes task
+→ Logs agent actions to docs/sessions/ (prevents context bloat)
+→ Tracks progress without filling conversation history
+→ New in Issue #84: Moved to plugins/autonomous-dev/hooks/session_tracker.py
 ```
 
 ---
@@ -278,6 +286,8 @@ python hooks/enforce_file_organization.py --fix  # Auto-fix structure
 
 Location: `.claude/settings.local.json`
 
+**Fix for Issue #84**: Hook paths now correctly reference plugin location.
+
 ```json
 {
   "hooks": {
@@ -286,7 +296,27 @@ Location: `.claude/settings.local.json`
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/detect_feature_request.py"
+            "command": "python plugins/autonomous-dev/hooks/detect_feature_request.py && echo '[Auto-Orchestration] Invoking orchestrator for PROJECT.md validation...'"
+          }
+        ]
+      }
+    ],
+    "PreFileEdit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
+          }
+        ]
+      }
+    ],
+    "PostFileEdit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
           }
         ]
       }
@@ -296,19 +326,41 @@ Location: `.claude/settings.local.json`
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/validate_project_alignment.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/validate_project_alignment.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_test.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/enforce_orchestrator.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/security_scan.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/enforce_tdd.py || exit 1"
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/validate_docs_consistency.py || exit 1"
+            "command": "python plugins/autonomous-dev/hooks/auto_fix_docs.py || exit 1"
+          },
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/validate_session_quality.py || exit 1"
+          },
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/auto_test.py || exit 1"
+          },
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/security_scan.py || exit 1"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python plugins/autonomous-dev/hooks/session_tracker.py subagent 'Subagent completed task'"
           }
         ]
       }
@@ -316,6 +368,11 @@ Location: `.claude/settings.local.json`
   }
 }
 ```
+
+**Key Path Changes (Issue #84)**:
+- `.claude/hooks/` → `plugins/autonomous-dev/hooks/` (plugin location)
+- `scripts/session_tracker.py` → `plugins/autonomous-dev/hooks/session_tracker.py` (new hook location)
+- Ensures hooks resolve correctly in both plugin-installed and development environments
 
 ---
 
