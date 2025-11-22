@@ -87,18 +87,27 @@ cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 **Result**: Context stays small (200 tokens vs 5,000+ tokens)
 
 **Note**: Issue #79 (v3.28.0+) moved session tracking to portable library-based design:
-- `plugins/autonomous-dev/lib/path_utils.py` - Dynamic project root detection
-- `plugins/autonomous-dev/lib/validation.py` - Security validation for paths
+- `plugins/autonomous-dev/lib/path_utils.py` (section 15) - Dynamic project root detection
+- `plugins/autonomous-dev/lib/validation.py` (section 16) - Security validation for paths
+- `plugins/autonomous-dev/lib/session_tracker.py` (section 25) - Core logging library
 - `plugins/autonomous-dev/scripts/session_tracker.py` - CLI wrapper (current location)
 - `scripts/session_tracker.py` - DEPRECATED (removed v4.0.0), delegates to lib version
 - Works from any directory (user projects, subdirectories) via `path_utils.get_session_dir()`
-- See `docs/LIBRARIES.md` (sections 15-16) and GitHub Issue #79 for complete details
+- See `docs/LIBRARIES.md` (sections 15, 16, 25) and GitHub Issue #79 for complete details
 
 **Related**: Issue #85 (v3.30.0+) fixed `/auto-implement` checkpoints to use portable path detection:
 - CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390) replaced hardcoded paths with dynamic detection
 - Same portable path detection strategy as tracking infrastructure (path_utils and fallback)
 - Works from any directory on any machine (not just developer's path)
 - See `plugins/autonomous-dev/commands/auto-implement.md` for checkpoint implementation details
+
+**Enhanced**: Issue #82 (v3.33.0+, Unreleased) made checkpoint verification optional with graceful degradation:
+- Checkpoints work in both user projects (skips verification) and autonomous-dev repo (full verification)
+- **User projects**: AgentTracker unavailable → silent skip with informational message (ℹ️)
+- **Dev repo**: AgentTracker available → full verification with efficiency metrics (✅/❌)
+- **Broken scripts**: Never blocks workflow, always shows clear warning (⚠️) and continues
+- Enables `/auto-implement` to work anywhere without requiring plugins/ directory structure
+- See `plugins/autonomous-dev/commands/auto-implement.md` for graceful degradation pattern
 
 ---
 
@@ -264,9 +273,9 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (25 Documented Libraries)
+### Libraries (27 Documented Libraries)
 
-25 reusable Python libraries for security, validation, automation, installation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
+27 reusable Python libraries for security, validation, automation, installation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
 **Core Libraries** (15): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation
 
@@ -329,7 +338,7 @@ ModuleNotFoundError: No module named 'autonomous_dev'
 
 **Solution**: Create a development symlink for Python imports.
 
-See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for complete instructions:
+See [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) for complete instructions:
 - macOS/Linux: `cd plugins && ln -s autonomous-dev autonomous_dev`
 - Windows: `cd plugins && mklink /D autonomous_dev autonomous-dev` (Command Prompt as Admin)
 - Then test: `python -c "from autonomous_dev.lib import security_utils; print('OK')"`

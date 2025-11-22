@@ -92,6 +92,15 @@
     - **Atomic Writes**: Tempfile + rename pattern prevents data corruption (Issue #45)
     - **Graceful Degradation**: Checkpoints work in both user projects and dev repo
   - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/session_tracker.py` (165 lines)
+      - `SessionTracker` class with portable path detection
+      - `log(agent_name, message)` method for session logging
+      - `get_default_session_file()` helper for unique filenames
+      - Dynamic session directory detection via path_utils
+      - Permission checking and warning for insecure directories
+    - **NEW**: `plugins/autonomous-dev/scripts/session_tracker.py` (CLI wrapper)
+      - Delegates to library implementation
+      - Installed plugin uses lib version directly
     - **NEW**: `plugins/autonomous-dev/lib/agent_tracker.py` (1,185 lines)
       - `AgentTracker` class with portable path detection
       - Public methods: `start_agent()`, `complete_agent()`, `fail_agent()`, `show_status()`
@@ -101,13 +110,17 @@
     - **NEW**: `plugins/autonomous-dev/scripts/agent_tracker.py` (CLI wrapper)
       - Delegates to library implementation
       - Installed plugin uses lib version directly
+    - **DEPRECATED**: `scripts/session_tracker.py` (original location)
+      - Hardcoded paths fail in user projects and subdirectories
+      - Now delegates to lib implementation for backward compatibility
+      - Will be removed in v4.0.0
     - **DEPRECATED**: `scripts/agent_tracker.py` (original location)
       - Hardcoded paths fail in user projects and subdirectories
       - Now delegates to lib implementation for backward compatibility
       - Will be removed in v4.0.0
-  - **Security**: Path traversal prevention (CWE-22), symlink rejection (CWE-59), input validation, atomic writes
-  - **Testing**: 66+ unit tests (85.7% coverage), integration tests, path resolution verification
-  - **Documentation**: Added docs/LIBRARIES.md section #24, cross-references in CLAUDE.md
+  - **Security**: Path traversal prevention (CWE-22), symlink rejection (CWE-59), input validation, atomic writes, permission checking (CWE-732)
+  - **Testing**: 96+ unit tests (85%+ coverage), integration tests, path resolution from nested subdirectories
+  - **Documentation**: Added docs/LIBRARIES.md sections #24 & #25, cross-references in CLAUDE.md, inline code comments
   - **Related**: GitHub Issues #82 (checkpoint verification), #45 (atomic writes), #90 (freeze prevention)
   - **Breaking Changes**: None - backward compatible via delegation
   - **Migration Path**: Users continue with existing code; `/auto-implement` automatically uses new library
@@ -323,7 +336,7 @@
     - `plugins/autonomous-dev/commands/auto-implement.md`: CHECKPOINT 1 and CHECKPOINT 4.1
       - Added graceful degradation pattern with 4 except blocks per checkpoint
       - Updated comments from "so scripts/ can be imported" to "so plugins can be imported"
-      - Updated import paths: `scripts/agent_tracker.py` → `plugins/autonomous-dev/scripts/agent_tracker.py`
+      - Updated import paths: `scripts/agent_tracker.py` → `plugins/autonomous-dev/lib/agent_tracker.py`
   - **Testing**: 14 integration tests (100% passing)
     - `tests/integration/test_issue82_optional_checkpoint_verification.py`
     - User project graceful degradation (2 tests)

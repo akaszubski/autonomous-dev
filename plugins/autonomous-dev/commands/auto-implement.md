@@ -137,7 +137,7 @@ sys.path.insert(0, str(project_root))
 
 # Optional verification - gracefully degrade if AgentTracker unavailable
 try:
-    from plugins.autonomous_dev.scripts.agent_tracker import AgentTracker
+    from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
     tracker = AgentTracker()
     success = tracker.verify_parallel_exploration()
 
@@ -151,7 +151,7 @@ except ImportError:
     print("    This is normal for user projects. Verification only runs in autonomous-dev repo.")
     success = True
 except AttributeError as e:
-    # plugins.autonomous_dev.scripts.agent_tracker exists but missing methods
+    # plugins.autonomous_dev.lib.agent_tracker exists but missing methods
     print(f"\n⚠️  Parallel exploration verification unavailable: {e}")
     print("    Continuing workflow. Verification is optional.")
     success = True
@@ -420,7 +420,7 @@ sys.path.insert(0, str(project_root))
 
 # Optional verification - gracefully degrade if AgentTracker unavailable
 try:
-    from plugins.autonomous_dev.scripts.agent_tracker import AgentTracker
+    from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
     tracker = AgentTracker()
     success = tracker.verify_parallel_validation()
 
@@ -428,25 +428,34 @@ try:
         # Extract parallel_validation metrics from session
         import json
         if tracker.session_file.exists():
-            data = json.loads(tracker.session_file.read_text())
-            metrics = data.get("parallel_validation", {})
+            try:
+                data = json.loads(tracker.session_file.read_text())
+                metrics = data.get("parallel_validation", {})
 
-            status = metrics.get("status", "unknown")
-            time_saved = metrics.get("time_saved_seconds", 0)
-            efficiency = metrics.get("efficiency_percent", 0)
+                status = metrics.get("status", "unknown")
+                time_saved = metrics.get("time_saved_seconds", 0)
+                efficiency = metrics.get("efficiency_percent", 0)
 
+                print(f"\n✅ PARALLEL VALIDATION: SUCCESS")
+                print(f"   Status: {status}")
+                print(f"   Time saved: {time_saved} seconds")
+                print(f"   Efficiency: {efficiency}%")
+
+                if status == "parallel":
+                    print(f"\n   ✅ All 3 validation agents executed in parallel!")
+                    print(f"      Sequential execution would take: {metrics.get('sequential_time_seconds')} seconds")
+                    print(f"      Parallel execution took: {metrics.get('parallel_time_seconds')} seconds")
+                else:
+                    print(f"\n   ⚠️  Agents executed sequentially (not in parallel)")
+                    print(f"      Consider optimizing for parallel execution in next iteration")
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+                # Malformed JSON or file read error - still show success but skip metrics
+                print(f"\n✅ PARALLEL VALIDATION: SUCCESS")
+                print(f"   (Metrics display unavailable: {type(e).__name__})")
+        else:
+            # Session file doesn't exist yet - show success without metrics
             print(f"\n✅ PARALLEL VALIDATION: SUCCESS")
-            print(f"   Status: {status}")
-            print(f"   Time saved: {time_saved} seconds")
-            print(f"   Efficiency: {efficiency}%")
-
-            if status == "parallel":
-                print(f"\n   ✅ All 3 validation agents executed in parallel!")
-                print(f"      Sequential execution would take: {metrics.get('sequential_time_seconds')} seconds")
-                print(f"      Parallel execution took: {metrics.get('parallel_time_seconds')} seconds")
-            else:
-                print(f"\n   ⚠️  Agents executed sequentially (not in parallel)")
-                print(f"      Consider optimizing for parallel execution in next iteration")
+            print(f"   (Metrics not yet available)")
     else:
         print("\n❌ PARALLEL VALIDATION: FAILED")
         print("   One or more validation agents did not complete successfully")
@@ -458,7 +467,7 @@ except ImportError:
     print("    This is normal for user projects. Verification only runs in autonomous-dev repo.")
     success = True
 except AttributeError as e:
-    # plugins.autonomous_dev.scripts.agent_tracker exists but missing methods
+    # plugins.autonomous_dev.lib.agent_tracker exists but missing methods
     print(f"\n⚠️  Parallel validation verification unavailable: {e}")
     print("    Continuing workflow. Verification is optional.")
     success = True
