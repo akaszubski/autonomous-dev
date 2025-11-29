@@ -233,18 +233,23 @@ Process multiple features sequentially with intelligent state management and aut
 - **File-based input**: Plain text file, one feature per line
 - **GitHub Issues**: Fetch titles via `--issues` flag (requires gh CLI v2.0+)
 - **State management**: `.claude/batch_state.json` tracks progress across crashes
-- **Automatic compression**: Claude Code manages context automatically (no manual intervention)
+- **Hybrid context management**: Auto-pause at ~150K tokens, manual `/clear` + `--resume` to continue
 - **Resume support**: `--resume <batch-id>` continues from last completed feature
 - **Automatic retry** (v3.33.0, Issue #89): Intelligent classification and retry for transient failures
   - **Transient**: Network errors, timeouts, API rate limits (automatically retried up to 3x)
   - **Permanent**: Syntax errors, import errors, type errors (never retried)
   - **Safety limits**: Max 3 retries per feature, circuit breaker after 5 consecutive failures
   - **Consent-based**: First-run prompt (can be overridden via `BATCH_RETRY_ENABLED` env var)
-- **4-5 features per session**: Context limit, resume across sessions for larger batches
+- **Unattended**: 4-5 features run without intervention (~2 hours)
+- **Extended batches**: 50+ features via pause/resume cycles (manual `/clear` needed)
 
-**Performance**: ~20-30 min per feature, typical batch 4-5 features (~2 hours) before context reset needed
+**Performance**: ~20-30 min per feature
 
-**Context Reality**: Each feature consumes ~25-35K tokens across full pipeline. Context typically fills at 4-5 features. Use `--resume` to continue — this is normal, not a failure. Treat context limits as natural review checkpoints.
+**Typical workflows**:
+- **Short batches (4-5 features)**: Fully unattended (~2 hours)
+- **Extended batches (50+ features)**: System pauses at ~150K tokens, you run `/clear`, then `--resume <batch-id>`
+
+**Context Reality**: Each feature consumes ~25-35K tokens across full pipeline. After 4-5 features (~150K tokens), system pauses for manual context reset. This is intentional design, not a limitation — enables unlimited batch sizes via pause/resume workflow.
 
 ---
 

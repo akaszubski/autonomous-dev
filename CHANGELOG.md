@@ -392,15 +392,15 @@
     - `CLAUDE.md`: Updated batch-implement description ("auto-clear at 150K" → "automatic compression")
     - `CLAUDE.md`: Updated Last Updated to 2025-11-17, referenced Issue #88
   - **Behavior Changes**:
-    - No workflow interruptions at 150K tokens
-    - No manual `/clear` commands needed
-    - No resume commands needed
-    - Continuous processing for 50+ feature batches
-    - Context automatically managed by Claude Code platform
+    - **CORRECTION**: Documentation was updated to claim "automatic compression" but actual implementation remains hybrid pause/resume (from commit 2457efe)
+    - **Reality**: System still pauses at ~150K tokens (4-5 features)
+    - **Reality**: User must manually run `/clear` then `/batch-implement --resume <batch-id>`
+    - **Reality**: Short batches (4-5 features) run unattended; extended batches (50+) require pause/resume cycles
+    - **Note**: This CHANGELOG entry originally claimed automatic compression that doesn't exist
   - **Performance**:
-    - No longer pauses at 150K tokens
-    - Continuous processing: ~20-30 min per feature (unchanged)
-    - Supports 50+ features without interruption (improvement over pause/resume approach)
+    - Unchanged from v3.31.0: ~20-30 min per feature
+    - Short batches (4-5 features): Fully unattended (~2 hours)
+    - Extended batches (50+ features): Multiple pause/resume cycles required
   - **Testing**: 28 tests (across 3 test files)
     - `tests/unit/test_issue88_deprecation.py`: Tests for DeprecationWarning on 3 functions (PASS)
     - `tests/integration/test_issue88_simplified_workflow.py`: Tests batch processing without pause/resume (PASS)
@@ -846,8 +846,8 @@
     - TDD documentation: `BATCH_STATE_TDD_RED_PHASE_SUMMARY.md` (376 lines)
     - Test results: 34/41 tests passing (83%)
   - **Enhanced /batch-implement Command**:
-    - Auto-clear at 150K tokens (no manual intervention)
-    - Resume flag: `/batch-implement --resume <batch-id>`
+    - Pause at 150K tokens (manual `/clear` required)
+    - Resume flag: `/batch-implement --resume <batch-id>` (manual step after `/clear`)
     - State file location: `.claude/batch_state.json`
     - Graceful degradation on state errors
 

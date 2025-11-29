@@ -350,25 +350,31 @@ gh auth login
 
 **Benefits**:
 - ✅ **GitHub integration** (fetch issues directly with --issues flag - v3.24.0)
-- ✅ **State-based auto-clearing** (automatic at 150K tokens - no manual intervention)
+- ✅ **Hybrid context management** (auto-pause at 150K tokens, manual `/clear` + `--resume` to continue)
 - ✅ **Crash recovery** (persistent state in `.claude/batch_state.json`)
 - ✅ **Resume operations** (continue from last completed feature)
-- ✅ **4-5 features per session** (context limit), resume across sessions for larger batches
+- ✅ **4-5 features unattended** (no intervention needed), 50+ features via pause/resume cycles
 - ✅ Progress tracking with timing per feature
 - ✅ Continue-on-failure mode (process all features even if some fail)
 - ✅ Summary report with success/failure counts
 
-**Context limits (be realistic):** Expect 4-5 features per session before context fills. Each feature consumes ~25-35K tokens across the full pipeline. Use `--resume` to continue — this is normal, not a failure. Treat context limits as natural review checkpoints.
+**Context management (be realistic):**
+- **Short batches (4-5 features)**: Run unattended (~2 hours, no manual intervention)
+- **Extended batches (50+ features)**: System pauses at ~150K tokens, you run `/clear`, then `/batch-implement --resume <batch-id>` to continue
+- **Why this works**: Each feature consumes ~25-35K tokens. Pause/resume prevents context bloat while enabling unlimited batch sizes.
 
 **Use Cases**: Sprint backlogs (4-5 features per session), technical debt cleanup, feature parity, bulk refactoring, large-scale migrations (resume across sessions)
 
 **Typical time**: 20-30 minutes per feature (same as `/auto-implement`)
-**Typical batch**: 4-5 features (~2 hours) before context reset needed
+**Typical unattended batch**: 4-5 features (~2 hours) without manual intervention
+**Extended batches**: 50+ features via pause/resume workflow
 
 **How it works**:
 - System creates persistent state file (`.claude/batch_state.json`)
 - Tracks progress: completed features, failed features, context token estimate
-- Context typically fills at 4-5 features (not infinite batches)
+- **At ~150K tokens (4-5 features)**: System pauses, prompts you to run `/clear`, then `--resume`
+- **Manual steps**: `/clear` (reset context) → `/batch-implement --resume <batch-id>` (continue)
+- **Repeat as needed**: Multiple pause/resume cycles for large batches
 - If crash/interruption: resume with `--resume <batch-id>` flag
 - State file cleaned up automatically on successful completion
 

@@ -6,8 +6,8 @@ Manages persistent state for batch feature processing. Enables crash recovery,
 resume functionality, and multi-feature batch processing.
 
 NOTE: Context clearing functions (should_clear_context, pause_batch_for_clear,
-get_clear_notification_message) are deprecated. Claude Code manages context
-automatically with its 200K token budget - no manual intervention needed.
+get_clear_notification_message) remain active for hybrid pause/resume workflow.
+System pauses at ~150K tokens, user manually runs /clear, then --resume to continue.
 
 Key Features:
 1. Persistent state storage (.claude/batch_state.json)
@@ -145,7 +145,7 @@ def deprecated(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         warnings.warn(
-            f"{func.__name__} is deprecated and no longer needed. Claude Code handles automatic compression of context.",
+            f"{func.__name__} is deprecated but still functional. Hybrid pause/resume workflow still uses these functions.",
             DeprecationWarning,
             stacklevel=2
         )

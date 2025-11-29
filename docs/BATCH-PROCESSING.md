@@ -68,22 +68,24 @@ State tracked in `.claude/batch_state.json`:
 }
 ```
 
-## Automatic Compression
+## Context Management (Hybrid Pause/Resume)
 
-Claude Code automatically manages context with its 200K token budget. The system compresses and prunes context in the background when needed - fully automatic with no user intervention required.
+The batch system uses a hybrid approach to handle context limits, supporting both short batches (4-5 features) and extended batches (50+ features).
 
 **How It Works**:
 
-1. **Claude Code tracks context internally** (200K token budget)
-2. **Automatic compression** when approaching limits (transparent to user)
-3. **Background pruning** removes less-relevant context
-4. **Continuous processing** without pauses or interruptions
+1. **Automatic monitoring**: System tracks context usage (~25-35K tokens per feature)
+2. **Smart pausing**: At ~150K tokens (4-5 features), system pauses and saves state
+3. **User clears context**: User runs `/clear` to reset conversation context
+4. **Resume processing**: User runs `/batch-implement --resume <batch-id>` to continue
+5. **Repeat as needed**: Multiple pause/resume cycles support unlimited features
 
 **Benefits**:
-- Supports 50+ features without interruption
-- No user intervention required
-- Simplified workflow (no pause/resume complexity)
-- Trusts platform capabilities (Claude Code's built-in context management)
+- **Short batches (4-5 features)**: No interruption, runs unattended (~2 hours)
+- **Extended batches (50+ features)**: Pause/resume cycles prevent context bloat
+- **Zero data loss**: State persists across `/clear` events
+- **Graceful UX**: Clear instructions when manual intervention needed
+- **Scalable**: Proven for 50+ feature batches via resume workflow
 
 ### Crash Recovery
 

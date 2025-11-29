@@ -29,7 +29,7 @@ Process multiple features unattended - queue them up, let it run overnight, wake
 
 **State Management** (v3.1.0+):
 - Persistent state file: `.claude/batch_state.json`
-- Automatic compression: Claude Code manages context automatically (no manual intervention)
+- Hybrid context management: Auto-pause at 150K tokens, user runs `/clear`, then `--resume`
 - Crash recovery: Continue with `--resume <batch-id>` flag
 - Progress tracking: Completed features, failed features, processing history
 
@@ -95,7 +95,7 @@ Fetch issue titles directly from GitHub:
    - Next feature
 5. Cleanup state file on success
 
-**Automatic Compression**: Claude Code manages context automatically with its 200K token budget. The system compresses context in the background when needed - no manual intervention required.
+**Hybrid Context Management**: System monitors context usage and pauses at ~150K tokens (after 4-5 features). User manually runs `/clear` to reset context, then `/batch-implement --resume <batch-id>` to continue. This enables processing 50+ features via multiple pause/resume cycles.
 
 **Crash Recovery**: If batch is interrupted:
 - State file persists: `.claude/batch_state.json`
@@ -495,23 +495,25 @@ All features have been processed.
 
 ---
 
-## Automatic Context Management
+## Context Management Strategy
 
-Claude Code automatically manages context with its 200K token budget. The system compresses and prunes context in the background when needed - fully automatic with no user intervention required.
+Batch processing uses a hybrid pause/resume workflow to handle context limits efficiently.
 
 ### How It Works
 
-1. **Claude Code tracks context internally** (200K token budget)
-2. **Automatic compression** when approaching limits (transparent to user)
-3. **Background pruning** removes less-relevant context
-4. **Continuous processing** without pauses or interruptions
+1. **Unattended processing**: Features 1-4 or 1-5 run without interruption (~2 hours)
+2. **Smart pause detection**: At ~150K tokens, system pauses and saves state to `.claude/batch_state.json`
+3. **User intervention**: User manually runs `/clear` to reset conversation context
+4. **Seamless resume**: User runs `/batch-implement --resume <batch-id>` to continue from next feature
+5. **Repeat as needed**: Multiple cycles support unlimited batch sizes
 
 ### Benefits
 
-- **Fully unattended**: Process 50+ features without interruption
-- **No user intervention**: System handles context automatically
-- **Simplified workflow**: Continuous processing with no interruptions
-- **Trust platform capabilities**: Leverage Claude Code's built-in context management
+- **Short batches (4-5 features)**: Fully unattended, no manual intervention
+- **Extended batches (50+ features)**: Pause/resume workflow prevents context bloat
+- **Zero data loss**: All progress saved before each pause
+- **Clear instructions**: System provides exact resume command when pausing
+- **Production tested**: Proven workflow for large feature batches
 
 ---
 
@@ -521,8 +523,8 @@ Claude Code automatically manages context with its 200K token budget. The system
 2. **Check .env**: Ensure MCP_AUTO_APPROVE=true and AUTO_GIT_ENABLED=true
 3. **Feature order**: Put critical features first (in case batch interrupted)
 4. **Feature size**: Keep features small and focused (easier to debug failures)
-5. **Overnight runs**: Perfect for 10-20 features while you sleep
-6. **Trust the platform**: Claude Code manages context automatically - no manual intervention needed
+5. **Short batches**: 4-5 features run unattended (~2 hours)
+6. **Extended batches**: Expect pause/resume at 150K tokens (manual `/clear` + `--resume` needed)
 
 ---
 
