@@ -126,9 +126,9 @@ def extract_issue_number(feature_request: str) -> Optional[int]:
     Extract issue number from feature request command args.
 
     Recognizes patterns:
-    - "issue #8"
-    - "#8"
-    - "Issue 8" (no hash)
+    - "issue #8", "#8", "Issue 8" (standard)
+    - "GH-42" (GitHub shorthand)
+    - "closes #8", "fixes #8", "resolves #8" (conventional commits)
     - Case-insensitive
     - Uses first occurrence if multiple mentions
 
@@ -145,18 +145,24 @@ def extract_issue_number(feature_request: str) -> Optional[int]:
         8
         >>> extract_issue_number("Issue 8 implementation")
         8
+        >>> extract_issue_number("GH-42 implementation")
+        42
+        >>> extract_issue_number("fixes #123 - login bug")
+        123
         >>> extract_issue_number("implement new feature")
         None
     """
     if not feature_request:
         return None
 
-    # Pattern: "issue #8" or "#8" or "Issue 8"
+    # Patterns ordered by specificity (most specific first)
     # Case-insensitive, captures first occurrence
     patterns = [
-        r'issue\s*#(\d+)',  # "issue #8"
-        r'#(\d+)',          # "#8"
-        r'issue\s+(\d+)',   # "Issue 8"
+        r'(?:closes?|fix(?:es)?|resolves?)\s*#(\d+)',  # "closes #8", "fixes #8", "resolves #8"
+        r'GH-(\d+)',                                     # "GH-42" (GitHub shorthand)
+        r'issue\s*#(\d+)',                              # "issue #8"
+        r'#(\d+)',                                       # "#8" (standalone)
+        r'issue\s+(\d+)',                               # "Issue 8" (no hash)
     ]
 
     for pattern in patterns:
@@ -536,46 +542,127 @@ def prompt_user_consent(issue_number: int, title: str = "") -> bool:
     """
     Prompt user for consent to close issue.
 
-    Interactive prompt with retry on invalid input.
+    Checks environment variable and user preferences first, then prompts
+    if needed. Implements first-run consent pattern (same as AUTO_GIT_ENABLED).
+
+    Priority order:
+    1. AUTO_CLOSE_ISSUES environment variable (if set)
+    2. Saved user preference (if previously answered)
+    3. Interactive first-run prompt (ask once, remember forever)
 
     Args:
         issue_number: GitHub issue number
         title: Issue title (optional, for display)
 
     Returns:
-        True if user consents, False if user declines
+        True if user consents (env var, saved pref, or interactive yes), False otherwise
+
+    Environment Variables:
+        AUTO_CLOSE_ISSUES: Set to 'true' to auto-close, 'false' to never close
 
     Examples:
-        >>> # User types 'yes'
-        >>> prompt_user_consent(8, "Add authentication")
-        Close issue #8 (Add authentication)? [yes/no]: yes
-        True
-        >>> # User types 'no'
+        >>> # Environment variable set
+        >>> os.environ['AUTO_CLOSE_ISSUES'] = 'true'
         >>> prompt_user_consent(8)
-        Close issue #8? [yes/no]: no
-        False
+        True  # No prompt, uses env var
+
+        >>> # First run (no saved preference)
+        >>> prompt_user_consent(8, "Add authentication")
+        Auto-close GitHub issues when features complete? [yes/no]: yes
+        ✓ Preference saved. You won't be asked again.
+        True
+
+        >>> # Subsequent runs (preference saved)
+        >>> prompt_user_consent(42)
+        True  # No prompt, uses saved preference
     """
-    # Build prompt message
-    if title:
-        prompt_msg = f"Close issue #{issue_number} ({title})? [yes/no]: "
-    else:
-        prompt_msg = f"Close issue #{issue_number}? [yes/no]: "
+    import os
+    import sys
+    from pathlib import Path
+
+    # Import UserStateManager
+    try:
+        from .user_state_manager import UserStateManager, DEFAULT_STATE_FILE
+    except ImportError:
+        # Direct script execution
+        lib_dir = Path(__file__).parent.resolve()
+        sys.path.insert(0, str(lib_dir))
+        from user_state_manager import UserStateManager, DEFAULT_STATE_FILE
+
+    # STEP 1: Check environment variable (highest priority)
+    env_value = os.environ.get('AUTO_CLOSE_ISSUES', '').strip().lower()
+    if env_value in ('true', 'yes', '1'):
+        return True
+    elif env_value in ('false', 'no', '0'):
+        return False
+
+    # STEP 2: Check saved user preference
+    try:
+        manager = UserStateManager(DEFAULT_STATE_FILE)
+        saved_preference = manager.get_preference('auto_close_issues')
+
+        if saved_preference is not None:
+            # User has answered before, use saved preference
+            return bool(saved_preference)
+
+    except Exception:
+        # If user state manager fails, fall back to interactive prompt
+        pass
+
+    # STEP 3: First-run interactive prompt
+    print("\n" + "="*60)
+    print("GitHub Issue Auto-Close Configuration")
+    print("="*60)
+    print("\nWhen features complete successfully, automatically close the")
+    print("associated GitHub issue?")
+    print("\nBenefits:")
+    print("  • Fully automated workflow (no manual cleanup)")
+    print("  • Unattended batch processing (/batch-implement)")
+    print("  • Issue closed with workflow metadata")
+    print("\nRequirements:")
+    print("  • gh CLI installed and authenticated")
+    print("  • Include issue number in request (e.g., 'issue #72')")
+    print("\nYou can override later with AUTO_CLOSE_ISSUES environment variable.")
+    print("="*60 + "\n")
 
     # Retry loop for invalid input
     while True:
         try:
-            response = input(prompt_msg).strip().lower()
+            response = input("Auto-close GitHub issues when features complete? [yes/no]: ").strip().lower()
 
             if response in ('yes', 'y'):
+                # Save preference
+                try:
+                    manager = UserStateManager(DEFAULT_STATE_FILE)
+                    manager.set_preference('auto_close_issues', True)
+                    manager.save()
+                    print("✓ Preference saved. You won't be asked again.\n")
+                except Exception as e:
+                    print(f"⚠️  Could not save preference: {e}")
+                    print("   You'll be prompted again next time.\n")
+
                 return True
+
             elif response in ('no', 'n'):
+                # Save preference
+                try:
+                    manager = UserStateManager(DEFAULT_STATE_FILE)
+                    manager.set_preference('auto_close_issues', False)
+                    manager.save()
+                    print("✓ Preference saved. You won't be asked again.\n")
+                    print("   To enable later, set: export AUTO_CLOSE_ISSUES=true\n")
+                except Exception as e:
+                    print(f"⚠️  Could not save preference: {e}")
+                    print("   You'll be prompted again next time.\n")
+
                 return False
+
             else:
                 print("Invalid input. Please enter 'yes' or 'no'.")
 
         except EOFError:
             # Handle EOF gracefully (e.g., piped input)
-            print("\nEOF encountered - cancelling.")
+            print("\nEOF encountered - defaulting to 'no'.")
             return False
         except KeyboardInterrupt:
             # Re-raise KeyboardInterrupt - let user cancel completely

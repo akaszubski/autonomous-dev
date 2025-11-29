@@ -111,6 +111,55 @@ cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 
 ---
 
+## Documentation Principles
+
+### Honesty Over Marketing
+
+**Principle**: Documentation must reflect reality, not aspirations. Users who follow docs exactly should experience what's written.
+
+**Standards**:
+
+1. **State real-world limits, not aspirational targets**
+   - ✅ Good: "4-5 features per session (context limit)"
+   - ❌ Bad: "50+ features" (without mentioning resume workflow is required)
+
+2. **Include failure modes and workarounds**
+   - ✅ Good: "Context typically fills at 4-5 features. Use `--resume` to continue."
+   - ❌ Bad: "Supports unlimited features" (hiding the context limit)
+
+3. **Use hedging language for variable outcomes**
+   - Use: "typically", "expect", "usually", "often", "may"
+   - Avoid: "always", "guaranteed", "never fails", "unlimited"
+
+4. **Prohibited practices**:
+   - Unvalidated claims (no "up to X" without typical case)
+   - Hiding known limitations
+   - Marketing speak without disclaimers
+   - Best-case scenarios without typical-case context
+
+**Test**: "If a new user follows the docs exactly, will their experience match what's written? If not, fix the docs."
+
+**Metrics That Matter**:
+- Lead with typical case, not best case
+- State conditions (hardware, context size, feature complexity)
+- Include what happens at limits and recovery path
+
+**Examples**:
+
+```markdown
+# Good
+**Typical batch**: 4-5 features (~2 hours) before context reset needed
+Context limits (be realistic): Each feature consumes ~25-35K tokens.
+
+# Bad
+**50+ feature support** (proven with state management)
+Process unlimited features with automatic context management
+```
+
+**Philosophy**: Under-promise, over-deliver. We're not selling — we're documenting reality. The value proposition is strong enough without inflating claims.
+
+---
+
 ## PROJECT.MD - Goal Alignment
 
 [`.claude/PROJECT.md`](.claude/PROJECT.md) defines GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
@@ -191,9 +240,11 @@ Process multiple features sequentially with intelligent state management and aut
   - **Permanent**: Syntax errors, import errors, type errors (never retried)
   - **Safety limits**: Max 3 retries per feature, circuit breaker after 5 consecutive failures
   - **Consent-based**: First-run prompt (can be overridden via `BATCH_RETRY_ENABLED` env var)
-- **50+ features**: Scales indefinitely with automatic context management
+- **4-5 features per session**: Context limit, resume across sessions for larger batches
 
-**Performance**: ~20-30 min per feature, automatic context compression maintains optimal token budget throughout batch
+**Performance**: ~20-30 min per feature, typical batch 4-5 features (~2 hours) before context reset needed
+
+**Context Reality**: Each feature consumes ~25-35K tokens across full pipeline. Context typically fills at 4-5 features. Use `--resume` to continue — this is normal, not a failure. Treat context limits as natural review checkpoints.
 
 ---
 
