@@ -2,13 +2,30 @@
 name: documentation-guide
 type: knowledge
 description: Documentation standards and automation. Use when updating docs, writing guides, or synchronizing code with documentation.
-keywords: documentation, docs, readme, changelog, guides, api docs
+keywords: documentation, docs, readme, changelog, guides, api docs, parity, validation, docstring, standards
 auto_activate: true
 ---
 
 # Documentation Guide Skill
 
 Documentation standards and automation for [PROJECT_NAME] project.
+
+## Documentation Files
+
+This skill includes specialized documentation files for specific patterns:
+
+- **parity-validation.md**: Documentation parity validation checklist (version consistency, count accuracy, cross-references)
+- **changelog-format.md**: Keep a Changelog format and semantic versioning standards
+- **readme-structure.md**: README structure standards and 600-line conciseness limit
+- **docstring-standards.md**: Google-style docstring conventions for Python code
+
+## Templates
+
+Ready-to-use templates for common documentation needs:
+
+- **docstring-template.py**: Python file with example Google-style docstrings (functions, classes, methods)
+- **readme-template.md**: Standard README structure with all recommended sections
+- **changelog-template.md**: Keep a Changelog compliant template with semantic versioning
 
 ## When This Activates
 - Code changes requiring doc updates

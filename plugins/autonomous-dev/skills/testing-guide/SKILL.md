@@ -898,4 +898,51 @@ pytest -n auto tests/
 
 ---
 
+## Progressive Disclosure
+
+For detailed guidance on specific testing patterns, see these specialized resources:
+
+### Pytest Patterns
+**File**: `pytest-patterns.md`
+**Content**: Comprehensive guide to pytest fixtures, mocking, and parametrization
+**When to use**: Writing tests with pytest, creating reusable test components, testing with multiple scenarios
+
+Key topics:
+- **Fixtures**: Function/class/module/session scopes, autouse, composition
+- **Mocking**: unittest.mock patterns, patching, return_value, side_effect, mock_open
+- **Parametrization**: @pytest.mark.parametrize, named test cases, multiple parameters
+
+### Coverage Strategies
+**File**: `coverage-strategies.md`
+**Content**: Strategies for achieving and maintaining 80%+ code coverage
+**When to use**: Planning test coverage, identifying gaps, aiming for comprehensive test suites
+
+Key topics:
+- **80% Target**: Critical paths, edge cases, boundary conditions
+- **Coverage Tools**: pytest-cov, coverage.py configuration
+- **Strategies**: Hard-to-test code, dependency injection, gap identification
+
+### Arrange-Act-Assert Pattern
+**File**: `arrange-act-assert.md`
+**Content**: Standard AAA pattern for clear, maintainable tests
+**When to use**: Structuring all unit and integration tests consistently
+
+Key topics:
+- **Arrange Phase**: Setup test data, mock dependencies, configure state
+- **Act Phase**: Execute code under test
+- **Assert Phase**: Verify outcomes and side effects
+
+### Test Templates
+**Directory**: `test-templates/`
+**Content**: Working examples and reusable templates
+
+Available templates:
+- `unit-test-template.py` - Complete unit test examples with AAA pattern, fixtures, parametrization
+- `integration-test-template.py` - Integration test patterns for component interaction
+- `fixture-examples.py` - Pytest fixture patterns for different scopes and use cases
+
+**Usage**: Copy templates as starting point for new test files, refer to examples when implementing specific patterns.
+
+---
+
 **This skill provides complete testing methodology for maintaining high-quality, well-tested code in [PROJECT_NAME].**

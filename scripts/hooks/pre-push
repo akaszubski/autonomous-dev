@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Pre-push hook - Run fast tests before pushing
+#
+# This hook runs only fast tests to provide quick feedback before push.
+# Slow, GenAI, and integration tests are excluded (run in CI instead).
+#
+# To install: ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
+# To bypass: git push --no-verify
+
+set -e
+
+echo "🧪 Running fast tests before push..."
+
+# Check if pytest is available
+if ! command -v pytest &> /dev/null; then
+    echo "⚠️  Warning: pytest not installed, skipping pre-push tests"
+    echo "   Install: pip install pytest"
+    exit 0  # Non-blocking
+fi
+
+# Run fast tests only (exclude slow, genai, integration markers)
+echo "   Excluding: @pytest.mark.slow, @pytest.mark.genai, @pytest.mark.integration"
+
+pytest tests/ -m "not slow and not genai and not integration" --tb=line -q
+
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "✅ Fast tests passed"
+else
+    echo ""
+    echo "❌ Fast tests failed - fix failures before pushing"
+    echo "   To bypass (NOT recommended): git push --no-verify"
+fi
+
+exit $EXIT_CODE

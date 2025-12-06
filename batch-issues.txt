@@ -1,0 +1,7 @@
+Fix: Hardcoded developer path in auto-implement.md breaks parallel execution verification on non-developer machines (Issue #85)
+Fix: /auto-implement checkpoint verification uses missing scripts (Issue #82)
+Fix: Dogfooding Bug - /batch-implement and /auto-implement fail due to missing tracking infrastructure and hardcoded paths (Issue #79)
+Enhancement: /batch-implement should fix failures before proceeding to next feature (Issue #89)
+Fix: Complete Bootstrap/Installation Overhaul - install.sh Missing 48% of Files (Issue #80)
+Fix: Strict mode template references non-existent hooks (Issue #84)
+Documentation: Document symlink requirement for plugin imports (Issue #83)

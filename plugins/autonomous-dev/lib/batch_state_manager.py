@@ -59,10 +59,11 @@ Usage:
         get_next_pending_feature,
         cleanup_batch_state,
     )
+    from path_utils import get_batch_state_file
 
     # Create new batch
     state = create_batch_state("/path/to/features.txt", ["feature 1", "feature 2"])
-    save_batch_state(state_file, state)
+    save_batch_state(get_batch_state_file(), state)
 
     # Process features
     while True:
@@ -73,17 +74,17 @@ Usage:
         # Process feature...
 
         # Update progress
-        update_batch_progress(state_file, state.current_index, "completed", 10000)
+        update_batch_progress(get_batch_state_file(), state.current_index, "completed", 10000)
 
         # Check auto-clear
-        state = load_batch_state(state_file)
+        state = load_batch_state(get_batch_state_file())
         if should_auto_clear(state):
-            record_auto_clear_event(state_file, state.current_index, state.context_token_estimate)
+            record_auto_clear_event(get_batch_state_file(), state.current_index, state.context_token_estimate)
             # /clear command...
-            state = load_batch_state(state_file)
+            state = load_batch_state(get_batch_state_file())
 
     # Cleanup
-    cleanup_batch_state(state_file)
+    cleanup_batch_state(get_batch_state_file())
 
 Date: 2025-11-16
 Issue: #76 (State-based Auto-Clearing for /batch-implement)
@@ -233,6 +234,9 @@ class BatchState:
         context_tokens_before_clear: Token count before clear (for paused batches, deprecated)
         paused_at_feature_index: Feature index where batch was paused (deprecated)
         retry_attempts: Dict mapping feature index to retry count (Issue #89)
+        git_operations: Dict mapping feature index to git operation results (Issue #93)
+            Structure: {feature_index: {operation_type: {success, sha, branch, ...}}}
+            Example: {0: {"commit": {"success": True, "sha": "abc123", "branch": "feature/test"}}}
     """
     batch_id: str
     features_file: str
@@ -253,6 +257,7 @@ class BatchState:
     context_tokens_before_clear: Optional[int] = None
     paused_at_feature_index: Optional[int] = None
     retry_attempts: Dict[int, int] = field(default_factory=dict)  # Issue #89: Track retry counts per feature
+    git_operations: Dict[int, Dict[str, Any]] = field(default_factory=dict)  # Issue #93: Track git operations per feature
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -305,6 +310,7 @@ def create_batch_state(
     state_file: Optional[str] = None,
     *,
     features: Optional[List[str]] = None,  # Keyword-only for new calling style
+    features_file: Optional[str] = None,  # Keyword-only for explicit features_file
     batch_id: Optional[str] = None,  # Optional custom batch ID
 ) -> BatchState:
     """Create new batch state.
@@ -348,7 +354,8 @@ def create_batch_state(
     if features is not None:
         # New style: features passed as keyword argument
         features_list = features
-        features_file = ""  # No file for --issues
+        # Use explicit features_file keyword if provided, otherwise empty
+        features_file_path = features_file if features_file is not None else ""
     elif features_file_or_features is None and features_or_none is None:
         # Neither positional argument provided - must use keyword 'features'
         raise BatchStateError(
@@ -361,13 +368,13 @@ def create_batch_state(
         # Assume new style if features_or_none is None
         if features_or_none is None:
             features_list = features_file_or_features
-            features_file = ""
+            features_file_path = ""
         else:
             # Very unlikely case: both are lists?
             raise BatchStateError("Ambiguous arguments: both features_file and features appear to be lists")
     elif isinstance(features_file_or_features, str) and features_or_none is not None:
         # Old style: create_batch_state(features_file, features)
-        features_file = features_file_or_features
+        features_file_path = features_file_or_features
         features_list = features_or_none
     else:
         raise BatchStateError(
@@ -384,7 +391,7 @@ def create_batch_state(
 
     # Validate features_file path (security) - check for obvious path traversal
     # Note: features_file is just metadata, not actively accessed
-    if features_file and (".." in features_file or features_file.startswith("/tmp/../../")):
+    if features_file_path and (".." in features_file_path or features_file_path.startswith("/tmp/../../")):
         raise BatchStateError(f"Invalid features file path: path traversal detected")
 
     # Validate batch_id for path traversal (CWE-22)
@@ -405,7 +412,7 @@ def create_batch_state(
 
     return BatchState(
         batch_id=batch_id,
-        features_file=features_file,
+        features_file=features_file_path,
         total_features=len(sanitized_features),
         features=sanitized_features,
         current_index=0,
@@ -465,8 +472,9 @@ def save_batch_state(state_file: Path | str, state: BatchState) -> None:
     - Concurrent writes: Each gets unique temp file (last write wins)
 
     Example:
+        >>> from path_utils import get_batch_state_file
         >>> state = create_batch_state("/path/to/features.txt", ["feature 1"])
-        >>> save_batch_state(Path(".claude/batch_state.json"), state)
+        >>> save_batch_state(get_batch_state_file(), state)
     """
     # Convert to Path
     state_file = Path(state_file)
@@ -577,7 +585,8 @@ def load_batch_state(state_file: Path | str) -> BatchState:
         - Audit logging
 
     Example:
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> state.batch_id
         'batch-20251116-123456'
     """
@@ -642,6 +651,17 @@ def load_batch_state(state_file: Path | str) -> BatchState:
             # Issue #89: Retry tracking (for backward compatibility with old state files)
             if 'retry_attempts' not in data:
                 data['retry_attempts'] = {}
+            else:
+                # JSON converts integer keys to strings, convert back to int
+                data['retry_attempts'] = {int(k): v for k, v in data['retry_attempts'].items()}
+
+            # Issue #93: Git operations tracking (for backward compatibility with old state files)
+            if 'git_operations' not in data:
+                data['git_operations'] = {}
+            else:
+                # JSON converts integer keys to strings, convert back to int
+                data['git_operations'] = {int(k): v for k, v in data['git_operations'].items()}
+
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)
 
@@ -706,8 +726,9 @@ def update_batch_progress(
         ValueError: If feature_index is invalid
 
     Example:
+        >>> from path_utils import get_batch_state_file
         >>> update_batch_progress(
-        ...     state_file=Path(".claude/batch_state.json"),
+        ...     state_file=get_batch_state_file(),
         ...     feature_index=0,
         ...     status="completed",
         ...     context_token_delta=5000,
@@ -776,8 +797,9 @@ def record_auto_clear_event(
         BatchStateError: If record fails
 
     Example:
+        >>> from path_utils import get_batch_state_file
         >>> record_auto_clear_event(
-        ...     state_file=Path(".claude/batch_state.json"),
+        ...     state_file=get_batch_state_file(),
         ...     feature_index=2,
         ...     context_tokens_before_clear=155000,
         ... )
@@ -826,7 +848,8 @@ def should_auto_clear(state: BatchState) -> bool:
         True if context token estimate exceeds threshold
 
     Example:
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> if should_auto_clear(state):
         ...     # Trigger /clear
         ...     pass
@@ -851,7 +874,8 @@ def should_clear_context(state: BatchState) -> bool:
         True if context token estimate >= 150K tokens (but clearing is no longer needed)
 
     Example:
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> if should_clear_context(state):  # Will emit DeprecationWarning
         ...     # No action needed - Claude Code handles context automatically
         ...     pass
@@ -913,7 +937,8 @@ def get_clear_notification_message(
         >>> message = get_clear_notification_message("batch-123", 5, 160000)
 
         >>> # New API (BatchState object)
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> message = get_clear_notification_message(state)
     """
     # Detect calling style
@@ -993,7 +1018,8 @@ def pause_batch_for_clear(
         >>> pause_batch_for_clear(state_file, feature_index=2, tokens_before_clear=160000)
 
         >>> # New API (BatchState object)
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> pause_batch_for_clear(state_file, state, state.context_token_estimate)
     """
     # Detect calling style and load state if needed
@@ -1042,7 +1068,8 @@ def get_next_pending_feature(state: BatchState) -> Optional[str]:
         Next feature description, or None if all features processed
 
     Example:
-        >>> state = load_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> state = load_batch_state(get_batch_state_file())
         >>> next_feature = get_next_pending_feature(state)
         >>> if next_feature:
         ...     # Process feature
@@ -1068,7 +1095,8 @@ def cleanup_batch_state(state_file: Path | str) -> None:
         BatchStateError: If cleanup fails
 
     Example:
-        >>> cleanup_batch_state(Path(".claude/batch_state.json"))
+        >>> from path_utils import get_batch_state_file
+        >>> cleanup_batch_state(get_batch_state_file())
     """
     # Convert to Path
     state_file = Path(state_file)
@@ -1221,6 +1249,137 @@ def mark_feature_status(
             "status": status,
             "retry_count": retry_count,
         })
+
+
+# =============================================================================
+# Git Operations Tracking (Issue #93)
+# =============================================================================
+
+def record_git_operation(
+    state: BatchState,
+    feature_index: int,
+    operation: str,
+    success: bool,
+    commit_sha: Optional[str] = None,
+    branch: Optional[str] = None,
+    remote: Optional[str] = None,
+    pr_number: Optional[int] = None,
+    pr_url: Optional[str] = None,
+    error_message: Optional[str] = None,
+    **kwargs
+) -> BatchState:
+    """
+    Record git operation result for a feature.
+
+    Updates the state object and returns it (immutable pattern).
+    For batch workflow, this tracks commit/push/PR operations per feature.
+
+    Args:
+        state: Current batch state
+        feature_index: Index of feature being processed
+        operation: Operation type ('commit', 'push', 'pr')
+        success: Whether operation succeeded
+        commit_sha: Commit SHA (for commit operations)
+        branch: Branch name
+        remote: Remote name (for push operations)
+        pr_number: PR number (for pr operations)
+        pr_url: PR URL (for pr operations)
+        error_message: Error message (for failures)
+        **kwargs: Additional metadata
+
+    Returns:
+        Updated batch state with git operation recorded
+
+    Examples:
+        >>> state = load_batch_state(state_file)
+        >>> state = record_git_operation(
+        ...     state,
+        ...     feature_index=0,
+        ...     operation='commit',
+        ...     success=True,
+        ...     commit_sha='abc123',
+        ...     branch='feature/test'
+        ... )
+        >>> save_batch_state(state_file, state)
+    """
+    # Validate operation type
+    valid_operations = ['commit', 'push', 'pr']
+    if operation not in valid_operations:
+        raise ValueError(f"Invalid operation: {operation}. Must be one of {valid_operations}")
+
+    # Validate feature_index
+    if feature_index < 0 or feature_index >= state.total_features:
+        raise ValueError(f"Invalid feature_index: {feature_index} (total: {state.total_features})")
+
+    # Initialize feature git_operations if not exists
+    if feature_index not in state.git_operations:
+        state.git_operations[feature_index] = {}
+
+    # Build operation record
+    operation_record = {
+        "success": success,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+    # Add operation-specific metadata
+    if commit_sha:
+        operation_record["sha"] = commit_sha
+    if branch:
+        operation_record["branch"] = branch
+    if remote:
+        operation_record["remote"] = remote
+    if pr_number is not None:
+        operation_record["number"] = pr_number
+    if pr_url:
+        operation_record["url"] = pr_url
+    if error_message:
+        operation_record["error"] = error_message
+
+    # Add any additional metadata from kwargs
+    for key, value in kwargs.items():
+        if key not in operation_record:
+            operation_record[key] = value
+
+    # Record operation
+    state.git_operations[feature_index][operation] = operation_record
+
+    # Update timestamp
+    state.updated_at = datetime.utcnow().isoformat() + "Z"
+
+    # Audit log
+    audit_log("git_operation_recorded", "info", {
+        "batch_id": state.batch_id,
+        "feature_index": feature_index,
+        "operation": operation,
+        "success": success,
+    })
+
+    return state
+
+
+def get_feature_git_status(
+    state: BatchState,
+    feature_index: int
+) -> Optional[Dict[str, Any]]:
+    """
+    Get git operation status for a feature.
+
+    Args:
+        state: Current batch state
+        feature_index: Index of feature
+
+    Returns:
+        Dict of git operations for feature, or None if no operations
+
+    Examples:
+        >>> state = load_batch_state(state_file)
+        >>> status = get_feature_git_status(state, 0)
+        >>> if status:
+        ...     commit = status.get('commit', {})
+        ...     if commit.get('success'):
+        ...         print(f"Commit: {commit['sha']}")
+    """
+    return state.git_operations.get(feature_index)
 
 
 # =============================================================================

@@ -90,10 +90,19 @@ cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 - `plugins/autonomous-dev/lib/path_utils.py` (section 15) - Dynamic project root detection
 - `plugins/autonomous-dev/lib/validation.py` (section 16) - Security validation for paths
 - `plugins/autonomous-dev/lib/session_tracker.py` (section 25) - Core logging library
+- `plugins/autonomous-dev/lib/agent_tracker.py` (section 24) - Agent checkpoint tracking with `save_agent_checkpoint()` class method (NEW v3.36.0)
 - `plugins/autonomous-dev/scripts/session_tracker.py` - CLI wrapper (current location)
 - `scripts/session_tracker.py` - DEPRECATED (removed v4.0.0), delegates to lib version
-- Works from any directory (user projects, subdirectories) via `path_utils.get_session_dir()`
-- See `docs/LIBRARIES.md` (sections 15, 16, 25) and GitHub Issue #79 for complete details
+- Works from any directory (user projects, subdirectories) via `path_utils.get_session_dir()` and `AgentTracker.save_agent_checkpoint()`
+- See `docs/LIBRARIES.md` (sections 15, 16, 24, 25) and GitHub Issue #79 for complete details
+
+**Enhanced** (v3.36.0): Added `AgentTracker.save_agent_checkpoint()` class method:
+- Convenience method for agents to save checkpoints without managing instances
+- Solves dogfooding bug where hardcoded paths caused 7+ hour stalls
+- Portable path detection works from any directory
+- Graceful degradation in user projects (returns False, doesn't block workflow)
+- No subprocess calls (uses Python imports instead)
+- See `docs/DEVELOPMENT.md` Scenario 2.5 for integration pattern
 
 **Related**: Issue #85 (v3.30.0+) fixed `/auto-implement` checkpoints to use portable path detection:
 - CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390) replaced hardcoded paths with dynamic detection

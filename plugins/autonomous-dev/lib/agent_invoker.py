@@ -14,8 +14,16 @@ Design Patterns:
 
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from .artifacts import ArtifactManager
-from .logging_utils import WorkflowLogger, WorkflowProgressTracker
+
+# Use absolute imports for better test compatibility
+# (relative imports fail when module is imported from test files)
+try:
+    from .artifacts import ArtifactManager
+    from .logging_utils import WorkflowLogger, WorkflowProgressTracker
+except ImportError:
+    # Fallback to absolute imports (for tests)
+    from artifacts import ArtifactManager
+    from logging_utils import WorkflowLogger, WorkflowProgressTracker
 
 
 class AgentInvoker:
@@ -149,7 +157,9 @@ class AgentInvoker:
         for artifact_name in config['artifacts_required']:
             try:
                 artifacts[artifact_name] = self.artifact_manager.read_artifact(
-                    workflow_id, artifact_name
+                    workflow_id,
+                    artifact_type=artifact_name,
+                    validate=True
                 )
             except FileNotFoundError:
                 # Some artifacts may not exist yet (acceptable for early agents)

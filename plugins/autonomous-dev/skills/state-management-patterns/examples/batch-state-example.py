@@ -30,8 +30,16 @@ class BatchState:
         batch_id = f"batch-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         return cls(batch_id=batch_id, features=features)
 
-    def save(self, state_dir: Path = Path(".claude/batch_state.json")) -> None:
-        """Save with atomic write."""
+    def save(self, state_dir: Path = None) -> None:
+        """Save with atomic write.
+        
+        Note: In production, use get_batch_state_file() from path_utils
+        for portable path detection (Issue #79, #85).
+        """
+        if state_dir is None:
+            # For this example, use hardcoded fallback
+            # In production, use: from path_utils import get_batch_state_file
+            state_dir = Path(".claude/batch_state.json")
         temp_fd, temp_path = tempfile.mkstemp(dir=state_dir.parent)
         try:
             with os.fdopen(temp_fd, 'w') as f:

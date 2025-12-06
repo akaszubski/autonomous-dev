@@ -77,6 +77,20 @@ except ImportError:
     DEFAULT_STATE_FILE = Path.home() / ".autonomous-dev" / "user_state.json"
 
 
+# =============================================================================
+# Exception Classes (Issue #93)
+# =============================================================================
+
+class BatchGitError(Exception):
+    """Exception for batch git workflow errors.
+
+    Raised when git operations fail during batch processing.
+    Follows error-handling-patterns skill exception hierarchy:
+    BaseException -> Exception -> BatchGitError
+    """
+    pass
+
+
 def parse_consent_value(value: Optional[str], default: bool = True) -> bool:
     """
     Parse consent value from environment variable.
@@ -138,7 +152,7 @@ See error-handling-patterns skill for exception hierarchy and error handling bes
     return default
 
 
-def check_consent_via_env() -> Dict[str, bool]:
+def check_consent_via_env(_skip_first_run_warning: bool = False) -> Dict[str, bool]:
     """
     Check user consent for git operations via environment variables.
 
@@ -179,7 +193,8 @@ def check_consent_via_env() -> Dict[str, bool]:
     """
     # STEP 1: Check if first-run warning should be shown (Issue #61)
     # This happens BEFORE checking environment variables to ensure informed consent
-    if should_show_warning(DEFAULT_STATE_FILE):
+    # In batch mode, skip first-run warning (Issue #93)
+    if not _skip_first_run_warning and should_show_warning(DEFAULT_STATE_FILE):
         try:
             user_accepted = show_first_run_warning(DEFAULT_STATE_FILE)
             if not user_accepted:
@@ -228,8 +243,26 @@ def check_consent_via_env() -> Dict[str, bool]:
     push_enabled = parse_consent_value(os.environ.get('AUTO_GIT_PUSH'))
     pr_enabled = parse_consent_value(os.environ.get('AUTO_GIT_PR'))
 
+    # STEP 3: Audit log consent decision (Issue #96 - reviewer feedback)
+    audit_log(
+        "consent_bypass",
+        "environment_check",
+        {
+            "component": "auto_implement_step5",
+            "git_enabled": git_enabled,
+            "push_enabled": push_enabled,
+            "pr_enabled": pr_enabled,
+            "source": "environment_variables"
+        }
+    )
+
     # If git is disabled, everything is disabled
     if not git_enabled:
+        audit_log(
+            "git_automation",
+            "disabled",
+            {"reason": "AUTO_GIT_ENABLED=false or opted out"}
+        )
         return {
             'enabled': False,
             'push': False,
@@ -1382,13 +1415,81 @@ def push_and_create_pr(
         }
 
 
+def execute_git_workflow(
+    workflow_id: str,
+    request: str,
+    branch: Optional[str] = None,
+    push: Optional[bool] = None,
+    create_pr: bool = False,
+    base_branch: str = 'main',
+    in_batch_mode: bool = False
+) -> Dict[str, Any]:
+    """
+    Execute git automation workflow with optional batch mode support.
+
+    This is the main entry point for git automation (used by both /auto-implement
+    and /batch-implement workflows). In batch mode, consent prompts are skipped
+    but environment variable consent is still respected.
+
+    Args:
+        workflow_id: Unique workflow identifier
+        request: Feature request description
+        branch: Git branch name (optional, auto-detected if not provided)
+        push: Whether to push to remote (optional, uses consent if not provided)
+        create_pr: Whether to attempt PR creation
+        base_branch: Target branch for PR (default: 'main')
+        in_batch_mode: Skip first-run consent prompts (for /batch-implement)
+
+    Returns:
+        Dict with success status, commit info, and optional PR details
+        (see execute_step8_git_operations for full return structure)
+
+    Examples:
+        >>> # Interactive mode (shows first-run warning)
+        >>> result = execute_git_workflow(
+        ...     workflow_id='workflow-123',
+        ...     request='Add feature',
+        ...     in_batch_mode=False
+        ... )
+
+        >>> # Batch mode (skips first-run warning)
+        >>> result = execute_git_workflow(
+        ...     workflow_id='batch-20251206-feature-1',
+        ...     request='Add logging',
+        ...     in_batch_mode=True
+        ... )
+    """
+    # In batch mode, skip first-run warning but still respect env var consent
+    if in_batch_mode:
+        # Batch mode bypasses the first-run interactive prompt
+        # But still respects environment variable consent (AUTO_GIT_ENABLED, etc.)
+        # This allows unattended batch processing while maintaining consent model
+        pass  # No first-run warning in batch mode
+
+    # Delegate to execute_step8_git_operations
+    return execute_step8_git_operations(
+        workflow_id=workflow_id,
+        request=request,
+        branch=branch,
+        push=push,
+        create_pr=create_pr,
+        base_branch=base_branch,
+        _skip_first_run_warning=in_batch_mode  # Internal parameter
+    )
+
+    # Add batch_mode flag to return value for test compatibility
+    result['batch_mode'] = in_batch_mode
+    return result
+
+
 def execute_step8_git_operations(
     workflow_id: str,
     request: str,
     branch: Optional[str] = None,
     push: Optional[bool] = None,
     create_pr: bool = False,
-    base_branch: str = 'main'
+    base_branch: str = 'main',
+    _skip_first_run_warning: bool = False  # Internal: bypass first-run warning
 ) -> Dict[str, Any]:
     """
     Execute complete Step 8 git automation workflow.
@@ -1446,8 +1547,8 @@ def execute_step8_git_operations(
         ...     if result.get('pr_created'):
         ...         print(f"PR: {result['pr_url']}")
     """
-    # Step 1: Check consent
-    consent = check_consent_via_env()
+    # Step 1: Check consent (pass skip parameter for batch mode)
+    consent = check_consent_via_env(_skip_first_run_warning=_skip_first_run_warning)
 
     # If push parameter not provided, use consent
     if push is None:

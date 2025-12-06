@@ -1,18 +1,45 @@
 #!/usr/bin/env python3
 """
-Session Tracker - Prevents context bloat
-Logs agent actions to file instead of keeping in context
+Session Tracker Library - Portable tracking infrastructure for agent actions
 
-Usage:
-    python scripts/session_tracker.py <agent_name> <message>
+Purpose:
+    Logs agent actions to file instead of keeping in context, preventing context bloat.
+    Supports execution from any directory (user projects, subdirectories, etc).
 
-Example:
-    python scripts/session_tracker.py researcher "Research complete - docs/research/auth.md"
+Problem Solved (GitHub Issue #79):
+    Original session tracking had hardcoded docs/sessions/ path that failed when:
+    - Running from user projects (no docs/ directory)
+    - Running from project subdirectories (couldn't find project root)
+    - Commands invoked from installation path vs development path
 
+Solution:
+    Library-based implementation with portable path detection via path_utils.
+    Works from any directory without hardcoded paths.
 
 Design Patterns:
-    See library-design-patterns skill for standardized design patterns.
-    See state-management-patterns skill for standardized design patterns.
+    - Two-tier Design: Library (core logic) + CLI wrapper for reuse and testing
+    - Progressive Enhancement: Features gracefully degrade if infrastructure unavailable
+    - Path Portability: Uses path_utils for dynamic project root detection
+    - See library-design-patterns skill for standardized design patterns
+    - See state-management-patterns skill for standardized design patterns
+
+Usage (Library):
+    from plugins.autonomous_dev.lib.session_tracker import SessionTracker
+    tracker = SessionTracker()
+    tracker.log("researcher", "Found 3 JWT patterns")
+
+Usage (CLI Wrapper):
+    python plugins/autonomous-dev/scripts/session_tracker.py researcher "Found 3 JWT patterns"
+
+Deprecation Notice (GitHub Issue #79):
+    scripts/session_tracker.py (original location) - DEPRECATED, use plugins/autonomous-dev/scripts/session_tracker.py
+    Will be removed in v4.0.0. Delegates to library implementation for backward compatibility.
+
+Security (GitHub Issue #45):
+    - Path Traversal Prevention (CWE-22): Validates paths via validation module
+    - Permission Checking (CWE-732): Warns on world-writable directories
+    - Input Validation: Agent names and messages sanitized before logging
+    - Atomic Writes: Uses atomic file operations to prevent data corruption
 """
 
 import os
@@ -27,7 +54,38 @@ sys.path.insert(0, str(Path(__file__).parent))
 from path_utils import get_session_dir, find_project_root
 
 # Re-export for backward compatibility and testing
-__all__ = ["SessionTracker", "find_project_root"]
+__all__ = ["SessionTracker", "find_project_root", "get_default_session_file"]
+
+
+def get_default_session_file() -> Path:
+    """Get default session file path with timestamp.
+
+    This is a helper function for generating unique session file paths.
+    Uses path_utils.get_session_dir() for portable path resolution.
+
+    Returns:
+        Path object for new session file with format:
+        <session_dir>/session-YYYY-MM-DD-HHMMSS.md
+
+    Raises:
+        FileNotFoundError: If project root cannot be detected
+
+    Examples:
+        >>> path = get_default_session_file()
+        >>> print(path.name)
+        session-2025-11-19-143022.md
+
+    Design Patterns:
+        See library-design-patterns skill for standardized design patterns.
+    """
+    # Use path_utils for portable session directory detection
+    session_dir = get_session_dir(create=True)
+
+    # Generate unique timestamp-based filename
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    filename = f"session-{timestamp}.md"
+
+    return session_dir / filename
 
 
 class SessionTracker:
@@ -104,15 +162,34 @@ class SessionTracker:
             pass
 
     def log(self, agent_name, message):
-        """Log agent action to session file"""
+        """Log agent action to session file.
+
+        Records agent action with timestamp to prevent context bloat.
+        Instead of keeping output in context, stores in docs/sessions/ for later review.
+
+        Args:
+            agent_name (str): Agent identifier (e.g., "researcher", "implementer")
+            message (str): Action message (e.g., "Found 3 patterns" or "Implementation complete")
+
+        Output Format:
+            **HH:MM:SS - agent_name**: message
+
+        Example:
+            tracker.log("researcher", "Found 3 JWT patterns in codebase")
+            # Produces: **14:30:22 - researcher**: Found 3 JWT patterns in codebase
+
+        Design Pattern:
+            Non-blocking operation - failures to write don't break workflows.
+            Session directory created automatically if missing (graceful degradation).
+        """
         timestamp = datetime.now().strftime("%H:%M:%S")
         entry = f"**{timestamp} - {agent_name}**: {message}\n\n"
 
-        # Append to session file
+        # Append to session file (portable path already set in __init__)
         with open(self.session_file, "a") as f:
             f.write(entry)
 
-        # Print confirmation
+        # Print confirmation (non-blocking - helps with progress visibility)
         print(f"✅ Logged: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
 

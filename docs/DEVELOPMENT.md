@@ -564,6 +564,73 @@ git add plugins/autonomous-dev/agents/my-new-agent.md
 git commit -m "feat: add my-new-agent specialist"
 ```
 
+### Scenario 2.5: Integrating Checkpoints in Agents (Issue #79)
+
+**Goal**: Add checkpoint tracking to an agent without hardcoded paths
+
+```bash
+# 1. Use the class method (no instance management needed)
+from agent_tracker import AgentTracker
+
+# Save checkpoint when agent completes
+success = AgentTracker.save_agent_checkpoint(
+    agent_name='my-agent',
+    message='Completed task description',
+    github_issue=79,
+    tools_used=['Read', 'Write', 'Bash']
+)
+
+# Returns True if saved, False if skipped (graceful degradation)
+if success:
+    print("✅ Checkpoint saved to docs/sessions/")
+
+# 2. Works from any directory:
+#    - User projects (no plugins/ directory)
+#    - Project subdirectories
+#    - Fresh installs on different machines
+
+# 3. No hardcoded paths:
+#    - Uses path_utils for dynamic project root detection
+#    - Path validation prevents traversal attacks (CWE-22)
+#    - Graceful degradation if infrastructure unavailable
+
+# 4. Example in agent workflow:
+#    ---
+#    name: my-agent
+#    ...
+#    ---
+#    Agent is researching patterns...
+#    
+#    (agent does work)
+#    
+#    from agent_tracker import AgentTracker
+#    AgentTracker.save_agent_checkpoint(
+#        agent_name='my-agent',
+#        message='Found 5 patterns in codebase'
+#    )
+
+# 5. Test checkpoint was saved:
+ls -lt docs/sessions/ | head -3  # Should show recent session file
+cat docs/sessions/$(ls -t docs/sessions/ | head -1)  # View session data
+```
+
+**Key Design Patterns**:
+- **Progressive Enhancement**: Works with or without tracking infrastructure
+- **Portable Paths**: Uses path_utils instead of hardcoded paths (solves Issue #79)
+- **Two-tier Design**: Library method (not subprocess call)
+- **Non-blocking**: Never raises exceptions, always allows workflow to continue
+
+**Security**:
+- Input validation: agent_name, message, github_issue all validated
+- Path validation: All paths checked against project root
+- No subprocess: Uses library imports (prevents shell injection)
+- Graceful degradation: User projects work without error
+
+**Related**: GitHub Issue #79 (Dogfooding bug - hardcoded paths), Issue #82 (Optional checkpoint verification)
+
+See: LIBRARIES.md Section 24 (agent_tracker.py) for complete API documentation
+
+
 ---
 
 ### Scenario 3: Modifying a Hook

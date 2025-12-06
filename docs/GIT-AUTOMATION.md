@@ -1,7 +1,7 @@
 # Git Automation Control
 
-**Last Updated**: 2025-11-18
-**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91)
+**Last Updated**: 2025-12-06
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
 
@@ -200,6 +200,272 @@ To commit manually:
 ```
 
 **Key point**: Feature implementation is still successful even if git operations fail.
+
+## Batch Workflow Integration (NEW in v3.36.0 - Issue #93)
+
+Per-feature git automation is now integrated into `/batch-implement` workflow. Each feature automatically commits with conventional commit messages when batch processing completes.
+
+### Overview
+
+When running `/batch-implement`:
+
+1. **Feature processing**: Standard workflow runs for each feature
+2. **Quality checks pass**: All validation agents complete
+3. **Git automation triggers**: `execute_git_workflow()` invoked with `in_batch_mode=True`
+4. **Git operations recorded**: Results saved in batch_state.json for audit trail
+5. **Batch continues**: Next feature begins processing
+
+### How It Works
+
+The batch mode integration differs from `/auto-implement` in key ways:
+
+**Similarities**:
+- Same git operations: commit, push, PR creation
+- Same environment variables: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
+- Same commit message format: Conventional commits with co-authorship
+- Same error handling: Non-blocking failures with detailed logging
+
+**Differences**:
+- **No interactive prompts**: Batch mode skips first-run consent prompt
+- **Environment variables only**: All decisions via `.env` file (no stdin)
+- **Audit trail**: Git operations tracked in batch_state.json for each feature
+- **Per-feature commits**: One commit per completed feature (not per-step)
+
+### Batch State Structure
+
+The `batch_state.json` now includes a `git_operations` field tracking per-feature git results:
+
+```json
+{
+  "batch_id": "batch-20251206-001",
+  "current_index": 2,
+  "completed": ["feature1", "feature2", "feature3"],
+  "failed": [],
+  "git_operations": {
+    "0": {
+      "commit": {
+        "success": true,
+        "timestamp": "2025-12-06T10:00:00Z",
+        "sha": "abc123def456",
+        "branch": "feature/auth"
+      },
+      "push": {
+        "success": true,
+        "timestamp": "2025-12-06T10:00:15Z",
+        "branch": "feature/auth",
+        "remote": "origin"
+      },
+      "pr": {
+        "success": true,
+        "timestamp": "2025-12-06T10:00:30Z",
+        "number": 42,
+        "url": "https://github.com/user/repo/pull/42"
+      }
+    },
+    "1": {
+      "commit": {
+        "success": true,
+        "timestamp": "2025-12-06T10:15:00Z",
+        "sha": "def456abc123",
+        "branch": "feature/jwt"
+      },
+      "push": {
+        "success": false,
+        "timestamp": "2025-12-06T10:15:15Z",
+        "error": "Network timeout"
+      }
+    },
+    "2": {
+      "commit": {
+        "success": false,
+        "timestamp": "2025-12-06T10:30:00Z",
+        "error": "Merge conflict in auth.py"
+      }
+    }
+  }
+}
+```
+
+**Structure**:
+- `git_operations[feature_index][operation_type]` contains operation results
+- Operation types: `commit`, `push`, `pr`
+- Each operation includes: `success`, `timestamp`, operation-specific metadata
+
+### Git Operation Recording API
+
+To record git operations during batch processing, use:
+
+```python
+from batch_state_manager import record_git_operation
+
+# Record successful commit
+state = record_git_operation(
+    state=batch_state,
+    feature_index=0,
+    operation='commit',
+    success=True,
+    commit_sha='abc123def456',
+    branch='feature/auth'
+)
+
+# Record failed push (with error message)
+state = record_git_operation(
+    state=batch_state,
+    feature_index=1,
+    operation='push',
+    success=False,
+    branch='feature/jwt',
+    error_message='Network timeout'
+)
+
+# Record successful PR
+state = record_git_operation(
+    state=batch_state,
+    feature_index=0,
+    operation='pr',
+    success=True,
+    pr_number=42,
+    pr_url='https://github.com/user/repo/pull/42'
+)
+```
+
+### Query Git Status
+
+Retrieve git operation status for debugging:
+
+```python
+from batch_state_manager import get_feature_git_status
+
+# Get status of all git operations for a feature
+status = get_feature_git_status(batch_state, feature_index=0)
+# Returns: {
+#   'commits': {'success': True, 'sha': 'abc123...'},
+#   'pushes': {'success': True},
+#   'prs': {'success': True, 'number': 42, 'url': '...'}
+# }
+```
+
+### Configuration for Batch Mode
+
+Configure git automation for batch processing via `.env`:
+
+```bash
+# Enable automatic git operations for all features
+AUTO_GIT_ENABLED=true
+
+# Disable push (commits only)
+AUTO_GIT_PUSH=false
+
+# Disable PR creation (commits and push only)
+AUTO_GIT_PR=false
+```
+
+### Behavior in Batch Mode
+
+**With default configuration** (`AUTO_GIT_ENABLED=true`):
+- Each feature commits after completion
+- Each feature pushes (if `AUTO_GIT_PUSH=true`)
+- Each feature creates PR (if `AUTO_GIT_PR=true`)
+
+**With conservative configuration** (`AUTO_GIT_ENABLED=true, AUTO_GIT_PUSH=false`):
+- Each feature commits locally
+- No push to remote
+- Manual push after batch completes: `git push origin <branch>`
+
+**With disabled git** (`AUTO_GIT_ENABLED=false`):
+- No git operations
+- Manual commit/push required after batch
+- Feature implementation still succeeds
+
+### Error Recovery
+
+If a git operation fails during batch:
+
+1. **Commit failure**: Feature marked complete, batch continues
+2. **Push failure**: Error recorded, batch continues (manual push later)
+3. **PR failure**: Error recorded, batch continues (manual PR later)
+
+All failures are **non-blocking** - batch processing never stops due to git errors.
+
+To check what failed:
+
+```bash
+# View failed git operations
+cat .claude/batch_state.json | jq '.git_operations[] | select(.commit.success == false)'
+
+# Example: Find all failed pushes
+cat .claude/batch_state.json | jq '.git_operations[] | select(.push.success == false)'
+```
+
+### See Also
+
+- [docs/BATCH-PROCESSING.md](BATCH-PROCESSING.md) - Batch processing documentation (includes git automation section)
+- [GitHub Issue #93](https://github.com/akaszubski/autonomous-dev/issues/93) - Implementation issue
+- `plugins/autonomous-dev/lib/batch_state_manager.py` - BatchState.git_operations field
+- `plugins/autonomous-dev/lib/auto_implement_git_integration.py` - `execute_git_workflow()` function
+
+---
+
+## Batch Mode Consent Bypass (NEW in v3.35.0 - Issue #96)
+
+For unattended batch processing, consent is automatically resolved via environment variables, preventing interactive prompts from blocking the batch workflow.
+
+### Problem
+
+In `/batch-implement` workflows, if `/auto-implement` shows an interactive consent prompt during the first feature, the entire batch blocks waiting for user input. This defeats the purpose of unattended batch processing.
+
+**Before Issue #96**: Batch processing would hang on first feature's consent prompt, requiring manual intervention to continue.
+
+### Solution
+
+**STEP 5 (Consent Check)** now checks `AUTO_GIT_ENABLED` environment variable BEFORE showing interactive prompt:
+
+```python
+# Check consent via environment variables (Issue #96)
+consent = check_consent_via_env()
+
+if not consent['enabled']:
+    # Skip git operations entirely (no prompt)
+    pass
+elif consent['enabled']:
+    # Auto-proceed with git operations (no prompt)
+    pass
+else:
+    # Show interactive prompt (first-run or env var not set)
+    pass
+```
+
+### Usage in Batch Processing
+
+Configure `.env` before running batch:
+
+```bash
+# Enable automatic git operations for unattended batch
+export AUTO_GIT_ENABLED=true
+
+# Or in .env file
+echo "AUTO_GIT_ENABLED=true" >> .env
+
+# Then run batch - no prompts, fully unattended
+/batch-implement features.txt
+```
+
+**Result**: Each feature in the batch:
+1. Checks `AUTO_GIT_ENABLED` environment variable
+2. Auto-proceeds without prompt (if true)
+3. Skips without prompt (if false)
+4. No blocking on interactive consent
+
+### Backward Compatibility
+
+- **First run without env var**: Shows interactive consent prompt (stored for future runs)
+- **Subsequent runs**: Uses stored preference OR environment variable (env var takes precedence)
+- **Explicit override**: Set `AUTO_GIT_ENABLED=false` to disable despite stored preference
+
+### See Also
+
+- [docs/BATCH-PROCESSING.md](BATCH-PROCESSING.md) - Prerequisites for unattended batches
+- [GitHub Issue #96](https://github.com/akaszubski/autonomous-dev/issues/96) - Consent blocking fix
 
 ## Opt-Out Consent Design (v3.12.0+)
 

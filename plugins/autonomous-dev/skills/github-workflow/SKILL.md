@@ -1,8 +1,24 @@
 ---
 name: github-workflow
-description: GitHub-first workflow - Issues, PRs, milestones, auto-tracking for solo developer productivity
+description: GitHub-first workflow - Issues, PRs, milestones, auto-tracking for solo developer productivity. Includes PR description templates, issue templates, automation patterns, and webhook security.
 category: workflow
-version: 1.0.0
+version: 1.2.0
+keywords:
+  - github
+  - pull request
+  - pr
+  - issue
+  - pr description
+  - issue description
+  - github issue
+  - pr template
+  - issue template
+  - automation
+  - webhook
+  - github actions
+  - pr automation
+  - issue automation
+auto_activate: true
 ---
 
 # GitHub Workflow Skill
@@ -15,6 +31,20 @@ Use this skill when:
 - Creating pull requests automatically
 - Linking work to GitHub issues and milestones
 - Automating issue tracking on push/commit
+
+## Detailed Documentation
+
+For comprehensive PR and issue description guidance:
+- **PR Templates**: See [docs/pr-template-guide.md](docs/pr-template-guide.md) for effective pull request descriptions
+- **Issue Templates**: See [docs/issue-template-guide.md](docs/issue-template-guide.md) for clear issue descriptions
+- **PR Examples**: See [examples/pr-template.md](examples/pr-template.md) for complete example PR
+- **Issue Examples**: See [examples/issue-template.md](examples/issue-template.md) for complete example issue
+
+For automation patterns and security:
+- **PR Automation**: See [docs/pr-automation.md](docs/pr-automation.md) for auto-labeling, auto-reviewers, and auto-merge workflows
+- **Issue Automation**: See [docs/issue-automation.md](docs/issue-automation.md) for auto-triage, auto-assignment, and stale issue detection
+- **GitHub Actions**: See [docs/github-actions-integration.md](docs/github-actions-integration.md) for CI/CD workflow patterns and custom actions
+- **API Security**: See [docs/api-security-patterns.md](docs/api-security-patterns.md) for webhook signature verification and token security
 
 ---
 

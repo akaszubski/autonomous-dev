@@ -1,0 +1,46 @@
+# Test Files for Issue #83: Symlink Documentation
+
+## Test Files Created (TDD Red Phase)
+
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/test_issue83_symlink_documentation.py
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/integration/test_issue83_symlink_workflow.py
+
+## Documentation Created
+
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/TEST_COVERAGE_ISSUE_83.md
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/IMPLEMENTATION_CHECKLIST_ISSUE_83.md
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/TDD_SUMMARY_ISSUE_83.md
+/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/TEST_FILES_ISSUE_83.txt
+
+## Files to be Created/Updated (Implementation Phase)
+
+CREATE: /Users/akaszubski/Documents/GitHub/autonomous-dev/docs/TROUBLESHOOTING.md
+UPDATE: /Users/akaszubski/Documents/GitHub/autonomous-dev/docs/DEVELOPMENT.md
+UPDATE: /Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/README.md
+UPDATE: /Users/akaszubski/Documents/GitHub/autonomous-dev/tests/README.md
+VERIFY: /Users/akaszubski/Documents/GitHub/autonomous-dev/.gitignore
+
+## Test Execution
+
+# Run all Issue #83 tests
+.venv/bin/pytest \
+  tests/unit/test_issue83_symlink_documentation.py \
+  tests/integration/test_issue83_symlink_workflow.py \
+  -v
+
+# Expected (Red Phase): 26 failed, 31 passed
+# Expected (Green Phase): 57 passed
+
+## Test Counts
+
+Total Tests: 57
+- Unit Tests: 36
+- Integration Tests: 21
+
+Current Status (Red Phase):
+- Passing: 31
+- Failing: 26
+
+Target (Green Phase):
+- Passing: 57
+- Failing: 0

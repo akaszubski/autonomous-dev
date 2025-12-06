@@ -82,6 +82,52 @@
   - **See Also**: GitHub Issue #80, `docs/ISSUE-80-PARTIAL-IMPLEMENTATION.md` for complete test breakdown, blockers, and implementation roadmap
 
 ### Fixed
+- **Dogfooding Bug Fix - Hardcoded Paths in Checkpoint Tracking** - Issue #79
+  - **Problem**: Hardcoded paths in checkpoint verification caused `/auto-implement` to stall for 7+ hours when running on the autonomous-dev repository itself (dogfooding). Plugin worked for user projects but not for self-testing.
+  - **Root Cause**: Original implementation used hardcoded paths like `Path(".claude/batch_state.json")` and `scripts/agent_tracker.py` which:
+    - Failed to locate files when running from project subdirectories
+    - Couldn't find tracking infrastructure in user projects (no `plugins/` directory)
+    - Made it impossible to use the plugin on itself (dogfooding use case)
+  - **Solution**: Introduced portable path detection throughout checkpoint tracking:
+    - New class method: `AgentTracker.save_agent_checkpoint()` - Convenience method for agents to save checkpoints without managing instances
+    - Library-based implementation: Uses `path_utils.get_session_dir()` for dynamic project root detection
+    - Graceful degradation: Returns False in user projects instead of raising exceptions
+    - No subprocess calls: Changed from subprocess `scripts/agent_tracker.py` to Python library imports
+  - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/agent_tracker.py` - Enhanced with `save_agent_checkpoint()` class method (v3.36.0)
+      - Portable path detection (works from any directory, any environment)
+      - Input validation (agent_name, message, github_issue) with security checks
+      - Graceful degradation (ImportError, OSError, PermissionError handled)
+      - Non-blocking design (never raises exceptions, always allows workflow to continue)
+      - Path traversal prevention (CWE-22), no subprocess calls (CWE-78), input validation (CWE-117)
+    - **Updated**: All 7 core workflow agents (researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master)
+      - Added checkpoint integration sections using `AgentTracker.save_agent_checkpoint()`
+      - Replaced subprocess anti-pattern with library imports
+      - Works in both development repo and user projects
+    - **Enhanced**: `plugins/autonomous-dev/lib/session_tracker.py`
+      - Uses portable path detection via path_utils
+      - Works from any directory (user projects, subdirectories, fresh installs)
+  - **Testing**: 35/42 tests passing (83%)
+    - 9 tests for `save_agent_checkpoint()` method
+    - 12 tests for portable path detection
+    - 10 tests for graceful degradation
+    - 4 tests for security validation (path traversal, input bounds)
+  - **Features**:
+    - Works from any directory (user projects, project subdirectories, installed plugin paths)
+    - Works on fresh installs (no hardcoded developer paths)
+    - Graceful degradation: Returns False in user projects, prints informational message
+    - Non-blocking: Never raises exceptions, allows workflows to continue
+    - No subprocess: Uses Python library imports instead of shell scripts
+    - Security: Input validation, path traversal prevention, graceful error handling
+  - **Documentation**:
+    - **Updated**: `docs/LIBRARIES.md` - Section 24 with new `save_agent_checkpoint()` method documentation (3,667 lines)
+    - **Updated**: `docs/DEVELOPMENT.md` - New Scenario 2.5 "Integrating Checkpoints in Agents" with portable pattern (1,091 lines)
+    - **Updated**: `CLAUDE.md` - Session Tracker section references new agent_tracker library (sections 15, 16, 24, 25) (589 lines)
+    - **Updated**: All 7 agent `.md` files with checkpoint integration examples
+  - **Backward Compatibility**: Fully compatible - existing checkpoint code continues to work
+  - **Security**: Path validation (CWE-22), no subprocess calls (CWE-78), input validation (CWE-117)
+  - **Related**: GitHub Issue #85 (phase 2 - checkpoint portability), Issue #82 (graceful degradation), Issue #79 (root cause)
+
 - **Consent Blocking in Batch Processing** - Issue #96
   - **Problem**: `/batch-implement` would block on interactive consent prompt during first feature, preventing fully unattended batch processing
   - **Solution**: STEP 5 (Check User Consent) now checks `AUTO_GIT_ENABLED` environment variable BEFORE showing interactive prompt

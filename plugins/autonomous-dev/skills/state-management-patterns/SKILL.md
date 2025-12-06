@@ -238,6 +238,54 @@ manager = BatchStateManager.load("batch-20251116-123456")
 next_feature = manager.get_next_feature()  # Skips completed
 ```
 
+
+## Checkpoint Integration (Issue #79)
+
+Agents save checkpoints using the portable pattern:
+
+### Portable Pattern (Works Anywhere)
+```python
+from pathlib import Path
+import sys
+
+# Portable path detection
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists():
+        project_root = current
+        break
+    current = current.parent
+
+# Add lib to path
+lib_path = project_root / "plugins/autonomous-dev/lib"
+if lib_path.exists():
+    sys.path.insert(0, str(lib_path))
+    
+    try:
+        from agent_tracker import AgentTracker
+        success = AgentTracker.save_agent_checkpoint(
+            agent_name='my-agent',
+            message='Task completed - found 5 patterns',
+            tools_used=['Read', 'Grep', 'WebSearch']
+        )
+        print(f"Checkpoint: {'saved' if success else 'skipped'}")
+    except ImportError:
+        print("ℹ️ Checkpoint skipped (user project)")
+```
+
+### Features
+- **Portable**: Works from any directory (user projects, subdirectories, fresh installs)
+- **No hardcoded paths**: Uses dynamic project root detection
+- **Graceful degradation**: Returns False, doesn't block workflow
+- **Security validated**: Path validation (CWE-22), no subprocess (CWE-78)
+
+### Design Patterns
+- Progressive Enhancement: Works with or without tracking infrastructure
+- Non-blocking: Never raises exceptions
+- Two-tier: Library imports instead of subprocess calls
+
+**See**: LIBRARIES.md Section 24 (agent_tracker.py), DEVELOPMENT.md Scenario 2.5, docs/LIBRARIES.md for API
+
 ---
 
 ## Usage Guidelines

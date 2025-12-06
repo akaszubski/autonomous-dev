@@ -553,9 +553,46 @@ if not is_configured:
     # SKIP to Step 9
 ```
 
-#### Offer Commit and Push (User Consent Required)
+#### Check User Consent (Environment-based Bypass)
 
-If prerequisites passed, ask user for consent:
+**NEW (Issue #96)**: Before showing interactive prompt, check if consent is pre-configured via environment variables. This enables batch processing workflows to proceed without blocking on prompts.
+
+```python
+from auto_implement_git_integration import check_consent_via_env
+
+# Check consent via environment variables (defaults to True for opt-out model)
+consent = check_consent_via_env()
+
+# If AUTO_GIT_ENABLED explicitly set to false, skip git operations
+if not consent['enabled']:
+    print("ℹ️  Git automation disabled (AUTO_GIT_ENABLED=false)")
+    print("✅ Feature complete! Commit manually when ready:")
+    print("  git add .")
+    print("  git commit -m 'feat: [feature name]'")
+    print("  git push")
+    # SKIP to Step 9
+
+# If AUTO_GIT_ENABLED is true (explicit or default), bypass interactive prompt
+if consent['enabled']:
+    # Auto-proceed with git operations (no prompt needed)
+    # Set user_response based on consent['push'] flag
+    user_response = "yes" if consent['push'] else "commit-only"
+    print(f"🔄 Auto-proceeding with git operations (AUTO_GIT_ENABLED=true)")
+    # Jump to "Execute Based on User Response" section below
+```
+
+**Behavior**:
+- `AUTO_GIT_ENABLED=false`: Skip git operations entirely, no prompt
+- `AUTO_GIT_ENABLED=true`: Auto-proceed with git operations (use consent['push'] for push decision)
+- Not set: Uses default (True) - auto-proceed with git operations
+
+**Backward Compatibility**: If you need interactive prompt despite environment settings, the user can explicitly set `AUTO_GIT_ENABLED=false` to skip or leave it unset to use defaults.
+
+#### Offer Commit and Push (Interactive Prompt - Legacy)
+
+**NOTE**: This section is now bypassed when AUTO_GIT_ENABLED is set. Kept for backward compatibility and manual override scenarios.
+
+If prerequisites passed and consent not pre-configured, ask user for consent:
 
 ```
 ✅ Feature implementation complete!

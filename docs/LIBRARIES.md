@@ -3066,6 +3066,94 @@ JSON session files stored in `docs/sessions/YYYYMMDD-HHMMSS-pipeline.json`:
 - Prevents readers from seeing corrupted/partial JSON
 - On POSIX: Rename is guaranteed atomic by OS
 
+### Class Methods
+
+#### `AgentTracker.save_agent_checkpoint()` (NEW - Issue #79, v3.36.0+)
+
+**Signature**:
+```python
+@classmethod
+def save_agent_checkpoint(
+    cls,
+    agent_name: str,
+    message: str,
+    github_issue: Optional[int] = None,
+    tools_used: Optional[List[str]] = None
+) -> bool
+```
+
+**Purpose**: Convenience class method for agents to save checkpoints without creating AgentTracker instances. Solves the dogfooding bug (Issue #79) where hardcoded paths caused `/auto-implement` to stall for 7+ hours.
+
+**Parameters**:
+- `agent_name` (str): Agent name (e.g., 'researcher', 'planner'). Must be alphanumeric + hyphen/underscore.
+- `message` (str): Brief completion summary. Maximum 10KB.
+- `github_issue` (Optional[int]): GitHub issue number being worked on. Range: 1-999999.
+- `tools_used` (Optional[List[str]]): List of tools used during execution. Stored in session file for audit trail.
+
+**Returns**: `bool`
+- `True` if checkpoint saved successfully
+- `False` if skipped due to graceful degradation (user project, import error, filesystem error)
+
+**Behavior**:
+- Uses portable path detection (works from any directory)
+- Creates AgentTracker internally (caller doesn't manage instance)
+- Validates all inputs before saving
+- Gracefully degrades in user projects (prints info message, returns False)
+- Never raises exceptions (non-blocking design)
+
+**Examples**:
+
+```python
+# Basic usage (works from any directory)
+from agent_tracker import AgentTracker
+
+success = AgentTracker.save_agent_checkpoint(
+    'researcher',
+    'Found 3 JWT patterns in codebase'
+)
+if success:
+    print("✅ Checkpoint saved")
+else:
+    print("ℹ️ Skipped (user project)")
+
+# With all parameters
+success = AgentTracker.save_agent_checkpoint(
+    agent_name='planner',
+    message='Architecture designed - see docs/design/auth.md',
+    github_issue=79,
+    tools_used=['FileSearch', 'Read', 'Write']
+)
+
+# In agent code (automatic error handling)
+AgentTracker.save_agent_checkpoint(
+    agent_name='implementer',
+    message='Implementation complete - 450 lines of code',
+    tools_used=['Read', 'Write', 'Execute']
+)
+# Even if this fails, agent continues working
+```
+
+**Security**:
+- Input validation: agent_name, message, github_issue all validated
+- Path validation: All paths checked against project root (CWE-22)
+- No subprocess calls: Uses library imports (prevents CWE-78)
+- Message length limit: Prevents log bloat attacks
+- Graceful degradation: No sensitive error leakage
+
+**Graceful Degradation**:
+When running in environments without tracking infrastructure:
+- User projects (no `plugins/` directory) → skips, returns False
+- Import errors (missing dependencies) → skips, returns False
+- Filesystem errors (permission denied) → skips, returns False
+- Unexpected errors → logs warning, returns False
+
+This allows agents to be portable across development and user environments.
+
+**Design Pattern**: Progressive Enhancement - feature works with or without supporting infrastructure
+
+**Related**: GitHub Issue #79 (Dogfooding bug fix), Issue #82 (Optional checkpoint verification)
+
+
 ### CLI Wrapper
 
 **File**: `plugins/autonomous-dev/scripts/agent_tracker.py`
