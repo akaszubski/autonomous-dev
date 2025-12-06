@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-12-07
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.8.0
+**Version**: v3.36.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -223,9 +223,9 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMA
 
 ---
 
-## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88, Automatic retry v3.33.0 - Issue #89)
+## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88, Automatic retry v3.33.0 - Issue #89, Git automation v3.36.0 - Issue #93)
 
-Process multiple features sequentially with intelligent state management and automatic context management. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
+Process multiple features sequentially with intelligent state management, automatic context management, and per-feature git automation. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
 
 **Command**: `/batch-implement <features-file>` or `/batch-implement --issues <issue-numbers>` or `/batch-implement --resume <batch-id>`
 
@@ -233,6 +233,13 @@ Process multiple features sequentially with intelligent state management and aut
 - **File-based input**: Plain text file, one feature per line
 - **GitHub Issues**: Fetch titles via `--issues` flag (requires gh CLI v2.0+)
 - **State management**: `.claude/batch_state.json` tracks progress across crashes
+- **Git automation** (v3.36.0, Issue #93): Per-feature commits with conventional messages, optional push/PR
+  - **Automatic commits**: Each feature gets individual commit with agent-generated message
+  - **Optional push**: Use `AUTO_GIT_PUSH=false` for local commits only
+  - **Optional PR**: Use `AUTO_GIT_PR=false` to skip pull request creation
+  - **No prompts**: Batch mode skips interactive consent prompts (uses `.env` configuration)
+  - **Audit trail**: All git operations recorded in batch_state.json for debugging
+  - **Non-blocking failures**: Git errors don't stop batch processing
 - **Hybrid context management**: Auto-pause at ~150K tokens, manual `/clear` + `--resume` to continue
 - **Resume support**: `--resume <batch-id>` continues from last completed feature
 - **Automatic retry** (v3.33.0, Issue #89): Intelligent classification and retry for transient failures
@@ -329,13 +336,17 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (27 Documented Libraries)
+### Libraries (28 Documented Libraries)
 
-27 reusable Python libraries for security, validation, automation, installation, and brownfield retrofit. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
+28 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, and git hook utilities. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
 **Core Libraries** (15): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation
 
 **Installation Libraries** (4): file_discovery, copy_system, installation_validator, install_orchestrator
+
+**Utility Libraries** (2): math_utils, git_hooks
+
+**Brownfield Retrofit Libraries** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
 
 **Brownfield Retrofit** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
 

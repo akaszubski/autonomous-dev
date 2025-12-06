@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-12-07
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 30 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 32 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **30 shared libraries** organized into seven categories:
+The autonomous-dev plugin includes **32 shared libraries** organized into nine categories:
 
-### Core Libraries (19)
+### Core Libraries (20)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -30,26 +30,33 @@ The autonomous-dev plugin includes **30 shared libraries** organized into seven 
 17. **failure_classifier.py** - Error classification (transient vs permanent) for /batch-implement (v3.33.0, Issue #89)
 18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
+20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
+
+### Tracking Libraries (2) - NEW in v3.28.0
+
+21. **agent_tracker.py** (see section 24)
+22. **session_tracker.py** (see section 25)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
-20. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
-21. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
-22. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
-23. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
+23. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
+24. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
+25. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
+26. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
 
-### Utility Libraries (1)
+### Utility Libraries (2)
 
-24. **math_utils.py** - Fibonacci calculator with multiple algorithms
+27. **math_utils.py** - Fibonacci calculator with multiple algorithms
+28. **git_hooks.py** - Git hook utilities for larger projects (500+ tests, Issue #94)
 
 ### Brownfield Retrofit Libraries (6)
 
-25. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-26. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-27. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-28. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-29. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-30. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (30 total libraries)
+29. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+30. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+31. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+32. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+33. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+34. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (32 total libraries)
 
 ## Design Patterns
 
@@ -1385,18 +1392,19 @@ Batch processing state with persistent storage.
 **Example**:
 ```python
 from batch_state_manager import create_batch_state
+from path_utils import get_batch_state_file
 
 # File-based batch
 state = create_batch_state(
     features=["Add login", "Add logout"],
-    state_file=Path(".claude/batch_state.json"),
+    state_file=get_batch_state_file(),
     features_file="features.txt"
 )
 
 # GitHub issues batch (v3.24.0)
 state = create_batch_state(
     features=["Issue #72: Add logging", "Issue #73: Fix bug"],
-    state_file=Path(".claude/batch_state.json"),
+    state_file=get_batch_state_file(),
     issue_numbers=[72, 73],
     source_type="issues"
 )
@@ -1621,9 +1629,11 @@ features = [
 # ]
 
 # 5. Create batch state
+from path_utils import get_batch_state_file
+
 state = create_batch_state(
     features=features,
-    state_file=".claude/batch_state.json",
+    state_file=get_batch_state_file(),
     issue_numbers=issue_numbers,
     source_type="issues"
 )
@@ -3158,7 +3168,397 @@ except ValueError as e:
 - **Atomic Writes**: Tempfile + rename for consistency
 - **Path Portability**: Uses path_utils instead of hardcoded paths
 
+## 25. session_tracker.py (165 lines, v3.28.0+, Issue #79)
+
+**Purpose**: Session logging for agent actions with portable path detection
+
+**Problem Solved (Issue #79)**: Original session tracking had hardcoded `docs/sessions/` path that failed when:
+- Running from user projects (no `docs/` directory available)
+- Running from project subdirectories (couldn't dynamically find project root)
+- Commands invoked from installation path vs development path
+
+**Solution**: Library-based implementation in `plugins/autonomous-dev/lib/session_tracker.py` with:
+- Dynamic session directory detection via path_utils
+- Portable path resolution (no hardcoded paths)
+- Graceful error handling with fallbacks
+- Comprehensive docstrings with design patterns
+
+### Classes
+
+#### `SessionTracker`
+- **Purpose**: Log agent actions to session file instead of keeping in context
+- **Initialization**: `SessionTracker(session_file=None, use_cache=True)`
+  - `session_file` (Optional[str]): Path to session file for testing
+  - `use_cache` (bool): If True, use cached project root (default: True)
+  - If None: Creates/finds session file automatically using path_utils
+  - Raises `ValueError` if session_file path is outside project
+- **Features**:
+  - Auto-detects project root from any subdirectory
+  - Creates `docs/sessions/` directory if missing
+  - Finds or creates session files with timestamp naming: `YYYYMMDD-HHMMSS-session.md`
+  - Path validation via shared validation module
+  - Directory permission checking (warns on world-writable)
+
+### Public Methods
+
+#### `log(agent_name, message) -> None`
+- **Purpose**: Log agent action to session file
+- **Parameters**:
+  - `agent_name` (str): Agent identifier (e.g., "researcher", "implementer")
+  - `message` (str): Action message (e.g., "Research complete - docs/research/auth.md")
+- **Output**:
+  - Appends to session file with timestamp
+  - Prints confirmation to console
+- **Format**: `**HH:MM:SS - agent_name**: message`
+- **Example Output**:
+  ```
+  **14:30:22 - researcher**: Research complete - docs/research/auth.md
+  ```
+
+### Helper Functions
+
+#### `get_default_session_file() -> Path`
+- **Purpose**: Get default session file path with timestamp
+- **Returns**: Path object for new session file
+- **Format**: `<session_dir>/session-YYYY-MM-DD-HHMMSS.md`
+- **Uses**: path_utils.get_session_dir() for portable resolution
+- **Example**:
+  ```python
+  path = get_default_session_file()
+  print(path.name)  # session-2025-11-19-143022.md
+  ```
+
+### File Format
+
+Session files stored in `docs/sessions/YYYYMMDD-HHMMSS-session.md`:
+
+```markdown
+# Session 20251119-143022
+
+**Started**: 2025-11-19 14:30:22
+
 ---
+
+**14:30:25 - researcher**: Research complete - docs/research/jwt-patterns.md
+
+**14:35:10 - planner**: Plan complete - docs/design/auth-architecture.md
+
+**14:45:30 - test-master**: Tests written - 12 test cases
+
+**15:02:15 - implementer**: Implementation complete - src/auth/jwt_handler.py
+```
+
+### Security Features
+
+#### Path Validation (CWE-22)
+- All paths validated via validation module
+- Rejects paths outside project directory
+- Uses path_utils for consistent resolution
+- Audit logging on validation errors
+
+#### Permission Checking (CWE-732)
+- Warns if session directory is world-writable
+- Checks ownership on POSIX systems
+- Gracefully handles Windows (different permission model)
+
+#### Input Validation
+- Agent names must match `/^[a-zA-Z0-9_-]+$/` (via validation module)
+- Messages limited to reasonable length
+- Control characters filtered to prevent log injection
+
+### CLI Wrapper
+
+**File**: `plugins/autonomous-dev/scripts/session_tracker.py`
+- **Purpose**: CLI interface for library functionality
+- **Design**: Delegates to `plugins/autonomous-dev/lib/session_tracker.py`
+- **Usage**: `python plugins/autonomous-dev/scripts/session_tracker.py <agent_name> <message>`
+- **Example**: `python plugins/autonomous-dev/scripts/session_tracker.py researcher "Found 3 JWT patterns"`
+
+### Deprecation (Issue #79)
+
+**Deprecated**: `scripts/session_tracker.py` (original location)
+- **Reason**: Hardcoded paths fail in user projects and subdirectories
+- **Migration**:
+  - For CLI: Use `plugins/autonomous-dev/scripts/session_tracker.py` (installed plugin)
+  - For imports: Use `from plugins.autonomous-dev.lib.session_tracker import SessionTracker`
+  - Existing code continues to work (delegates to library implementation)
+  - Will be removed in v4.0.0
+
+### Usage Examples
+
+#### Basic Session Logging
+```python
+from plugins.autonomous_dev.lib.session_tracker import SessionTracker
+
+# Create tracker (auto-detects project root)
+tracker = SessionTracker()
+
+# Log agent actions
+tracker.log("researcher", "Found 3 JWT patterns in codebase")
+tracker.log("planner", "Architecture designed - see docs/design/auth.md")
+tracker.log("test-master", "12 test cases written")
+tracker.log("implementer", "Implementation complete - 450 lines of code")
+```
+
+#### Testing with Explicit Session File
+```python
+from pathlib import Path
+tracker = SessionTracker(session_file="/tmp/test-session.md")
+tracker.log("test-agent", "Testing portable path detection")
+```
+
+#### From auto-implement Checkpoints
+```bash
+# Log from bash (CHECKPOINT 1)
+python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Parallel exploration completed"
+
+# Log from bash (CHECKPOINT 4.1)
+python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Parallel validation completed"
+```
+
+### Error Handling
+
+All exceptions include context and guidance:
+```python
+try:
+    tracker = SessionTracker(session_file="../../etc/passwd")
+except ValueError as e:
+    # Error includes: what went wrong, why, and what's expected
+    # Example: "Path traversal attempt detected: /etc/passwd"
+    print(e)
+```
+
+### Test Coverage
+- 30+ unit tests in `tests/unit/lib/test_session_tracker.py`
+- Path resolution from nested subdirectories
+- Session file creation and appending
+- Directory permission checking
+- Input validation (agent names, messages)
+- Security validation (path traversal, symlinks)
+
+### Used By
+- `/auto-implement` command checkpoints (progress tracking)
+- `/batch-implement` for feature logging
+- Dogfooding infrastructure (session logs in docs/sessions/)
+- CI/CD pipelines for audit trails
+- Optional checkpoint logging (graceful degradation in user projects)
+
+### Related
+- GitHub Issue #79 (Tracking infrastructure hardcoded paths)
+- GitHub Issue #82 (Optional checkpoint verification with graceful degradation)
+- GitHub Issue #85 (Portable checkpoint implementation)
+- GitHub Issue #45 (Atomic write pattern and security hardening)
+- path_utils.py (Dynamic project root detection)
+- validation.py (Path and input validation)
+- agent_tracker.py (Agent execution tracking)
+
+### Design Patterns
+- **Two-tier Design**: Library (core logic) + CLI wrapper (interface)
+- **Progressive Enhancement**: Features gracefully degrade if unavailable
+- **Portable Paths**: Uses path_utils instead of hardcoded paths
+- **Non-blocking**: Logging failures don't break workflows
+
+---
+
+## 26. git_hooks.py (314 lines, v3.37.0+, Issue #94)
+
+**Purpose**: Git hook utilities for larger projects with 500+ tests
+
+**Problem Solved (Issue #94)**: Original git hooks couldn't scale for larger projects:
+- Pre-commit hook used flat test discovery (missed nested directories like `tests/unit/lib/`)
+- Pre-push hook ran ALL tests including slow/GenAI tests (2-5 minute execution time)
+- No support for nested test structures (500+ tests across multiple levels)
+
+**Solution**: Library-based implementation with:
+- Recursive test discovery supporting unlimited nesting depth
+- Fast test filtering (exclude slow, genai, integration markers)
+- Test duration estimation for performance planning
+- Hook generation utilities for installation/updates
+- 3x+ performance improvement for pre-push hooks (30s vs 2-5min)
+
+### Functions
+
+#### `discover_tests_recursive(tests_dir: Path) -> List[Path]`
+- **Purpose**: Discover all test files recursively in tests directory
+- **Parameters**: `tests_dir` (Path): Path to tests directory
+- **Returns**: Sorted list of paths to `test_*.py` files
+- **Features**:
+  - Uses `Path.rglob()` for recursive search
+  - Excludes `__pycache__` directories automatically
+  - Supports unlimited nesting depth (e.g., `tests/unit/lib/batch/state/`)
+  - Returns empty list if tests directory doesn't exist
+- **Example**:
+  ```python
+  tests = discover_tests_recursive(Path("tests"))
+  print(f"Found {len(tests)} test files")
+  # Output: Found 524 test files
+  ```
+
+#### `get_fast_test_command(tests_dir: Path, extra_args: str = "") -> str`
+- **Purpose**: Build pytest command for running fast tests only
+- **Parameters**:
+  - `tests_dir` (Path): Path to tests directory
+  - `extra_args` (str): Additional pytest arguments (optional)
+- **Returns**: pytest command string with marker filtering
+- **Features**:
+  - Excludes `@pytest.mark.slow`, `@pytest.mark.genai`, `@pytest.mark.integration`
+  - Uses minimal verbosity (`--tb=line -q`) to prevent output bloat
+  - Prevents pipe deadlock issues (Issue #90)
+- **Example**:
+  ```python
+  cmd = get_fast_test_command(Path("tests"))
+  # Returns: 'pytest tests/ -m "not slow and not genai and not integration" --tb=line -q'
+  ```
+
+#### `filter_fast_tests(all_tests: List[str], tests_dir: Path) -> List[str]`
+- **Purpose**: Filter test list to only fast tests (exclude slow, genai, integration)
+- **Parameters**:
+  - `all_tests` (List[str]): List of all test file names
+  - `tests_dir` (Path): Path to tests directory
+- **Returns**: List of fast test file names
+- **Features**:
+  - Reads test files to check for pytest markers
+  - Tests without markers or with only non-slow markers are considered fast
+  - Handles nested test files (tries direct path first, then recursive search)
+  - Gracefully handles unreadable files (skips them)
+- **Example**:
+  ```python
+  all_tests = ["test_fast.py", "test_slow.py", "test_genai.py"]
+  fast = filter_fast_tests(all_tests, Path("tests"))
+  # Returns: ["test_fast.py"]
+  ```
+
+#### `estimate_test_duration(tests_dir: Path, fast_only: bool = False) -> float`
+- **Purpose**: Estimate test execution duration in seconds
+- **Parameters**:
+  - `tests_dir` (Path): Path to tests directory
+  - `fast_only` (bool): If True, estimate fast tests only
+- **Returns**: Estimated duration in seconds
+- **Estimation Model**:
+  - Fast tests: ~3 seconds each
+  - Slow tests: ~30 seconds each
+  - GenAI tests: ~60 seconds each
+  - Integration tests: ~20 seconds each
+- **Example**:
+  ```python
+  fast_duration = estimate_test_duration(Path("tests"), fast_only=True)
+  full_duration = estimate_test_duration(Path("tests"), fast_only=False)
+  print(f"Fast: {fast_duration}s, Full: {full_duration}s")
+  # Output: Fast: 90s, Full: 450s
+  ```
+
+#### `run_pre_push_tests(tests_dir: Path) -> TestRunResult`
+- **Purpose**: Run pre-push tests (fast only)
+- **Parameters**: `tests_dir` (Path): Path to tests directory
+- **Returns**: `TestRunResult` with exit code and output
+- **Features**:
+  - Executes pytest with fast test filtering
+  - Handles pytest not being installed gracefully (non-blocking)
+  - Uses `shlex.split()` to properly handle quoted strings
+  - Treats "no tests collected" (exit code 5) as success
+  - Treats "all deselected" as success (when markers filter everything)
+- **Example**:
+  ```python
+  result = run_pre_push_tests(Path("tests"))
+  if result.returncode == 0:
+      print("Tests passed!")
+  else:
+      print(f"Tests failed: {result.output}")
+  ```
+
+#### `generate_pre_commit_hook() -> str`
+- **Purpose**: Generate pre-commit hook content with recursive test discovery
+- **Returns**: Pre-commit hook bash script content
+- **Features**:
+  - Uses `find tests -type f -name "test_*.py"` for recursion
+  - Excludes `__pycache__` directories
+  - Counts tests with `wc -l` for validation
+- **Example**:
+  ```python
+  hook_content = generate_pre_commit_hook()
+  Path(".git/hooks/pre-commit").write_text(hook_content)
+  ```
+
+#### `generate_pre_push_hook() -> str`
+- **Purpose**: Generate pre-push hook content with fast test filtering
+- **Returns**: Pre-push hook bash script content
+- **Features**:
+  - Runs only fast tests (excludes slow, genai, integration markers)
+  - Uses `--tb=line -q` for minimal output
+  - Non-blocking if pytest not installed
+  - Clear user guidance on bypass and failure messages
+- **Example**:
+  ```python
+  hook_content = generate_pre_push_hook()
+  Path(".git/hooks/pre-push").write_text(hook_content)
+  ```
+
+### Classes
+
+#### `TestRunResult`
+- **Purpose**: Result of test execution
+- **Attributes**:
+  - `returncode` (int): Exit code from pytest (0=success, non-zero=failure)
+  - `output` (str): Combined stdout and stderr output
+
+### Performance
+
+**Before (Issue #94)**:
+- Pre-commit: Missed nested tests (flat discovery only)
+- Pre-push: 2-5 minutes (ran all 500+ tests including slow/GenAI)
+
+**After (Issue #94)**:
+- Pre-commit: Finds all tests recursively (100% coverage)
+- Pre-push: 30 seconds (runs ~30 fast tests only)
+- **Improvement**: 3x+ faster pre-push, complete test discovery
+
+### Security
+
+#### Command Execution (CWE-78)
+- Uses `shlex.split()` for safe command parsing
+- No user input in command construction
+- Plugin name validation (alphanumeric, dash, underscore only)
+
+#### Path Handling (CWE-22)
+- All paths validated via security_utils (if integrated)
+- Uses Path objects for safe path manipulation
+- Rejects path traversal patterns
+
+### Error Handling
+
+All functions handle errors gracefully:
+- Missing pytest: Non-blocking warning message
+- Missing tests directory: Returns empty list
+- Unreadable test files: Skips and continues
+- No tests collected: Treats as success (not failure)
+
+### Test Coverage
+- 28 comprehensive tests in `tests/unit/hooks/test_git_hooks_issue94.py`:
+  - 9 pre-commit recursive discovery tests
+  - 9 pre-push fast test filtering tests
+  - 4 hook generation tests
+  - 4 edge case tests
+  - 2 integration tests
+
+### Used By
+- `scripts/hooks/pre-commit` - Git pre-commit hook (test discovery)
+- `scripts/hooks/pre-push` - Git pre-push hook (fast test execution)
+- Hook activator during plugin installation/updates
+
+### Related
+- GitHub Issue #94 (Git hooks for larger projects with 500+ tests)
+- GitHub Issue #90 (Pre-push hook pipe deadlock fix - minimal verbosity)
+- `docs/HOOKS.md` - Hook documentation and usage
+- `scripts/hooks/` - Hook implementations
+
+### Design Patterns
+- **Two-tier Design**: Library (core logic) + Hook scripts (interface)
+- **Non-blocking**: Missing pytest or tests don't block git operations
+- **Progressive Enhancement**: Hooks work with any test count (1 to 1000+)
+- **Security First**: Safe command execution and path handling
+
+---
+
 
 ## Design Pattern
 

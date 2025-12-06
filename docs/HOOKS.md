@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-12-07
 **Total Hooks**: 43 (added session_tracker.py - Issue #84)
 **Location**: `plugins/autonomous-dev/hooks/`
 
@@ -217,6 +217,74 @@ Special hooks that respond to Claude Code lifecycle events.
 - `auto_git_workflow.py`: Commits and pushes changes after quality validation
 
 **Trigger**: When agent completes execution
+
+---
+
+## Standard Git Hooks (2)
+
+Traditional git hooks enhanced for larger projects (Issue #94).
+
+### pre-commit
+
+**Location**: `scripts/hooks/pre-commit`
+**Purpose**: Test discovery validation with recursive support
+**Features**:
+- Recursive test discovery using `find tests -type f -name "test_*.py"`
+- Supports nested directory structures (unlimited depth)
+- Excludes `__pycache__` directories automatically
+- Counts all test files for validation
+**Performance**: Finds 500+ tests across nested directories
+**Library**: Uses `git_hooks.discover_tests_recursive()` from `plugins/autonomous-dev/lib/git_hooks.py`
+
+**What it does**:
+```bash
+# Discovers tests recursively
+TEST_COUNT=$(find tests -type f -name "test_*.py" 2>/dev/null | grep -v __pycache__ | wc -l)
+echo "Found $TEST_COUNT test files"
+```
+
+**Installation**:
+```bash
+ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+```
+
+### pre-push
+
+**Location**: `scripts/hooks/pre-push`
+**Purpose**: Run fast tests only before pushing (excludes slow, genai, integration markers)
+**Features**:
+- Pytest marker filtering: `-m "not slow and not genai and not integration"`
+- Minimal verbosity: `--tb=line -q` (prevents pipe deadlock - Issue #90)
+- Non-blocking: Warning if pytest not installed
+- Fast feedback: 30 seconds vs 2-5 minutes for full suite
+**Performance**: 3x+ faster than running all tests (30s vs 2-5min)
+**Library**: Uses `git_hooks.get_fast_test_command()` from `plugins/autonomous-dev/lib/git_hooks.py`
+
+**What it does**:
+```bash
+# Run fast tests only
+pytest tests/ -m "not slow and not genai and not integration" --tb=line -q
+```
+
+**Markers excluded**:
+- `@pytest.mark.slow` - Long-running tests (30+ seconds)
+- `@pytest.mark.genai` - GenAI API tests (60+ seconds, requires credentials)
+- `@pytest.mark.integration` - Integration tests (20+ seconds, require external services)
+
+**Installation**:
+```bash
+ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
+```
+
+**Bypass** (not recommended):
+```bash
+git push --no-verify
+```
+
+**Performance Comparison** (Issue #94):
+- **Before**: 2-5 minutes (all 500+ tests)
+- **After**: 30 seconds (~30 fast tests only)
+- **Improvement**: 3x+ faster
 
 ---
 
