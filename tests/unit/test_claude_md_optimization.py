@@ -69,11 +69,11 @@ class TestCharacterCountValidation:
         """
         Total content across CLAUDE.md + new docs should approximately equal baseline.
 
-        Baseline (comprehensive documentation): ~177,000 characters (v3.34.0+)
+        Baseline (comprehensive documentation): ~216,000 characters (v3.37.0+)
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
-        Tolerance: ±15% (libraries have grown from 18 to 25+, many features added)
+        Tolerance: ±15% (includes git automation enhancements from Issues #93, #96)
         """
-        original_size = 177000  # Updated baseline for v3.34.0+ with 25+ libraries
+        original_size = 216000  # Updated baseline for v3.37.0+ with batch git automation
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -110,10 +110,10 @@ class TestCharacterCountValidation:
         """
         Individual documentation files should be appropriately sized.
 
-        Expected sizes (comprehensive documentation, v3.12.0):
-        - docs/LIBRARIES.md: ~40,585 characters (18 library API references)
-        - docs/PERFORMANCE.md: ~8,039 characters (complete optimization tracking)
-        - docs/GIT-AUTOMATION.md: ~14,926 characters (comprehensive workflow guide + Issue #61 opt-out consent)
+        Expected sizes (comprehensive documentation, v3.37.0):
+        - docs/LIBRARIES.md: ~149,857 characters (28 library API references)
+        - docs/PERFORMANCE.md: ~12,397 characters (complete optimization tracking)
+        - docs/GIT-AUTOMATION.md: ~26,729 characters (includes batch git automation, Issues #93, #96)
         """
         project_root = Path(__file__).parent.parent.parent
 
@@ -126,22 +126,22 @@ class TestCharacterCountValidation:
         assert performance_md.exists(), "docs/PERFORMANCE.md not created"
         assert git_automation_md.exists(), "docs/GIT-AUTOMATION.md not created"
 
-        # Check sizes (±40% tolerance - libraries have grown from 18 to 25+)
+        # Check sizes (±40% tolerance for libraries, ±30% for others)
         libraries_size = len(libraries_md.read_text(encoding="utf-8"))
         performance_size = len(performance_md.read_text(encoding="utf-8"))
         git_automation_size = len(git_automation_md.read_text(encoding="utf-8"))
 
-        assert 75000 <= libraries_size <= 175000, (
+        assert 90000 <= libraries_size <= 210000, (
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
-            f"(expected ~125,000 ±40% for 25+ libraries)"
+            f"(expected ~150,000 ±40% for 28 libraries)"
         )
         assert 8600 <= performance_size <= 16200, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
             f"(expected ~12,397 ±30%)"
         )
-        assert 10400 <= git_automation_size <= 19400, (
+        assert 18700 <= git_automation_size <= 34700, (
             f"GIT-AUTOMATION.md size unexpected: {git_automation_size} chars "
-            f"(expected ~14,926 ±30%)"
+            f"(expected ~26,729 ±30% with batch git automation)"
         )
 
 

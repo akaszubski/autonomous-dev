@@ -433,6 +433,73 @@ class ToolValidator:
             matched_pattern=None,
         )
 
+    def validate_web_tool(self, tool: str, url: str) -> ValidationResult:
+        """Validate WebFetch/WebSearch tool call for auto-approval.
+
+        Args:
+            tool: Tool name (WebFetch or WebSearch)
+            url: URL to fetch/search
+
+        Returns:
+            ValidationResult with approval decision and reason
+        """
+        # Get web tools policy
+        web_tools = self.policy.get("web_tools", {})
+        whitelist = web_tools.get("whitelist", [])
+        allow_all_domains = web_tools.get("allow_all_domains", False)
+        blocked_domains = web_tools.get("blocked_domains", [])
+
+        # Check if tool is whitelisted
+        if tool not in whitelist:
+            return ValidationResult(
+                approved=False,
+                reason=f"Web tool '{tool}' not in whitelist",
+                security_risk=False,
+                matched_pattern=None,
+            )
+
+        # Parse URL to extract domain
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        domain = parsed.netloc or url  # For WebSearch, might just be a query string
+
+        # Check if domain is blocked (SSRF prevention)
+        for blocked in blocked_domains:
+            if blocked.endswith("*"):
+                # Wildcard match (e.g., "10.*" matches "10.0.0.1")
+                prefix = blocked[:-1]
+                if domain.startswith(prefix):
+                    return ValidationResult(
+                        approved=False,
+                        reason=f"Domain '{domain}' blocked (SSRF prevention: {blocked})",
+                        security_risk=True,
+                        matched_pattern=blocked,
+                    )
+            elif domain == blocked or domain.endswith(f".{blocked}"):
+                return ValidationResult(
+                    approved=False,
+                    reason=f"Domain '{domain}' blocked (SSRF prevention)",
+                    security_risk=True,
+                    matched_pattern=blocked,
+                )
+
+        # If allow_all_domains is true, approve (after blocklist check)
+        if allow_all_domains:
+            return ValidationResult(
+                approved=True,
+                reason=f"{tool} allowed (all domains enabled, blocklist checked)",
+                security_risk=False,
+                matched_pattern=None,
+            )
+
+        # Fallback: deny if not explicitly allowed
+        return ValidationResult(
+            approved=False,
+            reason=f"Domain '{domain}' not explicitly allowed (allow_all_domains=false)",
+            security_risk=True,
+            matched_pattern=None,
+        )
+
     def validate_tool_call(
         self,
         tool: str,
@@ -458,6 +525,13 @@ class ToolValidator:
 
         elif tool in ("Read", "Write", "Edit") and "file_path" in parameters:
             result = self.validate_file_path(parameters["file_path"])
+            result.tool = tool
+            result.agent = agent_name
+            return result
+
+        elif tool in ("WebFetch", "WebSearch"):
+            url = parameters.get("url") or parameters.get("query", "")
+            result = self.validate_web_tool(tool, url)
             result.tool = tool
             result.agent = agent_name
             return result
