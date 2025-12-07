@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-12-07
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.37.0
+**Version**: v3.37.1
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 

@@ -1177,3 +1177,140 @@ class TestEdgeCases:
         # Enhanced features should be None (failed)
         assert result.version_comparison is None
         # orphan_cleanup may be None if it failed
+
+
+class TestMarketplaceSyncWithNewFiles:
+    """Test marketplace sync handles new files correctly (Issue #97).
+
+    Issue: shutil.copytree(dirs_exist_ok=True) silently fails to copy new files
+    when destination directory already exists. This specifically affects marketplace
+    sync when users update their plugin.
+    """
+
+    @pytest.fixture
+    def temp_marketplace_env(self, tmp_path):
+        """Create full marketplace test environment."""
+        # Project setup
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        project_claude = project_root / ".claude"
+        project_claude.mkdir()
+
+        # Marketplace setup
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+        marketplace_base = home_dir / ".claude" / "plugins" / "marketplaces" / "autonomous-dev"
+        marketplace_base.mkdir(parents=True)
+        marketplace_plugin = marketplace_base / "plugins" / "autonomous-dev"
+        marketplace_plugin.mkdir(parents=True)
+
+        return {
+            "project_root": project_root,
+            "project_claude": project_claude,
+            "marketplace_plugin": marketplace_plugin,
+            "home_dir": home_dir,
+            "tmp_path": tmp_path,
+        }
+
+    def test_marketplace_sync_adds_new_commands_to_existing_dir(self, temp_marketplace_env):
+        """Test marketplace sync copies new commands when commands/ dir already exists.
+
+        REGRESSION TEST for Issue #97: Marketplace sync scenario
+
+        REQUIREMENT: New commands from marketplace update must appear in project.
+        Expected: New command files are copied to existing .claude/commands/ directory.
+
+        TDD RED PHASE: This test will FAIL until copytree is replaced with _sync_directory().
+        """
+        project_claude = temp_marketplace_env["project_claude"]
+        marketplace_plugin = temp_marketplace_env["marketplace_plugin"]
+        home_dir = temp_marketplace_env["home_dir"]
+
+        # Setup existing project commands directory with old command
+        project_commands = project_claude / "commands"
+        project_commands.mkdir()
+        (project_commands / "old-command.md").write_text("# Old Command")
+
+        # Marketplace has new commands from update
+        marketplace_commands = marketplace_plugin / "commands"
+        marketplace_commands.mkdir()
+        (marketplace_commands / "new-command-1.md").write_text("# New Command 1")
+        (marketplace_commands / "new-command-2.md").write_text("# New Command 2")
+        (marketplace_commands / "new-command-3.md").write_text("# New Command 3")
+
+        # Create plugin.json
+        (marketplace_plugin / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.10.0"
+        }))
+
+        # Run marketplace sync
+        with patch.dict(os.environ, {'HOME': str(home_dir)}):
+            dispatcher = SyncDispatcher(str(temp_marketplace_env["project_root"]))
+            result = dispatcher.dispatch(SyncMode.MARKETPLACE)
+
+        # CRITICAL ASSERTIONS: New commands must be copied
+        assert (project_commands / "new-command-1.md").exists(), \
+            "New command 1 was not copied from marketplace (Issue #97 regression)"
+        assert (project_commands / "new-command-2.md").exists(), \
+            "New command 2 was not copied from marketplace (Issue #97 regression)"
+        assert (project_commands / "new-command-3.md").exists(), \
+            "New command 3 was not copied from marketplace (Issue #97 regression)"
+
+        # Old command should still exist
+        assert (project_commands / "old-command.md").exists(), \
+            "Old command was deleted (should be preserved)"
+
+        # Result should show success
+        assert result.success is True, f"Sync failed: {result.message}"
+
+        # File count should reflect new files (at least 3)
+        if "files_updated" in result.details:
+            assert result.details["files_updated"] >= 3, \
+                f"Expected at least 3 files updated, got {result.details['files_updated']}"
+
+    def test_marketplace_sync_audit_logs_file_operations(self, temp_marketplace_env):
+        """Test marketplace sync with _sync_directory logs individual file operations.
+
+        REQUIREMENT: Audit logging must capture actual files copied for security tracking.
+        Expected: audit_log() called for each file operation, not just directories.
+
+        TDD RED PHASE: This test will FAIL until _sync_directory() adds audit logging.
+        """
+        project_claude = temp_marketplace_env["project_claude"]
+        marketplace_plugin = temp_marketplace_env["marketplace_plugin"]
+        home_dir = temp_marketplace_env["home_dir"]
+
+        # Setup marketplace commands
+        marketplace_commands = marketplace_plugin / "commands"
+        marketplace_commands.mkdir()
+        (marketplace_commands / "cmd1.md").write_text("# Command 1")
+        (marketplace_commands / "cmd2.md").write_text("# Command 2")
+
+        # Create plugin.json
+        (marketplace_plugin / "plugin.json").write_text(json.dumps({
+            "name": "autonomous-dev",
+            "version": "3.10.0"
+        }))
+
+        # Track audit log calls
+        with patch.dict(os.environ, {'HOME': str(home_dir)}):
+            with patch('plugins.autonomous_dev.lib.sync_dispatcher.audit_log') as mock_audit:
+                dispatcher = SyncDispatcher(str(temp_marketplace_env["project_root"]))
+                result = dispatcher.dispatch(SyncMode.MARKETPLACE)
+
+                # Should have audit logs for file operations
+                audit_calls = [str(call) for call in mock_audit.call_args_list]
+
+                # Look for file-level logging (not just directory-level)
+                file_related_logs = [
+                    call for call in audit_calls
+                    if any(keyword in call.lower() for keyword in ['file', 'copy', 'sync'])
+                ]
+
+                assert len(file_related_logs) > 0, \
+                    "No audit logs for file operations (expected detailed logging)"
+
+                # Verify at least one log mentions actual file operations
+                assert any('marketplace' in call.lower() for call in audit_calls), \
+                    "No audit logs mention marketplace sync"

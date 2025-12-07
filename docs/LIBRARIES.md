@@ -403,9 +403,9 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 5. sync_dispatcher.py (976 lines, v3.7.1+)
+## 5. sync_dispatcher.py (1117 lines, v3.7.1+)
 
-**Purpose**: Intelligent sync orchestration with version detection and cleanup
+**Purpose**: Intelligent sync orchestration with version detection and cleanup (Issue #97: Fixed sync directory silent failures)
 
 ### Classes
 
@@ -427,6 +427,27 @@ See `docs/SECURITY.md` for comprehensive security guide
   - `summary` (str): Auto-generated comprehensive summary including version and cleanup info
 
 ### Functions
+
+#### `SyncDispatcher._sync_directory(src, dst, pattern, description)` (v3.37.1+)
+- **Purpose**: Sync directory with per-file operations (fixes Issue #97 shutil.copytree bug)
+- **Parameters**:
+  - `src` (Path): Source directory path
+  - `dst` (Path): Destination directory path
+  - `pattern` (str): File pattern to match (e.g., "*.md", "*.py", default "*")
+  - `description` (str): Human-readable description for logging
+- **Returns**: `int` - Number of files successfully copied
+- **Raises**: `ValueError` if source doesn't exist or path validation fails
+- **Features**:
+  - Replaces buggy `shutil.copytree(dirs_exist_ok=True)` which silently fails to copy new files
+  - Uses `FileDiscovery` to enumerate all matching files
+  - Per-file copy operations with `copy2()` to preserve metadata
+  - Preserves directory structure via `relative_to()` and mkdir parents
+  - Security: Validates paths to prevent CWE-22 (path traversal) and CWE-59 (symlink attacks)
+  - Continues on individual file errors (doesn't fail entire sync)
+  - Audit logging per operation for debugging
+- **Examples**:
+  - `files = dispatcher._sync_directory(plugin_dir / "commands", claude_dir / "commands", "*.md", "command files")`
+  - `files = dispatcher._sync_directory(plugin_dir / "hooks", claude_dir / "hooks", "*.py", "hook files")`
 
 #### `SyncDispatcher.sync(mode, project_root, cleanup_orphans)`
 - **Purpose**: Main entry point for sync operations

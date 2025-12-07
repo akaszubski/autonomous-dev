@@ -670,3 +670,204 @@ class TestErrorHandling:
             assert result.success is False
             # But should include environment success in details
             assert "environment" in result.details or "ENVIRONMENT" in str(result.details)
+
+
+class TestSyncDirectoryHelper:
+    """Test _sync_directory helper method for Issue #97 bug fix.
+
+    Issue: shutil.copytree(dirs_exist_ok=True) silently fails to copy new files
+    when the destination directory already exists. This causes sync to report
+    success but not actually update files.
+
+    Solution: Replace with per-file operations using _sync_directory() helper
+    that copies files individually and reports accurate counts.
+    """
+
+    @pytest.fixture
+    def temp_sync_env(self, tmp_path):
+        """Create source and destination directories for sync testing."""
+        src = tmp_path / "source"
+        src.mkdir()
+        dst = tmp_path / "destination"
+        dst.mkdir()
+
+        return {"src": src, "dst": dst, "tmp_path": tmp_path}
+
+    def test_sync_directory_helper_copies_with_pattern(self, temp_sync_env):
+        """Test _sync_directory copies only files matching pattern.
+
+        REQUIREMENT: Helper must support filtering by file pattern (*.md, *.py).
+        Expected: Only matching files copied, non-matching files ignored.
+
+        TDD RED PHASE: This test will FAIL until _sync_directory() is implemented.
+        """
+        src = temp_sync_env["src"]
+        dst = temp_sync_env["dst"]
+
+        # Create test files
+        (src / "command1.md").write_text("# Command 1")
+        (src / "command2.md").write_text("# Command 2")
+        (src / "script.py").write_text("print('hello')")
+        (src / "README.txt").write_text("Not a match")
+
+        # Test pattern filtering (*.md only)
+        dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+        files_copied = dispatcher._sync_directory(src, dst, pattern="*.md")
+
+        # Should copy only .md files
+        assert files_copied == 2
+        assert (dst / "command1.md").exists()
+        assert (dst / "command2.md").exists()
+        assert not (dst / "script.py").exists()
+        assert not (dst / "README.txt").exists()
+
+    def test_sync_directory_reports_files_copied(self, temp_sync_env):
+        """Test _sync_directory reports accurate count of files copied.
+
+        REQUIREMENT: File counts must be accurate (not inflated by existing files).
+        Expected: Return value equals actual number of files copied/updated.
+
+        TDD RED PHASE: This test will FAIL until _sync_directory() is implemented.
+        """
+        src = temp_sync_env["src"]
+        dst = temp_sync_env["dst"]
+
+        # Create source files
+        (src / "file1.py").write_text("print(1)")
+        (src / "file2.py").write_text("print(2)")
+        (src / "file3.py").write_text("print(3)")
+
+        # First sync - all files copied
+        dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+        files_copied = dispatcher._sync_directory(src, dst, pattern="*.py")
+        assert files_copied == 3
+
+        # Second sync - no changes, should report 0 or 3 depending on implementation
+        # (Either "0 new files" or "3 files updated" is acceptable)
+        files_copied_again = dispatcher._sync_directory(src, dst, pattern="*.py")
+        assert isinstance(files_copied_again, int)
+        assert files_copied_again >= 0  # Valid count
+
+    def test_sync_directory_handles_errors_gracefully(self, temp_sync_env):
+        """Test _sync_directory continues on individual file errors.
+
+        REQUIREMENT: Don't fail entire sync if one file has permission error.
+        Expected: Copy other files successfully, log error, return partial count.
+
+        TDD RED PHASE: This test will FAIL until error handling is implemented.
+        """
+        src = temp_sync_env["src"]
+        dst = temp_sync_env["dst"]
+
+        # Create test files
+        (src / "good1.py").write_text("print(1)")
+        (src / "good2.py").write_text("print(2)")
+
+        # Mock one file to raise permission error
+        with patch('shutil.copy2') as mock_copy:
+            def side_effect(src_file, dst_file):
+                if 'good1' in str(src_file):
+                    raise PermissionError("Access denied")
+                # Actually copy good2.py
+                import shutil
+                shutil.copy2(src_file, dst_file)
+
+            mock_copy.side_effect = side_effect
+
+            dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+            files_copied = dispatcher._sync_directory(src, dst, pattern="*.py")
+
+            # Should copy good2.py despite good1.py error
+            assert files_copied >= 1  # At least one file succeeded
+            assert (dst / "good2.py").exists()
+
+    def test_sync_detects_new_files_in_existing_directory(self, temp_sync_env):
+        """Test sync detects and copies new files when directory already exists.
+
+        REGRESSION TEST for Issue #97: shutil.copytree(dirs_exist_ok=True) bug
+
+        REQUIREMENT: When destination directory exists, new files must still be copied.
+        Expected: New files appear in destination, file count is accurate.
+
+        This is the PRIMARY regression test for Issue #97.
+
+        TDD RED PHASE: This test will FAIL until copytree is replaced with _sync_directory().
+        """
+        src = temp_sync_env["src"]
+        dst = temp_sync_env["dst"]
+
+        # Initial state: destination has old files
+        (dst / "old_command.md").write_text("# Old Command")
+
+        # Source has new files
+        (src / "new_command1.md").write_text("# New Command 1")
+        (src / "new_command2.md").write_text("# New Command 2")
+
+        # Sync should detect and copy new files
+        dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+        files_copied = dispatcher._sync_directory(src, dst, pattern="*.md")
+
+        # CRITICAL ASSERTION: New files must be copied
+        assert (dst / "new_command1.md").exists(), "New file 1 was not copied (Issue #97 regression)"
+        assert (dst / "new_command2.md").exists(), "New file 2 was not copied (Issue #97 regression)"
+
+        # File count should reflect actual new files
+        assert files_copied >= 2, f"Expected at least 2 files copied, got {files_copied}"
+
+        # Old file should still exist
+        assert (dst / "old_command.md").exists(), "Old file was deleted (should be preserved)"
+
+    def test_sync_directory_creates_destination_if_missing(self, temp_sync_env):
+        """Test _sync_directory creates destination directory if it doesn't exist.
+
+        REQUIREMENT: Auto-create destination for first-time sync.
+        Expected: Destination directory created, files copied successfully.
+
+        TDD RED PHASE: This test will FAIL until _sync_directory() is implemented.
+        """
+        src = temp_sync_env["src"]
+        dst_parent = temp_sync_env["tmp_path"] / "new_location"
+        dst = dst_parent / "commands"
+
+        # Destination doesn't exist yet
+        assert not dst.exists()
+
+        # Create source files
+        (src / "command.md").write_text("# Command")
+
+        # Sync should create destination
+        dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+        files_copied = dispatcher._sync_directory(src, dst, pattern="*.md")
+
+        # Destination should be created and file copied
+        assert dst.exists(), "Destination directory was not created"
+        assert (dst / "command.md").exists(), "File was not copied"
+        assert files_copied == 1
+
+    def test_sync_directory_handles_nested_directories(self, temp_sync_env):
+        """Test _sync_directory preserves directory structure when copying.
+
+        REQUIREMENT: Maintain subdirectory structure in destination.
+        Expected: Nested files appear in same relative paths.
+
+        TDD RED PHASE: This test will FAIL until nested directory handling is implemented.
+        """
+        src = temp_sync_env["src"]
+        dst = temp_sync_env["dst"]
+
+        # Create nested structure
+        (src / "subdir1").mkdir()
+        (src / "subdir1" / "file1.py").write_text("print(1)")
+        (src / "subdir2").mkdir()
+        (src / "subdir2" / "file2.py").write_text("print(2)")
+        (src / "root.py").write_text("print('root')")
+
+        # Sync should preserve structure
+        dispatcher = SyncDispatcher(str(temp_sync_env["tmp_path"]))
+        files_copied = dispatcher._sync_directory(src, dst, pattern="*.py")
+
+        # Check structure is preserved
+        assert (dst / "subdir1" / "file1.py").exists()
+        assert (dst / "subdir2" / "file2.py").exists()
+        assert (dst / "root.py").exists()
+        assert files_copied == 3

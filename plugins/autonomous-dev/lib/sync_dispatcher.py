@@ -45,6 +45,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from shutil import copy2, copytree
 from typing import Dict, Any, List, Optional
 
 # Add parent directory for imports
@@ -61,6 +62,7 @@ from plugins.autonomous_dev.lib.orphan_file_cleaner import (
     cleanup_orphans as cleanup_orphan_files,
     CleanupResult,
 )
+from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
 
 
 @dataclass
@@ -306,6 +308,118 @@ class SyncDispatcher:
                 error=str(e),
             )
 
+    def _sync_directory(
+        self,
+        src: Path,
+        dst: Path,
+        pattern: str = "*",
+        description: str = "files"
+    ) -> int:
+        """Sync directory with per-file operations (Issue #97 fix).
+
+        Replaces shutil.copytree() which silently fails to copy new files
+        when destination directory already exists (dirs_exist_ok=True bug).
+
+        This method uses FileDiscovery + per-file shutil.copy2() to ensure
+        all files are copied, even when destination directory exists.
+
+        Args:
+            src: Source directory path
+            dst: Destination directory path
+            pattern: File pattern to match (e.g., "*.md", "*.py")
+            description: Human-readable description for logging
+
+        Returns:
+            Number of files successfully copied
+
+        Raises:
+            ValueError: If src doesn't exist or path validation fails
+
+        Example:
+            >>> files_copied = self._sync_directory(
+            ...     src=plugin_dir / "commands",
+            ...     dst=claude_dir / "commands",
+            ...     pattern="*.md",
+            ...     description="command files"
+            ... )
+        """
+        # Validate source exists
+        if not src.exists():
+            audit_log(
+                "sync_directory",
+                "source_not_found",
+                {
+                    "src": str(src),
+                    "dst": str(dst),
+                    "pattern": pattern,
+                }
+            )
+            return 0
+
+        # Create destination directory if it doesn't exist
+        dst.mkdir(parents=True, exist_ok=True)
+
+        # Discover files matching pattern
+        discovery = FileDiscovery(src)
+        all_files = discovery.discover_all_files()
+
+        # Filter by pattern using Path.match()
+        import fnmatch
+        matching_files = [
+            f for f in all_files
+            if fnmatch.fnmatch(f.name, pattern) or pattern == "*"
+        ]
+
+        # Copy files individually
+        files_copied = 0
+        errors = []
+
+        for file_path in matching_files:
+            try:
+                # Get relative path to preserve directory structure
+                relative = file_path.relative_to(src)
+                dest_path = dst / relative
+
+                # Create parent directories
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Security: Validate file path (prevents CWE-22)
+                validate_path(file_path, purpose="sync source file")
+
+                # Copy file without following symlinks (prevents CWE-59)
+                copy2(file_path, dest_path, follow_symlinks=False)
+
+                files_copied += 1
+
+            except Exception as e:
+                error_msg = f"Error copying {file_path}: {e}"
+                errors.append(error_msg)
+                audit_log(
+                    "sync_directory",
+                    "file_copy_error",
+                    {
+                        "file": str(file_path),
+                        "error": str(e),
+                    }
+                )
+                # Continue on error (don't fail entire sync)
+                continue
+
+        # Audit log summary
+        audit_log(
+            "sync_directory",
+            "completed",
+            {
+                "src": str(src),
+                "dst": str(dst),
+                "pattern": pattern,
+                "files_copied": files_copied,
+                "errors": len(errors),
+            }
+        )
+
+        return files_copied
+
     def _dispatch_environment(self) -> SyncResult:
         """Dispatch environment sync to sync-validator agent.
 
@@ -365,7 +479,8 @@ class SyncDispatcher:
         """
         # Find installed plugin
         home = Path.home()
-        marketplace_dir = home / ".claude" / "plugins" / "marketplaces" / "autonomous-dev"
+        marketplace_base = home / ".claude" / "plugins" / "marketplaces" / "autonomous-dev"
+        marketplace_dir = marketplace_base / "plugins" / "autonomous-dev"
 
         # SECURITY: Validate marketplace path to prevent symlink attacks (CWE-59)
         try:
@@ -398,19 +513,21 @@ class SyncDispatcher:
         # Copy commands, hooks, and other config files
         files_updated = 0
         try:
-            # Copy commands
+            # Copy commands (using _sync_directory to fix Issue #97)
             commands_src = marketplace_dir / "commands"
             commands_dst = claude_dir / "commands"
             if commands_src.exists():
-                shutil.copytree(commands_src, commands_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in commands_dst.rglob("*.md"))
+                files_updated += self._sync_directory(
+                    commands_src, commands_dst, pattern="*.md", description="command files"
+                )
 
-            # Copy hooks
+            # Copy hooks (using _sync_directory to fix Issue #97)
             hooks_src = marketplace_dir / "hooks"
             hooks_dst = claude_dir / "hooks"
             if hooks_src.exists():
-                shutil.copytree(hooks_src, hooks_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in hooks_dst.rglob("*.py"))
+                files_updated += self._sync_directory(
+                    hooks_src, hooks_dst, pattern="*.py", description="hook files"
+                )
 
             return SyncResult(
                 success=True,
@@ -477,26 +594,29 @@ class SyncDispatcher:
         # Copy plugin files to .claude/
         files_updated = 0
         try:
-            # Copy commands
+            # Copy commands (using _sync_directory to fix Issue #97)
             commands_src = plugin_dir / "commands"
             commands_dst = claude_dir / "commands"
             if commands_src.exists():
-                shutil.copytree(commands_src, commands_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in commands_dst.rglob("*.md"))
+                files_updated += self._sync_directory(
+                    commands_src, commands_dst, pattern="*.md", description="command files"
+                )
 
-            # Copy hooks
+            # Copy hooks (using _sync_directory to fix Issue #97)
             hooks_src = plugin_dir / "hooks"
             hooks_dst = claude_dir / "hooks"
             if hooks_src.exists():
-                shutil.copytree(hooks_src, hooks_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in hooks_dst.rglob("*.py"))
+                files_updated += self._sync_directory(
+                    hooks_src, hooks_dst, pattern="*.py", description="hook files"
+                )
 
-            # Copy agents (if needed for local development)
+            # Copy agents (if needed for local development) (using _sync_directory to fix Issue #97)
             agents_src = plugin_dir / "agents"
             agents_dst = claude_dir / "agents"
             if agents_src.exists():
-                shutil.copytree(agents_src, agents_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in agents_dst.rglob("*.md"))
+                files_updated += self._sync_directory(
+                    agents_src, agents_dst, pattern="*.md", description="agent files"
+                )
 
             return SyncResult(
                 success=True,
@@ -751,30 +871,33 @@ class SyncDispatcher:
             plugin_json_src = Path(plugin_path) / "plugin.json"
             plugin_json_dst = plugins_dir / "plugin.json"
             if plugin_json_src.exists():
-                shutil.copy2(plugin_json_src, plugin_json_dst)
+                copy2(plugin_json_src, plugin_json_dst)
                 files_updated += 1
 
-            # Copy files (same logic as _dispatch_marketplace)
+            # Copy files (same logic as _dispatch_marketplace, using _sync_directory to fix Issue #97)
             # Copy commands
             commands_src = Path(plugin_path) / "commands"
             commands_dst = claude_dir / "commands"
             if commands_src.exists():
-                shutil.copytree(commands_src, commands_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in commands_dst.rglob("*.md"))
+                files_updated += self._sync_directory(
+                    commands_src, commands_dst, pattern="*.md", description="command files"
+                )
 
             # Copy hooks
             hooks_src = Path(plugin_path) / "hooks"
             hooks_dst = claude_dir / "hooks"
             if hooks_src.exists():
-                shutil.copytree(hooks_src, hooks_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in hooks_dst.rglob("*.py"))
+                files_updated += self._sync_directory(
+                    hooks_src, hooks_dst, pattern="*.py", description="hook files"
+                )
 
             # Copy agents
             agents_src = Path(plugin_path) / "agents"
             agents_dst = claude_dir / "agents"
             if agents_src.exists():
-                shutil.copytree(agents_src, agents_dst, dirs_exist_ok=True)
-                files_updated += sum(1 for _ in agents_dst.rglob("*.md"))
+                files_updated += self._sync_directory(
+                    agents_src, agents_dst, pattern="*.md", description="agent files"
+                )
 
         except Exception as e:
             # Core sync failed - return failure
@@ -875,7 +998,7 @@ class SyncDispatcher:
 
         # Copy .claude directory to backup
         backup_claude = self._backup_dir / ".claude"
-        shutil.copytree(claude_dir, backup_claude)
+        copytree(claude_dir, backup_claude)
 
         audit_log(
             "sync_backup",
@@ -901,10 +1024,11 @@ class SyncDispatcher:
 
         # Remove current .claude directory
         if claude_dir.exists():
-            shutil.rmtree(claude_dir)
+            from shutil import rmtree
+            rmtree(claude_dir)
 
         # Restore from backup
-        shutil.copytree(backup_claude, claude_dir)
+        copytree(backup_claude, claude_dir)
 
         audit_log(
             "sync_rollback",

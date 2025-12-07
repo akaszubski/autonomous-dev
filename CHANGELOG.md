@@ -1,3 +1,28 @@
+## [v3.37.1] - 2025-12-07
+
+### Fixed
+
+- **Sync Directory Silent Failures** - Issue #97
+  - **Problem**: `/sync` command silently failed to copy new files when destination directory already existed. Root cause: `shutil.copytree(dirs_exist_ok=True)` has a known Python bug where it skips files if the destination directory contains any previous content.
+  - **Solution**: Implemented `_sync_directory()` helper method with per-file operations
+    - Uses `FileDiscovery` to enumerate all files matching pattern (*.md, *.py)
+    - Replaces buggy `shutil.copytree()` with `copy2()` for individual files
+    - Preserves directory structure via `relative_to()` and mkdir parents
+    - Validates paths to prevent CWE-22 (path traversal) and CWE-59 (symlink attacks)
+    - Continues on individual file errors (doesn't fail entire sync)
+  - **Impact**:
+    - Fixes silent failures affecting marketplace sync, environment sync, and plugin dev sync
+    - New files in commands/, hooks/, agents/ now copied correctly even when directories exist
+    - Enhanced error reporting with audit logging per file
+  - **Code Changes**:
+    - `sync_dispatcher.py`: New method `_sync_directory()` (118 lines)
+    - Replaced all `shutil.copytree()` calls (5 instances) with `_sync_directory()`
+    - Fixed marketplace path detection (adds `plugins/autonomous-dev/` to path)
+    - Line count: 976 → 1117 lines
+  - **Related**: GitHub Issue #97
+
+---
+
 ## [v3.37.0] - 2025-12-07
 
 ### Added
