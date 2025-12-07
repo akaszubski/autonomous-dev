@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
 **Last Updated**: 2025-12-07
-**Total Hooks**: 43 (added session_tracker.py - Issue #84)
+**Total Hooks**: 44 (added mcp_security_enforcer.py - Issue #95)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -14,9 +14,9 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ---
 
-## Core Hooks (12)
+## Core Hooks (13)
 
-Essential hooks for autonomous development workflow.
+Essential hooks for autonomous development workflow and security enforcement.
 
 ### auto_format.py
 
@@ -90,6 +90,14 @@ Essential hooks for autonomous development workflow.
 **Action**: Writes agent actions to docs/sessions/ instead of conversation
 **Lifecycle**: SubagentStop
 **Location**: `plugins/autonomous-dev/hooks/session_tracker.py`
+
+### mcp_security_enforcer.py
+
+**Purpose**: MCP server security validation with permission whitelisting (Issue #95)
+**Validates**: Filesystem, shell, network, and environment variable operations
+**Lifecycle**: PreToolUse (intercepts MCP tool calls before execution)
+**Location**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py`
+**Configuration**: `.mcp/security_policy.json`
 
 ---
 

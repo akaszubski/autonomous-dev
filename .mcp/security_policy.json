@@ -1,0 +1,159 @@
+{
+  "profile": "development",
+  "description": "Permissive policy for local development. Allows most operations within project directory.",
+  "version": "1.0.0",
+  "filesystem": {
+    "allowed_paths": [
+      "src/**/*",
+      "tests/**/*",
+      "docs/**/*",
+      "plugins/**/*",
+      ".claude/**/*",
+      ".mcp/**/*",
+      "logs/**/*",
+      "*.md",
+      "*.json",
+      "*.yaml",
+      "*.toml",
+      "*.py",
+      "*.js",
+      "*.ts"
+    ],
+    "denied_paths": [
+      "**/.env",
+      "**/.env.*",
+      "**/.git/**",
+      "**/.ssh/**",
+      "**/secrets/**",
+      "**/credentials/**",
+      "**/*.pem",
+      "**/*.key",
+      "**/id_rsa*",
+      "**/id_ed25519*"
+    ]
+  },
+  "shell": {
+    "allowed_commands": [
+      "git",
+      "gh",
+      "pytest",
+      "python",
+      "python3",
+      "pip",
+      "uv",
+      "npm",
+      "npx",
+      "pnpm",
+      "make",
+      "grep",
+      "find",
+      "ls",
+      "cat",
+      "echo",
+      "pwd",
+      "whoami"
+    ],
+    "denied_patterns": [
+      "rm -rf /*",
+      "rm -rf /",
+      "sudo",
+      "chmod 777",
+      "chmod -R 777",
+      "curl *|*bash",
+      "wget *|*bash",
+      "curl *|*sh",
+      "wget *|*sh"
+    ]
+  },
+  "web": {
+    "allowed_domains": [
+      "github.com",
+      "api.github.com",
+      "raw.githubusercontent.com",
+      "search.brave.com",
+      "pypi.org",
+      "npmjs.com",
+      "registry.npmjs.org",
+      "conventionalcommits.org",
+      "modelcontextprotocol.io",
+      "stackoverflow.com",
+      "docs.python.org"
+    ],
+    "blocked_ips": [
+      "127.0.0.1",
+      "127.*",
+      "192.168.*",
+      "10.*",
+      "172.16.*",
+      "172.17.*",
+      "172.18.*",
+      "172.19.*",
+      "172.20.*",
+      "172.21.*",
+      "172.22.*",
+      "172.23.*",
+      "172.24.*",
+      "172.25.*",
+      "172.26.*",
+      "172.27.*",
+      "172.28.*",
+      "172.29.*",
+      "172.30.*",
+      "172.31.*",
+      "169.254.*",
+      "::1",
+      "fc00::",
+      "fe80::"
+    ]
+  },
+  "github": {
+    "allowed_operations": [
+      "list_repos",
+      "get_file",
+      "create_issue",
+      "update_issue",
+      "create_pr",
+      "list_prs",
+      "get_pr",
+      "create_comment",
+      "list_workflow_runs",
+      "get_workflow_run"
+    ],
+    "denied_operations": [
+      "delete_repo",
+      "transfer_repo",
+      "delete_branch"
+    ],
+    "allowed_repos": [
+      "akaszubski/autonomous-dev"
+    ]
+  },
+  "python": {
+    "allowed_imports": [
+      "os",
+      "sys",
+      "pathlib",
+      "json",
+      "yaml",
+      "toml",
+      "re",
+      "typing",
+      "dataclasses",
+      "pytest",
+      "unittest"
+    ],
+    "denied_imports": [
+      "subprocess.run(..., shell=True)",
+      "eval",
+      "exec",
+      "__import__"
+    ],
+    "max_execution_time_seconds": 30
+  },
+  "audit": {
+    "enabled": true,
+    "log_file": "logs/mcp_audit.log",
+    "log_denied_only": false,
+    "log_format": "json"
+  }
+}

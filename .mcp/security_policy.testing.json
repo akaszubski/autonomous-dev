@@ -1,0 +1,142 @@
+{
+  "profile": "testing",
+  "description": "Moderate policy for testing environments. Restricts file access to project directories only.",
+  "version": "1.0.0",
+  "filesystem": {
+    "allowed_paths": [
+      "src/**/*",
+      "tests/**/*",
+      "docs/**/*",
+      "plugins/autonomous-dev/**/*",
+      ".claude/PROJECT.md",
+      "pytest.ini",
+      "pyproject.toml",
+      "README.md"
+    ],
+    "denied_paths": [
+      "**/.env*",
+      "**/.git/**",
+      "**/.ssh/**",
+      "**/secrets/**",
+      "**/credentials/**",
+      "**/*.pem",
+      "**/*.key",
+      "**/id_rsa*",
+      "**/id_ed25519*",
+      "~/**",
+      "/etc/**",
+      "/usr/**",
+      "/var/**"
+    ]
+  },
+  "shell": {
+    "allowed_commands": [
+      "git status",
+      "git diff",
+      "git log",
+      "pytest",
+      "python -m pytest",
+      "grep",
+      "find",
+      "ls",
+      "cat",
+      "pwd"
+    ],
+    "denied_patterns": [
+      "rm",
+      "sudo",
+      "chmod",
+      "chown",
+      "curl",
+      "wget",
+      "nc",
+      "netcat",
+      "ssh",
+      "scp"
+    ]
+  },
+  "web": {
+    "allowed_domains": [
+      "github.com",
+      "api.github.com",
+      "pypi.org",
+      "conventionalcommits.org",
+      "modelcontextprotocol.io"
+    ],
+    "blocked_ips": [
+      "127.0.0.1",
+      "127.*",
+      "192.168.*",
+      "10.*",
+      "172.16.*",
+      "172.17.*",
+      "172.18.*",
+      "172.19.*",
+      "172.20.*",
+      "172.21.*",
+      "172.22.*",
+      "172.23.*",
+      "172.24.*",
+      "172.25.*",
+      "172.26.*",
+      "172.27.*",
+      "172.28.*",
+      "172.29.*",
+      "172.30.*",
+      "172.31.*",
+      "169.254.*",
+      "::1",
+      "fc00::",
+      "fe80::"
+    ]
+  },
+  "github": {
+    "allowed_operations": [
+      "list_repos",
+      "get_file",
+      "list_prs",
+      "get_pr",
+      "list_workflow_runs",
+      "get_workflow_run"
+    ],
+    "denied_operations": [
+      "delete_repo",
+      "transfer_repo",
+      "delete_branch",
+      "create_issue",
+      "update_issue",
+      "create_pr",
+      "merge_pr",
+      "delete_issue"
+    ],
+    "allowed_repos": [
+      "akaszubski/autonomous-dev"
+    ]
+  },
+  "python": {
+    "allowed_imports": [
+      "os.path",
+      "sys",
+      "pathlib",
+      "json",
+      "re",
+      "typing",
+      "pytest"
+    ],
+    "denied_imports": [
+      "subprocess",
+      "eval",
+      "exec",
+      "__import__",
+      "os.system",
+      "os.popen"
+    ],
+    "max_execution_time_seconds": 10
+  },
+  "audit": {
+    "enabled": true,
+    "log_file": "logs/mcp_audit.log",
+    "log_denied_only": false,
+    "log_format": "json"
+  }
+}

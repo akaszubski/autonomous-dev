@@ -1,32 +1,66 @@
 {
-  "servers": {
+  "mcpServers": {
     "filesystem": {
-      "type": "mcp-filesystem",
-      "root": "~/Documents/GitHub/autonomous-dev",
-      "permissions": ["read", "write"]
-    },
-    "shell": {
-      "type": "mcp-shell",
-      "workingDirectory": "~/Documents/GitHub/autonomous-dev",
-      "allowedCommands": [
-        "git",
-        "gh",
-        "~/Documents/GitHub/autonomous-dev/venv/bin/python",
-        "bash",
-        "zsh",
-        "pnpm",
-        "npm",
-        "make"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
       ]
     },
     "git": {
-      "type": "mcp-git",
-      "repoRoot": "~/Documents/GitHub/autonomous-dev"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git",
+        "--repository",
+        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+      ]
     },
-    "python": {
-      "type": "mcp-python",
-      "interpreter": "~/Documents/GitHub/autonomous-dev/venv/bin/python",
-      "venv": "~/Documents/GitHub/autonomous-dev/venv"
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_TOOLSETS=repos,issues,pull_requests,actions",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_TOOLSETS": "repos,issues,pull_requests,actions"
+      }
+    },
+    "python-repl": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "mcp-python",
+        "mcp_python"
+      ]
+    },
+    "bash": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "mcp-bash",
+        "mcp-bash"
+      ]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@brave/brave-search-mcp-server"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      }
     }
   }
 }

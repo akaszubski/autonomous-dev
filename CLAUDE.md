@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-12-07
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.36.0
+**Version**: v3.37.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -361,13 +361,13 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (43 total automation)
+### Hooks (44 total automation - added mcp_security_enforcer.py for Issue #95)
 
-43 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+44 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
-**Core Hooks** (11): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool
+**Core Hooks** (13): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool, session_tracker, mcp_security_enforcer
 
-**Optional Hooks** (20): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 5 others
+**Optional Hooks** (29): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 14 additional hooks for extended enforcement and validation
 
 **Lifecycle Hooks** (2): UserPromptSubmit (display context), SubagentStop (log completion, auto-update progress)
 
@@ -484,7 +484,7 @@ vim plugins/autonomous-dev/agents/[agent].md
 
 ## MCP Server (Optional)
 
-For enhanced Claude Desktop integration, configure the MCP server:
+For enhanced Claude Desktop integration, configure the MCP server with optional security policy.
 
 **Location**: `.mcp/config.json`
 
@@ -494,9 +494,47 @@ For enhanced Claude Desktop integration, configure the MCP server:
 - Git operations (status, diff, commit)
 - Python interpreter (with virtualenv)
 
+### MCP Security (v3.37.0+, Issue #95)
+
+Permission-based security system for MCP server operations (prevents path traversal, command injection, SSRF).
+
+**Quick Start**:
+```bash
+# 1. Initialize security policy (choose one)
+python plugins/autonomous-dev/lib/mcp_profile_manager.py --init development
+# OR
+python plugins/autonomous-dev/lib/mcp_profile_manager.py --init testing
+# OR
+python plugins/autonomous-dev/lib/mcp_profile_manager.py --init production
+
+# 2. Validate policy
+python plugins/autonomous-dev/lib/mcp_permission_validator.py --validate .mcp/security_policy.json
+
+# 3. Test operations
+python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-read "src/main.py"
+python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-shell "pytest tests/"
+```
+
+**Security Features**:
+- Whitelist-based permission system (allowlist + denylist)
+- Glob pattern matching for flexible permissions
+- Prevents CWE-22 (path traversal), CWE-59 (symlinks), CWE-78 (injection), SSRF
+- Blocks sensitive files (.env, .git, .ssh, secrets)
+- Audit logging for all operations
+
+**Configuration**:
+- Policy file: `.mcp/security_policy.json`
+- Profiles: development (permissive), testing (moderate), production (strict)
+- Fallback: Development profile if policy file not found
+
+**Validation Hooks**:
+- `mcp_security_enforcer.py` - PreToolUse hook intercepts and validates all MCP operations
+
+**Documentation**: See [MCP-SECURITY.md](docs/MCP-SECURITY.md) for comprehensive guide
+
 **Setup**:
 ```bash
-# See .mcp/README.md for full setup instructions
+# See .mcp/README.md for full MCP setup instructions
 ```
 
 ---

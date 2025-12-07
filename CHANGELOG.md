@@ -1,3 +1,71 @@
+## [v3.37.0] - 2025-12-07
+
+### Added
+
+- **MCP Server Security - Permission Whitelist System** - Issue #95
+  - **Feature**: Permission-based security validation for MCP server operations to prevent path traversal, command injection, SSRF, and secret exposure
+  - **Architecture**:
+    - New library: `mcp_permission_validator.py` (862 lines) - Permission validation with whitelist-based approach
+    - New library: `mcp_profile_manager.py` (533 lines) - Pre-configured security profiles (development, testing, production)
+    - New hook: `mcp_security_enforcer.py` (372 lines, PreToolUse lifecycle) - Validates MCP operations before execution
+    - New policy file: `.mcp/security_policy.json` - Security policy configuration (auto-generated from profiles)
+  - **Security Coverage**:
+    - Prevents CWE-22 (path traversal): Detects and blocks `.., /etc/passwd, ../../.env` patterns
+    - Prevents CWE-59 (symlink attacks): Detects dangerous symlinks before file access
+    - Prevents CWE-78 (command injection): Detects shell metacharacters (`;`, `|`, `&`, `$(`, backticks)
+    - Prevents SSRF: Blocks localhost (`127.0.0.1`), private IPs (`10.0.0.0/8`), metadata services (`169.254.169.254`)
+    - Blocks secret exposure: Prevents access to API keys, tokens, database URLs, AWS credentials
+  - **Permission System**:
+    - Whitelist-based with allowlist + denylist support
+    - Glob pattern matching (`**`, `*`, `?`, negation with `!`)
+    - Five permission types: fs:read, fs:write, shell:execute, network:access, env:access
+  - **Pre-configured Profiles**:
+    - **Development** (most permissive): src/**, tests/**, docs/**, safe commands, all domains except metadata
+    - **Testing** (moderate): Read source only, write to tests/, pytest only, test APIs
+    - **Production** (strictest): Minimal read access, logs/** write, safe commands, production APIs
+  - **Behavior**:
+    - Whitelist-by-default: Deny operations not explicitly permitted
+    - Policy loading: Auto-loads `.mcp/security_policy.json` on PreToolUse hook
+    - Fallback: Uses development profile if policy file not found
+    - Audit logging: Records all validation decisions for compliance
+    - Non-blocking: Permission denials don't crash, just block operation
+  - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/mcp_permission_validator.py` (862 lines)
+      - Class: `ValidationResult` (dataclass with `approved`, `reason` fields)
+      - Class: `MCPPermissionValidator` with 5 validate_* methods
+      - Functions: Pattern matching, threat detection, audit logging
+      - Defense in depth: Glob patterns + sensitive file detection + injection patterns
+    - **NEW**: `plugins/autonomous-dev/lib/mcp_profile_manager.py` (533 lines)
+      - Enum: `ProfileType` (DEVELOPMENT, TESTING, PRODUCTION)
+      - Class: `SecurityProfile` (dataclass for policy structure)
+      - Class: `MCPProfileManager` for profile generation and I/O
+      - Functions: `generate_*_profile()` for each profile type, `customize_profile()`, `validate_profile_schema()`
+    - **NEW**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` (372 lines, PreToolUse)
+      - Class: `MCPSecurityEnforcer` - Main hook handler
+      - Class: `MCPAuditLogger` - Audit trail recording
+      - Auto-detects `.mcp/security_policy.json` from project root
+      - Validates all MCP tool operations
+  - **Testing**: 145 comprehensive tests across 4 test files
+    - Path traversal, injection, SSRF, secret blocking tests
+    - Profile generation, customization, validation tests
+    - Hook integration, policy loading, audit logging tests
+    - End-to-end workflow tests
+  - **Documentation Updated**:
+    - **NEW**: `docs/MCP-SECURITY.md` (1,000+ lines) - Comprehensive security guide
+      - Overview, quick start, configuration schema
+      - Security profiles with examples
+      - Permission validation API with code examples
+      - Security patterns and best practices
+      - Troubleshooting and migration guide
+      - Security considerations (audit trail, symlink attacks, injection, SSRF)
+    - **Updated**: `CLAUDE.md` - MCP Server section with security subsection
+    - **Updated**: `.mcp/README.md` - Security policy setup instructions
+    - **Updated**: `docs/LIBRARIES.md` - Added sections 35-36 for MCP libraries
+    - **Updated**: `docs/HOOKS.md` - Added mcp_security_enforcer.py hook (hook count 43→44, core hooks 12→13)
+  - **Related**: GitHub Issue #95, MCP Server security hardening, permission-based access control
+
+---
+
 ## [v3.36.0] - 2025-12-06
 
 ### Added

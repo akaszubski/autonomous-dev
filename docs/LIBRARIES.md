@@ -3,11 +3,11 @@
 **Last Updated**: 2025-12-07
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 32 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 37 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **32 shared libraries** organized into nine categories:
+The autonomous-dev plugin includes **37 shared libraries** organized into eleven categories:
 
 ### Core Libraries (20)
 
@@ -56,7 +56,13 @@ The autonomous-dev plugin includes **32 shared libraries** organized into nine c
 31. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
 32. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
 33. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-34. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment (32 total libraries)
+34. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+
+### MCP Security Libraries (3) - NEW in v3.37.0
+
+35. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
+36. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
+37. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
 
 ## Design Patterns
 
@@ -68,6 +74,7 @@ The autonomous-dev plugin includes **32 shared libraries** organized into nine c
 ## Related Documentation
 
 - [CLAUDE.md](../CLAUDE.md) - Main project documentation
+- [MCP-SECURITY.md](MCP-SECURITY.md) - MCP security configuration and API reference
 - [PERFORMANCE.md](PERFORMANCE.md) - Performance optimization tracking
 - [GIT-AUTOMATION.md](GIT-AUTOMATION.md) - Git automation workflow
 - [SECURITY.md](SECURITY.md) - Security hardening guide
@@ -3662,6 +3669,432 @@ All functions handle errors gracefully:
 
 **Optional Features**: Feature automation and other enhancements are controlled by flags/hooks
 
+## 35. mcp_permission_validator.py (862 lines, v3.37.0)
+
+**Purpose**: Security validation for MCP server operations with whitelist-based permission system
+
+**Issue**: #95 (MCP Server Security)
+
+### Classes
+
+#### `ValidationResult` (dataclass)
+
+Permission validation result.
+
+**Attributes**:
+- `approved: bool` - Whether operation is approved
+- `reason: Optional[str]` - Reason for denial (None if approved)
+
+**Methods**:
+- `to_dict() -> Dict[str, Any]` - Serialize to dictionary
+
+#### `MCPPermissionValidator` (862 lines)
+
+Main validation class for MCP operations.
+
+**Constructor**:
+```python
+validator = MCPPermissionValidator(policy_path: Optional[str] = None)
+```
+
+**Methods**:
+
+##### `validate_fs_read(path: str) -> ValidationResult`
+- Validates filesystem read operations
+- Checks glob patterns, sensitive files, path traversal
+- Returns approval/denial with reason
+- **Example**:
+  ```python
+  result = validator.validate_fs_read("src/main.py")
+  if result.approved:
+      with open("src/main.py") as f:
+          content = f.read()
+  ```
+
+##### `validate_fs_write(path: str) -> ValidationResult`
+- Validates filesystem write operations
+- Checks write patterns, prevents sensitive file overwrites
+- Returns approval/denial with reason
+
+##### `validate_shell_execute(command: str) -> ValidationResult`
+- Validates shell command execution
+- Checks allowed commands, detects injection patterns
+- Blocks semicolons, pipes, command substitution
+- Returns approval/denial with reason
+
+##### `validate_network_access(url: str) -> ValidationResult`
+- Validates network access requests
+- Blocks localhost, private IPs, metadata services
+- Checks domain allowlist
+- Returns approval/denial with reason
+
+##### `validate_env_access(var_name: str) -> ValidationResult`
+- Validates environment variable access
+- Blocks secret variables (API keys, tokens)
+- Checks variable allowlist
+- Returns approval/denial with reason
+
+##### `load_policy(policy: Dict[str, Any]) -> None`
+- Load security policy from dictionary
+- Validates policy structure
+- Updates validator state
+
+### Internal Methods
+
+**Glob Pattern Matching**:
+- `matches_glob_pattern(path: str, pattern: str) -> bool` - Glob matching with ** and * support
+
+**Threat Detection**:
+- `_is_path_traversal(path: str) -> bool` - Detects .. and absolute paths
+- `_is_dangerous_symlink(path: str) -> bool` - Blocks symlink attacks
+- `_has_command_injection(command: str) -> bool` - Detects shell metacharacters
+- `_is_private_ip(hostname: str) -> bool` - Blocks private IP ranges
+- `_is_sensitive_file(path: str) -> bool` - Hardcoded sensitive file detection
+
+**Pattern Matching**:
+- `_matches_any_pattern(path: str, patterns: List[str]) -> bool` - Check path against patterns
+- `_matches_any_domain(hostname: str, domains: List[str]) -> bool` - Check domain against patterns
+
+**Audit Logging**:
+- `_audit_log(operation: str, status: str, context: Dict[str, Any]) -> None` - Log all validation decisions
+
+### Module-level Functions
+
+Convenience functions for single-use validation:
+
+```python
+from autonomous_dev.lib.mcp_permission_validator import (
+    validate_fs_read,
+    validate_fs_write,
+    validate_shell_execute,
+    validate_network_access,
+    validate_env_access,
+    matches_glob_pattern
+)
+
+# Single operation validation
+result = validate_fs_read("src/main.py", policy_path=".mcp/security_policy.json")
+```
+
+### Default Security Policy
+
+If no policy file specified, uses safe development defaults:
+- Read: src/**, tests/**, docs/**, config files
+- Write: src/**, tests/**, docs/**
+- Shell: pytest, git, python, pip, npm, make
+- Network: All domains (except localhost/private)
+- Environment: Safe variables only
+
+### Security Coverage
+
+Prevents:
+- **CWE-22**: Path traversal (../../.env)
+- **CWE-59**: Symlink attacks
+- **CWE-78**: OS command injection
+- **SSRF**: Server-side request forgery
+- **Secret exposure**: API key/token access
+
+### Used By
+
+- `mcp_security_enforcer.py` hook - PreToolUse hook for MCP tool validation
+- Custom MCP server implementations
+- Permission validation workflows
+
+### Related
+
+- GitHub Issue #95 (MCP Server Security)
+- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+- `.mcp/security_policy.json` - Policy configuration file
+
+---
+
+## 36. mcp_profile_manager.py (533 lines, v3.37.0)
+
+**Purpose**: Pre-configured security profiles for MCP server operations
+
+**Issue**: #95 (MCP Server Security)
+
+### Enums
+
+#### `ProfileType`
+
+Pre-configured security profiles.
+
+**Values**:
+- `DEVELOPMENT` - Most permissive (local development)
+- `TESTING` - Moderate restrictions (CI/CD, test environments)
+- `PRODUCTION` - Strictest (production automation)
+
+**Methods**:
+- `from_string(value: str) -> ProfileType` - Parse string to enum
+
+### Dataclasses
+
+#### `SecurityProfile`
+
+Security profile configuration.
+
+**Attributes**:
+- `version: str` - Profile schema version
+- `profile: str` - Profile name (development, testing, production)
+- `filesystem: Dict[str, List[str]]` - Read/write allowlists
+- `shell: Dict[str, Any]` - Command allowlists
+- `network: Dict[str, List[str]]` - Domain/IP allowlists
+- `environment: Dict[str, List[str]]` - Variable allowlists
+
+**Methods**:
+- `from_dict(data: Dict[str, Any]) -> SecurityProfile` - Deserialize from dictionary
+- `to_dict() -> Dict[str, Any]` - Serialize to dictionary
+- `validate() -> ValidationResult` - Validate profile structure
+
+### Classes
+
+#### `MCPProfileManager`
+
+Manage and generate security profiles.
+
+**Constructor**:
+```python
+manager = MCPProfileManager()
+```
+
+**Methods**:
+
+##### `create_profile(profile_type: ProfileType) -> Dict[str, Any]`
+- Generate pre-configured profile
+- **Example**:
+  ```python
+  profile = manager.create_profile(ProfileType.DEVELOPMENT)
+  ```
+
+##### `save_profile(profile: Dict[str, Any], output_path: str) -> None`
+- Write profile to JSON file
+- **Example**:
+  ```python
+  manager.save_profile(profile, ".mcp/security_policy.json")
+  ```
+
+##### `load_profile(input_path: str) -> Dict[str, Any]`
+- Read profile from JSON file
+- Validates structure on load
+- **Example**:
+  ```python
+  profile = manager.load_profile(".mcp/security_policy.json")
+  ```
+
+### Profile Generation Functions
+
+Standalone functions for generating profiles:
+
+```python
+from autonomous_dev.lib.mcp_profile_manager import (
+    generate_development_profile,
+    generate_testing_profile,
+    generate_production_profile
+)
+
+dev = generate_development_profile()
+test = generate_testing_profile()
+prod = generate_production_profile()
+```
+
+#### `generate_development_profile() -> Dict[str, Any]`
+
+Most permissive profile for local development.
+
+**Permissions**:
+- Read: src/**, tests/**, docs/**, *.md, *.json, config files
+- Write: src/**, tests/**, docs/**
+- Shell: pytest, git, python, python3, pip, npm, make
+- Network: All domains (except localhost/private)
+- Environment: Safe variables only (PATH, HOME, USER, SHELL, LANG, PWD, TERM)
+- Blocks: .env, .git, .ssh, keys, tokens, secrets
+
+#### `generate_testing_profile() -> Dict[str, Any]`
+
+Moderate restrictions for CI/CD and test environments.
+
+**Permissions**:
+- Read: src/**, tests/**, config (no docs)
+- Write: tests/** only (read-only source)
+- Shell: pytest only
+- Network: Specific test APIs only
+- Environment: Test variables only
+
+#### `generate_production_profile() -> Dict[str, Any]`
+
+Strictest profile for production automation.
+
+**Permissions**:
+- Read: Specific paths only (no source)
+- Write: logs/**, data/** only
+- Shell: Safe read-only commands only
+- Network: Specific production APIs only
+- Environment: Production config only (no secrets)
+
+### Profile Customization
+
+#### `customize_profile(profile: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]`
+
+Customize profile with override values.
+
+**Example**:
+```python
+from autonomous_dev.lib.mcp_profile_manager import customize_profile
+
+custom = customize_profile(profile, {
+    "filesystem": {
+        "read": ["src/**", "config/**"]
+    },
+    "shell": {
+        "allowed_commands": ["pytest", "git", "poetry"]
+    }
+})
+```
+
+**Behavior**:
+- Deep merge with profile dict
+- Override values replace profile values
+- New keys added to profile
+
+### Validation
+
+#### `validate_profile_schema(profile: Dict[str, Any]) -> ValidationResult`
+
+Validate profile structure.
+
+**Checks**:
+- Required fields present
+- Correct types
+- Policy structure matches schema
+
+**Returns**: ValidationResult with approval/denial
+
+### Export
+
+#### `export_profile(profile: Dict[str, Any], output_format: str = "json") -> str`
+
+Export profile to string format.
+
+**Formats**:
+- json - JSON string
+- yaml - YAML string (if PyYAML available)
+
+### Used By
+
+- `mcp_security_enforcer.py` hook - Load profiles on startup
+- `mcp_permission_validator.py` - Fallback to development profile
+- Setup and initialization scripts
+
+### Related
+
+- GitHub Issue #95 (MCP Server Security)
+- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+- `.mcp/security_policy.json` - Policy configuration file
+
+---
+
 ---
 
 **For usage examples and integration patterns**: See CLAUDE.md Architecture section and individual command documentation
+
+## 37. mcp_server_detector.py (180+ lines, v3.37.0)
+
+**Purpose**: Detect MCP server type from tool calls and parameters for server-specific validation
+
+**Issue**: #95 (MCP Server Security)
+
+### Enums
+
+#### `MCPServerType`
+
+MCP server types with detection support.
+
+**Members**:
+- `FILESYSTEM` - Filesystem operations (read_file, write_file, list_files)
+- `GIT` - Git repository operations (git_status, git_commit)
+- `GITHUB` - GitHub API (create_issue, get_repo, list_prs)
+- `PYTHON` - Python REPL execution (execute_code, evaluate)
+- `BASH` - Shell command execution (run_command, execute_sh)
+- `WEB` - Web operations (search_web, fetch_url)
+- `UNKNOWN` - Unrecognized server type
+
+### Functions
+
+#### `detect_mcp_server(tool_name: str, params: Dict[str, Any]) -> MCPServerType`
+
+Detect MCP server type from tool name and parameters.
+
+**Parameters**:
+- `tool_name` (str): MCP tool function name
+- `params` (Dict[str, Any]): Tool parameters
+
+**Returns**: `MCPServerType` enum value
+
+**Detection Logic**:
+1. Tool name analysis - Common filesystem patterns (read_file, write_file)
+2. Parameter structure - Presence of specific keys (command → bash, repo → git)
+3. Context clues - API references (github.com → GITHUB)
+
+**Example**:
+```python
+from mcp_server_detector import detect_mcp_server, MCPServerType
+
+# Filesystem detection
+server = detect_mcp_server("read_file", {"path": "src/main.py"})
+assert server == MCPServerType.FILESYSTEM
+
+# Git detection
+server = detect_mcp_server("git_status", {"repo": "/project"})
+assert server == MCPServerType.GIT
+
+# Bash detection
+server = detect_mcp_server("run_command", {"command": "pytest tests/"})
+assert server == MCPServerType.BASH
+
+# Unknown
+server = detect_mcp_server("unknown_tool", {})
+assert server == MCPServerType.UNKNOWN
+```
+
+### Tool Name Patterns
+
+Detection patterns for each server type:
+
+**Filesystem**:
+- `read_file`, `write_file`, `list_files`, `file_operations`
+
+**Git**:
+- `git_*` prefix patterns (git_status, git_commit, git_push)
+- Parameters: `repo`, `repository`, `branch`
+
+**GitHub**:
+- `github_*`, `create_issue`, `get_repo`, `list_prs`
+- Parameters: `repo`, `owner`, `pull_request`
+- Tool description contains "github"
+
+**Python**:
+- `python_execute`, `evaluate_code`, `python_repl`
+- Parameters: `code`, `script`
+
+**Bash**:
+- `run_command`, `execute_sh`, `shell_execute`
+- Parameters: `command`, `shell_command`
+
+**Web**:
+- `search_web`, `fetch_url`, `http_get`
+- Parameters: `url`, `domain`, `query`
+
+### Used By
+
+- `mcp_security_enforcer.py` hook - Apply server-specific validation rules
+- `mcp_permission_validator.py` - Route to appropriate validator
+
+### Related
+
+- GitHub Issue #95 (MCP Server Security)
+- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+

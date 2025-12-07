@@ -1,0 +1,89 @@
+{
+  "profile": "production",
+  "description": "Strict policy for production environments. Read-only access to documentation only.",
+  "version": "1.0.0",
+  "filesystem": {
+    "allowed_paths": [
+      "docs/**/*.md",
+      "README.md",
+      "CHANGELOG.md",
+      ".claude/PROJECT.md"
+    ],
+    "denied_paths": [
+      "**/*"
+    ]
+  },
+  "shell": {
+    "allowed_commands": [],
+    "denied_patterns": [
+      "**/*"
+    ]
+  },
+  "web": {
+    "allowed_domains": [
+      "github.com",
+      "api.github.com"
+    ],
+    "blocked_ips": [
+      "127.0.0.1",
+      "127.*",
+      "192.168.*",
+      "10.*",
+      "172.16.*",
+      "172.17.*",
+      "172.18.*",
+      "172.19.*",
+      "172.20.*",
+      "172.21.*",
+      "172.22.*",
+      "172.23.*",
+      "172.24.*",
+      "172.25.*",
+      "172.26.*",
+      "172.27.*",
+      "172.28.*",
+      "172.29.*",
+      "172.30.*",
+      "172.31.*",
+      "169.254.*",
+      "::1",
+      "fc00::",
+      "fe80::"
+    ]
+  },
+  "github": {
+    "allowed_operations": [
+      "list_repos",
+      "get_file"
+    ],
+    "denied_operations": [
+      "delete_repo",
+      "transfer_repo",
+      "delete_branch",
+      "create_issue",
+      "update_issue",
+      "create_pr",
+      "merge_pr",
+      "delete_issue",
+      "create_comment",
+      "update_comment",
+      "delete_comment"
+    ],
+    "allowed_repos": [
+      "akaszubski/autonomous-dev"
+    ]
+  },
+  "python": {
+    "allowed_imports": [],
+    "denied_imports": [
+      "**/*"
+    ],
+    "max_execution_time_seconds": 5
+  },
+  "audit": {
+    "enabled": true,
+    "log_file": "logs/mcp_audit.log",
+    "log_denied_only": true,
+    "log_format": "json"
+  }
+}
