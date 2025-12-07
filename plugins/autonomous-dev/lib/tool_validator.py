@@ -529,7 +529,7 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        elif tool in ("WebFetch", "WebSearch"):
+        elif tool in ("Fetch", "WebFetch", "WebSearch"):
             url = parameters.get("url") or parameters.get("query", "")
             result = self.validate_web_tool(tool, url)
             result.tool = tool
