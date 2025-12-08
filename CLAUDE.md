@@ -289,19 +289,27 @@ Automatic git operations (commit, push, PR creation, issue closing) are **enable
 ---
 
 
-## MCP Auto-Approval Control (v3.21.0+)
+## MCP Auto-Approval Control (v3.38.0+)
 
-Automatic tool approval for trusted subagent operations. Reduces permission prompts from 50+ to 0 during `/auto-implement` workflows.
+Automatic tool approval for trusted operations in both **main conversation** and **subagent workflows**. Reduces permission prompts from 50+ to 0 during development.
 
 **Enable**:
 ```bash
 # In .env file
-MCP_AUTO_APPROVE=true  # Default: false (opt-in)
+MCP_AUTO_APPROVE=true  # Default: false (opt-in) - Auto-approves everywhere (main + subagents)
+# OR
+MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 ```
 
-**Security**: 6 layers of defense (subagent isolation, agent whitelist, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
+**Modes**:
+- **everywhere** (default when enabled): Auto-approve in main conversation and subagents
+- **subagent_only**: Auto-approve only in subagent workflows (legacy behavior)
+- **disabled** (default): Manual approval for all tool calls
 
-**Hook**: `auto_approve_tool.py` (PreToolUse lifecycle)
+**Security**: 6 layers of defense (MCP security validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
+
+**Hook**: `pre_tool_use.py` (PreToolUse lifecycle standalone script, chains MCP security + auto-approval)
+**Replaces**: `auto_approve_tool.py` + `mcp_security_enforcer.py` + `unified_pre_tool_use.py` (simplified to shell command format)
 
 ---
 ## Architecture
@@ -361,11 +369,11 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (44 total automation - added mcp_security_enforcer.py for Issue #95)
+### Hooks (44 total automation - unified PreToolUse hook eliminates collision)
 
 44 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
-**Core Hooks** (13): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, auto_approve_tool, session_tracker, mcp_security_enforcer
+**Core Hooks** (12): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, pre_tool_use, session_tracker
 
 **Optional Hooks** (29): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 14 additional hooks for extended enforcement and validation
 
@@ -528,7 +536,7 @@ python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-shell "pyte
 - Fallback: Development profile if policy file not found
 
 **Validation Hooks**:
-- `mcp_security_enforcer.py` - PreToolUse hook intercepts and validates all MCP operations
+- `pre_tool_use.py` - PreToolUse hook standalone script that intercepts and validates all MCP operations (replaced `unified_pre_tool_use.py`, `auto_approve_tool.py`, `mcp_security_enforcer.py`)
 
 **Documentation**: See [MCP-SECURITY.md](docs/MCP-SECURITY.md) for comprehensive guide
 

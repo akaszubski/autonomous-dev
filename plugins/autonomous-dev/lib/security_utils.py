@@ -62,8 +62,42 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 
-# Project root for whitelist validation
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.resolve()
+# Project root for whitelist validation (DYNAMIC DETECTION for cross-project use)
+def _detect_project_root() -> Path:
+    """Dynamically detect project root from current working directory.
+
+    Detection strategy:
+    1. Check CWD and parents for .git or .claude directory (project markers)
+    2. Fall back to CWD if no markers found
+    3. Use plugin root only for plugin development/testing
+
+    This enables auto-approval to work across ALL projects, not just autonomous-dev.
+
+    Returns:
+        Detected project root directory
+
+    Security Note:
+        validate_path() still enforces security boundaries - this just makes
+        those boundaries project-specific instead of hardcoded to plugin location.
+    """
+    # Start from current working directory
+    current = Path.cwd()
+
+    # Search up to 10 levels for project markers
+    for _ in range(10):
+        # Check for .git or .claude directory (common project markers)
+        if (current / ".git").exists() or (current / ".claude").exists():
+            return current.resolve()
+
+        # Move to parent
+        if current.parent == current:
+            break  # Reached filesystem root
+        current = current.parent
+
+    # Fall back to current working directory
+    return Path.cwd().resolve()
+
+PROJECT_ROOT = _detect_project_root()
 
 # Whitelist of allowed directories (relative to PROJECT_ROOT)
 ALLOWED_DIRS = [
