@@ -536,6 +536,33 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
+        elif tool in ("Grep", "Glob"):
+            # Grep and Glob are read-only search tools - validate path if present
+            if "path" in parameters:
+                result = self.validate_file_path(parameters["path"])
+            else:
+                # No path specified (searches CWD) - auto-approve
+                result = ValidationResult(
+                    approved=True,
+                    reason=f"{tool} allowed (read-only search tool)",
+                    security_risk=False,
+                )
+            result.tool = tool
+            result.agent = agent_name
+            return result
+
+        elif tool in ("AskUserQuestion", "Task", "Skill", "SlashCommand", "BashOutput", "NotebookEdit"):
+            # Always allow these tools - they're either interactive or delegating
+            return ValidationResult(
+                approved=True,
+                reason=f"{tool} allowed (interactive/delegating tool)",
+                security_risk=False,
+                tool=tool,
+                agent=agent_name,
+                parameters=parameters,
+                matched_pattern=None,
+            )
+
         # Deny unknown tools by default
         return ValidationResult(
             approved=False,
