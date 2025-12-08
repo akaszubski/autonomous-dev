@@ -63,13 +63,13 @@ def render_consent_prompt() -> str:
 ║                   MCP AUTO-APPROVAL - FIRST RUN SETUP                     ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 
-The MCP Auto-Approval feature enables autonomous agents to automatically
-execute certain MCP tool calls without manual approval.
+The MCP Auto-Approval feature enables automatic execution of certain MCP tool
+calls without manual approval in BOTH main conversation and autonomous agents.
 
 WHAT GETS AUTO-APPROVED:
-  ✓ Safe read-only commands (pytest, git status, ls, cat, etc.)
+  ✓ Safe read-only commands (pytest, git status, gh issue list, ls, cat, etc.)
   ✓ File operations within your project directory
-  ✓ Commands from trusted agents (researcher, planner, test-master, implementer)
+  ✓ Commands in both main conversation and agent workflows
 
 SECURITY CONTROLS:
   ✓ Whitelist-based command validation (known-safe commands only)
@@ -81,6 +81,7 @@ SECURITY CONTROLS:
 
 YOU REMAIN IN CONTROL:
   • Disable anytime: Set MCP_AUTO_APPROVE=false in .env
+  • Subagent-only mode: Set MCP_AUTO_APPROVE=subagent_only
   • Review audit logs: cat logs/tool_auto_approve_audit.log
   • Policy configuration: config/auto_approve_policy.json
   • Manual approval: Always shown for untrusted/blacklisted commands
@@ -207,8 +208,55 @@ def prompt_user_for_consent(state_file: Path = DEFAULT_STATE_FILE) -> bool:
     return consent
 
 
+def get_auto_approval_mode(state_file: Path = DEFAULT_STATE_FILE) -> str:
+    """Get MCP auto-approval mode from environment or user state.
+
+    Modes:
+    - "everywhere": Auto-approve in both main conversation and subagents
+    - "subagent_only": Auto-approve only in subagent context (legacy behavior)
+    - "disabled": Auto-approval disabled
+
+    Priority:
+    1. MCP_AUTO_APPROVE environment variable (override)
+    2. User state preference (persisted choice)
+    3. Default to "disabled" (opt-in design)
+
+    Args:
+        state_file: Path to user state file
+
+    Returns:
+        Mode string: "everywhere", "subagent_only", or "disabled"
+    """
+    # Check environment variable override
+    env_var = os.getenv("MCP_AUTO_APPROVE", "").strip().lower()
+    if env_var in ["true", "1", "yes", "on", "enable", "everywhere"]:
+        return "everywhere"
+    elif env_var == "subagent_only":
+        return "subagent_only"
+    elif env_var in ["false", "0", "no", "off", "disable", "disabled"]:
+        return "disabled"
+
+    # Check user state preference
+    manager = UserStateManager(state_file)
+
+    # If first run, prompt user
+    if manager.is_first_run():
+        consent = prompt_user_for_consent(state_file)
+        # User consent translates to "everywhere" mode (new default)
+        return "everywhere" if consent else "disabled"
+
+    # Get saved preference
+    consent = manager.get_preference(CONSENT_PREFERENCE_KEY, default=False)
+
+    # Legacy behavior: consent = True → "everywhere" mode
+    return "everywhere" if consent else "disabled"
+
+
 def check_user_consent(state_file: Path = DEFAULT_STATE_FILE) -> bool:
     """Check if user has consented to MCP auto-approval.
+
+    This is a convenience wrapper around get_auto_approval_mode() for
+    backwards compatibility.
 
     Priority:
     1. MCP_AUTO_APPROVE environment variable (override)
@@ -219,26 +267,10 @@ def check_user_consent(state_file: Path = DEFAULT_STATE_FILE) -> bool:
         state_file: Path to user state file
 
     Returns:
-        True if user consented, False otherwise
+        True if auto-approval enabled (any mode), False if disabled
     """
-    # Check environment variable override
-    env_var = os.getenv("MCP_AUTO_APPROVE", "").strip().lower()
-    if env_var in ["true", "1", "yes", "on", "enable"]:
-        return True
-    elif env_var in ["false", "0", "no", "off", "disable"]:
-        return False
-
-    # Check user state preference
-    manager = UserStateManager(state_file)
-
-    # If first run, prompt user
-    if manager.is_first_run():
-        return prompt_user_for_consent(state_file)
-
-    # Get saved preference
-    consent = manager.get_preference(CONSENT_PREFERENCE_KEY, default=False)
-
-    return consent
+    mode = get_auto_approval_mode(state_file)
+    return mode in ["everywhere", "subagent_only"]
 
 
 # Main entry point for testing

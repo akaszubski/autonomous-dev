@@ -249,7 +249,7 @@ echo "MCP_AUTO_APPROVE=true" >> .env
 - `auto_approval_consent.py` (174 lines) - User consent management
 
 **🛠️ New Hook**:
-- `auto_approve_tool.py` - PreToolUse lifecycle hook for MCP auto-approval
+- `pre_tool_use.py` - PreToolUse lifecycle hook for MCP auto-approval + security validation (standalone script)
 
 **🛠️ New Configuration**:
 - `auto_approve_policy.json` - Whitelist/blacklist policy configuration

@@ -78,11 +78,13 @@ Essential hooks for autonomous development workflow and security enforcement.
 **Actions**: Stage changes, create commit, push, create PR
 **Lifecycle**: SubagentStop (triggers on quality-validator completion)
 
-### auto_approve_tool.py
+### pre_tool_use.py
 
-**Purpose**: MCP auto-approval for subagent tool calls (v3.21.0+)
+**Purpose**: MCP auto-approval + security validation (v3.38.0+)
 **Reduces**: Permission prompts from 50+ to 0
-**Lifecycle**: PreToolUse
+**Lifecycle**: PreToolUse (registered in ~/.claude/settings.json)
+**Replaces**: auto_approve_tool.py, mcp_security_enforcer.py, unified_pre_tool_use.py
+**Format**: Standalone shell script (reads JSON from stdin, writes to stdout)
 
 ### session_tracker.py
 
@@ -91,13 +93,11 @@ Essential hooks for autonomous development workflow and security enforcement.
 **Lifecycle**: SubagentStop
 **Location**: `plugins/autonomous-dev/hooks/session_tracker.py`
 
-### mcp_security_enforcer.py
+### ~~mcp_security_enforcer.py~~ (DEPRECATED - replaced by pre_tool_use.py)
 
 **Purpose**: MCP server security validation with permission whitelisting (Issue #95)
-**Validates**: Filesystem, shell, network, and environment variable operations
-**Lifecycle**: PreToolUse (intercepts MCP tool calls before execution)
-**Location**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py`
-**Configuration**: `.mcp/security_policy.json`
+**Status**: Merged into pre_tool_use.py (v3.38.0+)
+**Note**: Hook collision eliminated by using single PreToolUse script
 
 ---
 

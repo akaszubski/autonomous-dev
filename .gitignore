@@ -113,3 +113,6 @@ temp/
 # Only exception: .claude/PROJECT.md (symlink to root PROJECT.md)
 .claude/*
 !.claude/PROJECT.md
+
+# Autonomous-dev plugin (gitignored)
+.claude/settings.local.json

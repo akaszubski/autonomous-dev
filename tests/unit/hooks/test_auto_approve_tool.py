@@ -588,3 +588,117 @@ class TestGracefulDegradation:
 
                 # Should still approve despite log error
                 assert result["approved"] is True
+
+
+class TestEverywhereMode:
+    """Test everywhere mode (auto-approve in main conversation + subagents)."""
+
+    @pytest.fixture
+    def mock_policy(self):
+        """Create mock policy."""
+        return {
+            "agents": {"trusted": ["researcher"], "restricted": []},
+            "bash": {"whitelist": ["gh issue list*", "pytest*"], "blacklist": []},
+            "file_paths": {"whitelist": [], "blacklist": []}
+        }
+
+    def test_everywhere_mode_approves_in_main_conversation(self, mock_policy):
+        """Test everywhere mode approves whitelisted commands in main conversation."""
+        tool = "Bash"
+        parameters = {"command": "gh issue list --limit 20"}
+
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="everywhere"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=False):
+                with patch("auto_approve_tool._get_cached_validator") as mock_validator:
+                    mock_validator.return_value.validate_tool_call.return_value = ValidationResult(
+                        approved=True, reason="Whitelist match: gh issue list*", security_risk=False, matched_pattern="gh issue list*"
+                    )
+
+                    approved, reason = should_auto_approve(tool, parameters, agent_name=None)
+
+                    assert approved is True
+                    assert "Whitelist" in reason
+
+    def test_everywhere_mode_denies_blacklisted_in_main_conversation(self, mock_policy):
+        """Test everywhere mode denies blacklisted commands in main conversation."""
+        tool = "Bash"
+        parameters = {"command": "rm -rf /"}
+
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="everywhere"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=False):
+                with patch("auto_approve_tool._get_cached_validator") as mock_validator:
+                    mock_validator.return_value.validate_tool_call.return_value = ValidationResult(
+                        approved=False, reason="Blacklist match: rm -rf*", security_risk=True, matched_pattern="rm -rf*"
+                    )
+
+                    approved, reason = should_auto_approve(tool, parameters, agent_name=None)
+
+                    assert approved is False
+                    assert "Blacklist" in reason
+
+    def test_subagent_only_mode_denies_in_main_conversation(self):
+        """Test subagent_only mode denies in main conversation."""
+        tool = "Bash"
+        parameters = {"command": "gh issue list --limit 20"}
+
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="subagent_only"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=False):
+                approved, reason = should_auto_approve(tool, parameters, agent_name=None)
+
+                assert approved is False
+                assert "subagent_only" in reason
+
+    def test_subagent_only_mode_approves_in_subagent(self, mock_policy):
+        """Test subagent_only mode approves in subagent context."""
+        tool = "Bash"
+        parameters = {"command": "pytest tests/"}
+
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="subagent_only"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=True):
+                with patch("auto_approve_tool.is_trusted_agent", return_value=True):
+                    with patch("auto_approve_tool._get_cached_validator") as mock_validator:
+                        mock_validator.return_value.validate_tool_call.return_value = ValidationResult(
+                            approved=True, reason="Whitelist match: pytest*", security_risk=False, matched_pattern="pytest*"
+                        )
+
+                        approved, reason = should_auto_approve(tool, parameters, agent_name="researcher")
+
+                        assert approved is True
+
+    def test_disabled_mode_denies_everywhere(self):
+        """Test disabled mode denies in both main conversation and subagents."""
+        tool = "Bash"
+        parameters = {"command": "gh issue list --limit 20"}
+
+        # Test main conversation
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="disabled"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=False):
+                approved, reason = should_auto_approve(tool, parameters, agent_name=None)
+
+                assert approved is False
+                assert "disabled" in reason.lower()
+
+        # Test subagent
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="disabled"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=True):
+                approved, reason = should_auto_approve(tool, parameters, agent_name="researcher")
+
+                assert approved is False
+                assert "disabled" in reason.lower()
+
+    def test_main_conversation_skips_agent_whitelist_check(self, mock_policy):
+        """Test main conversation skips agent whitelist check."""
+        tool = "Bash"
+        parameters = {"command": "gh issue list --limit 20"}
+
+        with patch("auto_approve_tool.get_auto_approval_mode", return_value="everywhere"):
+            with patch("auto_approve_tool.is_subagent_context", return_value=False):
+                with patch("auto_approve_tool._get_cached_validator") as mock_validator:
+                    mock_validator.return_value.validate_tool_call.return_value = ValidationResult(
+                        approved=True, reason="Whitelist match", security_risk=False, matched_pattern="gh issue list*"
+                    )
+
+                    # agent_name is None (main conversation), should still approve
+                    approved, reason = should_auto_approve(tool, parameters, agent_name=None)
+
+                    assert approved is True

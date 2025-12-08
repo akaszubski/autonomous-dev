@@ -428,7 +428,7 @@ if denial_count >= CIRCUIT_BREAKER_THRESHOLD:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. Claude Code 2.0 PreToolUse Hook                          │
-│    Triggers: unified_pre_tool_use.py                        │
+│    Triggers: pre_tool_use.py (standalone script)            │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -942,23 +942,23 @@ pytest tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py -v
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │ PreToolUse Hook Lifecycle                              │ │
 │  │                                                        │ │
-│  │  on_pre_tool_use(tool, parameters, agent_name, ...)   │ │
+│  │  Executes: python3 pre_tool_use.py                    │ │
+│  │  Input: stdin (JSON with tool_name + tool_input)      │ │
+│  │  Output: stdout (JSON with permissionDecision)        │ │
 │  └─────────────────────┬──────────────────────────────────┘ │
 │                        │                                     │
 └────────────────────────┼─────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         unified_pre_tool_use.py (Hook Handler)              │
+│         pre_tool_use.py (Standalone Hook Script)            │
 │                                                              │
-│  1. Check MCP_AUTO_APPROVE env var                          │
-│  2. Check user consent (first-run prompt)                   │
-│  3. Validate subagent context                               │
-│  4. Validate agent whitelist                                │
-│  5. Call ToolValidator.validate_tool_call()                 │
-│  6. Call ToolApprovalAuditor.log_decision()                 │
-│  7. Check circuit breaker                                   │
-│  8. Return {"approved": bool, "reason": str}                │
+│  1. Read JSON from stdin (tool_name, tool_input)            │
+│  2. Load .env file (MCP_AUTO_APPROVE, etc.)                 │
+│  3. Call auto_approval_engine.should_auto_approve()         │
+│  4. Format decision as hookSpecificOutput                   │
+│  5. Write JSON to stdout                                    │
+│  6. Exit 0 (always)                                         │
 └────────┬────────────────────────────┬───────────────────────┘
          │                            │
          ▼                            ▼
@@ -991,7 +991,8 @@ pytest tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py -v
 ```
 plugins/autonomous-dev/
 ├── hooks/
-│   └── unified_pre_tool_use.py      (PreToolUse hook handler)
+│   ├── pre_tool_use.py              (PreToolUse hook script - ACTIVE)
+│   └── unified_pre_tool_use.py      (Legacy library code - DEPRECATED)
 ├── lib/
 │   ├── auto_approval_engine.py      (Core auto-approval logic)
 │   ├── tool_validator.py            (Whitelist/blacklist validation)
@@ -1007,12 +1008,41 @@ plugins/autonomous-dev/
     │   │   ├── test_tool_approval_audit.py
     │   │   └── test_user_state_manager_auto_approval.py
     │   └── hooks/
-    │       └── test_auto_approve_tool.py   (Note: tests still reference old name)
+    │       └── test_auto_approve_tool.py
     ├── integration/
     │   └── test_tool_auto_approval_end_to_end.py
     └── security/
         └── test_tool_auto_approval_security.py
 ```
+
+### Hook Registration
+
+The hook must be registered in `~/.claude/settings.json` (not in plugin manifest):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /absolute/path/to/plugins/autonomous-dev/hooks/pre_tool_use.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Important**:
+- Use absolute path to the script
+- Claude Code only supports `"type": "command"` (shell execution)
+- No Python module imports supported
+- Must restart Claude Code after registration (Cmd+Q, not just `/exit`)
 
 ### API Reference
 
@@ -1127,31 +1157,37 @@ print(f"Bash denials: {metrics['Bash']['denial_count']}")
 
 ## Changelog
 
-### v3.38.0+ (2025-12-08)
+### v3.39.0 (2025-12-08)
+
+**Simplified**:
+- Standalone `pre_tool_use.py` script replaces `unified_pre_tool_use.py` (library format)
+- Hook registration now uses standard Claude Code shell command format
+- Reads JSON from stdin, outputs JSON to stdout, exits 0
+- Registered in `~/.claude/settings.json` (not plugin manifest)
+- All existing validation logic preserved (just simpler interface)
+
+**Rationale**:
+- Claude Code only supports `"type": "command"` (shell execution), not Python module imports
+- Previous approach (`"type": "python"`) was never supported by Claude Code
+- Simplified architecture = fewer points of failure
+
+### v3.38.0 (2025-12-08)
 
 **Updated**:
-- Unified PreToolUse hook (`unified_pre_tool_use.py`) replaces `auto_approve_tool.py`
+- Unified PreToolUse hook (`unified_pre_tool_use.py`) replaced `auto_approve_tool.py`
 - Hook return format updated to Claude Code official spec (hookSpecificOutput format)
 - Eliminated hook collision between auto_approve_tool and mcp_security_enforcer
 - Core auto-approval logic extracted to `auto_approval_engine.py` library
-- Updated all configuration templates and documentation
-
-**Fixed**:
-- Module import path corrected in all settings templates
-- Return value format now matches Claude Code's expected schema
-- Settings templates now point to unified_pre_tool_use module
 
 ### v3.21.0 (2025-11-15)
 
 **Added**:
 - Initial implementation of MCP auto-approval feature
-- PreToolUse hook handler (originally `auto_approve_tool.py`, now `unified_pre_tool_use.py`)
+- PreToolUse hook handler (`auto_approve_tool.py`)
 - Whitelist/blacklist validation engine (`tool_validator.py`)
 - Audit logging system (`tool_approval_audit.py`)
 - User consent management (`auto_approval_consent.py`)
 - Default policy configuration (`auto_approve_policy.json`)
-- Comprehensive documentation (this file)
-- 72/207 tests passing (core implementation complete)
 
 **Security**:
 - 6 layers of defense-in-depth validation

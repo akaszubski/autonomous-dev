@@ -1,4 +1,6 @@
-# Hook Flow Examples - How unified_pre_tool_use.py Works
+# Hook Flow Examples - How pre_tool_use.py Works
+
+**Note**: This hook was previously named `unified_pre_tool_use.py` (library format) and `auto_approve_tool.py` (original). Now it's `pre_tool_use.py` (standalone script).
 
 ## Example 1: Safe Command (pytest)
 
