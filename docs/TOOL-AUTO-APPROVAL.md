@@ -1,15 +1,16 @@
-# MCP Auto-Approval for Subagent Tool Calls
+# MCP Auto-Approval for Tool Calls
 
-**Version**: v3.21.0
-**Last Updated**: 2025-11-15
+**Version**: v3.38.0 (Extended for Main Conversation Support)
+**Last Updated**: 2025-12-08
 **Status**: Opt-in feature (disabled by default, requires explicit enablement)
-**GitHub Issue**: #73
+**GitHub Issue**: #73 (original), #TBD (main conversation support)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [What's New in v3.38.0](#whats-new-in-v3380)
 - [Why MCP Auto-Approval?](#why-mcp-auto-approval)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
@@ -24,25 +25,53 @@
 
 ## Overview
 
-**MCP Auto-Approval** is an opt-in feature that automatically approves MCP (Model Context Protocol) tool calls from trusted subagents during `/auto-implement` workflows. This eliminates the need for manual approval of 50+ permission prompts per feature, creating a seamless end-to-end autonomous development experience.
+**MCP Auto-Approval** is an opt-in feature that automatically approves MCP (Model Context Protocol) tool calls from both **main conversation** and **subagent workflows**. This eliminates the need for manual approval prompts for trusted operations, creating a seamless development experience.
 
 **Key Benefits**:
 - **Zero Interruptions**: No manual approval prompts for trusted operations
-- **Security**: 6 layers of defense-in-depth validation
+- **Flexible Modes**: Auto-approve everywhere or only in subagents
+- **Security**: 5 layers of defense-in-depth validation (6 in subagent mode)
 - **Performance**: < 5ms validation overhead per tool call
 - **Audit Trail**: Every approval/denial logged for compliance
 - **Circuit Breaker**: Auto-disable after 10 consecutive denials (prevents runaway automation)
 
-**Typical Workflow**:
-```
-Without Auto-Approval:
-User → /auto-implement → researcher agent invokes Bash → [PROMPT: Approve tool use?] → User approves → ...
-(Repeat 50+ times for pytest, git, ls, cat, grep, etc.)
+**Typical Workflows**:
 
-With Auto-Approval:
-User → /auto-implement → researcher agent invokes Bash → [AUTO-APPROVED] → ...
-(Zero prompts, seamless automation)
+**Everywhere Mode** (default when enabled):
 ```
+Main conversation:
+User: "what github issues should I work on next"
+Claude: [Bash: gh issue list] → [AUTO-APPROVED] → Shows issues
+
+Subagent workflow:
+User → /auto-implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
+```
+
+**Subagent-Only Mode** (legacy behavior):
+```
+Main conversation:
+User: "what github issues should I work on next"
+Claude: [Bash: gh issue list] → [PROMPT: Approve tool use?] → User approves
+
+Subagent workflow:
+User → /auto-implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
+```
+
+---
+
+## What's New in v3.38.0
+
+**Main Conversation Support**: Auto-approval now works in both main conversation and subagent workflows.
+
+**Changes**:
+- **New default**: `MCP_AUTO_APPROVE=true` now enables auto-approval everywhere (main + subagents)
+- **Legacy mode**: Use `MCP_AUTO_APPROVE=subagent_only` to restore old behavior (subagents only)
+- **Security unchanged**: Same whitelist/blacklist/path validation in both modes
+- **Agent whitelist**:
+  - **Everywhere mode** (`MCP_AUTO_APPROVE=true`): Whitelist check SKIPPED - all agents trusted
+  - **Subagent-only mode** (`MCP_AUTO_APPROVE=subagent_only`): Whitelist check ENFORCED - only listed agents trusted
+
+**Migration**: Existing users with `MCP_AUTO_APPROVE=true` will automatically get the new everywhere mode. To restore old behavior, set `MCP_AUTO_APPROVE=subagent_only`.
 
 ---
 
@@ -74,12 +103,15 @@ This defeats the purpose of autonomous development - the user becomes a "permiss
 
 MCP Auto-Approval implements **defense-in-depth validation** to safely auto-approve trusted operations:
 
-1. **Subagent Context Isolation**: Only auto-approve in subagent context (CLAUDE_AGENT_NAME env var)
-2. **Agent Whitelist**: Only trusted agents (researcher, planner, test-master, implementer, reviewer, doc-master)
-3. **Tool Whitelist**: Only approved tools (Bash, Read, Write, Grep, etc.)
-4. **Command/Path Validation**: Whitelist/blacklist enforcement (e.g., allow `pytest`, deny `rm -rf`)
-5. **Audit Logging**: Full trail of every approval/denial
-6. **Circuit Breaker**: Auto-disable after 10 consecutive denials
+**Core Security Layers** (all modes):
+1. **User Consent**: Must explicitly opt-in via `MCP_AUTO_APPROVE=true`
+2. **Tool Whitelist**: Only approved tools (Bash, Read, Write, Grep, etc.)
+3. **Command/Path Validation**: Whitelist/blacklist enforcement (e.g., allow `gh issue list`, deny `rm -rf`)
+4. **Audit Logging**: Full trail of every approval/denial
+5. **Circuit Breaker**: Auto-disable after 10 consecutive denials
+
+**Additional Layer in Subagent Mode**:
+6. **Agent Whitelist** (subagent_only mode): Only trusted agents can auto-approve (researcher, planner, test-master, implementer, reviewer, doc-master). In everywhere mode, all agents are trusted.
 
 **Result**: Zero prompts for trusted operations, manual approval for dangerous operations, full audit trail for compliance.
 
@@ -92,8 +124,11 @@ MCP Auto-Approval implements **defense-in-depth validation** to safely auto-appr
 Add to `.env` file in your project root:
 
 ```bash
-# Enable MCP auto-approval for subagent tool calls
+# Enable MCP auto-approval everywhere (main conversation + subagents)
 MCP_AUTO_APPROVE=true
+
+# OR: Only auto-approve in subagent workflows (legacy mode)
+# MCP_AUTO_APPROVE=subagent_only
 ```
 
 ### Step 2: Run /auto-implement
@@ -246,9 +281,9 @@ if not agent_name:
 
 **Why**: Prevents accidental auto-approval of user's manual tool invocations. Only autonomous workflows use auto-approval.
 
-**2. Agent Whitelist**
+**2. Agent Whitelist** (subagent_only mode)
 
-Only trusted agents can use auto-approval:
+Agent whitelist enforcement depends on the auto-approval mode:
 
 ```json
 {
@@ -259,7 +294,11 @@ Only trusted agents can use auto-approval:
 }
 ```
 
-**Why**: Security-auditor needs manual oversight (runs security scans, may access sensitive data). Other agents perform routine operations (testing, documentation, code review).
+**Enforcement**:
+- **Everywhere mode** (`MCP_AUTO_APPROVE=true`): Whitelist check **SKIPPED** - all agents trusted
+- **Subagent-only mode** (`MCP_AUTO_APPROVE=subagent_only`): Whitelist check **ENFORCED** - only listed agents trusted
+
+**Why**: In everywhere mode, the user has opted to trust all agents (main + subagent workflows). In subagent_only mode, the whitelist provides granular control over which agents can auto-approve (e.g., security-auditor may need manual oversight).
 
 **3. Tool Whitelist**
 
@@ -389,7 +428,7 @@ if denial_count >= CIRCUIT_BREAKER_THRESHOLD:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. Claude Code 2.0 PreToolUse Hook                          │
-│    Triggers: auto_approve_tool.py                           │
+│    Triggers: unified_pre_tool_use.py                        │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -834,7 +873,9 @@ Add to this file's "Policy File Reference" section:
 **your-new-command**: Brief description of what it does and why it's safe
 ```
 
-### Adding New Agent to Whitelist
+### Adding New Agent to Whitelist (subagent_only mode)
+
+**Note**: In everywhere mode (`MCP_AUTO_APPROVE=true`), all agents are trusted automatically. This section only applies to `MCP_AUTO_APPROVE=subagent_only` mode.
 
 **Step 1: Evaluate Agent Trustworthiness**
 
@@ -868,19 +909,24 @@ Ask yourself:
 **Step 3: Test**
 
 ```bash
-# Create test case
-cat > tests/unit/hooks/test_auto_approve_tool_custom_agent.py << 'EOF'
+# Create test case (Note: unified_pre_tool_use replaces auto_approve_tool)
+cat > tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py << 'EOF'
+from plugins.autonomous_dev.hooks.unified_pre_tool_use import on_pre_tool_use
+import os
+
 def test_custom_agent_auto_approved():
     # Set CLAUDE_AGENT_NAME to your new agent
     os.environ["CLAUDE_AGENT_NAME"] = "your-new-agent"
+    os.environ["MCP_AUTO_APPROVE"] = "true"
 
     result = on_pre_tool_use(tool="Bash", parameters={"command": "pytest tests/"})
 
-    assert result["approved"]
-    assert "your-new-agent" in result["reason"]
+    # Check new Claude Code format
+    assert result["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert "your-new-agent" in result["hookSpecificOutput"]["permissionDecisionReason"]
 EOF
 
-pytest tests/unit/hooks/test_auto_approve_tool_custom_agent.py -v
+pytest tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py -v
 ```
 
 ---
@@ -903,7 +949,7 @@ pytest tests/unit/hooks/test_auto_approve_tool_custom_agent.py -v
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│            auto_approve_tool.py (Hook Handler)               │
+│         unified_pre_tool_use.py (Hook Handler)              │
 │                                                              │
 │  1. Check MCP_AUTO_APPROVE env var                          │
 │  2. Check user consent (first-run prompt)                   │
@@ -945,8 +991,9 @@ pytest tests/unit/hooks/test_auto_approve_tool_custom_agent.py -v
 ```
 plugins/autonomous-dev/
 ├── hooks/
-│   └── auto_approve_tool.py         (PreToolUse hook handler)
+│   └── unified_pre_tool_use.py      (PreToolUse hook handler)
 ├── lib/
+│   ├── auto_approval_engine.py      (Core auto-approval logic)
 │   ├── tool_validator.py            (Whitelist/blacklist validation)
 │   ├── tool_approval_audit.py       (Audit logging system)
 │   ├── auto_approval_consent.py     (User consent management)
@@ -960,7 +1007,7 @@ plugins/autonomous-dev/
     │   │   ├── test_tool_approval_audit.py
     │   │   └── test_user_state_manager_auto_approval.py
     │   └── hooks/
-    │       └── test_auto_approve_tool.py
+    │       └── test_auto_approve_tool.py   (Note: tests still reference old name)
     ├── integration/
     │   └── test_tool_auto_approval_end_to_end.py
     └── security/
@@ -1080,11 +1127,25 @@ print(f"Bash denials: {metrics['Bash']['denial_count']}")
 
 ## Changelog
 
+### v3.38.0+ (2025-12-08)
+
+**Updated**:
+- Unified PreToolUse hook (`unified_pre_tool_use.py`) replaces `auto_approve_tool.py`
+- Hook return format updated to Claude Code official spec (hookSpecificOutput format)
+- Eliminated hook collision between auto_approve_tool and mcp_security_enforcer
+- Core auto-approval logic extracted to `auto_approval_engine.py` library
+- Updated all configuration templates and documentation
+
+**Fixed**:
+- Module import path corrected in all settings templates
+- Return value format now matches Claude Code's expected schema
+- Settings templates now point to unified_pre_tool_use module
+
 ### v3.21.0 (2025-11-15)
 
 **Added**:
 - Initial implementation of MCP auto-approval feature
-- PreToolUse hook handler (`auto_approve_tool.py`)
+- PreToolUse hook handler (originally `auto_approve_tool.py`, now `unified_pre_tool_use.py`)
 - Whitelist/blacklist validation engine (`tool_validator.py`)
 - Audit logging system (`tool_approval_audit.py`)
 - User consent management (`auto_approval_consent.py`)
