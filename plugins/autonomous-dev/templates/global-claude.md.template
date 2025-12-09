@@ -1,0 +1,163 @@
+# Universal Claude Code Instructions
+
+**Last Updated**: {DATE}
+**Applies To**: All projects
+**Managed By**: autonomous-dev plugin v{VERSION}
+
+---
+
+## Core Workflow (Always Follow)
+
+**Research → Plan → Test → Document**
+
+1. **Research first**: Search codebase and web for existing patterns before coding
+2. **Plan before coding**: Present implementation plan for approval
+3. **Test as you code**: Write tests alongside implementation (not after!)
+4. **Document as you code**: Update docs when you change APIs/behavior
+
+---
+
+<!-- autonomous-dev:start -->
+## Documentation Alignment
+
+**What it is**: System to detect and prevent drift between documented standards and actual codebase
+
+**Why it matters**: CLAUDE.md defines development practices. If it drifts from reality, new developers follow outdated practices.
+
+**Check alignment**:
+```bash
+# Automatic (via hook)
+git commit -m "feature"  # Hook validates CLAUDE.md is in sync
+
+# Manual check
+python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+```
+
+**What it validates**:
+- Version consistency between CLAUDE.md files
+- Agent counts match reality
+- Command counts match installed commands
+- Documented features actually exist
+<!-- autonomous-dev:end -->
+
+---
+
+<!-- autonomous-dev:start -->
+## Git & Automation
+
+**Pre-commit hooks** (if configured):
+- Auto-format code
+- Check for secrets
+- Validate file organization
+- Validate CLAUDE.md alignment
+
+**Pre-push hooks** (if configured):
+- Run test suite
+- Type checking
+- Coverage validation
+
+**If hooks fail**:
+```bash
+# See what failed
+git commit  # Shows detailed error
+
+# Fix and retry
+git add . && git commit
+
+# Emergency only (skip hooks)
+git commit --no-verify
+```
+<!-- autonomous-dev:end -->
+
+---
+
+<!-- autonomous-dev:start -->
+## Claude Code Restarts (CRITICAL!)
+
+**IMPORTANT**: `/exit` does NOT reload plugin changes!
+
+Claude Code caches commands, hooks, and configurations in memory at startup. To reload changes:
+
+**What doesn't work**:
+- `/exit` - Only ends conversation, process keeps running
+- Closing window - Process may run in background
+- `/clear` - Only clears conversation history
+
+**What works - Full Restart**:
+```bash
+# 1. Fully quit Claude Code
+#    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+
+# 2. Verify process is dead
+ps aux | grep claude | grep -v grep
+# Should return nothing
+
+# 3. Wait 5 seconds
+
+# 4. Restart Claude Code
+```
+
+**When you need a full restart**:
+- After installing/updating plugins
+- After modifying command files
+- After syncing plugin changes
+- After changing hooks or settings
+- When new commands don't appear in autocomplete
+<!-- autonomous-dev:end -->
+
+---
+
+<!-- autonomous-dev:start -->
+## Problem-Solving Approach
+
+**When implementing something new**:
+1. Search codebase for similar patterns
+2. Check project docs for conventions
+3. Search web for best practices
+4. Present plan before coding
+5. Break into small, testable steps
+
+**When debugging**:
+1. Read error message completely
+2. Check recent changes (git diff)
+3. Run single failing test with -v
+4. Use debugger or print statements
+5. Ask for help with specific error
+
+**When stuck**:
+1. State what you're trying to do
+2. Show what you tried
+3. Include error messages
+4. Ask specific question
+<!-- autonomous-dev:end -->
+
+---
+
+<!-- autonomous-dev:start -->
+## Philosophy
+
+**Automation > Reminders > Hope**
+
+Automate repetitive tasks so you focus on creative work. Use hooks, scripts, and CI/CD to enforce quality automatically rather than relying on memory.
+
+**"Research first. Test coverage required."**
+
+Always research before implementing. Always write tests. Always document changes. Make quality automatic, not optional.
+<!-- autonomous-dev:end -->
+
+---
+
+## Project-Specific Context
+
+**Check these files when starting work**:
+- `README.md` - Project overview and setup
+- `CONTRIBUTING.md` - Contribution guidelines
+- `.clinerules` or project-specific CLAUDE.md - Project standards
+- `docs/` - Detailed documentation
+
+---
+
+**This file is partially managed by autonomous-dev plugin.**
+- Sections between `<!-- autonomous-dev:start -->` and `<!-- autonomous-dev:end -->` are updated by the plugin
+- All other content is yours to customize
+- Run `/setup --global-claude` to update plugin sections
