@@ -186,14 +186,15 @@ Restart Claude Code after installation.
 ### Update / Repair
 
 ```bash
-# Check for updates
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --check
+# Update: Re-run installer, then /setup detects UPGRADE and preserves customizations
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+# Then in Claude Code: /setup
 
-# Update (preserves customizations)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --update
+# Or use the built-in update command (interactive with backup/rollback)
+/update-plugin
 
-# Repair broken installation
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --sync
+# Clean re-install (removes staging first)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --clean
 ```
 
 ### How Installation Works (v3.41.0+)
