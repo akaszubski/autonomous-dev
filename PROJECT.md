@@ -1,8 +1,8 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-12-09
 **Project**: Software Engineering Operating System - Auto-SDLC Enforcement via Command Workflow
-**Version**: v3.20.1 (Issue #68 Phase 3: github-workflow Documentation Expansion COMPLETE + Skill integration + Performance profiler - Issues #67-68, #46 Phase 8.5, #66, #62-65, #72)
+**Version**: v3.39.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for what to update as you iterate
 
@@ -67,7 +67,7 @@ This is achieved via **dual-layer architecture**:
    - Security: 15 minutes → 2 minutes (AI vulnerability scan)
    - Docs: 20 minutes → 1 minute (AI doc generation)
 
-6. **Minimal User Intervention** - 17 commands total (8 core workflow + 7 individual agents, 2 utility, unified /sync per GitHub #47) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync` smart sync → `/uninstall` cleanup
+6. **Minimal User Intervention** - 20 commands total (10 core workflow + 8 individual agents + 2 utility) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync` smart sync
 
 **Success Metrics**:
 
@@ -247,21 +247,21 @@ This is achieved via **dual-layer architecture**:
 - **Claude Code**: 2.0+ with plugins, agents, hooks, skills, slash commands
 - **Git**: For version control and rollback safety
 
-**Current Architecture** (v3.7.0 - Unified /sync Command):
-- **Agents**: 19 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
+**Current Architecture** (v3.39.0):
+- **Agents**: 20 total (orchestrator removed in v3.2.2 - Claude coordinates directly)
   - **Core 9**: planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
-  - **Utility 10**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, issue-creator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator
-- **Skills**: 19 (active with progressive disclosure architecture)
-  - **Status**: 19 active skill packages in plugins/autonomous-dev/skills/
+  - **Utility 11**: alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, issue-creator, project-progress-tracker, project-bootstrapper, project-status-analyzer, setup-wizard, sync-validator, brownfield-analyzer
+- **Skills**: 28 active (progressive disclosure architecture)
+  - **Status**: 28 active skill packages in plugins/autonomous-dev/skills/
   - **Architecture**: Progressive disclosure (metadata in context, full content loaded when needed)
-  - **Categories**: Core Development (6), Workflow & Automation (4), Code & Quality (4), Validation & Analysis (5)
+  - **Categories**: Core Development (7), Workflow & Automation (7), Code & Quality (4), Validation & Analysis (6), Library Design (3)
   - **How It Works**: Skills auto-activate based on keywords, Claude Code 2.0+ native support
   - **Reference**: See docs/SKILLS-AGENTS-INTEGRATION.md for full architecture
-- **Commands**: 19 total (unified /sync per GitHub #47, added /create-issue per GitHub #58)
-  - **Core (9)**: /auto-implement, /align-project, /align-claude, /setup, /sync (auto-detection), /status, /health-check, /pipeline-status, /create-issue
+- **Commands**: 20 total
+  - **Core (10)**: /auto-implement, /batch-implement, /align-project, /align-project-retrofit, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status
   - **Agent (8)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs, /create-issue
-  - **Utility (2)**: /test, /uninstall
-- **Hooks**: 29 total
+  - **Utility (2)**: /test, /update-plugin
+- **Hooks**: 44 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_pipeline_complete, enforce_tdd
   - **Lifecycle 2**: UserPromptSubmit, SubagentStop
   - **Extended 18**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 3 others
@@ -305,8 +305,8 @@ This repository serves TWO audiences - contributors building the plugin AND user
 - `plugins/autonomous-dev/docs/` - User documentation (STRICT-MODE.md, QUICKSTART.md, etc.)
 - `plugins/autonomous-dev/hooks/` - Automation hooks + utility scripts (setup.py wizard, validators, etc.)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
-- `plugins/autonomous-dev/agents/` - 18 AI agents (9 core + 9 utility, orchestrator removed v3.2.2)
-- `plugins/autonomous-dev/commands/` - 18 slash commands (8 core + 7 agent + 3 utility)
+- `plugins/autonomous-dev/agents/` - 20 AI agents (9 core + 11 utility, orchestrator removed v3.2.2)
+- `plugins/autonomous-dev/commands/` - 20 slash commands (10 core + 8 agent + 2 utility)
 - `plugins/autonomous-dev/hooks/` - 15 automation hooks (7 core + 8 optional)
 - `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json, PROJECT.md)
 
@@ -478,7 +478,7 @@ Production Code (Professional Quality Guaranteed)
 ### What We Protect
 
 ✅ **Keep**: Skills directory (consistency for team)
-✅ **Keep**: 16 agents (8 core + 8 utility for autonomous execution)
+✅ **Keep**: 20 agents (9 core + 11 utility for autonomous execution)
 ✅ **Keep**: Python infrastructure (automation backbone)
 ❌ **Cut**: Documentation sprawl (114 files → 15 focused files)
 ❌ **Cut**: Redundant commands (9 → 8)

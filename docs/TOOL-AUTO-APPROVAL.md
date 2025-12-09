@@ -119,7 +119,83 @@ MCP Auto-Approval implements **defense-in-depth validation** to safely auto-appr
 
 ## Quick Start
 
-### Step 1: Enable Auto-Approval
+### Step 1: Configure Claude Code Permissions
+
+Add to `~/.claude/settings.json` (user-level) for auto-approval of all tools:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(:*)",
+      "Read(**)",
+      "Write(**)",
+      "Edit(**)",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "Task",
+      "WebFetch",
+      "WebSearch",
+      "TodoWrite",
+      "ExitPlanMode",
+      "BashOutput",
+      "KillShell",
+      "AskUserQuestion",
+      "Skill",
+      "SlashCommand",
+      "EnterPlanMode",
+      "AgentOutputTool",
+      "mcp__"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(./secrets/**)",
+      "Read(**/credentials/**)",
+      "Write(~/.ssh/**)",
+      "Write(~/.aws/**)",
+      "Write(/etc/**)",
+      "Write(/usr/**)",
+      "Write(/System/**)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(sudo:*)",
+      "Bash(chmod 777:*)",
+      "Bash(eval:*)",
+      "Bash(dd:*)",
+      "Bash(mkfs:*)",
+      "Bash(shutdown:*)",
+      "Bash(reboot:*)"
+    ],
+    "ask": []
+  }
+}
+```
+
+**Permission Format Reference** (from [official Claude Code docs](https://code.claude.com/docs/en/settings)):
+
+| Tool | Format | Example |
+|------|--------|---------|
+| Bash (all) | `Bash(:*)` | Allows all shell commands |
+| Bash (prefix) | `Bash(npm run:*)` | Allows `npm run test`, `npm run build`, etc. |
+| Read (all) | `Read(**)` | Allows reading any file |
+| Read (path) | `Read(./src/**)` | Allows reading files in src/ |
+| Write (all) | `Write(**)` | Allows writing any file |
+| Edit (all) | `Edit(**)` | Allows editing any file |
+| Other tools | `Glob`, `Grep`, `WebFetch` | Just the tool name |
+| MCP tools | `mcp__` | Prefix for all MCP server tools |
+
+**Important**: Claude Code uses **prefix matching** for Bash, not regex. Use `:*` at the end for wildcards.
+
+**Sources**:
+- [Claude Code Settings - Official Docs](https://code.claude.com/docs/en/settings)
+- [ggrigo/claude-code-tools - SETTINGS_JSON_GUIDE.md](https://github.com/ggrigo/claude-code-tools/blob/main/docs/SETTINGS_JSON_GUIDE.md)
+- [Claude Code Built-in Tools Reference](https://www.vtrivedy.com/posts/claudecode-tools-reference)
+
+### Step 2: Enable Auto-Approval Environment Variable
 
 Add to `.env` file in your project root:
 
@@ -131,7 +207,7 @@ MCP_AUTO_APPROVE=true
 # MCP_AUTO_APPROVE=subagent_only
 ```
 
-### Step 2: Run /auto-implement
+### Step 3: Run /auto-implement
 
 ```bash
 # First run - you'll see consent prompt
@@ -164,7 +240,7 @@ Do you want to enable automatic tool approval? (Y/n):
 # Your choice is saved in ~/.autonomous-dev/user_state.json
 ```
 
-### Step 3: Enjoy Zero-Interruption Workflow
+### Step 4: Enjoy Zero-Interruption Workflow
 
 After consent, all trusted operations are auto-approved:
 
@@ -182,6 +258,72 @@ Security-auditor agent invokes Bash: rm -rf /tmp/sensitive
 ---
 
 ## Configuration
+
+### Settings Templates (NEW in v3.38.0)
+
+Choose the template that matches your security/convenience preference:
+
+| Template | Description | Use When |
+|----------|-------------|----------|
+| **settings.autonomous-dev.json** | Full auto-approval with layered security (RECOMMENDED) | You want zero prompts with defense-in-depth |
+| **settings.strict-mode.json** | Vibe coding with full enforcement | You want auto-orchestration on natural language |
+| **settings.permission-batching.json** | 80% prompt reduction, batches writes | You want some oversight on writes |
+| **settings.granular-bash.json** | Paranoid mode with explicit command whitelist | You want full control over every bash command |
+| **settings.local.json** | Basic auto-approval | Simple setup with sensible defaults |
+
+**Quick Setup** (copy to your project):
+```bash
+# Recommended: Full auto-approval with layered security
+cp plugins/autonomous-dev/templates/settings.autonomous-dev.json .claude/settings.local.json
+
+# Alternative: Paranoid mode with explicit bash whitelisting
+cp plugins/autonomous-dev/templates/settings.granular-bash.json .claude/settings.local.json
+
+# Alternative: Permission batching (80% reduction, still prompts for writes)
+cp plugins/autonomous-dev/templates/settings.permission-batching.json .claude/settings.local.json
+```
+
+**Template Features Comparison**:
+
+| Feature | autonomous-dev | strict-mode | permission-batching | granular-bash |
+|---------|---------------|-------------|---------------------|---------------|
+| Native `permissions` block | ✅ | ✅ | ✅ | ✅ |
+| `mcp__` prefix for MCP tools | ✅ | ✅ | ✅ | ✅ |
+| `disableBypassPermissionsMode` | ❌ | ✅ | ❌ | ✅ |
+| `ask` level for specific tools | ✅ | ❌ | ✅ | ✅ |
+| Granular bash patterns | ❌ | ❌ | ❌ | ✅ |
+| PreToolUse hook | ✅ | ✅ | ✅ | ✅ |
+| Auto-orchestration | ❌ | ✅ | ❌ | ❌ |
+
+### Permission Format Reference
+
+Claude Code uses **prefix matching** for permissions (not regex):
+
+| Permission | Format | Example Matches |
+|------------|--------|-----------------|
+| All bash commands | `Bash(:*)` | Any bash command |
+| Bash prefix | `Bash(pytest:*)` | `pytest`, `pytest tests/`, `pytest -v` |
+| All file reads | `Read(**)` | Any file path |
+| Specific directory | `Read(./src/**)` | Files in src/ directory |
+| All file writes | `Write(**)` | Any file path |
+| All file edits | `Edit(**)` | Any file path |
+| Simple tools | `Glob`, `Grep`, `WebFetch` | Just the tool name |
+| All MCP tools | `mcp__` | Any MCP server tool (prefix match) |
+
+**Three Permission Levels**:
+- **`allow`**: Auto-approve immediately (no prompt)
+- **`ask`**: Prompt user for confirmation
+- **`deny`**: Block silently (no prompt, operation fails)
+
+**Security Setting**:
+```json
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable"
+  }
+}
+```
+This prevents users from using `--dangerously-skip-permissions` flag, forcing reliance on configured policies.
 
 ### Environment Variables
 
@@ -503,7 +645,7 @@ Location: `plugins/autonomous-dev/config/auto_approve_policy.json`
 
 ```json
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "MCP Auto-Approval Policy - Whitelist/Blacklist for Safe Tool Execution",
   "bash": {
     "whitelist": [
@@ -511,6 +653,24 @@ Location: `plugins/autonomous-dev/config/auto_approve_policy.json`
       "git status",
       "git diff*",
       "git log*",
+      "git branch*",
+      "git add*",
+      "git commit*",
+      "git push*",
+      "git pull*",
+      "gh issue list*",
+      "gh issue view*",
+      "gh issue close*",
+      "gh issue create*",
+      "gh issue comment*",
+      "gh pr list*",
+      "gh pr view*",
+      "gh pr create*",
+      "gh pr close*",
+      "gh pr checkout*",
+      "gh pr comment*",
+      "gh auth status",
+      "gh repo view*",
       "ls*",
       "cat*",
       "head*",
@@ -523,8 +683,14 @@ Location: `plugins/autonomous-dev/config/auto_approve_policy.json`
       "which*",
       "python -m pytest*",
       "python -c*",
+      "python3 -m pytest*",
+      "python3 -c*",
       "pip list",
-      "pip show*"
+      "pip show*",
+      "cp *",
+      "mv *",
+      "mkdir*",
+      "touch*"
     ],
     "blacklist": [
       "rm -rf*",

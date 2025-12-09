@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-07
+**Last Updated**: 2025-12-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.37.1
+**Version**: v3.39.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -12,7 +12,7 @@
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 20 AI agents, 27 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
 **Install**:
 ```bash
@@ -329,9 +329,9 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
 - Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
 
-### Skills (27 Active - Progressive Disclosure + Agent Integration)
+### Skills (28 Active - Progressive Disclosure + Agent Integration)
 
-27 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.
+28 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.
 
 **Categories**:
 - **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
@@ -343,7 +343,7 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 **How It Works**:
 - **Progressive Disclosure**: Skills auto-activate based on keywords, full content loads only when needed
 - **Agent Integration**: Each agent references relevant skills in their prompts
-- **Token Reduction**: ~16,833-17,233 tokens saved across 27 skills (26-35% reduction)
+- **Token Reduction**: ~16,833-17,233 tokens saved across 28 skills (26-35% reduction)
 
 **Key Benefits**:
 - All 20 agents explicitly reference relevant skills (Issue #35)
@@ -353,11 +353,11 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (28 Documented Libraries)
+### Libraries (29 Documented Libraries)
 
-28 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, and git hook utilities. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
+29 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, and git hook utilities. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
-**Core Libraries** (15): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation
+**Core Libraries** (16): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation, settings_merger
 
 **Installation Libraries** (4): file_discovery, copy_system, installation_validator, install_orchestrator
 
@@ -375,7 +375,7 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Core Hooks** (12): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, pre_tool_use, session_tracker
 
-**Optional Hooks** (29): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 14 additional hooks for extended enforcement and validation
+**Optional Hooks** (30): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 15 additional hooks for extended enforcement and validation
 
 **Lifecycle Hooks** (2): UserPromptSubmit (display context), SubagentStop (log completion, auto-update progress)
 
@@ -399,8 +399,8 @@ python .claude/hooks/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 18 agents, orchestrator removed v3.2.2)
-- Command counts match installed commands (currently 17 active commands per GitHub #47 /sync unification)
+- Agent counts match reality (currently 20 agents, orchestrator removed v3.2.2)
+- Command counts match installed commands (currently 20 active commands)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date

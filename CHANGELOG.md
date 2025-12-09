@@ -55,7 +55,23 @@
 
 ### Fixed
 
-- **Sync Directory Silent Failures** (v3.37.1) - Issue #97 [See v3.37.1 notes above]
+- **GitHub CLI Commands Auto-Approval** - Enhanced auto_approve_policy.json whitelist
+  - **Problem**: `gh issue close`, `gh issue create`, `gh pr create`, and other GitHub CLI commands were blocked by auto-approval security hook
+  - **Solution**: Added complete GitHub CLI command coverage to whitelist
+  - **New Commands**:
+    - Issue management: `gh issue close*`, `gh issue create*`, `gh issue comment*`
+    - PR management: `gh pr create*`, `gh pr close*`, `gh pr checkout*`, `gh pr comment*`
+    - Auth/repo: `gh auth status`, `gh repo view*`
+  - **Impact**: `/auto-implement` can now auto-close GitHub issues without manual approval
+  - **Files Changed**: `plugins/autonomous-dev/config/auto_approve_policy.json`
+  - **Documentation Updated**: `docs/TOOL-AUTO-APPROVAL.md` Policy File Reference
+
+- **Documentation Count Consistency** - Fixed documentation drift across files
+  - **Skills**: 22 → 28 active skills (README.md alignment with reality)
+  - **Hooks**: 35+ → 44 automation hooks (README.md alignment with CLAUDE.md)
+  - **Libraries**: Verified 29 documented libraries after SettingsMerger addition
+  - **Files Fixed**: `plugins/autonomous-dev/README.md`, `CLAUDE.md`
+  - **Principle**: Documentation must reflect reality, not aspirations
 
 ---
 ## [v3.38.0] - 2025-12-09

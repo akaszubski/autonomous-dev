@@ -1,14 +1,14 @@
 # Autonomous Dev - Claude Code Plugin
 
 [![Available on Claude Code Commands Directory](https://img.shields.io/badge/Claude_Code-Commands_Directory-blue)](https://claudecodecommands.directory/command/autonomous-dev)
-[![Version](https://img.shields.io/badge/version-3.22.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
+[![Version](https://img.shields.io/badge/version-3.39.0-green)](https://github.com/akaszubski/autonomous-dev/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/akaszubski/autonomous-dev/blob/main/LICENSE)
 
-**Version**: v3.22.0
-**Last Updated**: 2025-11-18
+**Version**: v3.39.0
+**Last Updated**: 2025-12-09
 **Status**: Issue #91: Auto-close GitHub issues after /auto-implement
 
-Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 22 active skills, 42+ automated hooks, and PROJECT.md-first architecture.
+Production-ready plugin with 20 commands (10 core + 8 agent + 2 utility), 20 AI specialists, 28 active skills, 44 automated hooks, and PROJECT.md-first architecture.
 
 Works with: Python, JavaScript, TypeScript, React, Node.js, and more!
 
@@ -79,7 +79,7 @@ grep -n "STEP 1: Invoke Researcher" ~/.claude/plugins/marketplaces/autonomous-de
 **What gets installed:**
 - 20 slash commands (10 core + 8 agent + 2 utility: `/auto-implement`, `/align-project-retrofit`, `/sync`, `/create-issue`, `/research`, etc.)
 - 20 specialist agents (researcher, planner, implementer, issue-creator, brownfield-analyzer, etc. - orchestrator removed v3.2.2)
-- 35+ automation hooks (validation, security, testing, docs)
+- 44 automation hooks (validation, security, testing, docs)
 - Templates and project scaffolding
 
 ---
@@ -100,11 +100,11 @@ This:
 ### What the Bootstrap Script Does
 
 The install.sh script copies plugin files to your project's `.claude/` directory:
-- **Commands** → `.claude/commands/` (17 slash commands: 8 core + 7 agent + 2 utility)
-- **Hooks** → `.claude/hooks/` (29+ automation hooks)
+- **Commands** → `.claude/commands/` (20 slash commands: 10 core + 8 agent + 2 utility)
+- **Hooks** → `.claude/hooks/` (44 automation hooks)
 - **Templates** → `.claude/templates/` (PROJECT.md templates)
-- **Agents** → `.claude/agents/` (18 specialist agents, orchestrator removed v3.2.2)
-- **Skills** → `.claude/skills/` (19 active capabilities with progressive disclosure)
+- **Agents** → `.claude/agents/` (20 specialist agents, orchestrator removed v3.2.2)
+- **Skills** → `.claude/skills/` (28 active capabilities with progressive disclosure)
 
 **Why is this needed?** Claude Code currently requires plugin commands to be in your project's `.claude/` directory to be discoverable. The bootstrap script handles this one-time setup automatically.
 
@@ -1484,7 +1484,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 
 ## What You Get
 
-### 🤖 18 Specialized Agents
+### 🤖 20 Specialized Agents
 
 **Core Workflow Agents (9)** (orchestrator removed v3.2.2 - Claude coordinates directly via `/auto-implement`):
 
@@ -1499,7 +1499,7 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | **security-auditor** | Security scanning & OWASP compliance | haiku | 68 lines |
 | **doc-master** | Documentation sync & CHANGELOG automation | haiku | 63 lines |
 
-**Utility Agents (10)**:
+**Utility Agents (11)**:
 
 | Agent | Purpose | Model | Size |
 |-------|---------|-------|------|
@@ -1514,11 +1514,11 @@ cp -r ~/.claude/plugins/autonomous-dev/hooks/ .claude/hooks/
 | **advisor** | Critical thinking/"devils advocate" - analyzes proposals | sonnet | 600+ lines |
 | **quality-validator** | GenAI-powered feature validation | sonnet | 400+ lines |
 
-**Skills**: 19+ active skills (progressive disclosure architecture - Claude Code 2.0+ native support)
+**Skills**: 27 active skills (progressive disclosure architecture - Claude Code 2.0+ native support)
 
 ---
 
-### ⚙️ 17 Commands (All GenAI-Native)
+### ⚙️ 20 Commands (All GenAI-Native)
 
 **Philosophy**: "Explicit commands with background enforcement" - Command-driven workflow → Professional engineering output
 
@@ -1859,13 +1859,12 @@ Bring existing projects into alignment with `/align-project`:
 
 Claude coordinates the 7-agent pipeline when you run `/auto-implement <feature>` or use individual agent commands.
 
-### Skills (19 Active - Progressive Disclosure)
+### Skills (27 Active - Progressive Disclosure)
 
-**Status**: 19 active skill packages using Claude Code 2.0+ progressive disclosure architecture (Issue #35: All 18 agents now actively reference skills)
+**Status**: 27 active skill packages using Claude Code 2.0+ progressive disclosure architecture (Issue #35: All 20 agents now actively reference skills)
 
 **Agent Integration** (Issue #35):
-- All 18 agents reference relevant skills in their prompts (3-8 skills each)
-- 49 skill references across all agents (18 unique skills referenced)
+- All 20 agents reference relevant skills in their prompts (3-8 skills each)
 - Skills auto-activate via keywords without manual invocation
 - Progressive disclosure keeps context efficient (~200 bytes/skill metadata)
 
@@ -1876,10 +1875,11 @@ Claude coordinates the 7-agent pipeline when you run `/auto-implement <feature>`
 - Eliminates context bloat while providing specialist knowledge
 
 **Categories**:
-- **Core Development** (6): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns
-- **Workflow & Automation** (4): git-workflow, github-workflow, project-management, documentation-guide
+- **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
+- **Workflow & Automation** (7): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats, skill-integration, skill-integration-templates
 - **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
-- **Validation & Analysis** (5): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers
+- **Validation & Analysis** (6): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers, project-alignment-validation
+- **Library Design** (3): library-design-patterns, state-management-patterns, api-integration-patterns
 
 ### Hooks (Two Modes)
 
@@ -2031,27 +2031,17 @@ MIT License
 
 ## Version
 
-**v3.2.1** (2025-10-27)
+**v3.38.0** (2025-12-09)
 
-**Major Updates in v3.2.1**:
-- ✅ Hooks installation complete (30+ hooks to `.claude/hooks/`)
-- ✅ 6 core hooks tested and verified working
-- ✅ Path resolution fixed for dogfooding scenarios
-- ✅ README documentation updated
-- 🚀 Distribution-ready with proper source/test separation
+**Current Version Highlights**:
+- ✅ 20 specialized agents with active skill integration
+- ✅ 27 active skills using progressive disclosure
+- ✅ 20 commands (10 core + 8 agent + 2 utility)
+- ✅ MCP auto-approval for zero-interruption workflows
+- ✅ Batch feature processing with automatic retry
+- ✅ Git automation with per-feature commits
 
-**Previous Major Updates**:
-- ⭐ PROJECT.md-first architecture (alignment validation on every feature)
-- 🤖 orchestrator agent (master coordinator with PRIMARY MISSION)
-- 🎯 Alignment simplicity (all conflicts reduce to one question)
-- 🧠 GenAI command refactoring (8 GenAI-native commands)
-- 📊 GitHub integration (optional sprint tracking with .env auth)
-- 🔧 /align-project command (3-phase safe alignment with 7 advanced features)
-- 🧠 Model optimization (opus/sonnet/haiku for 40% cost reduction)
-- 📋 Context management (scales to 100+ features)
-- 🛡️ Safe alignment (dry run, pattern learning, undo stack, simulation mode)
-
-**See**: [HYBRID_ARCHITECTURE_SUMMARY.md](../../HYBRID_ARCHITECTURE_SUMMARY.md) for complete details
+**See**: [CHANGELOG.md](../../CHANGELOG.md) for complete version history
 
 ---
 
