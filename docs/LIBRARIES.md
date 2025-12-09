@@ -4714,3 +4714,566 @@ All errors are graceful and non-blocking:
 - `security_utils.py` - Provides path validation and audit logging
 - `docs/TOOL-AUTO-APPROVAL.md` - PreToolUse hook configuration reference
 - `plugins/autonomous-dev/templates/settings.local.json` - Default template
+
+---
+
+## 42. staging_manager.py (340 lines, v3.41.0+)
+
+**Purpose**: Manage staging directory for GenAI-first installation system
+
+**Issue**: #106 (GenAI-first installation system)
+
+### Overview
+
+The staging manager handles staged plugin files during the GenAI-first installation workflow. It validates staging directories, lists files with metadata, detects conflicts with target installations, and manages cleanup operations.
+
+**Key Features**:
+- Staging directory validation and initialization
+- File listing with SHA256 hashes and metadata
+- Conflict detection (file exists in both locations with different content)
+- Security validation (path traversal prevention, symlink detection)
+- Selective and full cleanup operations
+
+### Main Class
+
+#### `StagingManager`
+
+Manages a staging directory for plugin files.
+
+**Constructor**:
+```python
+def __init__(self, staging_dir: Path | str)
+```
+
+**Parameters**:
+- `staging_dir` (Path | str): Path to staging directory (created if doesn't exist)
+
+**Raises**:
+- `ValueError`: If path is a file (not a directory)
+
+**Methods**:
+
+##### `list_files() -> List[Dict[str, Any]]`
+
+List all files in staging directory with metadata.
+
+**Returns**: List of dicts with keys:
+- `path` (str): Relative path from staging directory (normalized)
+- `size` (int): File size in bytes
+- `hash` (str): SHA256 hex digest
+
+##### `get_file_hash(relative_path: str) -> Optional[str]`
+
+Get SHA256 hash of a specific file.
+
+**Parameters**:
+- `relative_path` (str): Relative path from staging directory
+
+**Returns**: SHA256 hex digest or None if file not found
+
+**Raises**:
+- `ValueError`: If path contains traversal or symlinks
+
+##### `detect_conflicts(target_dir: Path | str) -> List[Dict[str, Any]]`
+
+Detect conflicts between staged files and target directory.
+
+A conflict occurs when:
+- File exists in both locations
+- File content differs (different hashes)
+
+**Parameters**:
+- `target_dir` (Path | str): Target directory to compare against
+
+**Returns**: List of conflict dicts with file, reason, staging_hash, target_hash
+
+##### `cleanup() -> None`
+
+Remove all files and directories from staging directory.
+
+##### `cleanup_files(file_paths: List[str]) -> None`
+
+Remove specific files from staging directory.
+
+**Parameters**:
+- `file_paths` (List[str]): Relative paths to remove
+
+##### `is_secure() -> bool`
+
+Check if staging directory has secure permissions.
+
+**Returns**: True if readable and writable
+
+##### `validate_path(relative_path: str) -> None`
+
+Validate path for security issues.
+
+**Raises**:
+- `ValueError`: If path contains traversal (..), is absolute, or is a symlink
+
+### Security Features
+
+**Path Traversal Prevention**:
+- Blocks paths containing `..`
+- Rejects absolute paths
+- Validates paths are within staging directory (CWE-22)
+
+**Symlink Detection**:
+- Prevents symlink-based attacks (CWE-59)
+- Validates resolved path is within staging directory
+
+**File Hashing**:
+- SHA256 for content comparison
+- Enables conflict detection without loading full file contents
+
+### Testing
+
+**Test Coverage**: 18 tests
+- Directory initialization and validation
+- File listing with correct metadata
+- Conflict detection (same content, different content, missing files)
+- Path traversal prevention (.. attempts, absolute paths)
+- Symlink detection and rejection
+- Cleanup operations (full and selective)
+- Security permission checks
+
+### Related
+
+- GitHub Issue #106 (GenAI-first installation system)
+- `protected_file_detector.py` - Identifies files to preserve during installation
+- `installation_analyzer.py` - Analyzes installation type and strategy
+- `install_audit.py` - Audit logging for installation operations
+- `copy_system.py` - Performs actual file copying to target
+
+---
+
+## 43. protected_file_detector.py (316 lines, v3.41.0+)
+
+**Purpose**: Detect user artifacts and protected files during installation
+
+**Issue**: #106 (GenAI-first installation system)
+
+### Overview
+
+The protected file detector identifies files that should NOT be overwritten during installation. This includes:
+- User configuration files (.env, PROJECT.md)
+- State files (batch state, session state)
+- Custom hooks created by users
+- Modified plugin files (detected by hash comparison)
+
+**Key Features**:
+- Always-protected file list (hardcoded critical files)
+- Custom hook detection (glob patterns)
+- Plugin default comparison (hash-based)
+- Flexible glob pattern matching
+- File categorization (config, state, custom_hook, modified_plugin)
+
+### Class
+
+#### `ProtectedFileDetector`
+
+Detects files that should be protected during installation.
+
+**Constructor**:
+```python
+def __init__(
+    self,
+    additional_patterns: Optional[List[str]] = None,
+    plugin_defaults: Optional[Dict[str, str]] = None
+)
+```
+
+**Parameters**:
+- `additional_patterns` (Optional[List[str]]): Extra glob patterns to protect
+- `plugin_defaults` (Optional[Dict[str, str]]): Dict mapping file paths to their default SHA256 hashes
+
+**Attributes**:
+- `ALWAYS_PROTECTED` (List[str]): Always-protected files
+- `PROTECTED_PATTERNS` (List[str]): Default glob patterns
+
+### Methods
+
+##### `detect_protected_files(project_dir: Path | str) -> List[Dict[str, Any]]`
+
+Identify all protected files in a project directory.
+
+**Parameters**:
+- `project_dir` (Path | str): Path to project directory
+
+**Returns**: List of protected file dicts with file, category, protection_reason, hash
+
+##### `get_protected_patterns() -> List[str]`
+
+Get all protected glob patterns (built-in + custom).
+
+**Returns**: List of glob patterns
+
+##### `has_plugin_default(file_path: str) -> bool`
+
+Check if plugin has a default for this file.
+
+**Parameters**:
+- `file_path` (str): File path to check
+
+**Returns**: True if file has a default hash in plugin_defaults
+
+##### `matches_pattern(file_path: str) -> bool`
+
+Check if file path matches any protected pattern.
+
+**Parameters**:
+- `file_path` (str): File path to check
+
+**Returns**: True if matches any protected pattern
+
+##### `matches_plugin_default(file_path: Path, relative_path: str) -> bool`
+
+Check if file matches plugin default (unmodified).
+
+**Parameters**:
+- `file_path` (Path): Full path to file
+- `relative_path` (str): Relative path from project root
+
+**Returns**: True if file content matches default hash
+
+##### `calculate_hash(file_path: Path) -> str`
+
+Calculate SHA256 hash of a file.
+
+**Parameters**:
+- `file_path` (Path): Path to file
+
+**Returns**: SHA256 hex digest
+
+### File Categories
+
+**Config Files**: `.env`, `*.env`, `.claude/PROJECT.md` - Never overwritten
+
+**State Files**: `.claude/batch_state.json`, `.claude/session_state.json` - Preserves workflow state
+
+**Custom Hooks**: Files matching `.claude/hooks/custom_*.py` pattern - Never removed
+
+**Modified Plugin Files**: Plugin files with different hashes - Protected to preserve customizations
+
+### Security Features
+
+**Hash-Based Comparison**:
+- Compares file content, not timestamps
+- Detects modified plugin files even if timestamps change
+- Enables reliable conflict detection across machines
+
+**Pattern Matching**:
+- fnmatch-style glob patterns
+- Flexible protection rules
+- Supports wildcards (*, ?, [...])
+
+### Testing
+
+**Test Coverage**: 22 tests
+
+### Related
+
+- GitHub Issue #106 (GenAI-first installation system)
+- `staging_manager.py` - Manages staged files
+- `installation_analyzer.py` - Analyzes protection impact
+- `install_audit.py` - Logs protected file decisions
+- `copy_system.py` - Uses protection info for safe copying
+
+---
+
+## 44. installation_analyzer.py (374 lines, v3.41.0+)
+
+**Purpose**: Analyze installation type and recommend installation strategy
+
+**Issue**: #106 (GenAI-first installation system)
+
+### Overview
+
+The installation analyzer examines project state and plugin staging to determine the installation type (fresh, brownfield, or upgrade) and recommend an appropriate installation strategy with risk assessment.
+
+**Key Features**:
+- Installation type detection (fresh/brownfield/upgrade)
+- Comprehensive conflict analysis
+- Risk assessment (low/medium/high)
+- Strategy recommendation with action items
+- Detailed analysis reports
+
+### Enumerations
+
+#### `InstallationType`
+
+Installation type enumeration.
+
+**Values**:
+- `FRESH = "fresh"` - New project with no existing plugin
+- `BROWNFIELD = "brownfield"` - Existing project with plugin artifacts
+- `UPGRADE = "upgrade"` - Existing plugin being updated
+
+### Main Class
+
+#### `InstallationAnalyzer`
+
+Analyzes installation scenarios and recommends strategies.
+
+**Constructor**:
+```python
+def __init__(self, project_dir: Path | str)
+```
+
+**Parameters**:
+- `project_dir` (Path | str): Path to project directory
+
+**Raises**:
+- `ValueError`: If project directory doesn't exist
+
+### Methods
+
+##### `detect_installation_type() -> InstallationType`
+
+Determine installation type based on project state.
+
+**Returns**: InstallationType enum value
+
+##### `generate_conflict_report(staging_dir: Path | str) -> Dict[str, Any]`
+
+Generate detailed conflict analysis report.
+
+**Parameters**:
+- `staging_dir` (Path | str): Staging directory with new files
+
+**Returns**: Report dict with total_conflicts, conflicts, protected_files, risk_level
+
+##### `recommend_strategy() -> Dict[str, Any]`
+
+Recommend installation strategy based on project state.
+
+**Returns**: Strategy dict with type, strategy, action_items, warnings, approval_required
+
+##### `assess_risk() -> Dict[str, Any]`
+
+Assess installation risk level.
+
+**Returns**: Risk assessment dict with level, factors, conflicts_count, protected_files_count, recommendation
+
+**Risk Levels**:
+- `low` - No conflicts, protected files intact
+- `medium` - Some conflicts with protected files
+- `high` - Many conflicts, potential data loss
+
+##### `generate_analysis_report(staging_dir: Path | str) -> Dict[str, Any]`
+
+Generate comprehensive analysis report combining all analysis.
+
+**Parameters**:
+- `staging_dir` (Path | str): Staging directory
+
+**Returns**: Complete analysis report dict
+
+### Integration with GenAI-First Installation
+
+This analyzer is used by the GenAI-first installation system to:
+
+1. **Pre-Analysis Phase**: Analyze project before staging files
+2. **Strategy Recommendation**: Recommend installation approach
+3. **Risk Assessment**: Identify potential issues
+4. **Conflict Resolution**: Guide conflict resolution strategy
+5. **Approval Decision**: Determine if human approval required
+
+### Testing
+
+**Test Coverage**: 24 tests
+
+### Related
+
+- GitHub Issue #106 (GenAI-first installation system)
+- `staging_manager.py` - Provides conflict detection
+- `protected_file_detector.py` - Identifies protected files
+- `install_audit.py` - Logs analysis results
+- `copy_system.py` - Executes recommended strategy
+
+---
+
+## 45. install_audit.py (493 lines, v3.41.0+)
+
+**Purpose**: Audit logging for GenAI-first installation system
+
+**Issue**: #106 (GenAI-first installation system)
+
+### Overview
+
+The install audit module provides append-only audit logging for installation operations. It tracks installation attempts, protected files, conflicts, resolutions, and outcomes using JSONL format (one JSON object per line). This enables crash recovery, audit trails, and installation reports.
+
+**Key Features**:
+- JSONL format (append-only, crash-resistant)
+- Unique installation IDs for tracking
+- Protected file recording with categorization
+- Conflict tracking and resolution logging
+- Report generation from audit trail
+- Multiple query methods (by ID, by status)
+
+### Data Classes
+
+#### `AuditEntry`
+
+Represents a single audit log entry.
+
+**Constructor**:
+```python
+def __init__(
+    self,
+    event: str,
+    install_id: str,
+    timestamp: Optional[str] = None,
+    **kwargs
+)
+```
+
+**Parameters**:
+- `event` (str): Event type
+- `install_id` (str): Unique installation ID
+- `timestamp` (Optional[str]): ISO 8601 timestamp (auto-generated if None)
+- `**kwargs`: Additional event-specific fields
+
+**Methods**:
+
+##### `to_dict() -> Dict[str, Any]`
+
+Convert entry to dictionary for JSON serialization.
+
+**Returns**: Dict with event, install_id, timestamp, and all kwargs
+
+### Main Class
+
+#### `InstallAudit`
+
+Manages audit logging for installations.
+
+**Constructor**:
+```python
+def __init__(self, audit_file: Path | str)
+```
+
+**Parameters**:
+- `audit_file` (Path | str): Path to JSONL audit log file
+
+### Methods
+
+##### `start_installation(install_type: str) -> str`
+
+Start a new installation session and generate unique ID.
+
+**Parameters**:
+- `install_type` (str): Type of installation ("fresh", "brownfield", "upgrade")
+
+**Returns**: Unique installation ID (UUID format)
+
+##### `log_success(install_id: str, files_copied: int, **kwargs) -> None`
+
+Log successful installation completion.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `files_copied` (int): Number of files copied
+- `**kwargs`: Additional context (duration, etc.)
+
+##### `log_failure(install_id: str, error: str, **kwargs) -> None`
+
+Log installation failure.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `error` (str): Error message
+- `**kwargs`: Additional context
+
+##### `record_protected_file(install_id: str, file_path: str, category: str) -> None`
+
+Record a protected file that won't be overwritten.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `file_path` (str): Relative path to protected file
+- `category` (str): Protection category
+
+##### `record_conflict(install_id: str, file_path: str, conflict_type: str, **kwargs) -> None`
+
+Record a file conflict during installation.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `file_path` (str): Path to conflicting file
+- `conflict_type` (str): Type of conflict
+- `**kwargs`: Additional context (hashes, sizes, etc.)
+
+##### `record_conflict_resolution(install_id: str, file_path: str, resolution: str, **kwargs) -> None`
+
+Record how a conflict was resolved.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `file_path` (str): Path to file
+- `resolution` (str): Resolution action (skip, overwrite, merge, manual_review)
+- `**kwargs`: Additional context
+
+##### `generate_report(install_id: str) -> Dict[str, Any]`
+
+Generate a report for a specific installation.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+
+**Returns**: Report dict with install_id, status, duration, protected_files, conflicts, files_copied, summary
+
+##### `export_report(install_id: str, report_file: Path | str) -> None`
+
+Export a report to JSON file.
+
+**Parameters**:
+- `install_id` (str): Installation ID
+- `report_file` (Path | str): Path to write report JSON
+
+##### `get_all_installations() -> List[Dict[str, Any]]`
+
+Get all installation records from audit log.
+
+**Returns**: List of installation dicts with status, timestamp, type
+
+##### `get_installations_by_status(status: str) -> List[Dict[str, Any]]`
+
+Get installations filtered by status.
+
+**Parameters**:
+- `status` (str): "success" or "failure"
+
+**Returns**: List of matching installations
+
+### JSONL Format
+
+The audit log is JSONL (JSON Lines) format - one JSON object per line.
+
+### Security Features
+
+**Path Validation**:
+- Validates all file paths to prevent injection
+- Blocks paths with suspicious patterns
+
+**Append-Only Design**:
+- All entries appended (never modified)
+- Supports recovery from crashes
+- Enables forensic analysis
+
+**Timestamp Tracking**:
+- All entries timestamped (ISO 8601)
+- Tracks operation order and duration
+- Enables performance analysis
+
+### Testing
+
+**Test Coverage**: 26 tests
+
+### Related
+
+- GitHub Issue #106 (GenAI-first installation system)
+- `staging_manager.py` - Triggers conflict logging
+- `protected_file_detector.py` - Categorizes protected files
+- `installation_analyzer.py` - Analyzes installation strategy
+- `copy_system.py` - Executes operations that are logged

@@ -105,8 +105,13 @@ class CopySystem:
         overwrite: bool = True,
         preserve_timestamps: bool = True,
         show_progress: bool = False,
-        progress_callback: Optional[Callable[[int, int, str], None]] = None,
-        continue_on_error: bool = False
+        progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+        continue_on_error: bool = False,
+        protected_files: Optional[List[str]] = None,
+        protected_patterns: Optional[List[str]] = None,
+        backup_conflicts: bool = False,
+        backup_timestamp: bool = False,
+        conflict_strategy: str = "skip"
     ) -> Dict[str, Any]:
         """Copy all files while preserving directory structure.
 
@@ -115,15 +120,24 @@ class CopySystem:
             overwrite: Allow overwriting existing files (default: True)
             preserve_timestamps: Preserve file modification times (default: True)
             show_progress: Display progress to stdout (default: False)
-            progress_callback: Callback function(current, total, file_path)
+            progress_callback: Callback function(current, total, file_path, action)
             continue_on_error: Continue copying on errors (default: False)
+            protected_files: List of protected file paths (relative) to skip
+            protected_patterns: List of glob patterns for protected files
+            backup_conflicts: Create backups for conflicting files
+            backup_timestamp: Add timestamp to backup filenames
+            conflict_strategy: Strategy for conflicts (skip, overwrite, backup)
 
         Returns:
             Dictionary with copy results:
             {
                 "files_copied": 123,
+                "files_skipped": 5,
+                "files_backed_up": 2,
                 "errors": 0,
-                "error_list": []
+                "error_list": [],
+                "skipped_files": [],
+                "backed_up_files": []
             }
 
         Raises:
@@ -145,22 +159,103 @@ class CopySystem:
         # Create destination directory
         self.dest.mkdir(parents=True, exist_ok=True)
 
-        # Copy files
+        # Initialize counters and lists
         files_copied = 0
+        files_skipped = 0
+        files_backed_up = 0
         errors = []
+        skipped_files = []
+        backed_up_files = []
+
+        # Normalize protected files list
+        protected_set = set(protected_files or [])
+        protected_patterns_list = protected_patterns or []
+
+        # Import fnmatch for pattern matching
+        import fnmatch
+        from datetime import datetime
 
         for idx, file_path in enumerate(files, 1):
             try:
                 # Get relative path
                 relative = file_path.relative_to(self.source)
+                relative_str = str(relative).replace("\\", "/")
                 dest_path = self.dest / relative
 
-                # Check if file exists and overwrite not allowed
-                if dest_path.exists() and not overwrite:
-                    raise CopyError(
-                        f"File already exists: {dest_path}\n"
-                        f"Use overwrite=True to replace existing files"
-                    )
+                # Check if file is protected
+                is_protected = False
+                if relative_str in protected_set:
+                    is_protected = True
+                else:
+                    # Check patterns
+                    for pattern in protected_patterns_list:
+                        if fnmatch.fnmatch(relative_str, pattern):
+                            is_protected = True
+                            break
+
+                # Handle protected files
+                if is_protected and dest_path.exists():
+                    files_skipped += 1
+                    skipped_files.append(relative_str)
+
+                    # Progress reporting for skipped files
+                    if progress_callback:
+                        progress_callback(idx, len(files), relative_str, "skipped")
+
+                    if show_progress:
+                        percentage = (idx / len(files)) * 100
+                        print(f"[{idx}/{len(files)}] Skipping {relative} (protected)... ({percentage:.0f}%)")
+
+                    continue
+
+                # Handle conflicts (file exists but not protected)
+                if dest_path.exists():
+                    # Apply conflict strategy
+                    if conflict_strategy == "skip":
+                        files_skipped += 1
+                        skipped_files.append(relative_str)
+
+                        if progress_callback:
+                            progress_callback(idx, len(files), relative_str, "skipped")
+
+                        continue
+
+                    elif conflict_strategy == "backup" or backup_conflicts:
+                        # Create backup
+                        if backup_timestamp:
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            backup_path = dest_path.parent / f"{dest_path.name}.backup.{timestamp}"
+                        else:
+                            backup_path = dest_path.parent / f"{dest_path.name}.backup"
+
+                        # Handle backup name collision
+                        counter = 1
+                        while backup_path.exists():
+                            if backup_timestamp:
+                                backup_path = dest_path.parent / f"{dest_path.name}.backup.{timestamp}.{counter}"
+                            else:
+                                backup_path = dest_path.parent / f"{dest_path.name}.backup.{counter}"
+                            counter += 1
+
+                        # Create backup (preserve permissions)
+                        shutil.copy2(dest_path, backup_path)
+                        files_backed_up += 1
+                        backed_up_files.append(relative_str)
+
+                        if progress_callback:
+                            progress_callback(idx, len(files), relative_str, "backed_up")
+
+                    elif conflict_strategy == "overwrite":
+                        # Will be overwritten below
+                        pass
+
+                    else:
+                        # Check overwrite flag
+                        if not overwrite:
+                            raise CopyError(
+                                f"File already exists: {dest_path}\n"
+                                f"Use overwrite=True to replace existing files"
+                            )
 
                 # Create parent directories
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -184,7 +279,7 @@ class CopySystem:
 
                 # Progress reporting
                 if progress_callback:
-                    progress_callback(idx, len(files), str(relative))
+                    progress_callback(idx, len(files), relative_str, "copied")
 
                 if show_progress:
                     percentage = (idx / len(files)) * 100
@@ -199,8 +294,12 @@ class CopySystem:
 
         return {
             "files_copied": files_copied,
+            "files_skipped": files_skipped,
+            "files_backed_up": files_backed_up,
             "errors": len(errors),
-            "error_list": errors
+            "error_list": errors,
+            "skipped_files": skipped_files,
+            "backed_up_files": backed_up_files
         }
 
     def _is_script(self, file_path: Path) -> bool:
