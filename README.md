@@ -53,6 +53,26 @@ Adopt autonomous-dev in existing projects with `/align-project-retrofit`:
 - Infers PROJECT.md from current state
 - Migrates incrementally (5-phase process)
 
+**6. Progressive Disclosure Skills**
+28 domain knowledge packages that scale without context bloat:
+
+```
+Traditional RAG: Load all knowledge → Context explosion → Degraded performance
+Progressive Disclosure: Metadata first (~50 tokens) → Full content on-demand
+```
+
+**How it works**:
+1. Claude loads only skill names + descriptions at startup (~1,400 tokens for 28 skills)
+2. When keywords match a task, full skill content loads automatically
+3. Each agent has explicit skill references in its prompt (safety net for auto-activation)
+
+**Example**: `/implement "add rate limiting"` triggers:
+- implementer sees "Consult: api-design, security-patterns" in its prompt
+- Claude loads those skills based on keyword match ("rate", "API", "security")
+- Agent applies patterns from skills to your specific codebase
+
+This hybrid approach (auto-activation + explicit references) is more reliable than pure auto-activation alone.
+
 ---
 
 ## What Does It Do?
