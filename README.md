@@ -312,11 +312,11 @@ Each feature uses ~25-35K tokens. After 4-5 features (~150K tokens):
 ### Reference
 - [Commands](plugins/autonomous-dev/commands/) - All 21 commands
 - [Hooks](docs/HOOKS.md) - 44 automation hooks
-- [Skills](docs/SKILLS.md) - 28 knowledge packages
+- [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) - 28 knowledge packages
 - [Libraries](docs/LIBRARIES.md) - 29 Python utilities
 
 ### Troubleshooting
-- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues
+- [Troubleshooting Guide](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) - Common issues
 - [Development Guide](docs/DEVELOPMENT.md) - Contributing
 
 **[Full Documentation Index](docs/DOCUMENTATION_INDEX.md)**
