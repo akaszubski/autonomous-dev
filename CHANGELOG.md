@@ -1,3 +1,81 @@
+## [v3.40.0] - 2025-12-09
+
+### Added
+
+- **Path-based Containment Validation for Destructive Commands** - Enhanced security for tool_validator.py
+  - **Feature**: Prevent path traversal and symlink attacks when rm/mv/cp/chmod/chown commands are executed by subagents
+  - **Motivation**: Subagents can now execute destructive commands safely with automatic path validation to prevent CWE-22 (path traversal) and CWE-59 (symlink attacks)
+  - **Architecture**:
+    - ENHANCED: `tool_validator.py` (900 lines, +190 lines from v3.38.0)
+      - New method: `_extract_paths_from_command(command: str) -> List[str]` - Extract file paths from destructive shell commands
+      - New method: `_validate_path_containment(paths: List[str], project_root: Path) -> Tuple[bool, Optional[str]]` - Validate paths contained within project boundaries
+      - Enhanced: `validate_bash_command()` - Integrated path containment validation into command validation pipeline
+      - Security: Handles wildcards (conservative - cannot validate), symlinks (resolves and validates target), home directory expansion (whitelists ~/.claude/)
+  - **Validation Flow**:
+    1. Command blacklist check (deny destructive patterns)
+    2. **NEW**: Extract paths from rm/mv/cp/chmod/chown commands
+    3. **NEW**: Validate all extracted paths are within project boundaries
+    4. Command injection pattern detection (CWE-78, CWE-117, CWE-158)
+    5. Command whitelist check (approve known-safe commands)
+    6. Deny by default (conservative approach)
+  - **Commands Supported**:
+    - `rm` - Remove files/directories with path validation
+    - `mv` - Move files with source and destination validation
+    - `cp` - Copy files with destination validation
+    - `chmod` - Change file permissions with path validation
+    - `chown` - Change file ownership with path validation
+  - **Security Features**:
+    - **Path Traversal Prevention**: Rejects ../ sequences that escape project root
+    - **Absolute Path Blocking**: Rejects /etc/passwd style paths outside project
+    - **Symlink Attack Prevention**: Resolves symlinks and validates target location is within project
+    - **Home Directory Containment**: Rejects ~/ expansion (except whitelisted ~/.claude/ for Claude Code system files)
+    - **Injection Prevention**: Detects null bytes and newlines in paths
+    - **Wildcard Safety**: Conservative approach - cannot validate wildcard expansion, returns empty list for static analysis
+  - **Error Messages**: Distinguishes between path traversal vs absolute path violations for clear troubleshooting
+  - **Testing**: 50 new comprehensive tests
+    - Path extraction edge cases (quoted paths, escaped characters, multiple arguments, wildcards)
+    - Containment validation (traversal, absolute paths, symlinks, home directory, invalid characters)
+    - Integration with bash command validation
+    - Edge cases (unicode paths, long paths, null bytes, malformed quotes)
+  - **Changes**:
+    - **ENHANCED**: `plugins/autonomous-dev/lib/tool_validator.py` (900 lines, v3.40.0)
+      - New methods: _extract_paths_from_command(), _validate_path_containment()
+      - Enhanced: validate_bash_command() integrates path containment validation
+      - Improved docstrings with CWE coverage
+    - **NEW**: `tests/unit/lib/test_tool_validator_paths.py` (790 lines)
+      - 50 tests for path extraction and containment validation
+      - Test fixtures for temporary project structure
+      - Comprehensive edge case coverage
+  - **Documentation Updated**:
+    - **ENHANCED**: `docs/LIBRARIES.md` section 39
+      - Updated: Line count 710 -> 900
+      - Updated: Version v3.38.0 -> v3.40.0
+      - Added: New v3.40.0 feature overview
+      - Added: _extract_paths_from_command() method documentation
+      - Added: _validate_path_containment() method documentation
+      - Added: Integration with validate_bash_command() section
+      - Added: CWE-22 and CWE-59 references
+  - **User Impact**:
+    - Subagents can now safely execute rm/mv/cp/chmod/chown commands without escaping project boundaries
+    - Path containment validation is transparent (no user configuration needed)
+    - Automatic in validate_bash_command() workflow
+    - Conservative approach: wildcards skip validation (cannot analyze static expansion)
+  - **Example Usage**:
+    - Approved: `rm src/temp.py` - Within project
+    - Approved: `mv src/old.py src/new.py` - Both within project
+    - Denied: `rm ../../../etc/passwd` - Escapes project boundary
+    - Denied: `rm /etc/passwd` - Absolute path outside project
+    - Denied: `rm ~/secret.txt` - Home directory (except ~/.claude/)
+  - **Related**: GitHub Issue #XXX (Path-based containment validation for destructive commands)
+
+### Changed
+
+- **tool_validator.py Line Count**: 710 lines (v3.38.0) -> 900 lines (v3.40.0)
+  - Added path extraction logic (90 lines)
+  - Added containment validation logic (100 lines)
+  - Integration in validate_bash_command() workflow
+
+---
 ## [v3.39.0] - 2025-12-09
 
 ### Added

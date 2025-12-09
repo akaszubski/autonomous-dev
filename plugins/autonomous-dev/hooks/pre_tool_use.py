@@ -69,17 +69,32 @@ def main():
         # Import and run validation
         try:
             from auto_approval_engine import should_auto_approve
+            from tool_validator import ToolValidator
+
             approved, reason = should_auto_approve(tool_name, tool_input, agent_name)
+
+            # Determine three-state decision:
+            # 1. approved=True → "allow" (auto-approve)
+            # 2. blacklisted/security_risk → "deny" (block entirely)
+            # 3. not whitelisted → "ask" (fall back to user)
+            if approved:
+                permission_decision = "allow"
+            elif "blacklist" in reason.lower() or "injection" in reason.lower() or "security" in reason.lower() or "circuit breaker" in reason.lower():
+                permission_decision = "deny"
+            else:
+                # Not whitelisted but not dangerous - ask user
+                permission_decision = "ask"
+
         except Exception as e:
-            # Graceful degradation - deny on error
-            approved = False
+            # Graceful degradation - ask user on error (don't block)
+            permission_decision = "ask"
             reason = f"Auto-approval error: {e}"
 
         # Output decision
         decision = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "allow" if approved else "deny",
+                "permissionDecision": permission_decision,
                 "permissionDecisionReason": reason
             }
         }
@@ -87,11 +102,11 @@ def main():
         print(json.dumps(decision))
 
     except Exception as e:
-        # Error - deny with explanation
+        # Error - ask user (don't block on hook errors)
         decision = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
+                "permissionDecision": "ask",
                 "permissionDecisionReason": f"Hook error: {e}"
             }
         }

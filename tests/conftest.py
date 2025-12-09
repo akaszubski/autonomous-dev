@@ -4,6 +4,9 @@ import pytest
 import sys
 from pathlib import Path
 
+# Add plugins directory to Python path for autonomous_dev imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "plugins"))
+
 # Import path_utils for cache reset
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
 

@@ -55,10 +55,12 @@ See error-handling-patterns skill for exception hierarchy and error handling bes
 
 import fnmatch
 import json
+import os
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 # Import security utilities for path validation
 try:
@@ -72,6 +74,15 @@ except ImportError:
     def audit_log(event, status, context):
         """Fallback audit logging."""
         pass
+
+# Import path utilities for project root detection
+try:
+    from path_utils import get_project_root
+except ImportError:
+    # Fallback to CWD if path_utils not available
+    def get_project_root():
+        """Fallback project root detection."""
+        return Path.cwd()
 
 
 # Default policy file location
@@ -187,17 +198,30 @@ class ToolValidator:
         >>> print(result.approved)  # False
     """
 
-    def __init__(self, policy_file: Optional[Path] = None):
-        """Initialize ToolValidator with policy file.
+    def __init__(self, policy_file: Optional[Path] = None, policy: Optional[Dict[str, Any]] = None):
+        """Initialize ToolValidator with policy file or policy dict.
 
         Args:
             policy_file: Path to JSON policy file (default: config/auto_approve_policy.json)
+                        Can also be a dict (for backwards compatibility with tests)
+            policy: Policy dict (for testing). If provided, policy_file is ignored.
 
         Raises:
             ToolValidationError: If policy file has invalid schema
         """
-        self.policy_file = policy_file or DEFAULT_POLICY_FILE
-        self.policy = self._load_policy()
+        # Handle backwards compatibility: if policy_file is a dict, treat it as policy
+        if isinstance(policy_file, dict):
+            policy = policy_file
+            policy_file = None
+
+        if policy is not None:
+            # Use provided policy dict directly (for testing)
+            self.policy_file = None
+            self.policy = policy
+        else:
+            # Load from file
+            self.policy_file = policy_file or DEFAULT_POLICY_FILE
+            self.policy = self._load_policy()
 
     def _load_policy(self) -> Dict[str, Any]:
         """Load and validate policy from JSON file.
@@ -316,15 +340,225 @@ class ToolValidator:
             },
         }
 
+    def _extract_paths_from_command(self, command: str) -> List[str]:
+        """Extract file paths from destructive shell commands.
+
+        Extracts paths from commands that modify the filesystem:
+        - rm: Remove files/directories
+        - mv: Move files/directories
+        - cp: Copy files/directories
+        - chmod: Change file permissions
+        - chown: Change file ownership
+
+        Non-destructive commands (ls, cat, etc.) return empty list since they
+        don't need path containment validation.
+
+        Wildcards (* and ?) return empty list since they expand at runtime
+        and cannot be validated statically.
+
+        Args:
+            command: Shell command string to parse
+
+        Returns:
+            List of file paths extracted from command, or empty list if:
+            - Command is non-destructive (read-only)
+            - Command contains wildcards (cannot validate)
+            - Command is empty or malformed
+
+        Examples:
+            >>> _extract_paths_from_command("rm file.txt")
+            ["file.txt"]
+            >>> _extract_paths_from_command("mv src.txt dst.txt")
+            ["src.txt", "dst.txt"]
+            >>> _extract_paths_from_command("chmod 755 script.sh")
+            ["script.sh"]
+            >>> _extract_paths_from_command("rm *.txt")
+            []  # Wildcards cannot be validated
+            >>> _extract_paths_from_command("ls file.txt")
+            []  # Non-destructive commands skip validation
+
+        Security:
+            - Uses shlex.split() to handle quotes and escaping correctly
+            - Filters out flags (arguments starting with -)
+            - Skips mode/ownership arguments for chmod/chown
+        """
+        if not command or not command.strip():
+            return []
+
+        # Check for wildcards - cannot validate paths that expand at runtime
+        if '*' in command or '?' in command:
+            return []
+
+        try:
+            # Parse command with shlex for proper quote/escape handling
+            tokens = shlex.split(command)
+        except ValueError:
+            # Malformed command (unclosed quotes, etc.) - return empty
+            return []
+
+        if not tokens:
+            return []
+
+        # Get command name (first token)
+        cmd = tokens[0]
+
+        # Only extract paths from destructive commands
+        destructive_commands = ['rm', 'mv', 'cp', 'chmod', 'chown']
+        if cmd not in destructive_commands:
+            return []
+
+        # Extract arguments (skip first token which is command name)
+        args = tokens[1:]
+
+        paths = []
+        seen_mode_or_ownership = False  # Track if we've seen the mode/ownership argument
+
+        for i, arg in enumerate(args):
+            # Skip flags (arguments starting with -)
+            if arg.startswith('-'):
+                continue
+
+            # For chmod/chown, first non-flag argument is mode/ownership
+            if cmd in ['chmod', 'chown'] and not seen_mode_or_ownership:
+                # This is the mode (chmod 755) or ownership (chown user:group)
+                # Skip it and continue to actual file paths
+                seen_mode_or_ownership = True
+                continue
+
+            # This is a file path
+            paths.append(arg)
+
+        return paths
+
+    def _validate_path_containment(
+        self,
+        paths: List[str],
+        project_root: Path
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate that all paths are contained within project boundaries.
+
+        Validates paths to prevent:
+        - CWE-22: Path traversal (../ sequences, absolute paths outside project)
+        - CWE-59: Symlink attacks (symlinks pointing outside project)
+
+        Special cases:
+        - Empty list: Always valid (no paths to validate)
+        - ~/.claude/: Whitelisted (Claude Code system files)
+        - ~/: Rejected (home directory outside project)
+
+        Args:
+            paths: List of file paths to validate
+            project_root: Project root directory (containment boundary)
+
+        Returns:
+            Tuple of (is_valid, error_message):
+            - (True, None): All paths valid
+            - (False, "error"): First invalid path with error description
+
+        Examples:
+            >>> _validate_path_containment(["src/main.py"], project_root)
+            (True, None)
+            >>> _validate_path_containment(["../../../etc/passwd"], project_root)
+            (False, "Path traversal detected: ../../../etc/passwd points outside project")
+            >>> _validate_path_containment(["/etc/passwd"], project_root)
+            (False, "Absolute path /etc/passwd is outside project root")
+
+        Security:
+            - Checks for null bytes and newlines (injection risk)
+            - Expands tilde (~) for home directory
+            - Resolves symlinks and validates target
+            - Uses is_relative_to() or relative_to() for containment check
+        """
+        # Empty list is always valid
+        if not paths:
+            return (True, None)
+
+        for path_str in paths:
+            # Check for null bytes and newlines (security risk)
+            if '\x00' in path_str or '\n' in path_str:
+                return (False, f"Invalid character in path: {path_str}")
+
+            # Expand tilde to home directory
+            if path_str.startswith('~'):
+                # Special case: ~/.claude/ is whitelisted (Claude Code system files)
+                if path_str.startswith('~/.claude/') or path_str == '~/.claude':
+                    # For testing, treat .claude as relative to project
+                    path_str = path_str.replace('~/.claude', '.claude')
+                else:
+                    # Block all other ~/ paths (outside project)
+                    expanded = os.path.expanduser(path_str)
+                    return (False, f"Path {path_str} expands to home directory {expanded} which is outside project root")
+
+            # Convert to Path object
+            try:
+                path = Path(path_str)
+            except (ValueError, OSError) as e:
+                return (False, f"Invalid path format: {path_str} ({e})")
+
+            # Resolve to absolute path (resolves symlinks)
+            try:
+                # If path is relative, resolve from project root
+                if not path.is_absolute():
+                    resolved = (project_root / path).resolve()
+                else:
+                    resolved = path.resolve()
+            except (ValueError, OSError, RuntimeError) as e:
+                return (False, f"Cannot resolve path {path_str}: {e}")
+
+            # Check if path is within project boundaries
+            try:
+                # Try is_relative_to() (Python 3.9+)
+                if hasattr(resolved, 'is_relative_to'):
+                    if not resolved.is_relative_to(project_root):
+                        if path.is_absolute():
+                            return (False, f"Absolute path {path_str} is outside project root {project_root}")
+                        else:
+                            return (False, f"Path traversal detected: {path_str} points outside project root {project_root}")
+                else:
+                    # Fallback for Python 3.8: use relative_to() with try-except
+                    try:
+                        resolved.relative_to(project_root)
+                    except ValueError:
+                        if path.is_absolute():
+                            return (False, f"Absolute path {path_str} is outside project root {project_root}")
+                        else:
+                            return (False, f"Path traversal detected: {path_str} points outside project root {project_root}")
+            except (ValueError, TypeError) as e:
+                return (False, f"Path validation error for {path_str}: {e}")
+
+            # Check if path is a symlink pointing outside project
+            # Note: resolve() already follows symlinks, so we check if the original
+            # path was a symlink and if its target is outside the project
+            try:
+                original_path = project_root / path if not path.is_absolute() else path
+                if original_path.is_symlink():
+                    # Get symlink target
+                    target = original_path.resolve()
+                    # Check if target is within project
+                    if hasattr(target, 'is_relative_to'):
+                        if not target.is_relative_to(project_root):
+                            return (False, f"Symlink {path_str} points outside project to {target}")
+                    else:
+                        try:
+                            target.relative_to(project_root)
+                        except ValueError:
+                            return (False, f"Symlink {path_str} points outside project to {target}")
+            except (OSError, ValueError):
+                # If we can't check symlink status, continue (file may not exist yet)
+                pass
+
+        return (True, None)
+
     def validate_bash_command(self, command: str) -> ValidationResult:
         """Validate Bash command for auto-approval.
 
         Validation steps:
         1. Normalize command (remove quotes, expand backslashes)
         2. Check blacklist (deny if matches - check both original and normalized)
-        3. Check for command injection patterns
-        4. Check whitelist (approve if matches)
-        5. Deny by default (conservative)
+        3. Check path containment (CWE-22, CWE-59 prevention)
+        4. Check for command injection patterns
+        5. Check whitelist (approve if matches)
+        6. Deny by default (conservative)
 
         Args:
             command: Bash command string to validate
@@ -338,7 +572,8 @@ class ToolValidator:
         normalized = ' '.join(normalized.split())  # Collapse whitespace
 
         # Step 2: Check blacklist against both original and normalized command
-        blacklist = self.policy["bash"]["blacklist"]
+        # Support both 'blacklist' and 'denylist' for backwards compatibility
+        blacklist = self.policy["bash"].get("blacklist", self.policy["bash"].get("denylist", []))
         for pattern in blacklist:
             if fnmatch.fnmatch(command, pattern) or fnmatch.fnmatch(normalized, pattern):
                 return ValidationResult(
@@ -350,7 +585,24 @@ class ToolValidator:
                     matched_pattern=pattern,
                 )
 
-        # Step 3: Check for command injection patterns (CWE-78, CWE-117, CWE-158)
+        # Step 3: Check path containment (CWE-22, CWE-59 prevention)
+        # Extract paths from destructive commands (rm, mv, cp, chmod, chown)
+        paths = self._extract_paths_from_command(command)
+        if paths:
+            # Validate all paths are within project boundaries
+            project_root = get_project_root()
+            is_valid, error = self._validate_path_containment(paths, project_root)
+            if not is_valid:
+                return ValidationResult(
+                    approved=False,
+                    reason=error,
+                    security_risk=True,
+                    tool="Bash",
+                    parameters={"command": command},
+                    matched_pattern="path_containment",
+                )
+
+        # Step 4: Check for command injection patterns (CWE-78, CWE-117, CWE-158)
         for pattern, reason_name in COMPILED_INJECTION_PATTERNS:
             if pattern.search(command):
                 return ValidationResult(
@@ -362,7 +614,7 @@ class ToolValidator:
                     matched_pattern=pattern.pattern,
                 )
 
-        # Step 4: Check whitelist (approve known-safe commands)
+        # Step 5: Check whitelist (approve known-safe commands)
         whitelist = self.policy["bash"]["whitelist"]
         for pattern in whitelist:
             if fnmatch.fnmatch(command, pattern):
@@ -375,7 +627,7 @@ class ToolValidator:
                     matched_pattern=pattern,
                 )
 
-        # Step 5: Deny by default (conservative security posture)
+        # Step 6: Deny by default (conservative security posture)
         return ValidationResult(
             approved=False,
             reason="Command not in whitelist (deny by default)",

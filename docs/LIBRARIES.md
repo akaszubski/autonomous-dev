@@ -4190,17 +4190,19 @@ assert "parameter validation" in decision.layer_violations
 
 ---
 
-## 39. tool_validator.py (710 lines, v3.38.0)
+## 39. tool_validator.py (900 lines, v3.40.0)
 
-**Purpose**: Tool call validation with whitelist/blacklist, injection detection, and parameter analysis
+**Purpose**: Tool call validation with whitelist/blacklist, injection detection, path containment validation, and parameter analysis
 
 **Issue**: #73 (MCP Auto-Approval), #98 (PreToolUse Consolidation)
+
+**New in v3.40.0**: Path extraction and containment validation for destructive shell commands (rm, mv, cp, chmod, chown) - prevents CWE-22 (path traversal) and CWE-59 (symlink attacks) when files are modified.
 
 ### Classes
 
 #### `ToolValidator`
 
-Validates MCP tool calls against security policies.
+Validates MCP tool calls against security policies with path-aware containment validation for destructive commands.
 
 **Methods**:
 
@@ -4223,9 +4225,10 @@ Comprehensive validation of tool calls.
 2. **Blacklist Check** - Tool must not be explicitly denied
 3. **Path Traversal** - Detect `..`, `/etc/passwd`, symlink attacks
 4. **Injection Patterns** - Detect shell metacharacters, command chaining
-5. **Sensitive Files** - Block access to `.env`, `.ssh`, secrets
-6. **SSRF Detection** - Detect localhost, private IPs, metadata services
-7. **Parameter Size** - Reject suspiciously large parameters
+5. **Path Containment** (NEW v3.40.0) - Validate extracted paths are within project boundaries
+6. **Sensitive Files** - Block access to `.env`, `.ssh`, secrets
+7. **SSRF Detection** - Detect localhost, private IPs, metadata services
+8. **Parameter Size** - Reject suspiciously large parameters
 
 **Example**:
 ```python
@@ -4246,14 +4249,176 @@ result = validator.validate_tool(
 assert result.valid == False
 assert result.severity == "critical"
 assert any("path traversal" in v for v in result.violations)
+
+# Valid - rm within project boundaries
+result = validator.validate_bash_command("rm src/temp.py")
+assert result.approved == True
+
+# Invalid - rm outside project
+result = validator.validate_bash_command("rm ../../../etc/passwd")
+assert result.approved == False
+assert "path traversal" in result.reason
 ```
+
+##### `_extract_paths_from_command(command: str) -> List[str]` (NEW v3.40.0)
+
+Extract file paths from destructive shell commands for containment validation.
+
+**Purpose**: Identifies files that will be modified by rm/mv/cp/chmod/chown commands so they can be validated against project boundaries.
+
+**Supported Commands**:
+- `rm` - Remove files/directories
+- `mv` - Move files/directories
+- `cp` - Copy files/directories
+- `chmod` - Change file permissions
+- `chown` - Change file ownership
+
+**Parameters**:
+- `command` (str): Shell command string to parse
+
+**Returns**: List of file paths extracted from command, or empty list if:
+- Command is non-destructive (ls, cat, etc.)
+- Command contains wildcards (asterisk or question mark) - cannot validate at static analysis time
+- Command is empty or malformed (unclosed quotes)
+
+**Behavior**:
+- Uses shlex.split() for proper quote/escape handling
+- Filters out flags (arguments starting with dash)
+- Skips mode/ownership arguments for chmod/chown
+- Gracefully handles malformed commands (returns empty list)
+
+**Security Notes**:
+- Wildcard commands return empty list (conservative approach - cannot validate)
+- Symlinks are resolved and validated separately by _validate_path_containment()
+- Only destructive commands checked (non-destructive commands skip validation)
+
+**Example**:
+```python
+validator = ToolValidator()
+
+# Extract paths from rm command
+paths = validator._extract_paths_from_command("rm file.txt")
+# Returns: ["file.txt"]
+
+# Extract multiple paths from mv
+paths = validator._extract_paths_from_command("mv src.txt dst.txt")
+# Returns: ["src.txt", "dst.txt"]
+
+# Wildcards skip validation (conservative)
+paths = validator._extract_paths_from_command("rm *.txt")
+# Returns: []  # Cannot validate wildcard expansion
+
+# Non-destructive commands skip validation
+paths = validator._extract_paths_from_command("ls file.txt")
+# Returns: []  # No containment validation needed
+```
+
+##### `_validate_path_containment(paths: List[str], project_root: Path) -> Tuple[bool, Optional[str]]` (NEW v3.40.0)
+
+Validate that all paths are contained within project boundaries.
+
+**Purpose**: Prevents CWE-22 (path traversal) and CWE-59 (symlink attacks) by ensuring destructive operations only affect files within the project.
+
+**Validation Checks**:
+- **Path Traversal** - Reject traversal style escapes like ../../../etc/passwd
+- **Absolute Paths** - Reject /etc/passwd outside project
+- **Symlinks** - Reject symlinks pointing outside project
+- **Home Directory** - Reject ~/ expansion (except whitelisted ~/.claude/)
+- **Invalid Characters** - Reject paths with null bytes or newlines
+
+**Parameters**:
+- `paths` (List[str]): File paths to validate
+- `project_root` (Path): Project root directory (containment boundary)
+
+**Returns**: Tuple of:
+- (True, None) - All paths valid and contained
+- (False, error_message) - First invalid path with description
+
+**Special Cases**:
+- **Empty list**: Always valid (no paths to validate)
+- **~/.claude/**: Whitelisted for Claude Code system files
+- **Other ~/ paths**: Rejected (outside project boundaries)
+
+**Security Features**:
+- Checks for null bytes and newlines - injection risk
+- Expands tilde to absolute path before validation
+- Resolves symlinks and validates target location
+- Uses is_relative_to() for containment check (Python 3.9+) with fallback for 3.8
+- Distinguishes between path traversal vs absolute path violations in error messages
+
+**Example**:
+```python
+validator = ToolValidator()
+project_root = Path("/home/user/project")
+
+# Valid - relative path within project
+is_valid, error = validator._validate_path_containment(
+    ["src/main.py"],
+    project_root
+)
+assert is_valid == True
+assert error is None
+
+# Invalid - path traversal attempt
+is_valid, error = validator._validate_path_containment(
+    ["../../../etc/passwd"],
+    project_root
+)
+assert is_valid == False
+assert "path traversal" in error
+
+# Invalid - absolute path outside project
+is_valid, error = validator._validate_path_containment(
+    ["/etc/passwd"],
+    project_root
+)
+assert is_valid == False
+assert "absolute path" in error and "outside" in error
+
+# Invalid - symlink to outside
+is_valid, error = validator._validate_path_containment(
+    ["link_to_etc"],
+    project_root
+)
+assert is_valid == False
+assert "symlink" in error
+
+# Whitelisted - .claude directory
+is_valid, error = validator._validate_path_containment(
+    ["~/.claude/config.json"],
+    project_root
+)
+assert is_valid == True
+
+# Invalid - other home directory paths
+is_valid, error = validator._validate_path_containment(
+    ["~/.ssh/id_rsa"],
+    project_root
+)
+assert is_valid == False
+assert "home directory" in error
+```
+
+### Integration with validate_bash_command()
+
+When validate_bash_command() processes a command:
+1. Checks command against blacklist
+2. NEW v3.40.0: Extracts paths from destructive commands
+3. NEW v3.40.0: Validates paths are contained within project boundaries
+4. Checks for command injection patterns
+5. Checks against whitelist
+6. Denies by default (conservative approach)
+
+This ensures commands like rm ../../../etc/passwd are blocked before execution, even if they pass other validation layers.
 
 ### Related
 
 - GitHub Issue #73 (MCP Auto-Approval)
 - GitHub Issue #98 (PreToolUse Consolidation)
-- `auto_approval_engine.py` - Uses validator in approval decision
-- `docs/TOOL-AUTO-APPROVAL.md` - Security validation documentation
+- auto_approval_engine.py - Uses validator in approval decision
+- docs/TOOL-AUTO-APPROVAL.md - Security validation documentation
+- CWE-22: Improper Limitation of a Pathname to a Restricted Directory
+- CWE-59: Improper Link Resolution Before File Access
 
 ---
 
