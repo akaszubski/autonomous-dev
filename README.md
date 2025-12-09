@@ -1,83 +1,56 @@
-# Autonomous Development Plugin for Claude Code
+# autonomous-dev
 
-**Structured, autonomous, aligned AI development using PROJECT.md as the source of truth.**
+[![Claude Code 2.0+](https://img.shields.io/badge/Claude%20Code-2.0+-blueviolet)](https://claude.ai/download)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 
-> *"Trust the model, enforce via hooks, enhance via agents"*
+**Turn Claude Code into a complete engineering team.**
+
+One command. Full pipeline: research → plan → tests → code → review → security scan → docs → PR.
+
+```bash
+/auto-implement "issue #72"
+```
+
+15-30 minutes later: tested, reviewed, documented pull request ready for merge.
+
+<!-- TODO: Add demo GIF here showing /auto-implement in action -->
+<!-- ![Demo](docs/assets/demo.gif) -->
+
+## Quick Start
+
+```bash
+# Install (30 seconds)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+
+# Restart Claude Code (Cmd+Q / Ctrl+Q), then:
+/setup
+```
+
+That's it. Run `/auto-implement "your feature"` and watch 7 agents build it.
+
+> Need more install options? See [Install](#install) for prerequisites, plugin system, and troubleshooting.
 
 ---
 
-## Why autonomous-dev?
+## Claude Code vs Claude Code + autonomous-dev
 
-### The Core Philosophy
+| Aspect | Vanilla Claude Code | With autonomous-dev |
+|--------|---------------------|---------------------|
+| **Workflow** | You guide each step manually | 7 agents run automatically |
+| **Tests** | Maybe, if you remember to ask | Always. TDD enforced by hooks |
+| **Security** | Hope you catch issues | OWASP scan on every feature |
+| **Documentation** | Usually forgotten | Auto-updated every commit |
+| **Scope creep** | Claude makes assumptions | Out-of-scope requests blocked |
+| **Quality gates** | Trust-based | Hook-enforced (can't bypass) |
+| **Git workflow** | Manual commits/PRs | Auto-commit, push, PR, issue close |
+| **Batch processing** | One feature at a time | 50+ features with crash recovery |
 
-- **Trust the model** — Claude coordinates 20 specialized agents, not a rigid script
-- **Enforce via hooks** — Quality gates are 100% reliable (hooks can't be bypassed)
-- **Enhance via agents** — Agents provide expertise, not rigid control
-
-### Unique Capabilities
-
-**1. TDD with Context Isolation**
-Most frameworks run test-writing and implementation in the same context. The implementer "knows" what the tests expect and overfits.
-
-We use **file-based handoff**: test-master writes tests to disk in a separate context. The implementer runs in its own isolated context and reads only test files (not test-master's reasoning). This prevents context pollution and enforces true TDD discipline.
-
-**Technical details**: See [docs/TDD-CONTEXT-ISOLATION.md](docs/TDD-CONTEXT-ISOLATION.md)
-
-**2. Hook-Enforced Quality Gates**
-Agent-only systems can be "convinced" to skip steps. Hooks can't.
-
-```python
-# PreCommit hook - runs on EVERY commit, no exceptions
-validate_project_alignment()  # Blocks if out of scope
-security_scan()               # Blocks if vulnerabilities found
-enforce_tdd()                 # Blocks if tests missing
-```
-
-**3. GenAI-Powered Semantic Decisions**
-Other frameworks use regex patterns. We use Claude Haiku for semantic understanding:
-
-```python
-# Static pattern (others): if "password" in code: flag()
-# GenAI pattern (us): "Is this a real secret or a test fixture?"
-```
-
-This reduces false positives by ~90% while catching real issues.
-
-**4. Batch Processing with Crash Recovery**
-Process 50+ features with automatic state persistence:
-- Pauses at ~150K tokens, you run `/clear`, resume with `--resume <batch-id>`
-- Intelligent retry for transient failures (network, rate limits)
-- Per-feature git automation (commit, push, optional PR)
-
-**5. Brownfield Retrofit**
-Adopt autonomous-dev in existing projects with `/align-project-retrofit`:
-- Analyzes existing codebase structure
-- Infers PROJECT.md from current state
-- Migrates incrementally (5-phase process)
-
-**6. Progressive Disclosure Skills**
-28 domain knowledge packages that scale without context bloat:
-
-```
-Traditional RAG: Load all knowledge → Context explosion → Degraded performance
-Progressive Disclosure: Metadata first (~50 tokens) → Full content on-demand
-```
-
-**How it works**:
-1. Claude loads only skill names + descriptions at startup (~1,400 tokens for 28 skills)
-2. When keywords match a task, full skill content loads automatically
-3. Each agent has explicit skill references in its prompt (safety net for auto-activation)
-
-**Example**: `/implement "add rate limiting"` triggers:
-- implementer sees "Consult: api-design, security-patterns" in its prompt
-- Claude loads those skills based on keyword match ("rate", "API", "security")
-- Agent applies patterns from skills to your specific codebase
-
-This hybrid approach (auto-activation + explicit references) is more reliable than pure auto-activation alone.
+**The difference**: Claude stops guessing and starts following your rules.
 
 ---
 
-## What Does It Do?
+## How It Works
 
 When you type `/auto-implement "issue #72"`, Claude runs a 7-agent pipeline:
 
@@ -101,23 +74,26 @@ After completion:
 
 ---
 
-## The Problem We Solve
+## Why It's Different
 
-**Without autonomous-dev**:
-- You ask Claude to build a feature
-- Claude makes assumptions about your architecture
-- You review, find issues, ask for fixes (repeat 3-5 times)
-- Tests? Maybe. Security scan? Probably not. Docs? Definitely not.
-- Hope nothing is out of scope
+Other AI coding tools give you **one context** where everything happens. We give you **isolated agents** that can't cheat.
 
-**With autonomous-dev**:
-- You define your project once (PROJECT.md)
-- You run `/auto-implement "issue #X"`
-- Out-of-scope requests are **blocked before any code is written**
-- Every feature gets: tests (TDD), security scan, documentation
-- You review a complete, tested, documented pull request
+| Feature | How We Do It Differently |
+|---------|-------------------------|
+| **TDD** | Test-master and implementer run in **separate contexts**. The implementer can't see test logic—only test files. No overfitting. |
+| **Quality Gates** | Hooks run on every commit. Claude can't be "convinced" to skip security scans or tests. |
+| **Scope Control** | PROJECT.md defines what's in/out. Out-of-scope requests are blocked before code is written. |
+| **Semantic Analysis** | We use Claude Haiku for validation, not regex. "Is this a real secret or a test fixture?" reduces false positives by ~90%. |
 
-**The difference**: Claude stops guessing and starts following your rules.
+<details>
+<summary><b>Technical deep-dive: Context isolation</b></summary>
+
+Most frameworks run test-writing and implementation in the same context. The implementer "knows" what tests expect and overfits.
+
+We use **file-based handoff**: test-master writes tests to disk. The implementer runs in its own context and reads only test files (not test-master's reasoning). This prevents context pollution and enforces true TDD.
+
+See [docs/TDD-CONTEXT-ISOLATION.md](docs/TDD-CONTEXT-ISOLATION.md) for details.
+</details>
 
 ---
 
@@ -233,7 +209,7 @@ The `/setup` wizard analyzes each file and asks before touching anything you've 
 
 For debugging, use verbose mode:
 ```bash
-bash <(curl -sSL .../install.sh) --verbose
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --verbose
 ```
 
 ---
