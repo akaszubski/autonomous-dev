@@ -12,7 +12,7 @@ All security-sensitive operations in the codebase should use these utilities
 to ensure consistent security enforcement.
 
 Security Features:
-- Whitelist-based path validation (only allow PROJECT_ROOT, docs/sessions/, .claude/)
+- Whitelist-based path validation (PROJECT_ROOT, ~/.claude/, and system temp in test mode)
 - Symlink detection and rejection
 - Path traversal prevention (reject .., resolve symlinks)
 - Pytest format validation (test_file.py::test_name pattern)
@@ -111,6 +111,14 @@ ALLOWED_DIRS = [
 
 # System temp directory (allowed in test mode)
 SYSTEM_TEMP = Path(tempfile.gettempdir()).resolve()
+
+# Claude home directory (~/.claude/) - allowed for Claude Code system operations
+# This is a fixed, known location for:
+# - Plan mode files (~/.claude/plans/)
+# - Global CLAUDE.md (~/.claude/CLAUDE.md)
+# - Global settings (~/.claude/settings.json)
+# Security: Still validates symlinks and path traversal within this directory
+CLAUDE_HOME_DIR = Path.home() / ".claude"
 
 # Thread-safe logger for audit logs
 _audit_logger: Optional[logging.Logger] = None
@@ -230,16 +238,19 @@ def validate_path(
     3. Path resolution: Normalize path to absolute form
     4. Whitelist validation: Ensure path is in PROJECT_ROOT or allowed temp dirs
 
-    Test Mode (CRITICAL):
-    ====================
-    When pytest runs, it creates temp directories outside PROJECT_ROOT.
-    Test mode allows ONLY:
+    Allowed Locations (always):
+    ===========================
     - PROJECT_ROOT and subdirectories
-    - System temp directory (tempfile.gettempdir())
-    - docs/sessions/ subdirectory
-    - .claude/ subdirectory
+    - ~/.claude/ directory (Claude Code system files: plans, CLAUDE.md, settings)
 
-    Test mode BLOCKS:
+    Test Mode (additional):
+    =======================
+    When pytest runs, it creates temp directories outside PROJECT_ROOT.
+    Test mode additionally allows:
+    - System temp directory (tempfile.gettempdir())
+
+    Blocked Locations:
+    ==================
     - /etc/, /usr/, /bin/, /sbin/, /var/log/ (system directories)
     - Arbitrary paths outside whitelist
 
@@ -344,11 +355,20 @@ def validate_path(
     # SECURITY LAYER 4: Whitelist validation
     is_in_project = False
     is_in_allowed_temp = False
+    is_in_claude_home = False
 
     # Check if path is in PROJECT_ROOT
     try:
         resolved_path.relative_to(PROJECT_ROOT)
         is_in_project = True
+    except ValueError:
+        pass
+
+    # Check if path is in ~/.claude/ (Claude Code system directory)
+    # This allows plan mode, global CLAUDE.md, and other Claude Code features
+    try:
+        resolved_path.relative_to(CLAUDE_HOME_DIR.resolve())
+        is_in_claude_home = True
     except ValueError:
         pass
 
@@ -361,7 +381,7 @@ def validate_path(
             pass
 
     # Validate against whitelist
-    if not is_in_project and not (test_mode and is_in_allowed_temp):
+    if not is_in_project and not is_in_claude_home and not (test_mode and is_in_allowed_temp):
         audit_log("path_validation", "failure", {
             "operation": f"validate_{purpose.replace(' ', '_')}",
             "path": path_str,
@@ -370,17 +390,18 @@ def validate_path(
             "test_mode": test_mode
         })
 
-        error_msg = f"Path outside project root: {path}\n"
+        error_msg = f"Path outside allowed locations: {path}\n"
         error_msg += f"Purpose: {purpose}\n"
         error_msg += f"Resolved path: {resolved_path}\n"
         error_msg += f"Allowed locations:\n"
         error_msg += f"  - Project root: {PROJECT_ROOT}\n"
+        error_msg += f"  - Claude home: {CLAUDE_HOME_DIR}\n"
 
         if test_mode:
             error_msg += f"  - System temp: {SYSTEM_TEMP}\n"
             error_msg += f"Test mode uses WHITELIST approach for security.\n"
         else:
-            error_msg += f"Production mode requires path within project root.\n"
+            error_msg += f"Production mode requires path within allowed locations.\n"
 
         error_msg += f"See: docs/SECURITY.md#path-validation"
         raise ValueError(error_msg)
@@ -664,4 +685,5 @@ __all__ = [
     "audit_log",
     "PROJECT_ROOT",
     "SYSTEM_TEMP",
+    "CLAUDE_HOME_DIR",
 ]
