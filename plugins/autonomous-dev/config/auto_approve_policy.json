@@ -49,12 +49,7 @@
       "mv *",
       "mkdir*",
       "touch*",
-      "rm *.txt",
-      "rm *.log",
-      "rm *.tmp",
-      "rm -f *.txt",
-      "rm -f *.log",
-      "rm -f *.tmp",
+      "rm -f *",
       "git checkout*",
       "git restore*",
       "git stash*"
