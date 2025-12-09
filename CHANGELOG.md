@@ -1,3 +1,107 @@
+## [v3.39.0] - 2025-12-09
+
+### Added
+
+- **Settings Merge on Marketplace Sync** - Issue #98
+  - **Feature**: `/sync --marketplace` now automatically merges template settings.local.json with user settings
+  - **Architecture**:
+    - New library: `settings_merger.py` (432 lines) - Settings merge with template configuration
+    - New class: `SettingsMerger` - Handles deep merge of settings with hook deduplication
+    - New dataclass: `MergeResult` - Result tracking with hook counts and status
+    - Enhanced: `sync_dispatcher.py` - Integrated SettingsMerger into sync_marketplace() workflow
+  - **Behavior**:
+    - **On First Install**: Creates new settings.local.json from template with PreToolUse hooks
+    - **On Update**: Merges template hooks (PreToolUse, PostToolUse, etc.) without overwriting user customizations
+    - **Preservation**: User hooks, permissions, and custom config preserved in merge
+    - **Deduplication**: Avoids re-adding hooks that already exist in user settings
+    - **Non-blocking**: Merge failures don't stop sync (graceful degradation)
+    - **Atomic**: Uses tempfile + rename for crash-safe writes with 0o600 permissions
+  - **Security**:
+    - Path validation (CWE-22: path traversal, CWE-59: symlink attacks)
+    - Audit logging for all operations
+    - Atomic writes with secure permissions
+    - Deep merge prevents accidental configuration loss
+  - **Changes**:
+    - **NEW**: `plugins/autonomous-dev/lib/settings_merger.py` (432 lines)
+      - Class: `SettingsMerger` with merge_settings() method
+      - Dataclass: `MergeResult` for operation tracking
+      - Security: Path validation, atomic writes, audit logging
+      - Error handling: Graceful degradation on all errors
+    - **ENHANCED**: `plugins/autonomous-dev/lib/sync_dispatcher.py`
+      - New field: `SyncResult.settings_merged: Optional[MergeResult]`
+      - New workflow: Call SettingsMerger during sync_marketplace()
+      - Non-blocking: Continue sync even if merge fails
+      - Result tracking: Include merge results in SyncResult summary
+  - **Testing**: 25 comprehensive tests
+    - Core functionality (merge, preservation, deduplication, deep merge)
+    - Edge cases (missing files, invalid JSON, path errors)
+    - Security (path traversal, symlink detection, validation)
+    - Integration (sync_dispatcher workflow, non-blocking failures)
+  - **Documentation Updated**:
+    - **NEW**: `docs/LIBRARIES.md` section 41 - Complete SettingsMerger API documentation
+      - Class reference, methods, dataclass definitions
+      - Security features with CWE coverage
+      - Integration example with sync_dispatcher
+      - Error handling guide
+      - Testing overview
+    - **Updated**: `docs/LIBRARIES.md` overview - Changed count: 40 → 41 libraries, 11 → 12 categories
+    - **Updated**: All library section numbering (sections 38-40 now 41-43)
+  - **User Impact**:
+    - Marketplace sync now automatically configures PreToolUse hooks
+    - First-time setup: New settings.local.json created with hooks enabled
+    - Updates: User customizations preserved while adding new hooks
+    - Zero-config: Hooks available immediately after sync without manual setup
+  - **Related**: GitHub Issue #98 (Settings Merge on Marketplace Sync)
+
+### Fixed
+
+- **Sync Directory Silent Failures** (v3.37.1) - Issue #97 [See v3.37.1 notes above]
+
+---
+## [v3.38.0] - 2025-12-09
+
+### Changed
+
+- **PreToolUse Hook Consolidation** - Simplified MCP auto-approval architecture
+  - **Motivation**: Previous implementation had separate hooks for auto-approval and security validation, causing hook collisions in Claude Code's PreToolUse lifecycle
+  - **Solution**: Consolidated into single unified hook script for cleaner integration
+  - **Architecture**:
+    - NEW: `pre_tool_use.py` (104 lines) - Standalone shell script format hook
+      - Implements standard Claude Code hook interface: reads JSON from stdin, outputs JSON to stdout
+      - Unified logic for both auto-approval and MCP security validation
+      - Single PreToolUse hook eliminates collision issues
+      - Graceful error handling with conservative defaults (manual approval on errors)
+    - NEW: `unified_pre_tool_use.py` (467 lines) - Library-based implementation for reusability
+      - Core classes: `AutoApprovalEngine`, `ToolValidator`, `SecurityValidator`
+      - 6-layer defense-in-depth validation (context check, consent, whitelist, validation, circuit breaker, logging)
+      - Comprehensive audit logging for compliance
+    - DEPRECATED: `auto_approve_tool.py` → `auto_approve_tool.py.disabled` (merged into unified hook)
+    - DEPRECATED: `mcp_security_enforcer.py` → `mcp_security_enforcer.py.disabled` (merged into unified hook)
+    - ENHANCED: `auto_approval_consent.py` - Improved consent state management with persistence
+    - ENHANCED: `tool_validator.py` (22 KB) - Extended tool validation with MCP security support
+    - ENHANCED: `auto_approval_engine.py` (489 lines) - New comprehensive engine for tool approval
+  - **Testing**: Extended test suite (+114 lines) with high coverage for consolidated hook behavior
+  - **Documentation Updated**:
+    - `docs/HOOKS.md` - Updated core hooks section (13 total), deprecated old entries, documented new unified hook
+    - `docs/TOOL-AUTO-APPROVAL.md` - Comprehensive setup guide with Claude Code permission format reference
+    - `plugins/autonomous-dev/README.md` - Version bump to v3.38.0
+  - **Configuration**:
+    - Updated templates (`settings.local.json`, `settings.permission-batching.json`, `settings.strict-mode.json`)
+    - New hook registration format compatible with Claude Code 2.0+ PreToolUse lifecycle
+  - **Code Changes**:
+    - Lines deleted: 956 (removed duplicate logic)
+    - Lines added: 247 (consolidated implementation)
+    - Net reduction: 709 lines of dead code removed
+  - **User Impact**:
+    - Simpler hook registration (single script vs multiple)
+    - Cleaner documentation (consolidated into TOOL-AUTO-APPROVAL.md)
+    - Same functionality (6-layer defense-in-depth preserved)
+    - Better error handling (graceful degradation on failures)
+  - **Migration**: If running pre-v3.38.0, old hooks disabled automatically; new unified hook takes precedence
+  - **Related**: GitHub Issue #98 (PreToolUse hook consolidation)
+
+---
+
 ## [v3.37.1] - 2025-12-07
 
 ### Fixed

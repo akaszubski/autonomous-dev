@@ -63,6 +63,7 @@ from plugins.autonomous_dev.lib.orphan_file_cleaner import (
     CleanupResult,
 )
 from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
+from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
 
 
 @dataclass
@@ -88,6 +89,7 @@ class SyncResult:
     error: Optional[str] = None
     version_comparison: Optional[VersionComparison] = None
     orphan_cleanup: Optional[CleanupResult] = None
+    settings_merged: Optional[MergeResult] = None
 
     @property
     def summary(self) -> str:
@@ -118,6 +120,17 @@ class SyncResult:
                 parts.append(f"Orphan cleanup: {oc.orphans_deleted} files deleted")
             elif oc.orphans_detected == 0:
                 parts.append("No orphaned files detected")
+
+        # Add settings merge information
+        if self.settings_merged:
+            sm = self.settings_merged
+            if sm.success:
+                if sm.hooks_added > 0:
+                    parts.append(f"Settings merged: {sm.hooks_added} hooks added, {sm.hooks_preserved} preserved")
+                elif sm.hooks_preserved > 0:
+                    parts.append(f"Settings merged: {sm.hooks_preserved} hooks preserved (no new hooks)")
+            else:
+                parts.append(f"Settings merge failed: {sm.message}")
 
         return " | ".join(parts)
 
@@ -899,6 +912,52 @@ class SyncDispatcher:
                     agents_src, agents_dst, pattern="*.md", description="agent files"
                 )
 
+            # Step 2.5: Merge settings.local.json (non-blocking enhancement)
+            settings_merge_result = None
+            try:
+                template_path = Path(plugin_path) / "templates" / "settings.local.json"
+                user_path = claude_dir / "settings.local.json"
+
+                if template_path.exists():
+                    merger = SettingsMerger(project_root=str(self.project_path))
+                    settings_merge_result = merger.merge_settings(
+                        template_path=template_path,
+                        user_path=user_path,
+                        write_result=True
+                    )
+                    audit_log(
+                        "marketplace_sync",
+                        "settings_merged",
+                        {
+                            "project_path": str(self.project_path),
+                            "template_path": str(template_path),
+                            "user_path": str(user_path),
+                            "success": settings_merge_result.success,
+                            "hooks_added": settings_merge_result.hooks_added,
+                            "hooks_preserved": settings_merge_result.hooks_preserved,
+                        },
+                    )
+                else:
+                    audit_log(
+                        "marketplace_sync",
+                        "settings_template_missing",
+                        {
+                            "project_path": str(self.project_path),
+                            "template_path": str(template_path),
+                        },
+                    )
+            except Exception as e:
+                # Log error but continue (non-blocking)
+                audit_log(
+                    "marketplace_sync",
+                    "settings_merge_failed",
+                    {
+                        "project_path": str(self.project_path),
+                        "error": str(e),
+                    },
+                )
+                # settings_merge_result stays None - sync continues
+
         except Exception as e:
             # Core sync failed - return failure
             return SyncResult(
@@ -979,6 +1038,7 @@ class SyncDispatcher:
             },
             version_comparison=version_comparison,
             orphan_cleanup=orphan_cleanup_result,
+            settings_merged=settings_merge_result,
         )
 
     def _create_backup(self) -> None:

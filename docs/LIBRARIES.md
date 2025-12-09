@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2025-12-07
+**Last Updated: 2025-12-09
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 37 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 41 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **37 shared libraries** organized into eleven categories:
+The autonomous-dev plugin includes **41 shared libraries** organized into twelve categories:
 
-### Core Libraries (20)
+### Core Libraries (21)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -31,38 +31,39 @@ The autonomous-dev plugin includes **37 shared libraries** organized into eleven
 18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
 20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
+21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
 
 ### Tracking Libraries (2) - NEW in v3.28.0
 
-21. **agent_tracker.py** (see section 24)
-22. **session_tracker.py** (see section 25)
+22. **agent_tracker.py** (see section 25)
+23. **session_tracker.py** (see section 26)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
-23. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
-24. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
-25. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
-26. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
+24. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
+25. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
+26. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
+27. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
 
 ### Utility Libraries (2)
 
-27. **math_utils.py** - Fibonacci calculator with multiple algorithms
-28. **git_hooks.py** - Git hook utilities for larger projects (500+ tests, Issue #94)
+28. **math_utils.py** - Fibonacci calculator with multiple algorithms
+29. **git_hooks.py** - Git hook utilities for larger projects (500+ tests, Issue #94)
 
 ### Brownfield Retrofit Libraries (6)
 
-29. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-30. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-31. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-32. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-33. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-34. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+30. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+31. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+32. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+33. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+34. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+35. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 ### MCP Security Libraries (3) - NEW in v3.37.0
 
-35. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
-36. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
-37. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
+38. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
+39. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
+40. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
 
 ## Design Patterns
 
@@ -4119,3 +4120,373 @@ Detection patterns for each server type:
 - [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
 - `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
 
+
+## 38. auto_approval_engine.py (489 lines, v3.38.0)
+
+**Purpose**: Core engine for MCP tool auto-approval with 6-layer defense-in-depth validation
+
+**Issue**: #73 (MCP Auto-Approval), #98 (PreToolUse Consolidation)
+
+### Classes
+
+#### `AutoApprovalEngine`
+
+Main engine for tool approval decisions with comprehensive security validation.
+
+**Methods**:
+
+##### `evaluate_tool_call(tool_name: str, params: Dict[str, Any]) -> ApprovalDecision`
+
+Evaluate whether a tool call should be auto-approved.
+
+**Parameters**:
+- `tool_name` (str): Name of the MCP tool to evaluate
+- `params` (Dict[str, Any]): Tool parameters/arguments
+
+**Returns**: `ApprovalDecision` dataclass with fields:
+- `approved` (bool): Whether call is approved
+- `reason` (str): Explanation of decision
+- `layer_violations` (List[str]): Failed validation layers
+- `confidence_score` (float): 0.0-1.0 confidence in decision
+
+**Validation Layers** (defense-in-depth):
+1. **Subagent Context** - Only auto-approve if running as subagent (`CLAUDE_AGENT_NAME` set)
+2. **User Consent** - Verify user has opted in via `MCP_AUTO_APPROVE` env var
+3. **Agent Whitelist** - Check if current agent is in allowed list
+4. **Tool Whitelist** - Validate tool name against approved tools list
+5. **Parameter Validation** - Check parameters for dangerous patterns
+6. **Circuit Breaker** - Auto-disable after repeated denials
+
+**Example**:
+```python
+from auto_approval_engine import AutoApprovalEngine
+
+engine = AutoApprovalEngine()
+
+# Approve safe tool call
+decision = engine.evaluate_tool_call(
+    "Read",
+    {"file_path": "src/main.py"}
+)
+assert decision.approved == True
+assert "parameter validation passed" in decision.reason
+
+# Deny dangerous tool call
+decision = engine.evaluate_tool_call(
+    "Bash",
+    {"command": "rm -rf /"}
+)
+assert decision.approved == False
+assert "parameter validation" in decision.layer_violations
+```
+
+### Related
+
+- GitHub Issue #73 (MCP Auto-Approval for Subagent Tool Calls)
+- GitHub Issue #98 (PreToolUse Hook Consolidation)
+- `plugins/autonomous-dev/hooks/pre_tool_use.py` - Standalone hook implementation
+- `plugins/autonomous-dev/hooks/unified_pre_tool_use.py` - Library-based hook
+- `docs/TOOL-AUTO-APPROVAL.md` - User-facing documentation
+
+---
+
+## 39. tool_validator.py (710 lines, v3.38.0)
+
+**Purpose**: Tool call validation with whitelist/blacklist, injection detection, and parameter analysis
+
+**Issue**: #73 (MCP Auto-Approval), #98 (PreToolUse Consolidation)
+
+### Classes
+
+#### `ToolValidator`
+
+Validates MCP tool calls against security policies.
+
+**Methods**:
+
+##### `validate_tool(tool_name: str, params: Dict[str, Any]) -> ValidationResult`
+
+Comprehensive validation of tool calls.
+
+**Parameters**:
+- `tool_name` (str): Tool name to validate
+- `params` (Dict[str, Any]): Tool parameters
+
+**Returns**: `ValidationResult` dataclass with:
+- `valid` (bool): Overall validation result
+- `violations` (List[str]): Security violations found
+- `severity` (str): "critical", "high", "medium", "low", "none"
+- `recommendations` (List[str]): How to fix violations
+
+**Validation Checks**:
+1. **Whitelist Check** - Tool must be in approved list
+2. **Blacklist Check** - Tool must not be explicitly denied
+3. **Path Traversal** - Detect `..`, `/etc/passwd`, symlink attacks
+4. **Injection Patterns** - Detect shell metacharacters, command chaining
+5. **Sensitive Files** - Block access to `.env`, `.ssh`, secrets
+6. **SSRF Detection** - Detect localhost, private IPs, metadata services
+7. **Parameter Size** - Reject suspiciously large parameters
+
+**Example**:
+```python
+from tool_validator import ToolValidator, ValidationResult
+
+validator = ToolValidator()
+
+# Valid tool call
+result = validator.validate_tool("Read", {"file_path": "src/main.py"})
+assert result.valid == True
+assert result.severity == "none"
+
+# Invalid - path traversal
+result = validator.validate_tool(
+    "Read",
+    {"file_path": "../../.env"}
+)
+assert result.valid == False
+assert result.severity == "critical"
+assert any("path traversal" in v for v in result.violations)
+```
+
+### Related
+
+- GitHub Issue #73 (MCP Auto-Approval)
+- GitHub Issue #98 (PreToolUse Consolidation)
+- `auto_approval_engine.py` - Uses validator in approval decision
+- `docs/TOOL-AUTO-APPROVAL.md` - Security validation documentation
+
+---
+
+## 40. unified_pre_tool_use.py (467 lines, v3.38.0)
+
+**Purpose**: Library-based PreToolUse hook implementation combining auto-approval and security validation
+
+**Issue**: #95 (MCP Security), #98 (PreToolUse Consolidation)
+
+### Main Class
+
+#### `UnifiedPreToolUseHook`
+
+Main hook handler that coordinates auto-approval and security validation.
+
+**Methods**:
+
+##### `on_pre_tool_use(tool_call: Dict[str, Any]) -> Dict[str, Any]`
+
+Claude Code PreToolUse lifecycle hook handler.
+
+**Parameters**:
+- `tool_call` (Dict[str, Any]): Tool call with `tool_name` and `tool_input`
+
+**Returns**: Hook response dict with:
+- `hookSpecificOutput`: Dict containing:
+  - `hookEventName`: "PreToolUse"
+  - `permissionDecision`: "allow" or "deny"
+  - `permissionDecisionReason`: Explanation
+
+**Workflow**:
+1. Parse tool call from JSON input
+2. Run auto-approval engine
+3. If not auto-approved, run security validation
+4. Log decision to audit trail
+5. Return decision to Claude Code
+
+**Example**:
+```python
+from unified_pre_tool_use import UnifiedPreToolUseHook
+
+hook = UnifiedPreToolUseHook()
+
+# Tool call
+tool_call = {
+    "tool_name": "Bash",
+    "tool_input": {"command": "pytest tests/"}
+}
+
+# Get decision
+response = hook.on_pre_tool_use(tool_call)
+assert response["hookSpecificOutput"]["permissionDecision"] == "allow"
+```
+
+### Integration
+
+This library is used by both:
+1. `plugins/autonomous-dev/hooks/pre_tool_use.py` - Standalone shell script wrapper
+2. Direct Python imports in custom hooks
+
+### Related
+
+- GitHub Issue #95 (MCP Server Security)
+- GitHub Issue #98 (PreToolUse Consolidation)
+- `auto_approval_engine.py` - Auto-approval logic
+- `tool_validator.py` - Security validation
+- `plugins/autonomous-dev/hooks/pre_tool_use.py` - Standalone wrapper
+- `docs/TOOL-AUTO-APPROVAL.md` - Usage guide
+---
+
+## 41. settings_merger.py (432 lines, v3.39.0)
+
+**Purpose**: Merge template settings.local.json with user settings while preserving customizations
+
+**Issue**: #98 (Settings Merge on Marketplace Sync)
+
+### Main Class
+
+#### `SettingsMerger`
+
+Handles merging template settings with user settings during marketplace sync operations.
+
+**Constructor**:
+```python
+def __init__(self, project_root: str)
+```
+
+**Parameters**:
+- `project_root` (str): Project root directory for path validation
+
+**Methods**:
+
+##### `merge_settings(template_path: Path, user_path: Path, write_result: bool = True) -> MergeResult`
+
+Merge template settings with user settings, preserving customizations.
+
+**Parameters**:
+- `template_path` (Path): Path to template settings.local.json
+- `user_path` (Path): Path to user settings.local.json
+- `write_result` (bool): Whether to write merged settings (False for dry-run)
+
+**Returns**: `MergeResult` dataclass with:
+- `success` (bool): Whether merge succeeded
+- `message` (str): Human-readable result message
+- `settings_path` (Optional[str]): Path to merged settings file
+- `hooks_added` (int): Number of hooks added from template
+- `hooks_preserved` (int): Number of existing hooks preserved
+- `details` (Dict[str, Any]): Additional context (errors, warnings)
+
+**Workflow**:
+1. Validate both paths (security: CWE-22, CWE-59)
+2. Read template and user settings files
+3. Deep merge dictionaries (nested objects preserved)
+4. Merge hooks by lifecycle event (avoid duplicates)
+5. Atomic write to user path (secure permissions 0o600)
+6. Audit log the operation
+
+**Example**:
+```python
+from autonomous_dev.lib.settings_merger import SettingsMerger
+
+merger = SettingsMerger(project_root="/path/to/project")
+
+# Merge template with user settings
+result = merger.merge_settings(
+    template_path=Path("templates/settings.local.json"),
+    user_path=Path(".claude/settings.local.json"),
+    write_result=True
+)
+
+if result.success:
+    print(f"Merged {result.hooks_added} new hooks")
+    print(f"Preserved {result.hooks_preserved} existing hooks")
+else:
+    print(f"Merge failed: {result.message}")
+```
+
+### Data Classes
+
+#### `MergeResult`
+
+Result of settings merge operation.
+
+**Attributes**:
+- `success` (bool): Whether merge succeeded
+- `message` (str): Human-readable result message
+- `settings_path` (Optional[str]): Path to merged settings file (None if merge failed)
+- `hooks_added` (int): Number of hooks added from template
+- `hooks_preserved` (int): Number of existing hooks preserved
+- `details` (Dict[str, Any]): Additional result details (errors, warnings)
+
+### Security Features
+
+**Path Validation**:
+- Validates both template and user paths against project root
+- Blocks path traversal attacks (CWE-22)
+- Rejects symlinks and suspicious paths (CWE-59)
+- Uses `security_utils.validate_path()` for comprehensive validation
+
+**Atomic Writes**:
+- Creates temp file in same directory as target
+- Sets secure permissions (0o600 - user read/write only)
+- Atomic rename to target path (POSIX-safe)
+- Cleans up temp files on error
+
+**Audit Logging**:
+- All operations logged via `security_utils.audit_log()`
+- Tracks merge success/failure with context
+- Records path validation decisions
+- Enables security audits and compliance
+
+**Deep Merge Logic**:
+- Nested dictionaries merged recursively (preserves structure)
+- Lists replaced, not merged (prevents duplicate items)
+- Special handling for hooks: merge by lifecycle event
+- User customizations always preserved
+
+### Integration with sync_dispatcher.py
+
+Used by `SyncDispatcher.sync_marketplace()` to automatically merge PreToolUse hooks:
+
+**Workflow**:
+1. Marketplace sync starts
+2. Locate plugin's template settings.local.json
+3. Create SettingsMerger instance
+4. Call `merge_settings()` with template and user paths
+5. Record merge result in `SyncResult.settings_merged`
+6. Continue sync (non-blocking if merge fails)
+
+**Example**:
+```python
+from autonomous_dev.lib.sync_dispatcher import SyncDispatcher
+
+dispatcher = SyncDispatcher(project_root="/path/to/project")
+result = dispatcher.sync_marketplace(installed_plugins_path)
+
+if result.settings_merged and result.settings_merged.success:
+    print(f"Settings synced: {result.settings_merged.hooks_added} hooks added")
+```
+
+### Error Handling
+
+All errors are graceful and non-blocking:
+
+**Template Errors**:
+- Template path validation fails: Return MergeResult with `success=False`
+- Template file not found: Return MergeResult with `success=False`
+- Template JSON invalid: Return MergeResult with `success=False`
+
+**User Settings Errors**:
+- User path validation fails: Return MergeResult with `success=False`
+- User settings JSON invalid: Return MergeResult with `success=False`
+- User settings file missing: Create new file from template (success=True)
+
+**Write Errors**:
+- Cannot create parent directories: Return MergeResult with `success=False`
+- File write fails: Return MergeResult with `success=False` (temp file cleaned up)
+- Permission denied: Return MergeResult with `success=False`
+
+**Note**: Marketplace sync continues even if settings merge fails (non-blocking design)
+
+### Testing
+
+**Test Coverage**: 25 tests (15 core + 4 edge cases + 3 security + 3 integration)
+- Core functionality tests for merge operations
+- Edge case handling (missing files, invalid JSON, path errors)
+- Security tests (path traversal, symlink attacks, validation)
+- Integration tests with sync_dispatcher
+
+### Related
+
+- GitHub Issue #98 (Settings Merge on Marketplace Sync)
+- `sync_dispatcher.py` - Uses SettingsMerger in sync_marketplace() method
+- `security_utils.py` - Provides path validation and audit logging
+- `docs/TOOL-AUTO-APPROVAL.md` - PreToolUse hook configuration reference
+- `plugins/autonomous-dev/templates/settings.local.json` - Default template
