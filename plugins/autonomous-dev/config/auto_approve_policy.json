@@ -50,17 +50,14 @@
       "mkdir*",
       "touch*",
       "rm *.txt",
-      "rm *.py",
       "rm *.log",
       "rm *.tmp",
       "rm -f *.txt",
-      "rm -f *.py",
       "rm -f *.log",
       "rm -f *.tmp",
-      "rm docs/*.md",
-      "rm docs/*.txt",
-      "rm -f docs/*.md",
-      "rm -f docs/*.txt"
+      "git checkout*",
+      "git restore*",
+      "git stash*"
     ],
     "blacklist": [
       "rm -rf /*",
