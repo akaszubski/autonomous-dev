@@ -1,332 +1,296 @@
-# Contributing to Claude Code Bootstrap
+# Contributing to Autonomous Dev Plugin
 
-**This repository builds Claude Code automation tools for distribution.**
-
----
-
-## Important: File Locations (CRITICAL!)
-
-**This repository serves TWO audiences:**
-1. **Contributors** (building the plugin) → ROOT level
-2. **Users** (using the plugin) → `plugins/autonomous-dev/`
-
-### 🎯 The Golden Rule
-
-**Ask yourself 3 questions:**
-
-1️⃣ **WHO** is this for?
-   - Contributors/Developers → ROOT
-   - End users → PLUGIN
-
-2️⃣ **WHEN** do they need it?
-   - While building the plugin → ROOT
-   - While using the plugin → PLUGIN
-
-3️⃣ **WHAT** is it?
-   - Development tool/doc → ROOT
-   - Plugin feature/doc → PLUGIN
+**Thank you for your interest in contributing!**
 
 ---
 
-### ✅ ROOT LEVEL (Development)
+## Quick Start
 
-**For:** Contributors building the plugin
-**Distributed:** ❌ NO (stays on GitHub)
-
-```
-ROOT/
-├── docs/                         DEV/CONTRIBUTOR DOCS
-│   ├── CONTRIBUTING.md           How to contribute
-│   ├── DEVELOPMENT.md            Development workflow
-│   ├── CODE-REVIEW-WORKFLOW.md  Code review process
-│   ├── IMPLEMENTATION-STATUS.md Build status
-│   └── ... (dev docs only)
-│
-├── scripts/                      BUILD/DEV SCRIPTS
-│   └── session_tracker.py        Dev session tracking
-│
-├── tests/                        REPO TESTS
-│   ├── unit/                     Test build scripts
-│   └── integration/              Test repo functionality
-│
-└── Root files
-    ├── README.md                 About the repository
-    ├── CONTRIBUTING.md           Contributor guide
-    ├── CLAUDE.md                 Instructions for Claude
-    └── CHANGELOG.md              Version history
-```
-
-**Examples:**
-- ✅ "How to add a new command" → `docs/DEVELOPMENT.md`
-- ✅ "Build script to sync docs" → `scripts/sync_docs.py`
-- ✅ "Test that build works" → `tests/integration/`
-
----
-
-### ✅ PLUGIN LEVEL (Distribution)
-
-**For:** End users installing the plugin
-**Distributed:** ✅ YES (via `/plugin install`)
-
-```
-plugins/autonomous-dev/
-├── docs/                         USER DOCS (22 files)
-│   ├── COMMANDS.md               Command reference
-│   ├── TROUBLESHOOTING.md        User troubleshooting
-│   ├── GITHUB_AUTH_SETUP.md      GitHub setup guide
-│   └── ... (user docs only)
-│
-├── agents/                       AI AGENTS (8 files)
-│   ├── orchestrator.md           Master coordinator
-│   ├── planner.md                Architecture planner
-│   └── ...
-│
-├── commands/                     SLASH COMMANDS (33 files)
-│   ├── test.md                   /test command
-│   ├── format.md                 /format command
-│   └── ...
-│
-├── skills/                       SKILLS (6 directories)
-│   ├── python-standards/         Python best practices
-│   ├── testing-guide/            Testing methodology
-│   └── ...
-│
-├── hooks/                        AUTOMATION HOOKS (8 files)
-│   ├── auto_format.py            Auto-format on save
-│   ├── auto_test.py              Auto-test on commit
-│   └── ...
-│
-├── scripts/                      USER SCRIPTS
-│   └── setup.py                  Setup wizard for users
-│
-├── templates/                    TEMPLATES
-│   ├── PROJECT.md                PROJECT.md template
-│   └── settings.local.json       Settings template
-│
-├── tests/                        PLUGIN TESTS
-│   ├── test_uat.py               User acceptance tests
-│   └── test_architecture.py     Architecture validation
-│
-└── Plugin files
-    ├── README.md                 Plugin documentation
-    ├── QUICKSTART.md             User quick start
-    └── .claude-plugin/           Plugin metadata
-```
-
-**Examples:**
-- ✅ "How to use /test command" → `plugins/autonomous-dev/docs/COMMANDS.md`
-- ✅ "Setup wizard for users" → `plugins/autonomous-dev/hooks/setup.py`
-- ✅ "Test plugin features" → `plugins/autonomous-dev/tests/`
-
----
-
-### ❌ NEVER Edit
-
-**Personal config (NOT in git):**
-```
-~/.claude/                        Your personal config
-├── CLAUDE.md                     Your personal instructions
-└── settings.json                 Your personal settings
-```
-
----
-
----
-
-## ⚠️ Common Mistakes (Don't Do This!)
-
-### ❌ Wrong: User docs in ROOT
-```bash
-# DON'T put user documentation in root docs/
-docs/how-to-use-commands.md  ❌
-```
-✅ **Correct:**
-```bash
-plugins/autonomous-dev/docs/how-to-use-commands.md  ✅
-```
-
-### ❌ Wrong: Dev docs in PLUGIN
-```bash
-# DON'T put development docs in plugin
-plugins/autonomous-dev/docs/CONTRIBUTING.md  ❌
-```
-✅ **Correct:**
-```bash
-docs/CONTRIBUTING.md  ✅ (or root CONTRIBUTING.md)
-```
-
-### ❌ Wrong: Build scripts in PLUGIN
-```bash
-# DON'T put build/sync scripts in plugin hooks directory
-# (User-facing scripts like setup.py are OK, but build/development scripts belong in root)
-plugins/autonomous-dev/hooks/sync_docs.py  ❌ (if it's a development build script)
-```
-✅ **Correct:**
-```bash
-scripts/sync_docs.py  ✅ (for development/build scripts)
-plugins/autonomous-dev/hooks/setup.py  ✅ (for user-facing scripts)
-```
-
----
-
-## ✅ Validation
-
-### Manual Validation
-
-**Before committing, validate structure:**
-
-```bash
-# Run structure validation manually
-python scripts/validate_structure.py
-```
-
-**What it checks:**
-- User docs in plugin only
-- Dev docs in root only
-- No duplicates between root and plugin
-- All user-facing content in plugin
-- All dev content in root
-
-### Automatic Validation (Recommended)
-
-**Install pre-commit hook** to automatically validate structure:
-
-```bash
-# Install the hook (one-time setup)
-ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
-
-# Now validation runs automatically before each commit
-git commit -m "your changes"
-```
-
-**To bypass hook** (emergency only):
-```bash
-git commit --no-verify
-```
-
----
-
-## Workflow for Changes
-
-### Adding/Updating Commands
-
-**Always edit in BOTH locations**:
-
-```bash
-# 1. Edit project config
-vim .claude/commands/my-command.md
-
-# 2. Copy to plugin
-cp .claude/commands/my-command.md plugins/autonomous-dev/commands/
-
-# 3. Commit to git
-git add .claude/commands/ plugins/autonomous-dev/commands/
-git commit -m "feat: add my-command"
-
-# 4. Push to GitHub
-git push
-
-# 5. Test by reloading plugin
-# In Claude Code:
-# /plugin uninstall autonomous-dev
-# /plugin install autonomous-dev
-```
-
-### Adding/Updating Agents
-
-```bash
-# Edit in plugin directory only
-vim plugins/autonomous-dev/agents/my-agent.md
-
-# Commit and push
-git add plugins/autonomous-dev/agents/
-git commit -m "feat: add my-agent"
-git push
-```
-
-### Adding/Updating Skills
-
-```bash
-# Edit in plugin directory only
-vim plugins/autonomous-dev/skills/my-skill.md
-
-# Commit and push
-git add plugins/autonomous-dev/skills/
-git commit -m "feat: add my-skill"
-git push
-```
-
----
-
-## Before Committing
-
-**Checklist**:
-- [ ] Changes are in `.claude/` or `plugins/autonomous-dev/`
-- [ ] NOT in `~/.claude/` (personal config)
-- [ ] Commands synced to both `.claude/commands/` and `plugins/autonomous-dev/commands/`
-- [ ] Committed to git
-- [ ] Pushed to GitHub
-- [ ] Tested by reloading plugin
-
----
-
-## Testing Changes
-
-After making changes:
-
-1. **Commit and push to GitHub**:
+1. **Clone the repo**:
    ```bash
-   git add .
+   git clone https://github.com/akaszubski/autonomous-dev.git
+   cd autonomous-dev
+   ```
+
+2. **Set up development environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+   pip install -r requirements.txt
+   ```
+
+3. **Run tests**:
+   ```bash
+   pytest tests/
+   ```
+
+4. **Make changes, commit, push**:
+   ```bash
+   git add -A
    git commit -m "feat: your change"
    git push
    ```
 
-2. **Reload plugin in Claude Code**:
-   ```bash
-   /plugin uninstall autonomous-dev
-   /plugin install autonomous-dev
-   ```
-
-3. **Test the changes**:
-   ```bash
-   /your-new-command
-   ```
-
 ---
 
-## Directory Structure
+## Repository Structure
+
+This repo has **two audiences**:
+
+| Audience | Location | Purpose |
+|----------|----------|---------|
+| **Contributors** | Root level | Building/developing the plugin |
+| **Users** | `plugins/autonomous-dev/` | Using the plugin |
 
 ```
 autonomous-dev/
-├── .claude/                      ← Project config (git-tracked)
-│   ├── commands/                 ← Commands (sync to plugin)
-│   ├── PROJECT.md                ← Architecture
-│   └── hooks/                    ← Git hooks
-├── plugins/
-│   └── autonomous-dev/           ← Plugin (git-tracked)
-│       ├── commands/             ← Commands (synced from .claude)
-│       ├── agents/               ← AI agents
-│       ├── skills/               ← Skills
-│       ├── hooks/                ← Automation hooks
-│       └── marketplace.json      ← Plugin metadata
-├── docs/                         ← Documentation (git-tracked)
-└── scripts/                      ← Helper scripts (git-tracked)
-
-~/.claude/                        ← Personal config (NOT in git)
-├── commands/                     ← Auto-populated by plugin install
-└── CLAUDE.md                     ← Your personal instructions
+├── README.md                    # User-facing documentation
+├── CLAUDE.md                    # Instructions for Claude Code
+├── PROJECT.md                   # Project goals, scope, constraints
+├── CONTRIBUTING.md              # This file
+├── CHANGELOG.md                 # Version history
+│
+├── plugins/autonomous-dev/      # THE PLUGIN (distributed to users)
+│   ├── commands/                # 20 slash commands
+│   ├── agents/                  # 20 AI agents
+│   ├── skills/                  # 28 skill packages
+│   ├── hooks/                   # Automation hooks
+│   ├── lib/                     # 29 Python libraries
+│   ├── scripts/                 # User scripts (setup.py, etc.)
+│   ├── templates/               # Templates for settings, projects
+│   ├── config/                  # Configuration files
+│   └── docs/                    # User documentation
+│
+├── docs/                        # Developer documentation
+│   ├── ARCHITECTURE.md          # System architecture
+│   ├── DEVELOPMENT.md           # Development guide
+│   ├── AGENTS.md                # Agent reference
+│   └── ...                      # Other dev docs
+│
+├── tests/                       # Test suite
+│   ├── unit/                    # Unit tests
+│   ├── integration/             # Integration tests
+│   └── ...
+│
+└── scripts/                     # Development scripts
 ```
 
 ---
 
-## Key Principle
+## What Goes Where
 
-**This repository is the SOURCE OF TRUTH for the autonomous-dev plugin.**
+### Plugin Directory (`plugins/autonomous-dev/`)
 
-All changes must be:
-1. Made in git-tracked locations
-2. Committed to git
-3. Pushed to GitHub
-4. Distributed via marketplace
+**For users** - Gets installed when someone uses the plugin.
 
-Personal `~/.claude/` folder is just where the plugin gets INSTALLED, not where you develop.
+- `commands/` - Slash command definitions (`.md` files)
+- `agents/` - AI agent prompts (`.md` files)
+- `skills/` - Knowledge packages for agents
+- `hooks/` - Python automation scripts
+- `lib/` - Reusable Python libraries
+- `docs/` - User-facing documentation (TROUBLESHOOTING, COMMANDS, etc.)
+
+### Root Directory
+
+**For contributors** - Development resources, not distributed.
+
+- `docs/` - Developer documentation (ARCHITECTURE, DEVELOPMENT, etc.)
+- `tests/` - Test suite
+- `scripts/` - Development scripts
+
+---
+
+## Adding New Features
+
+### Adding a Command
+
+1. Create the command file:
+   ```bash
+   vim plugins/autonomous-dev/commands/my-command.md
+   ```
+
+2. Follow the command template:
+   ```markdown
+   ---
+   description: Short description for autocomplete
+   ---
+
+   # /my-command
+
+   [Command instructions here]
+   ```
+
+3. Test and commit:
+   ```bash
+   pytest tests/
+   git add plugins/autonomous-dev/commands/my-command.md
+   git commit -m "feat: add /my-command"
+   ```
+
+### Adding an Agent
+
+1. Create the agent file:
+   ```bash
+   vim plugins/autonomous-dev/agents/my-agent.md
+   ```
+
+2. Follow agent conventions (see existing agents for examples)
+
+3. Register in CLAUDE.md if it's a core workflow agent
+
+### Adding a Skill
+
+1. Create skill directory:
+   ```bash
+   mkdir plugins/autonomous-dev/skills/my-skill
+   vim plugins/autonomous-dev/skills/my-skill/SKILL.md
+   ```
+
+2. Follow skill template (see existing skills)
+
+### Adding a Library
+
+1. Create in `plugins/autonomous-dev/lib/`:
+   ```bash
+   vim plugins/autonomous-dev/lib/my_library.py
+   ```
+
+2. Follow the two-tier design pattern:
+   - Core logic as functions/classes
+   - CLI wrapper with `if __name__ == "__main__"`
+
+3. Add tests in `tests/`
+
+4. Document in `docs/LIBRARIES.md`
+
+---
+
+## Code Standards
+
+### Python
+
+- **Style**: PEP 8, enforced by black/ruff
+- **Type hints**: Required for public APIs
+- **Docstrings**: Google style
+- **Security**: Use `lib/security_utils.py` for path/input validation
+
+### Markdown
+
+- **Commands**: Must have YAML frontmatter with `description`
+- **Agents**: Clear purpose, tool restrictions, output format
+- **Skills**: Progressive disclosure (summary → details)
+
+### Commits
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat: add new feature
+fix: fix a bug
+docs: update documentation
+chore: maintenance tasks
+refactor: code refactoring
+test: add or update tests
+```
+
+---
+
+## Testing
+
+### Run All Tests
+
+```bash
+pytest tests/
+```
+
+### Run Specific Tests
+
+```bash
+# Unit tests only
+pytest tests/unit/
+
+# Integration tests only
+pytest tests/integration/
+
+# Specific test file
+pytest tests/unit/test_security_utils.py
+```
+
+### Pre-commit Validation
+
+The repo has pre-commit hooks that run automatically:
+- Structure validation
+- Command implementation checks
+- Documentation link validation
+
+---
+
+## Pull Request Process
+
+1. **Create a branch**:
+   ```bash
+   git checkout -b feat/my-feature
+   ```
+
+2. **Make changes and test**:
+   ```bash
+   pytest tests/
+   ```
+
+3. **Commit with descriptive message**:
+   ```bash
+   git commit -m "feat: add feature X for issue #123"
+   ```
+
+4. **Push and create PR**:
+   ```bash
+   git push -u origin feat/my-feature
+   gh pr create --title "feat: add feature X" --body "Description..."
+   ```
+
+5. **Address review feedback**
+
+6. **Merge when approved**
+
+---
+
+## Development Tips
+
+### Restart Claude Code After Changes
+
+Claude Code caches commands at startup. After modifying commands:
+
+1. Fully quit Claude Code (`Cmd+Q` / `Ctrl+Q`)
+2. Wait 5 seconds
+3. Restart Claude Code
+
+### Sync Plugin to .claude/
+
+For local testing, sync plugin files to your project's `.claude/`:
+
+```bash
+/sync --dev
+```
+
+### Check Health
+
+Verify plugin integrity:
+
+```bash
+/health-check
+```
+
+---
+
+## Getting Help
+
+- **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+- **Documentation**: See `docs/` folder
+- **Architecture**: `docs/ARCHITECTURE.md`
+- **Development Guide**: `docs/DEVELOPMENT.md`
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details.
