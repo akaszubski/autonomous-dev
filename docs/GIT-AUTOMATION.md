@@ -758,7 +758,7 @@ Git automation adds **minimal overhead** to `/auto-implement` workflow:
 - [LIBRARIES.md](LIBRARIES.md) - Library API reference (includes auto_implement_git_integration.py and github_issue_closer.py)
 - [GitHub Issue #58](https://github.com/akaszubski/autonomous-dev/issues/58) - Git automation implementation
 - [GitHub Issue #91](https://github.com/akaszubski/autonomous-dev/issues/91) - Auto-close GitHub issues after /auto-implement
-- [plugins/autonomous-dev/README.md](../plugins/autonomous-dev/README.md) - User guide
+- [README.md](../README.md) - User guide
 
 ## Contributing
 

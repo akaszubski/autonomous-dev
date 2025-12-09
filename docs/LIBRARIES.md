@@ -3825,7 +3825,7 @@ Prevents:
 ### Related
 
 - GitHub Issue #95 (MCP Server Security)
-- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
 - `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
 - `.mcp/security_policy.json` - Policy configuration file
 
@@ -4012,7 +4012,7 @@ Export profile to string format.
 ### Related
 
 - GitHub Issue #95 (MCP Server Security)
-- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
 - `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
 - `.mcp/security_policy.json` - Policy configuration file
 
@@ -4117,7 +4117,7 @@ Detection patterns for each server type:
 ### Related
 
 - GitHub Issue #95 (MCP Server Security)
-- [MCP-SECURITY.md](../docs/MCP-SECURITY.md) - Comprehensive security guide
+- [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
 - `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
 
 
