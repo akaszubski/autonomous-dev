@@ -42,7 +42,6 @@ class SetupWizard:
             "hooks_mode": None,  # "slash-commands", "automatic", "custom"
             "setup_project_md": None,  # True/False
             "setup_github": None,  # True/False
-            "setup_global_claude": None,  # True/False - global ~/.claude/CLAUDE.md
         }
 
     def run(self):
@@ -62,14 +61,12 @@ class SetupWizard:
             self.choose_hooks_mode()
             self.choose_project_md()
             self.choose_github()
-            self.choose_global_claude()
 
         # Execute setup based on choices
         self.copy_plugin_files()
         self.setup_hooks()
         self.setup_project_md()
         self.setup_github()
-        self.setup_global_claude()
         self.create_gitignore_entries()
 
         if not self.auto:
@@ -175,7 +172,6 @@ class SetupWizard:
         print("  ✓ Hooks (automatic quality checks)")
         print("  ✓ Templates (PROJECT.md)")
         print("  ✓ GitHub integration (optional)")
-        print("  ✓ Global CLAUDE.md (optional)")
         print("\nThis takes about 2-3 minutes.\n")
 
     def load_preset(self, preset: str):
@@ -185,25 +181,21 @@ class SetupWizard:
                 "hooks_mode": "slash-commands",
                 "setup_project_md": True,
                 "setup_github": False,
-                "setup_global_claude": False,
             },
             "team": {
                 "hooks_mode": "automatic",
                 "setup_project_md": True,
                 "setup_github": True,
-                "setup_global_claude": True,
             },
             "solo": {
                 "hooks_mode": "slash-commands",
                 "setup_project_md": True,
                 "setup_github": False,
-                "setup_global_claude": True,
             },
             "power-user": {
                 "hooks_mode": "automatic",
                 "setup_project_md": True,
                 "setup_github": True,
-                "setup_global_claude": True,
             },
         }
 
@@ -285,32 +277,6 @@ class SetupWizard:
 
         choice = input("Setup GitHub integration? [y/N]: ").strip().lower()
         self.config["setup_github"] = choice == "y"
-
-    def choose_global_claude(self):
-        """Choose whether to setup global ~/.claude/CLAUDE.md."""
-        if self.auto:
-            return
-
-        print("\n" + "━" * 60)
-        print("📝 Global CLAUDE.md Setup (Optional)")
-        print("━" * 60)
-        print("\nGlobal CLAUDE.md provides universal best practices for ALL projects:")
-        print("  ✓ Documentation alignment validation")
-        print("  ✓ Git automation guidelines")
-        print("  ✓ Claude Code restart requirements")
-        print("  ✓ Problem-solving approach\n")
-
-        global_claude = Path.home() / ".claude" / "CLAUDE.md"
-        if global_claude.exists():
-            print(f"⚠️  Existing file found: {global_claude}")
-            print("\nOptions:")
-            print("[1] Merge - Add autonomous-dev sections, keep your content")
-            print("[2] Skip - Keep your existing file unchanged\n")
-            choice = input("Your choice [1/2]: ").strip()
-            self.config["setup_global_claude"] = choice == "1"
-        else:
-            choice = input("Create global CLAUDE.md with best practices? [Y/n]: ").strip().lower()
-            self.config["setup_global_claude"] = choice != "n"
 
     def setup_hooks(self):
         """Configure hooks based on chosen mode."""
@@ -417,67 +383,6 @@ GITHUB_TOKEN=ghp_your_token_here
                 print(f"\nℹ️  .env already exists: {env_file}")
                 print("    Add GITHUB_TOKEN if not already present")
 
-    def setup_global_claude(self):
-        """Setup global ~/.claude/CLAUDE.md with autonomous-dev sections.
-
-        Uses ClaudeMerger to merge template sections with existing user content.
-        Preserves user customizations while adding plugin sections.
-        """
-        if not self.config["setup_global_claude"]:
-            return
-
-        # Import ClaudeMerger (lazy import to avoid dependency issues)
-        try:
-            # Try relative import first (when run from plugin directory)
-            import sys
-            lib_path = Path(__file__).parent.parent / "lib"
-            if lib_path.exists():
-                sys.path.insert(0, str(lib_path.parent.parent))
-            from autonomous_dev.lib.claude_merger import ClaudeMerger
-        except ImportError:
-            if not self.auto:
-                print("\n⚠️  Could not import ClaudeMerger")
-                print("    Run from plugin directory or install plugin properly")
-            return
-
-        # Find template file
-        template_path = self.claude_dir / "templates" / "global-claude.md.template"
-        if not template_path.exists():
-            # Try plugin directory
-            template_path = Path(__file__).parent.parent / "templates" / "global-claude.md.template"
-
-        if not template_path.exists():
-            if not self.auto:
-                print(f"\n⚠️  Template not found: global-claude.md.template")
-                print("    Run /plugin install autonomous-dev first")
-            return
-
-        # Output to global ~/.claude/CLAUDE.md
-        output_path = Path.home() / ".claude" / "CLAUDE.md"
-
-        try:
-            merger = ClaudeMerger(template_path)
-            result = merger.merge_global_claude(output_path)
-
-            if result.success:
-                if not self.auto:
-                    print(f"\n✅ Global CLAUDE.md: {output_path}")
-                    if result.sections_added > 0:
-                        print(f"   Added {result.sections_added} new section(s)")
-                    if result.sections_updated > 0:
-                        print(f"   Updated {result.sections_updated} existing section(s)")
-                    if result.sections_preserved > 0:
-                        print(f"   Preserved {result.sections_preserved} user section(s)")
-                    if result.backup_path:
-                        print(f"   Backup: {result.backup_path}")
-            else:
-                if not self.auto:
-                    print(f"\n⚠️  Failed to setup global CLAUDE.md: {result.message}")
-
-        except Exception as e:
-            if not self.auto:
-                print(f"\n⚠️  Error setting up global CLAUDE.md: {e}")
-
     def create_gitignore_entries(self):
         """Ensure .env and other files are gitignored."""
         gitignore = self.project_root / ".gitignore"
@@ -553,9 +458,6 @@ Examples:
   Automated with automatic hooks:
     python scripts/setup.py --auto --hooks=automatic --project-md --github
 
-  Setup global CLAUDE.md only:
-    python scripts/setup.py --auto --hooks=slash-commands --global-claude
-
   Using presets:
     python scripts/setup.py --preset=minimal     # Slash commands only
     python scripts/setup.py --preset=team        # Full team setup
@@ -564,8 +466,8 @@ Examples:
 
 Presets:
   minimal:     Slash commands + PROJECT.md
-  solo:        Slash commands + PROJECT.md + Global CLAUDE.md
-  team:        Automatic hooks + PROJECT.md + GitHub + Global CLAUDE.md
+  solo:        Same as minimal
+  team:        Automatic hooks + PROJECT.md + GitHub
   power-user:  Everything enabled
         """,
     )
@@ -601,12 +503,6 @@ Presets:
     )
 
     parser.add_argument(
-        "--global-claude",
-        action="store_true",
-        help="Setup global ~/.claude/CLAUDE.md with best practices (requires --auto)",
-    )
-
-    parser.add_argument(
         "--dev-mode",
         action="store_true",
         help="Developer mode: skip plugin install verification (for testing from git clone)",
@@ -633,8 +529,6 @@ Presets:
         wizard.config["setup_project_md"] = args.project_md
     if args.github or args.auto:
         wizard.config["setup_github"] = args.github
-    if args.global_claude or args.auto:
-        wizard.config["setup_global_claude"] = args.global_claude
 
     try:
         wizard.run()
