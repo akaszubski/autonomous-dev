@@ -22,167 +22,47 @@ REST API design best practices, HTTP conventions, versioning, error handling, an
 
 ---
 
-## REST Principles
+## Core Concepts
 
-### RESTful Resource Design
+### 1. REST Principles
 
-**Resources are nouns, not verbs**:
+RESTful resource design using nouns (not verbs), proper HTTP methods, and hierarchical URL structure.
 
-```bash
-# ✅ GOOD: Resource-based
-GET    /users              # List users
-GET    /users/123          # Get user 123
-POST   /users              # Create user
-PUT    /users/123          # Update user 123
-DELETE /users/123          # Delete user 123
+**Key Principles**:
+- Resources are nouns: `/users`, `/posts` (not `/getUsers`, `/createPost`)
+- Use HTTP methods correctly: GET (read), POST (create), PUT (replace), PATCH (update), DELETE (remove)
+- Hierarchical relationships: `/users/123/posts` for related resources
+- Keep URLs shallow (max 3 levels)
 
-# ❌ BAD: Action-based
-GET    /getUsers
-POST   /createUser
-POST   /updateUser
-POST   /deleteUser
-```
-
-### HTTP Methods (Verbs)
-
-| Method | Purpose | Idempotent? | Safe? |
-|--------|---------|-------------|-------|
-| **GET** | Read resource | ✅ Yes | ✅ Yes |
-| **POST** | Create resource | ❌ No | ❌ No |
-| **PUT** | Replace resource | ✅ Yes | ❌ No |
-| **PATCH** | Update partial resource | ❌ No | ❌ No |
-| **DELETE** | Delete resource | ✅ Yes | ❌ No |
-
-**Idempotent**: Same request → same result (can retry safely)
-**Safe**: No side effects (doesn't modify data)
+**See**: `docs/rest-principles.md` for detailed examples and patterns
 
 ---
 
-## URL Structure
+### 2. HTTP Status Codes
 
-### Resource Naming
+Proper status code usage for success (2xx), client errors (4xx), and server errors (5xx).
 
-**Use plural nouns**:
-```bash
-# ✅ GOOD: Plural
-/users
-/posts
-/comments
+**Common Codes**:
+- **200 OK**: Successful GET/PUT/PATCH
+- **201 Created**: Successful POST (includes Location header)
+- **204 No Content**: Successful DELETE
+- **400 Bad Request**: Invalid input
+- **401 Unauthorized**: Authentication required
+- **403 Forbidden**: Authenticated but not allowed
+- **404 Not Found**: Resource doesn't exist
+- **422 Unprocessable**: Validation error
+- **429 Too Many Requests**: Rate limit exceeded
+- **500 Internal Server Error**: Server failure
 
-# ❌ BAD: Singular
-/user
-/post
-/comment
-```
-
-**Use hierarchical structure for relationships**:
-```bash
-# ✅ GOOD: Nested resources
-GET /users/123/posts              # Posts by user 123
-GET /posts/456/comments           # Comments on post 456
-POST /users/123/posts             # Create post for user 123
-
-# ❌ BAD: Flat structure
-GET /posts?user_id=123            # Less clear
-```
-
-**Keep URLs shallow (max 3 levels)**:
-```bash
-# ✅ GOOD: 2-3 levels
-/users/123/posts
-/posts/456/comments
-
-# ❌ BAD: Too deep
-/users/123/posts/456/comments/789/replies
-# Use: /comments/789/replies instead
-```
-
-### Query Parameters
-
-**Use for filtering, sorting, pagination**:
-
-```bash
-# Filtering
-GET /users?role=admin
-GET /users?created_after=2024-01-01
-
-# Sorting
-GET /posts?sort=created_at&order=desc
-GET /posts?sort=-created_at  # - prefix for descending
-
-# Pagination
-GET /users?page=2&limit=20
-GET /users?offset=40&limit=20
-
-# Search
-GET /users?q=john
-GET /posts?search=python
-```
+**See**: `docs/http-status-codes.md` for complete reference and examples
 
 ---
 
-## HTTP Status Codes
+### 3. Error Handling
 
-### Success Codes (2xx)
+RFC 7807 Problem Details format for consistent, structured error responses.
 
-```
-200 OK                  - Request succeeded (GET, PUT, PATCH)
-201 Created             - Resource created (POST)
-204 No Content          - Success, no response body (DELETE)
-```
-
-**Examples**:
-```python
-# 200 OK - Return resource
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    user = db.get_user(user_id)
-    return JSONResponse(content=user, status_code=200)
-
-# 201 Created - Return created resource + Location header
-@app.post("/users")
-def create_user(user: User):
-    created = db.create_user(user)
-    return JSONResponse(
-        content=created,
-        status_code=201,
-        headers={"Location": f"/users/{created['id']}"}
-    )
-
-# 204 No Content - No body needed
-@app.delete("/users/{user_id}")
-def delete_user(user_id: int):
-    db.delete_user(user_id)
-    return Response(status_code=204)
-```
-
-### Client Error Codes (4xx)
-
-```
-400 Bad Request         - Invalid request body/parameters
-401 Unauthorized        - Authentication required
-403 Forbidden           - Authenticated but not allowed
-404 Not Found           - Resource doesn't exist
-409 Conflict            - Conflict (e.g., duplicate email)
-422 Unprocessable       - Validation error
-429 Too Many Requests   - Rate limit exceeded
-```
-
-### Server Error Codes (5xx)
-
-```
-500 Internal Server Error - Unexpected server error
-503 Service Unavailable   - Server temporarily down
-```
-
----
-
-## Error Response Format
-
-### RFC 7807 (Problem Details)
-
-**Standard error format**:
-
+**Standard Format**:
 ```json
 {
   "type": "https://example.com/errors/validation-error",
@@ -191,763 +71,224 @@ def delete_user(user_id: int):
   "detail": "Email address is invalid",
   "instance": "/users",
   "errors": {
-    "email": ["Must be a valid email address"],
-    "password": ["Must be at least 8 characters"]
+    "email": ["Must be a valid email address"]
   }
 }
 ```
 
-**Implementation**:
-
-```python
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-class ErrorResponse(BaseModel):
-    type: str
-    title: str
-    status: int
-    detail: str
-    instance: str
-    errors: dict = {}
-
-@app.post("/users")
-def create_user(user: User):
-    if not validate_email(user.email):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "type": "https://example.com/errors/validation-error",
-                "title": "Validation Error",
-                "status": 422,
-                "detail": "Invalid email address",
-                "instance": "/users",
-                "errors": {
-                    "email": ["Must be a valid email address"]
-                }
-            }
-        )
-```
-
-### Consistent Error Structure
-
-**Minimal error (for simple cases)**:
-```json
-{
-  "error": "Invalid email address",
-  "code": "VALIDATION_ERROR"
-}
-```
-
-**Detailed error (for complex cases)**:
-```json
-{
-  "error": "Validation failed",
-  "code": "VALIDATION_ERROR",
-  "message": "One or more fields failed validation",
-  "fields": {
-    "email": "Must be a valid email address",
-    "password": "Must be at least 8 characters"
-  },
-  "timestamp": "2025-10-24T12:00:00Z",
-  "path": "/users"
-}
-```
+**See**: `docs/error-handling.md` for implementation patterns and best practices
 
 ---
 
-## Request/Response Format
+### 4. Request/Response Format
 
-### Request Body (POST/PUT/PATCH)
+JSON structure conventions for request bodies and response payloads.
 
-**JSON format**:
-```json
-POST /users
-Content-Type: application/json
+**Best Practices**:
+- Use `snake_case` for JSON keys
+- Include metadata in responses (timestamps, IDs)
+- Consistent field naming across endpoints
+- Clear data types and structures
 
-{
-  "email": "user@example.com",
-  "name": "John Doe",
-  "role": "admin"
-}
-```
-
-**Python (FastAPI)**:
-```python
-from pydantic import BaseModel, EmailStr
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    name: str
-    role: str
-
-@app.post("/users")
-def create_user(user: UserCreate):
-    # user.email, user.name, user.role automatically validated
-    return db.create_user(user.dict())
-```
-
-### Response Body
-
-**Single resource**:
-```json
-GET /users/123
-
-{
-  "id": 123,
-  "email": "user@example.com",
-  "name": "John Doe",
-  "created_at": "2025-10-24T12:00:00Z"
-}
-```
-
-**Collection**:
-```json
-GET /users
-
-{
-  "data": [
-    {"id": 1, "email": "user1@example.com"},
-    {"id": 2, "email": "user2@example.com"}
-  ],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 20,
-    "pages": 5
-  }
-}
-```
+**See**: `docs/request-response-format.md` for detailed examples
 
 ---
 
-## Pagination
+### 5. Pagination
 
-### Offset-Based Pagination
+Offset-based and cursor-based pagination strategies for large datasets.
 
-**Query parameters**:
+**Offset-Based** (simple, good for small datasets):
 ```bash
 GET /users?page=2&limit=20
-GET /users?offset=40&limit=20
 ```
 
-**Response**:
-```json
-{
-  "data": [...],
-  "meta": {
-    "total": 100,
-    "offset": 40,
-    "limit": 20,
-    "next": "/users?offset=60&limit=20",
-    "prev": "/users?offset=20&limit=20"
-  }
-}
-```
-
-**Implementation**:
-```python
-@app.get("/users")
-def list_users(page: int = 1, limit: int = 20):
-    offset = (page - 1) * limit
-    users = db.get_users(offset=offset, limit=limit)
-    total = db.count_users()
-
-    return {
-        "data": users,
-        "meta": {
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "pages": (total + limit - 1) // limit
-        }
-    }
-```
-
-**Pros**: Simple, can jump to any page
-**Cons**: Inconsistent if data changes between requests
-
----
-
-### Cursor-Based Pagination
-
-**Better for real-time data**:
-
+**Cursor-Based** (scalable, handles real-time updates):
 ```bash
 GET /users?cursor=abc123&limit=20
 ```
 
-**Response**:
-```json
-{
-  "data": [...],
-  "meta": {
-    "next_cursor": "def456",
-    "prev_cursor": "xyz789",
-    "has_more": true
-  }
-}
-```
-
-**Implementation**:
-```python
-@app.get("/users")
-def list_users(cursor: str = None, limit: int = 20):
-    users = db.get_users_after_cursor(cursor, limit)
-    next_cursor = users[-1].id if users else None
-
-    return {
-        "data": users,
-        "meta": {
-            "next_cursor": next_cursor,
-            "has_more": len(users) == limit
-        }
-    }
-```
-
-**Pros**: Consistent results, works with real-time data
-**Cons**: Can't jump to arbitrary page
+**See**: `docs/pagination.md` for implementation details and trade-offs
 
 ---
 
-## API Versioning
+### 6. API Versioning
 
-### URL Path Versioning (Recommended)
+URL path versioning (recommended) and header-based versioning strategies.
 
+**URL Path Versioning**:
 ```bash
-# ✅ GOOD: Version in URL
-GET /v1/users
-GET /v2/users
+/v1/users
+/v2/users
 ```
 
-**Pros**:
-- Simple, clear
-- Easy to route
-- Cached separately
+**When to Version**:
+- Breaking changes (removing fields, changing behavior)
+- New required fields
+- Changed data types
 
-**Cons**:
-- URL changes
-
-**Implementation**:
-```python
-# FastAPI
-app = FastAPI()
-
-v1_router = APIRouter(prefix="/v1")
-v2_router = APIRouter(prefix="/v2")
-
-@v1_router.get("/users")
-def list_users_v1():
-    return {"version": 1, "users": [...]}
-
-@v2_router.get("/users")
-def list_users_v2():
-    return {"version": 2, "users": [...]}
-
-app.include_router(v1_router)
-app.include_router(v2_router)
-```
+**See**: `docs/versioning.md` for migration strategies and deprecation policies
 
 ---
 
-### Header Versioning
+### 7. Authentication & Authorization
 
-```bash
-GET /users
-Accept: application/vnd.myapi.v1+json
+API key and JWT authentication patterns for securing endpoints.
+
+**API Key** (simple, good for service-to-service):
+```http
+Authorization: Bearer sk_live_abc123...
 ```
 
-**Pros**:
-- Same URL
-- Semantic
+**JWT** (stateless, good for user authentication):
+```http
+Authorization: Bearer eyJhbGc...
+```
 
-**Cons**:
-- Harder to test (need headers)
-- Not cached separately
+**See**: `docs/authentication.md` for implementation patterns
 
 ---
 
-### Breaking Changes
+### 8. Rate Limiting
 
-**What requires a new version**:
-- ❌ Remove field
-- ❌ Rename field
-- ❌ Change field type
-- ❌ Add required field
-- ✅ Add optional field (backward compatible)
+Rate limit headers and strategies to prevent abuse.
 
-**Example**:
-```json
-// v1
-{"id": 1, "name": "John"}
-
-// v2 - Breaking change (renamed field)
-{"id": 1, "full_name": "John"}  // Need /v2/users
-
-// v2 - Non-breaking (added optional field)
-{"id": 1, "name": "John", "email": "john@example.com"}  // Can keep /v1/users
+**Standard Headers**:
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1640995200
 ```
+
+**See**: `docs/rate-limiting.md` for implementation strategies
 
 ---
 
-## Authentication & Authorization
+### 9. Advanced Features
 
-### API Key (Simple)
+CORS configuration, filtering, sorting, and search patterns.
 
-```bash
-GET /users
-Authorization: Bearer sk-abc123...
-```
+**Topics**:
+- CORS headers for browser-based clients
+- Query parameter filtering
+- Multi-field sorting
+- Full-text search
 
-**Implementation**:
-```python
-from fastapi import Security, HTTPException
-from fastapi.security import HTTPBearer
-
-security = HTTPBearer()
-
-@app.get("/users")
-def list_users(credentials: HTTPAuthorizationCredentials = Security(security)):
-    api_key = credentials.credentials
-    if not validate_api_key(api_key):
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return get_users()
-```
+**See**: `docs/advanced-features.md` for detailed patterns
 
 ---
 
-### JWT (Stateless)
+### 10. Documentation
 
-```bash
-GET /users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
+OpenAPI/Swagger documentation for API discoverability.
 
-**Implementation**:
+**Auto-Generated** (FastAPI):
 ```python
-import jwt
-from datetime import datetime, timedelta
-
-SECRET = "your-secret-key"
-
-def create_token(user_id: int) -> str:
-    payload = {
-        "user_id": user_id,
-        "exp": datetime.utcnow() + timedelta(hours=1)
-    }
-    return jwt.encode(payload, SECRET, algorithm="HS256")
-
-def verify_token(token: str) -> dict:
-    try:
-        return jwt.decode(token, SECRET, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-@app.get("/users")
-def list_users(token: str = Security(security)):
-    payload = verify_token(token)
-    user_id = payload["user_id"]
-    return get_users_for(user_id)
-```
-
----
-
-## Rate Limiting
-
-### Headers
-
-```bash
-X-RateLimit-Limit: 1000       # Max requests per hour
-X-RateLimit-Remaining: 999    # Requests remaining
-X-RateLimit-Reset: 1698768000 # Unix timestamp when limit resets
-```
-
-**Implementation**:
-```python
-from fastapi import Request, HTTPException
-from datetime import datetime, timedelta
-import redis
-
-redis_client = redis.Redis()
-
-RATE_LIMIT = 1000  # per hour
-
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    client_ip = request.client.host
-    key = f"rate_limit:{client_ip}"
-
-    # Increment counter
-    current = redis_client.incr(key)
-
-    # Set expiration on first request
-    if current == 1:
-        redis_client.expire(key, 3600)  # 1 hour
-
-    # Get TTL
-    ttl = redis_client.ttl(key)
-    reset_time = datetime.now() + timedelta(seconds=ttl)
-
-    # Check limit
-    if current > RATE_LIMIT:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded",
-            headers={
-                "X-RateLimit-Limit": str(RATE_LIMIT),
-                "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(int(reset_time.timestamp()))
-            }
-        )
-
-    # Add headers
-    response = await call_next(request)
-    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT)
-    response.headers["X-RateLimit-Remaining"] = str(RATE_LIMIT - current)
-    response.headers["X-RateLimit-Reset"] = str(int(reset_time.timestamp()))
-
-    return response
-```
-
----
-
-## CORS (Cross-Origin Resource Sharing)
-
-**Allow browser requests from different domains**:
-
-```python
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://example.com"],  # Specific origins
-    # allow_origins=["*"],  # All origins (development only!)
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
-```
-
----
-
-## Filtering & Sorting
-
-### Filtering
-
-```bash
-# Single filter
-GET /users?role=admin
-
-# Multiple filters
-GET /users?role=admin&status=active
-
-# Range filters
-GET /posts?created_after=2024-01-01&created_before=2024-12-31
-
-# Search
-GET /users?q=john
-```
-
-**Implementation**:
-```python
-@app.get("/users")
-def list_users(
-    role: str = None,
-    status: str = None,
-    q: str = None
-):
-    query = db.query(User)
-
-    if role:
-        query = query.filter(User.role == role)
-    if status:
-        query = query.filter(User.status == status)
-    if q:
-        query = query.filter(User.name.contains(q))
-
-    return query.all()
-```
-
-### Sorting
-
-```bash
-# Ascending
-GET /posts?sort=created_at
-
-# Descending (- prefix)
-GET /posts?sort=-created_at
-
-# Multiple sorts
-GET /posts?sort=-created_at,title
-```
-
-**Implementation**:
-```python
-@app.get("/posts")
-def list_posts(sort: str = None):
-    query = db.query(Post)
-
-    if sort:
-        for field in sort.split(','):
-            if field.startswith('-'):
-                # Descending
-                query = query.order_by(desc(getattr(Post, field[1:])))
-            else:
-                # Ascending
-                query = query.order_by(asc(getattr(Post, field)))
-
-    return query.all()
-```
-
----
-
-## OpenAPI (Swagger) Documentation
-
-### Auto-Generated Docs (FastAPI)
-
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
-
-app = FastAPI(
-    title="My API",
-    description="API for managing users and posts",
-    version="1.0.0",
-    docs_url="/docs",      # Swagger UI
-    redoc_url="/redoc"     # ReDoc UI
-)
-
-class User(BaseModel):
-    """User model"""
-    id: int = Field(..., description="Unique user ID")
-    email: str = Field(..., description="User email address")
-    name: str = Field(..., description="User full name")
-
-@app.get(
-    "/users/{user_id}",
-    response_model=User,
-    summary="Get user by ID",
-    description="Retrieve a single user by their unique ID",
-    responses={
-        200: {"description": "User found"},
-        404: {"description": "User not found"}
-    }
-)
+@app.get("/users/{user_id}", response_model=User)
 def get_user(user_id: int):
-    """
-    Get user by ID.
-
-    Returns user object if found, 404 if not found.
-    """
+    """Get user by ID"""
     return db.get_user(user_id)
 ```
 
-**Auto-generated docs at**:
-- `/docs` - Swagger UI (interactive)
-- `/redoc` - ReDoc (pretty)
-- `/openapi.json` - OpenAPI spec
+**See**: `docs/documentation.md` for OpenAPI specifications
 
 ---
 
-## Idempotency
+### 11. Design Patterns
 
-### Idempotency Keys (POST)
+Idempotency, content negotiation, HATEOAS, bulk operations, and webhooks.
 
-**Problem**: POST requests aren't idempotent (create duplicate resources if retried)
+**Topics**:
+- Idempotency keys for safe retries
+- Content negotiation (JSON, XML, etc.)
+- HATEOAS for discoverable APIs
+- Bulk operations for batch processing
+- Webhooks for event notifications
 
-**Solution**: Idempotency keys
-
-```bash
-POST /payments
-Idempotency-Key: abc123...
-
-{
-  "amount": 100,
-  "currency": "USD"
-}
-```
-
-**Implementation**:
-```python
-import redis
-
-redis_client = redis.Redis()
-
-@app.post("/payments")
-def create_payment(
-    payment: Payment,
-    idempotency_key: str = Header(...)
-):
-    # Check if we've seen this key before
-    cached = redis_client.get(f"idempotency:{idempotency_key}")
-    if cached:
-        return json.loads(cached)
-
-    # Process payment
-    result = process_payment(payment)
-
-    # Cache result for 24 hours
-    redis_client.setex(
-        f"idempotency:{idempotency_key}",
-        86400,
-        json.dumps(result)
-    )
-
-    return result
-```
+**See**: `docs/idempotency-content-negotiation.md` and `docs/patterns-checklist.md`
 
 ---
 
-## Content Negotiation
+## Quick Reference
 
-**Client specifies desired format**:
-
-```bash
-GET /users
-Accept: application/json  # JSON response
-
-GET /users
-Accept: application/xml   # XML response
-```
-
-**Implementation**:
-```python
-from fastapi import Request
-
-@app.get("/users")
-def get_users(request: Request):
-    users = db.get_users()
-
-    if "application/xml" in request.headers.get("accept", ""):
-        return Response(content=to_xml(users), media_type="application/xml")
-    else:
-        return users  # JSON by default
-```
+| Pattern | Use Case | Details |
+|---------|----------|---------|
+| REST Principles | Resource-based URLs | `docs/rest-principles.md` |
+| Status Codes | HTTP response codes | `docs/http-status-codes.md` |
+| Error Handling | RFC 7807 errors | `docs/error-handling.md` |
+| Pagination | Large datasets | `docs/pagination.md` |
+| Versioning | Breaking changes | `docs/versioning.md` |
+| Authentication | API security | `docs/authentication.md` |
+| Rate Limiting | Abuse prevention | `docs/rate-limiting.md` |
+| Documentation | OpenAPI/Swagger | `docs/documentation.md` |
 
 ---
 
 ## API Design Checklist
 
-**Before shipping an API**:
+**Before Launch**:
+- [ ] Use RESTful resource naming (nouns, not verbs)
+- [ ] Implement proper HTTP status codes
+- [ ] Add RFC 7807 error responses
+- [ ] Include pagination for collections
+- [ ] Add API versioning strategy
+- [ ] Implement authentication
+- [ ] Add rate limiting
+- [ ] Configure CORS (if browser clients)
+- [ ] Generate OpenAPI documentation
+- [ ] Test idempotency for POST/PUT/DELETE
 
-- [ ] **Nouns for resources** (/users, not /getUsers)
-- [ ] **Plural resource names** (/users, not /user)
-- [ ] **Proper HTTP methods** (GET/POST/PUT/DELETE)
-- [ ] **Proper status codes** (200/201/204/400/404/500)
-- [ ] **Consistent error format** (RFC 7807 or custom)
-- [ ] **Pagination** (for collections)
-- [ ] **Filtering & sorting** (query params)
-- [ ] **Versioning** (/v1/users)
-- [ ] **Authentication** (API key or JWT)
-- [ ] **Rate limiting** (protect from abuse)
-- [ ] **CORS** (if browser access needed)
-- [ ] **Documentation** (OpenAPI/Swagger)
-- [ ] **Idempotency** (for payment/critical endpoints)
-- [ ] **Validation** (request body validation)
-- [ ] **Security** (no secrets in responses)
+**See**: `docs/patterns-checklist.md` for complete checklist
 
 ---
 
-## Common Patterns
+## Progressive Disclosure
 
-### HATEOAS (Hypermedia)
+This skill uses progressive disclosure to prevent context bloat:
 
-**Include links to related resources**:
+- **Index** (this file): High-level concepts and quick reference (<500 lines)
+- **Detailed docs**: `docs/*.md` files with implementation details (loaded on-demand)
 
-```json
-GET /users/123
-
-{
-  "id": 123,
-  "email": "user@example.com",
-  "links": {
-    "self": "/users/123",
-    "posts": "/users/123/posts",
-    "followers": "/users/123/followers"
-  }
-}
-```
-
----
-
-### Bulk Operations
-
-**Batch create**:
-```bash
-POST /users/batch
-
-{
-  "users": [
-    {"email": "user1@example.com"},
-    {"email": "user2@example.com"}
-  ]
-}
-```
-
-**Batch update**:
-```bash
-PATCH /users/batch
-
-{
-  "updates": [
-    {"id": 1, "status": "active"},
-    {"id": 2, "status": "inactive"}
-  ]
-}
-```
+**Available Documentation**:
+- `docs/rest-principles.md` - RESTful design patterns
+- `docs/http-status-codes.md` - Complete status code reference
+- `docs/error-handling.md` - Error response patterns
+- `docs/request-response-format.md` - JSON structure conventions
+- `docs/pagination.md` - Pagination strategies
+- `docs/versioning.md` - API versioning patterns
+- `docs/authentication.md` - Authentication methods
+- `docs/rate-limiting.md` - Rate limiting implementation
+- `docs/advanced-features.md` - CORS, filtering, sorting
+- `docs/documentation.md` - OpenAPI/Swagger
+- `docs/idempotency-content-negotiation.md` - Advanced patterns
+- `docs/patterns-checklist.md` - Design checklist and common patterns
 
 ---
 
-### Webhooks
+## Cross-References
 
-**Allow clients to subscribe to events**:
+**Related Skills**:
+- **error-handling-patterns** - Error handling best practices
+- **security-patterns** - API security hardening
+- **documentation-guide** - Documentation standards
+- **python-standards** - Python API implementation
 
-```bash
-POST /webhooks
-
-{
-  "url": "https://example.com/webhook",
-  "events": ["user.created", "user.updated"]
-}
-```
-
-**Send events**:
-```python
-import requests
-
-def notify_webhook(event_type: str, data: dict):
-    webhooks = db.get_webhooks(event_type)
-    for webhook in webhooks:
-        requests.post(webhook.url, json={
-            "event": event_type,
-            "data": data,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-
-# Usage
-user = create_user(...)
-notify_webhook("user.created", user)
-```
+**Related Libraries**:
+- FastAPI - Python API framework with auto-documentation
+- Pydantic - Data validation and serialization
+- JWT libraries - Token-based authentication
 
 ---
 
 ## Key Takeaways
 
-1. **Resources as nouns** (/users, not /getUsers)
-2. **Use proper HTTP methods** (GET/POST/PUT/DELETE)
-3. **Use proper status codes** (200/201/204/400/404)
-4. **Version your API** (/v1, /v2)
-5. **Paginate collections** (offset or cursor)
-6. **Consistent errors** (RFC 7807)
-7. **Authenticate requests** (API key or JWT)
-8. **Rate limit** (protect from abuse)
-9. **Document with OpenAPI** (auto-generate)
-10. **Test idempotency** (especially payments)
-
----
-
-**Version**: 1.0.0
-**Type**: Knowledge skill (no scripts)
-**See Also**: security-patterns (API security), python-standards (FastAPI), testing-guide (API tests)
+1. **Resources are nouns**: `/users`, not `/getUsers`
+2. **Use HTTP methods correctly**: GET (read), POST (create), PUT (replace), DELETE (remove)
+3. **Return proper status codes**: 200 (success), 201 (created), 404 (not found), 422 (validation error)
+4. **Structured errors**: Use RFC 7807 format
+5. **Paginate collections**: Offset or cursor-based
+6. **Version your API**: URL path versioning (e.g., `/v1/users`)
+7. **Secure endpoints**: API keys or JWT
+8. **Rate limit**: Prevent abuse
+9. **Document thoroughly**: OpenAPI/Swagger
+10. **Test idempotency**: Safe retries for POST/PUT/DELETE

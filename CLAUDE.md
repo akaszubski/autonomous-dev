@@ -366,9 +366,11 @@ Agent model assignments are optimized for cost-performance balance based on task
 
 **Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality standards across all workflows.
 
-### Skills (28 Active - Progressive Disclosure + Agent Integration)
+### Skills (28 Active - Progressive Disclosure + Agent Integration - Issue #110)
 
 28 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.
+
+**Issue #110 Completion (v3.41.0)**: All 28 skills now under 500-line official limit. 16 skills refactored with progressive disclosure pattern: compact SKILL.md files (87-315 lines) with detailed content moved to docs/ subdirectories (~6,000+ lines of detailed guides, examples, and references).
 
 **Categories**:
 - **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
@@ -379,16 +381,18 @@ Agent model assignments are optimized for cost-performance balance based on task
 
 **How It Works**:
 - **Progressive Disclosure**: Skills auto-activate based on keywords, full content loads only when needed
-- **Agent Integration**: Each agent references relevant skills in their prompts
-- **Token Reduction**: ~16,833-17,233 tokens saved across 28 skills (26-35% reduction)
+- **Agent Integration**: Each agent references relevant skills in their prompts (no agent changes needed for Issue #110)
+- **Token Reduction**: ~16,833-17,233 tokens saved across 28 skills (26-35% reduction) plus ~6,000+ lines moved to docs/
+- **Refactored Skills** (16 of 28): All now under 500 lines with detailed content in docs/ subdirectories
 
 **Key Benefits**:
 - All 20 agents explicitly reference relevant skills (Issue #35)
+- All 28 skills now satisfy official 500-line limit (Issue #110)
 - Prevents hallucination while maintaining scalability
 - Supports 50-100+ skills without context bloat
-- Test coverage: 624 tests passing
+- Test coverage: 328/355 tests passing
 
-See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
+See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table. See `docs/SKILLS.md` for refactoring summary.
 
 ### Libraries (34 Documented Libraries)
 

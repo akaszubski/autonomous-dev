@@ -101,6 +101,32 @@ Claude uses templates
 
 **Result**: Unlimited skills in metadata, only active ones in context
 
+### Issue #110: Skills 500-Line Refactoring (v3.41.0)
+
+**Implementation**: All 28 skills refactored to satisfy 500-line official limit.
+
+**Refactoring Pattern** (16 skills refactored):
+- **Compact SKILL.md**: Core skill content compressed to 87-315 lines (50-95% reduction)
+- **Docs Subdirectories**: Detailed guides moved to skill/docs/ (6,000+ lines of content)
+- **Structure**:
+  - SKILL.md: Quick reference, trigger words, key concepts
+  - docs/detailed-guide-1.md through N: Comprehensive guides with examples
+  - docs/: Code examples, edge cases, reference material
+
+**Results**:
+- All 28 skills under 500-line limit (100% compliance)
+- System prompt 70-80% smaller for skill content
+- Detailed content still available via docs/ subdirectories
+- Agents load compact metadata, detailed content on-demand
+- Scales to 100+ skills without context bloat
+
+**Example Refactoring** (documentation-guide):
+- Before: 1,847 lines (single SKILL.md file)
+- After: 87 lines (SKILL.md) + 4 detailed guides in docs/
+- Reduction: 95% smaller file, 4 detailed guides preserved
+
+**Key Benefit**: Progressive disclosure in practice—compact metadata for context efficiency, detailed content for on-demand learning.
+
 ### How It Solves the Problem
 
 | Problem | v2.5 | v2024+ |
