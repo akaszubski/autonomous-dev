@@ -75,18 +75,39 @@ except ImportError:
         """Fallback audit logging."""
         pass
 
-# Import path utilities for project root detection
+# Import path utilities for project root detection and policy file resolution
 try:
-    from path_utils import get_project_root
+    from path_utils import get_project_root, get_policy_file
 except ImportError:
     # Fallback to CWD if path_utils not available
     def get_project_root():
         """Fallback project root detection."""
         return Path.cwd()
 
+    def get_policy_file(use_cache: bool = True):
+        """Fallback policy file resolution."""
+        return Path(__file__).parent.parent / "config" / "auto_approve_policy.json"
 
-# Default policy file location
-DEFAULT_POLICY_FILE = Path(__file__).parent.parent / "config" / "auto_approve_policy.json"
+
+# Lazy evaluation of default policy file (uses cascading lookup)
+_DEFAULT_POLICY_FILE_CACHE = None
+
+
+def _get_default_policy_file():
+    """Get default policy file path (lazy evaluation with caching).
+
+    Uses cascading lookup via get_policy_file() from path_utils.
+    Falls back to hardcoded path if path_utils not available.
+
+    Returns:
+        Path to policy file
+    """
+    global _DEFAULT_POLICY_FILE_CACHE
+
+    if _DEFAULT_POLICY_FILE_CACHE is None:
+        _DEFAULT_POLICY_FILE_CACHE = get_policy_file()
+
+    return _DEFAULT_POLICY_FILE_CACHE
 
 # Command injection detection patterns (CWE-78)
 # Format: (pattern, reason_name)
@@ -219,8 +240,8 @@ class ToolValidator:
             self.policy_file = None
             self.policy = policy
         else:
-            # Load from file
-            self.policy_file = policy_file or DEFAULT_POLICY_FILE
+            # Load from file (uses cascading lookup via _get_default_policy_file)
+            self.policy_file = policy_file or _get_default_policy_file()
             self.policy = self._load_policy()
 
     def _load_policy(self) -> Dict[str, Any]:

@@ -180,7 +180,7 @@ def load_and_cache_policy(policy_file: Optional[Path] = None) -> Dict[str, Any]:
     Policy is loaded once and cached in memory for performance.
 
     Args:
-        policy_file: Path to policy file (default: config/auto_approve_policy.json)
+        policy_file: Path to policy file (default: uses cascading lookup via get_policy_file)
 
     Returns:
         Policy dictionary
@@ -189,7 +189,8 @@ def load_and_cache_policy(policy_file: Optional[Path] = None) -> Dict[str, Any]:
 
     with _cache_lock:
         if _cached_policy is None:
-            policy_file = policy_file or DEFAULT_POLICY_FILE
+            # Use cascading lookup if no explicit path provided
+            policy_file = policy_file or get_policy_file()
             _cached_policy = load_policy(policy_file)
 
         return _cached_policy
@@ -205,7 +206,8 @@ def _get_cached_validator() -> ToolValidator:
 
     with _cache_lock:
         if _cached_validator is None:
-            _cached_validator = ToolValidator(policy_file=DEFAULT_POLICY_FILE)
+            # Use cascading lookup for policy file
+            _cached_validator = ToolValidator(policy_file=get_policy_file())
 
         return _cached_validator
 

@@ -1,0 +1,174 @@
+{
+  "version": "3.40.0",
+  "generated": "2025-12-09",
+  "description": "File manifest for autonomous-dev plugin installation",
+  "base_url": "https://raw.githubusercontent.com/akaszubski/autonomous-dev/master",
+  "components": {
+    "agents": {
+      "target": ".claude/agents",
+      "files": [
+        "plugins/autonomous-dev/agents/advisor.md",
+        "plugins/autonomous-dev/agents/alignment-analyzer.md",
+        "plugins/autonomous-dev/agents/alignment-validator.md",
+        "plugins/autonomous-dev/agents/brownfield-analyzer.md",
+        "plugins/autonomous-dev/agents/commit-message-generator.md",
+        "plugins/autonomous-dev/agents/doc-master.md",
+        "plugins/autonomous-dev/agents/implementer.md",
+        "plugins/autonomous-dev/agents/issue-creator.md",
+        "plugins/autonomous-dev/agents/planner.md",
+        "plugins/autonomous-dev/agents/pr-description-generator.md",
+        "plugins/autonomous-dev/agents/project-bootstrapper.md",
+        "plugins/autonomous-dev/agents/project-progress-tracker.md",
+        "plugins/autonomous-dev/agents/project-status-analyzer.md",
+        "plugins/autonomous-dev/agents/quality-validator.md",
+        "plugins/autonomous-dev/agents/researcher.md",
+        "plugins/autonomous-dev/agents/reviewer.md",
+        "plugins/autonomous-dev/agents/security-auditor.md",
+        "plugins/autonomous-dev/agents/setup-wizard.md",
+        "plugins/autonomous-dev/agents/sync-validator.md",
+        "plugins/autonomous-dev/agents/test-master.md"
+      ]
+    },
+    "commands": {
+      "target": ".claude/commands",
+      "files": [
+        "plugins/autonomous-dev/commands/align-claude.md",
+        "plugins/autonomous-dev/commands/align-project-retrofit.md",
+        "plugins/autonomous-dev/commands/align-project.md",
+        "plugins/autonomous-dev/commands/auto-implement.md",
+        "plugins/autonomous-dev/commands/batch-implement.md",
+        "plugins/autonomous-dev/commands/create-issue.md",
+        "plugins/autonomous-dev/commands/health-check.md",
+        "plugins/autonomous-dev/commands/implement.md",
+        "plugins/autonomous-dev/commands/pipeline-status.md",
+        "plugins/autonomous-dev/commands/plan.md",
+        "plugins/autonomous-dev/commands/research.md",
+        "plugins/autonomous-dev/commands/review.md",
+        "plugins/autonomous-dev/commands/security-scan.md",
+        "plugins/autonomous-dev/commands/setup.md",
+        "plugins/autonomous-dev/commands/status.md",
+        "plugins/autonomous-dev/commands/sync.md",
+        "plugins/autonomous-dev/commands/test-feature.md",
+        "plugins/autonomous-dev/commands/test.md",
+        "plugins/autonomous-dev/commands/update-docs.md",
+        "plugins/autonomous-dev/commands/update-plugin.md"
+      ]
+    },
+    "hooks": {
+      "target": ".claude/hooks",
+      "files": [
+        "plugins/autonomous-dev/hooks/auto_format.py",
+        "plugins/autonomous-dev/hooks/auto_git_workflow.py",
+        "plugins/autonomous-dev/hooks/auto_test.py",
+        "plugins/autonomous-dev/hooks/detect_feature_request.py",
+        "plugins/autonomous-dev/hooks/enforce_file_organization.py",
+        "plugins/autonomous-dev/hooks/enforce_pipeline_complete.py",
+        "plugins/autonomous-dev/hooks/enforce_tdd.py",
+        "plugins/autonomous-dev/hooks/health_check.py",
+        "plugins/autonomous-dev/hooks/log_agent_completion.py",
+        "plugins/autonomous-dev/hooks/pre_tool_use.py",
+        "plugins/autonomous-dev/hooks/security_scan.py",
+        "plugins/autonomous-dev/hooks/session_tracker.py",
+        "plugins/autonomous-dev/hooks/setup.py",
+        "plugins/autonomous-dev/hooks/validate_claude_alignment.py",
+        "plugins/autonomous-dev/hooks/validate_project_alignment.py"
+      ]
+    },
+    "scripts": {
+      "target": ".claude/scripts",
+      "files": [
+        "plugins/autonomous-dev/scripts/__init__.py",
+        "plugins/autonomous-dev/scripts/session_tracker.py",
+        "plugins/autonomous-dev/scripts/pipeline_controller.py",
+        "plugins/autonomous-dev/scripts/progress_display.py",
+        "plugins/autonomous-dev/scripts/install.py"
+      ]
+    },
+    "lib": {
+      "target": ".claude/lib",
+      "files": [
+        "plugins/autonomous-dev/lib/__init__.py",
+        "plugins/autonomous-dev/lib/agent_invoker.py",
+        "plugins/autonomous-dev/lib/agent_tracker.py",
+        "plugins/autonomous-dev/lib/alignment_assessor.py",
+        "plugins/autonomous-dev/lib/artifacts.py",
+        "plugins/autonomous-dev/lib/auto_approval_consent.py",
+        "plugins/autonomous-dev/lib/auto_approval_engine.py",
+        "plugins/autonomous-dev/lib/auto_implement_git_integration.py",
+        "plugins/autonomous-dev/lib/batch_retry_consent.py",
+        "plugins/autonomous-dev/lib/batch_retry_manager.py",
+        "plugins/autonomous-dev/lib/batch_state_manager.py",
+        "plugins/autonomous-dev/lib/brownfield_retrofit.py",
+        "plugins/autonomous-dev/lib/checkpoint.py",
+        "plugins/autonomous-dev/lib/codebase_analyzer.py",
+        "plugins/autonomous-dev/lib/copy_system.py",
+        "plugins/autonomous-dev/lib/error_messages.py",
+        "plugins/autonomous-dev/lib/failure_classifier.py",
+        "plugins/autonomous-dev/lib/feature_completion_detector.py",
+        "plugins/autonomous-dev/lib/file_discovery.py",
+        "plugins/autonomous-dev/lib/first_run_warning.py",
+        "plugins/autonomous-dev/lib/genai_validate.py",
+        "plugins/autonomous-dev/lib/git_hooks.py",
+        "plugins/autonomous-dev/lib/git_operations.py",
+        "plugins/autonomous-dev/lib/github_issue_closer.py",
+        "plugins/autonomous-dev/lib/github_issue_fetcher.py",
+        "plugins/autonomous-dev/lib/health_check.py",
+        "plugins/autonomous-dev/lib/hook_activator.py",
+        "plugins/autonomous-dev/lib/install_orchestrator.py",
+        "plugins/autonomous-dev/lib/installation_validator.py",
+        "plugins/autonomous-dev/lib/logging_utils.py",
+        "plugins/autonomous-dev/lib/math_utils.py",
+        "plugins/autonomous-dev/lib/mcp_permission_validator.py",
+        "plugins/autonomous-dev/lib/mcp_profile_manager.py",
+        "plugins/autonomous-dev/lib/mcp_server_detector.py",
+        "plugins/autonomous-dev/lib/migration_planner.py",
+        "plugins/autonomous-dev/lib/orchestrator.py",
+        "plugins/autonomous-dev/lib/orphan_file_cleaner.py",
+        "plugins/autonomous-dev/lib/path_utils.py",
+        "plugins/autonomous-dev/lib/performance_profiler.py",
+        "plugins/autonomous-dev/lib/permission_classifier.py",
+        "plugins/autonomous-dev/lib/plugin_updater.py",
+        "plugins/autonomous-dev/lib/pr_automation.py",
+        "plugins/autonomous-dev/lib/project_md_parser.py",
+        "plugins/autonomous-dev/lib/project_md_updater.py",
+        "plugins/autonomous-dev/lib/retrofit_executor.py",
+        "plugins/autonomous-dev/lib/retrofit_verifier.py",
+        "plugins/autonomous-dev/lib/search_utils.py",
+        "plugins/autonomous-dev/lib/security_utils.py",
+        "plugins/autonomous-dev/lib/session_tracker.py",
+        "plugins/autonomous-dev/lib/settings_merger.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher.py",
+        "plugins/autonomous-dev/lib/sync_mode_detector.py",
+        "plugins/autonomous-dev/lib/tool_approval_audit.py",
+        "plugins/autonomous-dev/lib/tool_validator.py",
+        "plugins/autonomous-dev/lib/update_plugin.py",
+        "plugins/autonomous-dev/lib/user_state_manager.py",
+        "plugins/autonomous-dev/lib/validate_documentation_parity.py",
+        "plugins/autonomous-dev/lib/validate_marketplace_version.py",
+        "plugins/autonomous-dev/lib/validation.py",
+        "plugins/autonomous-dev/lib/version_detector.py",
+        "plugins/autonomous-dev/lib/workflow_coordinator.py"
+      ]
+    },
+    "config": {
+      "target": ".claude/config",
+      "files": [
+        "plugins/autonomous-dev/config/auto_approve_policy.json",
+        "plugins/autonomous-dev/config/install_manifest.json"
+      ]
+    },
+    "templates": {
+      "target": ".claude/templates",
+      "files": [
+        "plugins/autonomous-dev/templates/settings.local.json",
+        "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
+        "plugins/autonomous-dev/templates/settings.granular-bash.json",
+        "plugins/autonomous-dev/templates/settings.permission-batching.json",
+        "plugins/autonomous-dev/templates/settings.strict-mode.json"
+      ]
+    }
+  },
+  "post_install": {
+    "message": "Restart Claude Code (Cmd+Q or Ctrl+Q) to activate commands"
+  }
+}

@@ -122,13 +122,37 @@ When you run `/auto-implement "Add analytics dashboard"`:
 
 ### Step 1: Install the Plugin (One Time)
 
-Open Claude Code anywhere and run:
+**Option A: One-liner curl (Recommended)** - Installs everything including hooks and scripts:
+```bash
+cd /path/to/your/project
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+```
+
+**Option B: Claude Code Plugin System** - Basic install (may need manual setup):
 ```
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
 Then **fully quit Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux) and reopen it.
+
+### Updating the Plugin
+
+```bash
+# Check for updates
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --check
+
+# Update (preserves your customizations via backup)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --update
+```
+
+### Repair Broken Installation
+
+If commands stop working or files are missing:
+```bash
+# Sync repairs missing/corrupt files while preserving customizations
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --sync
+```
 
 ### Step 2: Set Up Your Project
 

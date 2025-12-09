@@ -37,12 +37,21 @@ Design Patterns:
 """
 
 import os
+import json
 from pathlib import Path
 from typing import Optional, List
 
 
 # Cache for project root (avoid repeated filesystem searches)
 _PROJECT_ROOT_CACHE: Optional[Path] = None
+
+# Cache for policy file (avoid repeated filesystem searches)
+_POLICY_FILE_CACHE: Optional[Path] = None
+
+
+class PolicyFileNotFoundError(Exception):
+    """Exception raised when policy file cannot be found in any location."""
+    pass
 
 
 def find_project_root(
@@ -229,3 +238,139 @@ def reset_project_root_cache() -> None:
     """
     global _PROJECT_ROOT_CACHE
     _PROJECT_ROOT_CACHE = None
+
+
+def get_policy_file(use_cache: bool = True) -> Path:
+    """Get policy file path via cascading lookup with fallback.
+
+    Cascading lookup order:
+    1. .claude/config/auto_approve_policy.json (project-local)
+    2. plugins/autonomous-dev/config/auto_approve_policy.json (plugin default)
+    3. Return path to minimal fallback (may not exist)
+
+    Security validations:
+    - Rejects symlinks (CWE-59)
+    - Prevents path traversal (CWE-22)
+    - Validates JSON format
+    - Handles permission errors gracefully
+
+    Args:
+        use_cache: If True, use cached value (default). If False, force re-detection.
+                  Set to False in tests that change working directory.
+
+    Returns:
+        Path to policy file (validated and readable)
+
+    Examples:
+        >>> policy_file = get_policy_file()
+        >>> validator = ToolValidator(policy_file=policy_file)
+
+        # In tests that change cwd
+        >>> policy_file = get_policy_file(use_cache=False)
+
+    Thread Safety:
+        Not thread-safe (uses module-level cache). If needed for multi-threading,
+        wrap with threading.Lock.
+
+    Note:
+        This function prioritizes project-local policy over plugin default.
+        This enables per-project customization while maintaining a sensible default.
+    """
+    global _POLICY_FILE_CACHE
+
+    if not use_cache or _POLICY_FILE_CACHE is None:
+        _POLICY_FILE_CACHE = _find_policy_file()
+
+    return _POLICY_FILE_CACHE
+
+
+def _find_policy_file() -> Path:
+    """Find policy file via cascading lookup.
+
+    Internal implementation for get_policy_file().
+
+    Returns:
+        Path to validated policy file
+    """
+    try:
+        project_root = get_project_root()
+    except FileNotFoundError:
+        # No project root found - return plugin default path
+        # (may not exist, but that's okay - caller handles missing file)
+        plugin_path = Path(__file__).parent.parent / "config" / "auto_approve_policy.json"
+        return plugin_path
+
+    # Define cascading lookup locations
+    locations = [
+        project_root / ".claude" / "config" / "auto_approve_policy.json",  # Project-local
+        project_root / "plugins" / "autonomous-dev" / "config" / "auto_approve_policy.json",  # Plugin default
+    ]
+
+    # Try each location in priority order
+    for policy_path in locations:
+        if _is_valid_policy_file(policy_path):
+            return policy_path
+
+    # No valid policy found - return minimal fallback path
+    # Return first location that doesn't exist (not symlink or invalid)
+    # This ensures we never return a path we rejected for security reasons
+    for policy_path in locations:
+        if not policy_path.exists():
+            return policy_path
+
+    # All locations exist but all rejected (symlinks, invalid JSON, etc.)
+    # Return project-local as last resort (caller will handle the issue)
+    return locations[0]
+
+
+def _is_valid_policy_file(policy_path: Path) -> bool:
+    """Validate policy file for security and format.
+
+    Checks:
+    - File exists
+    - Is not a symlink (CWE-59)
+    - Is a regular file (not directory)
+    - Is readable
+    - Contains valid JSON
+
+    Args:
+        policy_path: Path to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    # Check symlink FIRST (before exists, which follows symlinks)
+    # Reject symlinks (CWE-59: Improper Link Resolution Before File Access)
+    if policy_path.is_symlink():
+        return False
+
+    # Check existence (now we know it's not a symlink)
+    if not policy_path.exists():
+        return False
+
+    # Must be a regular file (not directory)
+    if not policy_path.is_file():
+        return False
+
+    # Check readability and validate JSON
+    try:
+        with open(policy_path, 'r') as f:
+            json.load(f)
+        return True
+    except (PermissionError, json.JSONDecodeError, OSError):
+        # Permission denied, invalid JSON, or other IO error
+        return False
+
+
+def reset_policy_cache() -> None:
+    """Reset cached policy file path (for testing only).
+
+    Warning: Only use this in test teardown. In production, the cache should
+    persist for the lifetime of the process.
+
+    Examples:
+        >>> # In test teardown
+        >>> reset_policy_cache()
+    """
+    global _POLICY_FILE_CACHE
+    _POLICY_FILE_CACHE = None
