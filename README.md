@@ -196,23 +196,44 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --sync
 ```
 
-### Intelligent Installation (v3.41.0+)
+### How Installation Works (v3.41.0+)
 
-The installer uses **GenAI-first installation** with protected file detection:
+Installation uses a **two-phase GenAI-first architecture**:
 
-| Scenario | What Happens |
-|----------|--------------|
-| **Fresh Install** (no `.claude/`) | Copies all plugin files, runs `/setup` wizard |
-| **Brownfield** (existing project) | Detects and **preserves** your PROJECT.md, .env, custom hooks |
-| **Upgrade** (existing plugin) | Updates plugin files, **preserves** your customizations |
+**Phase 1: Staging** (`install.sh`)
+```
+install.sh → Downloads plugin to ~/.autonomous-dev-staging/
+           → Does NOT modify your project yet
+           → Prompts you to restart Claude Code
+```
 
-**Protected Files** (never overwritten):
+**Phase 2: Intelligent Installation** (`/setup` wizard)
+```
+/setup → Detects staged files in ~/.autonomous-dev-staging/
+       → Analyzes your project using GenAI
+       → Determines: FRESH, BROWNFIELD, or UPGRADE
+       → Copies files while preserving your customizations
+       → Cleans up staging directory
+```
+
+**Why two phases?** Claude Code needs to restart to see new commands. By staging first, the `/setup` wizard can use GenAI intelligence to make smart decisions about your specific project.
+
+### Installation Types
+
+| Type | Detection | What Happens |
+|------|-----------|--------------|
+| **FRESH** | No `.claude/` directory | Copies all plugin files, guides PROJECT.md creation |
+| **BROWNFIELD** | Has `.claude/` but no plugin | Preserves your existing files, adds plugin around them |
+| **UPGRADE** | Has existing plugin | Updates plugin files, preserves all customizations |
+
+### Protected Files (Never Overwritten)
+
 - `PROJECT.md` - Your project definition
 - `.env`, `.env.local` - Your secrets
 - Custom hooks with your modifications
-- State files (batch_state.json, etc.)
+- State files (`batch_state.json`, etc.)
 
-The installer analyzes your project and asks before touching anything you've customized.
+The `/setup` wizard analyzes each file and asks before touching anything you've customized.
 
 ---
 
