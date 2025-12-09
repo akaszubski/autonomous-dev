@@ -3,11 +3,11 @@
 **Last Updated: 2025-12-09
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 41 shared libraries in `plugins/autonomous-dev/lib/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 42 shared libraries and utilities in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **41 shared libraries** organized into twelve categories:
+The autonomous-dev plugin includes **42 shared libraries and utilities** organized into thirteen categories:
 
 ### Core Libraries (21)
 
@@ -64,6 +64,10 @@ The autonomous-dev plugin includes **41 shared libraries** organized into twelve
 38. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
 39. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
 40. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
+
+### Script Utilities (1) - NEW in v3.42.0
+
+41. **genai_install_wrapper.py** - CLI wrapper for setup-wizard Phase 0 GenAI-first installation with JSON output (Issue #109)
 
 ## Design Patterns
 
@@ -5277,3 +5281,334 @@ The audit log is JSONL (JSON Lines) format - one JSON object per line.
 - `protected_file_detector.py` - Categorizes protected files
 - `installation_analyzer.py` - Analyzes installation strategy
 - `copy_system.py` - Executes operations that are logged
+
+## 46. genai_install_wrapper.py (596 lines, v3.42.0+)
+
+**Purpose**: CLI wrapper for setup-wizard Phase 0 GenAI-first installation with JSON output for agent consumption
+
+**Type**: Script utility
+
+**Location**: `plugins/autonomous-dev/scripts/genai_install_wrapper.py`
+
+**Issue**: GitHub Issue #109 (Setup-wizard GenAI integration)
+
+### Overview
+
+Provides CLI interface for setup-wizard Phase 0 (GenAI installation), wrapping core installation libraries with JSON output for intelligent agent decision-making. Enables setup-wizard to use pre-downloaded plugin files with automated conflict resolution and protected file preservation.
+
+### Features
+
+**5 CLI Commands**:
+- `check-staging` - Validate staging directory exists
+- `analyze` - Analyze installation type (fresh/brownfield/upgrade)
+- `execute` - Perform installation with protected file handling
+- `cleanup` - Remove staging directory (idempotent)
+- `summary` - Generate installation summary report
+
+**Design**:
+- JSON output for agent parsing
+- Non-blocking error handling (graceful degradation to Phase 1)
+- Atomic and idempotent commands (safe to retry)
+- Full audit trail via InstallAudit
+
+### Exports
+
+#### Main Functions
+
+##### `check_staging(staging_path: str) -> Dict[str, Any]`
+
+Validate staging directory exists and contains critical directories.
+
+**Parameters**:
+- `staging_path` (str): Path to staging directory
+
+**Returns**:
+```json
+{
+  "status": "valid|missing|invalid",
+  "staging_path": "...",
+  "fallback_needed": bool,
+  "missing_dirs": ["..."],
+  "message": "..."
+}
+```
+
+**Purpose**: Detect if Phase 0 can proceed; if missing, skip to Phase 1
+
+##### `analyze_installation_type(project_path: str) -> Dict[str, Any]`
+
+Analyze project state to determine installation type and protected files.
+
+**Parameters**:
+- `project_path` (str): Path to project directory
+
+**Returns**:
+```json
+{
+  "type": "fresh|brownfield|upgrade",
+  "has_project_md": bool,
+  "has_claude_dir": bool,
+  "existing_files": ["..."],
+  "protected_files": ["..."]
+}
+```
+
+**Purpose**: Display to user before installation; inform about protected files
+
+**Installation Types**:
+- **fresh**: No `.claude/` directory (new installation)
+- **brownfield**: Has PROJECT.md or user artifacts (preserve user files)
+- **upgrade**: Has existing plugin files (create backups)
+
+##### `execute_installation(staging_path: str, project_path: str, install_type: str) -> Dict[str, Any]`
+
+Execute installation from staging to project with protected file handling.
+
+**Parameters**:
+- `staging_path` (str): Path to staging directory
+- `project_path` (str): Path to target project directory
+- `install_type` (str): "fresh", "brownfield", or "upgrade"
+
+**Returns**:
+```json
+{
+  "status": "success|error",
+  "files_copied": int,
+  "skipped_files": ["..."],
+  "backups_created": ["..."],
+  "error": "..."
+}
+```
+
+**Purpose**: Perform actual installation from staging to project
+
+**Behavior**:
+- Validates install_type parameter
+- Validates staging directory exists
+- Creates project directory if needed
+- Detects protected files (ALWAYS_PROTECTED list + user artifacts)
+- Logs protected files in audit trail
+- Uses CopySystem with appropriate conflict strategy
+- Records installation in audit log
+
+**Conflict Strategies**:
+- **brownfield/fresh**: `skip` - Do not overwrite protected files
+- **upgrade**: `backup` - Create backups before overwriting
+
+**Error Handling**:
+- Returns status: "error" if install_type invalid
+- Returns status: "error" if staging does not exist
+- Returns status: "error" if copy operation fails
+- All errors recorded in audit trail
+
+##### `cleanup_staging(staging_path: str) -> Dict[str, Any]`
+
+Remove staging directory (idempotent - safe to call multiple times).
+
+**Parameters**:
+- `staging_path` (str): Path to staging directory
+
+**Returns**:
+```json
+{
+  "status": "success|error",
+  "message": "..."
+}
+```
+
+**Purpose**: Clean up after installation completes
+
+**Idempotent**: Returns success if staging already removed
+
+##### `generate_summary(install_type: str, install_result: Dict[str, Any] | str, project_path: str) -> Dict[str, Any]`
+
+Generate installation summary report with next steps.
+
+**Parameters**:
+- `install_type` (str): "fresh", "brownfield", or "upgrade"
+- `install_result` (Dict | str): Result from execute_installation (or path to JSON file)
+- `project_path` (str): Path to project directory
+
+**Returns**:
+```json
+{
+  "status": "success",
+  "summary": {
+    "install_type": "...",
+    "files_copied": int,
+    "skipped_files": int,
+    "backups_created": int
+  },
+  "next_steps": ["..."]
+}
+```
+
+**Purpose**: Display results to user with recommended next steps
+
+**Next Steps by Type**:
+- **fresh**: Configure PROJECT.md, environment variables, test with /status
+- **brownfield**: Review protected files, run /align-project, test
+- **upgrade**: Review backups, test with /status, run /health-check
+
+##### `main() -> int`
+
+CLI entry point.
+
+**Exit Codes**:
+- 0: Success
+- 1: Error (missing arguments or command failure)
+
+### Setup-Wizard Phase 0 Workflow
+
+Orchestrates 6-step installation process:
+
+1. **Phase 0.1**: Check for staging directory
+   - Call: `check_staging(staging_path)`
+   - If fallback_needed: Skip to Phase 1
+
+2. **Phase 0.2**: Analyze installation type
+   - Call: `analyze_installation_type(project_path)`
+   - Display analysis to user (type, protected files)
+
+3. **Phase 0.3**: Execute installation
+   - Call: `execute_installation(staging_path, project_path, type)`
+   - Display progress (files copied, skipped, backups)
+
+4. **Phase 0.4**: Validate critical directories exist
+   - Verify: plugins/autonomous-dev/commands/
+   - Verify: plugins/autonomous-dev/agents/
+   - Verify: plugins/autonomous-dev/hooks/
+   - Verify: plugins/autonomous-dev/lib/
+   - Verify: plugins/autonomous-dev/skills/
+   - Verify: .claude/
+
+5. **Phase 0.5**: Generate summary
+   - Call: `generate_summary(type, result, project_path)`
+   - Display summary and next steps
+
+6. **Phase 0.6**: Cleanup staging
+   - Call: `cleanup_staging(staging_path)`
+   - Remove staging directory
+
+**Error Recovery**: Any step failure falls back to Phase 1 (manual setup) without data loss
+
+### Integration Points
+
+**Uses**:
+- `staging_manager.py`: Check directory validity, list files
+- `installation_analyzer.py`: Analyze installation type
+- `protected_file_detector.py`: Identify protected files
+- `copy_system.py`: Execute file copying with protection
+- `install_audit.py`: Record all operations in audit trail
+
+**Called By**:
+- `setup-wizard.md` (Phase 0 workflow)
+
+### Security Features
+
+**Path Traversal Prevention (CWE-22)**:
+- Validates all paths before operations
+- Rejects paths with `../` sequences
+- Uses `Path.resolve()` for absolute path validation
+
+**Symlink Attack Prevention (CWE-59)**:
+- Detects symlinks via `is_symlink()`
+- Validates resolved targets are within project
+
+**Protected File Detection**:
+- ALWAYS_PROTECTED list: .env, .claude/PROJECT.md, .claude/batch_state.json, etc.
+- Custom detection for user hooks via glob patterns
+- Hash-based detection for modified plugin files
+
+**Audit Logging**:
+- All operations logged in `.claude/install_audit.jsonl`
+- Enables forensic analysis and debugging
+- Supports recovery from crashes
+
+### Error Handling
+
+**Graceful Degradation**:
+- CLI failures do not interrupt setup wizard
+- Phase 0 failures fall back to Phase 1 (manual setup)
+- Non-blocking: Errors return status field for agent decision-making
+
+**JSON Error Format**:
+```json
+{
+  "status": "error",
+  "error": "Error message",
+  "command": "command_name"
+}
+```
+
+### Usage Examples
+
+**Check Staging**:
+```bash
+python genai_install_wrapper.py check-staging "$HOME/.autonomous-dev-staging"
+```
+
+**Analyze Project**:
+```bash
+python genai_install_wrapper.py analyze "$(pwd)"
+```
+
+**Execute Installation**:
+```bash
+python genai_install_wrapper.py execute \
+  "$HOME/.autonomous-dev-staging" \
+  "$(pwd)" \
+  "fresh"
+```
+
+**Generate Summary**:
+```bash
+python genai_install_wrapper.py summary \
+  "fresh" \
+  "/tmp/install_result.json" \
+  "$(pwd)"
+```
+
+**Cleanup**:
+```bash
+python genai_install_wrapper.py cleanup "$HOME/.autonomous-dev-staging"
+```
+
+### Design Patterns
+
+**Non-Blocking CLI**:
+- All commands return JSON
+- Failures are graceful (do not crash wrapper)
+- Agent can decide next action based on status field
+
+**Atomic Commands**:
+- Each command is independent
+- Can be retried safely
+- Idempotent operations (cleanup can run multiple times)
+
+**Integration Layer**:
+- Wraps core installation libraries
+- Orchestrates workflow steps
+- Provides human-friendly output templates
+
+### Testing
+
+**Test Coverage**: Comprehensive integration tests
+
+**Scenarios**:
+- Phase 0 complete workflow (all 6 steps)
+- Missing staging directory (fallback to Phase 1)
+- Invalid installation types (error handling)
+- Protected file preservation (brownfield/upgrade)
+- Backup creation for upgrades
+- Error recovery and audit trail
+
+### Related
+
+- GitHub Issue #109 (Setup-wizard GenAI integration)
+- `setup-wizard.md` - Phase 0 workflow documentation
+- `staging_manager.py` - Directory validation and file listing
+- `installation_analyzer.py` - Installation type detection
+- `protected_file_detector.py` - Protected file identification
+- `copy_system.py` - File copying with protection
+- `install_audit.py` - Audit logging and reporting

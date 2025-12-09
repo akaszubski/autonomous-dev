@@ -22,18 +22,268 @@ Guide users through autonomous-dev plugin configuration with intelligent PROJECT
 ## Process Overview
 
 ```
-Step 1: Welcome & Detection
-Step 2: PROJECT.md Setup (Create/Update/Maintain)
-Step 3: Workflow Selection (Slash Commands vs Hooks)
-Step 4: GitHub Integration (Optional)
-Step 5: Validation & Summary
+Phase 0: GenAI Installation (if staging exists)
+Phase 1: Welcome & Detection
+Phase 2: PROJECT.md Setup (Create/Update/Maintain)
+Phase 3: Workflow Selection (Slash Commands vs Hooks)
+Phase 4: GitHub Integration (Optional)
+Phase 5: Validation & Summary
 ```
 
 ## Output Format
 
-Guide user through 5-phase interactive setup: tech stack detection, PROJECT.md creation/update, workflow selection, GitHub integration (optional), and validation summary with next steps.
+Guide user through 6-phase interactive setup: GenAI installation (if staging exists), tech stack detection, PROJECT.md creation/update, workflow selection, GitHub integration (optional), and validation summary with next steps.
 
 **Note**: Consult **agent-output-formats** skill for setup wizard output format and examples.
+
+---
+
+## Phase 0: GenAI Installation (Optional)
+
+**Purpose**: Detect and execute GenAI-first installation if staging directory exists.
+
+This phase runs BEFORE manual setup, leveraging pre-downloaded plugin files from the GenAI installer system. If staging is missing or incomplete, gracefully skip to Phase 1 (manual setup).
+
+### 0.1 Check for Staging Directory
+
+```bash
+# Check if staging exists
+python plugins/autonomous-dev/scripts/genai_install_wrapper.py check-staging "$HOME/.autonomous-dev-staging"
+```
+
+**Expected JSON Output**:
+```json
+{
+  "status": "valid",
+  "staging_path": "/Users/user/.autonomous-dev-staging",
+  "fallback_needed": false
+}
+```
+
+**Or if missing**:
+```json
+{
+  "status": "missing",
+  "fallback_needed": true,
+  "message": "Staging directory not found. Will skip to Phase 1 (manual setup)."
+}
+```
+
+**Action**:
+- If `fallback_needed: true` → Skip Phase 0, go to Phase 1
+- If `status: "valid"` → Continue to 0.2
+
+### 0.2 Analyze Installation Type
+
+```bash
+# Analyze project to determine installation type
+python plugins/autonomous-dev/scripts/genai_install_wrapper.py analyze "$(pwd)"
+```
+
+**Expected JSON Output**:
+```json
+{
+  "type": "fresh",
+  "has_project_md": false,
+  "has_claude_dir": false,
+  "existing_files": [],
+  "protected_files": []
+}
+```
+
+**Installation Types**:
+- **fresh**: No .claude/ directory (new installation)
+- **brownfield**: Has PROJECT.md or user artifacts (preserve user files)
+- **upgrade**: Has existing plugin files (create backups)
+
+**Display to User**:
+```
+🔍 Installation Analysis
+
+Type: [fresh/brownfield/upgrade]
+Protected files: [count]
+Existing files: [count]
+
+[If brownfield or upgrade]
+Protected files will be preserved:
+  - .env (secrets)
+  - .claude/PROJECT.md (your customizations)
+  - .claude/batch_state.json (state)
+  - [other protected files...]
+
+Ready to install? [Y/n]
+```
+
+### 0.3 Execute Installation
+
+```bash
+# Execute installation with protected file handling
+python plugins/autonomous-dev/scripts/genai_install_wrapper.py execute \
+  "$HOME/.autonomous-dev-staging" \
+  "$(pwd)" \
+  "[install_type]"
+```
+
+**Expected JSON Output**:
+```json
+{
+  "status": "success",
+  "files_copied": 42,
+  "skipped_files": [".env", ".claude/PROJECT.md"],
+  "backups_created": []
+}
+```
+
+**Display to User**:
+```
+📦 Installing plugin files...
+
+✅ Copied 42 files
+⏭️  Skipped 2 protected files
+   - .env (preserved secrets)
+   - .claude/PROJECT.md (preserved customizations)
+
+[If upgrade with backups]
+💾 Created 3 backups
+   - plugins/autonomous-dev/commands/auto-implement.md.backup-20251209-120000
+   - [other backups...]
+
+✅ Installation complete!
+```
+
+**Error Handling**:
+```json
+{
+  "status": "error",
+  "error": "Permission denied: /path/to/project"
+}
+```
+
+If error occurs:
+```
+❌ Installation failed: [error message]
+
+Falling back to Phase 1 (manual setup).
+```
+
+### 0.4 Validate Critical Directories
+
+After installation, verify critical directories exist:
+
+```bash
+# Check critical directories
+for dir in "plugins/autonomous-dev/commands" \
+           "plugins/autonomous-dev/agents" \
+           "plugins/autonomous-dev/hooks" \
+           "plugins/autonomous-dev/lib" \
+           "plugins/autonomous-dev/skills" \
+           ".claude"; do
+  if [ ! -d "$dir" ]; then
+    echo "❌ Missing: $dir"
+    exit 1
+  fi
+done
+```
+
+**Display**:
+```
+✅ Validating installation...
+
+✅ plugins/autonomous-dev/commands/
+✅ plugins/autonomous-dev/agents/
+✅ plugins/autonomous-dev/hooks/
+✅ plugins/autonomous-dev/lib/
+✅ plugins/autonomous-dev/skills/
+✅ .claude/
+
+✅ All critical directories present
+```
+
+### 0.5 Generate Installation Summary
+
+```bash
+# Generate summary report
+python plugins/autonomous-dev/scripts/genai_install_wrapper.py summary \
+  "[install_type]" \
+  "/tmp/install_result.json" \
+  "$(pwd)"
+```
+
+**Expected JSON Output**:
+```json
+{
+  "status": "success",
+  "summary": {
+    "install_type": "fresh",
+    "files_copied": 42,
+    "skipped_files": 0,
+    "backups_created": 0
+  },
+  "next_steps": [
+    "Run setup wizard to configure PROJECT.md and hooks",
+    "Review generated PROJECT.md and customize for your project",
+    "Configure environment variables in .env file",
+    "Test installation with: /status"
+  ]
+}
+```
+
+**Display to User**:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ GenAI Installation Complete!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Installation Summary:
+  Type: [fresh/brownfield/upgrade]
+  Files copied: [count]
+  Files skipped: [count]
+  Backups created: [count]
+
+Audit log: .claude/install_audit.jsonl
+
+Next steps:
+  1. Review generated files
+  2. Configure PROJECT.md (continuing to Phase 1)
+  3. Test with: /status
+```
+
+### 0.6 Cleanup Staging
+
+```bash
+# Remove staging directory (no longer needed)
+python plugins/autonomous-dev/scripts/genai_install_wrapper.py cleanup "$HOME/.autonomous-dev-staging"
+```
+
+**Expected JSON Output**:
+```json
+{
+  "status": "success",
+  "message": "Staging directory removed: /Users/user/.autonomous-dev-staging"
+}
+```
+
+**Display**:
+```
+🧹 Cleaning up...
+
+✅ Staging directory removed
+
+Continuing to Phase 1 (PROJECT.md setup)...
+```
+
+### Phase 0 Error Recovery
+
+If any step fails, gracefully fall back to Phase 1:
+
+```
+⚠️ Phase 0 installation encountered an issue:
+[Error details]
+
+No problem! Falling back to Phase 1 (manual setup).
+
+Your project is safe - no changes were made.
+```
 
 ---
 

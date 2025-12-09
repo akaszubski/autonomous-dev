@@ -353,9 +353,9 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table.
 
-### Libraries (33 Documented Libraries)
+### Libraries (34 Documented Libraries)
 
-33 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, and git hook utilities. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
+34 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, git hook utilities, and CLI wrappers. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
 **Core Libraries** (16): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation, settings_merger
 
@@ -363,9 +363,9 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Utility Libraries** (2): math_utils, git_hooks
 
-**Brownfield Retrofit Libraries** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
+**Script Utilities** (1): genai_install_wrapper (CLI wrapper for setup-wizard Phase 0 - Issue #109)
 
-**Brownfield Retrofit** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
+**Brownfield Retrofit Libraries** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 

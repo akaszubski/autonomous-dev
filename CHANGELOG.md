@@ -81,6 +81,108 @@
     - NEW: `tests/unit/lib/test_install_audit.py` (26 tests)
     - NEW: `tests/integration/test_genai_installation.py` (comprehensive integration tests)
 
+- **Feature #109: Setup-Wizard GenAI Integration - Phase 0 GenAI-First Installation CLI**
+  - **Issue**: Setup wizard required manual installation; no GenAI support for Phase 0 operations
+  - **Solution**: Add GenAI-first installation CLI wrapper for setup-wizard Phase 0, with staged file management and intelligent installation analysis
+  - **Purpose**: Enable setup-wizard to use pre-downloaded plugin files from GenAI installer system, with automated conflict resolution and protected file preservation
+  - **Architecture**:
+    - NEW: genai_install_wrapper.py (596 lines) - CLI wrapper for GenAI installation
+      - Commands: check-staging, analyze, execute, cleanup, summary
+      - Integration: Wraps core installation libraries (staging_manager, installation_analyzer, protected_file_detector, copy_system, install_audit)
+      - Output format: JSON for agent consumption
+      - Error handling: Graceful degradation with fallback to Phase 1 (manual setup)
+    - Purpose: Provides CLI interface for setup-wizard Phase 0 with JSON output for GenAI parsing
+    - Design: Non-blocking - CLI failures fall back to Phase 1 without blocking setup wizard
+  - **CLI Commands**:
+    - **check-staging <staging_path>**: Validate staging directory exists with critical directories
+      - Returns: status: valid/missing/invalid, fallback_needed: bool
+      - Usage: Detect if Phase 0 can proceed (if missing, skip to Phase 1)
+    - **analyze <project_path>**: Analyze installation type (fresh/brownfield/upgrade)
+      - Returns: type, has_project_md, protected_files, existing_files
+      - Usage: Display to user before installation, inform about protected files
+    - **execute <staging_path> <project_path> <install_type>**: Execute installation with protected file handling
+      - Returns: status: success/error, files_copied, skipped_files, backups_created
+      - Usage: Perform actual installation from staging to project
+    - **cleanup <staging_path>**: Remove staging directory (idempotent)
+      - Returns: status: success/error
+      - Usage: Clean up after installation completes
+    - **summary <install_type> <result_file> <project_path>**: Generate installation summary report
+      - Returns: summary, next_steps
+      - Usage: Display results to user with recommended next steps
+  - **Setup-Wizard Phase 0 Workflow**:
+    1. **0.1**: Check for staging directory (call check-staging)
+    2. **0.2**: Analyze installation type (call analyze)
+    3. **0.3**: Execute installation (call execute)
+    4. **0.4**: Validate critical directories exist
+    5. **0.5**: Generate summary (call summary)
+    6. **0.6**: Cleanup staging (call cleanup)
+    - **Error Recovery**: Any failure falls back to Phase 1 (manual setup), no data loss
+  - **Integration Points**:
+    - **staging_manager.py**: Check directory validity, list files
+    - **installation_analyzer.py**: Analyze installation type and conflicts
+    - **protected_file_detector.py**: Identify files to preserve
+    - **copy_system.py**: Execute file copying with protection
+    - **install_audit.py**: Record installation operations
+  - **Execution Flow**:
+    - Each command is atomic and idempotent (can be retried safely)
+    - Commands output JSON (parseable by setup-wizard GenAI)
+    - Non-blocking: Errors do not interrupt setup wizard
+    - Audit trail: All operations logged in .claude/install_audit.jsonl
+  - **Security Features**:
+    - Path traversal prevention (CWE-22) in all operations
+    - Symlink attack prevention (CWE-59) with resolved paths
+    - Protected file detection and preservation
+    - Audit logging for forensic analysis
+    - Graceful degradation on errors (no data loss)
+  - **User Benefits**:
+    - Automatic installation from GenAI-pre-downloaded files
+    - Protected file preservation (user customizations, .env, state)
+    - Intelligent conflict resolution via GenAI
+    - Clear next steps after installation
+    - Full audit trail in .claude/install_audit.jsonl
+  - **Changes**:
+    - **NEW**: plugins/autonomous-dev/scripts/genai_install_wrapper.py (596 lines)
+      - 5 CLI commands with JSON output
+      - Error handling with graceful degradation
+      - Integration with existing installation libraries
+      - Audit logging via InstallAudit
+    - **ENHANCED**: plugins/autonomous-dev/agents/setup-wizard.md
+      - NEW: Phase 0 section (6 subsections: 0.1-0.6 with detailed CLI workflows)
+      - Workflow: Check staging → Analyze type → Execute → Validate → Summary → Cleanup
+      - Error recovery: Graceful fallback to Phase 1 if Phase 0 fails
+      - Display templates: User-friendly output messages for each step
+      - Integration: Shows how to parse JSON responses from genai_install_wrapper
+    - **NEW**: tests/integration/test_install_integration.py (comprehensive integration tests)
+      - Tests: Phase 0 workflow, error handling, fallback to Phase 1
+      - Coverage: All CLI commands and edge cases
+  - **Documentation Updated**:
+    - **NEW**: docs/LIBRARIES.md section 46 - Complete genai_install_wrapper API documentation
+      - CLI commands reference with JSON output examples
+      - Integration with installation libraries
+      - Error handling patterns
+      - Setup-wizard Phase 0 workflow integration
+    - **ENHANCED**: docs/LIBRARIES.md overview
+      - Updated: Library count 33 to 34 (new genai_install_wrapper)
+      - Updated: Script utilities category (new entry 46)
+    - **ENHANCED**: plugins/autonomous-dev/agents/setup-wizard.md
+      - NEW: Phase 0: GenAI Installation section (detailed 6-phase workflow)
+      - NEW: Phase 0 Error Recovery subsection
+      - Process overview: Updated to include Phase 0 at beginning
+    - **ENHANCED**: CLAUDE.md
+      - Updated: Library count 29 to 30 (new genai_install_wrapper script utility)
+  - **Testing**:
+    - NEW: tests/integration/test_install_integration.py (comprehensive)
+      - Phase 0 workflow tests (all 6 steps)
+      - Error handling tests (missing staging, invalid types)
+      - Fallback to Phase 1 validation
+      - Protected file preservation tests
+      - Integration with installation libraries
+  - **Backward Compatibility**:
+    - Phase 0 is optional (graceful fallback if staging missing)
+    - Existing projects continue to Phase 1 (manual setup)
+    - No breaking changes to installation libraries
+  - **Related**: GitHub Issue #109 (Setup-wizard GenAI integration)
+
 ### Fixed
 
 - **Bug #100: Policy File Path Portability with Cascading Lookup**
