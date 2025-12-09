@@ -20,6 +20,7 @@
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Two-layer system (hooks + agents) overview |
+| [TDD-CONTEXT-ISOLATION.md](TDD-CONTEXT-ISOLATION.md) | File-based handoff for true TDD discipline |
 | [MCP-ARCHITECTURE.md](MCP-ARCHITECTURE.md) | MCP server architecture |
 | [MAINTAINING-PHILOSOPHY.md](MAINTAINING-PHILOSOPHY.md) | Core philosophy and PROJECT.md-first development |
 | [ANTI-BLOAT-PHILOSOPHY.md](ANTI-BLOAT-PHILOSOPHY.md) | Context management principles |

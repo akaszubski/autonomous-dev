@@ -19,7 +19,9 @@
 **1. TDD with Context Isolation**
 Most frameworks run test-writing and implementation in the same context. The implementer "knows" what the tests expect and overfits.
 
-We use **file-based handoff**: test-master writes tests to disk, implementer reads only test files (not reasoning). This prevents context pollution and enforces true TDD discipline.
+We use **file-based handoff**: test-master writes tests to disk in a separate context. The implementer runs in its own isolated context and reads only test files (not test-master's reasoning). This prevents context pollution and enforces true TDD discipline.
+
+**Technical details**: See [docs/TDD-CONTEXT-ISOLATION.md](docs/TDD-CONTEXT-ISOLATION.md)
 
 **2. Hook-Enforced Quality Gates**
 Agent-only systems can be "convinced" to skip steps. Hooks can't.

@@ -36,12 +36,14 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Purpose**: TDD specialist (writes tests first)
 **Skills**: testing-guide, security-patterns
 **Execution**: Step 3 of /auto-implement workflow
+**Context Isolation**: Runs in separate context. Writes tests to disk for implementer. See [TDD-CONTEXT-ISOLATION.md](TDD-CONTEXT-ISOLATION.md).
 
 ### implementer
 
 **Purpose**: Code implementation (makes tests pass)
 **Skills**: python-standards, observability
 **Execution**: Step 4 of /auto-implement workflow
+**Context Isolation**: Runs in separate context. Reads only test files from disk, not test-master's reasoning. See [TDD-CONTEXT-ISOLATION.md](TDD-CONTEXT-ISOLATION.md).
 
 ### reviewer
 
