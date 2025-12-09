@@ -48,6 +48,7 @@
       "cp *",
       "mv *",
       "mkdir*",
+      "rmdir*",
       "touch*",
       "rm -f *",
       "rm -r .pytest_cache",
