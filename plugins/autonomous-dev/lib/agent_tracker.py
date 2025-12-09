@@ -696,10 +696,17 @@ class AgentTracker:
             message: Optional message. If None, uses default message.
 
         Returns:
-            True if agent was tracked, False if CLAUDE_AGENT_NAME not set
+            True if agent was newly tracked (created start entry)
+            False if CLAUDE_AGENT_NAME not set (graceful degradation)
+            False if agent already tracked (idempotent - prevents duplicates)
         """
         agent_name = os.getenv("CLAUDE_AGENT_NAME")
         if not agent_name:
+            return False
+
+        # Issue #104: Check if already tracked (idempotency for Task tool agents)
+        # This prevents duplicate entries when both checkpoint and hook call this method
+        if self.is_agent_tracked(agent_name):
             return False
 
         if not message:

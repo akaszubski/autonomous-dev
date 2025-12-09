@@ -450,6 +450,32 @@
 
 ### Changed
 
+- **Improve Agent Tracking for Task Tool Invocations - Issue #104**
+  - **Problem**: log_agent_completion.py hook was not auto-tracking Task tool agents before marking completion, causing /pipeline-status to show incomplete tracking (e.g., "4 of 7 agents")
+  - **Solution**: Add explicit auto_track_from_environment() call in hook before complete_agent() and fail_agent(), with idempotency check to prevent duplicates
+  - **Changes**:
+    - **Enhanced**: plugins/autonomous-dev/hooks/log_agent_completion.py
+      - Added explicit auto_track_from_environment() call on success path (ensures start entry exists before completion)
+      - Added explicit auto_track_from_environment() call on failure path (ensures start entry exists even for failed agents)
+      - Added comprehensive comments explaining Task tool integration and idempotency
+      - Result: /pipeline-status now shows accurate agent counts (e.g., "7 of 7" instead of "4 of 7")
+    - **Enhanced**: plugins/autonomous-dev/lib/agent_tracker.py
+      - Added idempotency check to auto_track_from_environment() (calls is_agent_tracked() before start_agent())
+      - Updated docstring to clarify return values: True=newly tracked, False=already tracked or env var missing
+      - Prevents duplicate entries when both checkpoint and hook call auto_track_from_environment()
+    - **Enhanced**: docs/LIBRARIES.md section 24 (agent_tracker.py)
+      - Clarified auto_track_from_environment() return values (True for new, False for idempotent)
+      - Added Task Tool Integration (Issue #104) subsection documenting workflow
+      - Added explanation of idempotent design and duplicate prevention
+      - Documented used by SubagentStop hook and auto-implement.md checkpoints
+  - **Tests**: 27 new tests (13 unit + 7 hook + 7 integration) covering Task tool tracking, idempotency, parallel execution, and security
+  - **Benefits**:
+    - Parallel Task tool agents (reviewer, security-auditor, doc-master) now properly tracked
+    - Pipeline status displays accurate completion counts
+    - No duplicate entries (idempotent design prevents this)
+    - Hook documentation now clear about Task tool integration
+  - **Related**: GitHub Issue #104 (Improve agent tracking), Issue #57 (Task tool support)
+
 - **tool_validator.py Line Count**: 710 lines (v3.38.0) -> 900 lines (v3.40.0)
   - Added path extraction logic (90 lines)
   - Added containment validation logic (100 lines)

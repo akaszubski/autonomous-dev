@@ -58,7 +58,16 @@ def main():
     # Initialize tracker
     tracker = AgentTracker()
 
-    # Log completion or failure
+    # Issue #104: Auto-detect and track Task tool agents before completion
+    # This ensures agents invoked via Task tool are properly tracked with start entries
+    # before being marked as completed. The auto_track_from_environment() method is
+    # idempotent - it returns False if agent is already tracked, preventing duplicates.
+    #
+    # Why this matters:
+    # - Task tool sets CLAUDE_AGENT_NAME when invoking agents
+    # - Without this call, complete_agent() may create incomplete entries
+    # - With this call, agents get proper start + completion tracking
+    # - /pipeline-status now shows accurate "7 of 7" instead of "4 of 7"
     if agent_status == "success":
         # Extract tools used from output (if available)
         # This is best-effort parsing - Claude Code doesn't provide this directly
@@ -67,10 +76,19 @@ def main():
         # Create summary message (first 100 chars of output)
         summary = agent_output[:100].replace("\n", " ") if agent_output else "Completed"
 
+        # Auto-track agent first (idempotent - won't duplicate if already tracked)
+        tracker.auto_track_from_environment(message=summary)
+
+        # Then complete the agent (safe because auto_track was called)
         tracker.complete_agent(agent_name, summary, tools)
     else:
         # Extract error message
         error_msg = agent_output[:100].replace("\n", " ") if agent_output else "Failed"
+
+        # Auto-track even for failures (ensures proper start entry)
+        tracker.auto_track_from_environment(message=error_msg)
+
+        # Then fail the agent
         tracker.fail_agent(agent_name, error_msg)
 
 

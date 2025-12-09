@@ -3079,9 +3079,21 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 #### `auto_track_from_environment(message=None) -> bool`
 - **Purpose**: Auto-detect running agent from environment variable
 - **Parameters**: `message` (Optional[str]): Optional override message
-- **Reads**: `AGENT_NAME` environment variable set by orchestrator
-- **Returns**: True if auto-tracking succeeded
+- **Reads**: `CLAUDE_AGENT_NAME` environment variable (set by Task tool and Claude Code)
+- **Returns**:
+  - `True` if agent was newly tracked (created start entry)
+  - `False` if agent already tracked (idempotent - no duplicate)
+  - `False` if environment variable not set (graceful degradation)
 - **Security**: Validates agent name format before logging
+- **Used By**:
+  - SubagentStop hook (log_agent_completion.py) - Issue #104
+  - Explicit checkpoint tracking in auto-implement.md
+- **Task Tool Integration (Issue #104)**:
+  - Task tool sets `CLAUDE_AGENT_NAME` when invoking agents
+  - SubagentStop hook calls this method before `complete_agent()`
+  - Ensures parallel Task tool agents (reviewer, security-auditor, doc-master) are tracked
+  - Prevents incomplete entries (completion without start)
+  - Idempotent design prevents duplicates when combined with explicit tracking
 
 ### Formatting & Display Methods
 
