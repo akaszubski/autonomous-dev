@@ -165,59 +165,56 @@ This is how Claude stays aligned — it reads PROJECT.md before every feature.
 | **Python 3.9+** | `python3 --version` to verify |
 | **gh CLI** (GitHub) | `brew install gh && gh auth login` |
 
-### One-Liner Install (Recommended)
+### Fresh Install (Plugin System)
 
 ```bash
-cd /path/to/your/project
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-```
-
-Then **fully quit Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux) and reopen it.
-
-### Alternative: Plugin System
-
-```
+# In Claude Code:
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
 ```
 
-Restart Claude Code after installation.
+Then **fully quit Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux) and reopen it.
 
-### Update / Repair
+After restart, run `/setup` to create your PROJECT.md.
+
+### Update (Existing Installation)
+
+If you already have the plugin installed:
 
 ```bash
-# Update: Re-run installer, then /setup detects UPGRADE and preserves customizations
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-# Then in Claude Code: /setup
-
-# Or use the built-in update command (interactive with backup/rollback)
+# Option 1: Built-in update command (recommended)
 /update-plugin
 
-# Clean re-install (removes staging first)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --clean
+# Option 2: GenAI-first update (stages files, then /setup handles upgrade)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+# Restart Claude Code, then run: /setup
 ```
 
-### How Installation Works (v3.41.0+)
+The `/setup` wizard detects UPGRADE and preserves your customizations.
 
-Installation uses a **two-phase GenAI-first architecture**:
+### How Updates Work (v3.41.0+)
+
+When updating via `install.sh`, the system uses a **two-phase GenAI-first architecture**:
 
 **Phase 1: Staging** (`install.sh`)
 ```
-install.sh → Downloads plugin to ~/.autonomous-dev-staging/
+install.sh → Downloads new plugin version to ~/.autonomous-dev-staging/
            → Does NOT modify your project yet
            → Prompts you to restart Claude Code
 ```
 
-**Phase 2: Intelligent Installation** (`/setup` wizard)
+**Phase 2: Intelligent Upgrade** (`/setup` wizard)
 ```
 /setup → Detects staged files in ~/.autonomous-dev-staging/
        → Analyzes your project using GenAI
-       → Determines: FRESH, BROWNFIELD, or UPGRADE
+       → Determines installation type (FRESH, BROWNFIELD, or UPGRADE)
        → Copies files while preserving your customizations
        → Cleans up staging directory
 ```
 
-**Why two phases?** Claude Code needs to restart to see new commands. By staging first, the `/setup` wizard can use GenAI intelligence to make smart decisions about your specific project.
+**Why two phases?** Claude Code needs to restart to see command updates. By staging first, the existing `/setup` wizard can use GenAI intelligence to preserve your customizations during upgrade.
+
+**Note**: For fresh installs, use the plugin system (`/plugin install`) which directly installs all commands.
 
 ### Installation Types
 
@@ -289,40 +286,34 @@ The `/setup` wizard analyzes each file and asks before touching anything you've 
 
 ### New Project (Greenfield)
 
-Copy and paste into Claude Code:
+After installing the plugin, run `/setup` which will:
+1. Detect your project type (FRESH/BROWNFIELD/UPGRADE)
+2. Guide you through creating PROJECT.md with GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+3. Configure hooks and validate the installation
+
+Or copy this prompt into Claude Code for manual guidance:
 
 ```
-I want to set up autonomous-dev for this project. Please help me:
-
-1. Verify plugin is installed:
-   - Check if .claude/hooks/ and .claude/lib/ exist
-   - If NOT: Run the installer first
-
-2. Run: python3 .claude/hooks/setup.py
-
-3. Help me create .claude/PROJECT.md with GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
-
-4. Verify gh CLI: gh --version
-
-5. Run /health-check
+Help me set up autonomous-dev for this new project:
+1. Run /health-check to verify plugin installation
+2. Help me create .claude/PROJECT.md with GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+3. Verify gh CLI works: gh --version
 
 My project is: [DESCRIBE YOUR PROJECT HERE]
 ```
 
 ### Existing Project (Brownfield)
 
+For projects with existing `.claude/` configuration:
+
 ```
 I want to add autonomous-dev to this existing project:
 
-1. Verify plugin installed (check .claude/hooks/ exists)
-
-2. Run: /align-project-retrofit --dry-run (preview changes)
-
+1. Run /health-check to verify plugin installation
+2. Run /align-project-retrofit --dry-run (preview changes)
 3. Help me create PROJECT.md based on existing code
-
-4. Run: /align-project-retrofit (step-by-step)
-
-5. Run /health-check
+4. Run /align-project-retrofit (apply changes step-by-step)
+5. Run /health-check to verify
 ```
 
 ---
@@ -331,11 +322,11 @@ I want to add autonomous-dev to this existing project:
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| **Commands** | 21 | Slash commands for workflows |
+| **Commands** | 20 | Slash commands for workflows |
 | **Agents** | 20 | Specialized AI for each SDLC stage |
 | **Skills** | 28 | Domain knowledge (progressive disclosure) |
 | **Hooks** | 44 | Automatic validation on commits |
-| **Libraries** | 33 | Reusable Python utilities |
+| **Libraries** | 40+ | Reusable Python utilities |
 
 ### Key Agents
 
@@ -406,10 +397,10 @@ We document **typical performance**, not best-case marketing claims:
 - [Brownfield Adoption](docs/BROWNFIELD-ADOPTION.md) - Retrofit existing projects
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 21 commands
+- [Commands](plugins/autonomous-dev/commands/) - All 20 commands
 - [Hooks](docs/HOOKS.md) - 44 automation hooks
 - [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) - 28 knowledge packages
-- [Libraries](docs/LIBRARIES.md) - 29 Python utilities
+- [Libraries](docs/LIBRARIES.md) - 40+ Python utilities
 
 ### Troubleshooting
 - [Troubleshooting Guide](plugins/autonomous-dev/docs/TROUBLESHOOTING.md)
@@ -422,9 +413,10 @@ We document **typical performance**, not best-case marketing claims:
 ## Quick Reference
 
 ```bash
-# Install
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-# Restart Claude Code (Cmd+Q / Ctrl+Q)
+# Fresh Install (in Claude Code)
+/plugin marketplace add akaszubski/autonomous-dev
+/plugin install autonomous-dev
+# Restart Claude Code (Cmd+Q / Ctrl+Q), then run /setup
 
 # Daily workflow
 /auto-implement "issue #72"     # Single feature
