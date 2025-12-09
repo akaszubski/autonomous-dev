@@ -59,12 +59,20 @@ from tool_approval_audit import ToolApprovalAuditor
 from auto_approval_consent import check_user_consent, get_auto_approval_mode
 from user_state_manager import DEFAULT_STATE_FILE
 
+# Import path_utils for policy file resolution
+try:
+    from path_utils import get_policy_file
+except ImportError:
+    # Fallback if path_utils not available
+    def get_policy_file(use_cache: bool = True):
+        """Fallback policy file resolution."""
+        return Path(__file__).parent.parent / "config" / "auto_approve_policy.json"
+
+# Default policy file path
+DEFAULT_POLICY_FILE = get_policy_file()
 
 # Circuit breaker threshold (10 denials → auto-disable)
 CIRCUIT_BREAKER_THRESHOLD = 10
-
-# Default policy file
-DEFAULT_POLICY_FILE = Path(__file__).parent.parent / "config" / "auto_approve_policy.json"
 
 # Default audit log file
 DEFAULT_AUDIT_LOG = Path(__file__).parent.parent.parent.parent / "logs" / "tool_auto_approve_audit.log"
