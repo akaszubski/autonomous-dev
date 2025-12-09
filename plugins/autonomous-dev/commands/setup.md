@@ -4,7 +4,7 @@ description: Intelligent setup wizard - analyzes tech stack and guides plugin co
 
 # Setup Autonomous Development Plugin
 
-Interactive wizard to configure hooks, templates, and GitHub integration after plugin installation.
+GenAI-powered setup wizard that intelligently installs, configures, and validates the autonomous-dev plugin.
 
 ## Usage
 
@@ -12,16 +12,101 @@ Interactive wizard to configure hooks, templates, and GitHub integration after p
 /setup
 ```
 
-This will guide you through:
-1. **Plugin File Copy** - Copy hooks and templates from plugin to project
-2. **Hook Configuration** - Enable automatic formatting, testing, security
-3. **Template Installation** - Set up PROJECT.md from template
-4. **GitHub Integration** - Configure GitHub authentication (optional)
-5. **Settings Validation** - Verify everything is configured correctly
+## What This Command Does
+
+### Phase 0: Plugin Installation (if staging files exist)
+
+If `~/.autonomous-dev-staging/` exists (from running the curl installer), GenAI will:
+
+1. **Analyze current state**:
+   - Check if `.claude/` directory exists (brownfield vs greenfield)
+   - Identify existing files and their versions
+   - Detect user artifacts (PROJECT.md, .env, customized hooks)
+
+2. **Smart installation decisions**:
+   - **Protected files** (NEVER overwrite):
+     - `PROJECT.md` - Your project definition
+     - `.env` - Your secrets
+     - Any file you've customized with project-specific logic
+   - **Plugin files** (safe to update):
+     - Agents, commands, hooks, lib, scripts, config, templates
+   - **Customized plugin files** (ask or backup):
+     - Hooks you've modified - backup and update, or keep yours
+
+3. **Install/Update files**:
+   - Copy from staging to `.claude/`
+   - Preserve your customizations
+   - Update outdated plugin files
+
+4. **Post-install audit**:
+   - Verify all files installed correctly
+   - Check Python imports work
+   - Validate hooks are executable
+   - Report any issues with fixes
+
+5. **Cleanup**:
+   - Remove staging directory after successful install
+
+### Phase 1-6: Configuration (existing wizard)
+
+After installation, continues with:
+1. **Hook Configuration** - Enable automatic formatting, testing, security
+2. **Template Installation** - Set up PROJECT.md from template
+3. **GitHub Integration** - Configure GitHub authentication (optional)
+4. **Settings Validation** - Verify everything is configured correctly
 
 ---
 
-## What This Command Does
+## Installation Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User runs: bash <(curl -sSL .../install.sh)                │
+│  └─> Files downloaded to ~/.autonomous-dev-staging/         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  User runs: /setup                                          │
+│                                                             │
+│  GenAI analyzes:                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Staging: ~/.autonomous-dev-staging/                  │   │
+│  │   ├── manifest.json                                  │   │
+│  │   ├── VERSION (3.40.0)                               │   │
+│  │   └── files/                                         │   │
+│  │       ├── plugins/autonomous-dev/agents/             │   │
+│  │       ├── plugins/autonomous-dev/commands/           │   │
+│  │       ├── plugins/autonomous-dev/hooks/              │   │
+│  │       └── ...                                        │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Current: .claude/ (if exists)                        │   │
+│  │   ├── PROJECT.md ← PROTECTED (user artifact)         │   │
+│  │   ├── hooks/custom_hook.py ← PRESERVED (customized)  │   │
+│  │   ├── agents/ ← UPDATE (v3.30 → v3.40)               │   │
+│  │   └── VERSION (3.30.0)                               │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  GenAI decides:                                             │
+│  • PROJECT.md: Skip (user artifact)                         │
+│  • custom_hook.py: Keep yours (customized)                  │
+│  • agents/*: Update all (outdated plugin files)             │
+│  • lib/*: Update all (outdated plugin files)                │
+│  • new_feature.py: Add (new in v3.40)                       │
+│                                                             │
+│  GenAI installs and validates:                              │
+│  ✓ 128 files processed                                      │
+│  ✓ Python imports working                                   │
+│  ✓ Hooks executable                                         │
+│  ✓ Ready to use                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Detailed Wizard Steps
 
 ### Phase 1: Hook Setup (Choose Your Workflow)
 

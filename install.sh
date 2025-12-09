@@ -1,26 +1,29 @@
 #!/usr/bin/env bash
 #
-# autonomous-dev Plugin Installer
+# autonomous-dev Plugin Bootstrap
 #
-# One-liner installation:
+# Downloads plugin files to staging area, then Claude Code handles intelligent installation.
+#
+# One-liner:
 #   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 #
-# With options:
-#   bash <(curl -sSL .../install.sh) --update    # Update existing installation
-#   bash <(curl -sSL .../install.sh) --sync      # Sync/repair installation
-#   bash <(curl -sSL .../install.sh) --force     # Force reinstall (overwrites all)
-#   bash <(curl -sSL .../install.sh) --check     # Check for updates only
+# What this does:
+#   1. Downloads plugin files to ~/.autonomous-dev-staging/
+#   2. Tells you to run /setup in Claude Code
+#   3. Claude Code intelligently installs, handling:
+#      - Fresh installs vs brownfield (existing .claude/)
+#      - Protected files (PROJECT.md, .env - never touched)
+#      - Customized hooks (preserved or backed up)
+#      - Post-install validation
 #
 # Requirements:
-#   - Python 3.8+
 #   - curl or wget
-#   - Write access to current directory
+#   - Claude Code installed
 #
 # Security:
-#   - Uses HTTPS with TLS 1.2+
+#   - HTTPS with TLS 1.2+
 #   - No sudo required
-#   - Path validation (CWE-22, CWE-59 prevention)
-#   - Rollback on failure
+#   - Files staged, not installed directly
 #
 
 set -euo pipefail
@@ -30,63 +33,51 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
 GITHUB_REPO="akaszubski/autonomous-dev"
 GITHUB_BRANCH="master"
 GITHUB_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
-MIN_PYTHON_VERSION="3.8"
-INSTALLER_SCRIPT="install.py"
+STAGING_DIR="${HOME}/.autonomous-dev-staging"
+MANIFEST_FILE="plugins/autonomous-dev/config/install_manifest.json"
 
 # Parse arguments
-MODE="install"
 VERBOSE=false
+CLEAN=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --update|-u)
-            MODE="update"
-            shift
-            ;;
-        --sync|-s)
-            MODE="sync"
-            shift
-            ;;
-        --force|-f)
-            MODE="force"
-            shift
-            ;;
-        --check|-c)
-            MODE="check"
-            shift
-            ;;
         --verbose|-v)
             VERBOSE=true
             shift
             ;;
+        --clean)
+            CLEAN=true
+            shift
+            ;;
         --help|-h)
-            echo "autonomous-dev Plugin Installer"
+            echo "autonomous-dev Plugin Bootstrap"
+            echo ""
+            echo "Downloads plugin files for Claude Code to install intelligently."
             echo ""
             echo "Usage: install.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --update, -u    Update existing installation (preserves customizations)"
-            echo "  --sync, -s      Sync/repair installation (fixes missing files)"
-            echo "  --force, -f     Force reinstall (overwrites everything)"
-            echo "  --check, -c     Check for updates only (no changes)"
             echo "  --verbose, -v   Show detailed output"
+            echo "  --clean         Remove existing staging directory first"
             echo "  --help, -h      Show this help message"
             echo ""
-            echo "Examples:"
-            echo "  # Fresh install"
-            echo "  bash <(curl -sSL ${GITHUB_RAW}/install.sh)"
+            echo "After running this script:"
+            echo "  1. Open your project in Claude Code"
+            echo "  2. Run /setup to install"
             echo ""
-            echo "  # Update existing installation"
-            echo "  bash <(curl -sSL ${GITHUB_RAW}/install.sh) --update"
-            echo ""
-            echo "  # Repair broken installation"
-            echo "  bash <(curl -sSL ${GITHUB_RAW}/install.sh) --sync"
+            echo "Claude Code will handle:"
+            echo "  - Fresh install vs update detection"
+            echo "  - Protecting your PROJECT.md and .env"
+            echo "  - Preserving customized hooks"
+            echo "  - Post-install validation"
             exit 0
             ;;
         *)
@@ -115,44 +106,15 @@ log_error() {
 }
 
 log_step() {
-    echo -e "${BLUE}→${NC} $1"
-}
-
-# Check Python version
-check_python() {
-    log_step "Checking Python version..."
-
-    # Try python3 first, then python
-    if command -v python3 &> /dev/null; then
-        PYTHON_CMD="python3"
-    elif command -v python &> /dev/null; then
-        PYTHON_CMD="python"
-    else
-        log_error "Python not found. Please install Python ${MIN_PYTHON_VERSION}+"
-        exit 1
-    fi
-
-    # Check version
-    PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-    PYTHON_MAJOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info.major)')
-    PYTHON_MINOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info.minor)')
-
-    if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 8 ]]; then
-        log_error "Python ${MIN_PYTHON_VERSION}+ required. Found: ${PYTHON_VERSION}"
-        exit 1
-    fi
-
-    log_success "Python ${PYTHON_VERSION} found"
+    echo -e "${CYAN}→${NC} $1"
 }
 
 # Check for curl or wget
 check_downloader() {
     if command -v curl &> /dev/null; then
         DOWNLOADER="curl"
-        DOWNLOAD_CMD="curl -sSL"
     elif command -v wget &> /dev/null; then
         DOWNLOADER="wget"
-        DOWNLOAD_CMD="wget -qO-"
     else
         log_error "Neither curl nor wget found. Please install one of them."
         exit 1
@@ -168,83 +130,173 @@ download_file() {
     local url="$1"
     local output="$2"
 
+    # Create parent directory if needed
+    mkdir -p "$(dirname "$output")"
+
     if [[ "$DOWNLOADER" == "curl" ]]; then
-        curl --proto '=https' --tlsv1.2 -sSL "$url" -o "$output"
+        curl --proto '=https' --tlsv1.2 -sSL "$url" -o "$output" 2>/dev/null
     else
-        wget --secure-protocol=TLSv1_2 -qO "$output" "$url"
+        wget --secure-protocol=TLSv1_2 -qO "$output" "$url" 2>/dev/null
     fi
 }
 
-# Main installation
+# Download manifest and parse file list
+download_manifest() {
+    log_step "Downloading manifest..."
+
+    local manifest_url="${GITHUB_RAW}/${MANIFEST_FILE}"
+    local manifest_path="${STAGING_DIR}/manifest.json"
+
+    if ! download_file "$manifest_url" "$manifest_path"; then
+        log_error "Failed to download manifest"
+        log_info "URL: ${manifest_url}"
+        return 1
+    fi
+
+    # Verify it's valid JSON
+    if ! python3 -c "import json; json.load(open('${manifest_path}'))" 2>/dev/null; then
+        log_error "Invalid manifest (not valid JSON)"
+        return 1
+    fi
+
+    log_success "Manifest downloaded"
+    return 0
+}
+
+# Download all files from manifest
+download_files() {
+    log_step "Downloading plugin files..."
+
+    local manifest_path="${STAGING_DIR}/manifest.json"
+    local total_files=0
+    local downloaded=0
+    local failed=0
+
+    # Use Python to parse manifest and get file list
+    local files
+    files=$(python3 -c "
+import json
+with open('${manifest_path}') as f:
+    manifest = json.load(f)
+for component, config in manifest.get('components', {}).items():
+    for file_path in config.get('files', []):
+        print(file_path)
+")
+
+    # Count total files
+    total_files=$(echo "$files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} files to download"
+
+    # Download each file
+    while IFS= read -r file_path; do
+        if [[ -z "$file_path" ]]; then
+            continue
+        fi
+
+        local url="${GITHUB_RAW}/${file_path}"
+        local output="${STAGING_DIR}/files/${file_path}"
+
+        if download_file "$url" "$output"; then
+            ((downloaded++))
+            if $VERBOSE; then
+                log_success "  Downloaded: $(basename "$file_path")"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $(basename "$file_path")"
+        fi
+
+        # Progress indicator (every 20 files)
+        if ! $VERBOSE && (( downloaded % 20 == 0 )); then
+            echo -ne "\r${CYAN}→${NC} Downloaded ${downloaded}/${total_files} files..."
+        fi
+    done <<< "$files"
+
+    if ! $VERBOSE; then
+        echo ""  # New line after progress
+    fi
+
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Downloaded ${downloaded}/${total_files} files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Downloaded ${downloaded} files"
+    return 0
+}
+
+# Also download VERSION file
+download_version() {
+    local version_url="${GITHUB_RAW}/plugins/autonomous-dev/VERSION"
+    local version_path="${STAGING_DIR}/VERSION"
+
+    if download_file "$version_url" "$version_path"; then
+        local version
+        version=$(cat "$version_path")
+        log_info "Plugin version: ${version}"
+    fi
+}
+
+# Main
 main() {
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║         autonomous-dev Plugin Installer                      ║"
-    echo "║         Mode: ${MODE}                                             ║"
+    echo "║           autonomous-dev Plugin Bootstrap                    ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
 
-    # Pre-flight checks
-    check_python
+    # Check requirements
     check_downloader
 
-    # Create temp directory
-    TEMP_DIR=$(mktemp -d)
-    trap "rm -rf $TEMP_DIR" EXIT
-
-    log_step "Downloading installer from GitHub..."
-
-    # Download the Python installer script
-    INSTALLER_URL="${GITHUB_RAW}/plugins/autonomous-dev/scripts/${INSTALLER_SCRIPT}"
-    INSTALLER_PATH="${TEMP_DIR}/${INSTALLER_SCRIPT}"
-
-    if ! download_file "$INSTALLER_URL" "$INSTALLER_PATH" 2>/dev/null; then
-        log_error "Failed to download installer from GitHub"
-        log_info "URL: ${INSTALLER_URL}"
-        log_info ""
-        log_info "Troubleshooting:"
-        log_info "  1. Check your internet connection"
-        log_info "  2. Verify GitHub is accessible: https://github.com/${GITHUB_REPO}"
-        log_info "  3. Try again in a few moments"
+    # Check Python for manifest parsing
+    if ! command -v python3 &> /dev/null; then
+        log_error "Python 3 required for manifest parsing"
         exit 1
     fi
 
-    log_success "Installer downloaded"
-
-    # Run the Python installer with mode
-    log_step "Running installation (mode: ${MODE})..."
-    echo ""
-
-    # Pass mode and options to Python installer
-    INSTALLER_ARGS="--mode ${MODE}"
-    if $VERBOSE; then
-        INSTALLER_ARGS="${INSTALLER_ARGS} --verbose"
+    # Clean existing staging if requested
+    if $CLEAN && [[ -d "$STAGING_DIR" ]]; then
+        log_step "Cleaning existing staging directory..."
+        rm -rf "$STAGING_DIR"
     fi
 
-    if ! $PYTHON_CMD "$INSTALLER_PATH" $INSTALLER_ARGS; then
-        log_error "Installation failed"
-        log_info ""
-        log_info "For help, see: https://github.com/${GITHUB_REPO}#troubleshooting"
+    # Create staging directory
+    mkdir -p "$STAGING_DIR"
+
+    # Download manifest
+    if ! download_manifest; then
+        log_error "Failed to download manifest"
         exit 1
     fi
 
-    echo ""
-    log_success "Installation complete!"
-    echo ""
+    # Download version
+    download_version
 
-    # Post-install instructions
+    # Download all files
+    if ! download_files; then
+        log_warning "Some files failed to download"
+        log_info "You can retry with: bash <(curl -sSL ${GITHUB_RAW}/install.sh)"
+    fi
+
+    # Success - print next steps
+    echo ""
+    log_success "Files staged to: ${STAGING_DIR}"
+    echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                     NEXT STEPS                               ║"
     echo "╠══════════════════════════════════════════════════════════════╣"
     echo "║                                                              ║"
-    echo "║  1. Restart Claude Code                                      ║"
-    echo "║     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)              ║"
+    echo "║  1. Open your project folder in Claude Code                  ║"
+    echo "║     cd /path/to/your/project && claude                       ║"
     echo "║                                                              ║"
-    echo "║  2. Verify installation                                      ║"
-    echo "║     Run: /health-check                                       ║"
+    echo "║  2. Run the setup command                                    ║"
+    echo "║     /setup                                                   ║"
     echo "║                                                              ║"
-    echo "║  3. Start developing                                         ║"
-    echo "║     Run: /auto-implement <your feature>                      ║"
+    echo "║  Claude Code will intelligently:                             ║"
+    echo "║  • Detect fresh install vs existing installation             ║"
+    echo "║  • Protect your PROJECT.md and custom files                  ║"
+    echo "║  • Update outdated plugin files                              ║"
+    echo "║  • Validate the installation works                           ║"
     echo "║                                                              ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
