@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 #
-# autonomous-dev Plugin Bootstrap
+# autonomous-dev Plugin Installer
 #
-# Downloads plugin files to staging area, then Claude Code handles intelligent installation.
+# One-liner install for both fresh installs and updates.
 #
-# One-liner:
+# Usage:
 #   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 #
 # What this does:
 #   1. Downloads plugin files to ~/.autonomous-dev-staging/
-#   2. Tells you to run /setup in Claude Code
-#   3. Claude Code intelligently installs, handling:
-#      - Fresh installs vs brownfield (existing .claude/)
-#      - Protected files (PROJECT.md, .env - never touched)
-#      - Customized hooks (preserved or backed up)
-#      - Post-install validation
+#   2. Installs /setup command to .claude/commands/ (enables fresh installs)
+#   3. You restart Claude Code and run /setup
+#   4. /setup wizard intelligently handles:
+#      - Fresh installs (copies all files, guides PROJECT.md creation)
+#      - Brownfield (preserves existing .claude/ files)
+#      - Upgrades (updates plugin, preserves customizations)
 #
 # Requirements:
 #   - curl or wget
+#   - Python 3.9+
 #   - Claude Code installed
 #
 # Security:
 #   - HTTPS with TLS 1.2+
 #   - No sudo required
-#   - Files staged, not installed directly
 #
 
 set -euo pipefail
@@ -58,9 +58,9 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "autonomous-dev Plugin Bootstrap"
+            echo "autonomous-dev Plugin Installer"
             echo ""
-            echo "Downloads plugin files for Claude Code to install intelligently."
+            echo "One-liner install for both fresh installs and updates."
             echo ""
             echo "Usage: install.sh [OPTIONS]"
             echo ""
@@ -70,14 +70,14 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h      Show this help message"
             echo ""
             echo "After running this script:"
-            echo "  1. Open your project in Claude Code"
-            echo "  2. Run /setup to install"
+            echo "  1. Restart Claude Code (Cmd+Q / Ctrl+Q)"
+            echo "  2. Run /setup in your project"
             echo ""
-            echo "Claude Code will handle:"
-            echo "  - Fresh install vs update detection"
-            echo "  - Protecting your PROJECT.md and .env"
-            echo "  - Preserving customized hooks"
-            echo "  - Post-install validation"
+            echo "The /setup wizard will:"
+            echo "  - Detect fresh install vs update"
+            echo "  - Install all plugin files"
+            echo "  - Protect your PROJECT.md and .env"
+            echo "  - Guide you through configuration"
             exit 0
             ;;
         *)
@@ -237,6 +237,32 @@ download_version() {
     fi
 }
 
+# Bootstrap the /setup command directly (enables fresh installs)
+bootstrap_setup_command() {
+    log_step "Bootstrapping /setup command..."
+
+    local setup_source="${STAGING_DIR}/files/plugins/autonomous-dev/commands/setup.md"
+    local setup_target=".claude/commands/setup.md"
+
+    # Check if setup.md was downloaded
+    if [[ ! -f "$setup_source" ]]; then
+        log_warning "setup.md not found in staging - /setup command won't be available"
+        return 1
+    fi
+
+    # Create .claude/commands/ directory if needed
+    mkdir -p ".claude/commands"
+
+    # Copy setup.md to enable /setup command
+    if cp "$setup_source" "$setup_target"; then
+        log_success "Installed /setup command to .claude/commands/"
+        return 0
+    else
+        log_warning "Failed to install /setup command"
+        return 1
+    fi
+}
+
 # Main
 main() {
     echo ""
@@ -278,25 +304,29 @@ main() {
         log_info "You can retry with: bash <(curl -sSL ${GITHUB_RAW}/install.sh)"
     fi
 
+    # Bootstrap /setup command directly (enables fresh installs)
+    bootstrap_setup_command
+
     # Success - print next steps
     echo ""
     log_success "Files staged to: ${STAGING_DIR}"
+    log_success "/setup command installed to .claude/commands/"
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║                     NEXT STEPS                               ║"
     echo "╠══════════════════════════════════════════════════════════════╣"
     echo "║                                                              ║"
-    echo "║  1. Open your project folder in Claude Code                  ║"
-    echo "║     cd /path/to/your/project && claude                       ║"
+    echo "║  1. Restart Claude Code (required to load /setup command)    ║"
+    echo "║     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)              ║"
     echo "║                                                              ║"
-    echo "║  2. Run the setup command                                    ║"
+    echo "║  2. Open your project and run:                               ║"
     echo "║     /setup                                                   ║"
     echo "║                                                              ║"
-    echo "║  Claude Code will intelligently:                             ║"
-    echo "║  • Detect fresh install vs existing installation             ║"
+    echo "║  The /setup wizard will:                                     ║"
+    echo "║  • Detect fresh install vs update                            ║"
+    echo "║  • Install all plugin files                                  ║"
     echo "║  • Protect your PROJECT.md and custom files                  ║"
-    echo "║  • Update outdated plugin files                              ║"
-    echo "║  • Validate the installation works                           ║"
+    echo "║  • Guide you through configuration                           ║"
     echo "║                                                              ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""

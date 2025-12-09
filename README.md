@@ -165,56 +165,44 @@ This is how Claude stays aligned — it reads PROJECT.md before every feature.
 | **Python 3.9+** | `python3 --version` to verify |
 | **gh CLI** (GitHub) | `brew install gh && gh auth login` |
 
-### Fresh Install (Plugin System)
+### One-Liner Install
+
+```bash
+cd /path/to/your/project
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+```
+
+Then:
+1. **Restart Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux)
+2. Run `/setup` to complete installation
+
+That's it! Works for both fresh installs and updates.
+
+### Alternative: Plugin System
 
 ```bash
 # In Claude Code:
 /plugin marketplace add akaszubski/autonomous-dev
 /plugin install autonomous-dev
+# Restart Claude Code, then run /setup
 ```
 
-Then **fully quit Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux) and reopen it.
+### How It Works
 
-After restart, run `/setup` to create your PROJECT.md.
+The installer uses a **two-phase architecture**:
 
-### Update (Existing Installation)
+```
+install.sh → Downloads files to ~/.autonomous-dev-staging/
+           → Installs /setup command to .claude/commands/
+           → You restart Claude Code
 
-If you already have the plugin installed:
-
-```bash
-# Option 1: Built-in update command (recommended)
-/update-plugin
-
-# Option 2: GenAI-first update (stages files, then /setup handles upgrade)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-# Restart Claude Code, then run: /setup
+/setup     → Detects: FRESH, BROWNFIELD, or UPGRADE
+           → Installs plugin files intelligently
+           → Preserves your customizations
+           → Cleans up staging
 ```
 
-The `/setup` wizard detects UPGRADE and preserves your customizations.
-
-### How Updates Work (v3.41.0+)
-
-When updating via `install.sh`, the system uses a **two-phase GenAI-first architecture**:
-
-**Phase 1: Staging** (`install.sh`)
-```
-install.sh → Downloads new plugin version to ~/.autonomous-dev-staging/
-           → Does NOT modify your project yet
-           → Prompts you to restart Claude Code
-```
-
-**Phase 2: Intelligent Upgrade** (`/setup` wizard)
-```
-/setup → Detects staged files in ~/.autonomous-dev-staging/
-       → Analyzes your project using GenAI
-       → Determines installation type (FRESH, BROWNFIELD, or UPGRADE)
-       → Copies files while preserving your customizations
-       → Cleans up staging directory
-```
-
-**Why two phases?** Claude Code needs to restart to see command updates. By staging first, the existing `/setup` wizard can use GenAI intelligence to preserve your customizations during upgrade.
-
-**Note**: For fresh installs, use the plugin system (`/plugin install`) which directly installs all commands.
+**Why two phases?** Claude Code caches commands at startup. The installer bootstraps `/setup` directly so it works even on fresh installs.
 
 ### Installation Types
 
@@ -413,9 +401,8 @@ We document **typical performance**, not best-case marketing claims:
 ## Quick Reference
 
 ```bash
-# Fresh Install (in Claude Code)
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
+# Install (one-liner)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 # Restart Claude Code (Cmd+Q / Ctrl+Q), then run /setup
 
 # Daily workflow
@@ -427,8 +414,8 @@ We document **typical performance**, not best-case marketing claims:
 /health-check                   # Verify installation
 /status                         # View alignment
 
-# Update
-/update-plugin                  # Get latest version
+# Update (same as install - /setup detects upgrade)
+/update-plugin                  # Or re-run install.sh + /setup
 ```
 
 ---
