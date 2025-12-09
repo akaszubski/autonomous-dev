@@ -174,6 +174,24 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --sync
 ```
 
+### Intelligent Installation (v3.41.0+)
+
+The installer uses **GenAI-first installation** with protected file detection:
+
+| Scenario | What Happens |
+|----------|--------------|
+| **Fresh Install** (no `.claude/`) | Copies all plugin files, runs `/setup` wizard |
+| **Brownfield** (existing project) | Detects and **preserves** your PROJECT.md, .env, custom hooks |
+| **Upgrade** (existing plugin) | Updates plugin files, **preserves** your customizations |
+
+**Protected Files** (never overwritten):
+- `PROJECT.md` - Your project definition
+- `.env`, `.env.local` - Your secrets
+- Custom hooks with your modifications
+- State files (batch_state.json, etc.)
+
+The installer analyzes your project and asks before touching anything you've customized.
+
 ---
 
 ## Usage
@@ -273,7 +291,7 @@ I want to add autonomous-dev to this existing project:
 | **Agents** | 20 | Specialized AI for each SDLC stage |
 | **Skills** | 28 | Domain knowledge (progressive disclosure) |
 | **Hooks** | 44 | Automatic validation on commits |
-| **Libraries** | 29 | Reusable Python utilities |
+| **Libraries** | 33 | Reusable Python utilities |
 
 ### Key Agents
 
