@@ -159,11 +159,12 @@ This is how Claude stays aligned — it reads PROJECT.md before every feature.
 
 ### Prerequisites
 
-| Requirement | Install Command |
-|-------------|-----------------|
+| Requirement | Details |
+|-------------|---------|
 | **Claude Code 2.0+** | [Download](https://claude.ai/download) |
 | **Python 3.9+** | `python3 --version` to verify |
 | **gh CLI** (GitHub) | `brew install gh && gh auth login` |
+| **Network** | HTTPS access to github.com (for curl installer) |
 
 ### One-Liner Install
 
@@ -220,6 +221,20 @@ install.sh → Downloads files to ~/.autonomous-dev-staging/
 - State files (`batch_state.json`, etc.)
 
 The `/setup` wizard analyzes each file and asks before touching anything you've customized.
+
+### Installation Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `/setup` command not found | Fully restart Claude Code (Cmd+Q / Ctrl+Q), not just close window |
+| Network download failed | Check HTTPS access to github.com, or use plugin system instead |
+| Permission denied | Ensure `.claude/` directory is writable |
+| Staging directory stuck | Delete `~/.autonomous-dev-staging/` and re-run installer |
+
+For debugging, use verbose mode:
+```bash
+bash <(curl -sSL .../install.sh) --verbose
+```
 
 ---
 

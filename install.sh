@@ -172,14 +172,25 @@ download_files() {
     local downloaded=0
     local failed=0
 
-    # Use Python to parse manifest and get file list
+    # Use Python to parse manifest and get file list (with path traversal validation)
     local files
     files=$(python3 -c "
 import json
+import sys
+
 with open('${manifest_path}') as f:
     manifest = json.load(f)
+
 for component, config in manifest.get('components', {}).items():
     for file_path in config.get('files', []):
+        # CWE-22: Validate paths to prevent directory traversal
+        if '..' in file_path or file_path.startswith('/') or file_path.startswith('~'):
+            print(f'SECURITY: Rejected malicious path: {file_path}', file=sys.stderr)
+            continue
+        # Reject paths with null bytes or other suspicious patterns
+        if '\x00' in file_path or '\\\\' in file_path:
+            print(f'SECURITY: Rejected suspicious path: {file_path}', file=sys.stderr)
+            continue
         print(file_path)
 ")
 
@@ -250,15 +261,28 @@ bootstrap_setup_command() {
         return 1
     fi
 
-    # Create .claude/commands/ directory if needed
-    mkdir -p ".claude/commands"
+    # CWE-73: Check if source is a symlink (security protection)
+    if [[ -L "$setup_source" ]]; then
+        log_warning "Security: setup.md is a symlink - skipping for safety"
+        return 1
+    fi
 
-    # Copy setup.md to enable /setup command
-    if cp "$setup_source" "$setup_target"; then
-        log_success "Installed /setup command to .claude/commands/"
+    # Create .claude/commands/ directory if needed (with error handling)
+    if ! mkdir -p ".claude/commands" 2>/dev/null; then
+        log_warning "Failed to create .claude/commands/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Backup existing file if present
+    if [[ -f "$setup_target" ]]; then
+        cp "$setup_target" "${setup_target}.backup" 2>/dev/null || true
+    fi
+
+    # Copy setup.md to enable /setup command (use -P to not follow symlinks)
+    if cp -P "$setup_source" "$setup_target"; then
         return 0
     else
-        log_warning "Failed to install /setup command"
+        log_warning "Failed to copy setup.md to .claude/commands/"
         return 1
     fi
 }
@@ -305,30 +329,59 @@ main() {
     fi
 
     # Bootstrap /setup command directly (enables fresh installs)
-    bootstrap_setup_command
+    local bootstrap_success=false
+    if bootstrap_setup_command; then
+        bootstrap_success=true
+    else
+        log_warning "Failed to bootstrap /setup command"
+        log_info "You may need to manually copy it after restart:"
+        log_info "  cp ${STAGING_DIR}/files/plugins/autonomous-dev/commands/setup.md .claude/commands/"
+    fi
 
-    # Success - print next steps
+    # Print results
     echo ""
     log_success "Files staged to: ${STAGING_DIR}"
-    log_success "/setup command installed to .claude/commands/"
+    if $bootstrap_success; then
+        log_success "/setup command installed to .claude/commands/"
+    else
+        log_warning "/setup command not installed (see above for manual steps)"
+    fi
     echo ""
-    echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                     NEXT STEPS                               ║"
-    echo "╠══════════════════════════════════════════════════════════════╣"
-    echo "║                                                              ║"
-    echo "║  1. Restart Claude Code (required to load /setup command)    ║"
-    echo "║     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)              ║"
-    echo "║                                                              ║"
-    echo "║  2. Open your project and run:                               ║"
-    echo "║     /setup                                                   ║"
-    echo "║                                                              ║"
-    echo "║  The /setup wizard will:                                     ║"
-    echo "║  • Detect fresh install vs update                            ║"
-    echo "║  • Install all plugin files                                  ║"
-    echo "║  • Protect your PROJECT.md and custom files                  ║"
-    echo "║  • Guide you through configuration                           ║"
-    echo "║                                                              ║"
-    echo "╚══════════════════════════════════════════════════════════════╝"
+
+    if $bootstrap_success; then
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║                     NEXT STEPS                               ║"
+        echo "╠══════════════════════════════════════════════════════════════╣"
+        echo "║                                                              ║"
+        echo "║  1. Restart Claude Code (required to load /setup command)    ║"
+        echo "║     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)              ║"
+        echo "║                                                              ║"
+        echo "║  2. Open your project and run:                               ║"
+        echo "║     /setup                                                   ║"
+        echo "║                                                              ║"
+        echo "║  The /setup wizard will:                                     ║"
+        echo "║  • Detect fresh install vs update                            ║"
+        echo "║  • Install all plugin files                                  ║"
+        echo "║  • Protect your PROJECT.md and custom files                  ║"
+        echo "║  • Guide you through configuration                           ║"
+        echo "║                                                              ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+    else
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║                  MANUAL STEPS REQUIRED                       ║"
+        echo "╠══════════════════════════════════════════════════════════════╣"
+        echo "║                                                              ║"
+        echo "║  The /setup command could not be auto-installed.             ║"
+        echo "║  Please copy it manually:                                    ║"
+        echo "║                                                              ║"
+        echo "║  mkdir -p .claude/commands                                   ║"
+        echo "║  cp ~/.autonomous-dev-staging/files/plugins/autonomous-dev/  ║"
+        echo "║     commands/setup.md .claude/commands/                      ║"
+        echo "║                                                              ║"
+        echo "║  Then restart Claude Code and run /setup                     ║"
+        echo "║                                                              ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+    fi
     echo ""
 }
 
