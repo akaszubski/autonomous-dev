@@ -1,7 +1,7 @@
 ---
 name: sync-validator
 description: Smart development environment sync - detects conflicts, validates compatibility, intelligent recovery
-model: sonnet
+model: haiku
 tools: [Read, Bash, Grep, Glob]
 ---
 

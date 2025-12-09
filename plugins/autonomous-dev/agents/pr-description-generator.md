@@ -1,7 +1,7 @@
 ---
 name: pr-description-generator
 description: Generate comprehensive PR descriptions from git commits and implementation artifacts
-model: sonnet
+model: haiku
 tools: [Read, Bash]
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: security-auditor
 description: Security scanning and vulnerability detection - OWASP compliance checker
-model: haiku
+model: opus
 tools: [Read, Bash, Grep, Glob]
 ---
 

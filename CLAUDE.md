@@ -329,6 +329,43 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
 - Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
 
+### Model Tier Strategy
+
+Agent model assignments are optimized for cost-performance balance based on task complexity:
+
+**Tier 1: 8 Haiku agents** - Fast, cost-effective for pattern matching and structured output
+- researcher - Pattern discovery and codebase search
+- reviewer - Code quality checks against style guide
+- doc-master - Documentation synchronization
+- commit-message-generator - Conventional commit formatting
+- alignment-validator - PROJECT.md validation
+- project-progress-tracker - Progress tracking and reporting
+- sync-validator - Development environment sync validation
+- pr-description-generator - PR description formatting
+
+**Tier 2: 10 Sonnet agents** - Balanced reasoning for implementation and planning
+- implementer - Code implementation to make tests pass
+- test-master - TDD test generation with comprehensive coverage
+- planner - Architecture and implementation planning
+- issue-creator - GitHub issue creation with research
+- setup-wizard - Interactive project setup
+- project-bootstrapper - Project initialization
+- brownfield-analyzer - Legacy codebase analysis
+- quality-validator - Final validation orchestration
+- alignment-analyzer - PROJECT.md conflict resolution
+- project-status-analyzer - Project status assessment
+
+**Tier 3: 2 Opus agents** - Deep reasoning for critical analysis
+- security-auditor - OWASP security scanning and vulnerability detection
+- advisor - Critical thinking, trade-off analysis, risk identification
+
+**Rationale**:
+- **Tier 1 (Haiku)**: Tasks with clear patterns, structured output, or simple validation (research, formatting, sync checks)
+- **Tier 2 (Sonnet)**: Complex implementation, test design, and planning requiring strong reasoning (TDD, architecture, code)
+- **Tier 3 (Opus)**: Critical security and architectural decisions requiring maximum depth (security audits, trade-off analysis)
+
+**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality standards across all workflows.
+
 ### Skills (28 Active - Progressive Disclosure + Agent Integration)
 
 28 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.

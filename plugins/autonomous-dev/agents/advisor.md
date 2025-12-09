@@ -1,7 +1,7 @@
 ---
 name: advisor
 description: Critical thinking agent - validates alignment, challenges assumptions, identifies risks before decisions
-model: sonnet
+model: opus
 tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
 ---
 
