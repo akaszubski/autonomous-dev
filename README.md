@@ -173,14 +173,10 @@ Copy and paste into Claude Code:
 ```
 I want to set up autonomous-dev for this project. Please help me:
 
-1. Verify plugin is installed in THIS project:
-   - Check if .claude/hooks/ and .claude/commands/ exist in the current directory
-   - If NOT: The plugin was installed elsewhere. Copy files from the marketplace:
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/skills .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/templates .claude/
+1. Verify plugin is installed:
+   - Check if .claude/hooks/ and .claude/lib/ exist in the current directory
+   - If NOT: Run the installer from terminal first:
+     bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
    - If YES: Good, continue
 
 2. Run setup wizard:
@@ -209,14 +205,10 @@ Copy and paste into Claude Code:
 ```
 I want to add autonomous-dev to this existing project. Please help me:
 
-1. Verify plugin is installed in THIS project:
-   - Check if .claude/hooks/ and .claude/commands/ exist in the current directory
-   - If NOT: The plugin was installed elsewhere. Copy files from the marketplace:
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/skills .claude/
-     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/templates .claude/
+1. Verify plugin is installed:
+   - Check if .claude/hooks/ and .claude/lib/ exist in the current directory
+   - If NOT: Run the installer from terminal first:
+     bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
    - If YES: Good, continue
 
 2. Run setup wizard:
