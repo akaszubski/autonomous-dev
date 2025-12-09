@@ -147,23 +147,33 @@ Now paste one of the prompts below.
 Copy and paste into Claude Code:
 
 ```
-I want to set up autonomous-dev for this new project. Please help me:
+I want to set up autonomous-dev for this project. Please help me:
 
-1. Set up hooks and scripts:
-   - Run: python3 ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks/setup.py
-   - Walk me through the setup wizard options
+1. Verify plugin is installed in THIS project:
+   - Check if .claude/hooks/ and .claude/commands/ exist in the current directory
+   - If NOT: The plugin was installed elsewhere. Copy files from the marketplace:
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/skills .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/templates .claude/
+   - If YES: Good, continue
 
-2. Help me create PROJECT.md:
+2. Run setup wizard:
+   - Run: python3 .claude/hooks/setup.py
+   - Walk me through the options
+
+3. Help me create PROJECT.md:
    - Create .claude/PROJECT.md with GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
    - Ask me about my project goals, what's in/out of scope, technical constraints
 
-3. Set up GitHub integration:
+4. Set up GitHub integration:
    - Verify gh CLI: gh --version
    - Help me create initial GitHub issues
 
-4. Run /health-check to verify everything works
+5. Run /health-check to verify everything works
 
-5. Show me my first feature with /auto-implement "issue #1"
+6. Show me my first feature with /auto-implement "issue #1"
 
 My project is: [DESCRIBE YOUR PROJECT HERE]
 ```
@@ -175,21 +185,31 @@ Copy and paste into Claude Code:
 ```
 I want to add autonomous-dev to this existing project. Please help me:
 
-1. Set up hooks and scripts:
-   - Run: python3 ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks/setup.py
-   - Walk me through the setup wizard options
+1. Verify plugin is installed in THIS project:
+   - Check if .claude/hooks/ and .claude/commands/ exist in the current directory
+   - If NOT: The plugin was installed elsewhere. Copy files from the marketplace:
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/hooks .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/commands .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/agents .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/skills .claude/
+     cp -r ~/.claude/plugins/marketplaces/autonomous-dev/plugins/autonomous-dev/templates .claude/
+   - If YES: Good, continue
 
-2. Analyze my existing project:
+2. Run setup wizard:
+   - Run: python3 .claude/hooks/setup.py
+   - Walk me through the options
+
+3. Analyze my existing project:
    - Run /align-project-retrofit --dry-run
    - Show me what changes would be made
 
-3. Help me create PROJECT.md based on my existing code:
+4. Help me create PROJECT.md based on my existing code:
    - Infer GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE from what exists
 
-4. Run the retrofit:
+5. Run the retrofit:
    - Run /align-project-retrofit (step-by-step mode)
 
-5. Run /health-check to verify everything works
+6. Run /health-check to verify everything works
 ```
 
 ---
