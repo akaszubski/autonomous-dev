@@ -1689,9 +1689,9 @@ except GitHubAPIError as e:
 
 ---
 
-## 15. path_utils.py (187 lines, v3.28.0+)
+## 15. path_utils.py (320 lines, v3.28.0+ / v3.41.0+)
 
-**Purpose**: Dynamic PROJECT_ROOT detection and path resolution for tracking infrastructure
+**Purpose**: Dynamic PROJECT_ROOT detection, path resolution, and policy file location for tracking infrastructure and tool configuration
 
 **Issue**: GitHub #79 - Fixes hardcoded paths that failed when running from subdirectories
 
@@ -1701,6 +1701,7 @@ except GitHubAPIError as e:
 - **Caching**: Module-level cache prevents repeated filesystem searches
 - **Flexible Creation**: Creates directories (docs/sessions, .claude) as needed with safe permissions (0o755)
 - **Backward Compatible**: Existing usage patterns still work, uses get_project_root() internally
+- **Security Validation**: Rejects symlinks and invalid JSON in policy files (CWE-59)
 
 ### Public API
 
@@ -1735,19 +1736,42 @@ except GitHubAPIError as e:
 - **Creates**: Parent directory (`.claude/`) if missing, with safe permissions
 - **Used By**: batch_state_manager.py
 
+#### `get_policy_file(use_cache=True)` (NEW in v3.41.0)
+- **Purpose**: Get policy file path via cascading lookup with fallback
+- **Parameters**: `use_cache` (bool): Use cached value or force re-detection (default: True). Set to False in tests that change working directory.
+- **Returns**: `Path` - Policy file (validated and readable)
+- **Cascading Lookup Order**:
+  1. `.claude/config/auto_approve_policy.json` (project-local) - enables per-project customization
+  2. `plugins/autonomous-dev/config/auto_approve_policy.json` (plugin default) - stable fallback
+  3. Minimal fallback path (may not exist) - graceful degradation
+- **Security Validations**:
+  - Rejects symlinks (CWE-59)
+  - Prevents path traversal (CWE-22)
+  - Validates JSON format
+  - Handles permission errors gracefully
+- **Thread Safety**: Not thread-safe (uses module-level cache); wrap with threading.Lock for multi-threading
+- **Used By**: tool_validator.py, auto_approval_engine.py
+- **Use Cases**:
+  - Customize policy per project (place policy in `.claude/config/auto_approve_policy.json`)
+  - Inherit plugin defaults (omit custom policy)
+  - Test with different policies (call with `use_cache=False`)
+
 #### `reset_project_root_cache()`
 - **Purpose**: Reset cached project root (testing only)
 - **Warning**: Only use in test teardown; production code should maintain cache for process lifetime
 
 ### Test Coverage
 
-- **Total**: 45+ tests in `tests/unit/test_tracking_path_resolution.py`
+- **Total**: 45+ tests in `tests/unit/test_tracking_path_resolution.py` + 15 tests in `tests/unit/lib/test_policy_path_resolution.py`
 - **Areas**:
   - PROJECT_ROOT detection from various directories
   - Marker file priority (`.git` over `.claude`)
   - Nested `.claude/` handling in git repositories
   - Directory creation with safe permissions
   - Cache behavior and reset
+  - Policy file cascading lookup (NEW v3.41.0)
+  - Policy file security validation (NEW v3.41.0)
+  - Symlink detection in policy files (NEW v3.41.0)
 
 ### Usage Examples
 
@@ -1755,7 +1779,8 @@ except GitHubAPIError as e:
 from plugins.autonomous_dev.lib.path_utils import (
     get_project_root,
     get_session_dir,
-    get_batch_state_file
+    get_batch_state_file,
+    get_policy_file
 )
 
 # Get project root (cached after first call)
@@ -1770,9 +1795,16 @@ session_file = session_dir / "20251117-session.md"
 state_file = get_batch_state_file()
 # Returns: /project/.claude/batch_state.json
 
+# Get policy file with cascading lookup
+policy_file = get_policy_file()
+# 1. Tries: .claude/config/auto_approve_policy.json (project-local)
+# 2. Falls back to: plugins/autonomous-dev/config/auto_approve_policy.json (plugin default)
+# 3. Returns minimal fallback if both missing
+
 # Force re-detection (for tests that change cwd)
 from tests.conftest import isolated_project
 root = get_project_root(use_cache=False)
+policy_file = get_policy_file(use_cache=False)
 ```
 
 ### Security
@@ -1781,6 +1813,11 @@ root = get_project_root(use_cache=False)
 - **Safe Permissions**: Creates directories with 0o755 (rwxr-xr-x)
 - **Validation**: Validates marker files exist before returning
 - **Symlink Handling**: Resolves symlinks to canonical paths
+- **Policy File Security** (v3.41.0):
+  - Rejects symlinks in policy file locations (CWE-59)
+  - Validates JSON format before use (prevents malformed policy)
+  - Handles permission denied errors gracefully
+  - Prefers project-local customization for per-project policies
 
 ### Migration from Hardcoded Paths
 
@@ -1796,10 +1833,32 @@ from path_utils import get_session_dir
 session_dir = get_session_dir()  # Works from any subdirectory
 ```
 
+### Policy File Customization (NEW in v3.41.0)
+
+Per-project policy customization enables different auto-approval policies for different projects:
+
+**Project-Local Policy** (takes priority):
+```bash
+# Create custom policy in your project
+mkdir -p .claude/config/
+cp plugins/autonomous-dev/config/auto_approve_policy.json .claude/config/auto_approve_policy.json
+# Edit .claude/config/auto_approve_policy.json for project-specific rules
+```
+
+**Automatic Fallback**:
+```python
+# Code automatically uses:
+# 1. .claude/config/auto_approve_policy.json (if it exists and is valid)
+# 2. plugins/autonomous-dev/config/auto_approve_policy.json (plugin default)
+policy_file = get_policy_file()  # No configuration needed!
+```
+
 ### Related Documentation
 
 - See `library-design-patterns` skill for design principles
 - See Issue #79 for hardcoded path fixes and security implications
+- See Issue #100 for policy file portability and cascading lookup design
+- See `docs/TOOL-AUTO-APPROVAL.md` section "Policy File Location" for user guide
 
 ---
 
@@ -4349,7 +4408,7 @@ Validate that all paths are contained within project boundaries.
 **Example**:
 ```python
 validator = ToolValidator()
-project_root = Path("/home/user/project")
+project_root = Path("/tmp/project")  # Example project root
 
 # Valid - relative path within project
 is_valid, error = validator._validate_path_containment(

@@ -1,3 +1,57 @@
+## [Unreleased]
+
+### Fixed
+
+- **Bug #100: Policy File Path Portability with Cascading Lookup**
+  - **Issue**: Policy file locations were not portable - `/update-plugin` didn't update policy being used, requiring manual discovery
+  - **Root Cause**: Hard-coded policy paths prevented per-project customization and didn't support fallback mechanisms
+  - **Solution**: Implemented cascading lookup with automatic fallback in `path_utils.py`
+  - **Architecture**:
+    - NEW: `get_policy_file(use_cache=True)` function in `path_utils.py`
+    - Cascading lookup order:
+      1. `.claude/config/auto_approve_policy.json` (project-local) - enables per-project customization
+      2. `plugins/autonomous-dev/config/auto_approve_policy.json` (plugin default) - stable fallback
+      3. Minimal fallback path (graceful degradation if both missing)
+    - Security validation: Rejects symlinks (CWE-59), prevents path traversal (CWE-22), validates JSON format
+    - Caching with cache invalidation support for tests and `/update-plugin`
+  - **Files Changed**:
+    - ENHANCED: `plugins/autonomous-dev/lib/path_utils.py` (+130 lines)
+      - New: `get_policy_file()` function with cascading lookup
+      - New: `_find_policy_file()` internal implementation
+      - New: `_is_valid_policy_file()` security validation
+      - New: Module-level cache `_POLICY_FILE_CACHE` for performance
+      - New: `reset_policy_file_cache()` for testing and `/update-plugin`
+    - ENHANCED: `plugins/autonomous-dev/lib/tool_validator.py`
+      - Updated: Uses `get_policy_file()` instead of hard-coded path
+    - ENHANCED: `plugins/autonomous-dev/lib/auto_approval_engine.py`
+      - Updated: Uses `get_policy_file()` instead of hard-coded path
+    - NEW: `tests/unit/lib/test_policy_path_resolution.py` (400+ lines)
+      - Cascading lookup order validation
+      - Security validation (symlinks, JSON format, permissions)
+      - Cache behavior and invalidation
+      - Integration with tool_validator and auto_approval_engine
+      - Edge cases (no project root, missing both files, invalid JSON)
+  - **Documentation Updated**:
+    - ENHANCED: `docs/LIBRARIES.md` section 15
+      - Updated: Line count 187 -> 320
+      - Updated: Version v3.28.0+ -> v3.41.0+
+      - Added: `get_policy_file()` API documentation
+      - Added: Cascading lookup explanation
+      - Added: Policy file customization guide
+      - Added: Integration with tool_validator and auto_approval_engine
+    - NEW: `docs/TOOL-AUTO-APPROVAL.md` section "Policy File Location"
+      - Added: Cascading lookup documentation
+      - Added: Per-project customization guide
+      - Added: Automatic behavior explanation
+      - Added: Security validation details
+      - Added: Use cases for different projects
+  - **User Impact**:
+    - Projects can now customize policy per-project by placing `.claude/config/auto_approve_policy.json`
+    - `/update-plugin` now correctly uses updated policy (no stale policy bug)
+    - Graceful fallback to plugin default if project-local policy missing
+    - No user action required - automatic detection and caching
+  - **Backward Compatibility**: Fully backward compatible - existing projects continue using plugin default
+
 ## [v3.40.0] - 2025-12-09
 
 ### Added

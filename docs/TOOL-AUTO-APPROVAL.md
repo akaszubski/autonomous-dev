@@ -417,6 +417,45 @@ Default location: `plugins/autonomous-dev/config/auto_approve_policy.json`
   - `git diff*` matches `git diff`, `git diff --cached`, `git diff HEAD~1`
   - `/tmp/*` matches any file in `/tmp/`
 
+### Policy File Location (NEW in v3.41.0 - Issue #100)
+
+Policy files support cascading lookup with fallback, enabling per-project customization.
+
+**Lookup Order**:
+1. **Project-Local Policy**: `.claude/config/auto_approve_policy.json` - Custom rules for this project
+2. **Plugin Default**: `plugins/autonomous-dev/config/auto_approve_policy.json` - Stable plugin default
+3. **Minimal Fallback**: Graceful degradation if both missing
+
+**Per-Project Customization**:
+```bash
+# Create custom policy in your project
+mkdir -p .claude/config/
+cp plugins/autonomous-dev/config/auto_approve_policy.json .claude/config/auto_approve_policy.json
+
+# Edit .claude/config/auto_approve_policy.json to customize rules for this project
+# Example: Add project-specific trusted commands or blocked patterns
+```
+
+**Automatic Behavior**:
+- If `.claude/config/auto_approve_policy.json` exists and is valid JSON, it takes priority
+- Otherwise, falls back to plugin default
+- No configuration needed - automatic detection and caching
+- Policy file updates automatically after `/update-plugin` (no stale policy bug)
+
+**Security Validation**:
+- Rejects symlinks in policy file paths (CWE-59 - symlink attacks)
+- Validates JSON format before use
+- Gracefully degrades if policy file is unreadable
+- Implements path containment to prevent escaping project boundaries
+
+**Use Cases**:
+- Stricter policies for sensitive projects (fewer auto-approved commands)
+- Looser policies for internal tooling (more productive workflows)
+- Team-specific policies (share `.claude/config/auto_approve_policy.json` in repo)
+- Testing different policies without modifying plugin
+
+**Implementation**: See `path_utils.get_policy_file()` in [docs/LIBRARIES.md](LIBRARIES.md) section 15 for API documentation.
+
 ---
 
 ## Security Model
