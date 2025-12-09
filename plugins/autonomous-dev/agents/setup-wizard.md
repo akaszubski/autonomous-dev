@@ -13,6 +13,7 @@ Guide users through autonomous-dev plugin configuration with intelligent PROJECT
 
 ## Core Responsibilities
 
+0. **Plugin Installation** - Install from staging if `~/.autonomous-dev-staging/` exists (from install.sh)
 1. **PROJECT.md Generation** - Analyze codebase and create comprehensive PROJECT.md
 2. **Tech Stack Detection** - Identify languages, frameworks, tools
 3. **Hook Configuration** - Recommend and configure appropriate hooks
@@ -22,11 +23,12 @@ Guide users through autonomous-dev plugin configuration with intelligent PROJECT
 ## Process Overview
 
 ```
-Step 1: Welcome & Detection
-Step 2: PROJECT.md Setup (Create/Update/Maintain)
-Step 3: Workflow Selection (Slash Commands vs Hooks)
-Step 4: GitHub Integration (Optional)
-Step 5: Validation & Summary
+Phase 0: Plugin Installation (if staging files exist) ← NEW
+Phase 1: Welcome & Detection
+Phase 2: PROJECT.md Setup (Create/Update/Maintain)
+Phase 3: Workflow Selection (Slash Commands vs Hooks)
+Phase 4: GitHub Integration (Optional)
+Phase 5: Validation & Summary
 ```
 
 ## Output Format
@@ -34,6 +36,241 @@ Step 5: Validation & Summary
 Guide user through 5-phase interactive setup: tech stack detection, PROJECT.md creation/update, workflow selection, GitHub integration (optional), and validation summary with next steps.
 
 **Note**: Consult **agent-output-formats** skill for setup wizard output format and examples.
+
+---
+
+## Phase 0: Plugin Installation (ALWAYS CHECK FIRST!)
+
+**CRITICAL**: Before doing ANYTHING else, check if staging files exist from `install.sh`.
+
+### 0.1 Check for Staging Directory
+
+```bash
+# Check if staging directory exists
+ls -la ~/.autonomous-dev-staging/ 2>/dev/null
+```
+
+**If staging directory does NOT exist**: Skip to Phase 1 (normal setup flow).
+
+**If staging directory EXISTS**: Continue with installation steps below.
+
+### 0.2 Analyze Installation Type
+
+Use the installation analyzer library to determine what kind of installation this is:
+
+```bash
+# Run installation analysis
+python3 -c "
+import sys
+sys.path.insert(0, '$HOME/.autonomous-dev-staging/files/plugins/autonomous-dev/lib')
+from installation_analyzer import InstallationAnalyzer, InstallationType
+from pathlib import Path
+
+staging = Path.home() / '.autonomous-dev-staging' / 'files'
+target = Path.cwd() / '.claude'
+
+analyzer = InstallationAnalyzer(staging, target)
+result = analyzer.analyze()
+
+print(f'Installation Type: {result.install_type.name}')
+print(f'Recommendation: {result.recommendation}')
+print(f'Staged Files: {len(result.staged_files)}')
+print(f'Existing Files: {len(result.existing_files)}')
+print(f'Conflicts: {len(result.conflicts)}')
+for conflict in result.conflicts[:5]:
+    print(f'  - {conflict}')
+"
+```
+
+**Installation Types**:
+- **FRESH**: No `.claude/` directory exists → Safe to copy everything
+- **BROWNFIELD**: `.claude/` exists with user content (PROJECT.md, custom hooks) → Protect user files
+- **UPGRADE**: `.claude/` exists with older plugin version → Update plugin files only
+
+### 0.3 Detect Protected Files
+
+Use the protected file detector to identify what should NEVER be overwritten:
+
+```bash
+# Detect protected files in target directory
+python3 -c "
+import sys
+sys.path.insert(0, '$HOME/.autonomous-dev-staging/files/plugins/autonomous-dev/lib')
+from protected_file_detector import ProtectedFileDetector
+from pathlib import Path
+
+target = Path.cwd() / '.claude'
+if target.exists():
+    detector = ProtectedFileDetector(target)
+    protected = detector.detect_all_protected()
+
+    print('Protected Files (will NOT be overwritten):')
+    for category, files in protected.items():
+        if files:
+            print(f'  {category}:')
+            for f in files:
+                print(f'    - {f}')
+else:
+    print('No .claude/ directory - fresh install, no protected files')
+"
+```
+
+**Always Protected**:
+- `PROJECT.md` - User's project definition
+- `.env`, `.env.local` - User's secrets
+- `batch_state.json` - Active batch state
+- Any hook with user-specific modifications
+
+### 0.4 List Staged Files
+
+Use the staging manager to see what will be installed:
+
+```bash
+# List files in staging directory
+python3 -c "
+import sys
+sys.path.insert(0, '$HOME/.autonomous-dev-staging/files/plugins/autonomous-dev/lib')
+from staging_manager import StagingManager
+from pathlib import Path
+
+staging = Path.home() / '.autonomous-dev-staging'
+manager = StagingManager(staging)
+
+files = manager.list_staged_files()
+print(f'Total staged files: {len(files)}')
+print('Categories:')
+categories = {}
+for f in files:
+    cat = f.split('/')[0] if '/' in f else 'root'
+    categories[cat] = categories.get(cat, 0) + 1
+for cat, count in sorted(categories.items()):
+    print(f'  {cat}: {count} files')
+"
+```
+
+### 0.5 Install Files (with Protection)
+
+**For FRESH install**: Copy all files directly.
+
+```bash
+# Fresh install - copy everything
+mkdir -p .claude
+cp -r ~/.autonomous-dev-staging/files/plugins/autonomous-dev/* .claude/
+```
+
+**For BROWNFIELD/UPGRADE**: Use copy_system with protected files list.
+
+```bash
+# Protected install - skip user files
+python3 -c "
+import sys
+sys.path.insert(0, '$HOME/.autonomous-dev-staging/files/plugins/autonomous-dev/lib')
+from copy_system import copy_with_protection
+from protected_file_detector import ProtectedFileDetector
+from pathlib import Path
+
+staging = Path.home() / '.autonomous-dev-staging' / 'files' / 'plugins' / 'autonomous-dev'
+target = Path.cwd() / '.claude'
+
+# Detect what to protect
+detector = ProtectedFileDetector(target)
+protected = detector.detect_all_protected()
+protected_paths = set()
+for files in protected.values():
+    protected_paths.update(files)
+
+# Copy with protection
+result = copy_with_protection(staging, target, protected_paths)
+print(f'Copied: {result.copied_count} files')
+print(f'Skipped (protected): {result.skipped_count} files')
+print(f'Errors: {result.error_count}')
+"
+```
+
+### 0.6 Log Installation (Audit Trail)
+
+```bash
+# Log installation to audit file
+python3 -c "
+import sys
+sys.path.insert(0, '.claude/lib')
+from install_audit import InstallAudit
+from pathlib import Path
+
+audit = InstallAudit()
+audit.log_installation(
+    install_type='BROWNFIELD',  # or FRESH, UPGRADE
+    staged_count=128,
+    copied_count=125,
+    protected_files=['PROJECT.md', '.env'],
+    source='install.sh + /setup'
+)
+print('Installation logged to audit file')
+"
+```
+
+### 0.7 Verify Installation
+
+```bash
+# Verify critical files exist
+ls -la .claude/hooks/*.py | head -5
+ls -la .claude/lib/*.py | head -5
+ls -la .claude/agents/*.md | head -5
+ls -la .claude/commands/*.md | head -5
+
+# Test Python imports work
+python3 -c "
+import sys
+sys.path.insert(0, '.claude/lib')
+from security_utils import validate_path
+print('✓ security_utils imports')
+from staging_manager import StagingManager
+print('✓ staging_manager imports')
+from protected_file_detector import ProtectedFileDetector
+print('✓ protected_file_detector imports')
+print('All imports working!')
+"
+```
+
+### 0.8 Cleanup Staging
+
+After successful installation, remove staging directory:
+
+```bash
+# Remove staging directory
+rm -rf ~/.autonomous-dev-staging
+echo "✓ Staging directory cleaned up"
+```
+
+### 0.9 Display Installation Summary
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Plugin Installation Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Installation Type: [FRESH/BROWNFIELD/UPGRADE]
+
+Files Installed:
+  ✓ Agents: 20 files
+  ✓ Commands: 21 files
+  ✓ Hooks: 44 files
+  ✓ Libraries: 33 files
+  ✓ Skills: 28 files
+
+Protected (not touched):
+  ✓ PROJECT.md (your project definition)
+  ✓ .env (your secrets)
+
+Verification:
+  ✓ Python imports working
+  ✓ Hooks executable
+  ✓ Commands available
+
+Continuing to configuration...
+```
+
+**Now continue to Phase 1** for PROJECT.md setup and configuration.
 
 ---
 
