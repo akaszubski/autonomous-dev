@@ -1,7 +1,7 @@
 # MCP Auto-Approval for Tool Calls
 
-**Version**: v3.38.0 (Extended for Main Conversation Support)
-**Last Updated**: 2025-12-08
+**Version**: v3.40.0 (Permissive Mode with Blacklist-First Security)
+**Last Updated**: 2025-12-09
 **Status**: Opt-in feature (disabled by default, requires explicit enablement)
 **GitHub Issue**: #73 (original), #TBD (main conversation support)
 
@@ -59,19 +59,33 @@ User → /auto-implement → researcher agent → [Bash: pytest] → [AUTO-APPRO
 
 ---
 
-## What's New in v3.38.0
+## What's New in v3.40.0
 
-**Main Conversation Support**: Auto-approval now works in both main conversation and subagent workflows.
+**Permissive Mode**: Policy switched from whitelist-first to blacklist-first approach.
 
 **Changes**:
-- **New default**: `MCP_AUTO_APPROVE=true` now enables auto-approval everywhere (main + subagents)
-- **Legacy mode**: Use `MCP_AUTO_APPROVE=subagent_only` to restore old behavior (subagents only)
-- **Security unchanged**: Same whitelist/blacklist/path validation in both modes
-- **Agent whitelist**:
-  - **Everywhere mode** (`MCP_AUTO_APPROVE=true`): Whitelist check SKIPPED - all agents trusted
-  - **Subagent-only mode** (`MCP_AUTO_APPROVE=subagent_only`): Whitelist check ENFORCED - only listed agents trusted
+- **New policy model**: `"mode": "blacklist"` - approve everything by default, block only dangerous patterns
+- **Simplified config**: No more adding every safe command to whitelist
+- **Zero friction**: All standard dev commands auto-approved without configuration
+- **Security focus**: Comprehensive blacklist covers dangerous patterns (rm -rf, sudo, force push, etc.)
 
-**Migration**: Existing users with `MCP_AUTO_APPROVE=true` will automatically get the new everywhere mode. To restore old behavior, set `MCP_AUTO_APPROVE=subagent_only`.
+**Previous approach (v1.x)**:
+```
+Whitelist: pytest*, git status, ls*, cat*, ...  (100+ patterns)
+Blacklist: rm -rf*, sudo*, ...
+Logic: Deny by default, approve if whitelisted
+Problem: Every new command required adding to whitelist
+```
+
+**New approach (v2.0)**:
+```
+Whitelist: ["*"]  (approve everything)
+Blacklist: rm -rf*, sudo*, git push --force*, ...  (dangerous patterns)
+Logic: Approve by default, deny if blacklisted
+Benefit: Zero friction for legitimate dev work
+```
+
+**Migration**: Automatic. Existing users get the new permissive behavior immediately.
 
 ---
 
@@ -639,97 +653,115 @@ if denial_count >= CIRCUIT_BREAKER_THRESHOLD:
 
 ## Policy File Reference
 
-### Full Default Policy
+### Full Default Policy (v2.0 - Permissive Mode)
 
 Location: `plugins/autonomous-dev/config/auto_approve_policy.json`
 
 ```json
 {
-  "version": "1.1",
-  "description": "MCP Auto-Approval Policy - Whitelist/Blacklist for Safe Tool Execution",
+  "version": "2.0",
+  "description": "MCP Auto-Approval Policy - PERMISSIVE mode with dangerous command blacklist",
   "bash": {
-    "whitelist": [
-      "pytest*",
-      "git status",
-      "git diff*",
-      "git log*",
-      "git branch*",
-      "git add*",
-      "git commit*",
-      "git push*",
-      "git pull*",
-      "gh issue list*",
-      "gh issue view*",
-      "gh issue close*",
-      "gh issue create*",
-      "gh issue comment*",
-      "gh pr list*",
-      "gh pr view*",
-      "gh pr create*",
-      "gh pr close*",
-      "gh pr checkout*",
-      "gh pr comment*",
-      "gh auth status",
-      "gh repo view*",
-      "ls*",
-      "cat*",
-      "head*",
-      "tail*",
-      "grep*",
-      "wc*",
-      "find*",
-      "echo*",
-      "pwd",
-      "which*",
-      "python -m pytest*",
-      "python -c*",
-      "python3 -m pytest*",
-      "python3 -c*",
-      "pip list",
-      "pip show*",
-      "cp *",
-      "mv *",
-      "mkdir*",
-      "touch*"
-    ],
+    "mode": "blacklist",
+    "whitelist": ["*"],
     "blacklist": [
-      "rm -rf*",
-      "sudo*",
+      "rm -rf /*",
+      "rm -rf ~*",
+      "rm -rf /Users/*",
+      "rm -rf /home/*",
+      "rm -rf .git",
+      "rm -rf .ssh*",
+      "rm -rf .aws*",
+      "rm -rf .gnupg*",
+      "rm -rf .config*",
+      "rm -rf node_modules",
+      "sudo *",
+      "su *",
       "chmod 777*",
-      "curl*|*bash",
-      "wget*|*bash",
-      "eval*",
-      "exec*",
-      "dd*",
+      "chmod -R 777*",
+      "chown *",
+      "chgrp *",
+      "eval *",
+      "exec *",
+      "dd *",
       "mkfs*",
       "fdisk*",
-      "kill -9*",
-      "killall*",
+      "parted*",
+      "kill -9 -1",
+      "killall -9*",
+      "pkill -9*",
       "> /dev/*",
       "shutdown*",
       "reboot*",
+      "halt*",
+      "poweroff*",
       "init 0*",
-      "init 6*"
+      "init 6*",
+      "systemctl poweroff*",
+      "systemctl reboot*",
+      "nc -l*",
+      "netcat -l*",
+      "ncat -l*",
+      "telnet *",
+      "*/bin/sh -c*",
+      "*/bin/bash -c*",
+      "*/bin/zsh -c*",
+      "| sh",
+      "| bash",
+      "| zsh",
+      "|sh",
+      "|bash",
+      "|zsh",
+      "$(rm*",
+      "`rm*",
+      "curl * | sh",
+      "curl * | bash",
+      "wget * | sh",
+      "wget * | bash",
+      "git push --force origin main",
+      "git push --force origin master",
+      "git push -f origin main",
+      "git push -f origin master",
+      "git reset --hard HEAD~*",
+      "git clean -fdx",
+      "npm publish*",
+      "pip upload*",
+      "twine upload*",
+      "docker rm -f $(docker ps -aq)",
+      "docker system prune -af",
+      "xargs rm*",
+      "find * -delete",
+      "find * -exec rm*",
+      ":(){:|:&};:",
+      "export PATH=",
+      "unset PATH"
     ]
   },
   "file_paths": {
-    "whitelist": [
-      "/Users/*/Documents/GitHub/*",
-      "/tmp/pytest-*",
-      "/tmp/tmp*",
-      "/private/tmp/pytest-*",
-      "/private/tmp/tmp*"
-    ],
+    "whitelist": ["*"],
     "blacklist": [
       "/etc/*",
       "/var/*",
       "/root/*",
+      "/home/*/.ssh/*",
+      "/Users/*/Library/*",
+      "/Users/*/.ssh/*",
+      "/Users/*/.aws/*",
+      "/Users/*/.gnupg/*",
       "*/.env",
       "*/secrets/*",
       "*/credentials/*",
       "*/.ssh/*",
       "*/id_rsa*",
-      "*/id_ed25519*"
+      "*/id_ed25519*",
+      "*/id_ecdsa*",
+      "*/.aws/*",
+      "*/.config/gh/hosts.yml",
+      "/System/*",
+      "/usr/*",
+      "/bin/*",
+      "/sbin/*",
+      "/boot/*"
     ]
   },
   "agents": {
@@ -744,9 +776,37 @@ Location: `plugins/autonomous-dev/config/auto_approve_policy.json`
     "restricted": [
       "security-auditor"
     ]
+  },
+  "web_tools": {
+    "whitelist": ["Fetch", "WebFetch", "WebSearch"],
+    "allow_all_domains": true,
+    "blocked_domains": [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      "169.254.169.254",
+      "metadata.google.internal",
+      "[::1]",
+      "10.*",
+      "172.16.*",
+      "192.168.*"
+    ]
   }
 }
 ```
+
+**Blacklist Categories**:
+
+| Category | Patterns | Why Blocked |
+|----------|----------|-------------|
+| **Destructive file ops** | `rm -rf /*`, `rm -rf ~*`, `find * -delete` | Data loss, system damage |
+| **Privilege escalation** | `sudo *`, `su *`, `chmod 777*` | Security violation |
+| **System commands** | `shutdown*`, `reboot*`, `init 0*` | System disruption |
+| **Shell injection** | `| sh`, `$(rm*`, `` `rm*`` | Remote code execution |
+| **Dangerous git** | `git push --force origin main` | Irreversible history loss |
+| **Publishing** | `npm publish*`, `twine upload*` | Accidental releases |
+| **Network listeners** | `nc -l*`, `netcat -l*` | Unauthorized access |
+| **Fork bombs** | `:(){:|:&};:` | System crash |
 
 ### Customizing the Policy
 
@@ -1194,7 +1254,7 @@ The hook must be registered in `~/.claude/settings.json` (not in plugin manifest
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/plugins/autonomous-dev/hooks/pre_tool_use.py",
+            "command": "python3 plugins/autonomous-dev/hooks/pre_tool_use.py",
             "timeout": 5
           }
         ]
@@ -1323,6 +1383,23 @@ print(f"Bash denials: {metrics['Bash']['denial_count']}")
 
 ## Changelog
 
+### v3.40.0 (2025-12-09)
+
+**Policy v2.0 - Permissive Mode**:
+- Switched from whitelist-first to blacklist-first approach
+- `whitelist: ["*"]` approves all commands by default
+- Comprehensive blacklist covers dangerous patterns only
+- Zero friction for legitimate development commands
+- No more manual whitelist additions needed
+
+**Blacklist Additions**:
+- Fork bomb prevention (`:(){:|:&};:`)
+- PATH manipulation (`export PATH=`, `unset PATH`)
+- Docker destructive commands (`docker system prune -af`)
+- Force push to protected branches (`git push --force origin main/master`)
+- Publishing commands (`npm publish`, `twine upload`)
+- Network listeners (`nc -l`, `netcat -l`)
+
 ### v3.39.0 (2025-12-08)
 
 **Simplified**:
@@ -1376,6 +1453,6 @@ print(f"Bash denials: {metrics['Bash']['denial_count']}")
 
 ---
 
-**Last Updated**: 2025-11-15
-**Version**: v3.21.0
+**Last Updated**: 2025-12-09
+**Version**: v3.40.0
 **Maintainer**: autonomous-dev plugin team

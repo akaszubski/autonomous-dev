@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-12-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.39.0
+**Version**: v3.40.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -289,7 +289,7 @@ Automatic git operations (commit, push, PR creation, issue closing) are **enable
 ---
 
 
-## MCP Auto-Approval Control (v3.38.0+)
+## MCP Auto-Approval Control (v3.40.0+)
 
 Automatic tool approval for trusted operations in both **main conversation** and **subagent workflows**. Reduces permission prompts from 50+ to 0 during development.
 
@@ -301,15 +301,15 @@ MCP_AUTO_APPROVE=true  # Default: false (opt-in) - Auto-approves everywhere (mai
 MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 ```
 
-**Modes**:
-- **everywhere** (default when enabled): Auto-approve in main conversation and subagents
-- **subagent_only**: Auto-approve only in subagent workflows (legacy behavior)
-- **disabled** (default): Manual approval for all tool calls
+**Policy v2.0 (Permissive Mode)**:
+- **Blacklist-first**: Approves all commands by default, blocks only dangerous patterns
+- **Zero friction**: No manual whitelist additions needed for standard dev commands
+- **Comprehensive blacklist**: Covers destructive ops, privilege escalation, shell injection, force push, publishing
 
 **Security**: 6 layers of defense (MCP security validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
 
 **Hook**: `pre_tool_use.py` (PreToolUse lifecycle standalone script, chains MCP security + auto-approval)
-**Replaces**: `auto_approve_tool.py` + `mcp_security_enforcer.py` + `unified_pre_tool_use.py` (simplified to shell command format)
+**Policy**: `plugins/autonomous-dev/config/auto_approve_policy.json` (v2.0 permissive mode)
 
 ---
 ## Architecture

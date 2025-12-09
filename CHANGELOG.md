@@ -2,6 +2,27 @@
 
 ### Added
 
+- **Auto-Approval Policy v2.0 - Permissive Mode with Blacklist-First Security**
+  - **Breaking Change**: Switched from whitelist-first to blacklist-first approach
+  - **Rationale**: Eliminates friction from constantly adding safe commands to whitelist
+  - **New Model**: `whitelist: ["*"]` approves all commands by default, comprehensive blacklist blocks dangerous patterns
+  - **Blacklist Categories**:
+    - Destructive file ops: `rm -rf /*`, `rm -rf ~*`, `find * -delete`, `xargs rm*`
+    - Privilege escalation: `sudo *`, `su *`, `chmod 777*`, `chown *`
+    - System commands: `shutdown*`, `reboot*`, `halt*`, `poweroff*`
+    - Shell injection: `| sh`, `|bash`, `$(rm*`, `` `rm*``
+    - Dangerous git: `git push --force origin main/master`, `git reset --hard HEAD~*`, `git clean -fdx`
+    - Publishing: `npm publish*`, `twine upload*`, `pip upload*`
+    - Network listeners: `nc -l*`, `netcat -l*`, `ncat -l*`
+    - Docker destructive: `docker system prune -af`, `docker rm -f $(docker ps -aq)`
+    - Fork bombs: `:(){:|:&};:`
+    - PATH manipulation: `export PATH=`, `unset PATH`
+  - **Files Changed**:
+    - `plugins/autonomous-dev/config/auto_approve_policy.json` - v2.0 with permissive mode
+    - `docs/TOOL-AUTO-APPROVAL.md` - Updated documentation for v3.40.0
+    - `CLAUDE.md` - Updated MCP Auto-Approval section
+  - **User Impact**: Zero friction for legitimate dev commands, no manual whitelist maintenance
+
 - **Path-based Containment Validation for Destructive Commands** - Enhanced security for tool_validator.py
   - **Feature**: Prevent path traversal and symlink attacks when rm/mv/cp/chmod/chown commands are executed by subagents
   - **Motivation**: Subagents can now execute destructive commands safely with automatic path validation to prevent CWE-22 (path traversal) and CWE-59 (symlink attacks)
