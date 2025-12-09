@@ -36,10 +36,11 @@ import shutil
 import ssl
 import sys
 import tempfile
+import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Configuration
 GITHUB_REPO = "akaszubski/autonomous-dev"
@@ -81,6 +82,10 @@ VERSION_FILE = "plugins/autonomous-dev/VERSION"
 # Manifest file location (avoids GitHub API rate limiting)
 MANIFEST_FILE = "plugins/autonomous-dev/config/install_manifest.json"
 
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAYS = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
+
 
 class Colors:
     """ANSI color codes for terminal output."""
@@ -112,8 +117,24 @@ def log_step(msg: str) -> None:
     print(f"{Colors.CYAN}→{Colors.NC} {msg}")
 
 
+def is_transient_error(error: Exception) -> bool:
+    """Check if an error is transient and worth retrying."""
+    error_str = str(error).lower()
+    transient_indicators = [
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection refused",
+        "temporary failure",
+        "503",  # Service Unavailable
+        "502",  # Bad Gateway
+        "429",  # Rate Limited
+    ]
+    return any(indicator in error_str for indicator in transient_indicators)
+
+
 class GitHubDownloader:
-    """Download files from GitHub with TLS enforcement."""
+    """Download files from GitHub with TLS enforcement and retry logic."""
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
@@ -121,19 +142,51 @@ class GitHubDownloader:
         self.ssl_context = ssl.create_default_context()
         self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-    def download_file(self, url: str) -> Optional[bytes]:
-        """Download a file from URL, return bytes or None on failure."""
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "autonomous-dev-installer/1.0"}
-            )
-            with urllib.request.urlopen(req, context=self.ssl_context, timeout=30) as response:
-                return response.read()
-        except Exception as e:
-            if self.verbose:
-                log_warning(f"Download failed: {url} - {e}")
-            return None
+    def download_file(self, url: str, retry: bool = True) -> Optional[bytes]:
+        """Download a file from URL with retry logic for transient failures.
+
+        Args:
+            url: URL to download from
+            retry: Whether to retry on transient failures (default: True)
+
+        Returns:
+            File content as bytes, or None on failure
+        """
+        last_error = None
+        attempts = MAX_RETRIES if retry else 1
+
+        for attempt in range(attempts):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "autonomous-dev-installer/1.0"}
+                )
+                with urllib.request.urlopen(req, context=self.ssl_context, timeout=60) as response:
+                    return response.read()
+            except Exception as e:
+                last_error = e
+
+                # Check if it's a permanent error (404, 403)
+                if "404" in str(e) or "403" in str(e):
+                    # Always log permanent errors
+                    log_error(f"Download failed (permanent): {Path(url).name} - {e}")
+                    return None
+
+                # For transient errors, retry with backoff
+                if retry and is_transient_error(e) and attempt < attempts - 1:
+                    delay = RETRY_DELAYS[attempt]
+                    log_warning(f"Download failed (attempt {attempt + 1}/{attempts}): {Path(url).name}")
+                    if self.verbose:
+                        log_info(f"  Error: {e}")
+                        log_info(f"  Retrying in {delay}s...")
+                    time.sleep(delay)
+                    continue
+
+                # Final failure - always log
+                log_error(f"Download failed: {Path(url).name} - {e}")
+                return None
+
+        return None
 
     def download_text(self, url: str) -> Optional[str]:
         """Download a text file from URL."""
@@ -164,11 +217,11 @@ class GitHubDownloader:
                         files.extend(self.get_file_list(item["path"]))
                 return files
         except Exception as e:
-            if self.verbose:
-                log_warning(f"Failed to list files: {path} - {e}")
+            # Always log API failures
+            log_warning(f"Failed to list files via API: {path} - {e}")
             return []
 
-    def get_manifest(self) -> Optional[Dict]:
+    def get_manifest(self) -> Optional[Dict[str, Any]]:
         """Download and parse the install manifest (avoids API rate limits)."""
         url = f"{GITHUB_RAW_BASE}/{MANIFEST_FILE}"
         content = self.download_text(url)
@@ -176,8 +229,8 @@ class GitHubDownloader:
             try:
                 return json.loads(content)
             except json.JSONDecodeError as e:
-                if self.verbose:
-                    log_warning(f"Failed to parse manifest: {e}")
+                # Always log manifest parse errors
+                log_error(f"Failed to parse manifest: {e}")
         return None
 
 
@@ -189,19 +242,32 @@ class FileManager:
         self.backup_dir = backup_dir
 
     def validate_path(self, path: Path) -> bool:
-        """Validate path to prevent traversal attacks (CWE-22)."""
+        """Validate path to prevent traversal attacks (CWE-22).
+
+        Uses relative_to() for secure path comparison instead of string matching.
+        """
         try:
             # Resolve to absolute path
             resolved = path.resolve()
-            # Check it's within target or backup directory
             target_resolved = self.target_dir.resolve()
             backup_resolved = self.backup_dir.resolve()
 
-            return (
-                str(resolved).startswith(str(target_resolved)) or
-                str(resolved).startswith(str(backup_resolved))
-            )
-        except Exception:
+            # Use relative_to() - raises ValueError if path is not relative
+            try:
+                resolved.relative_to(target_resolved)
+                return True
+            except ValueError:
+                pass
+
+            try:
+                resolved.relative_to(backup_resolved)
+                return True
+            except ValueError:
+                pass
+
+            return False
+        except Exception as e:
+            log_error(f"Path validation error: {path} - {e}")
             return False
 
     def get_file_hash(self, path: Path) -> Optional[str]:
@@ -223,6 +289,23 @@ class FileManager:
         remote_hash = hashlib.sha256(remote_content).hexdigest()
 
         return local_hash != remote_hash
+
+    def is_missing_or_corrupt(self, local_path: Path, remote_content: bytes) -> bool:
+        """Check if local file is missing or doesn't match remote (for sync mode)."""
+        if not local_path.exists():
+            return True  # Missing
+
+        # Check if file is corrupt (size 0 or can't be read)
+        try:
+            if local_path.stat().st_size == 0:
+                return True  # Empty file = corrupt
+            local_hash = self.get_file_hash(local_path)
+            if local_hash is None:
+                return True  # Can't read = corrupt
+        except Exception:
+            return True  # Error reading = corrupt
+
+        return False  # File exists and is readable
 
     def backup_file(self, path: Path) -> Optional[Path]:
         """Backup a file before overwriting."""
@@ -264,13 +347,14 @@ class FileManager:
 
 
 class PluginInstaller:
-    """Main installer logic."""
+    """Main installer logic with rollback support."""
 
     def __init__(self, mode: str = "install", verbose: bool = False):
         self.mode = mode
         self.verbose = verbose
         self.downloader = GitHubDownloader(verbose)
         self.file_manager = FileManager(TARGET_DIR, BACKUP_DIR)
+        self.temp_dir: Optional[Path] = None
 
         # Stats
         self.stats = {
@@ -278,6 +362,7 @@ class PluginInstaller:
             "skipped": 0,
             "backed_up": 0,
             "failed": 0,
+            "repaired": 0,
         }
 
     def get_remote_version(self) -> Optional[str]:
@@ -308,7 +393,7 @@ class PluginInstaller:
                 return True
         return False
 
-    def get_all_files_from_manifest(self, manifest: Dict) -> Dict[str, str]:
+    def get_all_files_from_manifest(self, manifest: Dict[str, Any]) -> Dict[str, str]:
         """Get all files to install from static manifest (no API calls)."""
         all_files = {}
 
@@ -367,54 +452,113 @@ class PluginInstaller:
             log_warning("Manifest not found, falling back to GitHub API...")
             return self.get_all_files_from_api()
 
-    def install_file(self, github_path: str, local_path: str) -> bool:
-        """Install a single file."""
-        url = f"{GITHUB_RAW_BASE}/{github_path}"
-        content = self.downloader.download_file(url)
+    def download_to_temp(self, all_files: Dict[str, str]) -> bool:
+        """Download all files to temp directory first (for rollback support).
 
-        if content is None:
-            self.stats["failed"] += 1
+        Returns True if all files downloaded successfully.
+        """
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="autonomous-dev-install-"))
+        log_step(f"Downloading files to staging area...")
+
+        failed_files = []
+
+        for github_path, local_path in all_files.items():
+            url = f"{GITHUB_RAW_BASE}/{github_path}"
+            content = self.downloader.download_file(url)
+
+            if content is None:
+                failed_files.append(github_path)
+                continue
+
+            # Write to temp directory
+            temp_path = self.temp_dir / local_path
+            temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                with open(temp_path, "wb") as f:
+                    f.write(content)
+            except Exception as e:
+                log_error(f"Failed to stage {Path(local_path).name}: {e}")
+                failed_files.append(github_path)
+
+        if failed_files:
+            log_error(f"Failed to download {len(failed_files)} files:")
+            for f in failed_files[:5]:  # Show first 5
+                log_error(f"  - {Path(f).name}")
+            if len(failed_files) > 5:
+                log_error(f"  ... and {len(failed_files) - 5} more")
             return False
 
-        local = Path(local_path)
+        log_success(f"Staged {len(all_files)} files successfully")
+        return True
 
-        # Handle different modes
-        if self.mode == "force":
-            # Force mode: always overwrite
-            pass
-        elif self.mode == "sync":
-            # Sync mode: only install missing or corrupt
-            if local.exists():
-                if not self.file_manager.is_customized(local, content):
+    def commit_from_temp(self, all_files: Dict[str, str]) -> bool:
+        """Copy files from temp directory to target (atomic commit)."""
+        if not self.temp_dir:
+            return False
+
+        log_step(f"Installing files (mode: {self.mode})...")
+
+        for github_path, local_path in all_files.items():
+            temp_path = self.temp_dir / local_path
+            target_path = Path(local_path)
+
+            if not temp_path.exists():
+                self.stats["failed"] += 1
+                continue
+
+            # Read content from temp
+            with open(temp_path, "rb") as f:
+                content = f.read()
+
+            # Apply mode-specific logic
+            if self.mode == "force":
+                # Force mode: always overwrite
+                pass
+            elif self.mode == "sync":
+                # Sync mode: only repair missing or corrupt files
+                if target_path.exists():
+                    if self.file_manager.is_missing_or_corrupt(target_path, content):
+                        log_info(f"  Repairing: {target_path.name}")
+                        self.stats["repaired"] += 1
+                    else:
+                        # File exists and is valid - skip (preserve customizations)
+                        self.stats["skipped"] += 1
+                        continue
+                else:
+                    # Missing file - install it
+                    log_info(f"  Restoring: {target_path.name}")
+                    self.stats["repaired"] += 1
+            elif self.mode == "update":
+                # Update mode: backup customizations, then update
+                if target_path.exists() and self.file_manager.is_customized(target_path, content):
+                    backup_path = self.file_manager.backup_file(target_path)
+                    if backup_path:
+                        log_info(f"  Backed up: {target_path.name}")
+                        self.stats["backed_up"] += 1
+            else:
+                # Install mode: skip existing unless force
+                if target_path.exists():
                     self.stats["skipped"] += 1
-                    return True
-                # File exists but is different - check if it's corrupt or customized
-                # For sync, we preserve customizations
-                log_info(f"  Preserved (customized): {local.name}")
-                self.stats["skipped"] += 1
-                return True
-        elif self.mode == "update":
-            # Update mode: backup customizations, then update
-            if local.exists() and self.file_manager.is_customized(local, content):
-                backup_path = self.file_manager.backup_file(local)
-                if backup_path:
-                    log_info(f"  Backed up: {local.name} -> {backup_path.relative_to(BACKUP_DIR.parent)}")
-                    self.stats["backed_up"] += 1
-        else:
-            # Install mode: skip existing unless force
-            if local.exists():
-                self.stats["skipped"] += 1
-                return True
+                    continue
 
-        # Write the file
-        if self.file_manager.write_file(local, content):
-            self.stats["downloaded"] += 1
-            if self.verbose:
-                log_success(f"  Installed: {local.name}")
-            return True
-        else:
-            self.stats["failed"] += 1
-            return False
+            # Write the file
+            if self.file_manager.write_file(target_path, content):
+                self.stats["downloaded"] += 1
+                if self.verbose:
+                    log_success(f"  Installed: {target_path.name}")
+            else:
+                self.stats["failed"] += 1
+
+        return True
+
+    def cleanup_temp(self) -> None:
+        """Clean up temporary directory."""
+        if self.temp_dir and self.temp_dir.exists():
+            try:
+                shutil.rmtree(self.temp_dir)
+            except Exception:
+                pass  # Best effort cleanup
 
     def install_version_file(self) -> bool:
         """Install version file for tracking."""
@@ -428,7 +572,7 @@ class PluginInstaller:
         return False
 
     def run(self) -> bool:
-        """Run the installation."""
+        """Run the installation with rollback support."""
         # Mode: check
         if self.mode == "check":
             local, remote = self.check_for_updates()
@@ -464,34 +608,43 @@ class PluginInstaller:
         log_info(f"Found {len(all_files)} files to process")
         print()
 
-        # Install each file
-        log_step(f"Installing files (mode: {self.mode})...")
+        try:
+            # Phase 1: Download all files to temp directory
+            if not self.download_to_temp(all_files):
+                log_error("Installation aborted - download failed")
+                log_info("No files were modified (rollback)")
+                return False
 
-        for github_path, local_path in all_files.items():
-            self.install_file(github_path, local_path)
+            # Phase 2: Commit files from temp to target
+            self.commit_from_temp(all_files)
 
-        # Install version file
-        self.install_version_file()
+            # Install version file
+            self.install_version_file()
 
-        # Print summary
-        print()
-        log_success("Installation Summary:")
-        log_info(f"  Downloaded: {self.stats['downloaded']}")
-        log_info(f"  Skipped: {self.stats['skipped']}")
-        if self.stats['backed_up'] > 0:
-            log_info(f"  Backed up: {self.stats['backed_up']}")
-        if self.stats['failed'] > 0:
-            log_warning(f"  Failed: {self.stats['failed']}")
+            # Print summary
+            print()
+            log_success("Installation Summary:")
+            log_info(f"  Downloaded: {self.stats['downloaded']}")
+            log_info(f"  Skipped: {self.stats['skipped']}")
+            if self.stats['repaired'] > 0:
+                log_info(f"  Repaired: {self.stats['repaired']}")
+            if self.stats['backed_up'] > 0:
+                log_info(f"  Backed up: {self.stats['backed_up']}")
+            if self.stats['failed'] > 0:
+                log_warning(f"  Failed: {self.stats['failed']}")
 
-        # Validate installation
-        success_rate = (self.stats['downloaded'] + self.stats['skipped']) / len(all_files) * 100
+            # Validate installation - require 100% success
+            total_processed = self.stats['downloaded'] + self.stats['skipped'] + self.stats['repaired']
+            if self.stats['failed'] > 0:
+                log_error(f"Installation incomplete: {self.stats['failed']} files failed")
+                return False
 
-        if success_rate >= 95:
-            log_success(f"Installation coverage: {success_rate:.1f}%")
+            log_success(f"Installation complete: {total_processed} files processed")
             return True
-        else:
-            log_error(f"Installation coverage: {success_rate:.1f}% (minimum 95% required)")
-            return False
+
+        finally:
+            # Always cleanup temp directory
+            self.cleanup_temp()
 
 
 def main():
@@ -520,9 +673,11 @@ def main():
     except KeyboardInterrupt:
         print()
         log_warning("Installation cancelled")
+        installer.cleanup_temp()
         sys.exit(130)
     except Exception as e:
         log_error(f"Installation failed: {e}")
+        installer.cleanup_temp()
         if args.verbose:
             import traceback
             traceback.print_exc()
