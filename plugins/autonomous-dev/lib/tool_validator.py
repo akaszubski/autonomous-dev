@@ -79,20 +79,32 @@ DEFAULT_POLICY_FILE = Path(__file__).parent.parent / "config" / "auto_approve_po
 
 # Command injection detection patterns (CWE-78)
 # Format: (pattern, reason_name)
+# NOTE: Patterns are targeted to dangerous combinations, not broad operators
+# This allows legitimate shell usage like "cmd1 && cmd2" while blocking "cmd; rm -rf"
 INJECTION_PATTERNS = [
     (r'\r', 'carriage_return'),                   # Carriage return injection (CWE-117)
     (r'\x00', 'null_byte'),                       # Null byte injection (CWE-158)
-    (r';', 'semicolon'),                          # Command chaining with semicolon (any semicolon)
-    (r'&&', 'ampersand'),                         # AND command chaining (any &&)
-    (r'\|\|', 'or'),                              # OR command chaining (any ||)
-    (r'\|\s+bash\b', 'pipe'),                     # Pipe to bash (dangerous)
-    (r'\|\s+sh\b', 'pipe'),                       # Pipe to sh (dangerous)
+    # Targeted dangerous command chains (not all operators)
+    (r';\s*rm\s', 'semicolon_rm'),                # Semicolon followed by rm
+    (r';\s*sudo\s', 'semicolon_sudo'),            # Semicolon followed by sudo
+    (r';\s*chmod\s', 'semicolon_chmod'),          # Semicolon followed by chmod
+    (r';\s*chown\s', 'semicolon_chown'),          # Semicolon followed by chown
+    (r';\s*eval\s', 'semicolon_eval'),            # Semicolon followed by eval
+    (r';\s*exec\s', 'semicolon_exec'),            # Semicolon followed by exec
+    (r'&&\s*rm\s', 'and_rm'),                     # AND followed by rm
+    (r'&&\s*sudo\s', 'and_sudo'),                 # AND followed by sudo
+    (r'\|\|\s*rm\s', 'or_rm'),                    # OR followed by rm
+    (r'\|\|\s*sudo\s', 'or_sudo'),                # OR followed by sudo
+    (r'\|\s*bash\b', 'pipe_to_bash'),             # Pipe to bash (dangerous)
+    (r'\|\s*sh\b', 'pipe_to_sh'),                 # Pipe to sh (dangerous)
+    (r'\|\s*zsh\b', 'pipe_to_zsh'),               # Pipe to zsh (dangerous)
     (r'`[^`]+`', 'backticks'),                    # Command substitution (backticks)
-    (r'\$\([^)]+\)', 'command substitution'),     # Command substitution $(...)
+    (r'\$\([^)]+\)', 'command_substitution'),     # Command substitution $(...)
     (r'\n', 'newline'),                           # Newline command injection (any newline)
-    (r'>\s*/etc/', 'output redirection'),         # Output redirection to /etc
-    (r'>\s*/var/', 'output redirection'),         # Output redirection to /var
-    (r'>\s*/root/', 'output redirection'),        # Output redirection to /root
+    (r'>\s*/etc/', 'output_redirection_etc'),     # Output redirection to /etc
+    (r'>\s*/var/', 'output_redirection_var'),     # Output redirection to /var
+    (r'>\s*/root/', 'output_redirection_root'),   # Output redirection to /root
+    (r'>\s*/System/', 'output_redirection_sys'),  # Output redirection to /System (macOS)
 ]
 
 # Compile injection patterns for performance
@@ -551,8 +563,9 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        elif tool in ("AskUserQuestion", "Task", "Skill", "SlashCommand", "BashOutput", "NotebookEdit"):
-            # Always allow these tools - they're either interactive or delegating
+        elif tool in ("AskUserQuestion", "Task", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
+                      "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell"):
+            # Always allow these tools - they're either interactive, delegating, or workflow management
             return ValidationResult(
                 approved=True,
                 reason=f"{tool} allowed (interactive/delegating tool)",

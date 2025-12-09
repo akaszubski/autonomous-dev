@@ -3,26 +3,54 @@
   "customInstructions": "STRICT MODE ACTIVE: When user requests a feature using natural language (e.g., 'implement X', 'add Y', 'create Z'), you MUST automatically invoke the /auto-implement command with their request. Do not just respond conversationally - actually run the command. Example: User says 'add Redis caching' → You run: /auto-implement 'add Redis caching'. This ensures orchestrator validates PROJECT.md alignment before any work begins.",
   "permissions": {
     "allow": [
-      "*"
+      "Bash(:*)",
+      "Read(**)",
+      "Write(**)",
+      "Edit(**)",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "Task",
+      "WebFetch",
+      "WebSearch",
+      "TodoWrite",
+      "ExitPlanMode",
+      "BashOutput",
+      "KillShell",
+      "AskUserQuestion",
+      "Skill",
+      "SlashCommand",
+      "EnterPlanMode",
+      "AgentOutputTool",
+      "mcp__"
     ],
     "deny": [
-      "Read(~/.ssh/*)",
-      "Read(~/.aws/*)",
-      "Read(**/.env)",
-      "Write(~/.ssh/*)",
-      "Write(~/.aws/*)",
-      "Write(/etc/*)",
-      "Write(/usr/*)",
-      "Write(/System/*)",
-      "Bash(rm -rf /*)",
-      "Bash(sudo *)"
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(**/credentials/**)",
+      "Write(~/.ssh/**)",
+      "Write(~/.aws/**)",
+      "Write(/etc/**)",
+      "Write(/usr/**)",
+      "Write(/System/**)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(sudo:*)",
+      "Bash(chmod 777:*)",
+      "Bash(eval:*)",
+      "Bash(curl*|*bash)",
+      "Bash(wget*|*bash)"
     ],
-    "ask": []
+    "ask": [],
+    "disableBypassPermissionsMode": "disable"
   },
   "hooks": {
     "UserPromptSubmit": [
       {
-        "description": "Display PROJECT.md context reminder",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -31,7 +59,7 @@
         ]
       },
       {
-        "description": "Auto-detect feature requests and invoke orchestrator",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -42,18 +70,9 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write",
-        "description": "Auto-format on file write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "description": "Auto-format on file edit",
+        "matcher": {
+          "tools": ["Write", "Edit"]
+        },
         "hooks": [
           {
             "type": "command",
@@ -64,7 +83,7 @@
     ],
     "PreCommit": [
       {
-        "description": "Strict mode enforcement - 100% compliance required",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -99,7 +118,7 @@
     ],
     "SubagentStop": [
       {
-        "description": "Log agent completion to session",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",

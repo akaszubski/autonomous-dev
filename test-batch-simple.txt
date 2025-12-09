@@ -1,8 +1,0 @@
-# Test batch implementation with 2 simple features
-# Each feature should take ~20-30 minutes
-
-# Feature 1: Simple utility function
-Add a function to calculate fibonacci numbers in plugins/autonomous-dev/lib/math_utils.py
-
-# Feature 2: Simple validation
-Add input validation for fibonacci function (must be positive integer)
