@@ -1,6 +1,298 @@
 ## [Unreleased]
 
 ### Added
+- **Feature #111: Parallel Deep Research Capabilities**
+  - **Issue**: Researcher agent processes sources sequentially, missing parallel optimization
+  - **Solution**: Add quality scoring, consensus detection, and diminishing returns analysis
+  - **New Library**: `research_quality_scorer.py` (Issue #111)
+    - Source quality scoring: authority (50%) + recency (30%) + relevance (20%)
+    - Consensus detection across multiple sources (similarity threshold 0.7)
+    - Diminishing returns detection with configurable threshold (0.3)
+    - Safe URL validation to prevent XSS and injection attacks
+    - Configurable rate limiting (3 parallel searches, exponential backoff)
+  - **Configuration**: `plugins/autonomous-dev/config/research_rate_limits.json`
+    - Web search: max_parallel (3), backoff_strategy (exponential)
+    - Deep dive: max_depth (2), diminishing_threshold (0.3), min_quality_score (0.6)
+    - Consensus: similarity_threshold (0.7), min_sources (3)
+  - **Agent Enhancement**: researcher agent now uses quality scoring for source ranking
+    - Parallel searches with exponential backoff to prevent rate limiting
+    - Consensus detection to identify reliable information
+    - Diminishing returns detection to optimize research depth
+  - **Testing**: 41 tests in `tests/unit/lib/test_research_quality_scorer.py`
+    - Quality scoring (8 tests)
+    - Source ranking (5 tests)
+    - Consensus detection (6 tests)
+    - Diminishing returns (7 tests)
+    - Security validation (8 tests)
+    - Edge cases (7 tests)
+  - **Libraries Updated**: [docs/LIBRARIES.md](docs/LIBRARIES.md) - Added section 30
+  - **Agents Updated**: [docs/AGENTS.md](docs/AGENTS.md) - Enhanced researcher capabilities
+
+
+### Added
+- **Feature #113: Make PreToolUse Hook Path Dynamic (Portable)**
+  - **Issue**: Hardcoded absolute paths in hook configurations break when users move projects or clone to different machines
+- **Feature #112: Hook Format Migration to Claude Code 2.0**
+  - **Issue**: Legacy hook format from Claude Code 1.x incompatible with Claude Code 2.0 structured hook system
+  - **Solution**: Automatic detection and migration during plugin install/update to Claude Code 2.0 format
+  - **Key Features**:
+    - Format detection: `validate_hook_format()` identifies legacy vs modern CC2 format
+    - Automatic migration: `migrate_hook_format_cc2()` transforms legacy settings to CC2 format
+    - Backup creation: `_backup_settings()` creates timestamped backups before migration
+    - Non-blocking: Migration failures don't block plugin update
+    - Idempotent: Safe to run multiple times on same settings
+    - Backwards compatible: Legacy settings continue to work unchanged
+  - **Detection Criteria**:
+    - Legacy indicators: Missing `timeout` fields, flat command strings, missing nested `hooks` arrays
+    - Modern CC2: All hooks have `timeout`, nested dicts with matchers containing `hooks` arrays
+  - **Implementation**:
+    - ENHANCED: plugins/autonomous-dev/lib/hook_activator.py (938 lines, +399 lines)
+      - NEW: validate_hook_format(settings_data) - Detect legacy vs CC2 format
+      - NEW: migrate_hook_format_cc2(settings_data) - Auto-migrate legacy to CC2 format
+      - NEW: _backup_settings(settings_path) - Create timestamped backups
+      - ENHANCED: activate_hooks() - Integrated format migration workflow
+  - **Transformations Applied**:
+    - Adds `timeout: 5` to all hooks missing it
+    - Converts flat string commands to nested dict structure
+    - Wraps commands in nested `hooks` array if missing
+    - Adds `matcher: '*'` if missing
+    - Preserves user customizations (custom timeouts, matchers)
+  - **Backup Strategy**:
+    - Timestamped filename: `settings.json.backup.YYYYMMDD_HHMMSS`
+    - Atomic write: tempfile + rename
+    - Secure permissions: 0o600 (user-only)
+    - Path validation via security_utils (CWE-22, CWE-59 prevention)
+  - **Migration Workflow**:
+    1. During plugin update, detect if settings are in legacy format
+    2. If legacy detected, create timestamped backup
+    3. Transform settings to CC2 format (deep copy, original unchanged)
+    4. Write migrated settings atomically
+    5. Log migration details to audit log
+  - **Testing**:
+    - NEW: 28 migration tests in test_hook_activator.py
+    - Format detection: 8 tests (legacy detection, modern format, edge cases)
+    - Migration conversion: 12 tests (flat strings, nested dicts, timeout handling)
+    - Backup creation: 5 tests (timestamp, permissions, atomic write)
+    - Error handling: 3 tests (validation errors, graceful degradation)
+  - **Documentation Updated**:
+    - ENHANCED: docs/LIBRARIES.md section 9 (hook_activator.py API)
+    - ENHANCED: docs/HOOKS.md (CC2 format documentation)
+  - **Related**: GitHub Issue #112
+
+  - **Solution**: Dynamic hook path resolution with fallback chain enables portable hook setup
+  - **Key Features**:
+    - Portable path: Hooks use ~/.claude/hooks/pre_tool_use.py instead of absolute paths
+    - Dynamic resolution: find_lib_directory() checks multiple locations:
+      1. Development: plugins/autonomous-dev/lib (relative to hook)
+      2. Local install: ~/.claude/lib
+      3. Marketplace: ~/.claude/plugins/autonomous-dev/lib
+    - Graceful fallback: If lib not found, hook still validates MCP operations safely
+    - Migration script: Automatic path update for existing users via migrate_hook_paths.py
+  - **Implementation**:
+    - ENHANCED: plugins/autonomous-dev/hooks/pre_tool_use.py
+      - NEW: find_lib_directory(hook_path) - Dynamic lib discovery with fallback chain
+      - IMPROVED: Graceful degradation when lib directory not found
+    - NEW: plugins/autonomous-dev/scripts/migrate_hook_paths.py
+      - Detects hardcoded paths in ~/.claude/settings.json
+      - Replaces with portable ~/.claude/hooks/pre_tool_use.py
+      - Supports --dry-run, --verbose, --rollback
+      - Creates timestamped backups automatically
+  - **Migration Instructions**:
+    - Preview: python plugins/autonomous-dev/scripts/migrate_hook_paths.py --dry-run --verbose
+    - Apply: python plugins/autonomous-dev/scripts/migrate_hook_paths.py --verbose
+    - Rollback: python plugins/autonomous-dev/scripts/migrate_hook_paths.py --rollback backup-path
+  - **Testing**:
+    - NEW: tests/unit/test_hook_path_migration.py (18 tests)
+    - NEW: tests/integration/test_hook_path_portability.py (12 tests)
+  - **Backwards Compatibility**: Hardcoded paths continue to work; hook resolves lib dynamically
+  - **Configuration**: settings.default.json uses portable path ~/.claude/hooks/pre_tool_use.py
+  - **Documentation Updated**:
+    - ENHANCED: docs/HOOKS.md (dynamic path resolution in pre_tool_use)
+    - ENHANCED: docs/LIBRARIES.md (migrate_hook_paths.py library reference)
+    - NEW: docs/TROUBLESHOOTING.md (migration instructions)
+  - **Related**: GitHub Issue #113
+
+- **Feature #114: Permission Validation and Fixing During Updates**
+  - **Issue**: Plugin updates may leave settings.local.json with dangerous wildcard patterns or missing deny lists
+  - **Solution**: Automatic validation and fixing during /update-plugin with non-blocking error handling
+  - **Key Features**:
+    - Detects dangerous patterns: Bash(*) wildcards, Bash(:*) wildcards, missing/empty deny lists
+    - Auto-fix workflow: Backup → Validate → Fix → Write atomically
+    - Preserves user customizations: Only replaces wildcards and adds deny list
+    - Non-blocking: Update succeeds even if permission fix fails
+    - Graceful degradation: Handles corrupted JSON with regeneration from template
+  - **Validation Checks**:
+    - Wildcard patterns: Bash(*) → error severity, Bash(:*) → warning severity
+    - Missing deny list → error severity
+    - Empty deny list → error severity
+  - **Fix Process**:
+    1. Detect issues via validate_permission_patterns()
+    2. Backup existing settings.local.json
+    3. Replace wildcards with specific patterns (Bash(git:*), Bash(pytest:*))
+    4. Add comprehensive deny list (50+ dangerous patterns)
+    5. Preserve user hooks and valid custom patterns
+    6. Write fixed settings atomically
+  - **Implementation**:
+    - MODIFIED: plugins/autonomous-dev/lib/settings_generator.py (added validation functions)
+      - NEW: validate_permission_patterns() - Detects permission issues with severity levels
+      - NEW: fix_permission_patterns() - Fixes issues while preserving customizations
+      - NEW: PermissionIssue dataclass - Details about detected issues
+      - NEW: ValidationResult dataclass - Result of validation with issues list
+    - MODIFIED: plugins/autonomous-dev/lib/plugin_updater.py (integrated permission fix)
+      - NEW: _validate_and_fix_permissions() - Non-blocking validation/fix during update
+      - NEW: _backup_settings_file() - Creates timestamped backups
+      - NEW: PermissionFixResult dataclass - Result of permission fix operation
+      - ENHANCED: UpdateResult dataclass - Added permission_fix_result attribute
+  - **Testing**:
+    - NEW: tests/unit/lib/test_settings_generator_validation.py (27 tests)
+      - Pattern validation (wildcards, deny list, severity levels)
+      - Fix function (preserve hooks, replace wildcards, add deny list)
+      - Edge cases (empty settings, missing keys, corrupted data)
+    - NEW: tests/unit/lib/test_plugin_updater_permissions.py (20 tests)
+      - Permission validation workflow (detect, backup, fix, write)
+      - Non-blocking behavior (update succeeds even if fix fails)
+      - Corrupted JSON handling (backup and regenerate)
+      - Result tracking (issues found, fixes applied, backup paths)
+    - NEW: tests/integration/test_update_permission_fix.py (15 tests)
+      - End-to-end update with permission fix
+      - Backup and restore scenarios
+      - User customization preservation
+      - Security validation (audit logs, permissions)
+  - **Security**:
+    - Atomic writes with secure permissions (0o600)
+    - Timestamped backups in .claude/backups/
+    - Audit logging for all operations
+    - Path validation (CWE-22, CWE-59)
+    - Non-blocking design: No data loss if fix fails
+  - **User Impact**:
+    - Automatic: Permission fix runs during every /update-plugin
+    - Transparent: Backup created before any changes
+    - Safe: Update succeeds even if permission fix fails
+    - Preserved: User hooks and custom patterns kept intact
+    - Informed: Clear messages about detected issues and applied fixes
+  - **Documentation Updated**:
+    - ENHANCED: CHANGELOG.md (this entry)
+    - ENHANCED: docs/LIBRARIES.md section 47 (settings_generator validation API)
+    - ENHANCED: CLAUDE.md (updated library references)
+  - **Related**: GitHub Issue #114 (Permission Validation During Updates)
+
+- **Feature #115: Settings Generator - NO Wildcards, Specific Patterns Only**
+  - **Issue**: Need automatic settings.local.json generation with security-first design
+  - **Solution**: New SettingsGenerator library creates settings with specific command patterns (NO wildcards)
+  - **Key Features**:
+    - Specific patterns only: `Bash(git:*)`, `Bash(pytest:*)` (NEVER `Bash(*)`)
+    - Comprehensive deny list: Blocks rm -rf, sudo, eval, chmod, dangerous git operations
+    - Command auto-discovery: Scans `plugins/autonomous-dev/commands/*.md` for slash commands
+    - User customization preservation: Merges with existing settings during upgrades
+    - Atomic writes: Secure permissions (0o600) with proper error handling
+  - **Security**:
+    - Path validation (CWE-22 path traversal, CWE-59 symlinks)
+    - Command injection prevention (validates pattern syntax)
+    - 50+ deny patterns blocking destructive operations
+    - Audit logging for all operations
+  - **Implementation**:
+    - NEW: `plugins/autonomous-dev/lib/settings_generator.py` (749 lines)
+    - NEW: `plugins/autonomous-dev/templates/settings.default.json`
+    - NEW: `tests/unit/lib/test_settings_generator.py` (56 tests)
+    - NEW: `tests/integration/test_install_settings_generation.py` (29 tests)
+  - **Documentation Updated**:
+    - ENHANCED: `docs/LIBRARIES.md` section 47 (complete API documentation)
+    - ENHANCED: `CLAUDE.md` (updated library count: 42 → 43)
+  - **User Impact**:
+    - Fresh install: Auto-generates settings.local.json with secure defaults
+    - Marketplace sync: Merges new patterns while preserving user customizations
+    - Upgrade: Backups existing settings before merge
+  - **Related**: GitHub Issue #115 (Settings Generator)
+
+- **Feature #117: Global Settings Configuration - Merge Broken Patterns**
+  - **Issue**: Plugin installations and updates may leave users with broken Bash(:*) patterns in ~/.claude/settings.json, requiring manual intervention to fix global settings
+  - **Solution**: Add merge_global_settings() method to SettingsGenerator for automatic pattern fixing and user customization preservation
+  - **Key Features**:
+    - Detect and fix broken patterns: Bash(:*) to specific patterns like Bash(git:*), Bash(python:*), Bash(pytest:*), etc.
+    - Preserve user customizations: Keep valid custom patterns and hooks completely unchanged
+    - Merge workflow: Template patterns + User customizations = Final settings
+    - Atomic writes: Prevent corruption during updates with tempfile + rename
+    - Backup on modification: Create ~/.claude/settings.json.backup before any changes
+    - Smart merge strategy: Union of patterns (template + user = combined set)
+    - Validation after merge: Ensure final settings are valid and secure
+  - **Implementation**:
+    - NEW: plugins/autonomous-dev/config/global_settings_template.json (65 lines)
+      - Allowlist: Safe Bash operations (git, python, pytest, docker, npm, etc.)
+      - Denylist: 10 dangerous patterns (rm -rf, sudo, eval, chmod 777, etc.)
+      - Hooks: Standard hook configuration (PreToolUse)
+    - ENHANCED: plugins/autonomous-dev/lib/settings_generator.py (+222 lines, now 1317 total)
+      - NEW: merge_global_settings(global_path, template_path, fix_wildcards=True, create_backup=True) - Main merge orchestration
+      - NEW: _deep_merge_settings(template, user_settings, fix_wildcards) - Deep merge with pattern fixing
+      - NEW: _fix_wildcard_patterns(settings) - Detect and replace broken patterns
+      - NEW: _validate_merged_settings(settings) - Post-merge validation
+    - NEW: Template file with safe defaults (65 lines)
+  - **Merge Process** (step-by-step):
+    1. Read template from plugins/autonomous-dev/config/global_settings_template.json
+    2. Read existing user settings from ~/.claude/settings.json (if exists)
+    3. Detect broken wildcard patterns in user settings (Bash(:*))
+    4. Fix broken patterns: Bash(:*) replaced with specific patterns
+    5. Deep merge: Take template as base, add user's valid custom patterns
+    6. Strategy:
+       - allowPatterns: Union (template + user patterns)
+       - denyPatterns: Union (template + user patterns)
+       - customHooks: Preserved completely (user's hooks never touched)
+    7. Validate merged settings for correctness
+    8. Backup existing file: ~/.claude/settings.json.backup (only if modifying)
+    9. Write atomically: Tempfile in same directory + atomic rename
+    10. Audit log all operations
+  - **Pattern Fix Examples**:
+    - Broken: Bash(:*) to Fixed: [Bash(git:*), Bash(python:*), Bash(pytest:*), Bash(pip:*), ...]
+    - Preserved: MyCustomPattern (valid custom patterns kept)
+    - Preserved: {"my_hook": "path/to/hook.py"} (user hooks untouched)
+  - **Backup Strategy**:
+    - Location: Same directory as original (~/.claude/settings.json.backup)
+    - Only created if file exists and will be modified
+    - Old backup replaced if exists (one backup per merge)
+    - Can be manually restored if merge causes issues
+  - **Security Features**:
+    - Atomic writes: Tempfile + rename prevents corruption
+    - Backup before modification: Safe recovery if something fails
+    - Path validation: Validates all file operations (CWE-22, CWE-59)
+    - Audit logging: All merge operations logged with context
+    - Validation: Ensures merged settings valid before writing
+  - **Testing**:
+    - NEW: tests/unit/lib/test_global_settings_merge.py (58 tests)
+      - Merge logic: Basic merge, pattern fixing, union semantics (12 tests)
+      - Pattern fixing: Bash(:*) detection and replacement (8 tests)
+      - User customization preservation: Hooks, custom patterns (10 tests)
+      - Backup creation: File management, atomicity (6 tests)
+      - Validation: Post-merge validation (8 tests)
+      - Error handling: Missing files, corrupted JSON, permissions (10 tests)
+      - Edge cases: Empty settings, missing keys, special characters (4 tests)
+    - NEW: tests/integration/test_install_global_config.py (24 tests)
+      - End-to-end merge workflow (6 tests)
+      - Fresh install vs upgrade scenarios (4 tests)
+      - Backup and restore functionality (5 tests)
+      - Corrupted JSON recovery (4 tests)
+      - Real file system operations (5 tests)
+  - **User Scenarios**:
+    - Fresh Install: No existing settings to create new global settings from template
+    - Upgrade: Existing settings to merge template patterns + preserve user customizations
+    - Corrupted File: Broken JSON to backup corrupted file + create new from template
+    - Pattern Fix: Has Bash(:*) to detected and fixed automatically
+    - Custom Patterns: User has valid custom patterns to all preserved in merge
+    - Custom Hooks: User added custom hooks to completely preserved unchanged
+  - **Configuration**:
+    - Template path: plugins/autonomous-dev/config/global_settings_template.json
+    - User settings path: ~/.claude/settings.json
+    - Backup suffix: .backup
+    - Wildcard fix: Controlled via fix_wildcards parameter (default: True)
+    - Backup creation: Controlled via create_backup parameter (default: True)
+  - **Documentation Updated**:
+    - ENHANCED: docs/LIBRARIES.md section 47 (added merge_global_settings() method)
+    - ENHANCED: CLAUDE.md (updated library count and merge_global_settings reference)
+  - **Integration Points**:
+    - Called during plugin installation/update workflows
+    - Can be used standalone via Python API: generator.merge_global_settings(global_path, template_path)
+    - Non-blocking: Merge failures don't stop installation/update
+    - Graceful degradation: If merge fails, uses existing settings or generates new from template
+  - **Related**: GitHub Issue #117 (Global Settings Configuration)
+
 
 - **Feature #110: Skills 500-Line Refactoring - Progressive Disclosure Pattern**
   - **Issue**: 16 skills exceeded 500-line limit, bloating system prompt with detailed content
@@ -2699,6 +2991,34 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- **Feature #115: Settings Generator - NO Wildcards, Specific Patterns Only**
+  - **Issue**: Need automatic settings.local.json generation with security-first design
+  - **Solution**: New SettingsGenerator library creates settings with specific command patterns (NO wildcards)
+  - **Key Features**:
+    - Specific patterns only: `Bash(git:*)`, `Bash(pytest:*)` (NEVER `Bash(*)`)
+    - Comprehensive deny list: Blocks rm -rf, sudo, eval, chmod, dangerous git operations
+    - Command auto-discovery: Scans `plugins/autonomous-dev/commands/*.md` for slash commands
+    - User customization preservation: Merges with existing settings during upgrades
+    - Atomic writes: Secure permissions (0o600) with proper error handling
+  - **Security**:
+    - Path validation (CWE-22 path traversal, CWE-59 symlinks)
+    - Command injection prevention (validates pattern syntax)
+    - 50+ deny patterns blocking destructive operations
+    - Audit logging for all operations
+  - **Implementation**:
+    - NEW: `plugins/autonomous-dev/lib/settings_generator.py` (749 lines)
+    - NEW: `plugins/autonomous-dev/templates/settings.default.json`
+    - NEW: `tests/unit/lib/test_settings_generator.py` (56 tests)
+    - NEW: `tests/integration/test_install_settings_generation.py` (29 tests)
+  - **Documentation Updated**:
+    - ENHANCED: `docs/LIBRARIES.md` section 47 (complete API documentation)
+    - ENHANCED: `CLAUDE.md` (updated library count: 42 → 43)
+  - **User Impact**:
+    - Fresh install: Auto-generates settings.local.json with secure defaults
+    - Marketplace sync: Merges new patterns while preserving user customizations
+    - Upgrade: Backups existing settings before merge
+  - **Related**: GitHub Issue #115 (Settings Generator)
+
 - **Automatic Git Operations Integration** - GitHub Issue #58
   - New hook: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (588 lines) - SubagentStop lifecycle integration
     - Triggers after quality-validator agent completes (last validation agent)
@@ -3835,6 +4155,34 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- **Feature #115: Settings Generator - NO Wildcards, Specific Patterns Only**
+  - **Issue**: Need automatic settings.local.json generation with security-first design
+  - **Solution**: New SettingsGenerator library creates settings with specific command patterns (NO wildcards)
+  - **Key Features**:
+    - Specific patterns only: `Bash(git:*)`, `Bash(pytest:*)` (NEVER `Bash(*)`)
+    - Comprehensive deny list: Blocks rm -rf, sudo, eval, chmod, dangerous git operations
+    - Command auto-discovery: Scans `plugins/autonomous-dev/commands/*.md` for slash commands
+    - User customization preservation: Merges with existing settings during upgrades
+    - Atomic writes: Secure permissions (0o600) with proper error handling
+  - **Security**:
+    - Path validation (CWE-22 path traversal, CWE-59 symlinks)
+    - Command injection prevention (validates pattern syntax)
+    - 50+ deny patterns blocking destructive operations
+    - Audit logging for all operations
+  - **Implementation**:
+    - NEW: `plugins/autonomous-dev/lib/settings_generator.py` (749 lines)
+    - NEW: `plugins/autonomous-dev/templates/settings.default.json`
+    - NEW: `tests/unit/lib/test_settings_generator.py` (56 tests)
+    - NEW: `tests/integration/test_install_settings_generation.py` (29 tests)
+  - **Documentation Updated**:
+    - ENHANCED: `docs/LIBRARIES.md` section 47 (complete API documentation)
+    - ENHANCED: `CLAUDE.md` (updated library count: 42 → 43)
+  - **User Impact**:
+    - Fresh install: Auto-generates settings.local.json with secure defaults
+    - Marketplace sync: Merges new patterns while preserving user customizations
+    - Upgrade: Backups existing settings before merge
+  - **Related**: GitHub Issue #115 (Settings Generator)
+
 - **Complete Agent-Skill Integration (Phase 3)** - All 18 agents now reference relevant skills for enhanced expertise (GitHub Issue #35)
   - Implementation: Added "Relevant Skills" sections to all agent prompt files in `plugins/autonomous-dev/agents/`
   - Coverage: 18 agents with specialized skill access patterns

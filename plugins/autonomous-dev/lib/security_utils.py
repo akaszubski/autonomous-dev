@@ -56,7 +56,7 @@ import os
 import re
 import tempfile
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -197,7 +197,7 @@ def audit_log(event_type: str, status: str, context: Dict[str, Any]) -> None:
 
     # Create audit record
     record = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "event_type": event_type,
         "status": status,
         "context": context

@@ -1,0 +1,65 @@
+{
+  "allowedTools": {
+    "Bash": {
+      "allow_patterns": [
+        "Bash(git:*)",
+        "Bash(python:*)",
+        "Bash(python3:*)",
+        "Bash(pytest:*)",
+        "Bash(pip:*)",
+        "Bash(pip3:*)",
+        "Bash(ls:*)",
+        "Bash(cat:*)",
+        "Bash(gh:*)",
+        "Bash(npm:*)",
+        "Bash(mkdir:*)",
+        "Bash(touch:*)",
+        "Bash(cp:*)",
+        "Bash(mv:*)",
+        "Bash(cd:*)",
+        "Bash(pwd:*)",
+        "Bash(echo:*)",
+        "Bash(head:*)",
+        "Bash(tail:*)",
+        "Bash(wc:*)",
+        "Bash(find:*)",
+        "Bash(grep:*)",
+        "Bash(sort:*)",
+        "Bash(uniq:*)",
+        "Bash(diff:*)",
+        "Bash(ps:*)",
+        "Bash(kill:*)",
+        "Bash(which:*)",
+        "Bash(env:*)",
+        "Bash(export:*)",
+        "Bash(source:*)",
+        "Bash(./scripts:*)",
+        "Bash(bun:*)",
+        "Bash(node:*)",
+        "Bash(yarn:*)",
+        "Bash(pnpm:*)",
+        "Bash(docker:*)",
+        "Bash(make:*)",
+        "Bash(curl:*)",
+        "Bash(wget:*)"
+      ],
+      "deny_patterns": [
+        "Bash(rm:*-rf*)",
+        "Bash(sudo:*)",
+        "Bash(eval:*)",
+        "Bash(chmod:777*)",
+        "Bash(dd:*)",
+        "Bash(mkfs:*)",
+        "Bash(fdisk:*)",
+        "Bash(shutdown:*)",
+        "Bash(reboot:*)",
+        "Bash(init:*)"
+      ]
+    }
+  },
+  "customHooks": {
+    "PreToolUse": [
+      "~/.claude/hooks/auto_approve_tool.py"
+    ]
+  }
+}

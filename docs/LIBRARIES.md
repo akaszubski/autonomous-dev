@@ -1,15 +1,15 @@
 # Shared Libraries Reference
 
-**Last Updated: 2025-12-09
+**Last Updated: 2025-12-13
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 42 shared libraries and utilities in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for all 44 shared libraries and utilities in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **42 shared libraries and utilities** organized into thirteen categories:
+The autonomous-dev plugin includes **44 shared libraries and utilities** organized into thirteen categories:
 
-### Core Libraries (21)
+### Core Libraries (22)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -32,6 +32,7 @@ The autonomous-dev plugin includes **42 shared libraries and utilities** organiz
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
 20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
 21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
+22. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
 
 ### Tracking Libraries (2) - NEW in v3.28.0
 
@@ -45,29 +46,31 @@ The autonomous-dev plugin includes **42 shared libraries and utilities** organiz
 26. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
 27. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
 
-### Utility Libraries (2)
+### Utility Libraries (3) - NEW in v3.45.0
 
 28. **math_utils.py** - Fibonacci calculator with multiple algorithms
 29. **git_hooks.py** - Git hook utilities for larger projects (500+ tests, Issue #94)
+30. **research_quality_scorer.py** - Quality scoring and consensus detection for parallel research (Issue #111)
 
 ### Brownfield Retrofit Libraries (6)
 
-30. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
-31. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
-32. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
-33. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
-34. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
-35. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
+31. **brownfield_retrofit.py** - Phase 0: Project analysis and tech stack detection
+32. **codebase_analyzer.py** - Phase 1: Deep codebase analysis (multi-language)
+33. **alignment_assessor.py** - Phase 2: Gap assessment and 12-Factor compliance
+34. **migration_planner.py** - Phase 3: Migration plan with dependency tracking
+35. **retrofit_executor.py** - Phase 4: Step-by-step execution with rollback
+36. **retrofit_verifier.py** - Phase 5: Verification and readiness assessment
 
 ### MCP Security Libraries (3) - NEW in v3.37.0
 
-38. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
-39. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
-40. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
+39. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
+40. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
+41. **mcp_server_detector.py** - Identifies MCP server type from tool calls to enable server-specific validation (Issue #95)
 
-### Script Utilities (1) - NEW in v3.42.0
+### Script Utilities (2) - NEW in v3.42.0, ENHANCED in v3.44.0
 
-41. **genai_install_wrapper.py** - CLI wrapper for setup-wizard Phase 0 GenAI-first installation with JSON output (Issue #109)
+42. **genai_install_wrapper.py** - CLI wrapper for setup-wizard Phase 0 GenAI-first installation with JSON output (Issue #109)
+43. **migrate_hook_paths.py** - Migrate PreToolUse hook paths from hardcoded to portable ~/.claude/hooks/pre_tool_use.py (Issue #113)
 
 ## Design Patterns
 
@@ -707,9 +710,9 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 9. hook_activator.py (539 lines, v3.8.1+)
+## 9. hook_activator.py (938 lines, v3.8.1+, format migration v3.44.0+)
 
-**Purpose**: Automatic hook activation during plugin updates
+**Purpose**: Automatic hook activation during plugin updates with Claude Code 2.0 format migration (Issue #112)
 
 ### Classes
 
@@ -732,7 +735,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 ### Key Methods
 
 #### `HookActivator.activate_hooks(project_root, plugin_name)`
-- **Purpose**: Activate hooks from new plugin version
+- **Purpose**: Activate hooks from new plugin version with automatic format migration
 - **Parameters**:
   - `project_root` (str|Path): Project root directory
   - `plugin_name` (str): Plugin name
@@ -741,6 +744,7 @@ See `docs/SECURITY.md` for comprehensive security guide
   - First install detection: Checks for existing settings.json file
   - Automatic hook activation: Activates hooks from plugin.json on first install
   - Smart merging: Preserves existing customizations when updating
+  - Format migration: Detects legacy format and auto-migrates to Claude Code 2.0 (Issue #112)
   - Atomic writes: Prevents corruption via tempfile + rename pattern
   - Validation: Structure validation (required fields, hook format)
   - Error recovery: Graceful handling of malformed JSON, permissions issues
@@ -770,22 +774,81 @@ See `docs/SECURITY.md` for comprehensive security guide
 - **Purpose**: Write settings.json atomically
 - **Pattern**: Tempfile + rename
 
+#### `validate_hook_format(settings_data)` (NEW - Issue #112)
+- **Purpose**: Detect legacy vs Claude Code 2.0 hook format
+- **Parameters**:
+  - `settings_data` (Dict): Settings dictionary to validate
+- **Returns**: `Dict` with `is_legacy` (bool) and `reason` (str)
+- **Detection Criteria**:
+  - Legacy indicators: Missing `timeout` fields, flat command strings, missing nested `hooks` arrays
+  - Modern CC2: All hooks have `timeout`, nested dicts with matchers containing `hooks` arrays
+- **Raises**: `SettingsValidationError` if structure is malformed
+- **Example**:
+  ```python
+  result = validate_hook_format(settings)
+  if result['is_legacy']:
+      print(f"Legacy format: {result['reason']}")
+  ```
+
+#### `migrate_hook_format_cc2(settings_data)` (NEW - Issue #112)
+- **Purpose**: Auto-migrate legacy hook format to Claude Code 2.0 format
+- **Parameters**:
+  - `settings_data` (Dict): Settings to migrate (can be legacy or modern)
+- **Returns**: `Dict` with migrated settings (deep copy, original unchanged)
+- **Transformations**:
+  - Adds `timeout: 5` to all hooks missing it
+  - Converts flat string commands to nested dict structure
+  - Wraps commands in nested `hooks` array if missing
+  - Adds `matcher: '*'` if missing
+  - Preserves user customizations (custom timeouts, matchers)
+- **Idempotent**: Running multiple times produces same result
+- **Example**:
+  ```python
+  legacy = {"hooks": {"PrePush": ["auto_test.py"]}}
+  modern = migrate_hook_format_cc2(legacy)
+  # Result: modern['hooks']['PrePush'][0]['hooks'][0]['timeout'] == 5
+  ```
+
+#### `_backup_settings(settings_path)` (NEW - Issue #112)
+- **Purpose**: Create timestamped backup before format migration
+- **Parameters**:
+  - `settings_path` (Path): Path to settings.json
+- **Returns**: `Path` to backup file
+- **Backup Strategy**:
+  - Timestamped filename: `settings.json.backup.YYYYMMDD_HHMMSS`
+  - Atomic write: tempfile + rename
+  - Secure permissions: 0o600 (user-only)
+- **Path Validation**: Via security_utils (CWE-22, CWE-59 prevention)
+- **Raises**: `ActivationError` if backup fails
+
 ### Security
 - Path validation via security_utils
 - Audit logging to `logs/security_audit.log`
 - Secure permissions (0o600)
+- Backup creation before format migration
 
 ### Error Handling
 - Non-blocking (activation failures don't block plugin update)
+- Graceful degradation if migration fails (existing settings preserved)
+
+### Format Migration (Issue #112)
+- **Automatic**: Runs during `activate_hooks()` if legacy format detected
+- **Transparent**: Backup created before any changes
+- **Idempotent**: Safe to run multiple times
+- **Backwards Compatible**: Legacy settings continue to work unchanged
 
 ### Test Coverage
 - 41 unit tests (first install, updates, merge logic, error cases, malformed JSON)
+- 28 migration tests (format detection, legacy-to-CC2 conversion, backup creation)
 
 ### Used By
 - plugin_updater.py for /update-plugin command
+- activate_hooks() for automatic format migration during install/update
 
 ### Related
-- GitHub Issue #50 Phase 2.5 (automatic hook activation)
+- GitHub Issue #112 (Hook Format Migration to Claude Code 2.0)
+
+---
 
 ---
 
@@ -4863,6 +4926,500 @@ Validate path for security issues.
 
 ---
 
+---
+
+## 47. settings_generator.py (749 lines, v3.43.0+)
+
+**Purpose**: Generate settings.local.json with specific command patterns and comprehensive deny list
+
+**Issue**: #115 (Settings Generator - NO wildcards, specific patterns only)
+
+### Overview
+
+The settings generator creates `.claude/settings.local.json` with security-first design:
+- **Specific command patterns only** - NO wildcards like `Bash(*)`
+- **Comprehensive deny list** - Blocks dangerous operations (rm -rf, sudo, eval, etc.)
+- **Command auto-discovery** - Scans `plugins/autonomous-dev/commands/*.md`
+- **User customization preservation** - Merges with existing settings during upgrades
+- **Atomic writes** - Secure permissions (0o600)
+
+**Key Features**:
+- Generates specific patterns: `Bash(git:*)`, `Bash(pytest:*)`, `Bash(python:*)`
+- Auto-discovers slash commands from plugin directory
+- Preserves user customizations during marketplace sync
+- Secure file operations with path validation
+- Comprehensive audit logging
+
+### Main Class
+
+#### `SettingsGenerator`
+
+Generates settings.local.json with command-specific patterns and security controls.
+
+**Constructor**:
+```python
+def __init__(self, plugin_dir: Path)
+```
+
+**Parameters**:
+- `plugin_dir` (Path): Path to plugin directory (plugins/autonomous-dev)
+
+**Raises**:
+- `SettingsGeneratorError`: If plugin_dir or commands/ directory not found
+
+**Attributes**:
+- `plugin_dir` (Path): Plugin root directory
+- `commands_dir` (Path): Commands directory (plugin_dir/commands)
+- `discovered_commands` (List[str]): Auto-discovered command names
+- `_validated` (bool): Whether initialization succeeded
+
+**Methods**:
+
+##### `discover_commands() -> List[str]`
+
+Discover slash commands from `plugins/autonomous-dev/commands/*.md` files.
+
+**Returns**: List of command names (without leading slash)
+
+**Example**:
+```python
+generator = SettingsGenerator(Path("plugins/autonomous-dev"))
+commands = generator.discover_commands()
+# Returns: ['auto-implement', 'batch-implement', 'align-project', ...]
+```
+
+**Validation**:
+- Command names must match pattern: `^[a-z][a-z0-9-]*$`
+- Invalid names logged and skipped
+- Prevents command injection attacks
+
+##### `build_command_patterns() -> List[str]`
+
+Build allow patterns from discovered commands and safe operations.
+
+**Returns**: List of allow patterns
+
+**Includes**:
+- **File operations**: `Read(**)`, `Write(**)`, `Edit(**)`, `Glob(**)`, `Grep(**)`
+- **Safe Bash patterns**: `Bash(git:*)`, `Bash(python:*)`, `Bash(pytest:*)`, `Bash(pip:*)`
+- **Discovered commands**: `Task(researcher)`, `Task(planner)`, etc.
+- **Standalone tools**: `Task`, `WebFetch`, `WebSearch`, `TodoWrite`, `NotebookEdit`
+
+**Example Output**:
+```python
+[
+    "Read(**)",
+    "Write(**)",
+    "Bash(git:*)",
+    "Bash(pytest:*)",
+    "Task(researcher)",
+    "Task(planner)",
+    ...
+]
+```
+
+##### `build_deny_list() -> List[str]` (static method)
+
+Build comprehensive deny list of dangerous operations.
+
+**Returns**: List of deny patterns
+
+**Blocks**:
+- **Destructive operations**: `Bash(rm:-rf*)`, `Bash(shred:*)`, `Bash(dd:*)`
+- **Privilege escalation**: `Bash(sudo:*)`, `Bash(chmod:*)`, `Bash(chown:*)`
+- **Code execution**: `Bash(eval:*)`, `Bash(exec:*)`, `Bash(*|*sh*)`
+- **Network tools**: `Bash(nc:*)`, `Bash(curl:*|*sh*)`
+- **Dangerous git**: `Bash(git:*--force*)`, `Bash(git:*reset*--hard*)`
+- **Package publishing**: `Bash(npm:publish*)`, `Bash(pip:upload*)`
+- **Sensitive files**: `Read(./.env)`, `Read(~/.ssh/**)`, `Write(/etc/**)`
+
+**Example**:
+```python
+deny_list = SettingsGenerator.build_deny_list()
+# Static method - no instance needed
+```
+
+##### `generate_settings(merge_with: Optional[Dict] = None) -> Dict`
+
+Generate complete settings dictionary with patterns and metadata.
+
+**Parameters**:
+- `merge_with` (Optional[Dict]): Existing settings to merge with (preserves user customizations)
+
+**Returns**: Settings dictionary ready for JSON serialization
+
+**Structure**:
+```python
+{
+    "permissions": {
+        "allow": [...],
+        "deny": [...]
+    },
+    "hooks": {...},  # Preserved from merge_with
+    "generated_by": "autonomous-dev",
+    "version": "1.0.0",
+    "timestamp": "2025-12-12T10:30:00Z"
+}
+```
+
+##### `write_settings(output_path: Path, merge_existing: bool = False, backup: bool = False) -> GeneratorResult`
+
+Write settings.local.json to disk with optional merge and backup.
+
+**Parameters**:
+- `output_path` (Path): Path to write settings.local.json
+- `merge_existing` (bool): Whether to merge with existing settings (preserves customizations)
+- `backup` (bool): Whether to backup existing file before overwrite
+
+**Returns**: `GeneratorResult` dataclass
+
+**Workflow**:
+1. Validate output path (security checks)
+2. Create .claude/ directory if missing (with secure permissions)
+3. Backup existing file if requested
+4. Read and merge with existing settings if requested
+5. Generate new settings dictionary
+6. Atomic write with secure permissions (0o600)
+7. Audit log the operation
+
+**Example**:
+```python
+from pathlib import Path
+from autonomous_dev.lib.settings_generator import SettingsGenerator
+
+generator = SettingsGenerator(Path("plugins/autonomous-dev"))
+
+# Fresh install
+result = generator.write_settings(
+    output_path=Path(".claude/settings.local.json")
+)
+
+# Upgrade with merge and backup
+result = generator.write_settings(
+    output_path=Path(".claude/settings.local.json"),
+    merge_existing=True,
+    backup=True
+)
+
+if result.success:
+    print(f"Settings written: {result.patterns_added} patterns")
+    print(f"Preserved: {result.patterns_preserved} user patterns")
+```
+
+
+##### `validate_permission_patterns(settings: Dict) -> ValidationResult` (v3.44.0+, Issue #114)
+
+Validate permission patterns in settings for dangerous wildcards and missing deny list.
+
+**Parameters**:
+- `settings` (Dict): Settings dictionary to validate
+
+**Returns**: `ValidationResult` dataclass with detected issues
+
+**Detects**:
+- **Bash(*) wildcard** → severity "error" (too permissive, approves all Bash commands)
+- **Bash(:*) wildcard** → severity "warning" (rare edge case, usually unintended)
+- **Missing deny list** → severity "error" (no protection against dangerous commands)
+- **Empty deny list** → severity "error" (no protection against dangerous commands)
+
+**Example**:
+```python
+from settings_generator import validate_permission_patterns
+
+# Settings with dangerous patterns
+settings = {
+    "permissions": {
+        "allow": ["Bash(*)", "Read(**)"],
+        "deny": []
+    }
+}
+
+result = validate_permission_patterns(settings)
+if not result.valid:
+    for issue in result.issues:
+        print(f"{issue.severity.upper()}: {issue.description}")
+        # ERROR: Dangerous wildcard pattern detected: Bash(*)
+        # ERROR: Deny list is empty - no protection against dangerous commands
+
+# Clean settings
+good_settings = {
+    "permissions": {
+        "allow": ["Bash(git:*)", "Read(**)"],
+        "deny": ["Bash(rm:-rf*)", "Bash(sudo:*)"]
+    }
+}
+
+result = validate_permission_patterns(good_settings)
+print(result.valid)  # True
+```
+
+**Related**: GitHub Issue #114 (Permission validation during updates)
+
+##### `fix_permission_patterns(user_settings: Dict, template_settings: Optional[Dict] = None) -> Dict` (v3.44.0+, Issue #114)
+
+Fix permission patterns while preserving user customizations.
+
+**Parameters**:
+- `user_settings` (Dict): User's existing settings to fix
+- `template_settings` (Optional[Dict]): Template settings (unused, for compatibility)
+
+**Returns**: Fixed settings dictionary
+
+**Raises**:
+- `ValueError`: If user_settings is None or not a dictionary
+
+**Process**:
+1. Preserve user hooks (don't touch)
+2. Preserve valid custom allow patterns (non-wildcard patterns)
+3. Replace wildcards with specific patterns (Bash(*) → Bash(git:*), Bash(pytest:*), etc.)
+4. Add comprehensive deny list if missing
+5. Validate result
+
+**Example**:
+```python
+from settings_generator import fix_permission_patterns
+
+# User settings with dangerous wildcards
+user_settings = {
+    "permissions": {
+        "allow": ["Bash(*)", "MyCustomPattern"],  # Has wildcard + custom
+        "deny": []
+    },
+    "hooks": {
+        "my_custom_hook": "path/to/hook.py"
+    }
+}
+
+# Fix patterns
+fixed = fix_permission_patterns(user_settings)
+
+# Result preserves customizations:
+# - "MyCustomPattern" kept (valid custom pattern)
+# - "Bash(*)" replaced with specific patterns
+# - Deny list added
+# - Hooks preserved
+print(fixed["permissions"]["allow"])
+# ['MyCustomPattern', 'Bash(git:*)', 'Bash(pytest:*)', 'Read(**)', ...]
+
+print(fixed["hooks"])
+# {'my_custom_hook': 'path/to/hook.py'}  # Preserved!
+```
+
+**Preservation Logic**:
+- **Hooks**: Always preserved (user customization)
+- **Valid patterns**: Preserved if not Bash(*) or Bash(:*)
+- **Wildcards**: Replaced with safe specific patterns
+- **Deny list**: Added if missing (50+ dangerous patterns)
+
+**Related**: GitHub Issue #114 (Permission fixing during updates)
+
+##### `merge_global_settings(global_path: Path, template_path: Path, fix_wildcards: bool = True, create_backup: bool = True) -> Dict[str, Any]` (v3.46.0+, Issue #117)
+
+Merge global settings preserving user customizations while fixing broken patterns.
+
+**Purpose**: Merge template settings with existing user settings, fixing broken Bash(:*) patterns while preserving user hooks and custom patterns. Used during plugin installation/update to safely merge new patterns.
+
+**Parameters**:
+- `global_path` (Path): Path to global settings file (~/.claude/settings.json)
+- `template_path` (Path): Path to template file (plugins/autonomous-dev/config/global_settings_template.json)
+- `fix_wildcards` (bool): Whether to fix broken wildcard patterns (default: True)
+- `create_backup` (bool): Whether to create backup before modification (default: True)
+
+**Returns**: Merged settings dictionary ready for use
+
+**Raises**:
+- `SettingsGeneratorError`: If template not found, template invalid JSON, or write fails
+
+**Process**:
+1. Validate template exists and is valid JSON
+2. Read existing user settings from global_path (if exists)
+3. Detect broken patterns in user settings (Bash(:*))
+4. Fix broken patterns: Bash(:*) to [Bash(git:*), Bash(python:*), ...]
+5. Deep merge: template patterns + user patterns (union)
+6. Preserve user hooks completely (never modified)
+7. Backup existing file before writing (if create_backup=True)
+8. Write merged settings atomically with secure permissions
+9. Audit log all operations
+
+**Merge Strategy**:
+- **Template**: Source of truth for safe patterns
+- **User settings**: Provides customizations and valid patterns
+- **Merge result**: Union of all patterns (template + user)
+- **User hooks**: Always preserved unchanged
+- **Wildcard fix**: Broken patterns replaced, valid patterns kept
+
+**Example**:
+```python
+from pathlib import Path
+from autonomous_dev.lib.settings_generator import SettingsGenerator
+
+generator = SettingsGenerator(Path("plugins/autonomous-dev"))
+
+# Merge global settings with user customizations
+merged_settings = generator.merge_global_settings(
+    global_path=Path.home() / ".claude" / "settings.json",
+    template_path=Path("plugins/autonomous-dev/config/global_settings_template.json"),
+    fix_wildcards=True,
+    create_backup=True
+)
+
+print(f"Merged settings: {merged_settings}")
+print(f"Patterns available: {len(merged_settings.get('allowedTools', {}).get('Bash', {}).get('allow_patterns', []))} allows")
+```
+
+**Backup Behavior**:
+- Creates ~/.claude/settings.json.backup before modifying existing file
+- Only creates backup if file exists and will be modified
+- Old backup automatically replaced (one backup per merge)
+- Corrupted files backed up as .json.corrupted with automatic regeneration
+
+**Error Recovery**:
+- **Missing template**: Raises SettingsGeneratorError with helpful message
+- **Invalid template JSON**: Raises SettingsGeneratorError with JSON error details
+- **Permission denied**: Raises PermissionError (allows testing/handling in caller)
+- **Write failure**: Cleans up temp file and raises SettingsGeneratorError
+- **Corrupted user file**: Creates .json.corrupted backup and starts fresh
+
+**Security**:
+- Atomic writes: Tempfile in same directory + atomic rename prevents corruption
+- Secure permissions: 0o600 (user read/write only)
+- Path validation: All paths validated against CWE-22 (path traversal), CWE-59 (symlinks)
+- Audit logging: All operations logged with context
+
+**Related**: GitHub Issue #117 (Global Settings Configuration - Merge Broken Patterns)
+
+### Data Classes (Issue #114)
+
+#### `PermissionIssue` (v3.44.0+)
+
+Details about a detected permission issue.
+
+**Attributes**:
+- `issue_type` (str): Type of issue (wildcard_pattern, missing_deny_list, empty_deny_list, outdated_pattern)
+- `description` (str): Human-readable description of the issue
+- `pattern` (str): Pattern affected by this issue (empty string if N/A)
+- `severity` (str): Severity level ("warning" or "error")
+
+**Example**:
+```python
+issue = PermissionIssue(
+    issue_type="wildcard_pattern",
+    description="Dangerous wildcard pattern detected: Bash(*)",
+    pattern="Bash(*)",
+    severity="error"
+)
+```
+
+#### `ValidationResult` (v3.44.0+)
+
+Result of permission validation.
+
+**Attributes**:
+- `valid` (bool): Whether validation passed (True if no issues)
+- `issues` (List[PermissionIssue]): List of detected issues
+- `needs_fix` (bool): Whether fixes should be applied
+
+**Example**:
+```python
+from settings_generator import validate_permission_patterns
+
+settings = {"permissions": {"allow": ["Bash(*)"], "deny": []}}
+result = validate_permission_patterns(settings)
+
+if not result.valid:
+    print(f"Found {len(result.issues)} issues:")
+    for issue in result.issues:
+        print(f"  - [{issue.severity}] {issue.description}")
+    if result.needs_fix:
+        print("Automatic fix available via fix_permission_patterns()")
+```
+
+
+### Data Classes
+
+#### `GeneratorResult`
+
+Result of settings generation operation.
+
+**Attributes**:
+- `success` (bool): Whether generation succeeded
+- `message` (str): Human-readable result message
+- `settings_path` (Optional[str]): Path to generated settings file (None if failed)
+- `patterns_added` (int): Number of new patterns added
+- `patterns_preserved` (int): Number of user patterns preserved (upgrade only)
+- `denies_added` (int): Number of deny patterns added
+- `details` (Dict[str, Any]): Additional result details
+
+### Security Features
+
+**NO Wildcards**:
+- Never uses `Bash(*)` (too permissive)
+- Always uses specific patterns: `Bash(git:*)`, `Bash(pytest:*)`
+- Prevents accidental approval of dangerous commands
+
+**Comprehensive Deny List**:
+- 50+ deny patterns blocking dangerous operations
+- Covers CWE-78 (command injection), privilege escalation, data destruction
+- Blocks piping to shell: `Bash(*|*sh*)`, `Bash(*|*bash*)`
+- Prevents command substitution patterns
+
+**Path Validation**:
+- Validates output path against project root (CWE-22)
+- Rejects symlinks and suspicious paths (CWE-59)
+- Uses `security_utils.validate_path()` for comprehensive validation
+
+**Atomic Writes**:
+- Creates temp file in same directory as target
+- Sets secure permissions (0o600 - user read/write only)
+- Atomic rename to target path (POSIX-safe)
+- Cleans up temp files on error
+
+**Audit Logging**:
+- All operations logged via `security_utils.audit_log()`
+- Tracks generation success/failure with context
+- Records merge operations and pattern counts
+- Enables security audits and compliance
+
+### Integration
+
+**Used By**:
+- `/setup` command - Fresh installation
+- `/sync` command - Marketplace sync with merge
+- Installation system - Auto-generates during plugin install
+
+**Workflow in Installation**:
+1. Plugin installed to `~/.config/claude/installed_plugins/`
+2. SettingsGenerator discovers commands from plugin
+3. Generates settings.local.json with specific patterns
+4. Merges with existing user settings (preserves customizations)
+5. Writes to `.claude/settings.local.json` with secure permissions
+
+### Testing
+
+**Test Coverage**: 85 tests (56 unit + 29 integration)
+
+**Unit Tests** (`tests/unit/lib/test_settings_generator.py`):
+- Command discovery and validation (12 tests)
+- Pattern building (allow and deny lists) (8 tests)
+- Settings generation and merge logic (15 tests)
+- Path validation and security (10 tests)
+- Error handling and edge cases (11 tests)
+
+**Integration Tests** (`tests/integration/test_install_settings_generation.py`):
+- End-to-end settings generation (8 tests)
+- Merge with existing settings (7 tests)
+- Backup and rollback scenarios (6 tests)
+- Permission and security validation (8 tests)
+
+### Related
+
+- GitHub Issue #115 (Settings Generator - NO wildcards)
+- `settings_merger.py` - Merges template settings during marketplace sync
+- `security_utils.py` - Provides path validation and audit logging
+- `docs/TOOL-AUTO-APPROVAL.md` - Tool approval configuration reference
+- `plugins/autonomous-dev/templates/settings.default.json` - Default template with safe patterns
+
+
 ## 43. protected_file_detector.py (316 lines, v3.41.0+)
 
 **Purpose**: Detect user artifacts and protected files during installation
@@ -5624,3 +6181,240 @@ python genai_install_wrapper.py cleanup "$HOME/.autonomous-dev-staging"
 - `protected_file_detector.py` - Protected file identification
 - `copy_system.py` - File copying with protection
 - `install_audit.py` - Audit logging and reporting
+
+---
+
+## 48. research_quality_scorer.py (476 lines, v3.45.0+, Issue #111)
+
+**Purpose**: Quality scoring, ranking, and consensus detection for parallel research sources
+
+### Overview
+
+Enables parallel deep research with intelligent source evaluation. Supports:
+- Multi-criteria quality scoring (authority, recency, relevance)
+- Source consensus detection across multiple results
+- Diminishing returns analysis to optimize research depth
+- Safe URL validation to prevent XSS and injection attacks
+
+### Key Features
+
+**Quality Scoring Formula**:
+```
+score = (authority * 0.5) + (recency * 0.3) + (relevance * 0.2)
+```
+
+**Authority Levels** (impact on 50% of score):
+- `official_docs`: 1.0 (highest)
+- `github_official`: 0.95
+- `academic_paper`: 0.9
+- `tech_blog`: 0.7
+- `stackoverflow`: 0.6
+- `forum`: 0.5
+- `social_media`: 0.3
+- `unknown`: 0.2 (lowest)
+
+**Recency Scoring** (impact on 30% of score):
+- 2024-2025: 1.0 (current)
+- 2023: 0.9 (recent)
+- 2022: 0.7 (moderately aged)
+- 2021: 0.5
+- 2020 and earlier: 0.3 (aged)
+
+**Relevance Scoring** (impact on 20% of score):
+- Keyword density-based calculation
+- Case-insensitive matching
+- Returns 0.5 baseline if no keywords provided
+
+### Functions
+
+#### `score_source(url, content, recency, authority, keywords)`
+- **Purpose**: Calculate combined quality score (0.0-1.0)
+- **Parameters**:
+  - `url` (str): Source URL (validated for security)
+  - `content` (str): Source text content
+  - `recency` (int): Publication year (e.g., 2024)
+  - `authority` (str): Source type (official_docs, github_official, etc.)
+  - `keywords` (list, optional): Keywords for relevance scoring
+- **Returns**: `float` (0.0-1.0, rounded to 10 decimals)
+- **Raises**: `InvalidSourceError` if URL is empty or malicious
+- **Security**: Validates URL against XSS, file access, code execution patterns
+
+#### `rank_sources(sources)`
+- **Purpose**: Sort sources by quality score (descending)
+- **Parameters**:
+  - `sources` (list[dict]): List of source dicts with keys: url, content, recency, authority, keywords (optional)
+- **Returns**: `list[dict]` (sources sorted by quality_score, highest first)
+- **Behavior**: Adds 'quality_score' field to each source, preserves original metadata
+
+#### `detect_diminishing_returns(results, threshold, max_depth, consensus_count)`
+- **Purpose**: Detect when additional research provides minimal value
+- **Parameters**:
+  - `results` (list[dict]): Research results with quality_score
+  - `threshold` (float): Score improvement threshold (default: 0.3)
+  - `max_depth` (int): Maximum research depth before stopping (default: 10)
+  - `consensus_count` (int): Sources needed for consensus (default: 3)
+- **Returns**: `bool` (True if diminishing returns detected)
+- **Logic**:
+  - Stops if score improvements fall below threshold for 2+ consecutive searches
+  - Stops if consensus reached (min_cluster_size met)
+  - Stops if max_depth reached
+  - Optimizes research duration while maintaining quality
+
+#### `detect_consensus(sources, similarity_threshold, min_cluster_size)`
+- **Purpose**: Detect when sources agree on key information
+- **Parameters**:
+  - `sources` (list[dict]): Source dicts with content field
+  - `similarity_threshold` (float): Similarity ratio threshold (default: 0.7)
+  - `min_cluster_size` (int): Minimum cluster size (default: 2)
+- **Returns**: `bool` (True if consensus detected)
+- **Algorithm**: Groups similar sources, returns True if cluster >= min_cluster_size
+
+#### `calculate_authority_score(authority_type)`
+- **Purpose**: Map authority type to 0.0-1.0 score
+- **Parameters**: `authority_type` (str): Authority level name
+- **Returns**: `float` (0.0-1.0)
+- **Mapping**: See Authority Levels table above
+
+#### `calculate_recency_score(year)`
+- **Purpose**: Calculate recency decay score (0.0-1.0)
+- **Parameters**: `year` (int): Publication year (e.g., 2024)
+- **Returns**: `float` (0.0-1.0, linear decay)
+- **Logic**: 2024-2025 = 1.0, decays linearly for older years
+
+#### `calculate_relevance_score(content, keywords)`
+- **Purpose**: Calculate relevance based on keyword matching
+- **Parameters**:
+  - `content` (str): Source text
+  - `keywords` (list, optional): Keywords to match
+- **Returns**: `float` (0.0-1.0)
+- **Method**: Case-insensitive keyword density calculation
+
+### Exceptions
+
+#### `ResearchQualityError`
+- Base exception for all research quality errors
+
+#### `InvalidSourceError`
+- Raised when source data is invalid (empty URL, empty content)
+- Also raised if URL contains malicious patterns
+
+### Security Features
+
+**URL Validation** (`_validate_url`):
+- Blocks JavaScript URLs: `javascript:`, `data:`, `vbscript:`
+- Blocks file access: `file://`
+- Blocks XSS patterns: `<script>`, `onerror=`, `onclick=`
+- Blocks command execution: shell metacharacters
+- Prevents SSRF: restricted domains (localhost, 127.0.0.1, internal IPs)
+
+**Input Validation**:
+- URL length limits (max 2048 chars)
+- Content length limits (prevents DoS)
+- Authority type whitelist
+- Year range validation (1900-2100)
+
+### Configuration (research_rate_limits.json)
+
+```json
+{
+  "web_search": {
+    "max_parallel": 3,
+    "backoff_strategy": "exponential",
+    "initial_delay_ms": 500,
+    "max_delay_ms": 5000
+  },
+  "deep_dive": {
+    "max_depth": 2,
+    "diminishing_threshold": 0.3,
+    "min_quality_score": 0.6
+  },
+  "consensus": {
+    "similarity_threshold": 0.7,
+    "min_sources": 3
+  },
+  "rate_limiting": {
+    "max_parallel_searches": 3,
+    "requests_per_minute": 60,
+    "timeout_seconds": 30
+  }
+}
+```
+
+### Usage Example
+
+```python
+from autonomous_dev.lib.research_quality_scorer import (
+    score_source,
+    rank_sources,
+    detect_diminishing_returns,
+    detect_consensus
+)
+
+# Score individual sources
+sources = [
+    {
+        "url": "https://docs.python.org/3/",
+        "content": "Official Python documentation...",
+        "recency": 2024,
+        "authority": "official_docs",
+        "keywords": ["async", "concurrency", "performance"]
+    },
+    {
+        "url": "https://github.com/python/cpython",
+        "content": "CPython source code and discussion...",
+        "recency": 2024,
+        "authority": "github_official"
+    }
+]
+
+# Rank sources by quality
+ranked = rank_sources(sources)
+print(f"Top source: {ranked[0]['url']} (score: {ranked[0]['quality_score']})")
+
+# Detect when to stop searching
+if detect_diminishing_returns(ranked, threshold=0.3):
+    print("Enough information gathered, stopping research")
+
+# Detect consensus across sources
+if detect_consensus(ranked, similarity_threshold=0.7, min_cluster_size=3):
+    print("Strong consensus found in sources")
+```
+
+### Test Coverage
+
+- **Quality Scoring**: 8 tests covering all authority levels and edge cases
+- **Source Ranking**: 5 tests for sorting and score calculations
+- **Consensus Detection**: 6 tests for similarity thresholds and clustering
+- **Diminishing Returns**: 7 tests for convergence detection and stopping criteria
+- **Security Validation**: 8 tests for URL validation and input sanitization
+- **Edge Cases**: 7 tests for boundary conditions and error handling
+
+**Total**: 41 tests, 95%+ coverage
+
+### Performance
+
+**Scoring Single Source**: ~0.5ms
+**Ranking 20 Sources**: ~10ms
+**Consensus Detection (20 sources)**: ~50ms
+**Diminishing Returns Analysis**: ~5ms per source
+
+### Integration
+
+**Used By**:
+- researcher agent - Enhanced /auto-implement researcher step
+- batch_implement workflow - Source evaluation during parallel research
+
+**Related Libraries**:
+- `path_utils.py` - Dynamic path detection for config loading
+- `validation.py` - Security validation for URL patterns
+
+**Related Agents**:
+- researcher - Parallel deep research with quality scoring
+- planner - Uses research results for planning decisions
+
+### Related Documentation
+
+- GitHub Issue #111 (Parallel Deep Research Capabilities)
+- `docs/AGENTS.md` - researcher agent enhancements
+- `docs/PERFORMANCE-HISTORY.md` - Phase 10 optimization details
+- `plugins/autonomous-dev/config/research_rate_limits.json` - Configuration reference
