@@ -14,12 +14,11 @@
 
 **Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
-**Install**:
+**Install** (Bootstrap-First - this is a development system, not a simple plugin):
 ```bash
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
-# Exit and restart Claude Code (Cmd+Q or Ctrl+Q)
-# Done! All commands work: /auto-implement, /batch-implement, /align-project, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status, /update-plugin, /create-issue
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+# Restart Claude Code (Cmd+Q or Ctrl+Q)
+# Run /setup to complete installation
 ```
 
 **Commands (20 active, includes /align-project-retrofit for brownfield adoption and /batch-implement for sequential processing)**:
@@ -394,11 +393,11 @@ Agent model assignments are optimized for cost-performance balance based on task
 
 See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table. See `docs/SKILLS.md` for refactoring summary.
 
-### Libraries (34 Documented Libraries)
+### Libraries (35 Documented Libraries)
 
 34 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, git hook utilities, and CLI wrappers. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
-**Core Libraries** (16): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation, settings_merger
+**Core Libraries** (17): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation, settings_merger, settings_generator
 
 **Installation Libraries** (8): file_discovery, copy_system, installation_validator, install_orchestrator, staging_manager, protected_file_detector, installation_analyzer, install_audit
 
@@ -590,25 +589,28 @@ python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-shell "pyte
 
 ## Quick Reference
 
-### Installation
+### Installation (Bootstrap-First)
+
+autonomous-dev is a **development system**, not a simple plugin. It requires global infrastructure that the marketplace can't configure.
+
 ```bash
-# 1. Add marketplace
-/plugin marketplace add akaszubski/autonomous-dev
+# Single install command (handles everything)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
-# 2. Install plugin
-/plugin install autonomous-dev
-
-# 3. Exit and restart Claude Code (REQUIRED!)
+# Restart Claude Code (REQUIRED!)
 # Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
+
+# Complete setup
+/setup
 ```
 
-**Done!** All commands immediately work.
+**What install.sh does:**
+- Creates `~/.claude/hooks/` with auto-approval hooks
+- Creates `~/.claude/lib/` with Python dependencies
+- Configures `~/.claude/settings.json` with correct permission patterns
+- Installs agents, commands, skills to project `.claude/`
 
-### Optional Setup
-```bash
-# Only if you want automatic hooks (auto-format on save, etc.)
-python .claude/hooks/setup.py
-```
+**Why not marketplace alone?** The marketplace can download files but can't configure global `~/.claude/` infrastructure. See Issue #119.
 
 ### Updating
 ```bash

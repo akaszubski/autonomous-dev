@@ -155,14 +155,14 @@ Then:
 
 That's it! Works for both fresh installs and updates.
 
-### Alternative: Plugin System
+### Why Not Just Use the Marketplace?
 
-```bash
-# In Claude Code:
-/plugin marketplace add akaszubski/autonomous-dev
-/plugin install autonomous-dev
-# Restart Claude Code, then run /setup
-```
+autonomous-dev **outgrew the simple plugin model**. It requires:
+- Global hooks in `~/.claude/hooks/` (auto-approval, security validation)
+- Python libraries in `~/.claude/lib/` (agent dependencies)
+- Specific `~/.claude/settings.json` format (permission patterns)
+
+The marketplace can download files, but can't configure global `~/.claude/` infrastructure. That's why `install.sh` exists — it handles everything.
 
 ### How It Works
 

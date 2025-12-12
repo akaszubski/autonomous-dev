@@ -158,11 +158,13 @@ This is achieved via **dual-layer architecture**:
 - ✅ **Security scanning** - Secrets detection, vulnerability scanning, OWASP compliance
 - ✅ **Documentation sync** - README, CHANGELOG, API docs updated automatically
 
-**Plugin Distribution**:
-- ✅ **Plugin marketplace** - One-command install for teams
+**Distribution (Bootstrap-First Architecture)**:
+- ✅ **install.sh is THE install method** - Single curl command handles everything
+- ✅ **Global infrastructure required** - ~/.claude/hooks/, ~/.claude/lib/, ~/.claude/settings.json
+- ✅ **Marketplace insufficient alone** - Can download files but can't configure global infrastructure
+- ✅ **Not a simple plugin** - This is a development system that uses plugin structure for organization
 - ✅ **Multi-language support** - Python, JavaScript/TypeScript, Go, Rust (generic approach)
 - ✅ **Customizable** - Teams can fork and adapt to their standards
-- ✅ **Strict mode templates** - Pre-configured settings for maximum enforcement
 
 **What's OUT of Scope** ❌ (Features we avoid):
 

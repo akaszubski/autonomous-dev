@@ -106,9 +106,5 @@
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "autonomous-dev@autonomous-dev": true
-  },
-  "alwaysThinkingEnabled": false
+  }
 }
