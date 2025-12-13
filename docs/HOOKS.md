@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-12-07
-**Total Hooks**: 44 (added mcp_security_enforcer.py - Issue #95)
+**Last Updated**: 2025-12-13
+**Total Hooks**: 45 (comprehensive audit and cleanup)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -193,6 +193,32 @@ modern = migrate_hook_format_cc2(legacy)
 - plugins/autonomous-dev/lib/hook_activator.py (implementation)
 
 ---
+
+## Quick Reference by Lifecycle
+
+| Lifecycle | Count | Hooks |
+|-----------|-------|-------|
+| **SessionStart** | 1 | auto_bootstrap |
+| **PreToolUse** | 2 | pre_tool_use, batch_permission_approver |
+| **PreCommit** | 24 | See Core + Validation sections |
+| **SubagentStop** | 3 | session_tracker, log_agent_completion, auto_git_workflow |
+| **Utility** | 6 | genai_prompts, genai_utils, github_issue_manager, health_check, setup, sync_to_installed |
+
+---
+
+## SessionStart Hooks (1)
+
+### auto_bootstrap.py
+
+**Purpose**: Auto-bootstrap plugin commands when hook files missing
+**Actions**:
+- Checks if `.claude/commands` exists with essential commands
+- Copies all plugin commands from plugin directory if missing
+- Creates marker file (`.autonomous-dev-bootstrapped`) to track completion
+**Lifecycle**: SessionStart
+
+---
+
 ## Core Hooks (13)
 
 Essential hooks for autonomous development workflow and security enforcement.
@@ -279,6 +305,28 @@ Essential hooks for autonomous development workflow and security enforcement.
 **Action**: Writes agent actions to docs/sessions/ instead of conversation
 **Lifecycle**: SubagentStop
 **Location**: `plugins/autonomous-dev/hooks/session_tracker.py`
+
+### batch_permission_approver.py
+
+**Purpose**: Intelligently reduce permission prompts during `/auto-implement`
+**Actions**:
+- Classifies operations into SAFE/BOUNDARY/SENSITIVE levels
+- Auto-approves SAFE operations (file reads, doc analysis)
+- Allows BOUNDARY operations with logging (code modifications)
+- Prompts only for SENSITIVE operations (destructive, external API)
+**Lifecycle**: PreToolUse
+**Dependencies**: `permission_classifier.py`, `security_utils.py`
+
+### log_agent_completion.py
+
+**Purpose**: Log subagent completions to structured JSON for pipeline tracking
+**Actions**:
+- Extracts agent name, output, status from environment variables
+- Auto-tracks agents invoked via Task tool (idempotent)
+- Extracts tools used from agent output
+- Creates completion entry with summary and timestamp
+**Lifecycle**: SubagentStop
+**Dependencies**: `agent_tracker.py`
 
 ### ~~mcp_security_enforcer.py~~ (DEPRECATED - replaced by pre_tool_use.py)
 
@@ -384,7 +432,161 @@ Note: session_tracker.py moved to Core Hooks as essential for context management
 **Checks**: Session log completeness
 **Lifecycle**: PostCommit
 
-Plus 5 additional hooks for extended enforcement and validation.
+### enforce_orchestrator.py
+
+**Purpose**: Enforce PROJECT.md alignment validation before commits (strict mode)
+**Actions**:
+- Checks if strict mode enabled in `.claude/settings.local.json`
+- Scans recent session files for orchestrator evidence
+- Validates commit messages for alignment markers
+- Allows docs-only commits without orchestrator validation
+**Lifecycle**: PreCommit
+
+---
+
+## Validation Hooks (10)
+
+Hooks for ensuring documentation, commands, and codebase stay in sync.
+
+### validate_command_file_ops.py
+
+**Purpose**: Enforce commands execute Python libraries (not just describe them)
+**Actions**:
+- Detects if command describes file operations
+- Validates Implementation section EXECUTES Python libraries
+- Prevents "sync doesn't work" bug (Issue #127)
+**Lifecycle**: PreCommit
+
+### validate_commands.py
+
+**Purpose**: Ensure all commands have proper `## Implementation` sections
+**Actions**:
+- Checks for `## Implementation` section header
+- Validates section contains bash blocks or script execution
+- Prevents "command does nothing" bug (Issue #13)
+**Lifecycle**: PreCommit
+
+### validate_docs_consistency.py
+
+**Purpose**: Validate documentation stays in sync with code (3-layer defense)
+**Actions**:
+- **Layer 1**: Validates counts match actual files
+- **Layer 2**: GenAI semantic verification (optional)
+- **Layer 3**: Cross-doc consistency checks
+**Lifecycle**: PreCommit
+**Dependencies**: `genai_utils.py`, `genai_prompts.py`
+
+### validate_install_manifest.py
+
+**Purpose**: Auto-sync `install_manifest.json` bidirectionally with source
+**Actions**:
+- Scans hooks/, lib/, agents/, commands/, scripts/, config/, templates/
+- Auto-updates manifest when files added or removed
+- Supports `--check-only` mode for CI
+**Lifecycle**: PreCommit
+
+### validate_readme_accuracy.py
+
+**Purpose**: Validate README.md claims match filesystem reality
+**Actions**:
+- Counts agents/skills/commands/hooks in filesystem
+- Extracts claimed counts from README.md
+- Reports errors (blocking) vs warnings (informational)
+**Lifecycle**: PreCommit
+
+### validate_readme_sync.py
+
+**Purpose**: Ensure README.md files in root and plugin stay synchronized
+**Actions**:
+- Extracts key statistics from both README files
+- Classifies mismatches as CRITICAL or WARNING
+- CRITICAL mismatches block commits (exit 2)
+**Lifecycle**: PreCommit
+
+### validate_readme_with_genai.py
+
+**Purpose**: Advanced README validation using GenAI semantic analysis
+**Actions**:
+- Validates component counts match claims
+- Uses Claude Haiku for semantic verification
+- Generates detailed audit reports with `--audit` flag
+**Lifecycle**: PreCommit
+**Dependencies**: `anthropic` SDK (optional)
+
+### verify_agent_pipeline.py
+
+**Purpose**: Verify expected agents ran during feature implementation
+**Actions**:
+- Detects if commit includes feature code changes
+- Checks pipeline JSON for completed agents
+- Validates MINIMUM agents ran (researcher, implementer, doc-master)
+- Supports `STRICT_PIPELINE=1` to block commits
+**Lifecycle**: PreCommit
+
+---
+
+## Utility Hooks (6)
+
+Helper modules and manual invocation utilities.
+
+### genai_prompts.py
+
+**Purpose**: Centralized prompt management for GenAI-enhanced hooks
+**Actions**:
+- Defines 6 reusable prompt templates
+- Provides GenAI feature flags per hook
+- Stores model configuration (Haiku, 100 tokens, 5s timeout)
+**Type**: Utility module (not a lifecycle hook)
+
+### genai_utils.py
+
+**Purpose**: Reusable GenAI SDK wrapper with graceful fallback
+**Actions**:
+- Initializes Anthropic SDK with lazy loading
+- Formats and executes prompts with variable substitution
+- Parses classification and binary responses
+**Type**: Utility module
+**Dependencies**: `anthropic` SDK
+
+### github_issue_manager.py
+
+**Purpose**: Create and manage GitHub issues for `/auto-implement`
+**Actions**:
+- Checks gh CLI availability and authentication
+- Creates GitHub issue at pipeline start
+- Adds closing comment with agent summary
+- Auto-manages labels (in-progress → completed)
+**Type**: Utility class
+**Dependencies**: `gh` CLI
+
+### health_check.py
+
+**Purpose**: Validate plugin integrity and marketplace sync status
+**Actions**:
+- Counts actual agents (20), hooks (45), commands (7)
+- Validates component file existence
+- Checks dev/installed sync and marketplace version
+**Type**: Utility (invoked by `/health-check`)
+**Dependencies**: `security_utils.py`, `installation_validator.py`
+
+### setup.py
+
+**Purpose**: Interactive setup wizard for plugin configuration
+**Actions**:
+- Verifies plugin files installed in `.claude/`
+- Offers preset configurations (minimal, solo, team, power-user)
+- Creates PROJECT.md, sets up GitHub integration
+- Supports `--auto --preset=team` for automation
+**Type**: Setup command
+
+### sync_to_installed.py
+
+**Purpose**: Sync local plugin changes to installed location for testing
+**Actions**:
+- Locates installed plugin with three-layer path security
+- Syncs agents/, hooks/, commands/, scripts/, lib/, templates/, docs/
+- Auto-detects orphaned files with cleanup guidance
+**Type**: Manual utility (plugin development)
 
 ---
 
