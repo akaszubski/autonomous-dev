@@ -504,6 +504,46 @@ class SyncDispatcher:
                                 }
                             )
 
+            # Delete orphaned subdirectories (TRUE SYNC for directories)
+            # Get source subdirectory names
+            source_subdirs = {d.name for d in src.iterdir() if d.is_dir()}
+
+            # Find subdirectories in destination that don't exist in source
+            for dst_subdir in dst.iterdir():
+                if dst_subdir.is_dir() and dst_subdir.name not in source_subdirs:
+                    # Skip special directories
+                    if dst_subdir.name in {"__pycache__", ".git", "node_modules"}:
+                        continue
+                    try:
+                        # Safer deletion: remove files first, then directory
+                        for f in dst_subdir.rglob("*"):
+                            if f.is_file():
+                                f.unlink()
+                        # Remove empty directories bottom-up
+                        for d in sorted(dst_subdir.rglob("*"), reverse=True):
+                            if d.is_dir():
+                                d.rmdir()
+                        # Finally remove the top directory
+                        dst_subdir.rmdir()
+                        orphans_deleted += 1
+                        audit_log(
+                            "sync_directory",
+                            "orphan_dir_deleted",
+                            {
+                                "directory": str(dst_subdir),
+                                "reason": "not in source",
+                            }
+                        )
+                    except Exception as e:
+                        audit_log(
+                            "sync_directory",
+                            "orphan_dir_delete_error",
+                            {
+                                "directory": str(dst_subdir),
+                                "error": str(e),
+                            }
+                        )
+
         # Audit log summary
         audit_log(
             "sync_directory",
