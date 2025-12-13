@@ -195,8 +195,8 @@ Checking CLAUDE.md alignment...
    - Fix: Update CLAUDE.md to reflect 20 agents
 
 ❌ Command count mismatch:
-   - CLAUDE.md claims: 20 commands
-   - Reality: 8 active commands (after Issue #121)
+   - CLAUDE.md claims: 15 commands
+   - Reality: 10 active commands (after Issue #121)
    - Fix: Update CLAUDE.md command section
 
 ✅ Hook documentation: OK

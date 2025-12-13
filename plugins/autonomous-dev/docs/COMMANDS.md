@@ -1,21 +1,41 @@
 # Command Reference
 
-**Complete list of all 25 slash commands with descriptions**
+**Complete list of all 10 active slash commands (simplified per Issue #121)**
 
 ---
 
 ## Overview
 
-All commands are now **separate, discoverable slash commands** with clear descriptions. When you type `/` in Claude Code, you'll see autocomplete suggestions for all available commands.
+Commands were simplified from 20+ to 10 active commands in Issue #121. Individual agent commands were archived - use `/auto-implement` for the full pipeline instead.
 
-**Total Commands**: 25 (reduced from 33 - removed redundant variants)
-- **Testing** (7 commands): `/test*`
-- **Commit** (4 commands): `/commit*`
-- **Alignment** (2 commands): `/align-project*` ⚠️ Reduced - removed 3 redundant variants
-- **Issues** (3 commands): `/issue*` ⚠️ Reduced - removed 2 redundant variants
-- **Documentation** (2 commands): `/sync-docs*` ⚠️ Reduced - removed 3 niche variants
-- **Quality** (3 commands): `/format`, `/security-scan`, `/full-check`
-- **Workflow** (4 commands): `/setup`, `/auto-implement`, `/uninstall`, more
+**Total Active Commands**: 10
+- **Core Workflow** (9): `/auto-implement`, `/batch-implement`, `/align`, `/setup`, `/sync`, `/status`, `/health-check`, `/pipeline-status`, `/create-issue`
+- **Utility** (1): `/test`
+
+**Archived** (12 commands): Individual agent commands (`/research`, `/plan`, `/implement`, etc.) and redundant variants moved to `commands/archive/`
+
+---
+
+## Active Commands
+
+| Command | Time | Description |
+|---------|------|-------------|
+| `/auto-implement` | 20-30min | Full 7-agent pipeline (research → plan → test → implement → review → security → docs) |
+| `/batch-implement` | varies | Process multiple features sequentially with state management and crash recovery |
+| `/align` | 5-10min | Unified alignment (3 modes: `--project`, `--claude`, `--retrofit`) |
+| `/setup` | 2-5min | Interactive setup wizard |
+| `/sync` | 1-2min | Smart sync (auto-detects: dev env, marketplace, or plugin dev) |
+| `/status` | < 30s | Track PROJECT.md goal progress |
+| `/health-check` | < 30s | Validate plugin integrity |
+| `/pipeline-status` | < 10s | Track /auto-implement workflow |
+| `/create-issue` | 3-5min | Create GitHub issue with research |
+| `/test` | < 60s | Run pytest (unit + integration + UAT) |
+
+---
+
+## Legacy Reference (Archived Commands)
+
+The sections below document archived commands for historical reference. These commands still exist in `commands/archive/` but are not recommended for normal use
 
 ---
 

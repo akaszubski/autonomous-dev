@@ -291,7 +291,7 @@ URL: https://github.com/owner/repo/issues/75
 ✅ All 20 agents loaded
 ✅ All 22 skills available
 ✅ All 42 hooks registered
-✅ All 18 commands functional
+✅ All 10 commands functional
 ✅ Marketplace version: v3.21.0 (latest)
 
 No issues detected. Plugin is healthy.

@@ -771,7 +771,7 @@ class TestAlignmentValidation:
         This ensures:
         - Version dates consistent
         - Agent counts correct (20 agents)
-        - Command counts correct (20 commands)
+        - Command counts correct (10 commands per Issue #121)
         - No alignment drift
         """
         project_root = Path(__file__).parent.parent.parent
@@ -827,9 +827,10 @@ class TestAlignmentValidation:
 
     def test_command_count_still_documented(self):
         """
-        CLAUDE.md should still document correct command count (20 commands).
+        CLAUDE.md should still document correct command count (10 commands).
 
         After optimization, metadata should remain accurate.
+        Updated per Issue #121 command simplification (20 -> 10 commands).
         """
         claude_md = Path(__file__).parent.parent.parent / "CLAUDE.md"
 
@@ -837,10 +838,10 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for command count
+        # Check for command count (10 active per Issue #121)
         command_patterns = [
-            r"20\s+(?:active\s+)?commands",
-            r"Commands?\s+\(20",
+            r"10\s+(?:active\s+)?commands",
+            r"Commands?\s+\(10",
         ]
 
         has_count = any(
@@ -849,7 +850,7 @@ class TestAlignmentValidation:
         )
 
         assert has_count, (
-            "CLAUDE.md missing command count (20 commands). "
+            "CLAUDE.md missing command count (10 commands). "
             "Metadata should be preserved after optimization."
         )
 

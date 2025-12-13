@@ -65,8 +65,8 @@ class TestHealthCheck:
         checker = PluginHealthCheck()
         passed, total = checker.validate_commands()
 
-        assert total >= 21, "Expected at least 21 commands"
-        assert passed >= 20, "At least 20 commands should be present"  # Allow 1 missing during dev
+        assert total >= 10, "Expected at least 10 commands"
+        assert passed >= 9, "At least 9 commands should be present"  # Allow 1 missing during dev
 
     def test_overall_status_healthy_when_all_pass(self):
         """Test overall status is HEALTHY when all components pass."""

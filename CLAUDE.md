@@ -24,10 +24,11 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
-**Commands (9 active)**:
+**Commands (10 active)**:
 
-**Core Workflow (8)**:
+**Core Workflow (9)**:
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
+- `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
 - `/create-issue` - Create GitHub issue with research + async scan + smart sections (3-5 min default, 8-12 min --thorough) - GitHub #122
 - `/align` - Unified alignment command with three modes:
   - `--project` - Fix PROJECT.md conflicts (alignment-analyzer agent) - formerly align-project
@@ -45,7 +46,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 **Archived Commands (12)** - Moved to `commands/archive/` - GitHub #121:
 - Individual agent commands (7): research, plan, test-feature, implement, review, security-scan, update-docs
 - Old align commands (3): align-project, align-claude, align-project-retrofit
-- Utilities (2): batch-implement, update-plugin
+- Utilities (2): uninstall, update-plugin
 
 ---
 
@@ -439,7 +440,7 @@ python .claude/hooks/validate_claude_alignment.py
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
 - Agent counts match reality (currently 20 agents, orchestrator removed v3.2.2)
-- Command counts match installed commands (currently 20 active commands)
+- Command counts match installed commands (currently 10 active commands)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date

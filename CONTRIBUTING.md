@@ -51,7 +51,7 @@ autonomous-dev/
 ├── CHANGELOG.md                 # Version history
 │
 ├── plugins/autonomous-dev/      # THE PLUGIN (distributed to users)
-│   ├── commands/                # 20 slash commands
+│   ├── commands/                # 10 slash commands (9 core + 1 utility)
 │   ├── agents/                  # 20 AI agents
 │   ├── skills/                  # 28 skill packages
 │   ├── hooks/                   # Automation hooks

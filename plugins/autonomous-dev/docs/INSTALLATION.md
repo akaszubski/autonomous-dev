@@ -268,7 +268,7 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 
 | Feature | Basic | Standard | Team |
 |---------|-------|----------|------|
-| **Slash Commands** | ✅ 8 commands | ✅ 8 commands | ✅ 8 commands |
+| **Slash Commands** | ✅ 10 commands | ✅ 10 commands | ✅ 10 commands |
 | **Installation Time** | 2 min | 5 min | 10 min |
 | **Auto-format on save** | ❌ Manual | ✅ Automatic | ✅ Automatic |
 | **Auto-test before commit** | ❌ Manual | ✅ Automatic | ✅ Automatic |
@@ -417,7 +417,7 @@ Yes! You can:
 
 ### Is Basic missing features?
 
-No! Basic tier has all 8 commands. You're only missing **automation** and **governance**, which you can add later.
+No! Basic tier has all 10 commands. You're only missing **automation** and **governance**, which you can add later.
 
 ---
 

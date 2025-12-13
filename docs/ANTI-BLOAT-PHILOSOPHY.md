@@ -19,7 +19,7 @@ This plugin exists to make developers' lives simpler through automation. But sim
 **Bloat prevention is NOT about doing less work.**
 
 It's about:
-- ✅ Using existing elements (19 agents, 28 hooks, 7 commands) to their fullest potential
+- ✅ Using existing elements (20 agents, 44 hooks, 10 commands) to their fullest potential
 - ✅ Building what's necessary to achieve autonomous execution
 - ✅ Making complex workflows simple through intelligent automation
 - ❌ NOT adding features that don't directly serve the primary mission
@@ -167,7 +167,7 @@ If you hear/say these phrases, STOP and reassess:
 - Blocks net growth without cleanup
 
 **enforce_command_limit.py** (PreCommit hook):
-- Hard limit: 8 commands maximum
+- Hard limit: 10 commands maximum
 - Validates .claude/commands/ directory
 - Blocks new commands if at limit
 

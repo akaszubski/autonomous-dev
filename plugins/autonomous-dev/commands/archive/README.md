@@ -4,13 +4,13 @@ This directory contains commands that were simplified and consolidated as part o
 
 ## Why Commands Were Archived
 
-The autonomous-dev plugin originally had 20 commands, which created cognitive overhead for users learning the system. Issue #121 simplified the command structure from 20 to 8 active commands by:
+The autonomous-dev plugin originally had 20 commands, which created cognitive overhead for users learning the system. Issue #121 simplified the command structure from 20 to 10 active commands by:
 
 1. **Consolidating related commands** - Combining align-project, align-claude, and align-project-retrofit into a single `/align` command
 2. **Removing redundant commands** - Individual agent commands (research, plan, implement, etc.) are replaced by `/auto-implement`
 3. **Streamlining utilities** - Moving less-used utilities to archive
 
-## Archived Commands (13 total)
+## Archived Commands (12 total)
 
 ### Individual Agent Commands (7)
 These are now handled by `/auto-implement`:
@@ -28,24 +28,28 @@ These are now modes of `/align`:
 - `align-claude.md` - Documentation drift (now: `/align --claude`)
 - `align-project-retrofit.md` - Brownfield retrofit (now: `/align --retrofit`)
 
-### Utility Commands (3)
+### Utility Commands (2)
 Consolidated or superseded:
-- `batch-implement.md` - Sequential processing (now: `/auto-implement --batch`)
-- `create-issue.md` - GitHub issue creation (superseded by workflow)
-- `update-plugin.md` - Plugin updates (superseded by `/health-check`)
+- `uninstall.md` - Plugin uninstall (rarely needed)
+- `update-plugin.md` - Plugin updates (superseded by `/sync`)
 
-## Active Commands (8)
+## Active Commands (10)
 
-After simplification, these 8 commands remain active:
+After simplification, these 10 commands remain active:
 
+**Core Workflow (9)**:
 1. **`auto-implement.md`** - Full autonomous pipeline (research → plan → test → implement → review → docs)
-2. **`align.md`** - Unified alignment command (--project, --claude, --retrofit modes)
-3. **`setup.md`** - Interactive project setup wizard
-4. **`sync.md`** - Smart sync (dev environment, marketplace, or plugin-dev)
-5. **`status.md`** - Project progress tracking
-6. **`health-check.md`** - Plugin integrity validation
-7. **`pipeline-status.md`** - Track /auto-implement workflow execution
-8. **`test.md`** - Run automated tests (pytest wrapper)
+2. **`batch-implement.md`** - Sequential processing of multiple features with state management
+3. **`create-issue.md`** - GitHub issue creation with research
+4. **`align.md`** - Unified alignment command (--project, --claude, --retrofit modes)
+5. **`setup.md`** - Interactive project setup wizard
+6. **`sync.md`** - Smart sync (dev environment, marketplace, or plugin-dev)
+7. **`status.md`** - Project progress tracking
+8. **`health-check.md`** - Plugin integrity validation
+9. **`pipeline-status.md`** - Track /auto-implement workflow execution
+
+**Utility (1)**:
+10. **`test.md`** - Run automated tests (pytest wrapper)
 
 ## Migration Guide
 
@@ -65,9 +69,8 @@ If you were using archived commands, here's how to migrate:
 | `/align-project` | `/align --project` |
 | `/align-claude` | `/align --claude` |
 | `/align-project-retrofit` | `/align --retrofit` |
-| `/batch-implement <file>` | `/auto-implement --batch <file>` |
-| `/create-issue <request>` | Use `/auto-implement` workflow |
-| `/update-plugin` | Use `/health-check` to check for updates |
+| `/update-plugin` | Use `/sync` for updates |
+| `/uninstall` | Rarely needed - manual removal |
 
 ### For Developers
 
@@ -80,7 +83,7 @@ Archived commands remain in this directory for reference. If you need to restore
 
 ## Rationale
 
-The 20-to-8 simplification provides:
+The 20-to-10 simplification provides:
 
 - **Lower cognitive overhead** - Fewer commands to learn and remember
 - **Clearer workflows** - `/auto-implement` is the primary command for feature development

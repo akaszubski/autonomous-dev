@@ -620,9 +620,10 @@ class TestAlignmentValidation:
 
     def test_command_count_still_correct_in_claude_md(self):
         """
-        CLAUDE.md should still document correct command count (20 commands).
+        CLAUDE.md should still document correct command count (10 commands).
 
         After optimization, command count documentation should remain accurate.
+        Updated per Issue #121 command simplification (20 -> 10 commands).
         """
         claude_md = Path(__file__).parent.parent.parent / "CLAUDE.md"
 
@@ -631,10 +632,10 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for command count (20 active)
+        # Check for command count (10 active per Issue #121)
         command_count_patterns = [
-            r"20\s+(?:active\s+)?commands",
-            r"Commands\s+\(20\s+active",
+            r"10\s+(?:active\s+)?commands",
+            r"Commands\s+\(10\s+active",
         ]
 
         has_command_count = any(
@@ -643,7 +644,7 @@ class TestAlignmentValidation:
         )
 
         assert has_command_count, (
-            "CLAUDE.md missing correct command count (20 commands). "
+            "CLAUDE.md missing correct command count (10 commands). "
             "Ensure command documentation preserved during optimization."
         )
 

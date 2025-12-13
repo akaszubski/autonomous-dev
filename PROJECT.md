@@ -67,7 +67,7 @@ This is achieved via **dual-layer architecture**:
    - Security: 15 minutes → 2 minutes (AI vulnerability scan)
    - Docs: 20 minutes → 1 minute (AI doc generation)
 
-6. **Minimal User Intervention** - 20 commands total (10 core workflow + 8 individual agents + 2 utility) → `/auto-implement <feature>` does full pipeline → Individual agent commands for granular control → `/status` shows progress → `/align-project` validates alignment → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync` smart sync
+6. **Minimal User Intervention** - 10 commands total (9 core workflow + 1 utility) → `/auto-implement <feature>` does full pipeline → `/batch-implement <file>` for multiple features → `/align` validates alignment (3 modes) → `/status` shows progress → `/setup` configures → `/test` for debugging → `/health-check` diagnostics → `/sync` smart sync → `/create-issue` for GitHub issues
 
 **Success Metrics**:
 
@@ -109,11 +109,10 @@ This is achieved via **dual-layer architecture**:
    PROJECT.md: "Performance" goal → 60% complete
 ```
 
-**Command Structure** (17 total, unified /sync per GitHub #47):
-- **Core Workflow Commands (8)**: auto-implement (full pipeline), align-project, align-claude, setup, sync (unified auto-detection), status, health-check, pipeline-status
-- **Individual Agent Commands (7)**: research, plan, test-feature, implement, review, security-scan, update-docs
-- **Utility Commands (2)**: test (pytest wrapper), uninstall
-- **Archived (32)**: Redundant manual commands moved to commands/archive/ (sync-dev, update-plugin, commit variants, format, sync-docs, granular test commands, etc.)
+**Command Structure** (10 active, simplified per GitHub #121):
+- **Core Workflow Commands (9)**: auto-implement, batch-implement, align (unified with 3 modes), setup, sync, status, health-check, pipeline-status, create-issue
+- **Utility Commands (1)**: test (pytest wrapper)
+- **Archived (12)**: Individual agent commands and redundant commands moved to commands/archive/
 
 **Meta-Goal**: This plugin enforces its own principles (autonomous team model) on projects that use it.
 
@@ -300,7 +299,7 @@ This repository serves TWO audiences - contributors building the plugin AND user
 - `plugins/autonomous-dev/hooks/` - Automation hooks + utility scripts (setup.py wizard, validators, etc.)
 - `plugins/autonomous-dev/tests/` - Plugin feature tests
 - `plugins/autonomous-dev/agents/` - 20 AI agents (9 core + 11 utility, orchestrator removed v3.2.2)
-- `plugins/autonomous-dev/commands/` - 20 slash commands (10 core + 8 agent + 2 utility)
+- `plugins/autonomous-dev/commands/` - 10 slash commands (9 core + 1 utility, per Issue #121)
 - `plugins/autonomous-dev/hooks/` - 15 automation hooks (7 core + 8 optional)
 - `plugins/autonomous-dev/templates/` - Project templates (settings.strict-mode.json, project-structure.json, PROJECT.md)
 
@@ -1017,7 +1016,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 1. If plugin missing: Install via `/plugin marketplace add` → `/plugin install` → Restart
 2. Run curl command again
 3. Restart Claude Code
-4. Done - all 15 commands available (8 core + 7 individual agents)
+4. Done - all 10 commands available (9 core + 1 utility)
 
 **Updates:** Same curl command always gets latest from GitHub.
 
