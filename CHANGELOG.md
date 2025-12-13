@@ -1,6 +1,111 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #127: CLI Wrapper for sync_dispatcher.py**
+  - **Problem**: sync.md command invoked sync_dispatcher via subprocess without argument parsing, requiring manual mode detection logic in the command file
+  - **Solution**: Add main() CLI wrapper to sync_dispatcher.py with argparse-based argument parsing and mode selection
+  - **Features**:
+    - **Argument Parsing**: Mutually exclusive flags (--github, --env, --marketplace, --plugin-dev, --all)
+    - **Default Behavior**: GitHub mode when no flags specified (backward compatible)
+    - **Error Handling**: argparse validation with helpful usage messages (exit code 2 for invalid args)
+    - **User Control**: KeyboardInterrupt gracefully handled with user cancellation message
+    - **Help Support**: Standard --help flag with comprehensive examples
+    - **Output Routing**: Success messages to stdout, errors to stderr
+    - **Implementation**: Embedded as if __name__ == "__main__": block with sys.exit(main())
+  - **Benefits**:
+    - Simplifies /sync command implementation (delegates to Python CLI)
+    - No manual mode detection in command file (cleaner separation of concerns)
+    - Standard argparse patterns for Python CLI consistency
+    - Easier testing of mode selection logic (separate from command handler)
+    - Portable: Works from any directory (uses cwd for project root)
+  - **Files Modified**:
+    - plugins/autonomous-dev/lib/sync_dispatcher.py - Added main() function (130 lines) with full CLI wrapper
+    - plugins/autonomous-dev/commands/sync.md - Updated Implementation section to show Python CLI invocation
+  - **Files Created**:
+    - tests/unit/lib/test_sync_dispatcher_cli.py (524 lines) - TDD tests for CLI argument parsing
+    - tests/integration/test_sync_command_execution.py (556 lines) - Integration tests for full CLI execution
+  - **Testing**: 28 TDD tests covering CLI argument parsing and execution
+    - Argument parsing: 12 tests (default mode, explicit modes, mutually exclusive, help, invalid args)
+    - Mode execution: 8 tests (each mode success/failure)
+    - Error handling: 4 tests (KeyboardInterrupt, subprocess errors, exit codes)
+    - Integration: 4 tests (end-to-end execution from command perspective)
+  - **Exit Codes**:
+    - 0: Successful sync operation
+    - 1: Sync operation failed or unexpected error
+    - 2: Invalid command-line arguments (argparse validation)
+  - **Documentation Updated**:
+    - docs/LIBRARIES.md - Added main() function documentation with CLI arguments and examples
+    - plugins/autonomous-dev/commands/sync.md - Updated Implementation section with Python CLI invocation
+  - **Related**: GitHub Issue #127
+
+
+**Added**
+- **Issue #123: Automatic Lib File Installation to ~/.claude/lib/**
+  - **Problem**: Hook activation requires lib files (security_utils.py, path_utils.py, validation.py) to be available in ~/.claude/lib/, but install.sh and plugin updates didn't copy lib files to global location
+  - **Solution**: Automatic lib file syncing from plugin/lib to ~/.claude/lib during both initial installation and updates
+  - **Features**:
+    - **install.sh Enhancement**: New install_lib_files() function copies .py files from plugin/lib to ~/.claude/lib
+      - Creates ~/.claude/lib directory if missing
+      - Validates file integrity (rejects symlinks)
+      - Skips __init__.py files (not needed in global lib)
+      - Atomic operations with error handling
+      - Clear reporting: Success count, failure count, symlink warnings
+      - Non-blocking: Installation succeeds even if lib sync fails
+    - **PluginUpdater Enhancement**: New _sync_lib_files() method (non-blocking)
+      - Called automatically during /sync and /update-plugin operations
+      - Copies lib files from plugin/lib to ~/.claude/lib after sync completes
+      - Reads installation_manifest.json to verify lib should be synced
+      - Security-validated paths (prevents CWE-22 traversal, CWE-59 symlinks)
+      - Graceful degradation: Missing manifest or files handled cleanly
+      - Audit logging for all operations
+      - Returns count of successfully synced files
+    - **Permission Validation**: New _validate_and_fix_permissions() method
+      - Validates settings.local.json permission patterns
+      - Fixes issues (wildcard patterns, missing deny lists)
+      - Creates timestamped backups before modifications
+      - Handles corrupted JSON with auto-regeneration
+      - Non-blocking (failures don't block update)
+    - **Result Tracking**: PermissionFixResult dataclass tracks actions and results
+  - **Security**:
+    - Target path validation: Ensures ~/.claude/lib is within user home
+    - Source path validation: Prevents CWE-22 (path traversal)
+    - Symlink rejection: Prevents CWE-59 (symlink attacks)
+    - Manifest validation: Ensures lib files listed in manifest
+    - All operations audit-logged
+    - Atomic writes: tempfile plus rename pattern
+  - **Non-Blocking Design**:
+    - Lib sync failures don't block plugin installation or update
+    - Permission fix failures don't block operations
+    - Warnings printed to console
+    - Feature succeeds even if sync encounters errors
+    - Returns lib_files_synced count in result.details
+  - **Testing**: 10 test files across unit and integration
+    - tests/unit/lib/test_lib_installation.py (TDD RED)
+    - tests/integration/test_install_settings_generation.py
+    - tests/integration/test_update_permission_fix.py
+    - tests/unit/lib/test_plugin_updater_permissions.py
+    - tests/unit/lib/test_settings_generator_validation.py
+  - **Files Modified**:
+    - install.sh - Added install_lib_files() function
+    - plugins/autonomous-dev/lib/plugin_updater.py - Added lib sync and permission validation
+    - plugins/autonomous-dev/lib/hook_activator.py - Enhanced path validation
+    - plugins/autonomous-dev/lib/settings_generator.py - Enhanced permission validation
+  - **Files Created**:
+    - plugins/autonomous-dev/config/research_rate_limits.json
+    - plugins/autonomous-dev/scripts/migrate_hook_paths.py
+    - plugins/autonomous-dev/templates/settings.default.json
+    - plugins/autonomous-dev/lib/research_quality_scorer.py
+    - Test files (9 total)
+  - **Documentation Updated**:
+    - docs/LIBRARIES.md - Added API documentation for new methods
+    - plugins/autonomous-dev/docs/TROUBLESHOOTING.md - Added lib file troubleshooting
+  - **Related**: GitHub Issue #123
+
+**Fixed**
+- **Documentation**: docs/TROUBLESHOOTING.md - Added lib file installation troubleshooting section
+- **Documentation**: docs/LIBRARIES.md - Added documentation for plugin_updater.py lib sync methods
+
+**Added**
 - **Issue #120: Performance Improvements - Pipeline Classification & Tiered Testing**
   - **Problem**: All feature requests run full 20-minute pipeline regardless of complexity. Typos and docs updates waste 15+ minutes on unnecessary TDD, security, and implementation phases.
   - **Solution**: Three-tier execution pipeline with intelligent classification and risk-based testing

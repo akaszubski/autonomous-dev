@@ -411,7 +411,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 5. sync_dispatcher.py (1117 lines, v3.7.1+)
+## 5. sync_dispatcher.py (1530 lines, v3.7.1+ - Issue #127 CLI wrapper added)
 
 **Purpose**: Intelligent sync orchestration with version detection and cleanup (Issue #97: Fixed sync directory silent failures)
 
@@ -476,6 +476,38 @@ See `docs/SECURITY.md` for comprehensive security guide
   - Orphan cleanup: Conditional (cleanup_orphans parameter), with dry-run support
   - Error handling: Non-blocking - enhancements don't block core sync
   - Messaging: Shows upgrade/downgrade/up-to-date status and cleanup results
+
+#### main() (CLI wrapper - NEW Issue #127)
+- **Purpose**: Command-line interface wrapper for sync_dispatcher.py
+- **Returns**: int - Exit code (0 success, 1 failure, 2 invalid args)
+- **CLI Arguments**:
+  - --github: Fetch latest files from GitHub (default if no flags)
+  - --env: Sync environment (delegates to sync-validator agent)
+  - --marketplace: Copy files from installed plugin
+  - --plugin-dev: Sync plugin development files
+  - --all: Execute all sync modes in sequence
+- **Mutually Exclusive**: Only one mode flag allowed per invocation
+- **Features**:
+  - Auto-detection of sync mode based on CLI flags
+  - Sensible default: GITHUB mode when no flags specified
+  - Argument validation via argparse (returns exit code 2 for invalid args)
+  - Helpful error messages and usage examples
+  - Graceful handling of KeyboardInterrupt (user cancellation)
+  - Exit code 0 for --help flag (standard argparse behavior)
+- **Stdin/Stdout Handling**:
+  - Success messages printed to stdout
+  - Error messages printed to stderr
+  - Preserves argparse exit behavior for --help and invalid args
+- **Examples**:
+  - python3 sync_dispatcher.py - Default GitHub mode
+  - python3 sync_dispatcher.py --github - Explicit GitHub mode
+  - python3 sync_dispatcher.py --env - Environment sync
+  - python3 sync_dispatcher.py --marketplace - Marketplace sync
+  - python3 sync_dispatcher.py --plugin-dev - Plugin development sync
+  - python3 sync_dispatcher.py --all - All modes in sequence
+  - python3 sync_dispatcher.py --help - Show usage information
+- **Implementation**: Replaces manual mode detection, now directly embedded as if __name__ == "__main__": block
+- **Used By**: /sync command (delegates to main() via subprocess)
 
 ### Security
 - All paths validated via security_utils
@@ -625,6 +657,67 @@ See `docs/SECURITY.md` for comprehensive security guide
 - **Purpose**: Activate hooks from new plugin version
 - **Integration**: Calls hook_activator.py
 
+
+#### _sync_lib_files (NEW - Issue #123)
+- **Purpose**: Sync lib files from plugin to ~/.claude/lib/ (non-blocking)
+- **Workflow**:
+  1. Read installation_manifest.json to verify lib directory should be synced
+  2. Create ~/.claude/lib/ if doesn't exist
+  3. Copy each .py file from plugin/lib/ to ~/.claude/lib/
+  4. Validate all paths for security (CWE-22, CWE-59)
+  5. Audit log all operations
+  6. Handle errors gracefully (non-blocking)
+- **Returns**: Number of lib files successfully synced (0 on complete failure)
+- **Security**:
+  - Target path validation: Ensures ~/.claude/lib is within user home
+  - Source path validation: Prevents CWE-22 (path traversal)
+  - Symlink rejection: Prevents CWE-59 (symlink attacks)
+  - Manifest validation: Ensures lib files explicitly listed
+  - Audit logging for all operations
+- **Non-Blocking**: Lib sync failures don't block plugin update
+- **Features**:
+  - Graceful degradation: Missing manifest or source files handled cleanly
+  - Returns lib_files_synced count in UpdateResult.details
+  - Skips __init__.py (not needed in global lib)
+
+#### _validate_and_fix_permissions (NEW - Issue #123)
+- **Purpose**: Validate and fix settings.local.json permissions (non-blocking)
+- **Workflow**:
+  1. Check if settings.local.json exists (skip if not)
+  2. Load and validate permissions
+  3. If issues found:
+     - Backup existing file with timestamp
+     - Generate template with correct patterns
+     - Fix using fix_permission_patterns()
+     - Write fixed settings atomically
+  4. Return result with action taken
+- **Returns**: PermissionFixResult with action, issues found, and fixes applied
+- **Actions**:
+  - validated: No issues found, settings already correct
+  - fixed: Issues found and fixed
+  - regenerated: Corrupted JSON regenerated from template
+  - skipped: No settings.local.json found
+  - failed: Validation or fix failed
+- **Backup Strategy**:
+  - Timestamped filename: settings.local.json.backup-YYYYMMDD-HHMMSS-NNNNNN
+  - Location: .claude/backups/
+  - Permissions: Inherits from original file
+- **Non-Blocking**: Permission fix failures don't block plugin operations
+- **Security**:
+  - Atomic writes: Uses tempfile plus rename
+  - Path validation: CWE-22 and CWE-59 prevention
+  - Backup creation: Before any modifications
+  - Audit logging: All operations logged with context
+
+#### PermissionFixResult (NEW - Issue #123)
+- **Purpose**: Dataclass tracking permission validation/fix results
+- **Attributes**:
+  - success (bool): Whether validation/fix succeeded
+  - action (str): Action taken (validated, fixed, regenerated, skipped, failed)
+  - issues_found (int): Count of detected permission issues
+  - fixes_applied (List[str]): List of fixes that were applied
+  - backup_path (Path or None): Path to backup file (if created)
+  - message (str): Human-readable result message
 ### Security (GitHub Issue #52 - 5 CWE vulnerabilities addressed)
 - **CWE-22 (Path Traversal)**: Marketplace path validation, rollback path validation, user home directory check
 - **CWE-78 (Command Injection)**: Plugin name length + format validation (alphanumeric, dash, underscore only)

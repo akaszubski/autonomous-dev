@@ -574,9 +574,9 @@ vim plugins/autonomous-dev/commands/new-feature.md
 
 ## Implementation
 
-Invoke the sync dispatcher to execute the appropriate sync mode based on context detection.
-
-The command uses `sync_mode_detector.py` to auto-detect the mode, then `sync_dispatcher.py` to execute the sync operation.
+```bash
+python3 plugins/autonomous-dev/lib/sync_dispatcher.py "$@"
+```
 
 ---
 

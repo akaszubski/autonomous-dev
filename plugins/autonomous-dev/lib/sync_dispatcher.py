@@ -39,6 +39,7 @@ Design Patterns:
     See library-design-patterns skill for standardized design patterns.
 """
 
+import argparse
 import json
 import os
 import shutil
@@ -791,6 +792,20 @@ class SyncDispatcher:
 
             # Step 3: Fetch each file
             for file_path in files_to_fetch:
+                # SECURITY: Validate file_path from manifest (CWE-22 prevention)
+                # Reject path traversal patterns before processing
+                if ".." in file_path or file_path.startswith("/"):
+                    audit_log(
+                        "security_violation",
+                        "github_sync_path_traversal",
+                        {
+                            "file_path": file_path,
+                            "reason": "Path traversal pattern detected",
+                        },
+                    )
+                    errors.append(f"{file_path}: Invalid path pattern (security)")
+                    continue
+
                 # Skip non-essential files (docs, tests, etc.)
                 if any(skip in file_path for skip in ["/docs/", "/tests/", "README.md", "CONTRIBUTING.md"]):
                     continue
@@ -806,6 +821,28 @@ class SyncDispatcher:
                 else:
                     # For other files, place in .claude/
                     dest_path = claude_dir / Path(file_path).name
+
+                # SECURITY: Validate destination path (CWE-22 prevention)
+                # Ensure dest_path is within claude_dir (no directory escape)
+                try:
+                    resolved_dest = dest_path.resolve()
+                    resolved_claude = claude_dir.resolve()
+                    if not str(resolved_dest).startswith(str(resolved_claude)):
+                        audit_log(
+                            "security_violation",
+                            "github_sync_directory_escape",
+                            {
+                                "file_path": file_path,
+                                "dest_path": str(dest_path),
+                                "resolved": str(resolved_dest),
+                                "claude_dir": str(resolved_claude),
+                            },
+                        )
+                        errors.append(f"{file_path}: Security validation failed (directory escape)")
+                        continue
+                except Exception as e:
+                    errors.append(f"{file_path}: Path validation error: {e}")
+                    continue
 
                 try:
                     # Create parent directories
@@ -1398,3 +1435,132 @@ def sync_marketplace(
         cleanup_orphans=cleanup_orphans,
         dry_run=dry_run,
     )
+
+
+def main() -> int:
+    """CLI wrapper for sync_dispatcher.py.
+
+    Parses command-line arguments and executes the appropriate sync mode.
+
+    Arguments:
+        --github: Fetch latest files from GitHub (default)
+        --env: Sync environment (delegates to sync-validator agent)
+        --marketplace: Copy files from installed plugin
+        --plugin-dev: Sync plugin development files
+        --all: Execute all sync modes in sequence
+
+    Returns:
+        Exit code: 0 for success, 1 for failure, 2 for invalid arguments
+
+    Examples:
+        # Default GitHub mode
+        $ python3 sync_dispatcher.py
+
+        # Explicit mode selection
+        $ python3 sync_dispatcher.py --github
+        $ python3 sync_dispatcher.py --env
+        $ python3 sync_dispatcher.py --marketplace
+        $ python3 sync_dispatcher.py --plugin-dev
+        $ python3 sync_dispatcher.py --all
+    """
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Sync dispatcher for autonomous-dev plugin",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default (GitHub mode)
+  python3 sync_dispatcher.py
+
+  # Explicit mode selection
+  python3 sync_dispatcher.py --github
+  python3 sync_dispatcher.py --env
+  python3 sync_dispatcher.py --marketplace
+  python3 sync_dispatcher.py --plugin-dev
+  python3 sync_dispatcher.py --all
+
+Exit Codes:
+  0 - Success
+  1 - Failure
+  2 - Invalid arguments
+"""
+    )
+
+    # Create mutually exclusive group for sync modes
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        '--github',
+        action='store_true',
+        help='Fetch latest files from GitHub (default)'
+    )
+    mode_group.add_argument(
+        '--env',
+        action='store_true',
+        help='Sync environment via sync-validator agent'
+    )
+    mode_group.add_argument(
+        '--marketplace',
+        action='store_true',
+        help='Copy files from installed plugin'
+    )
+    mode_group.add_argument(
+        '--plugin-dev',
+        action='store_true',
+        help='Sync plugin development files'
+    )
+    mode_group.add_argument(
+        '--all',
+        action='store_true',
+        help='Execute all sync modes in sequence'
+    )
+
+    try:
+        args = parser.parse_args()
+
+        # Determine sync mode (default to GITHUB)
+        if args.env:
+            mode = SyncMode.ENVIRONMENT
+        elif args.marketplace:
+            mode = SyncMode.MARKETPLACE
+        elif args.plugin_dev:
+            mode = SyncMode.PLUGIN_DEV
+        elif args.all:
+            mode = SyncMode.ALL
+        else:
+            # Default to GITHUB (when no flags or --github explicitly)
+            mode = SyncMode.GITHUB
+
+        # Get project root from current working directory
+        project_root = os.getcwd()
+
+        # Execute sync
+        try:
+            dispatcher = SyncDispatcher(project_root=project_root)
+            result = dispatcher.dispatch(mode)
+
+            # Output result
+            if result.success:
+                print(result.message)
+                return 0
+            else:
+                # Print error to stderr
+                error_msg = result.error if result.error else result.message
+                print(f"Error: {error_msg}", file=sys.stderr)
+                return 1
+
+        except Exception as e:
+            # Handle unexpected errors
+            print(f"Error: {str(e)}", file=sys.stderr)
+            return 1
+
+    except KeyboardInterrupt:
+        print("\nSync cancelled by user.", file=sys.stderr)
+        return 1
+    except SystemExit:
+        # argparse raises SystemExit for --help or invalid args
+        # Re-raise to propagate exit code (0 for --help, 2 for errors)
+        raise
+
+
+if __name__ == "__main__":
+    sys.exit(main())
