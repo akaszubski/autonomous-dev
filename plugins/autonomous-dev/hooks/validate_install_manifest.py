@@ -57,6 +57,7 @@ def scan_source_files(plugin_dir: Path) -> dict:
         ("scripts", "*.py", "scripts", False),
         ("config", "*.json", "config", False),
         ("templates", "*.json", "templates", False),
+        ("skills", "*.md", "skills", True),  # Recursive - includes docs/, examples/, templates/
     ]
 
     for dir_name, pattern, component_name, recursive in scans:
@@ -76,8 +77,9 @@ def scan_source_files(plugin_dir: Path) -> dict:
             if f.name.startswith("test_"):
                 continue
 
-            # Build manifest path
-            relative = f"plugins/autonomous-dev/{dir_name}/{f.name}"
+            # Build manifest path (supports recursive subdirectories)
+            relative_to_source = f.relative_to(source_dir)
+            relative = f"plugins/autonomous-dev/{dir_name}/{relative_to_source}"
             files.append(relative)
 
         components[component_name] = sorted(files)

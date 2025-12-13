@@ -3,6 +3,14 @@ description: "Sync plugin files (--github default, --env, --marketplace, --plugi
 argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all"
 ---
 
+## Implementation
+
+```bash
+python3 .claude/lib/sync_dispatcher.py "$@"
+```
+
+---
+
 # Sync - Unified Synchronization Command
 
 **Smart context-aware sync with automatic mode detection**
@@ -639,14 +647,6 @@ vim plugins/autonomous-dev/commands/new-feature.md
 # - Environment is configured
 # - Marketplace updates applied
 # - Plugin dev files synced (if applicable)
-```
-
----
-
-## Implementation
-
-```bash
-python3 .claude/lib/sync_dispatcher.py "$@"
 ```
 
 ---
