@@ -6418,3 +6418,198 @@ if detect_consensus(ranked, similarity_threshold=0.7, min_cluster_size=3):
 - `docs/AGENTS.md` - researcher agent enhancements
 - `docs/PERFORMANCE-HISTORY.md` - Phase 10 optimization details
 - `plugins/autonomous-dev/config/research_rate_limits.json` - Configuration reference
+---
+
+## 49. configure_global_settings.py (CLI Wrapper, v3.46.0+, Issue #116)
+
+**Purpose**: Configure fresh installs and upgrades with ~/.claude/settings.json permission patterns
+
+**Called By**: `install.sh` during bootstrap Phase 1 (fresh install, updates, upgrades)
+
+**Status**: Production (integrated into install.sh bootstrap workflow)
+
+### Overview
+
+CLI wrapper for `SettingsGenerator.merge_global_settings()`. Creates or updates `~/.claude/settings.json` with correct permission patterns for Claude Code 2.0. Handles both fresh installs (create from template) and upgrades (preserve user customizations while fixing broken patterns).
+
+### Key Features
+
+1. **Fresh Install**: Creates `~/.claude/settings.json` from template on first install
+2. **Upgrade Path**: Preserves user customizations while fixing broken `Bash(:*)` patterns
+3. **Non-Blocking**: Always exits 0 for graceful degradation (installation continues even on errors)
+4. **Backup Safety**: Creates timestamped backup before modifying existing files
+5. **JSON Output**: Returns structured status JSON for `install.sh` consumption
+6. **Atomic Writes**: Uses tempfile + rename for safe file operations
+7. **Directory Creation**: Creates `~/.claude/` if missing with secure permissions
+
+### Command-Line Interface
+
+**Basic Usage**:
+```bash
+# Fresh install (no existing settings)
+python3 configure_global_settings.py --template /path/to/template.json
+
+# Upgrade (existing settings, preserve customizations)
+python3 configure_global_settings.py --template /path/to/template.json --home ~/.claude
+```
+
+**Arguments**:
+- `--template PATH`: Path to settings template file (required)
+  - Typically: `plugins/autonomous-dev/config/global_settings_template.json`
+  - Must be valid JSON with `permissions` object
+- `--home PATH`: Path to home directory (optional, default: `~/.claude`)
+  - Rarely used, for testing with different directories
+
+### Output Format
+
+**Success Response**:
+```json
+{
+  "success": true,
+  "created": true,
+  "message": "Created ~/.claude/settings.json from template",
+  "path": "~/.claude/settings.json",
+  "permissions": 384,
+  "patterns_added": 45,
+  "timestamp": "2025-12-13T15:30:45.123456"
+}
+```
+
+**Upgrade Response** (preserving customizations):
+```json
+{
+  "success": true,
+  "created": false,
+  "message": "Updated ~/.claude/settings.json (preserved customizations)",
+  "path": "~/.claude/settings.json",
+  "backup_path": "~/.claude/settings.json.backup.20251213_153045",
+  "patterns_fixed": 2,
+  "patterns_preserved": 5,
+  "timestamp": "2025-12-13T15:30:45.123456"
+}
+```
+
+**Error Response** (non-blocking):
+```json
+{
+  "success": false,
+  "created": false,
+  "message": "Template file not found: /path/to/template.json",
+  "path": null,
+  "timestamp": "2025-12-13T15:30:45.123456"
+}
+```
+
+**Exit Code**: Always 0 (non-blocking - installation continues)
+
+### Integration with install.sh
+
+Called from `install.sh` after downloading plugin files to configure global settings.
+
+**Related Files**:
+- `plugins/autonomous-dev/config/global_settings_template.json` - Template source
+- `plugins/autonomous-dev/lib/settings_generator.py` - Python API
+- `plugins/autonomous-dev/lib/validation.py` - Path validation
+- `tests/unit/scripts/test_configure_global_settings.py` - Unit tests
+- `tests/integration/test_install_settings_configuration.py` - Integration tests
+
+### Configuration Processing
+
+**Fresh Install Workflow**:
+1. Check if template exists and is valid JSON
+2. Create `~/.claude/` directory if missing (permissions: 0o700)
+3. Merge template with empty user settings
+4. Write merged settings to `~/.claude/settings.json` (permissions: 0o600)
+5. Return JSON with `created: true`
+
+**Upgrade Workflow**:
+1. Check if template exists and is valid JSON
+2. Read existing `~/.claude/settings.json`
+3. Detect broken patterns (e.g., `Bash(:*)`)
+4. Fix broken patterns: Replace `Bash(:*)` with safe specific patterns
+5. Deep merge: template patterns + user patterns (union)
+6. Preserve user hooks completely (never modified)
+7. Create backup: `settings.json.backup.YYYYMMDD_HHMMSS`
+8. Write merged settings atomically
+9. Return JSON with `created: false`, backup path, and fix count
+
+### Security
+
+**Input Validation**:
+- Path validation (CWE-22, CWE-59): Prevent path traversal, symlink attacks
+- Template validation: Must be valid JSON
+- Home directory validation: Must be under home directory
+
+**Output Safety**:
+- Atomic writes: Tempfile + rename pattern
+- Secure permissions: 0o600 for settings (user-only access)
+- No credential exposure in JSON output
+
+**Backup Safety**:
+- Timestamped filenames: `settings.json.backup.YYYYMMDD_HHMMSS`
+- Only created if file will be modified
+- Secure permissions: 0o600 (user-only access)
+- Old backups automatically replaced (one backup per session)
+
+### Error Handling
+
+All errors are non-blocking (exit 0) for graceful degradation:
+
+| Error | Message | Behavior |
+|-------|---------|----------|
+| Template not found | "Template file not found: ..." | Returns error JSON, continues installation |
+| Invalid template JSON | "Template is invalid JSON: ..." | Returns error JSON, continues installation |
+| Permission denied (read) | "Cannot read template: ..." | Returns error JSON, continues installation |
+| Permission denied (write) | "Cannot write settings: ..." | Returns error JSON, continues installation |
+| Corrupted settings.json | "Settings file corrupted: ..." | Backs up corrupted file, creates fresh copy |
+| Path traversal attempt | "Invalid path: ..." | Rejected, continues installation |
+
+Installation Impact: Non-blocking errors allow installation to continue. Manual configuration may be needed if settings.json not created.
+
+### Testing
+
+**Test Coverage**: 19 tests across 2 files
+
+**Unit Tests** (11 tests):
+- Fresh install creates settings from template
+- Existing settings preserved during upgrade
+- Broken Bash(:*) patterns fixed
+- Missing template handled gracefully
+- Directory creation with proper permissions
+- JSON output format validation
+- Exit code always 0 (non-blocking)
+- Integration with SettingsGenerator
+- Backup creation before modification
+- Permission error handling
+- Settings generator integration
+
+**Integration Tests** (8 tests):
+- Settings have correct Claude Code 2.0 format
+- All 45+ required patterns present
+- Deny list comprehensive
+- PreToolUse hook configured
+- Fresh install end-to-end
+- Upgrade preserves customizations
+- install.sh integration
+- Idempotency (no duplication on repeated runs)
+
+Coverage Target: 95%+ for CLI script
+
+### Related Components
+
+**Calls**:
+- `SettingsGenerator.merge_global_settings()` - Core merge and fix logic
+
+**Called By**:
+- `install.sh` - Bootstrap Phase 1 (fresh install, updates, upgrades)
+
+**Related Issues**:
+- GitHub Issue #116 - Fresh install permission configuration (implementation)
+- GitHub Issue #117 - Global settings configuration (related feature)
+- GitHub Issue #114 - Permission fixing during updates (broken pattern detection)
+
+### See Also
+
+- **BOOTSTRAP_PARADOX_SOLUTION.md** - Why global infrastructure needed
+- **VERIFICATION-ISSUE-116.md** - Documentation verification report
+- **SettingsGenerator** - Python API for settings merge and fix logic

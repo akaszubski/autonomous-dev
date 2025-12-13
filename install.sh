@@ -303,6 +303,52 @@ bootstrap_setup_command() {
     fi
 }
 
+# Configure global settings.json with correct permission patterns
+configure_global_settings() {
+    log_step "Configuring global settings..."
+
+    local template_path="${STAGING_DIR}/files/plugins/autonomous-dev/config/global_settings_template.json"
+    local script_path="${STAGING_DIR}/files/plugins/autonomous-dev/scripts/configure_global_settings.py"
+    local home_path="${HOME}/.claude"
+
+    # Check if template was downloaded
+    if [[ ! -f "$template_path" ]]; then
+        log_warning "Template not found - skipping settings configuration"
+        return 1
+    fi
+
+    # Check if script was downloaded
+    if [[ ! -f "$script_path" ]]; then
+        log_warning "Configure script not found - skipping settings configuration"
+        return 1
+    fi
+
+    # Run configuration script (always exits 0, check JSON output)
+    local result
+    result=$(python3 "$script_path" --template "$template_path" --home "$home_path" 2>&1)
+
+    # Parse result JSON
+    local success
+    success=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print('true' if data.get('success') else 'false')" 2>/dev/null || echo "false")
+
+    if [[ "$success" == "true" ]]; then
+        local created
+        created=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print('true' if data.get('created') else 'false')" 2>/dev/null || echo "false")
+
+        if [[ "$created" == "true" ]]; then
+            log_success "Created ~/.claude/settings.json from template"
+        else
+            log_success "Updated ~/.claude/settings.json (preserved customizations)"
+        fi
+        return 0
+    else
+        local error_msg
+        error_msg=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print(data.get('message', 'Unknown error'))" 2>/dev/null || echo "Configuration failed")
+        log_warning "Settings configuration: ${error_msg}"
+        return 1
+    fi
+}
+
 # Main
 main() {
     echo ""
@@ -354,6 +400,14 @@ main() {
         log_info "  cp ${STAGING_DIR}/files/plugins/autonomous-dev/commands/setup.md .claude/commands/"
     fi
 
+    # Configure global settings.json (non-blocking)
+    local settings_success=false
+    if configure_global_settings; then
+        settings_success=true
+    else
+        log_warning "Settings configuration skipped (will use defaults)"
+    fi
+
     # Print results
     echo ""
     log_success "Files staged to: ${STAGING_DIR}"
@@ -361,6 +415,11 @@ main() {
         log_success "/setup command installed to .claude/commands/"
     else
         log_warning "/setup command not installed (see above for manual steps)"
+    fi
+    if $settings_success; then
+        log_success "Global settings configured in ~/.claude/settings.json"
+    else
+        log_warning "Global settings not configured (will use Claude Code defaults)"
     fi
     echo ""
 
