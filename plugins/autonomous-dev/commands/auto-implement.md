@@ -76,9 +76,28 @@ Use the Task tool with these parameters:
 
 ---
 
-### STEP 1.1: Merge Research Findings
+### STEP 1.1: Validate Web Research (MANDATORY)
 
-**After both research agents complete**, merge their findings into unified context for planner.
+⚠️ **BEFORE MERGING**: Check the tool use counts from both agents:
+
+| Agent | Expected | If 0 tool uses |
+|-------|----------|----------------|
+| researcher-local | 10-30 tool uses | Acceptable if codebase is small |
+| web research (general-purpose) | **1+ tool uses** | ❌ **FAIL - web search didn't happen** |
+
+**If web research shows 0 tool uses**:
+1. **DO NOT PROCEED** - the results are hallucinated, not from actual web search
+2. **Report failure**: "❌ Web research failed: 0 WebSearch calls made. Results would be hallucinated."
+3. **Retry**: Re-invoke the web research agent with this explicit prompt:
+   "You MUST call WebSearch tool at least once. Search for [topic]. Do not answer from memory."
+
+**Only proceed to merge if web research shows 1+ tool uses.**
+
+---
+
+### STEP 1.2: Merge Research Findings
+
+**After VALIDATING both agents completed with actual tool use**, merge findings into unified context for planner.
 
 Combine:
 - **Codebase context** (from researcher-local): existing_patterns, files_to_update, architecture_notes, similar_implementations
@@ -94,7 +113,7 @@ This merged context will be passed to the planner step (next).
 
 ---
 
-### STEP 1.2: Verify Parallel Research
+### STEP 1.3: Verify Parallel Research
 
 **After merging research**, verify parallel execution succeeded:
 
