@@ -58,10 +58,10 @@ autonomous-dev/
 │   └── hooks/                        # Hooks YOU'RE using while developing
 │
 ├── plugins/autonomous-dev/           # THE PLUGIN (what users get)
-│   ├── agents/                       # 20 agent definitions
+│   ├── agents/                       # 22 agent definitions (21 active)
 │   ├── skills/                       # 28 skill definitions
-│   ├── commands/                     # 10 command definitions
-│   ├── hooks/                        # 44 hook implementations
+│   ├── commands/                     # 7 command definitions (3 archived)
+│   ├── hooks/                        # 45 hook implementations
 │   └── README.md                     # User-facing docs
 │
 ├── docs/                             # Developer/contributor docs
