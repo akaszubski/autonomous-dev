@@ -465,9 +465,12 @@ class SyncValidator:
                         ))
 
         # Check for version mismatches in config
+        # Note: Only compare files with the same versioning scheme
+        # auto_approve_policy.json uses policy schema version (e.g., "2.0" for permissive mode)
+        # which is different from plugin version - so exclude it from comparison
         config_files = [
             self.claude_dir / "config" / "install_manifest.json",
-            self.claude_dir / "config" / "auto_approve_policy.json",
+            # Add other plugin version files here if needed
         ]
 
         versions_found = {}
