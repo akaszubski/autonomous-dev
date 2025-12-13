@@ -158,14 +158,6 @@ This is achieved via **dual-layer architecture**:
 - ✅ **Security scanning** - Secrets detection, vulnerability scanning, OWASP compliance
 - ✅ **Documentation sync** - README, CHANGELOG, API docs updated automatically
 
-**Distribution (Bootstrap-First Architecture)**:
-- ✅ **install.sh is THE install method** - Single curl command handles everything
-- ✅ **Global infrastructure required** - ~/.claude/hooks/, ~/.claude/lib/, ~/.claude/settings.json
-- ✅ **Marketplace insufficient alone** - Can download files but can't configure global infrastructure
-- ✅ **Not a simple plugin** - This is a development system that uses plugin structure for organization
-- ✅ **Multi-language support** - Python, JavaScript/TypeScript, Go, Rust (generic approach)
-- ✅ **Customizable** - Teams can fork and adapt to their standards
-
 **What's OUT of Scope** ❌ (Features we avoid):
 
 - ❌ **Replacing human developers** - AI augments, doesn't replace
@@ -473,6 +465,46 @@ Production Code (Professional Quality Guaranteed)
 
 ---
 
+
+## DISTRIBUTION
+
+**Bootstrap-First Architecture** - install.sh is the primary method for installing autonomous-dev.
+
+**Why Bootstrap-First?**
+autonomous-dev is a development system, not a simple plugin. It requires global infrastructure that the Claude Code marketplace cannot configure:
+- Global hooks in `~/.claude/hooks/` (security validation, auto-approval)
+- Python libraries in `~/.claude/lib/` (agent dependencies)
+- Specific `~/.claude/settings.json` format (Bash tool permission patterns)
+
+**Primary Install Method: install.sh**
+- Single curl command handles everything
+- Required for first-time installation
+- Two-phase bootstrap architecture (install.sh → /setup wizard)
+- Works for fresh installs, brownfield projects, and upgrades
+- Configures global `~/.claude/` infrastructure
+
+**Marketplace Role: Optional Supplement**
+- Can be used for updates after install.sh has run once
+- Easy version browsing and change history
+- Only updates plugin files (not global infrastructure)
+- Requires install.sh to have been run at least once
+
+**What the Marketplace Cannot Do:**
+- Create directories in `~/.claude/`
+- Modify `~/.claude/settings.json`
+- Install global hooks for all projects
+- Configure Bash tool permissions
+- Install Python dependencies globally
+
+
+- Multi-language support (Python, JavaScript/TypeScript, Go, Rust)
+- Customizable (teams can fork and adapt to their standards)
+- Not a simple plugin - this is a development system that uses plugin structure for organization
+- Marketplace insufficient alone - can download files but cannot configure global infrastructure
+
+See `docs/BOOTSTRAP_PARADOX_SOLUTION.md` for complete technical explanation.
+
+---
 ## ENFORCEMENT RULES 🛑
 
 **These rules PREVENT bloat from returning. Aligned with autonomous team philosophy.**

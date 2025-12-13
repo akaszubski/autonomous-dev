@@ -1,20 +1,36 @@
 #!/usr/bin/env bash
 #
-# autonomous-dev Plugin Installer
+# autonomous-dev Plugin Installer - PRIMARY INSTALL METHOD
 #
-# One-liner install for both fresh installs and updates.
+# Bootstrap-First Architecture: This is the REQUIRED install method for autonomous-dev.
+# The marketplace alone is insufficient because it cannot configure global infrastructure.
+# autonomous-dev is a development system, not a simple plugin.
 #
 # Usage:
 #   bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 #
-# What this does:
-#   1. Downloads plugin files to ~/.autonomous-dev-staging/
-#   2. Installs /setup command to .claude/commands/ (enables fresh installs)
-#   3. You restart Claude Code and run /setup
-#   4. /setup wizard intelligently handles:
+# What this does (that the marketplace cannot):
+#   1. Creates global infrastructure:
+#      - ~/.claude/hooks/ (security validation, auto-approval)
+#      - ~/.claude/lib/ (Python dependencies)
+#      - ~/.claude/settings.json (permission patterns)
+#   2. Downloads plugin files to ~/.autonomous-dev-staging/
+#   3. Installs /setup command to .claude/commands/
+#   4. You restart Claude Code and run /setup
+#   5. /setup wizard intelligently handles:
 #      - Fresh installs (copies all files, guides PROJECT.md creation)
 #      - Brownfield (preserves existing .claude/ files)
 #      - Upgrades (updates plugin, preserves customizations)
+#
+# Why not marketplace alone?
+#   The marketplace can download files but CANNOT:
+#   - Create directories in ~/.claude/
+#   - Modify ~/.claude/settings.json
+#   - Install global hooks for all projects
+#   - Configure Bash tool permissions
+#
+# The marketplace is useful as an OPTIONAL supplement for updates after
+# this script has run at least once.
 #
 # Requirements:
 #   - curl or wget

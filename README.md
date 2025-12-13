@@ -155,14 +155,26 @@ Then:
 
 That's it! Works for both fresh installs and updates.
 
-### Why Not Just Use the Marketplace?
+### Install Options
 
-autonomous-dev **outgrew the simple plugin model**. It requires:
+autonomous-dev is a **development system**, not a simple plugin. It requires global infrastructure that the marketplace can't configure:
 - Global hooks in `~/.claude/hooks/` (auto-approval, security validation)
 - Python libraries in `~/.claude/lib/` (agent dependencies)
 - Specific `~/.claude/settings.json` format (permission patterns)
 
-The marketplace can download files, but can't configure global `~/.claude/` infrastructure. That's why `install.sh` exists — it handles everything.
+**Primary method: `install.sh`** (required for first install)
+- Configures global `~/.claude/` infrastructure
+- Two-phase bootstrap: download → setup wizard
+- Works for fresh installs, brownfield projects, and upgrades
+
+**Supplemental: Marketplace** (optional for updates)
+- Easy version browsing and updates
+- Only updates plugin files (not global infrastructure)
+- Requires `install.sh` to have run at least once
+
+The marketplace can download files, but it **cannot** create global directories, modify `~/.claude/settings.json`, or install dependencies. That's why `install.sh` exists.
+
+See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for the complete technical explanation of why marketplace-only installation doesn't work.
 
 ### How It Works
 

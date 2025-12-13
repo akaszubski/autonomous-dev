@@ -8,18 +8,21 @@
 
 ---
 
+## Installation (Bootstrap-First)
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+# Restart Claude Code (Cmd+Q / Ctrl+Q)
+/setup
+```
+
+**Why not marketplace alone?** autonomous-dev requires global infrastructure that the marketplace cannot configure: `~/.claude/hooks/`, `~/.claude/lib/`, and `~/.claude/settings.json`. See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for complete explanation.
+
 ## Project Overview
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
 **Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
-
-**Install** (Bootstrap-First - this is a development system, not a simple plugin):
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-# Restart Claude Code (Cmd+Q or Ctrl+Q)
-# Run /setup to complete installation
-```
 
 **Commands (20 active, includes /align-project-retrofit for brownfield adoption and /batch-implement for sequential processing)**:
 
@@ -546,23 +549,6 @@ For enhanced Claude Desktop integration, configure the MCP server with optional 
 
 Permission-based security system for MCP server operations (prevents path traversal, command injection, SSRF).
 
-**Quick Start**:
-```bash
-# 1. Initialize security policy (choose one)
-python plugins/autonomous-dev/lib/mcp_profile_manager.py --init development
-# OR
-python plugins/autonomous-dev/lib/mcp_profile_manager.py --init testing
-# OR
-python plugins/autonomous-dev/lib/mcp_profile_manager.py --init production
-
-# 2. Validate policy
-python plugins/autonomous-dev/lib/mcp_permission_validator.py --validate .mcp/security_policy.json
-
-# 3. Test operations
-python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-read "src/main.py"
-python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-shell "pytest tests/"
-```
-
 **Security Features**:
 - Whitelist-based permission system (allowlist + denylist)
 - Glob pattern matching for flexible permissions
@@ -589,30 +575,7 @@ python plugins/autonomous-dev/lib/mcp_permission_validator.py --test-shell "pyte
 
 ## Quick Reference
 
-### Installation (Bootstrap-First)
-
-autonomous-dev is a **development system**, not a simple plugin. It requires global infrastructure that the marketplace can't configure.
-
-```bash
-# Single install command (handles everything)
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-
-# Restart Claude Code (REQUIRED!)
-# Press Cmd+Q (Mac) or Ctrl+Q (Linux/Windows)
-
-# Complete setup
-/setup
-```
-
-**What install.sh does:**
-- Creates `~/.claude/hooks/` with auto-approval hooks
-- Creates `~/.claude/lib/` with Python dependencies
-- Configures `~/.claude/settings.json` with correct permission patterns
-- Installs agents, commands, skills to project `.claude/`
-
-**Why not marketplace alone?** The marketplace can download files but can't configure global `~/.claude/` infrastructure. See Issue #119.
-
-### Updating
+## Updating
 ```bash
 # Use the built-in update command
 /update-plugin

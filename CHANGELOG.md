@@ -1,6 +1,27 @@
 ## [Unreleased]
 
-### Added
+## [3.41.0] - 2025-12-13
+
+**Added**
+- **Feature #119: Bootstrap-First Architecture Documentation (Issue #119)**
+  - **Issue**: Documentation didn't clearly explain why marketplace-only installation doesn't work
+  - **Solution**: Comprehensive bootstrap architecture documentation with technical deep-dive
+  - **New Documentation**: `docs/BOOTSTRAP_PARADOX_SOLUTION.md`
+    - Explains why marketplace can't configure global infrastructure
+    - Details two-phase bootstrap architecture (install.sh → /setup)
+    - Workflow diagrams showing complete installation process
+    - Step-by-step installation scenarios (fresh, brownfield, upgrade)
+    - Common questions and troubleshooting
+  - **README.md Updates**:
+    - Renamed "Why Not Just Use the Marketplace?" to "Install Options"
+    - Added link to BOOTSTRAP_PARADOX_SOLUTION.md
+    - Clarified install.sh as primary method, marketplace as optional supplement
+  - **CLAUDE.md Updates**: Already shows install.sh prominently in install section
+  - **PROJECT.md Updates**: Distribution section updated to describe install.sh as "THE primary method"
+  - **install.sh Updates**: Header comments now explicitly state "PRIMARY INSTALL METHOD" with marketplace comparison
+  - **Messaging Consistency**: All documentation now consistently describes bootstrap-first architecture
+
+**Added**
 - **Feature #111: Parallel Deep Research Capabilities**
   - **Issue**: Researcher agent processes sources sequentially, missing parallel optimization
   - **Solution**: Add quality scoring, consensus detection, and diminishing returns analysis
@@ -29,7 +50,7 @@
   - **Agents Updated**: [docs/AGENTS.md](docs/AGENTS.md) - Enhanced researcher capabilities
 
 
-### Added
+**Added**
 - **Feature #113: Make PreToolUse Hook Path Dynamic (Portable)**
   - **Issue**: Hardcoded absolute paths in hook configurations break when users move projects or clone to different machines
 - **Feature #112: Hook Format Migration to Claude Code 2.0**
@@ -651,7 +672,7 @@
 
 ## [v3.40.0] - 2025-12-09
 
-### Added
+**Added**
 
 - **Auto-Approval Policy v2.0 - Permissive Mode with Blacklist-First Security**
   - **Breaking Change**: Switched from whitelist-first to blacklist-first approach
@@ -776,7 +797,7 @@
 ---
 ## [v3.39.0] - 2025-12-09
 
-### Added
+**Added**
 
 - **Settings Merge on Marketplace Sync** - Issue #98
   - **Feature**: `/sync --marketplace` now automatically merges template settings.local.json with user settings
@@ -924,7 +945,7 @@
 
 ## [v3.37.0] - 2025-12-07
 
-### Added
+**Added**
 
 - **MCP Server Security - Permission Whitelist System** - Issue #95
   - **Feature**: Permission-based security validation for MCP server operations to prevent path traversal, command injection, SSRF, and secret exposure
@@ -992,7 +1013,7 @@
 
 ## [v3.36.0] - 2025-12-06
 
-### Added
+**Added**
 
 - **Per-Feature Git Automation in Batch Workflow** - Issue #93
   - **Feature**: `/batch-implement` now automatically commits each completed feature with conventional commit messages
@@ -1229,7 +1250,7 @@
 
 
 
-### Added
+**Added**
 - **Batch-Implement Automatic Failure Recovery** - Issue #89
   - **Problem**: When features fail during `/batch-implement`, no distinction between transient and permanent errors
   - **Solution**: Intelligent failure classification with automatic retry for transient errors and safety limits
@@ -1632,7 +1653,7 @@
 
 ## [3.29.0] - 2025-11-17
 
-### Added
+**Added**
 - **Bootstrap Installation Overhaul - 100% File Coverage** - Issue #80
   - **4 New Installation Libraries** (1,484 lines, 215+ unit/integration tests):
     - `file_discovery.py` (310 lines): Comprehensive file discovery with intelligent exclusion patterns
@@ -1727,7 +1748,7 @@
 
 ## [3.28.0] - 2025-11-17
 
-### Added
+**Added**
 - **Tracking Infrastructure Path Resolution and Security** - Issue #79
   - **2 New Libraries**: Dynamic path resolution and security validation for tracking modules
     - `path_utils.py` (187 lines): PROJECT_ROOT detection, session/batch state path resolution with caching
@@ -1828,7 +1849,7 @@
 
 ## [3.26.0] - 2025-11-16
 
-### Added
+**Added**
 - **Phase 8.6: Extract skill-integration-templates skill** - Issue #72 continuation
   - **1 New Skill**: Standardized templates for skill integration patterns
     - `skill-integration-templates` (11 files, ~1,200 tokens): Skill reference syntax, action verbs, progressive disclosure usage, integration best practices
@@ -1857,7 +1878,7 @@
 
 ## [3.25.0] - 2025-11-16
 
-### Added
+**Added**
 - **Phase 8.7: Extract project-alignment-validation skill** - Issue #72 continuation
   - **1 New Skill**: Comprehensive project alignment and validation patterns
     - `project-alignment-validation` (11 files, ~2,200 tokens): Gap assessment, semantic validation, conflict resolution, alignment checklists
@@ -1887,7 +1908,7 @@
 
 ## [3.24.1] - 2025-11-16
 
-### Added
+**Added**
 - **Phase 8.8: Library audit and pattern extraction** - Issue #72 continuation
   - **3 New Skills**: Comprehensive library design and integration patterns
     - `library-design-patterns` (532 lines): Progressive enhancement, two-tier architecture, security validation, docstring standards
@@ -1917,7 +1938,7 @@
 
 ## [3.24.0] - 2025-11-16
 
-### Added
+**Added**
 - **Issue #77: Add --issues flag to /batch-implement for direct GitHub issue processing**
   - **New Library**: `github_issue_fetcher.py` (462 lines)
     - Fetch GitHub issue titles via gh CLI with comprehensive security validation
@@ -1987,7 +2008,7 @@
 
 ## [3.23.0] - 2025-11-16
 
-### Added
+**Added**
 - **State-Based Auto-Clearing for /batch-implement** - GitHub Issue #76
   - **Feature**: Intelligent context management with persistent state for large-scale batch processing
     - Automatic context clearing at 150K token threshold (prevents context bloat)
@@ -2058,7 +2079,7 @@
 
 ## [3.22.0] - 2025-11-15
 
-### Added
+**Added**
 - **Batch Feature Implementation** - GitHub Issue #74
   - **Feature**: Sequential processing of multiple features with automatic context management
     - Process 10-100+ features from a text file
@@ -2100,7 +2121,7 @@
 
 ## [3.21.0] - 2025-11-15
 
-### Added
+**Added**
 - **MCP Auto-Approval for Subagent Tool Calls** - GitHub Issue #73
   - **Feature**: Automatic tool approval for trusted subagent workflows
     - Reduces permission prompts from 50+ to 0 for trusted operations
@@ -2240,7 +2261,7 @@
 
 ## [3.20.0] - 2025-11-14
 
-### Added
+**Added**
 - **Phase 8.5: Profiler Integration** - GitHub Issue #46 Phase 8.5
   - **New Function**: `analyze_performance_logs()` in `performance_profiler.py`
     - Comprehensive API for loading metrics, aggregating by agent, and detecting bottlenecks
@@ -2349,7 +2370,7 @@
 
 ## [3.19.0] - 2025-11-12
 
-### Added
+**Added**
 - **New skill-integration skill for standardized skill architecture patterns** - GitHub Issues #67-68
   - **Skill Integration Skill**: Complete skill for standardized patterns in skill discovery, composition, and progressive disclosure
   - **Documentation Files (3)**:
@@ -2463,27 +2484,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
----
-
-
-### Added
-- **Math Utilities Library** - Fibonacci calculator with multiple algorithms
-  - **New Library**: `math_utils.py` (465 lines)
-    - Three calculation methods: iterative, recursive (memoized), matrix exponentiation
-    - Input validation with custom exception hierarchy
-    - Security integration via audit logging
-    - DoS prevention (max n=10000)
-    - Performance optimized for different input ranges
-  - **Public API**: `calculate_fibonacci(n, method='iterative')`
-    - Returns: nth Fibonacci number
-    - Methods: 'iterative' (default, O(n)), 'recursive' (cached, O(n)), 'matrix' (O(log n))
-    - Raises: `InvalidInputError`, `MethodNotSupportedError`
-  - **Test Coverage**: 73 tests in `tests/unit/lib/test_math_utils.py`
-  - **Use Cases**: Algorithm demonstration, educational examples, performance benchmarking
-
 ## [3.20.1] - 2025-11-15
 
-### Added
+**Added**
 - **Issue #68 Phase 2: Enhanced github-workflow skill with comprehensive automation documentation** - GitHub Issue #68 Phase 2
   - **New Documentation Files (4)** (completed 2025-11-15):
     - `docs/pr-automation.md` (533 lines, ~2,907 tokens) - PR automation workflows, auto-labeling, auto-reviewers, auto-merge strategies, and CI/CD integration patterns
@@ -2558,7 +2561,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Added - 2025-11-12
 
-### Added
+**Added**
 - **Enhanced documentation-guide skill with documentation standards** - GitHub Issue #66 Phase 8.4
   - **New Documentation Files (4)**:
     - `parity-validation.md` (325 lines) - Documentation consistency validation patterns
@@ -2619,7 +2622,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.17.0] - 2025-11-12
 
-### Added
+**Added**
 - **Enhanced testing-guide skill with comprehensive testing patterns** - GitHub Issue #65
   - **New Documentation Files (4)**:
     - `pytest-patterns.md` (404 lines) - Fixtures, mocking, parametrization, and pytest best practices
@@ -2700,7 +2703,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.15.0] - 2025-11-12
 
-### Added
+**Added**
 - **Agent Output Format Cleanup** - GitHub Issue #72
   - Created token measurement infrastructure for tracking cleanup progress
   - **measure_agent_tokens.py**: Token counting script with baseline/post-cleanup comparison
@@ -2766,7 +2769,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.14.0] - 2025-11-11
 
-### Added
+**Added**
 - **Skill-Based Token Reduction** - GitHub Issues #63, #64
   - Created 2 new skills for standardized patterns across agents and libraries
   - **agent-output-formats skill** (Issue #63):
@@ -2894,7 +2897,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.11.0] - 2025-11-11
 
-### Added
+**Added**
 - **Brownfield Project Retrofit System** - GitHub Issue #59
   - New command: `/align-project-retrofit` (5-phase retrofit process)
     - Phase 0: Project analysis and tech stack detection
@@ -2930,7 +2933,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.10.0] - 2025-11-09
 
-### Added
+**Added**
 - **Automatic GitHub Issue Creation with Research** - GitHub Issue #58
   - New agent: `plugins/autonomous-dev/agents/issue-creator.md` (168 lines)
     - Transforms feature requests and research findings into well-structured GitHub issue descriptions
@@ -2986,86 +2989,13 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.9.0] - 2025-11-09
 
-### Added
+**Added**
 - **Automatic Git Operations Integration** - GitHub Issue #58
 ## [Unreleased]
 
-### Added
-- **Feature #115: Settings Generator - NO Wildcards, Specific Patterns Only**
-  - **Issue**: Need automatic settings.local.json generation with security-first design
-  - **Solution**: New SettingsGenerator library creates settings with specific command patterns (NO wildcards)
-  - **Key Features**:
-    - Specific patterns only: `Bash(git:*)`, `Bash(pytest:*)` (NEVER `Bash(*)`)
-    - Comprehensive deny list: Blocks rm -rf, sudo, eval, chmod, dangerous git operations
-    - Command auto-discovery: Scans `plugins/autonomous-dev/commands/*.md` for slash commands
-    - User customization preservation: Merges with existing settings during upgrades
-    - Atomic writes: Secure permissions (0o600) with proper error handling
-  - **Security**:
-    - Path validation (CWE-22 path traversal, CWE-59 symlinks)
-    - Command injection prevention (validates pattern syntax)
-    - 50+ deny patterns blocking destructive operations
-    - Audit logging for all operations
-  - **Implementation**:
-    - NEW: `plugins/autonomous-dev/lib/settings_generator.py` (749 lines)
-    - NEW: `plugins/autonomous-dev/templates/settings.default.json`
-    - NEW: `tests/unit/lib/test_settings_generator.py` (56 tests)
-    - NEW: `tests/integration/test_install_settings_generation.py` (29 tests)
-  - **Documentation Updated**:
-    - ENHANCED: `docs/LIBRARIES.md` section 47 (complete API documentation)
-    - ENHANCED: `CLAUDE.md` (updated library count: 42 → 43)
-  - **User Impact**:
-    - Fresh install: Auto-generates settings.local.json with secure defaults
-    - Marketplace sync: Merges new patterns while preserving user customizations
-    - Upgrade: Backups existing settings before merge
-  - **Related**: GitHub Issue #115 (Settings Generator)
-
-- **Automatic Git Operations Integration** - GitHub Issue #58
-  - New hook: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (588 lines) - SubagentStop lifecycle integration
-    - Triggers after quality-validator agent completes (last validation agent)
-    - Checks consent via environment variables: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
-    - Invokes auto_implement_git_integration.execute_step8_git_operations() for core workflow
-    - Non-blocking error handling (git automation failures don't affect feature completion)
-    - Graceful degradation with manual fallback instructions
-    - Security: Uses security_utils.validate_path() for validation, audit logs to security_audit.log
-  - New library: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (1,466 lines) - Core Step 8 integration
-    - Main entry point: `execute_step8_git_operations()` - Orchestrates commit, push, PR creation
-    - Consent management: `check_consent_via_env()` - Parse AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
-    - Agent integration: `invoke_commit_message_agent()`, `invoke_pr_description_agent()` - Generate messages
-    - Operations: `create_commit_with_agent_message()`, `push_and_create_pr()` - Execute git operations
-    - Validation functions (8):
-      - `validate_agent_output()` - Verify agent response usable (success key, length, format)
-      - `validate_git_state()` - Check repository state (no detached HEAD, merge conflicts, dirty files)
-      - `validate_branch_name()` - Ensure branch follows conventions
-      - `validate_commit_message()` - Validate conventional commits format
-      - `check_git_credentials()` - Verify git credentials available
-      - `check_git_available()` - Check git CLI installed
-      - `check_gh_available()` - Check GitHub CLI for PR creation
-      - Plus: `build_manual_git_instructions()`, `build_fallback_pr_command()` for fallback generation
-    - Security: Path validation (CWE-22, CWE-59), audit logging, subprocess safety (CWE-78)
-    - Error handling: Non-blocking, actionable error messages with manual fallback instructions
-    - Usage: Invoked by auto_git_workflow.py hook, implements Step 8 of /auto-implement workflow
-  - Updated documentation: `plugins/autonomous-dev/commands/auto-implement.md` - STEP 5 workflow
-    - Replaces manual git operations prompt with automatic SubagentStop hook documentation
-    - Documents optional manual flow as fallback (when AUTO_GIT_ENABLED=false)
-    - Includes prerequisite validation requirements and error handling patterns
-    - Maintains backwards compatibility (manual operations still supported)
-  - Updated documentation: `CLAUDE.md` - Added Git Automation Control section and workflow
-    - New section: "Git Automation Control" (setup, design, security, implementation files)
-    - Updated workflow: Step 7 now documents SubagentStop hook integration
-    - Updated libraries: Added 11th library (auto_implement_git_integration.py) with full API docs
-    - Updated hooks: Added auto_git_workflow.py to core hooks list (30 total automation)
-    - Version bumped to v3.9.0 in header
-
-### Changed
-- Autonomous Development Workflow (STEP 7): Now automatic via SubagentStop hook (instead of manual consent prompt)
-- CLAUDE.md: Workflow and architecture sections enhanced for git automation feature
-- auto-implement.md: STEP 5 documentation completely rewritten for automated workflow
-
----
-
 ## [3.8.3] - 2025-11-09
 
-### Added
+**Added**
 - **Automatic Task Tool Agent Detection** - GitHub Issue #57
   - Enhanced script: `scripts/agent_tracker.py` - Added Task tool agent auto-detection
     - New method: `is_agent_tracked(agent_name: str) -> bool` - Check if agent already tracked (duplicate detection)
@@ -3151,7 +3081,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.8.2] - 2025-11-09
 
-### Added
+**Added**
 - **Security Hardening in plugin_updater.py** - GitHub Issue #52 (Remaining 5% of Issue #50 Phase 2)
   - Enhanced library: `plugin_updater.py` - Added 5 CWE security validations
     - Security Fix 1 (CWE-22: Path Traversal): Marketplace plugin path validation via security_utils.validate_path()
@@ -3228,7 +3158,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.8.1] - 2025-11-09
 
-### Added
+**Added**
 - **Automatic Hook Activation in /update-plugin** - GitHub Issue #50 Phase 2.5
   - New library: `hook_activator.py` (539 lines) - Automatic hook activation during plugin updates
     - Classes: `ActivationError` (base exception), `SettingsValidationError` (validation failures), `ActivationResult` (result dataclass), `HookActivator` (main coordinator)
@@ -3298,7 +3228,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.8.0] - 2025-11-09
 
-### Added
+**Added**
 - **Interactive /update-plugin Command** - GitHub Issue #50 Phase 2
   - New command: `/update-plugin` - Safe, interactive plugin update with version detection, backup, and rollback
   - New library: `plugin_updater.py` (658 lines) - Core update logic with backup and rollback
@@ -3350,7 +3280,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.7.2] - 2025-11-09
 
-### Added
+**Added**
 - **Marketplace Version Validation Integration into /health-check** - GitHub Issue #50 Phase 1
   - New library: `validate_marketplace_version.py` (371 lines) - CLI script for marketplace version detection
   - Integration: Added `_validate_marketplace_version()` method to `health_check.py` hook
@@ -3404,7 +3334,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.7.1] - 2025-11-08
 
-### Added
+**Added**
 - **GenAI-Powered Orphan Detection in Sync Script** - GitHub #47
   - Smart orphan file detection: Identifies files in installed location not in dev directory
   - GenAI reasoning: Analyzes why files are orphaned (renamed, consolidated, deprecated, moved, removed)
@@ -3457,7 +3387,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.6.0] - 2025-11-08
 
-### Added
+**Added**
 - **Pipeline Performance Optimization (Phases 4-6: Model Optimization, Prompt Simplification, Profiling Infrastructure)** - Issue #46
   - **Phase 4: Model Optimization (COMPLETE)**
     * Researcher agent switched from Sonnet to Haiku model for 5-10x faster research execution
@@ -3559,7 +3489,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.5.0] - 2025-11-07
 
-### Added
+**Added**
 - **Parallel Research + Planning Agent Execution (Phase 2)** - Issue #46 Pipeline Performance Optimization
   - Parallelized researcher + planner agents to reduce exploration phase from 8 minutes to 5 minutes (37.5% faster)
   - Core functionality: `verify_parallel_exploration()` method in `scripts/agent_tracker.py` (180 lines, lines 782-976)
@@ -3613,7 +3543,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.4.0] - 2025-11-05
 
-### Added
+**Added**
 - **Auto-Update PROJECT.md Goal Progress** - SubagentStop hook auto-updates GOALS section after /auto-implement completes (GitHub Issue #40)
   - New SubagentStop lifecycle hook: `auto_update_project_progress.py`
     * Triggers automatically after doc-master agent completes
@@ -3719,7 +3649,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.4.3] - 2025-11-07
 
-### Added
+**Added**
 - **Centralized Security Utils Library** - Shared security validation and audit logging (GitHub Issue #46)
   - New module: `plugins/autonomous-dev/lib/security_utils.py` (628 lines)
     * Provides 7 core security functions for centralized enforcement
@@ -3790,7 +3720,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [3.5.0] - 2025-11-07
 
-### Added
+**Added**
 - **Parallel Research + Planning Agent Execution (Phase 2)** - Researcher and planner agents run simultaneously in /auto-implement workflow (GitHub Issue #46)
   - Implementation: `verify_parallel_exploration()` method in `scripts/agent_tracker.py` (180 lines)
     * Detects parallel vs sequential execution via start time comparison (5-second window)
@@ -4058,7 +3988,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
     * Enhanced docstring explains security features and error handling
   - Implementation: `plugins/autonomous-dev/lib/pr_automation.py` (lines 120-179 for extract_issue_numbers)
 
-### Added
+**Added**
 - **Parallel Validation in /auto-implement (Step 5)** - 3 agents run simultaneously for 60% faster feature development
   - Merged STEPS 5, 6, 7 into single parallel step
   - Three validation agents: reviewer (quality), security-auditor (vulnerabilities), doc-master (documentation)
@@ -4125,7 +4055,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
   - Strengths: Subprocess command injection prevention, environment file security, no hardcoded secrets
   - Remediation: Detailed fixes provided in audit report with code examples
 
-### Added
+**Added**
 - **Enhanced Error Messages** - Shows specific missing directories with recovery instructions
   - Lists exactly which directories are missing (hooks, commands, templates)
   - Provides step-by-step reinstall instructions
@@ -4154,99 +4084,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
-### Added
-- **Feature #115: Settings Generator - NO Wildcards, Specific Patterns Only**
-  - **Issue**: Need automatic settings.local.json generation with security-first design
-  - **Solution**: New SettingsGenerator library creates settings with specific command patterns (NO wildcards)
-  - **Key Features**:
-    - Specific patterns only: `Bash(git:*)`, `Bash(pytest:*)` (NEVER `Bash(*)`)
-    - Comprehensive deny list: Blocks rm -rf, sudo, eval, chmod, dangerous git operations
-    - Command auto-discovery: Scans `plugins/autonomous-dev/commands/*.md` for slash commands
-    - User customization preservation: Merges with existing settings during upgrades
-    - Atomic writes: Secure permissions (0o600) with proper error handling
-  - **Security**:
-    - Path validation (CWE-22 path traversal, CWE-59 symlinks)
-    - Command injection prevention (validates pattern syntax)
-    - 50+ deny patterns blocking destructive operations
-    - Audit logging for all operations
-  - **Implementation**:
-    - NEW: `plugins/autonomous-dev/lib/settings_generator.py` (749 lines)
-    - NEW: `plugins/autonomous-dev/templates/settings.default.json`
-    - NEW: `tests/unit/lib/test_settings_generator.py` (56 tests)
-    - NEW: `tests/integration/test_install_settings_generation.py` (29 tests)
-  - **Documentation Updated**:
-    - ENHANCED: `docs/LIBRARIES.md` section 47 (complete API documentation)
-    - ENHANCED: `CLAUDE.md` (updated library count: 42 → 43)
-  - **User Impact**:
-    - Fresh install: Auto-generates settings.local.json with secure defaults
-    - Marketplace sync: Merges new patterns while preserving user customizations
-    - Upgrade: Backups existing settings before merge
-  - **Related**: GitHub Issue #115 (Settings Generator)
-
-- **Complete Agent-Skill Integration (Phase 3)** - All 18 agents now reference relevant skills for enhanced expertise (GitHub Issue #35)
-  - Implementation: Added "Relevant Skills" sections to all agent prompt files in `plugins/autonomous-dev/agents/`
-  - Coverage: 18 agents with specialized skill access patterns
-    * **Core Workflow Agents** (9): researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
-      - researcher: Uses research-patterns skill for web research and pattern discovery
-      - planner: Uses architecture-patterns, api-design, database-design, testing-guide skills for comprehensive design
-      - test-master: Uses testing-guide, security-patterns skills for TDD and security testing
-      - implementer: Uses python-standards, observability skills for code quality and performance
-      - reviewer: Uses code-review, consistency-enforcement, python-standards skills for quality gates
-      - security-auditor: Uses security-patterns, python-standards skills for vulnerability detection
-      - doc-master: Uses documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency skills for documentation synchronization
-      - advisor: Uses semantic-validation, advisor-triggers, research-patterns skills for critical thinking
-      - quality-validator: Uses testing-guide, code-review skills for feature validation
-    * **Utility Agents** (9): alignment-validator, alignment-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, setup-wizard, project-progress-tracker, project-status-analyzer, sync-validator
-      - Each utility agent references 3-8 relevant skills for specialized domain expertise
-  - Architecture: Progressive disclosure pattern maintains efficiency
-    * Skill metadata always in context (~200 bytes/skill)
-    * Full SKILL.md content loads only when agent task requires specialized knowledge
-    * Enables scaling to 100+ skills without context bloat
-  - Design standardization:
-    * Format: `## Relevant Skills` section with bulleted list and usage guidance
-    * Each skill includes brief description of its use in agent workflow
-    * Trailing paragraph explains skill activation pattern
-    * Consistent placement in agent prompt files (before Quality Standards section)
-  - Test coverage: 38 tests verifying agent skill integration patterns
-    * Agent file validation tests (18 agents verified)
-    * Skill reference consistency tests
-    * Progressive disclosure tests
-    * 32/38 tests passing (89%)
-  - Documentation:
-    * Updated `docs/SKILLS-AGENTS-INTEGRATION.md` with comprehensive agent-to-skill mapping table
-    * Updated `CLAUDE.md` Section 3.1 (Architecture → Agents) reflecting all 18 agents with active skill integration
-    * Updated `README.md` Layer 3 (Skills-Based Knowledge) confirming Issue #35 completion status
-    * Cross-references maintained for consistency across all documentation
-  - User impact: Agents leverage specialized knowledge automatically, improving feature development quality
-  - Backward compatible: Skills are optional (progressive disclosure graceful degradation)
-  - Next steps: Skill expansion to domain-specific areas (machine learning, mobile, cloud) based on project needs
-
-- **Sync Dispatcher Integration with Version Detection and Orphan Cleanup** - GitHub #51
-  - New `sync_marketplace()` high-level API in `sync_dispatcher.py` for marketplace sync with enhancements
-  - SyncResult dataclass enhancement: Added `version_comparison` and `orphan_cleanup` attributes
-  - Version detection integration:
-    - Uses `detect_version_mismatch()` from `version_detector.py` to compare project vs. marketplace versions
-    - Shows upgrade/downgrade status and version numbers in result messages
-    - Upgrade messaging: "Upgraded from X.Y.Z to A.B.C"
-    - Downgrade warning: "WARNING: Downgrade from X.Y.Z to A.B.C"
-    - Up-to-date messaging: "Version X.Y.Z (up to date)"
-  - Orphan cleanup integration:
-    - Uses `cleanup_orphan_files()` from `orphan_file_cleaner.py` to detect and cleanup orphaned files
-    - Optional cleanup (cleanup_orphans parameter, default False)
-    - Dry-run support for safe preview mode
-    - Reports: "X orphaned files detected (dry-run)" or "X orphaned files cleaned"
-  - Non-blocking error handling:
-    - Version detection failures don't block core sync
-    - Orphan cleanup failures don't block core sync
-    - All errors logged to security audit with context
-  - SyncResult.summary property: Auto-generates comprehensive summary including version and cleanup info
-  - Comprehensive audit logging: All version detection and cleanup operations logged to security audit (marketplace_sync events)
-  - Security: All paths validated via security_utils with CWE-22/CWE-59 protection
-  - User impact: Single API call provides rich result object with version and cleanup visibility
-
 ## [2.5.0] - 2025-10-25
 
-### Added
+**Added**
 - **Autonomous Workflow** - Complete end-to-end automation pipeline
   - `execute_autonomous_workflow()` in WorkflowCoordinator - orchestrates validate → code → commit → push → PR
   - `_auto_commit()` - Auto-commit with GenAI-generated commit messages
@@ -4312,7 +4152,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [2.2.0] - 2025-10-25
 
-### Added
+**Added**
 - **4 New Skills** (50% increase: 6 → 9 skills):
   - `git-workflow`: Commit conventions, branching strategies, PR workflows, CI/CD integration
   - `code-review`: Review standards, constructive feedback, quality checks
@@ -4342,7 +4182,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [2.1.0] - 2025-10-24
 
-### Added
+**Added**
 - **PROJECT.md-First Philosophy Section** in README - Prominent explanation of PROJECT.md-first architecture
 - **New Project vs Existing Project Workflows** - Clear guides for greenfield vs retrofit scenarios
 - **FAQ Section** clarifying `.claude/` directory usage (not needed for most users)
@@ -4423,7 +4263,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [2.0.0] - 2025-10-20
 
-### Added
+**Added**
 - **PROJECT.md-first architecture** - orchestrator validates alignment before every feature
 - **orchestrator agent** - Master coordinator with PRIMARY MISSION to validate PROJECT.md
 - **Model optimization** - opus (planner), sonnet (balanced), haiku (fast tasks) for 40% cost reduction
@@ -4465,7 +4305,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [1.0.0] - 2025-10-19
 
-### Added
+**Added**
 - Initial release of autonomous-dev plugin
 - 7 specialized agents (planner, researcher, test-master, implementer, reviewer, security-auditor, doc-master)
 - 6 core skills (python-standards, testing-guide, security-patterns, documentation-guide, research-patterns, engineering-standards)

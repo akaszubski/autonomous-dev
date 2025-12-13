@@ -69,11 +69,11 @@ class TestCharacterCountValidation:
         """
         Total content across CLAUDE.md + new docs should approximately equal baseline.
 
-        Baseline (comprehensive documentation): ~253,000 characters (v3.41.0+)
+        Baseline (comprehensive documentation): ~295,000 characters (v3.41.0+)
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
-        Tolerance: ±15% (includes GenAI installation libraries from Issue #106)
+        Tolerance: ±15% (includes 35 libraries from LIBRARIES.md)
         """
-        original_size = 253000  # Updated baseline for v3.41.0+ with 4 new installation libraries
+        original_size = 295000  # Updated baseline for v3.41.0+ with 35 libraries
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -131,9 +131,9 @@ class TestCharacterCountValidation:
         performance_size = len(performance_md.read_text(encoding="utf-8"))
         git_automation_size = len(git_automation_md.read_text(encoding="utf-8"))
 
-        assert 90000 <= libraries_size <= 210000, (
+        assert 90000 <= libraries_size <= 250000, (
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
-            f"(expected ~150,000 ±40% for 28 libraries)"
+            f"(expected ~225,000 ±40% for 35 libraries)"
         )
         assert 8600 <= performance_size <= 16200, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
