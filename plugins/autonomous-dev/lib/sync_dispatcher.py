@@ -954,6 +954,72 @@ class SyncDispatcher:
                 except Exception as e:
                     errors.append(f"{file_path}: {e}")
 
+            # Step 4: Also download hooks and libs DIRECTLY to ~/.claude/ (global)
+            # This ensures settings.json can find hooks at ~/.claude/hooks/
+            # We download from GitHub again (not copy from project) to solve
+            # chicken-and-egg: old sync_dispatcher still downloads from GitHub
+            global_claude_dir = Path.home() / ".claude"
+            global_hooks_copied = 0
+            global_libs_copied = 0
+
+            try:
+                # Get hooks and libs from manifest
+                hook_files = components.get("hooks", {}).get("files", [])
+                lib_files = components.get("lib", {}).get("files", [])
+
+                # Download hooks directly to ~/.claude/hooks/
+                global_hooks_dir = global_claude_dir / "hooks"
+                global_hooks_dir.mkdir(parents=True, exist_ok=True)
+                for file_path in hook_files:
+                    if ".." in file_path or file_path.startswith("/"):
+                        continue
+                    file_url = f"{GITHUB_RAW_BASE}/{file_path}"
+                    file_name = Path(file_path).name
+                    dest = global_hooks_dir / file_name
+                    try:
+                        with urllib.request.urlopen(file_url, timeout=30) as response:
+                            dest.write_bytes(response.read())
+                        global_hooks_copied += 1
+                    except Exception:
+                        pass  # Non-blocking
+
+                # Download libs directly to ~/.claude/lib/
+                global_lib_dir = global_claude_dir / "lib"
+                global_lib_dir.mkdir(parents=True, exist_ok=True)
+                for file_path in lib_files:
+                    if ".." in file_path or file_path.startswith("/"):
+                        continue
+                    file_url = f"{GITHUB_RAW_BASE}/{file_path}"
+                    file_name = Path(file_path).name
+                    dest = global_lib_dir / file_name
+                    try:
+                        with urllib.request.urlopen(file_url, timeout=30) as response:
+                            dest.write_bytes(response.read())
+                        global_libs_copied += 1
+                    except Exception:
+                        pass  # Non-blocking
+
+                audit_log(
+                    "github_sync",
+                    "global_download",
+                    {
+                        "hooks_downloaded": global_hooks_copied,
+                        "libs_downloaded": global_libs_copied,
+                        "global_dir": str(global_claude_dir),
+                    },
+                )
+            except Exception as e:
+                # Non-blocking - log but don't fail sync
+                audit_log(
+                    "github_sync",
+                    "global_download_error",
+                    {
+                        "error": str(e),
+                        "global_dir": str(global_claude_dir),
+                    },
+                )
+                errors.append(f"Global download failed: {e}")
+
             # Log completion
             audit_log(
                 "github_sync",
@@ -961,18 +1027,23 @@ class SyncDispatcher:
                 {
                     "project_path": str(self.project_path),
                     "files_updated": files_updated,
+                    "global_hooks": global_hooks_copied,
+                    "global_libs": global_libs_copied,
                     "errors": len(errors),
                 },
             )
 
             # Build result
+            global_msg = f", {global_hooks_copied} hooks + {global_libs_copied} libs to ~/.claude/"
             if errors:
                 return SyncResult(
                     success=True,  # Partial success
                     mode=SyncMode.GITHUB,
-                    message=f"GitHub sync completed with warnings: {files_updated} files updated, {len(errors)} errors",
+                    message=f"GitHub sync completed with warnings: {files_updated} files updated{global_msg}, {len(errors)} errors",
                     details={
                         "files_updated": files_updated,
+                        "global_hooks": global_hooks_copied,
+                        "global_libs": global_libs_copied,
                         "errors": errors[:5],  # Limit to first 5 errors
                         "source": GITHUB_REPO,
                     },
@@ -981,9 +1052,11 @@ class SyncDispatcher:
                 return SyncResult(
                     success=True,
                     mode=SyncMode.GITHUB,
-                    message=f"GitHub sync completed: {files_updated} files updated from {GITHUB_REPO}",
+                    message=f"GitHub sync completed: {files_updated} files updated{global_msg}",
                     details={
                         "files_updated": files_updated,
+                        "global_hooks": global_hooks_copied,
+                        "global_libs": global_libs_copied,
                         "source": GITHUB_REPO,
                         "branch": GITHUB_BRANCH,
                     },
