@@ -39,11 +39,8 @@
         "plugins/autonomous-dev/commands/batch-implement.md",
         "plugins/autonomous-dev/commands/create-issue.md",
         "plugins/autonomous-dev/commands/health-check.md",
-        "plugins/autonomous-dev/commands/pipeline-status.md",
         "plugins/autonomous-dev/commands/setup.md",
-        "plugins/autonomous-dev/commands/status.md",
-        "plugins/autonomous-dev/commands/sync.md",
-        "plugins/autonomous-dev/commands/test.md"
+        "plugins/autonomous-dev/commands/sync.md"
       ]
     },
     "hooks": {
@@ -135,7 +132,6 @@
         "plugins/autonomous-dev/lib/feature_completion_detector.py",
         "plugins/autonomous-dev/lib/file_discovery.py",
         "plugins/autonomous-dev/lib/first_run_warning.py",
-        "plugins/autonomous-dev/lib/genai_validate.py",
         "plugins/autonomous-dev/lib/git_hooks.py",
         "plugins/autonomous-dev/lib/git_operations.py",
         "plugins/autonomous-dev/lib/github_issue_closer.py",
@@ -147,8 +143,6 @@
         "plugins/autonomous-dev/lib/logging_utils.py",
         "plugins/autonomous-dev/lib/math_utils.py",
         "plugins/autonomous-dev/lib/mcp_permission_validator.py",
-        "plugins/autonomous-dev/lib/mcp_profile_manager.py",
-        "plugins/autonomous-dev/lib/mcp_server_detector.py",
         "plugins/autonomous-dev/lib/migration_planner.py",
         "plugins/autonomous-dev/lib/orchestrator.py",
         "plugins/autonomous-dev/lib/orphan_file_cleaner.py",
@@ -178,7 +172,6 @@
         "plugins/autonomous-dev/lib/validation.py",
         "plugins/autonomous-dev/lib/version_detector.py",
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
-        "plugins/autonomous-dev/lib/alignment_fixer.py",
         "plugins/autonomous-dev/lib/install_audit.py",
         "plugins/autonomous-dev/lib/installation_analyzer.py",
         "plugins/autonomous-dev/lib/pipeline_classifier.py",
