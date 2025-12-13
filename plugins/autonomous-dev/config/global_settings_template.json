@@ -105,6 +105,18 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "quality-validator",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/auto_git_workflow.py",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

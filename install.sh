@@ -349,7 +349,152 @@ configure_global_settings() {
     fi
 }
 
-# Main
+# Install hook files to ~/.claude/hooks/
+install_hook_files() {
+    log_step "Installing hook files to ~/.claude/hooks/..."
+
+    local hook_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/hooks"
+    local hook_target_dir="${HOME}/.claude/hooks"
+    local installed=0
+    local failed=0
+
+    # Check if hook source directory exists
+    if [[ ! -d "$hook_source_dir" ]]; then
+        log_warning "Hooks directory not found in staging - hook files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$hook_target_dir" 2>/dev/null; then
+        log_error "Failed to create ~/.claude/hooks/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .py files from hooks directory
+    local hook_files
+    hook_files=$(find "$hook_source_dir" -maxdepth 1 -type f -name "*.py")
+
+    if [[ -z "$hook_files" ]]; then
+        log_info "No hook files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$hook_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} hook files to install"
+
+    # Copy each hook file
+    while IFS= read -r hook_file; do
+        if [[ -z "$hook_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$hook_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$hook_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$hook_file" "$hook_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$hook_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} hook files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} hook file(s) to ~/.claude/hooks/"
+    return 0
+}
+
+# Install lib files to ~/.claude/lib/
+install_lib_files() {
+    log_step "Installing lib files to ~/.claude/lib/..."
+
+    local lib_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/lib"
+    local lib_target_dir="${HOME}/.claude/lib"
+    local installed=0
+    local failed=0
+
+    # Check if lib source directory exists
+    if [[ ! -d "$lib_source_dir" ]]; then
+        log_warning "Lib directory not found in staging - lib files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$lib_target_dir" 2>/dev/null; then
+        log_error "Failed to create ~/.claude/lib/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .py files from lib directory
+    local lib_files
+    lib_files=$(find "$lib_source_dir" -maxdepth 1 -type f -name "*.py" ! -name "__init__.py")
+
+    if [[ -z "$lib_files" ]]; then
+        log_info "No lib files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$lib_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} lib files to install"
+
+    # Copy each lib file
+    while IFS= read -r lib_file; do
+        if [[ -z "$lib_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$lib_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$lib_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$lib_file" "$lib_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$lib_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} lib files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} lib file(s) to ~/.claude/lib/"
+    return 0
+}
+
 main() {
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
@@ -390,6 +535,24 @@ main() {
         log_info "You can retry with: bash <(curl -sSL ${GITHUB_RAW}/install.sh)"
     fi
 
+    # Install hook files to ~/.claude/hooks/ (non-blocking)
+    local hook_install_success=false
+    if install_hook_files; then
+        hook_install_success=true
+    else
+        log_warning "Failed to install hook files"
+        log_info "Hook files enable auto-approval, security validation, and git automation"
+    fi
+
+    # Install lib files to ~/.claude/lib/ (non-blocking)
+    local lib_install_success=false
+    if install_lib_files; then
+        lib_install_success=true
+    else
+        log_warning "Failed to install lib files"
+        log_info "Lib files are used by hooks for auto-approval and security validation"
+    fi
+
     # Bootstrap /setup command directly (enables fresh installs)
     local bootstrap_success=false
     if bootstrap_setup_command; then
@@ -411,6 +574,16 @@ main() {
     # Print results
     echo ""
     log_success "Files staged to: ${STAGING_DIR}"
+    if $hook_install_success; then
+        log_success "Hook files installed to ~/.claude/hooks/"
+    else
+        log_warning "Hook files not installed (auto-git, security, etc. won't work)"
+    fi
+    if $lib_install_success; then
+        log_success "Lib files installed to ~/.claude/lib/"
+    else
+        log_warning "Lib files not installed (hooks may not work correctly)"
+    fi
     if $bootstrap_success; then
         log_success "/setup command installed to .claude/commands/"
     else
