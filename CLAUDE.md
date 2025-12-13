@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-13
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.40.0
 
@@ -24,33 +24,27 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
-**Commands (20 active, includes /align-project-retrofit for brownfield adoption and /batch-implement for sequential processing)**:
+**Commands (8 active, simplified from 20 in Issue #121)**:
 
-**Core Workflow (11)**:
-- `/auto-implement` - Autonomous feature development (Claude coordinates 7 agents, auto-close GitHub issues v3.22.0)
-- `/batch-implement <file>` - Sequential feature processing with automatic context management and intelligent retry for transient failures (prevents context bloat) - GitHub #74, #89
-- `/align-project` - Fix PROJECT.md conflicts (alignment-analyzer agent)
-- `/align-claude` - Fix documentation drift (validation script)
-- `/align-project-retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - GitHub #59
+**Core Workflow (7)**:
+- `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
+- `/align` - Unified alignment command with three modes:
+  - `--project` - Fix PROJECT.md conflicts (alignment-analyzer agent) - formerly align-project
+  - `--claude` - Fix documentation drift (validation script) - formerly align-claude
+  - `--retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - formerly align-project-retrofit - GitHub #59
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
 - `/sync` - Unified sync command (smart auto-detection: dev environment, marketplace, or plugin dev) - GitHub #47
 - `/status` - Track project progress (project-progress-tracker agent)
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
-- `/update-plugin` - Interactive plugin update with backup and rollback (Python CLI) - GitHub #50 Phase 2
-
-**Individual Agents (8)** - GitHub #44, #58:
-- `/research <feature>` - Research patterns and best practices (2-5 min)
-- `/plan <feature>` - Architecture and implementation planning (3-5 min)
-- `/test-feature <feature>` - TDD test generation (2-5 min)
-- `/implement <feature>` - Code implementation to make tests pass (5-10 min)
-- `/review` - Code quality review and feedback (2-3 min)
-- `/security-scan` - Security vulnerability scan and OWASP compliance (1-2 min)
-- `/update-docs` - Documentation synchronization (1-2 min)
-- `/create-issue <request>` - Create GitHub issue with research integration (3-8 min) - GitHub #58
 
 **Utility Commands (1)**:
 - `/test` - Run automated tests (pytest wrapper)
+
+**Archived Commands (13)** - Moved to `commands/archive/` - GitHub #121:
+- Individual agent commands (7): research, plan, test-feature, implement, review, security-scan, update-docs
+- Old align commands (3): align-project, align-claude, align-project-retrofit
+- Utilities (3): batch-implement, create-issue, update-plugin
 
 ---
 
@@ -576,14 +570,15 @@ Permission-based security system for MCP server operations (prevents path traver
 
 ## Quick Reference
 
-## Updating
+### Updating
 ```bash
-# Use the built-in update command
-/update-plugin
+# Use sync with marketplace detection
+/sync
 
-# Or manually:
-# 1. Use /update-plugin for interactive update with backup/rollback
-# 2. Exit and restart Claude Code (REQUIRED!)
+# The sync command auto-detects context:
+# - In autonomous-dev repo: syncs plugin development changes
+# - In user projects: checks marketplace for updates
+# - Restart Claude Code after updates (REQUIRED!)
 ```
 
 ### Daily Workflow

@@ -532,12 +532,13 @@ class TestAlignmentValidation:
 
         This ensures:
         - Version dates still consistent
-        - Agent counts still correct (19 specialists)
-        - Command counts still correct (20 commands)
+        - Agent counts still correct (20 specialists)
+        - Command counts still correct (8 commands - Issue #121)
         - No alignment drift introduced
         """
         project_root = Path(__file__).parent.parent.parent
-        validator_script = project_root / ".claude" / "hooks" / "validate_claude_alignment.py"
+        # Run from plugin source, not installed copy (which is gitignored)
+        validator_script = project_root / "plugins" / "autonomous-dev" / "hooks" / "validate_claude_alignment.py"
 
         # This will FAIL if alignment broken
         assert validator_script.exists(), "validate_claude_alignment.py not found"

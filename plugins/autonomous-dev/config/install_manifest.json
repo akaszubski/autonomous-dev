@@ -32,26 +32,14 @@
     "commands": {
       "target": ".claude/commands",
       "files": [
-        "plugins/autonomous-dev/commands/align-claude.md",
-        "plugins/autonomous-dev/commands/align-project-retrofit.md",
-        "plugins/autonomous-dev/commands/align-project.md",
+        "plugins/autonomous-dev/commands/align.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
-        "plugins/autonomous-dev/commands/batch-implement.md",
-        "plugins/autonomous-dev/commands/create-issue.md",
         "plugins/autonomous-dev/commands/health-check.md",
-        "plugins/autonomous-dev/commands/implement.md",
         "plugins/autonomous-dev/commands/pipeline-status.md",
-        "plugins/autonomous-dev/commands/plan.md",
-        "plugins/autonomous-dev/commands/research.md",
-        "plugins/autonomous-dev/commands/review.md",
-        "plugins/autonomous-dev/commands/security-scan.md",
         "plugins/autonomous-dev/commands/setup.md",
         "plugins/autonomous-dev/commands/status.md",
         "plugins/autonomous-dev/commands/sync.md",
-        "plugins/autonomous-dev/commands/test-feature.md",
-        "plugins/autonomous-dev/commands/test.md",
-        "plugins/autonomous-dev/commands/update-docs.md",
-        "plugins/autonomous-dev/commands/update-plugin.md"
+        "plugins/autonomous-dev/commands/test.md"
       ]
     },
     "hooks": {
@@ -81,7 +69,8 @@
         "plugins/autonomous-dev/scripts/session_tracker.py",
         "plugins/autonomous-dev/scripts/pipeline_controller.py",
         "plugins/autonomous-dev/scripts/progress_display.py",
-        "plugins/autonomous-dev/scripts/install.py"
+        "plugins/autonomous-dev/scripts/install.py",
+        "plugins/autonomous-dev/scripts/configure_global_settings.py"
       ]
     },
     "lib": {
@@ -136,6 +125,7 @@
         "plugins/autonomous-dev/lib/search_utils.py",
         "plugins/autonomous-dev/lib/security_utils.py",
         "plugins/autonomous-dev/lib/session_tracker.py",
+        "plugins/autonomous-dev/lib/settings_generator.py",
         "plugins/autonomous-dev/lib/settings_merger.py",
         "plugins/autonomous-dev/lib/sync_dispatcher.py",
         "plugins/autonomous-dev/lib/sync_mode_detector.py",
@@ -154,7 +144,8 @@
       "target": ".claude/config",
       "files": [
         "plugins/autonomous-dev/config/auto_approve_policy.json",
-        "plugins/autonomous-dev/config/install_manifest.json"
+        "plugins/autonomous-dev/config/install_manifest.json",
+        "plugins/autonomous-dev/config/global_settings_template.json"
       ]
     },
     "templates": {

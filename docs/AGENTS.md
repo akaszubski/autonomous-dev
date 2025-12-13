@@ -75,9 +75,11 @@ These agents execute the main autonomous development workflow. The orchestrator 
 
 ### researcher
 
-**Purpose**: Web research for patterns and best practices
+**Purpose**: Web research for patterns and best practices with parallel deep research capabilities
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns
+**Features**: Parallel source research, quality scoring, consensus detection, diminishing returns detection (Issue #111)
+**Rate Limiting**: Up to 3 parallel searches with exponential backoff
 **Execution**: Step 1 of /auto-implement workflow
 
 ### planner

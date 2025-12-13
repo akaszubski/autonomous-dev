@@ -38,6 +38,50 @@
     - plugins/autonomous-dev/lib/agent_tracker.py (add started_at parameter, Phase 2 in progress)
   - **Documentation**: Updated docs/PERFORMANCE.md Phase 10 section with smart agent selection details
 
+- **Issue #121: Command Simplification (20 to 8 commands)**
+  - **Problem**: 20 commands created cognitive overhead and confusion for new users learning the system
+  - **Solution**: Consolidate and archive redundant commands, reduce active command set from 20 to 8
+  - **Command Consolidation**:
+    - **Merged**: align-project, align-claude, align-project-retrofit to single /align command with three modes:
+      - /align --project - Fix PROJECT.md conflicts
+      - /align --claude - Fix documentation drift
+      - /align --retrofit - Retrofit brownfield projects
+    - **Superseded by /auto-implement**: Individual agent commands now handled as steps in unified pipeline:
+      - /research to /auto-implement step 1
+      - /plan to /auto-implement step 2
+      - /test-feature to /auto-implement step 3
+      - /implement to /auto-implement step 4
+      - /review to /auto-implement step 5 (parallel)
+      - /security-scan to /auto-implement step 5 (parallel)
+      - /update-docs to /auto-implement step 5 (parallel)
+    - **Consolidated Utilities**: /batch-implement (now /auto-implement --batch), /create-issue (superseded by workflow), /update-plugin (superseded by /health-check)
+  - **Active Commands (8 remain)**:
+    1. /auto-implement - Full autonomous pipeline (research to plan to test to implement to review to docs)
+    2. /align - Unified alignment command (--project, --claude, --retrofit modes)
+    3. /setup - Interactive project setup wizard
+    4. /sync - Smart sync (dev environment, marketplace, or plugin-dev)
+    5. /status - Project progress tracking
+    6. /health-check - Plugin integrity validation
+    7. /pipeline-status - Track /auto-implement workflow execution
+    8. /test - Run automated tests (pytest wrapper)
+  - **Benefits**:
+    - **Lower cognitive overhead** - 75 percent fewer commands to learn (20 to 8)
+    - **Clearer workflows** - /auto-implement is primary command for feature development
+    - **Better discoverability** - Unified /align command with clear modes
+    - **Consistent patterns** - Flags (--project, --claude, --retrofit) instead of separate commands
+  - **Files Modified**:
+    - CLAUDE.md - Updated command list (8 commands, archive reference)
+    - plugins/autonomous-dev/commands/ - 8 active command files (align.md, auto-implement.md, health-check.md, pipeline-status.md, setup.md, status.md, sync.md, test.md)
+  - **Files Created**:
+    - plugins/autonomous-dev/commands/archive/README.md - Migration guide for archived commands
+    - 13 archived command files moved to archive/ directory:
+      - Individual agent commands (7): research.md, plan.md, test-feature.md, implement.md, review.md, security-scan.md, update-docs.md
+      - Old align commands (3): align-project.md, align-claude.md, align-project-retrofit.md
+      - Utilities (3): batch-implement.md, create-issue.md, update-plugin.md
+  - **Migration Path**: Archive README provides clear mapping of old to new commands for users
+  - **Backwards Compatibility**: Archived commands remain in commands/archive/ for reference and restoration if needed
+
+
 **Fixed**
 ## [3.41.0] - 2025-12-13
 

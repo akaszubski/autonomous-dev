@@ -173,13 +173,13 @@ class ClaudeAlignmentValidator:
         # Check key commands mentioned
         commands_mentioned = [
             "/auto-implement",
-            "/align-project",
+            "/align",
             "/setup",
             "/test",
             "/status",
             "/health-check",
             "/sync",
-            "/update-plugin"
+            "/pipeline-status"
         ]
 
         for cmd in commands_mentioned:

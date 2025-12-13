@@ -14,6 +14,185 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ---
 
+## Claude Code 2.0 Hook Format (Issue #112)
+
+The autonomous-dev plugin supports Claude Code 2.0 structured hook format with automatic migration from legacy format.
+
+### Format Overview
+
+**Modern Claude Code 2.0 Format**:
+```json
+{
+  "hooks": {
+    "PreCommit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/auto_format.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Key Features**:
+- Nested structure with matchers containing hook arrays
+- Every hook has `type`, `command`, and `timeout` fields
+- Supports glob patterns in `matcher` field
+- Timeout specified in seconds (default: 5)
+
+### Legacy Format (Claude Code 1.x)
+
+**Old Flat Format**:
+```json
+{
+  "hooks": {
+    "PreCommit": ["auto_format.py", "auto_test.py"]
+  }
+}
+```
+
+**Limitations**:
+- Flat array of command strings
+- No timeout specification
+- No matcher support for conditional execution
+- No hook type information
+
+### Automatic Migration
+
+The autonomous-dev plugin automatically detects and migrates legacy hook format to Claude Code 2.0 format during:
+- Initial plugin installation
+- Plugin updates (via `/update-plugin`)
+- Hook activation (via `activate_hooks()`)
+
+**Migration Process**:
+1. **Detection**: `validate_hook_format()` checks for legacy indicators
+   - Missing `timeout` fields
+   - Flat string commands instead of dicts
+   - Missing nested `hooks` arrays
+
+2. **Backup**: `_backup_settings()` creates timestamped backup
+   - Filename: `settings.json.backup.YYYYMMDD_HHMMSS`
+   - Secure permissions: 0o600 (user-only)
+   - Atomic write via tempfile + rename
+
+3. **Transformation**: `migrate_hook_format_cc2()` converts legacy to modern format
+   - Adds `timeout: 5` to all hooks
+   - Converts string commands to dicts with `type` and `command`
+   - Wraps in nested `hooks` array
+   - Adds `matcher: '*'` for catch-all matching
+   - Preserves user customizations (custom timeouts, matchers)
+
+4. **Write**: Atomically writes migrated settings
+   - Deep copy ensures original unchanged
+   - Idempotent (safe to run multiple times)
+   - Graceful degradation if write fails
+
+### Detection Examples
+
+**Legacy Format Detected**:
+```python
+settings = {"hooks": {"PreCommit": ["auto_format.py"]}}
+result = validate_hook_format(settings)
+# result = {
+#   "is_legacy": True,
+#   "reason": "Flat structure detected in PreCommit (string commands instead of dicts)"
+# }
+```
+
+**Modern Format Detected**:
+```python
+settings = {
+  "hooks": {
+    "PreCommit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {"type": "command", "command": "python ...", "timeout": 5}
+        ]
+      }
+    ]
+  }
+}
+result = validate_hook_format(settings)
+# result = {"is_legacy": False, "reason": "Modern Claude Code 2.0 format"}
+```
+
+### Migration Examples
+
+**String Command Migration**:
+```python
+legacy = {"hooks": {"PrePush": ["auto_test.py"]}}
+modern = migrate_hook_format_cc2(legacy)
+# Result:
+# {
+#   "hooks": {
+#     "PrePush": [
+#       {
+#         "matcher": "*",
+#         "hooks": [
+#           {
+#             "type": "command",
+#             "command": "python .claude/hooks/auto_test.py",
+#             "timeout": 5
+#           }
+#         ]
+#       }
+#     ]
+#   }
+# }
+```
+
+**Preserving Custom Settings**:
+```python
+legacy = {
+  "hooks": {
+    "PreCommit": [
+      {
+        "command": "custom_script.sh",
+        "timeout": 10,
+        "matcher": "*.py"
+      }
+    ]
+  }
+}
+modern = migrate_hook_format_cc2(legacy)
+# Custom timeout (10) and matcher (*.py) preserved in migration
+```
+
+### Backwards Compatibility
+
+- Legacy hooks continue to work unchanged if not migrated
+- Migration is non-blocking (plugin update succeeds even if migration fails)
+- Backup created before any changes (can be restored if needed)
+- Idempotent transformation (safe to migrate same settings multiple times)
+
+### Files Involved
+
+- **hook_activator.py**: Core migration logic
+  - `validate_hook_format()` - Detect legacy vs modern format
+  - `migrate_hook_format_cc2()` - Transform legacy to CC2
+  - `_backup_settings()` - Create timestamped backups
+  - `activate_hooks()` - Integrated workflow
+
+- **Test Coverage**: 28 migration tests in test_hook_activator.py
+  - Format detection (8 tests)
+  - Migration conversion (12 tests)
+  - Backup creation (5 tests)
+  - Error handling (3 tests)
+
+### See Also
+
+- [GitHub Issue #112](https://github.com/akaszubski/autonomous-dev/issues/112)
+- docs/LIBRARIES.md section 9 (hook_activator.py API reference)
+- plugins/autonomous-dev/lib/hook_activator.py (implementation)
+
+---
 ## Core Hooks (13)
 
 Essential hooks for autonomous development workflow and security enforcement.
@@ -80,11 +259,19 @@ Essential hooks for autonomous development workflow and security enforcement.
 
 ### pre_tool_use.py
 
-**Purpose**: MCP auto-approval + security validation (v3.38.0+)
+**Purpose**: MCP auto-approval + security validation (v3.38.0+), dynamic hook path (v3.44.0+, Issue #113)
 **Reduces**: Permission prompts from 50+ to 0
 **Lifecycle**: PreToolUse (registered in ~/.claude/settings.json)
 **Replaces**: auto_approve_tool.py, mcp_security_enforcer.py, unified_pre_tool_use.py
 **Format**: Standalone shell script (reads JSON from stdin, writes to stdout)
+**Dynamic Path Resolution** (v3.44.0, Issue #113):
+- **Portable path**: Hooks use ~/.claude/hooks/pre_tool_use.py instead of hardcoded absolute paths
+- **find_lib_directory()**: Searches multiple locations for lib directory:
+  1. Development: plugins/autonomous-dev/lib (relative to hook)
+  2. Local install: ~/.claude/lib
+  3. Marketplace: ~/.claude/plugins/autonomous-dev/lib
+- **Graceful fallback**: If lib not found, hook still validates MCP operations safely
+- **Migration**: Use migrate_hook_paths.py to update existing hook configurations
 
 ### session_tracker.py
 
