@@ -2,10 +2,10 @@
 """
 Auto Git Workflow Hook (SubagentStop lifecycle).
 
-Triggers automatic git operations after quality-validator agent completes.
+Triggers automatic git operations after doc-master agent completes.
 
 Workflow:
-1. Check if quality-validator just completed (SubagentStop)
+1. Check if doc-master just completed (SubagentStop)
 2. Check consent via environment variables
 3. Read session file for workflow metadata
 4. Invoke auto_implement_git_integration.execute_step8_git_operations()
@@ -82,7 +82,7 @@ def should_trigger_git_workflow(agent_name: Optional[str]) -> bool:
     """
     Check if git workflow should trigger based on agent name.
 
-    Only triggers for quality-validator (last agent in pipeline).
+    Only triggers for doc-master (last agent in parallel validation phase).
 
     Args:
         agent_name: Name of agent that just completed
@@ -91,7 +91,7 @@ def should_trigger_git_workflow(agent_name: Optional[str]) -> bool:
         True if workflow should trigger, False otherwise
 
     Example:
-        >>> should_trigger_git_workflow('quality-validator')
+        >>> should_trigger_git_workflow('doc-master')
         True
         >>> should_trigger_git_workflow('researcher')
         False
@@ -99,8 +99,10 @@ def should_trigger_git_workflow(agent_name: Optional[str]) -> bool:
     if not agent_name:
         return False
 
-    # Only trigger for quality-validator (last agent in workflow)
-    return agent_name == 'quality-validator'
+    # Trigger for doc-master (last agent in parallel validation phase)
+    # Note: Previously triggered on quality-validator, but that agent isn't
+    # invoked in /auto-implement workflow. doc-master is the final agent.
+    return agent_name == 'doc-master'
 
 
 def check_git_workflow_consent() -> Dict[str, bool]:
@@ -651,7 +653,7 @@ def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
 
     Example:
         >>> os.environ['AUTO_GIT_ENABLED'] = 'true'
-        >>> result = run_hook('quality-validator')
+        >>> result = run_hook('doc-master')
         >>> result['triggered']
         True
     """
@@ -660,7 +662,7 @@ def run_hook(agent_name: Optional[str] = None) -> Dict[str, Any]:
         return {
             'triggered': False,
             'success': False,
-            'reason': f'Not quality-validator agent (got: {agent_name})',
+            'reason': f'Not doc-master agent (got: {agent_name})',
             'details': {},
         }
 
@@ -828,7 +830,7 @@ def main() -> int:
         SESSION_FILE: Path to session file
 
     Example:
-        $ export AGENT_NAME=quality-validator
+        $ export AGENT_NAME=doc-master
         $ export AUTO_GIT_ENABLED=true
         $ python auto_git_workflow.py
     """

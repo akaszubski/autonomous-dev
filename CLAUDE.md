@@ -213,7 +213,7 @@ git commit -m "docs: Update project goals"
    - Execution: Three Task tool calls in single response enables parallel execution
    - Performance: 5 minutes → 2 minutes (60% faster)
 7. **Automated Git Operations (SubagentStop hook - consent-based)**:
-   - Triggers when quality-validator agent completes
+   - Triggers when doc-master agent completes (last agent in parallel validation)
    - Check environment variables for consent: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
    - Invoke commit-message-generator agent (creates conventional commit)
    - Automatically stage changes, create commit, push, and optionally create PR
@@ -284,7 +284,7 @@ Automatic git operations (commit, push, PR creation, issue closing) are **enable
 - **State persistence**: Choice stored in `~/.autonomous-dev/user_state.json`
 
 **Workflow**:
-1. quality-validator completes → triggers `auto_git_workflow.py` hook
+1. doc-master completes → triggers `auto_git_workflow.py` hook
 2. commit-message-generator creates conventional commit
 3. Stages, commits, optionally pushes and creates PR
 4. Graceful degradation if prerequisites fail
