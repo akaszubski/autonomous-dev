@@ -82,6 +82,7 @@
         "plugins/autonomous-dev/hooks/sync_to_installed.py",
         "plugins/autonomous-dev/hooks/validate_claude_alignment.py",
         "plugins/autonomous-dev/hooks/validate_command_file_ops.py",
+        "plugins/autonomous-dev/hooks/validate_command_frontmatter_flags.py",
         "plugins/autonomous-dev/hooks/validate_commands.py",
         "plugins/autonomous-dev/hooks/validate_docs_consistency.py",
         "plugins/autonomous-dev/hooks/validate_documentation_alignment.py",

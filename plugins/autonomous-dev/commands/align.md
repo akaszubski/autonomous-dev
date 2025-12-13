@@ -1,7 +1,7 @@
 ---
 name: align
-description: "Unified alignment command (--project, --claude, --retrofit)"
-argument_hint: "Mode flags: --project (PROJECT.md conflicts), --claude (doc drift), --retrofit (brownfield) [--dry-run] [--auto]"
+description: "Unified alignment command (--project, --docs, --retrofit)"
+argument_hint: "Mode flags: --project (PROJECT.md conflicts), --docs (doc drift), --retrofit (brownfield) [--dry-run] [--auto]"
 version: 3.0.0
 category: core
 tools: [Bash, Read, Write, Grep, Edit, Task]

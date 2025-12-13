@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-12-13
-**Total Hooks**: 49 (added PostToolUse error capture)
+**Last Updated**: 2025-12-14
+**Total Hooks**: 50 (added command frontmatter flag validation - GitHub #133)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -461,7 +461,7 @@ Note: session_tracker.py moved to Core Hooks as essential for context management
 
 ---
 
-## Validation Hooks (10)
+## Validation Hooks (11)
 
 Hooks for ensuring documentation, commands, and codebase stay in sync.
 
@@ -566,6 +566,18 @@ Hooks for ensuring documentation, commands, and codebase stay in sync.
 - Blocks commits if new hooks lack documentation
 - Provides format guidance for adding docs
 **Lifecycle**: PreCommit
+
+### validate_command_frontmatter_flags.py
+
+**Purpose**: Ensure slash commands document their --flags in frontmatter (GitHub #133)
+**Actions**:
+- Extracts all --flag options used in command bodies
+- Validates flags are documented in frontmatter (description or argument_hint fields)
+- Filters false positives (--help, --version, generic examples)
+- Reports undocumented flags with fix guidance
+**Lifecycle**: PreCommit
+**Non-blocking**: Exit 1 (warning), never blocking (exit 2)
+**Related**: Issue #131 - Fixed frontmatter for /align, /batch-implement, /create-issue, /sync
 
 ---
 

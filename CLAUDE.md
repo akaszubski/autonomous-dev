@@ -17,7 +17,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does** (Issue #132 - Complete auto-install):
 - Downloads all plugin components to `~/.autonomous-dev-staging/`
-- Installs global infrastructure: `~/.claude/hooks/` (49 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
+- Installs global infrastructure: `~/.claude/hooks/` (50 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
 - Installs to `.claude/`:
   - Commands (10) → `.claude/commands/`
   - Agents (22) → `.claude/agents/`
@@ -422,9 +422,9 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (49 total automation - unified PreToolUse hook eliminates collision)
+### Hooks (50 total automation - unified PreToolUse hook eliminates collision)
 
-49 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+50 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
 **Core Hooks** (14): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, validate_command_file_ops, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, pre_tool_use, post_tool_use_error_capture, session_tracker
 
