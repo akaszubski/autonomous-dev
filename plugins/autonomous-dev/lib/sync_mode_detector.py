@@ -47,14 +47,15 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib.security_utils import (
-    validate_path,
-    audit_log,
-    validate_input_length,
-)
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    from plugins.autonomous_dev.lib.security_utils import (
+        validate_path,
+        audit_log,
+        validate_input_length,
+    )
+except ImportError:
+    from security_utils import validate_path, audit_log, validate_input_length
 
 
 class SyncMode(Enum):

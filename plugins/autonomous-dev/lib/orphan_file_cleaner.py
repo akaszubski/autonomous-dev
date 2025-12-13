@@ -53,13 +53,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib.security_utils import (
-    validate_path,
-    audit_log,
-)
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+except ImportError:
+    from security_utils import validate_path, audit_log
 
 
 @dataclass

@@ -575,7 +575,7 @@ vim plugins/autonomous-dev/commands/new-feature.md
 ## Implementation
 
 ```bash
-python3 plugins/autonomous-dev/lib/sync_dispatcher.py "$@"
+python3 .claude/lib/sync_dispatcher.py "$@"
 ```
 
 ---

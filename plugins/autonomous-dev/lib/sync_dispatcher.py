@@ -52,22 +52,30 @@ from pathlib import Path
 from shutil import copy2, copytree
 from typing import Dict, Any, List, Optional
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib.security_utils import (
-    validate_path,
-    audit_log,
-)
-from plugins.autonomous_dev.lib.sync_mode_detector import SyncMode, get_individual_sync_modes
-from plugins.autonomous_dev.lib.version_detector import detect_version_mismatch, VersionComparison
-from plugins.autonomous_dev.lib.orphan_file_cleaner import (
-    detect_orphans,
-    cleanup_orphans as cleanup_orphan_files,
-    CleanupResult,
-)
-from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
-from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+    from plugins.autonomous_dev.lib.sync_mode_detector import SyncMode, get_individual_sync_modes
+    from plugins.autonomous_dev.lib.version_detector import detect_version_mismatch, VersionComparison
+    from plugins.autonomous_dev.lib.orphan_file_cleaner import (
+        detect_orphans,
+        cleanup_orphans as cleanup_orphan_files,
+        CleanupResult,
+    )
+    from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
+    from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
+except ImportError:
+    # Fallback for installed environment (.claude/lib/)
+    from security_utils import validate_path, audit_log
+    from sync_mode_detector import SyncMode, get_individual_sync_modes
+    from version_detector import detect_version_mismatch, VersionComparison
+    from orphan_file_cleaner import (
+        detect_orphans,
+        cleanup_orphans as cleanup_orphan_files,
+        CleanupResult,
+    )
+    from file_discovery import FileDiscovery
+    from settings_merger import SettingsMerger, MergeResult
 
 
 @dataclass
