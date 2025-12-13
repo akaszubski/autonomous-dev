@@ -40,7 +40,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
 - `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
-- `/create-issue` - Create GitHub issue with research + async scan + smart sections (3-5 min default, 8-12 min --thorough) - GitHub #122
+- `/create-issue` - Create GitHub issue with research + blocking duplicate check + all sections (8-12 min default, 3-5 min --quick) - GitHub #122
 - `/align` - Unified alignment command with three modes:
   - `--project` - Fix PROJECT.md conflicts (alignment-analyzer agent) - formerly align-project
   - `--claude` - Fix documentation drift (validation script) - formerly align-claude

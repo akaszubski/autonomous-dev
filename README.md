@@ -180,7 +180,7 @@ We document **typical performance**, not marketing claims.
 | `/sync` | Update plugin from GitHub |
 | `/health-check` | Verify installation |
 | `/align` | Fix alignment issues |
-| `/create-issue "..."` | Create GitHub issue with research |
+| `/create-issue "..."` | Create GitHub issue with research (--quick for fast mode) |
 
 ---
 

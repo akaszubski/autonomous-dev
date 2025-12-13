@@ -1,6 +1,6 @@
 ---
-description: "Create GitHub issue with automated research (--thorough for full analysis)"
-argument_hint: "Issue title [--thorough] (e.g., 'Add JWT authentication' or 'Add JWT authentication --thorough')"
+description: "Create GitHub issue with automated research (--quick for fast mode)"
+argument_hint: "Issue title [--quick] (e.g., 'Add JWT authentication' or 'Add JWT authentication --quick')"
 ---
 
 # Create GitHub Issue with Research Integration
@@ -11,8 +11,8 @@ Automate GitHub issue creation with research-backed, well-structured content.
 
 | Mode | Time | Description |
 |------|------|-------------|
-| **Default (fast)** | 3-5 min | Async scan, smart sections, no prompts |
-| **--thorough** | 8-12 min | Full analysis, blocking duplicate check |
+| **Default (thorough)** | 8-12 min | Full analysis, blocking duplicate check |
+| **--quick** | 3-5 min | Async scan, smart sections, no prompts |
 
 ## Implementation
 
@@ -27,10 +27,11 @@ ARGUMENTS: {{ARGUMENTS}}
 Parse the ARGUMENTS to detect mode flags:
 
 ```
---thorough    Full analysis mode (blocking duplicate check, all sections)
+--quick       Fast mode (async scan, smart sections, no prompts)
+--thorough    (Deprecated - silently accepted, now default behavior)
 ```
 
-**Default mode**: Fast mode with async scan, smart sections, no blocking prompts.
+**Default mode**: Thorough mode with full analysis, blocking duplicate check, all sections.
 
 Extract the feature request (everything except flags).
 
@@ -121,7 +122,9 @@ Use the Task tool to invoke the **issue-creator** agent (subagent_type="issue-cr
 - ~~Estimated LOC~~ (usually wrong)
 - ~~Timeline~~ (scheduling not documentation)
 
-**--thorough mode**: Include ALL sections with full detail.
+**--quick mode**: Include only essential sections (Summary, Implementation, Test Scenarios, Acceptance Criteria).
+
+**Default mode**: Include ALL sections with full detail.
 
 ---
 
@@ -155,7 +158,7 @@ If scan found results:
 - **Duplicates** (>80% similarity): Store for post-creation info
 - **Related** (>50% similarity): Store for post-creation info
 
-**--thorough mode only**: If duplicates found, prompt user before creating:
+**Default mode**: If duplicates found, prompt user before creating:
 ```
 Potential duplicate detected:
   #45: "Implement JWT authentication" (92% similar)
@@ -168,7 +171,7 @@ Options:
 Reply with option number.
 ```
 
-**Default mode**: No prompts. Create issue, show info after.
+**--quick mode**: No prompts. Create issue, show info after.
 
 **3B: Create GitHub issue via gh CLI**
 
@@ -253,22 +256,24 @@ Reply 'yes' to proceed, or 'no' to stop here.
 | Step | Time | Description |
 |------|------|-------------|
 | Research + Scan | 2-3 min | Parallel: patterns + issue scan |
-| Generate Issue | 1-2 min | Smart sections only |
+| Generate Issue | 5-8 min | All sections with full detail |
+| Duplicate Check | 1-2 min | Blocking user prompt (if duplicates found) |
 | Create + Info | 15-30 sec | gh CLI + related issues |
-| **Total** | **3-5 min** | Default mode |
+| **Total** | **8-12 min** | Default mode (thorough) |
+| **Total (--quick)** | **3-5 min** | Fast mode (async scan only) |
 
 ---
 
 ## Usage
 
 ```bash
-# Default mode (fast, smart sections)
+# Default mode (thorough, all sections, blocking duplicate check)
 /create-issue Add JWT authentication for API endpoints
 
-# Thorough mode (all sections, blocking duplicate check)
-/create-issue Add JWT authentication --thorough
+# Quick mode (fast, smart sections, no prompts)
+/create-issue Add JWT authentication --quick
 
-# Bug report
+# Bug report (thorough by default)
 /create-issue Fix memory leak in background job processor
 ```
 
@@ -307,7 +312,7 @@ Error: gh CLI is not authenticated
 Run: gh auth login
 ```
 
-### Duplicate Detected (--thorough mode)
+### Duplicate Detected (default mode)
 
 ```
 Potential duplicate detected:
@@ -320,6 +325,8 @@ Options:
 
 Reply with option number.
 ```
+
+**Note**: Use `--quick` flag to skip this prompt and create immediately.
 
 ---
 
@@ -355,8 +362,8 @@ This integration saves 2-5 minutes when issues are implemented soon after creati
 - CWE-20: Input validation (length limits, format validation)
 
 **Performance**:
-- Default mode: 3-5 minutes (no prompts)
-- Thorough mode: 8-12 minutes (with prompts)
+- Default mode: 8-12 minutes (thorough, with prompts)
+- Quick mode: 3-5 minutes (fast, no prompts)
 
 ---
 

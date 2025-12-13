@@ -128,6 +128,67 @@
     - Clear messaging that /setup is optional (only for PROJECT.md creation)
     - Architecture diagrams now accurately represent single-phase installation
 
+- **Issue #134: Make thorough mode default for /create-issue, add --quick flag**
+  - **Problem**: /create-issue spent 8-12 minutes on thorough analysis by default, but users often just needed quick issue creation (3-5 min). The --thorough flag was the default, forcing users to write --quick for fast mode.
+  - **Solution**: Reverse default behavior - thorough mode is now default (keep 8-12 min analysis), add explicit --quick flag for fast mode (3-5 min async scan)
+  - **Mode Behavior**:
+    - **Default (thorough)**: Full analysis, blocking duplicate check, all sections (8-12 min)
+      - Complete research via researcher agent (patterns, best practices, security)
+      - Blocking duplicate check: Prompts user before creating if similar issue found
+      - All sections: Summary, What Does NOT Work, Scenarios, Implementation, Test Scenarios, Acceptance Criteria
+      - Full deep thinking methodology applied
+    - **--quick flag**: Async scan, smart sections, no prompts (3-5 min)
+      - Research still runs (non-blocking)
+      - Issue scan runs async (no blocking duplicate check)
+      - Smart sections: Only essential sections included
+      - Skip interactive prompts
+    - **--thorough flag**: Deprecated but silently accepted (behaves as default)
+  - **Breaking Change**: Default behavior reversal (thorough is now default, not --quick)
+    - Users running `/create-issue "Title"` without flags get 8-12 min default behavior
+    - Users wanting fast mode must explicitly use `--quick` flag
+    - Rationale: Most users benefit from thorough analysis to create well-structured issues
+  - **Argument Parsing**:
+    - Parse ARGUMENTS to detect --quick flag
+    - Parse ARGUMENTS to detect --thorough flag (deprecated, silently accepted)
+    - Extract feature request (everything except flags)
+    - Default mode when no flags: Thorough mode
+  - **Workflow Changes**:
+    - **STEP 0**: Expanded argument parsing with mode detection
+    - **STEP 1**: Same research and async scan (parallel)
+    - **STEP 2**: Issue generation with deep thinking
+    - **STEP 3**: Conditional duplicate check
+      - **Default mode**: Blocking prompt if duplicates found greater than 80%
+      - **--quick mode**: No prompt, show info after issue creation
+    - **STEP 4-5**: Same post-creation info and optional auto-implement
+  - **Documentation Updates**:
+    - **create-issue.md**:
+      - Updated description: Create GitHub issue with automated research (--quick for fast mode)
+      - Updated argument_hint: Issue title [--quick] (e.g., Add JWT authentication or Add JWT authentication --quick)
+      - Updated Modes table: Default is now thorough (8-12 min), --quick is optional (3-5 min)
+      - Updated STEP 0: Clarified --quick flag, noted --thorough as deprecated
+      - Updated usage examples: Show both default and --quick usage patterns
+      - Updated error handling: Document how --quick skips duplicate prompts
+    - **CLAUDE.md**: Updated command description to reflect new default mode timing
+    - **README.md**: Updated commands table to show new mode defaults
+  - **Files Modified**:
+    - plugins/autonomous-dev/commands/create-issue.md - Updated modes table, STEP 0, usage examples, error handling
+    - CLAUDE.md - Updated /create-issue command description
+    - README.md - Updated commands table
+  - **Validation**:
+    - All cross-references verified (argument patterns, mode behavior, timing)
+    - Usage examples tested and accurate
+    - Breaking change clearly documented
+  - **Impact**:
+    - Default behavior more appropriate for most users (thorough analysis)
+    - Fast mode still available via explicit --quick flag
+    - Breaking change: Scripts/workflows using --thorough flag still work, but may not be needed
+    - Clear messaging about mode selection and timing
+  - **User Migration**:
+    - Existing scripts using `/create-issue "Title"`: Get thorough mode (same command, different timing)
+    - Existing scripts using `/create-issue "Title" --thorough`: Still work, silently upgraded to default
+    - Existing scripts using `/create-issue "Title" --quick`: Unchanged, continue to work
+  - **Related**: GitHub Issue #134
+
 **Added**
 - **Issue #130: Expand researcher output for implementer and test-master guidance**
   - **Problem**: Implementer and test-master agents relied on pattern discovery via Grep/Glob, missing context about design patterns, testing frameworks, mocking strategies, and error handling patterns available from researcher agents
