@@ -836,7 +836,7 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        elif tool in ("AskUserQuestion", "Task", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
+        elif tool in ("AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
                       "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell"):
             # Always allow these tools - they're either interactive, delegating, or workflow management
             return ValidationResult(
