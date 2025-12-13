@@ -62,17 +62,15 @@ Use the Task tool with these parameters:
 - **description**: `"Search codebase for [feature name]"`
 - **prompt**: Search codebase for patterns related to [user's feature]. Find existing patterns, files to update, architecture notes, similar implementations. Output JSON.
 
-#### Task Tool Call 2: researcher-web
+#### Task Tool Call 2: Web Research (using general-purpose)
 
-⚠️ **CRITICAL MODEL REQUIREMENT**: You MUST pass `model: "sonnet"` to the Task tool. WebSearch/WebFetch tools ONLY work with Sonnet or higher. If you use Haiku or omit the model parameter, the agent will return 0 results and fail silently.
+⚠️ **CRITICAL**: Must use `general-purpose` subagent with `model: "sonnet"` for web research. Custom subagent types (like researcher-web) don't reliably get WebSearch tool access - the `tools:` frontmatter is documentation-only, not enforced.
 
 Use the Task tool with these parameters:
-- **subagent_type**: `"researcher-web"`
+- **subagent_type**: `"general-purpose"` ← NOT researcher-web (custom agents don't get WebSearch)
 - **model**: `"sonnet"` ← MANDATORY - WebSearch requires Sonnet+
 - **description**: `"Research best practices for [feature name]"`
-- **prompt**: Research web for best practices (2024-2025), recommended libraries, security considerations (OWASP), common pitfalls. Output JSON.
-
-**VERIFY BEFORE SENDING**: Check that your researcher-web Task tool call includes `model: "sonnet"`. Without this parameter, web research will fail.
+- **prompt**: "You are a web researcher. You MUST use the WebSearch tool to search the web. Search for best practices and standards for: [user's feature description]. Use WebSearch to find: industry best practices (2024-2025), recommended libraries, security considerations (OWASP), common pitfalls. IMPORTANT: Actually call WebSearch - do not answer from memory. Output JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls, and include source URLs."
 
 **DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.
 
