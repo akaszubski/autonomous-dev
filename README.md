@@ -43,7 +43,12 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 - Claude Code 2.0+
 - macOS (not tested on Windows/Linux)
 - Python 3.9+
-- gh CLI for GitHub automation: `brew install gh && gh auth login`
+
+**System tools (install separately):**
+- git: `xcode-select --install` or `brew install git`
+- gh CLI: `brew install gh && gh auth login` (required for GitHub automation)
+
+**For contributors:** Development dependencies are in `plugins/autonomous-dev/requirements-dev.txt` (pytest, coverage, etc.)
 
 ---
 
