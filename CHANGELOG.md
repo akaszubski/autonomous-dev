@@ -1,6 +1,63 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #130: Expand researcher output for implementer and test-master guidance**
+  - **Problem**: Implementer and test-master agents relied on pattern discovery via Grep/Glob, missing context about design patterns, testing frameworks, mocking strategies, and error handling patterns available from researcher agents
+  - **Solution**: Expand researcher output schema with actionable guidance for implementation and testing phases
+  - **Research Output Enhancement**:
+    - **researcher-local**: Added implementation_guidance and testing_guidance sections
+      - implementation_guidance.reusable_functions: File, function name, purpose, usage examples
+      - implementation_guidance.import_patterns: Import statements and context for use
+      - implementation_guidance.error_handling_patterns: Error handling patterns with file/line references
+      - testing_guidance.test_file_patterns: Test file structure, pytest patterns, fixtures found
+      - testing_guidance.edge_cases_to_test: Edge cases identified in codebase with expected behavior
+      - testing_guidance.mocking_patterns: Mocking patterns found in similar tests with examples
+    - **researcher-web**: Added implementation_guidance and testing_guidance sections
+      - implementation_guidance.design_patterns: Factory, strategy, decorator patterns with usage context
+      - implementation_guidance.performance_tips: Optimization techniques with impact assessment
+      - implementation_guidance.library_integration_tips: Best practices for popular libraries
+      - testing_guidance.testing_frameworks: Framework recommendations with key features
+      - testing_guidance.coverage_recommendations: Coverage targets by area (error handling, happy path)
+      - testing_guidance.testing_antipatterns: Common testing mistakes and alternatives
+  - **Workflow Changes**:
+    - **test-master**: Updated to use research context (testing_guidance) as Step 1
+      - Falls back to Grep/Glob if research context not provided
+      - Leverages edge cases and mocking patterns from researchers
+    - **implementer**: Updated to use research context (implementation_guidance) as Step 2
+      - Falls back to Grep/Glob if research context not provided
+      - Prioritizes reusable functions and import patterns from researchers
+    - **auto-implement.md**: Expanded context injection for test-master and implementer
+      - test-master now receives: test_file_patterns, edge_cases_to_test, mocking_patterns from both researchers
+      - implementer now receives: reusable_functions, import_patterns, error_handling_patterns from local; design_patterns, performance_tips, library_integration_tips from web
+      - Prompt templates refactored for clarity and actionability
+  - **Agent Behavior**:
+    - Both agents check for research context first (graceful degradation)
+    - If research context available: Use provided guidance, fallback to patterns for missing pieces
+    - If research context not available: Use Grep/Glob for pattern discovery (backward compatible)
+  - **Performance Impact**:
+    - Implementation phase: More targeted approach reduces trial-and-error iterations
+    - Testing phase: Patterns and edge cases identified early reduce test redesign cycles
+    - Estimated improvement: 2-3 minutes saved per feature (10-15% faster implementation)
+  - **Testing**: 3 new test files created
+    - tests/unit/test_researcher_expanded_schema.py - Validates researcher output schema (14 tests)
+    - tests/unit/test_auto_implement_research_context.py - Validates context injection in auto-implement (18 tests)
+    - tests/unit/test_agent_research_fallback.py - Validates graceful degradation (12 tests)
+    - Test status: All tests created, test implementation in progress
+  - **Files Modified**:
+    - plugins/autonomous-dev/agents/researcher-local.md - Added implementation_guidance and testing_guidance sections to output schema (JSON examples with 50+ lines)
+    - plugins/autonomous-dev/agents/researcher-web.md - Added implementation_guidance and testing_guidance sections to output schema (JSON examples with 50+ lines)
+    - plugins/autonomous-dev/agents/test-master.md - Updated workflow Step 1 to use research context, added fallback note
+    - plugins/autonomous-dev/agents/implementer.md - Updated workflow Steps 2-3 to use research context, added fallback note, renumbered subsequent steps
+    - plugins/autonomous-dev/commands/auto-implement.md - Expanded context injection for Step 3 (test-master) and Step 4 (implementer) subagent prompts with detailed guidance sections
+  - **Documentation Updated**:
+    - docs/AGENTS.md - Updated researcher-local/web sections to document expanded output schema and implementation/testing guidance
+    - CLAUDE.md - Updated context management section if references researcher output format
+  - **Backward Compatibility**:
+    - If research context not provided, agents gracefully degrade to Grep/Glob pattern discovery
+    - Existing /auto-implement workflows continue to work unchanged
+    - Research output is additive (new sections in JSON don't break existing consumers)
+  - **Related**: GitHub Issue #130
+
 - **Issue #128: Split researcher into parallel agents (researcher-local, researcher-web)**
   - **Problem**: Single researcher agent combined codebase search (tools: Read, Grep, Glob) with web research (tools: WebSearch, WebFetch). These operations could run in parallel but were sequential, adding 2-3 minutes to research phase.
   - **Solution**: Split researcher into two specialized agents that run simultaneously

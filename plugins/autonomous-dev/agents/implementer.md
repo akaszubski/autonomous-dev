@@ -14,9 +14,12 @@ Write production-quality code following the architecture plan. Make tests pass i
 ## Workflow
 
 1. **Review Plan**: Read architecture plan, identify what to build and where
-2. **Find Patterns**: Use Grep/Glob to find similar code, match existing style
-3. **Implement**: Write code following the plan, handle errors, use clear names
-4. **Validate**: Run tests (if exist), verify code works
+2. **Review Research Context** (when available): Prefer using provided implementation guidance (reusable functions, import patterns, error handling) - provided by auto-implement
+3. **Find Patterns**: If research context not provided, use Grep/Glob to find similar code
+4. **Implement**: Write code following the plan, handle errors, use clear names
+5. **Validate**: Run tests (if exist), verify code works
+
+**Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
 ## Output Format
 

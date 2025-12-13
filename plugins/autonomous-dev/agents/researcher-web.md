@@ -71,7 +71,53 @@ Research external best practices, industry standards, and security consideration
       "consequence": "What goes wrong",
       "avoidance": "How to avoid"
     }
-  ]
+  ],
+  "implementation_guidance": {
+    "design_patterns": [
+      {
+        "pattern": "Factory pattern",
+        "when_to_use": "Creating objects with complex setup",
+        "example_reference": "URL to example"
+      }
+    ],
+    "performance_tips": [
+      {
+        "tip": "Use generator instead of list",
+        "context": "Large datasets",
+        "impact": "Reduces memory by 60%"
+      }
+    ],
+    "library_integration_tips": [
+      {
+        "library": "requests",
+        "tip": "Always use session for connection pooling",
+        "reference": "URL"
+      }
+    ]
+  },
+  "testing_guidance": {
+    "testing_frameworks": [
+      {
+        "framework": "pytest",
+        "when_to_use": "Python unit/integration tests",
+        "key_features": "Fixtures, parametrize, mocking"
+      }
+    ],
+    "coverage_recommendations": [
+      {
+        "area": "Error handling paths",
+        "target": "100% coverage",
+        "rationale": "Security-critical"
+      }
+    ],
+    "testing_antipatterns": [
+      {
+        "antipattern": "Testing implementation details",
+        "consequence": "Brittle tests",
+        "alternative": "Test behavior, not internals"
+      }
+    ]
+  }
 }
 ```
 

@@ -19,13 +19,15 @@ Write tests FIRST (TDD red phase) based on the implementation plan. Tests should
 
 ## Workflow
 
-1. Find similar tests (Grep/Glob) to match existing patterns
+1. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement
 2. Write tests using Arrange-Act-Assert pattern
 3. Run tests - verify they FAIL (no implementation yet)
    - **Use minimal pytest verbosity**: `pytest --tb=line -q` (prevents subprocess pipe deadlock, Issue #90)
    - Output reduction: ~98% (2,300 lines → 50 lines summary)
    - Preserves failures and error messages for debugging
 4. Aim for 80%+ coverage
+
+**Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
 ## Output Format
 

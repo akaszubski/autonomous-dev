@@ -1,6 +1,6 @@
 # Agent Architecture
 
-**Last Updated**: 2025-12-13 (Split researcher into parallel agents - Issue #128)
+**Last Updated**: 2025-12-13 (Expanded researcher output for implementer and test-master - Issue #130)
 **Agent Count**: 21 specialists (Tier 1: 9, Tier 2: 10, Tier 3: 2)
 **Location**: `plugins/autonomous-dev/agents/`
 
@@ -81,7 +81,17 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Skills**: research-patterns
 **Tools**: Read, Grep, Glob (local filesystem access only)
 **Execution**: Step 1A of /auto-implement workflow (parallel with researcher-web)
-**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128)
+**Output Format**: JSON schema with similar_implementations array plus implementation_guidance and testing_guidance sections
+  - **similar_implementations**: Existing patterns matching the feature request
+  - **implementation_guidance**: Reusable functions, import patterns, error handling patterns
+    - reusable_functions: Functions with file location, purpose, and usage examples
+    - import_patterns: Recommended imports with context for when to use
+    - error_handling_patterns: Error handling approaches with file/line references
+  - **testing_guidance**: Testing patterns found in the codebase
+    - test_file_patterns: Structure of tests, pytest patterns, common fixtures
+    - edge_cases_to_test: Edge cases identified in similar code with expected behavior
+    - mocking_patterns: Mocking approaches used in existing tests with examples
+**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128); output expanded in Issue #130
 
 ### researcher-web
 
@@ -90,7 +100,17 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Skills**: research-patterns
 **Tools**: WebSearch, WebFetch (external research only)
 **Execution**: Step 1B of /auto-implement workflow (parallel with researcher-local)
-**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128)
+**Output Format**: JSON schema with antipatterns array plus implementation_guidance and testing_guidance sections
+  - **antipatterns**: Industry-standard pitfalls and how to avoid them
+  - **implementation_guidance**: Best practices for design and performance
+    - design_patterns: Patterns like Factory, Strategy, Decorator with usage context and examples
+    - performance_tips: Optimization techniques with impact assessment
+    - library_integration_tips: Best practices for popular libraries (requests, async, etc)
+  - **testing_guidance**: Industry best practices for testing
+    - testing_frameworks: Framework recommendations (pytest, unittest) with key features
+    - coverage_recommendations: Coverage targets by area (error handling 100%, happy path 80%)
+    - testing_antipatterns: Common testing mistakes and preferred alternatives
+**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128); output expanded in Issue #130
 
 ### planner
 
@@ -105,6 +125,9 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Model**: Sonnet (Tier 2 - strong reasoning for comprehensive test design)
 **Skills**: testing-guide, security-patterns
 **Execution**: Step 3 of /auto-implement workflow
+**Research Context**: Receives testing_guidance from researcher-local and researcher-web (Issue #130)
+  - Uses test_file_patterns, edge_cases_to_test, mocking_patterns from researchers
+  - Falls back to Grep/Glob pattern discovery if research context not provided
 **Context Isolation**: Runs in separate context. Writes tests to disk for implementer. See [TDD-CONTEXT-ISOLATION.md](TDD-CONTEXT-ISOLATION.md).
 
 ### implementer
@@ -113,6 +136,10 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Model**: Sonnet (Tier 2 - balanced reasoning for code implementation)
 **Skills**: python-standards, observability
 **Execution**: Step 4 of /auto-implement workflow
+**Research Context**: Receives implementation_guidance from researcher-local and researcher-web (Issue #130)
+  - Uses reusable_functions, import_patterns, error_handling_patterns from researchers
+  - Uses design_patterns, performance_tips, library_integration_tips from web research
+  - Falls back to Grep/Glob pattern discovery if research context not provided
 **Context Isolation**: Runs in separate context. Reads only test files from disk, not test-master's reasoning. See [TDD-CONTEXT-ISOLATION.md](TDD-CONTEXT-ISOLATION.md).
 
 ### reviewer

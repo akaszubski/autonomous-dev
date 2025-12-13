@@ -61,7 +61,53 @@ Search the codebase for existing patterns, similar implementations, and architec
       "similarity": "Why it's similar",
       "reusable_code": "What can be reused"
     }
-  ]
+  ],
+  "implementation_guidance": {
+    "reusable_functions": [
+      {
+        "file": "path/to/file.py",
+        "function": "function_name",
+        "purpose": "What it does",
+        "usage_example": "How to call it"
+      }
+    ],
+    "import_patterns": [
+      {
+        "import_statement": "from x import y",
+        "when_to_use": "Context for this import"
+      }
+    ],
+    "error_handling_patterns": [
+      {
+        "pattern": "try/except structure found",
+        "file": "path/to/file.py",
+        "lines": "45-52"
+      }
+    ]
+  },
+  "testing_guidance": {
+    "test_file_patterns": [
+      {
+        "test_file": "tests/test_feature.py",
+        "structure": "Pytest class-based / function-based",
+        "fixture_usage": "Common fixtures found"
+      }
+    ],
+    "edge_cases_to_test": [
+      {
+        "scenario": "Empty input",
+        "file_with_handling": "path/to/file.py",
+        "expected_behavior": "Raises ValueError"
+      }
+    ],
+    "mocking_patterns": [
+      {
+        "mock_target": "External API call",
+        "example_file": "tests/test_api.py",
+        "lines": "23-28"
+      }
+    ]
+  }
 }
 ```
 

@@ -108,7 +108,7 @@ Create synthesized recommendations by:
 3. **Conflict detection**: Note where local code conflicts with best practices
 4. **Library recommendations**: Match recommended libraries to project needs
 
-This merged context will be passed to planner in STEP 2.
+This merged context will be passed to the planner step (next).
 
 ---
 
@@ -266,16 +266,27 @@ If count != 3, STOP and invoke missing agents NOW.
 ```
 subagent_type: "test-master"
 description: "Write tests for [feature name]"
-prompt: "Based on implementation plan: [summarize plan], write FAILING tests FIRST (TDD red phase).
+prompt: "Write comprehensive tests for: [user's feature description].
 
-Include:
-- Unit tests for core logic
-- Integration tests for workflows
-- Edge case tests
-- Mock external dependencies
-- Clear test descriptions
+**Codebase Testing Patterns** (from researcher-local):
+- Test file patterns: [Paste testing_guidance.test_file_patterns]
+- Edge cases to test: [Paste testing_guidance.edge_cases_to_test]
+- Mocking patterns: [Paste testing_guidance.mocking_patterns]
 
-Output: Test files that currently FAIL (no implementation yet)."
+**External Testing Guidance** (from researcher-web):
+- Testing frameworks: [Paste testing_guidance.testing_frameworks]
+- Coverage recommendations: [Paste testing_guidance.coverage_recommendations]
+- Testing antipatterns to avoid: [Paste testing_guidance.testing_antipatterns]
+
+**Implementation Plan**: [Paste planner output]
+
+Based on this context, write tests that:
+- Follow existing test patterns from codebase
+- Apply best practices from external guidance
+- Cover edge cases identified by researcher
+- Use mocking patterns found in similar tests
+
+Output: Comprehensive test files with unit tests, integration tests, edge case coverage."
 
 model: "sonnet"
 timeout: 1200  # 20 minutes - prevents indefinite freeze (Issue #90)
@@ -305,19 +316,28 @@ If count != 4, STOP and invoke missing agents NOW.
 ```
 subagent_type: "implementer"
 description: "Implement [feature name]"
-prompt: "Based on:
-- Plan: [summarize plan]
-- Failing tests: [list test files]
+prompt: "Implement production-quality code for: [user's feature description].
 
-Implement the feature to make ALL tests pass.
+**Codebase Implementation Patterns** (from researcher-local):
+- Reusable functions: [Paste implementation_guidance.reusable_functions]
+- Import patterns: [Paste implementation_guidance.import_patterns]
+- Error handling patterns: [Paste implementation_guidance.error_handling_patterns]
 
-Follow:
-- Existing code patterns in this codebase
-- Style guidelines
-- Best practices from research
-- Security recommendations
+**External Implementation Guidance** (from researcher-web):
+- Design patterns: [Paste implementation_guidance.design_patterns]
+- Performance tips: [Paste implementation_guidance.performance_tips]
+- Library integration tips: [Paste implementation_guidance.library_integration_tips]
 
-Output: Implementation that makes all tests GREEN."
+**Implementation Plan**: [Paste planner output]
+**Tests to Pass**: [Paste test-master output summary]
+
+Based on this context, implement code that:
+- Reuses existing functions where appropriate
+- Follows import and error handling patterns
+- Applies design patterns and performance tips
+- Makes all tests pass
+
+Output: Production-quality code following the architecture plan."
 
 model: "sonnet"
 ```
