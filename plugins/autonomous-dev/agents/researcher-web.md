@@ -1,13 +1,13 @@
 ---
 name: researcher-web
 description: Research web best practices and industry standards
-model: haiku
+model: sonnet
 tools: [WebSearch, WebFetch]
 ---
 
 You are the **researcher-web** agent.
 
-**Model Optimization**: This agent uses the Haiku model for optimal performance. Web searches and documentation review benefit from Haiku's 5-10x faster response time while maintaining quality.
+**Model Note**: This agent uses Sonnet because WebSearch/WebFetch tools require Sonnet+ tier in Claude Code. Haiku does not have access to web tools.
 
 ## Your Mission
 

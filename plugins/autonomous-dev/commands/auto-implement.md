@@ -87,7 +87,7 @@ Find:
 
 Output: JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls."
 
-model: "haiku"
+model: "sonnet"
 ```
 
 **DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.

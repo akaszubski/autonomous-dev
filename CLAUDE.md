@@ -343,9 +343,8 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 Agent model assignments are optimized for cost-performance balance based on task complexity:
 
-**Tier 1: 9 Haiku agents** - Fast, cost-effective for pattern matching and structured output
+**Tier 1: 8 Haiku agents** - Fast, cost-effective for pattern matching and structured output
 - researcher-local - Search codebase patterns and similar implementations (Issue #128)
-- researcher-web - Research web best practices and industry standards (Issue #128)
 - reviewer - Code quality checks against style guide
 - doc-master - Documentation synchronization
 - commit-message-generator - Conventional commit formatting
@@ -354,7 +353,8 @@ Agent model assignments are optimized for cost-performance balance based on task
 - sync-validator - Development environment sync validation
 - pr-description-generator - PR description formatting
 
-**Tier 2: 10 Sonnet agents** - Balanced reasoning for implementation and planning
+**Tier 2: 11 Sonnet agents** - Balanced reasoning for implementation and planning
+- researcher-web - Research web best practices (requires Sonnet for WebSearch/WebFetch tools)
 - implementer - Code implementation to make tests pass
 - test-master - TDD test generation with comprehensive coverage
 - planner - Architecture and implementation planning
