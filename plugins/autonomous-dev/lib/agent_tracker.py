@@ -314,6 +314,13 @@ class AgentTracker:
         temp_path = None
 
         try:
+            # Ensure session_dir matches session_file parent (for test compatibility)
+            # In tests, session_file may be changed after __init__, so sync session_dir
+            actual_session_dir = self.session_file.parent
+            if actual_session_dir != self.session_dir:
+                self.session_dir = actual_session_dir
+                self.session_dir.mkdir(parents=True, exist_ok=True)
+
             # Create temp file in same directory as target (ensures same filesystem)
             # mkstemp() returns (fd, path) with:
             # - Unique filename (includes random suffix)
@@ -420,7 +427,7 @@ class AgentTracker:
         print(f"✅ Started: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
 
-    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None, tools_used: Optional[List[str]] = None, github_issue: Optional[int] = None):
+    def complete_agent(self, agent_name: str, message: str, tools: Optional[List[str]] = None, tools_used: Optional[List[str]] = None, github_issue: Optional[int] = None, started_at: Optional[datetime] = None):
         """Log agent completion (idempotent - safe to call multiple times).
 
         Args:
@@ -429,6 +436,9 @@ class AgentTracker:
             tools: Optional list of tools used (preferred parameter name)
             tools_used: Optional list of tools used (alias for backwards compatibility)
             github_issue: Optional GitHub issue number associated with this agent
+            started_at: Optional start time for duration calculation (datetime object).
+                       When provided, duration is calculated as (now - started_at).
+                       Backward compatible: defaults to None (uses stored started_at).
 
         Raises:
             ValueError: If agent_name is empty/invalid or message too long
@@ -497,8 +507,15 @@ class AgentTracker:
         if github_issue:
             agent_entry["github_issue"] = github_issue
 
-        # Calculate duration if started_at exists
-        if "started_at" in agent_entry and "completed_at" in agent_entry:
+        # Calculate duration using provided started_at or stored started_at
+        if started_at is not None:
+            # Use provided started_at for duration calculation (Issue #120)
+            # This enables accurate duration tracking when agent start time is known
+            completed = datetime.fromisoformat(agent_entry["completed_at"])
+            duration = (completed - started_at).total_seconds()
+            agent_entry["duration_seconds"] = duration  # Keep as float for precision
+        elif "started_at" in agent_entry and "completed_at" in agent_entry:
+            # Fall back to stored started_at (backward compatibility)
             try:
                 started = datetime.fromisoformat(agent_entry["started_at"])
                 completed = datetime.fromisoformat(agent_entry["completed_at"])
@@ -1082,7 +1099,8 @@ class AgentTracker:
         agent_name: str,
         message: str,
         github_issue: Optional[int] = None,
-        tools_used: Optional[List[str]] = None
+        tools_used: Optional[List[str]] = None,
+        started_at: Optional[datetime] = None
     ) -> bool:
         """Save checkpoint from agent execution context.
 
@@ -1098,6 +1116,9 @@ class AgentTracker:
             message: Brief completion summary (max 10KB)
             github_issue: Optional GitHub issue number being worked on
             tools_used: Optional list of tools used by the agent
+            started_at: Optional start time for duration calculation (datetime object).
+                       When provided, duration is calculated as (now - started_at).
+                       Backward compatible: defaults to None (no duration tracking).
 
         Returns:
             True if checkpoint saved successfully, False if skipped (graceful degradation)
@@ -1156,6 +1177,7 @@ class AgentTracker:
         # Try to save checkpoint (graceful degradation on infrastructure errors)
         try:
             # Create tracker instance (uses portable path detection)
+            # In test environments, this respects any active patches
             tracker = cls()
 
             # Set GitHub issue at session level if provided
@@ -1167,7 +1189,8 @@ class AgentTracker:
                 agent_name=agent_name,
                 message=message,
                 github_issue=github_issue,
-                tools_used=tools_used
+                tools_used=tools_used,
+                started_at=started_at
             )
 
             print(f"✅ Checkpoint saved: {agent_name}")

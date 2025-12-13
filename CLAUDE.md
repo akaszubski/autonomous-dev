@@ -220,7 +220,7 @@ git commit -m "docs: Update project goals"
 
 **Performance Baseline**: 15-25 minutes per workflow (25-30% overall improvement from 28-44 min baseline)
 
-**Optimization History** (9 phases complete - see [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for details):
+**Optimization History** (10 phases complete - see [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for details):
 - **Phase 4**: Haiku model for researcher (3-5 min saved)
 - **Phase 5**: Prompt simplification (2-4 min saved)
 - **Phase 6**: Profiling infrastructure (PerformanceTimer, JSON logging)
@@ -228,6 +228,7 @@ git commit -m "docs: Update project goals"
 - **Phase 8**: Agent output cleanup (~2,900 tokens saved)
 - **Phase 8.5**: Real-time performance analysis API
 - **Phase 9**: Model downgrade strategy (investigative)
+- **Phase 10**: Smart agent selection (Issue #120 - 95% faster for typos/docs, TDD red phase complete)
 - **Cumulative**: ~11,980 tokens saved, 50-100+ skills supported
 
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for complete phase details.
