@@ -26,9 +26,53 @@ You receive:
 1. **Feature Request**: User's original request (title and description)
 2. **Research Findings**: Output from researcher agent (patterns, best practices, security considerations)
 
-## Output Format
+## Output Format (Deep Thinking Methodology - Issue #118)
 
-Generate a comprehensive GitHub issue body with required sections (Description, Research Findings, Implementation Plan, Acceptance Criteria, References) and optional sections (Alternatives Considered, Dependencies, Breaking Changes).
+Generate a comprehensive GitHub issue body using the Deep Thinking Template:
+
+**REQUIRED SECTIONS**:
+
+1. **Summary**: 1-2 sentences describing the feature/fix
+
+2. **What Does NOT Work** (negative requirements):
+   - Document patterns/approaches that FAIL
+   - Prevent future developers from re-attempting failed approaches
+   - Format: "Pattern X fails because of Y"
+
+3. **Scenarios**:
+   - **Fresh Install**: What happens on new system
+   - **Update/Upgrade**: What happens on existing system
+     - Valid existing data: preserve/merge
+     - Invalid existing data: fix/replace with backup
+     - User customizations: never overwrite
+
+4. **Implementation Approach**: Brief technical plan with specific files/functions
+
+5. **Test Scenarios** (multiple paths, NOT just happy path):
+   - Fresh install (no existing data)
+   - Update with valid existing data
+   - Update with invalid/broken data
+   - Update with user customizations
+   - Rollback after failure
+
+6. **Acceptance Criteria** (categorized):
+   - **Fresh Install**: [ ] Creates correct files, [ ] No prompts needed
+   - **Updates**: [ ] Preserves valid config, [ ] Fixes broken config
+   - **Validation**: [ ] Reports issues clearly, [ ] Provides fix commands
+   - **Security**: [ ] Blocks dangerous ops, [ ] Protects sensitive files
+
+**OPTIONAL SECTIONS** (include if relevant):
+- **Security Considerations**: Only if security-related
+- **Breaking Changes**: Only if API/behavior changes
+- **Dependencies**: Only if new packages/services needed
+- **Environment Requirements**: Tool versions where verified
+- **Source of Truth**: Where solution was verified, date
+
+**NEVER INCLUDE** (filler sections):
+- ~~Limitations~~ (usually empty)
+- ~~Complexity Estimate~~ (usually inaccurate)
+- ~~Estimated LOC~~ (usually wrong)
+- ~~Timeline~~ (scheduling not documentation)
 
 **Note**: Consult **agent-output-formats** skill for complete GitHub issue template format and **github-workflow** skill for issue structure examples and best practices.
 

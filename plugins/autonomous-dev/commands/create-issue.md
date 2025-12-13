@@ -68,25 +68,52 @@ If research failed, stop and report error. Do NOT proceed to STEP 2.
 
 ---
 
-### STEP 2: Generate Issue with Smart Sections
+### STEP 2: Generate Issue with Deep Thinking Methodology
 
 Use the Task tool to invoke the **issue-creator** agent (subagent_type="issue-creator") with:
 - Original feature request (from ARGUMENTS)
 - Research findings (from STEP 1)
 - Mode flag (default or thorough)
 
-**Smart Sections Logic** (issue-creator should follow):
+**Deep Thinking Template** (issue-creator should follow - GitHub Issue #118):
 
 **ALWAYS include**:
-- **Summary**: 1-2 sentences describing the feature/fix
-- **Acceptance Criteria**: Testable requirements (3-8 items)
-- **Implementation Approach**: Brief technical plan
+
+1. **Summary**: 1-2 sentences describing the feature/fix
+
+2. **What Does NOT Work** (negative requirements):
+   - Document patterns/approaches that fail
+   - Prevents future developers from re-attempting failed approaches
+   - Example: "Pattern X fails because of Y"
+
+3. **Scenarios** (update vs fresh install):
+   - **Fresh Install**: What happens on new system
+   - **Update/Upgrade**: What happens on existing system
+     - Valid existing data: preserve/merge
+     - Invalid existing data: fix/replace with backup
+     - User customizations: never overwrite
+
+4. **Implementation Approach**: Brief technical plan
+
+5. **Test Scenarios** (multiple paths, not just happy path):
+   - Fresh install (no existing data)
+   - Update with valid existing data
+   - Update with invalid/broken data
+   - Update with user customizations
+   - Rollback after failure
+
+6. **Acceptance Criteria** (categorized):
+   - **Fresh Install**: [ ] Creates correct files, [ ] No prompts needed
+   - **Updates**: [ ] Preserves valid config, [ ] Fixes broken config
+   - **Validation**: [ ] Reports issues clearly, [ ] Provides fix commands
+   - **Security**: [ ] Blocks dangerous ops, [ ] Protects sensitive files
 
 **Include IF relevant** (detect from research):
-- **Security Considerations**: Only if security-related (auth, crypto, input validation)
+- **Security Considerations**: Only if security-related
 - **Breaking Changes**: Only if API/behavior changes
 - **Dependencies**: Only if new packages/services needed
-- **Edge Cases**: Only if complex logic with corner cases
+- **Environment Requirements**: Tool versions, language versions where verified
+- **Source of Truth**: Where the solution was verified, date, attempts
 
 **NEVER include** (remove these filler sections):
 - ~~Limitations~~ (usually empty)
@@ -94,18 +121,25 @@ Use the Task tool to invoke the **issue-creator** agent (subagent_type="issue-cr
 - ~~Estimated LOC~~ (usually wrong)
 - ~~Timeline~~ (scheduling not documentation)
 
-**--thorough mode**: Include ALL sections regardless of relevance.
+**--thorough mode**: Include ALL sections with full detail.
 
 ---
 
-### CHECKPOINT 2: Validate Issue Content
+### CHECKPOINT 2: Validate Issue Content (Deep Thinking)
 
 Verify the issue-creator agent completed successfully:
 - Issue body generated
-- Required sections present (Summary, Acceptance Criteria, Implementation Approach)
+- **Required sections present**:
+  - Summary (1-2 sentences)
+  - What Does NOT Work (negative requirements)
+  - Scenarios (fresh install + update behaviors)
+  - Implementation Approach
+  - Test Scenarios (multiple paths)
+  - Acceptance Criteria (categorized)
 - Content is well-structured markdown
 - Body length < 65,000 characters (GitHub limit)
 - No empty sections ("Breaking Changes: None" - remove these)
+- No filler (no "TBD", "N/A" unless truly not applicable)
 
 If issue creation failed, stop and report error. Do NOT proceed to STEP 3.
 
@@ -328,4 +362,4 @@ This integration saves 2-5 minutes when issues are implemented soon after creati
 
 **Part of**: Core workflow commands
 **Related**: `/auto-implement`, `/align`
-**Enhanced in**: v3.41.0 (GitHub Issue #122)
+**Enhanced in**: v3.41.0 (GitHub Issues #118, #122)
