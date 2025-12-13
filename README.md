@@ -388,8 +388,8 @@ We document **typical performance**, not best-case marketing claims:
 - [Brownfield Adoption](docs/BROWNFIELD-ADOPTION.md) - Retrofit existing projects
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 10 commands
-- [Hooks](docs/HOOKS.md) - 44 automation hooks
+- [Commands](plugins/autonomous-dev/commands/) - All 7 commands
+- [Hooks](docs/HOOKS.md) - 45 automation hooks
 - [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) - 28 knowledge packages
 - [Libraries](docs/LIBRARIES.md) - 40+ Python utilities
 

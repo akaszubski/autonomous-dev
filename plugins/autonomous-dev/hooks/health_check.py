@@ -3,9 +3,9 @@
 Plugin health check utility.
 
 Validates all autonomous-dev plugin components:
-- Agents (18 specialist agents - orchestrator removed in v3.2.2)
-- Hooks (8 automation hooks)
-- Commands (18 active commands)
+- Agents (20 specialist agents - orchestrator removed in v3.2.2)
+- Hooks (13 core automation hooks)
+- Commands (7 active commands)
 
 Note: Skills removed per Issue #5 (PROJECT.md: "No skills/ directory - anti-pattern")
 
@@ -32,14 +32,16 @@ class PluginHealthCheck:
     """Validates autonomous-dev plugin component integrity."""
 
     # Expected components (from PROJECT.md)
-    # 18 agents total (orchestrator removed in v3.2.2 - Claude coordinates directly)
+    # 20 agents total (orchestrator removed in v3.2.2 - Claude coordinates directly)
     EXPECTED_AGENTS = [
         "advisor",
         "alignment-analyzer",
         "alignment-validator",
+        "brownfield-analyzer",
         "commit-message-generator",
         "doc-master",
         "implementer",
+        "issue-creator",
         "planner",
         "pr-description-generator",
         "project-bootstrapper",
@@ -57,25 +59,31 @@ class PluginHealthCheck:
     # Skills removed per Issue #5 - PROJECT.md: "No skills/ directory - anti-pattern"
     EXPECTED_SKILLS = []
 
+    # Core hooks (13) - essential for autonomous workflow
     EXPECTED_HOOKS = [
         "auto_format.py",
         "auto_test.py",
-        "auto_generate_tests.py",
-        "auto_tdd_enforcer.py",
-        "auto_add_to_regression.py",
-        "auto_enforce_coverage.py",
-        "auto_update_docs.py",
+        "auto_git_workflow.py",
+        "detect_feature_request.py",
+        "enforce_file_organization.py",
+        "enforce_pipeline_complete.py",
+        "enforce_tdd.py",
+        "pre_tool_use.py",
         "security_scan.py",
+        "session_tracker.py",
+        "validate_claude_alignment.py",
+        "validate_command_file_ops.py",
+        "validate_project_alignment.py",
     ]
 
     EXPECTED_COMMANDS = [
-        "align-project.md",
+        "align.md",
         "auto-implement.md",
+        "batch-implement.md",
+        "create-issue.md",
         "health-check.md",  # Self-reference
         "setup.md",
-        "status.md",
-        "test.md",
-        "uninstall.md",
+        "sync.md",
     ]
 
     def __init__(self, verbose: bool = False):

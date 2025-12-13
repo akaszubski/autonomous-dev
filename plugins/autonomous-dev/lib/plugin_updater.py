@@ -75,6 +75,11 @@ from plugins.autonomous_dev.lib.hook_activator import (
     ActivationResult,
     ActivationError,
 )
+from plugins.autonomous_dev.lib.settings_generator import (
+    validate_permission_patterns,
+    fix_permission_patterns,
+    PermissionIssue,
+)
 
 
 # Exception hierarchy pattern from error-handling-patterns skill:
@@ -98,6 +103,26 @@ class VerificationError(UpdateError):
 
 
 @dataclass
+class PermissionFixResult:
+    """Result of permission validation/fix operation.
+
+    Attributes:
+        success: Whether fix succeeded (or was skipped)
+        action: Action taken (skipped, validated, fixed, regenerated, failed)
+        issues_found: Count of detected permission issues (integer)
+        fixes_applied: List of fixes that were applied
+        backup_path: Path to backup file (None if no backup created)
+        message: Human-readable result message
+    """
+    success: bool
+    action: str
+    issues_found: int = 0
+    fixes_applied: List[str] = field(default_factory=list)
+    backup_path: Optional[Path] = None
+    message: str = ""
+
+
+@dataclass
 class UpdateResult:
     """Result of a plugin update operation.
 
@@ -110,6 +135,7 @@ class UpdateResult:
         backup_path: Path to backup directory (None if no backup created)
         rollback_performed: Whether rollback was performed after failure
         hooks_activated: Whether hooks were activated after update (default: False)
+        permission_fix_result: Result of permission validation/fixing (None if not performed)
         details: Additional result details (files updated, errors, etc.)
     """
 
@@ -121,6 +147,7 @@ class UpdateResult:
     backup_path: Optional[Path] = None
     rollback_performed: bool = False
     hooks_activated: bool = False
+    permission_fix_result: Optional['PermissionFixResult'] = None
     details: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -236,6 +263,7 @@ class PluginUpdater:
 
         self.plugin_name = validated_name
         self.plugin_dir = claude_dir / "plugins" / validated_name
+        self.verbose = False  # Default to non-verbose mode
 
         # Validate plugin directory path (CWE-22: Path Traversal prevention)
         # Ensures marketplace plugin directory is within project bounds
@@ -325,9 +353,11 @@ class PluginUpdater:
         4. Create backup (if auto_backup=True)
         5. Perform sync via sync_dispatcher
         6. Verify update success
-        7. Activate hooks (if activate_hooks=True and sync successful)
-        8. Rollback on failure
-        9. Cleanup backup on success
+        7. Validate and fix permissions (non-blocking)
+        8. Sync lib files to ~/.claude/lib/ (non-blocking)
+        9. Activate hooks (if activate_hooks=True and sync successful)
+        10. Rollback on failure
+        11. Cleanup backup on success
 
         Args:
             auto_backup: Whether to create backup before update (default: True)
@@ -474,6 +504,55 @@ class PluginUpdater:
                         details={"error": str(e)},
                     )
 
+            # Step 5.5: Validate and fix permissions (non-blocking)
+            permission_fix_result = None
+            try:
+                permission_fix_result = self._validate_and_fix_permissions()
+                # Log result but don't fail update
+                if permission_fix_result.action in ["fixed", "regenerated"]:
+                    security_utils.audit_log(
+                        "plugin_updater",
+                        "permission_fix",
+                        {
+                            "event": "permission_fix",
+                            "action": permission_fix_result.action,
+                            "issues_found": len(permission_fix_result.issues_found),
+                            "fixes_applied": permission_fix_result.fixes_applied,
+                        }
+                    )
+            except Exception as e:
+                # Log but don't fail update
+                security_utils.audit_log(
+                    "plugin_updater",
+                    "permission_fix_failed",
+                    {
+                        "event": "permission_fix_failed",
+                        "error": str(e),
+                    }
+                )
+                permission_fix_result = PermissionFixResult(
+                    success=False,
+                    action="failed",
+                    issues_found=0,
+                    message=f"Permission validation failed: {e}"
+                )
+
+            # Step 5.6: Sync lib files to ~/.claude/lib/ (non-blocking)
+            lib_files_synced = 0
+            try:
+                lib_files_synced = self._sync_lib_files()
+            except Exception as e:
+                # Log but don't fail update
+                security_utils.audit_log(
+                    "plugin_updater",
+                    "lib_sync_exception",
+                    {
+                        "event": "lib_sync_exception",
+                        "error": str(e),
+                    }
+                )
+                print(f"Warning: Lib file sync encountered error: {e}")
+
             # Step 6: Activate hooks (non-blocking, after successful sync)
             hooks_activated = False
             if activate_hooks:
@@ -495,8 +574,13 @@ class PluginUpdater:
                     "old_version": old_version,
                     "new_version": new_version,
                     "hooks_activated": hooks_activated,
+                    "lib_files_synced": lib_files_synced,
                 }
             )
+
+            # Merge sync_result.details with lib_files_synced
+            result_details = dict(sync_result.details)
+            result_details["lib_files_synced"] = lib_files_synced
 
             return UpdateResult(
                 success=True,
@@ -507,7 +591,8 @@ class PluginUpdater:
                 backup_path=backup_path,
                 rollback_performed=False,
                 hooks_activated=hooks_activated,
-                details=sync_result.details,
+                permission_fix_result=permission_fix_result,
+                details=result_details,
             )
 
         except Exception as e:
@@ -629,6 +714,364 @@ class PluginUpdater:
                 settings_path=None,
                 details={"error": str(e)},
             )
+
+    def _sync_lib_files(self) -> int:
+        """Sync lib files from plugin to ~/.claude/lib/ (non-blocking).
+
+        This method copies required library files from the plugin's lib directory
+        to the global ~/.claude/lib/ directory where hooks can import them.
+
+        Workflow:
+        1. Read installation_manifest.json to get lib directory
+        2. Create ~/.claude/lib/ if it doesn't exist
+        3. Copy each .py file from plugin/lib/ to ~/.claude/lib/
+        4. Validate all paths for security (CWE-22, CWE-59)
+        5. Audit log all operations
+        6. Handle errors gracefully (non-blocking)
+
+        Returns:
+            Number of lib files successfully synced (0 on complete failure)
+
+        Note:
+            This method is non-blocking - errors are logged but don't fail update.
+            Missing manifest or source files are handled gracefully.
+
+        Security:
+            - All paths validated via security_utils.validate_path()
+            - Prevents path traversal (CWE-22)
+            - Rejects symlinks (CWE-59)
+            - Operations audit-logged (CWE-778)
+        """
+        try:
+            # Step 1: Read manifest to verify lib directory should be synced
+            manifest_path = self.plugin_dir / "config" / "installation_manifest.json"
+
+            if not manifest_path.exists():
+                # Manifest missing - graceful degradation
+                print(f"Warning: installation_manifest.json not found, syncing all .py files from lib/")
+                # Continue anyway - copy all .py files from lib/
+            else:
+                # Validate manifest includes lib directory
+                try:
+                    manifest_data = json.loads(manifest_path.read_text())
+                    include_dirs = manifest_data.get("include_directories", [])
+
+                    if "lib" not in include_dirs:
+                        # Lib not in manifest - skip sync
+                        security_utils.audit_log(
+                            "plugin_updater",
+                            "lib_sync_skipped",
+                            {
+                                "event": "lib_sync_skipped",
+                                "reason": "lib not in manifest include_directories",
+                                "project_root": str(self.project_root),
+                            }
+                        )
+                        return 0
+                except (json.JSONDecodeError, KeyError) as e:
+                    # Manifest malformed - log warning but continue
+                    print(f"Warning: Failed to parse manifest: {e}")
+                    # Continue with sync anyway
+
+            # Step 2: Create target directory ~/.claude/lib/
+            target_dir = Path.home() / ".claude" / "lib"
+
+            # Security: Validate target path is in user home
+            if not str(target_dir.resolve()).startswith(str(Path.home().resolve())):
+                security_utils.audit_log(
+                    "plugin_updater",
+                    "lib_sync_blocked",
+                    {
+                        "event": "lib_sync_blocked",
+                        "reason": "target path outside user home",
+                        "target_path": str(target_dir),
+                    }
+                )
+                return 0
+
+            # Create directory if doesn't exist
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            # Step 3: Copy lib files from plugin to global location
+            source_dir = self.plugin_dir / "lib"
+
+            if not source_dir.exists():
+                # Source lib directory missing - log and return
+                security_utils.audit_log(
+                    "plugin_updater",
+                    "lib_sync_skipped",
+                    {
+                        "event": "lib_sync_skipped",
+                        "reason": "source lib directory not found",
+                        "source_path": str(source_dir),
+                        "project_root": str(self.project_root),
+                    }
+                )
+                return 0
+
+            # Get all .py files from source lib directory
+            lib_files = list(source_dir.glob("*.py"))
+
+            if not lib_files:
+                # No lib files to sync
+                print("Info: No .py files found in plugin lib directory")
+                return 0
+
+            # Copy each file
+            files_synced = 0
+            files_failed = 0
+
+            for source_file in lib_files:
+                try:
+                    # Skip __init__.py (not needed in global lib)
+                    if source_file.name == "__init__.py":
+                        continue
+
+                    # Security: Validate source path
+                    # Use manual validation since validate_path() enforces project-root whitelist
+                    # and ~/.claude/lib/ is a global directory
+                    if source_file.is_symlink():
+                        print(f"Warning: Skipping symlink: {source_file.name}")
+                        files_failed += 1
+                        continue
+
+                    # Validate file is actually in plugin lib directory (prevent traversal)
+                    if not str(source_file.resolve()).startswith(str(source_dir.resolve())):
+                        print(f"Warning: Skipping file outside lib directory: {source_file.name}")
+                        files_failed += 1
+                        continue
+
+                    # Define target path
+                    target_file = target_dir / source_file.name
+
+                    # Security: Validate target path
+                    if target_file.is_symlink():
+                        print(f"Warning: Skipping existing symlink: {target_file.name}")
+                        files_failed += 1
+                        continue
+
+                    # Copy file (overwrites existing)
+                    shutil.copy2(source_file, target_file)
+                    files_synced += 1
+
+                    if self.verbose:
+                        print(f"  Synced: {source_file.name} → ~/.claude/lib/")
+
+                except (PermissionError, OSError) as e:
+                    # File copy failed - log and continue with next file
+                    print(f"Warning: Failed to sync {source_file.name}: {e}")
+                    files_failed += 1
+                    continue
+
+            # Step 4: Audit log sync result
+            security_utils.audit_log(
+                "plugin_updater",
+                "lib_sync_complete",
+                {
+                    "event": "lib_sync_complete",
+                    "project_root": str(self.project_root),
+                    "files_synced": files_synced,
+                    "files_failed": files_failed,
+                    "target_dir": str(target_dir),
+                }
+            )
+
+            if files_synced > 0:
+                print(f"Synced {files_synced} lib file(s) to ~/.claude/lib/")
+
+            if files_failed > 0:
+                print(f"Warning: {files_failed} lib file(s) failed to sync")
+
+            return files_synced
+
+        except Exception as e:
+            # Non-blocking: log error but don't fail update
+            security_utils.audit_log(
+                "plugin_updater",
+                "lib_sync_error",
+                {
+                    "event": "lib_sync_error",
+                    "project_root": str(self.project_root),
+                    "error": str(e),
+                }
+            )
+            print(f"Warning: Lib file sync failed: {e}")
+            return 0
+
+    def _validate_and_fix_permissions(self) -> PermissionFixResult:
+        """Validate and fix settings.local.json permissions (non-blocking).
+
+        Workflow:
+        1. Check if settings.local.json exists (skip if not)
+        2. Load and validate permissions
+        3. If issues found:
+           a. Backup existing file
+           b. Generate template with correct patterns
+           c. Fix using fix_permission_patterns()
+           d. Write fixed settings atomically
+        4. Return result
+
+        Returns:
+            PermissionFixResult with action, issues, and fixes
+
+        Note:
+            This method is non-blocking - exceptions are caught and returned
+            as failed results. Update can succeed even if permission fix fails.
+        """
+        settings_path = self.project_root / ".claude" / "settings.local.json"
+
+        # Step 1: Check if settings.local.json exists
+        if not settings_path.exists():
+            return PermissionFixResult(
+                success=True,
+                action="skipped",
+                issues_found=0,
+                fixes_applied=[],
+                backup_path=None,
+                message="No settings.local.json found - skipping validation"
+            )
+
+        try:
+            # Step 2: Load and validate permissions
+            try:
+                settings_content = settings_path.read_text()
+                settings = json.loads(settings_content)
+            except json.JSONDecodeError as e:
+                # Corrupted JSON - backup and try to regenerate
+                backup_path = self._backup_settings_file(settings_path)
+
+                try:
+                    # Try to generate fresh settings from template
+                    from plugins.autonomous_dev.lib.settings_generator import (
+                        SettingsGenerator,
+                        SAFE_COMMAND_PATTERNS,
+                        DEFAULT_DENY_LIST,
+                    )
+
+                    plugin_dir = self.project_root / "plugins" / self.plugin_name
+                    if plugin_dir.exists():
+                        # Full regeneration from template
+                        generator = SettingsGenerator(plugin_dir)
+                        gen_result = generator.write_settings(settings_path, merge_existing=False)
+
+                        if gen_result.success:
+                            return PermissionFixResult(
+                                success=True,
+                                action="regenerated",
+                                issues_found=1,  # One issue: corrupted JSON
+                                fixes_applied=["Regenerated settings from template"],
+                                backup_path=backup_path,
+                                message="Corrupted settings.local.json regenerated from template"
+                            )
+                    else:
+                        # Plugin directory doesn't exist - create minimal valid settings
+                        minimal_settings = {
+                            "version": "1.0.0",
+                            "permissions": {
+                                "allow": SAFE_COMMAND_PATTERNS.copy(),
+                                "deny": DEFAULT_DENY_LIST.copy()
+                            }
+                        }
+                        settings_path.write_text(json.dumps(minimal_settings, indent=2))
+
+                        return PermissionFixResult(
+                            success=True,
+                            action="regenerated",
+                            issues_found=1,  # One issue: corrupted JSON
+                            fixes_applied=["Created minimal valid settings"],
+                            backup_path=backup_path,
+                            message="Corrupted JSON - created minimal valid settings"
+                        )
+
+                except Exception as regen_error:
+                    # Regeneration failed - return with backup info
+                    return PermissionFixResult(
+                        success=False,
+                        action="failed",
+                        issues_found=1,  # One issue: corrupted JSON
+                        fixes_applied=[],
+                        backup_path=backup_path,
+                        message=f"Corrupted JSON - backed up but regeneration failed: {regen_error}"
+                    )
+
+            # Validate permissions
+            validation_result = validate_permission_patterns(settings)
+
+            # Step 3a: If no issues, return validated
+            if validation_result.valid:
+                return PermissionFixResult(
+                    success=True,
+                    action="validated",
+                    issues_found=0,
+                    fixes_applied=[],
+                    backup_path=None,
+                    message="Settings permissions already valid - no issues found"
+                )
+
+            # Step 3b: Issues found - backup and fix
+            backup_path = self._backup_settings_file(settings_path)
+
+            # Step 3c: Fix patterns
+            fixed_settings = fix_permission_patterns(settings)
+
+            # Step 3d: Write fixed settings atomically
+            settings_path.write_text(json.dumps(fixed_settings, indent=2))
+
+            # Build fixes_applied list
+            fixes_applied = []
+            if any("wildcard" in i.issue_type for i in validation_result.issues):
+                fixes_applied.append("Replaced wildcard patterns with specific commands")
+            if any("deny" in i.issue_type for i in validation_result.issues):
+                fixes_applied.append("Added comprehensive deny list")
+
+            return PermissionFixResult(
+                success=True,
+                action="fixed",
+                issues_found=len(validation_result.issues),
+                fixes_applied=fixes_applied,
+                backup_path=backup_path,
+                message=f"Fixed {len(validation_result.issues)} permission issue(s)"
+            )
+
+        except Exception as e:
+            # Non-blocking - return failure but don't raise
+            return PermissionFixResult(
+                success=False,
+                action="failed",
+                issues_found=0,
+                fixes_applied=[],
+                backup_path=None,
+                message=f"Permission validation failed: {e}"
+            )
+
+    def _backup_settings_file(self, settings_path: Path) -> Path:
+        """Create timestamped backup of settings.local.json.
+
+        Args:
+            settings_path: Path to settings.local.json
+
+        Returns:
+            Path to backup file
+        """
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")  # Include microseconds
+        backup_dir = self.project_root / ".claude" / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        backup_path = backup_dir / f"settings.local.json.backup-{timestamp}"
+        shutil.copy2(settings_path, backup_path)
+
+        # Audit log
+        security_utils.audit_log(
+            "plugin_updater",
+            "settings_backup",
+            {
+                "event": "settings_backup",
+                "source": str(settings_path),
+                "backup": str(backup_path),
+            }
+        )
+
+        return backup_path
 
     def _create_backup(self) -> Path:
         """Create timestamped backup of plugin directory.

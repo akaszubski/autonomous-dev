@@ -1142,11 +1142,11 @@ class SettingsGenerator:
     ) -> Dict[str, Any]:
         """Deep merge preserving user customizations.
 
-        Merge strategy:
+        Merge strategy (Claude Code 2.0 format):
         1. Start with template (has all required patterns)
         2. Fix broken wildcards in user settings if enabled
-        3. Merge allow_patterns: template + user patterns (union)
-        4. Merge deny_patterns: template + user patterns (union)
+        3. Merge permissions.allow: template + user patterns (union)
+        4. Merge permissions.deny: template + user patterns (union)
         5. Preserve user hooks completely (don't modify)
         6. Preserve all other user settings not in template
 
@@ -1167,35 +1167,36 @@ class SettingsGenerator:
 
         # Fix wildcards in user settings if enabled
         if fix_wildcards:
-            user_settings = self._fix_wildcard_patterns(user_settings)
+            user_settings = fix_permission_patterns(user_settings)
 
-        # Merge allowedTools.Bash patterns
-        if "allowedTools" in user_settings and "Bash" in user_settings["allowedTools"]:
-            user_bash = user_settings["allowedTools"]["Bash"]
-            template_bash = merged.setdefault("allowedTools", {}).setdefault("Bash", {})
+        # Merge permissions.allow and permissions.deny (Claude Code 2.0 format)
+        if "permissions" in user_settings:
+            user_perms = user_settings["permissions"]
+            template_perms = merged.setdefault("permissions", {})
 
-            # Merge allow_patterns (union)
-            template_allow = template_bash.get("allow_patterns", [])
-            user_allow = user_bash.get("allow_patterns", [])
+            # Merge allow patterns (union)
+            template_allow = template_perms.get("allow", [])
+            user_allow = user_perms.get("allow", [])
             # Remove broken wildcards from user patterns
-            user_allow = [p for p in user_allow if p not in ["Bash(:*)", "Bash(*)", "Bash(**)"]]
-            # Union of template and user patterns
+            broken_wildcards = ["Bash(:*)", "Bash(*)", "Bash(**)"]
+            user_allow = [p for p in user_allow if p not in broken_wildcards]
+            # Union of template and user patterns (deduplicate)
             merged_allow = list(set(template_allow + user_allow))
-            template_bash["allow_patterns"] = merged_allow
+            template_perms["allow"] = sorted(merged_allow)
 
-            # Merge deny_patterns (union)
-            template_deny = template_bash.get("deny_patterns", [])
-            user_deny = user_bash.get("deny_patterns", [])
+            # Merge deny patterns (union)
+            template_deny = template_perms.get("deny", [])
+            user_deny = user_perms.get("deny", [])
             merged_deny = list(set(template_deny + user_deny))
-            template_bash["deny_patterns"] = merged_deny
+            template_perms["deny"] = sorted(merged_deny)
 
-        # Preserve user hooks completely
-        if "customHooks" in user_settings:
-            merged["customHooks"] = user_settings["customHooks"]
+        # Preserve user hooks completely (Claude Code 2.0 format)
+        if "hooks" in user_settings:
+            merged["hooks"] = user_settings["hooks"]
 
         # Preserve all other user settings not in template
         for key, value in user_settings.items():
-            if key not in ["allowedTools", "customHooks"]:
+            if key not in ["permissions", "hooks"]:
                 merged[key] = json.loads(json.dumps(value))  # Deep copy
 
         return merged
@@ -1251,7 +1252,7 @@ class SettingsGenerator:
         return fixed
 
     def _validate_merged_settings(self, settings: Dict[str, Any]) -> None:
-        """Validate merged settings.
+        """Validate merged settings (Claude Code 2.0 format).
 
         Ensures:
         1. No broken wildcard patterns
@@ -1264,18 +1265,17 @@ class SettingsGenerator:
         Raises:
             SettingsGeneratorError: If validation fails
         """
-        # Check for broken wildcards
+        # Check for broken wildcards in permissions.allow
         broken_wildcards = ["Bash(:*)", "Bash(*)", "Bash(**)"]
 
-        if "allowedTools" in settings and "Bash" in settings["allowedTools"]:
-            bash = settings["allowedTools"]["Bash"]
-            if "allow_patterns" in bash:
-                for pattern in bash["allow_patterns"]:
-                    if pattern in broken_wildcards:
-                        raise SettingsGeneratorError(
-                            f"Validation failed: Broken wildcard pattern found: {pattern}\n"
-                            f"This should have been fixed during merge"
-                        )
+        if "permissions" in settings and "allow" in settings["permissions"]:
+            allow_patterns = settings["permissions"]["allow"]
+            for pattern in allow_patterns:
+                if pattern in broken_wildcards:
+                    raise SettingsGeneratorError(
+                        f"Validation failed: Broken wildcard pattern found: {pattern}\n"
+                        f"This should have been fixed during merge"
+                    )
 
 
 # =============================================================================

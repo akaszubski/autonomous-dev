@@ -250,11 +250,10 @@ This is achieved via **dual-layer architecture**:
   - **Categories**: Core Development (7), Workflow & Automation (7), Code & Quality (4), Validation & Analysis (6), Library Design (3)
   - **How It Works**: Skills auto-activate based on keywords, Claude Code 2.0+ native support
   - **Reference**: See docs/SKILLS-AGENTS-INTEGRATION.md for full architecture
-- **Commands**: 20 total
-  - **Core (10)**: /auto-implement, /batch-implement, /align-project, /align-project-retrofit, /align-claude, /setup, /sync, /status, /health-check, /pipeline-status
-  - **Agent (8)**: /research, /plan, /test-feature, /implement, /review, /security-scan, /update-docs, /create-issue
-  - **Utility (2)**: /test, /update-plugin
-- **Hooks**: 44 total
+- **Commands**: 7 active (Issue #121 consolidated commands)
+  - **Core (7)**: /auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue
+  - **Archived (15)**: See plugins/autonomous-dev/commands/archive/ for removed commands
+- **Hooks**: 45 total
   - **Core 9**: detect_feature_request, validate_project_alignment, enforce_file_organization, auto_format, auto_test, security_scan, validate_docs_consistency, enforce_pipeline_complete, enforce_tdd
   - **Lifecycle 2**: UserPromptSubmit, SubagentStop
   - **Extended 18**: auto_add_to_regression, auto_enforce_coverage, auto_fix_docs, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_claude_alignment, validate_documentation_alignment, validate_session_quality, and 3 others
