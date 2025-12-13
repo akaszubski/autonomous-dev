@@ -1,260 +1,289 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2025-11-19
-**For**: Developers and contributors encountering common issues
+**Last Updated**: 2025-12-14
+**For**: Users and developers encountering common issues
 
 ---
 
-## ModuleNotFoundError: No module named 'autonomous_dev'
+## Quick Fixes
 
-### Symptom
+| Problem | Solution |
+|---------|----------|
+| Commands not appearing | Restart Claude Code (Cmd+Q / Ctrl+Q) |
+| ModuleNotFoundError | Create symlink (see below) |
+| Hook not running | Check `~/.claude/settings.json` |
+| Context exceeded | Run `/clear` |
+| Plugin changes not visible | Run `/sync --plugin-dev` then restart |
 
-When running tests or importing from the plugin, you see:
+---
 
+## Installation Issues
+
+### "Commands not found after installation"
+
+**Symptom**: After running `install.sh`, commands like `/auto-implement` don't appear.
+
+**Cause**: Claude Code caches commands at startup.
+
+**Solution**:
+```bash
+# 1. Fully quit Claude Code
+#    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+
+# 2. Verify process is dead
+ps aux | grep -i claude | grep -v grep
+# Should return nothing
+
+# 3. Wait 5 seconds, then reopen Claude Code
+
+# 4. Verify commands appear
+/health-check
+```
+
+### "install.sh fails or incomplete"
+
+**Symptom**: Installation script errors or missing components.
+
+**Solution**:
+```bash
+# 1. Check what was installed
+ls -la ~/.claude/hooks/ | wc -l    # Should be ~50 hooks
+ls -la ~/.claude/lib/ | wc -l      # Should be ~69 libs
+
+# 2. Re-run installation
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+
+# 3. Restart Claude Code
+```
+
+### "How do I uninstall?"
+
+**Solution**: Use the `/sync --uninstall` command (added in v3.41.0):
+
+```bash
+# Preview what will be removed
+/sync --uninstall
+
+# Confirm with --force flag
+/sync --uninstall --force
+
+# Keep global ~/.claude/ files (only remove project files)
+/sync --uninstall --force --local-only
+```
+
+Creates automatic backup before removal. Rollback available if needed.
+
+---
+
+## Development Issues
+
+### ModuleNotFoundError: No module named 'autonomous_dev'
+
+**Symptom**: When running tests or importing:
 ```python
-Traceback (most recent call last):
-  File "tests/unit/test_something.py", line 10, in <module>
-    from autonomous_dev.lib import security_utils
 ModuleNotFoundError: No module named 'autonomous_dev'
 ```
 
-### Root Cause
+**Cause**: Python can't use hyphens in package names. Directory is `autonomous-dev` but imports need `autonomous_dev`.
 
-Python package names cannot contain hyphens (`-`), only underscores (`_`).
-The plugin directory is named `autonomous-dev` (with hyphen) but Python expects
-`autonomous_dev` (with underscore) for imports.
-
-### Solution: Create a Development Symlink
-
-The solution is to create a symbolic link that maps the underscore name to the hyphen directory.
-
-#### macOS/Linux
+**Solution**: Create a symlink:
 
 ```bash
+# macOS/Linux
 cd plugins
 ln -s autonomous-dev autonomous_dev
-```
 
-#### Windows (Command Prompt - Run as Administrator)
-
-```cmd
+# Windows (Command Prompt as Admin)
 cd plugins
 mklink /D autonomous_dev autonomous-dev
+
+# Verify
+python3 -c "from autonomous_dev.lib import security_utils; print('OK')"
 ```
 
-#### Windows (PowerShell - Run as Administrator)
+### "Plugin changes don't appear when testing"
 
-```powershell
-cd plugins
-New-Item -ItemType SymbolicLink -Path "autonomous_dev" -Target "autonomous-dev"
-```
+**Symptom**: Edit agent/command files but changes don't show up.
 
-### Verification
+**Cause**: Claude Code reads from `~/.claude/` not your development directory.
 
-After creating the symlink, verify it works:
-
-#### macOS/Linux
-
+**Solution**:
 ```bash
-ls -la plugins/ | grep autonomous_dev
-# Expected output: autonomous_dev -> autonomous-dev
+# 1. Make your changes
+vim plugins/autonomous-dev/agents/implementer.md
+
+# 2. Sync to installed location
+/sync --plugin-dev
+
+# 3. REQUIRED: Restart Claude Code
+#    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+
+# 4. Test changes
+/health-check
 ```
 
-#### Windows (Command Prompt)
+### "Lib files not found by hooks"
 
-```cmd
-dir plugins\ | findstr autonomous_dev
-# Expected output: <SYMLINKD> autonomous_dev [autonomous-dev]
+**Symptom**: Hooks fail with import errors:
+```
+ModuleNotFoundError: No module named 'security_utils'
 ```
 
-#### Windows (PowerShell)
+**Cause**: Lib files not copied to `~/.claude/lib/`.
 
-```powershell
-Get-Item plugins\autonomous_dev | Select-Object LinkType, Target
-# Expected output: LinkType: SymbolicLink, Target: autonomous-dev
-```
-
-### Test the Import
-
+**Solution**:
 ```bash
-python -c "from autonomous_dev.lib import security_utils; print('✓ Import works')"
-# Should print: ✓ Import works
-```
+# 1. Check lib directory
+ls ~/.claude/lib/*.py | wc -l
+# Should show ~69 files
 
-If this still fails, ensure you're in the project root and the symlink was created correctly.
-
-### Why a Symlink?
-
-1. **Python Limitation**: Python's import system requires valid identifiers (no hyphens)
-2. **Human Readability**: The directory name `autonomous-dev` is more readable in file explorers
-3. **Git Compatibility**: The symlink is gitignored (see `.gitignore`) and won't affect the repository
-4. **Security**: Uses relative paths within the repository, no external dependencies
-
-### Security Note
-
-This symlink is safe - it uses a relative path within the repository and is automatically gitignored.
-It will not be committed to version control.
-
----
-
-## Lib Files Not Installed to ~/.claude/lib/
-
-### Symptom
-
-Hook operations fail with errors like:
-
-```
-ModuleNotFoundError: No module named 'auto_approval_engine'
-ImportError: cannot import name 'security_utils' from 'autonomous_dev.lib'
-```
-
-Or hooks don't execute with permission validation errors.
-
-### Root Cause
-
-Lib files (security_utils.py, path_utils.py, validation.py, etc.) need to be copied from `plugins/autonomous-dev/lib/` to `~/.claude/lib/` where hooks can import them. This happens automatically during:
-- Fresh installation (install.sh)
-- Plugin updates (/sync, /update-plugin)
-- /setup command
-
-If this fails silently, hooks can't access required libraries.
-
-### Solution: Manual Lib File Installation
-
-If lib files didn't install automatically:
-
-#### 1. Verify lib directory exists
-
-```bash
-ls -la ~/.claude/lib/
-```
-
-If empty or missing, proceed to step 2.
-
-#### 2. Copy lib files manually
-
-```bash
-# Identify plugin location
-# In development: plugins/autonomous-dev/lib/
-# In marketplace: ~/.claude/plugins/autonomous-dev/lib/
-
-# Copy all .py files to ~/.claude/lib/
+# 2. If missing, re-run install or copy manually
 cp plugins/autonomous-dev/lib/*.py ~/.claude/lib/
 
-# Verify copy
-ls -la ~/.claude/lib/ | grep .py
-# Should show: security_utils.py, path_utils.py, validation.py, etc.
+# 3. Verify imports work
+python3 -c "import sys; sys.path.insert(0, '$HOME/.claude/lib'); import security_utils; print('OK')"
 ```
-
-#### 3. Fix permissions
-
-```bash
-# Ensure files are readable
-chmod 644 ~/.claude/lib/*.py
-chmod 755 ~/.claude/lib/
-```
-
-#### 4. Verify hooks can import
-
-```bash
-# Test import from hook context
-python3 -c "import sys; sys.path.insert(0, '~/.claude/lib'); from security_utils import audit_log; print('OK')"
-```
-
-### Why This Happens
-
-- **Fresh Install**: install.sh may skip lib files if permission denied or directory doesn't exist
-- **Updates**: Plugin updates may fail to sync lib files due to:
-  - Permission issues on ~/.claude/lib/
-  - Missing source lib directory in plugin
-  - Installation manifest doesn't list lib directory
-- **Marketplace**: Marketplace-only installs don't have access to global infrastructure
-
-### Automatic Installation Workflow (Issue #123)
-
-Starting with v3.42.0+, lib files are automatically installed:
-
-1. **install.sh**: Calls `install_lib_files()` after file staging
-   - Creates ~/.claude/lib if missing
-   - Copies all .py files from plugin/lib
-   - Validates file integrity (rejects symlinks)
-   - Non-blocking (installation continues even if lib copy fails)
-
-2. **Plugin Updates** (/sync, /update-plugin): Calls `_sync_lib_files()` after sync
-   - Reads installation_manifest.json to verify lib should be synced
-   - Copies lib files to ~/.claude/lib after successful plugin sync
-   - Validates paths for security (CWE-22, CWE-59 prevention)
-   - Audit logs all operations
-   - Non-blocking (update succeeds even if lib sync fails)
-
-3. **Permissions Validation**: Calls `_validate_and_fix_permissions()`
-   - Validates settings.local.json permission patterns
-   - Fixes broken patterns (wildcard → specific commands)
-   - Creates timestamped backups before fixes
-   - Non-blocking (update continues even if validation fails)
-
-### If Manual Installation Still Fails
-
-Check file permissions:
-
-```bash
-# Verify you can write to ~/.claude/lib/
-touch ~/.claude/lib/test.txt && rm ~/.claude/lib/test.txt && echo "OK" || echo "FAILED"
-
-# Check existing permissions
-ls -la ~/.claude/
-# Should see: drwx------ user group .claude
-```
-
-If permission denied, you may need to:
-- Check ~/.claude/ permissions (should be 0o700, user-only)
-- Delete ~/.claude/ and reinstall: `rm -rf ~/.claude/` then `/setup`
-- Check disk space and filesystem errors
 
 ---
 
-## See Also
+## Runtime Issues
 
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Complete setup instructions with step-by-step guide
-- [README.md](../plugins/autonomous-dev/README.md) - Plugin overview and quick start
-- [.gitignore](../.gitignore) - Symlink exclusion configuration
-- [docs/LIBRARIES.md](../../docs/LIBRARIES.md) - Lib file API documentation
-- GitHub Issue #123 - Automatic lib file installation implementation
+### "Context budget exceeded"
 
----
+**Symptom**: Token limit errors, truncated responses.
 
-## Other Common Issues
+**Cause**: Too many features in one session without clearing context.
 
-### Commands Not Loading After Plugin Update
-
-**Symptom**: After updating the plugin, new commands don't appear.
-
-**Solution**: Fully restart Claude Code (not just `/exit`):
-1. Press `Cmd+Q` (Mac) or `Ctrl+Q` (Windows/Linux)
-2. Wait 5 seconds
-3. Reopen Claude Code
-
-### Hooks Not Triggering
-
-**Symptom**: Expected hooks (auto-format, feature detection) aren't running.
-
-**Solution**: Check `.claude/settings.local.json` configuration:
+**Solution**:
 ```bash
-cat .claude/settings.local.json
+# Clear context after each feature
+/clear
+
+# Best practice workflow:
+# 1. Complete feature with /auto-implement
+# 2. Run /clear
+# 3. Start next feature
 ```
 
-Ensure hooks are properly configured. See [DEVELOPMENT.md](DEVELOPMENT.md) for setup instructions.
+### "Hooks not running"
 
-### Tests Failing After Clean Checkout
+**Symptom**: Expected hooks (auto-format, validation) don't trigger.
 
-**Symptom**: Tests fail immediately after cloning the repository.
+**Solution**:
+```bash
+# 1. Check hooks are installed
+ls ~/.claude/hooks/*.py | head -5
 
-**Checklist**:
-1. Did you create the `autonomous_dev` symlink? (See above)
-2. Did you install dependencies? `pip install -r requirements.txt`
-3. Are you in the project root? `pwd` should show the autonomous-dev directory
-4. Is Python 3.8+ installed? `python --version`
+# 2. Check settings configuration
+cat ~/.claude/settings.json | grep -A 10 '"hooks"'
+
+# 3. Check hook is executable
+chmod +x ~/.claude/hooks/*.py
+
+# 4. Test hook manually
+python3 ~/.claude/hooks/auto_format.py
+echo "Exit code: $?"
+```
+
+### "Feature doesn't align with PROJECT.md"
+
+**Symptom**: Warning about feature not matching project goals.
+
+**Solution**:
+```bash
+# Option 1: Modify feature to align with PROJECT.md goals
+
+# Option 2: Update PROJECT.md if direction changed
+vim .claude/PROJECT.md
+# Update GOALS, SCOPE sections
+
+# Option 3: Run alignment check
+/align
+```
 
 ---
 
-**For more help**: See the [DEVELOPMENT.md](DEVELOPMENT.md) guide or open an issue on GitHub.
+## Command-Specific Issues
+
+### "/auto-implement stops mid-way"
+
+**Symptom**: Pipeline doesn't complete all 8 steps.
+
+**Solutions**:
+1. Check for test failures (step 4) - fix failing tests
+2. Check for security issues (step 6) - address vulnerabilities
+3. Context may be full - run `/clear` and retry
+4. Check agent output for specific errors
+
+### "/batch-implement crashes"
+
+**Symptom**: Batch processing stops unexpectedly.
+
+**Solution**:
+```bash
+# Resume from where it stopped
+/batch-implement --resume <batch-id>
+
+# Check batch state
+cat .claude/batch_state.json
+```
+
+### "/sync fails"
+
+**Symptom**: Sync command errors.
+
+**Solutions**:
+```bash
+# Check which mode is failing
+/sync --github    # Fetch from GitHub
+/sync --env       # Environment sync
+/sync --plugin-dev # Dev sync (requires being in autonomous-dev repo)
+
+# For GitHub sync, ensure git remote is configured
+git remote -v
+```
+
+---
+
+## Diagnostic Commands
+
+```bash
+# Environment check
+echo "=== Environment ==="
+python3 --version
+which python3
+
+# Installation check
+echo "=== Installation ==="
+echo "Hooks: $(ls ~/.claude/hooks/*.py 2>/dev/null | wc -l)"
+echo "Libs: $(ls ~/.claude/lib/*.py 2>/dev/null | wc -l)"
+echo "Commands: $(ls .claude/commands/*.md 2>/dev/null | wc -l)"
+echo "Agents: $(ls .claude/agents/*.md 2>/dev/null | wc -l)"
+
+# Test a hook
+echo "=== Hook Test ==="
+python3 ~/.claude/hooks/validate_commands.py
+echo "Exit code: $?"
+
+# Check settings
+echo "=== Settings ==="
+cat ~/.claude/settings.json | python3 -m json.tool | head -20
+```
+
+---
+
+## Getting Help
+
+1. **Run health check**: `/health-check` validates plugin integrity
+2. **Check CLAUDE.md**: Project instructions and troubleshooting section
+3. **Search issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
+4. **Open new issue**: Include error messages, OS, Python version
+
+---
+
+## Version Info
+
+- **Current version**: v3.41.0+
+- **Agents**: 22 specialists
+- **Hooks**: 50 automation hooks
+- **Commands**: 7 active (`/auto-implement`, `/batch-implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`)
