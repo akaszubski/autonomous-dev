@@ -120,14 +120,14 @@ def main():
     # Relevant plugin files modified and plugin installed - auto-sync
     print("🔄 Auto-syncing plugin changes to installed location...", file=sys.stderr)
     print(f"   Modified files: {len(modified_files)}", file=sys.stderr)
-    print(), file=sys.stderr)
+    print("", file=sys.stderr)
 
     success, message = auto_sync()
 
     if success:
         print("✅ Plugin changes synced to installed location", file=sys.stderr)
         print("⚠️  RESTART REQUIRED: Quit and restart Claude Code to see changes", file=sys.stderr)
-        print(), file=sys.stderr)
+        print("", file=sys.stderr)
         sys.exit(0)  # Allow commit
     else:
         print("❌ Auto-sync failed!", file=sys.stderr)
