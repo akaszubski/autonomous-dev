@@ -47,6 +47,101 @@ fi
 
 ---
 
+### Step 1.5: Create .env Configuration
+
+After plugin files are installed, create `.env` from template:
+
+```bash
+# Check if .env already exists
+if [ ! -f ".env" ]; then
+  # Copy from .env.example if it exists (standard convention)
+  if [ -f ".env.example" ]; then
+    cp .env.example .env
+    echo "Created .env from .env.example"
+  else
+    # Create minimal .env with essential settings
+    cat > .env << 'ENVEOF'
+# autonomous-dev Environment Configuration
+# See: https://github.com/akaszubski/autonomous-dev#environment-setup
+
+# =============================================================================
+# API KEYS (REQUIRED - fill these in!)
+# =============================================================================
+GITHUB_TOKEN=ghp_your_token_here
+# ANTHROPIC_API_KEY=sk-ant-your_key_here
+
+# =============================================================================
+# GIT AUTOMATION (enabled by default)
+# =============================================================================
+AUTO_GIT_ENABLED=true
+AUTO_GIT_PUSH=true
+AUTO_GIT_PR=false
+
+# =============================================================================
+# TOOL AUTO-APPROVAL (reduces permission prompts)
+# =============================================================================
+MCP_AUTO_APPROVE=true
+
+# =============================================================================
+# BATCH PROCESSING
+# =============================================================================
+BATCH_RETRY_ENABLED=true
+ENVEOF
+    echo "Created .env with default settings"
+  fi
+fi
+
+# Ensure .env is in .gitignore
+if [ -f ".gitignore" ]; then
+  if ! grep -q "^\.env$" .gitignore; then
+    echo ".env" >> .gitignore
+    echo "Added .env to .gitignore"
+  fi
+else
+  echo ".env" > .gitignore
+  echo "Created .gitignore with .env"
+fi
+```
+
+**After creating .env, ALWAYS prompt the user:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  ACTION REQUIRED: Configure your .env file
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A .env file has been created with default settings. You MUST update the
+API keys and tokens for full functionality.
+
+Required (at minimum):
+  GITHUB_TOKEN=ghp_your_token_here
+    → Create at: https://github.com/settings/tokens
+    → Scopes needed: repo, read:org
+
+Optional but recommended:
+  ANTHROPIC_API_KEY=sk-ant-your_key_here
+    → Get from: https://console.anthropic.com/
+    → Enables: GenAI security scanning, test generation, doc fixes
+
+Key settings already enabled:
+  AUTO_GIT_ENABLED=true     (auto-commit after /auto-implement)
+  AUTO_GIT_PUSH=true        (auto-push commits)
+  MCP_AUTO_APPROVE=true     (reduce permission prompts)
+  BATCH_RETRY_ENABLED=true  (retry transient failures)
+
+Edit .env now:
+  vim .env
+  # or
+  code .env
+
+See all options: cat .env  (file is fully documented)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Wait for user confirmation before continuing to Step 2.**
+
+---
+
 ### Step 2: Detect Project Type
 
 After files installed, invoke the **setup-wizard** agent with this context:

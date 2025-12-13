@@ -203,13 +203,14 @@
     "templates": {
       "target": ".claude/templates",
       "files": [
-        "plugins/autonomous-dev/templates/settings.local.json",
+        "plugins/autonomous-dev/templates/PROJECT.md.template",
+        "plugins/autonomous-dev/templates/project-structure.json",
         "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
-        "plugins/autonomous-dev/templates/settings.granular-bash.json",
-        "plugins/autonomous-dev/templates/settings.permission-batching.json",
-        "plugins/autonomous-dev/templates/settings.strict-mode.json",
         "plugins/autonomous-dev/templates/settings.default.json",
-        "plugins/autonomous-dev/templates/project-structure.json"
+        "plugins/autonomous-dev/templates/settings.granular-bash.json",
+        "plugins/autonomous-dev/templates/settings.local.json",
+        "plugins/autonomous-dev/templates/settings.permission-batching.json",
+        "plugins/autonomous-dev/templates/settings.strict-mode.json"
       ]
     },
     "skills": {

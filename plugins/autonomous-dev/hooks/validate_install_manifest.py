@@ -12,7 +12,7 @@ Scans:
 - commands/*.md → manifest components.commands.files (excludes archive/)
 - scripts/*.py → manifest components.scripts.files
 - config/*.json → manifest components.config.files
-- templates/*.json → manifest components.templates.files
+- templates/*.json, *.template → manifest components.templates.files
 
 Usage:
     python3 validate_install_manifest.py [--check-only]
@@ -57,6 +57,7 @@ def scan_source_files(plugin_dir: Path) -> dict:
         ("scripts", "*.py", "scripts", False),
         ("config", "*.json", "config", False),
         ("templates", "*.json", "templates", False),
+        ("templates", "*.template", "templates", False),  # .env template
         ("skills", "*.md", "skills", True),  # Recursive - includes docs/, examples/, templates/
     ]
 
@@ -82,7 +83,11 @@ def scan_source_files(plugin_dir: Path) -> dict:
             relative = f"plugins/autonomous-dev/{dir_name}/{relative_to_source}"
             files.append(relative)
 
-        components[component_name] = sorted(files)
+        # Extend existing component files (for multiple patterns on same dir)
+        if component_name in components:
+            components[component_name] = sorted(set(components[component_name] + files))
+        else:
+            components[component_name] = sorted(files)
 
     return components
 
