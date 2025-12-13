@@ -62,6 +62,28 @@ if git diff --name-only | grep -q "install_manifest.json"; then
     git add plugins/autonomous-dev/config/install_manifest.json
 fi
 
+echo "🔍 Validating settings template hooks exist..."
+
+# Ensure hooks referenced in settings template actually exist
+python plugins/autonomous-dev/hooks/validate_settings_hooks.py
+SETTINGS_EXIT=$?
+if [ $SETTINGS_EXIT -ne 0 ]; then
+    echo ""
+    echo "⚠️  Settings template references missing hooks. Fix before committing."
+    exit $SETTINGS_EXIT
+fi
+
+echo "🔍 Validating library imports..."
+
+# Ensure all lib imports resolve (catches deleted/renamed libs)
+python plugins/autonomous-dev/hooks/validate_lib_imports.py
+IMPORTS_EXIT=$?
+if [ $IMPORTS_EXIT -ne 0 ]; then
+    echo ""
+    echo "⚠️  Broken library imports detected. Fix before committing."
+    exit $IMPORTS_EXIT
+fi
+
 echo "🔍 Running documentation validation tests..."
 
 # Check if venv exists and has pytest

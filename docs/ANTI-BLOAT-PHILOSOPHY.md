@@ -19,7 +19,7 @@ This plugin exists to make developers' lives simpler through automation. But sim
 **Bloat prevention is NOT about doing less work.**
 
 It's about:
-- ✅ Using existing elements (22 agents, 45 hooks, 7 commands) to their fullest potential
+- ✅ Using existing elements (22 agents, 47 hooks, 7 commands) to their fullest potential
 - ✅ Building what's necessary to achieve autonomous execution
 - ✅ Making complex workflows simple through intelligent automation
 - ❌ NOT adding features that don't directly serve the primary mission
