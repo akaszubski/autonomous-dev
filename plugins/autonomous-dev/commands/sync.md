@@ -1,5 +1,5 @@
 ---
-description: Unified sync command - smart context detection for environment, marketplace, and plugin development
+description: "Sync plugin files (--github default, --env, --marketplace, --plugin-dev, --all)"
 argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all"
 ---
 

@@ -35,7 +35,12 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--claude` - Fix documentation drift (validation script) - formerly align-claude
   - `--retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - formerly align-project-retrofit - GitHub #59
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
-- `/sync` - Unified sync command (smart auto-detection: dev environment, marketplace, or plugin dev) - GitHub #47
+- `/sync` - Unified sync command with five modes:
+  - `--github` - Fetch latest from GitHub (default) - GitHub #124
+  - `--env` - Environment sync (dependencies, config, migrations)
+  - `--marketplace` - Marketplace update (version detection, orphan cleanup)
+  - `--plugin-dev` - Plugin development sync (local testing)
+  - `--all` - Execute all modes in sequence
 - `/status` - Track project progress (project-progress-tracker agent)
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 - `/pipeline-status` - Track /auto-implement workflow (Python script)
