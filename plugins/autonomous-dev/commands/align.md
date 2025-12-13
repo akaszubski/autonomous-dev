@@ -1,372 +1,372 @@
 ---
 name: align
-description: Unified alignment command - PROJECT.md validation, CLAUDE.md drift detection, brownfield retrofit
-version: 2.0.0
+description: Unified alignment command - full codebase alignment, documentation sync, brownfield retrofit
+version: 3.0.0
 category: core
-tools: [Bash, Read, Write, Grep, Edit]
+tools: [Bash, Read, Write, Grep, Edit, Task]
 ---
 
 # /align - Unified Alignment Command
 
-**Purpose**: Consolidates three alignment modes into a single command for project alignment, documentation drift detection, and brownfield retrofit.
+**Purpose**: Validate and fix alignment between PROJECT.md, documentation, and codebase.
+
+**Default**: `/align` runs full alignment check (docs + code + hooks review)
 
 **Modes**:
-- `/align --project` - Validate/fix PROJECT.md alignment (replaces `/align-project`)
-- `/align --claude` - Detect/fix CLAUDE.md drift (replaces `/align-claude`)
-- `/align --retrofit` - Retrofit brownfield projects (replaces `/align-project-retrofit`)
-
-**Issue**: [#121 - Command Simplification](https://github.com/akaszubski/autonomous-dev/issues/121)
+- `/align` - Full alignment (PROJECT.md + CLAUDE.md + README vs code + hooks review)
+- `/align --docs` - Documentation only (ensure all docs consistent with PROJECT.md)
+- `/align --retrofit` - Brownfield retrofit (5-phase project transformation)
 
 ---
 
 ## Quick Usage
 
 ```bash
-# PROJECT.md alignment (interactive fixing)
-/align --project
+# Default: Full alignment check
+/align
 
-# CLAUDE.md drift detection
-/align --claude
+# Documentation consistency only
+/align --docs
 
-# Brownfield project retrofit (5-phase process)
+# Brownfield project retrofit
 /align --retrofit
-
-# With options
 /align --retrofit --dry-run
 /align --retrofit --auto
 ```
 
 ---
 
-## Mode 1: PROJECT.md Alignment (`--project`)
+## Mode 1: Full Alignment (Default)
 
-**Purpose**: Analyze and fix conflicts between PROJECT.md and actual implementation.
+**Purpose**: Comprehensive check that PROJECT.md, CLAUDE.md, README, and codebase are all aligned.
 
-**Replaces**: `/align-project` command
+**Time**: 10-30 minutes
 
-**Agent**: alignment-analyzer (GenAI-powered)
+**What it does**:
 
-**Time**: 5-20 minutes (depending on conflicts)
+### Phase 1: Quick Scan (Python)
+Run `alignment_fixer.py` for fast detection:
+- Count mismatches (agents, commands, hooks, skills)
+- Dead command references
+- Obvious drift
 
-### How It Works
+### Phase 2: Semantic Validation (GenAI)
+Run `alignment-analyzer` agent to check:
 
-#### Phase 1: Analysis (GenAI Agent)
+**PROJECT.md vs Code**:
+- Do GOALS match what's implemented?
+- Is SCOPE (in/out) respected in code?
+- Are CONSTRAINTS followed?
+- Does ARCHITECTURE match directory structure?
 
-The alignment-analyzer agent:
-- Reads PROJECT.md (source of truth)
-- Scans codebase for actual implementation
-- Checks documentation against reality
-- Identifies conflicts and misalignments
-- Explains each issue in context
+**CLAUDE.md vs Reality**:
+- Do workflow descriptions match actual behavior?
+- Do agent descriptions match capabilities?
+- Do command descriptions match what they do?
+- Are documented features actually implemented?
 
-#### Phase 2: Interactive Fixing (GenAI + You)
+**README vs Reality**:
+- Do feature claims match implementation?
+- Are installation instructions accurate?
+- Do examples actually work?
 
-For each conflict found, the agent asks binary questions:
+### Phase 3: Hooks/Rules Review
+Check for inflation in validation hooks:
+- Are hooks still necessary?
+- Do hook rules match current standards?
+- Any redundant or conflicting hooks?
 
+### Phase 4: Interactive Resolution
+For each conflict found:
 ```
-PROJECT.md says: "REST API only, no GraphQL"
-Reality shows: graphql/ directory with resolvers
-Status: GraphQL implementation exists
+CONFLICT: CLAUDE.md says "10 active commands"
+Reality: 7 commands exist
 
 What should we do?
-A) YES - PROJECT.md is correct (remove GraphQL)
-B) NO - Update PROJECT.md to include GraphQL
+A) Update CLAUDE.md to say "7 commands"
+B) This is correct (explain why)
 
 Your choice [A/B]:
 ```
 
-The agent intelligently:
-- Asks binary questions (no ambiguity)
-- Explains impact of each choice
-- Groups related conflicts
-- Suggests fixes based on your answers
-
-#### Phase 3: Execution
-
-After all questions answered, the agent:
-- Updates PROJECT.md (if needed)
-- Suggests code changes (if needed)
-- Creates documentation (if needed)
-- Removes scope drift (if needed)
-- Commits changes
-
-### Example: Analyzing Misalignment
+### Example Output
 
 ```
-🔍 Analyzing project alignment with PROJECT.md...
+/align
 
-Found 5 conflicts:
+Phase 1: Quick Scan
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Scanning file system for truth...
+  Agents: 20, Commands: 7, Hooks: 45, Skills: 28
 
-CONFLICT #1: GraphQL Scope Mismatch
-────────────────────────────────────
-PROJECT.md says:
-  SCOPE (Out of Scope):
-    - GraphQL API
+Found 5 count mismatches, 3 dead refs
+→ Will address in Phase 4
 
-Reality shows:
-  graphql/ directory exists with resolvers implemented
+Phase 2: Semantic Validation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Checking PROJECT.md alignment...
+✓ GOALS: 4/4 implemented
+✓ SCOPE: No out-of-scope code found
+⚠ ARCHITECTURE: docs/ structure doesn't match documented pattern
 
-What should we do?
-A) YES - PROJECT.md is correct (remove GraphQL code)
-B) NO - Update PROJECT.md to include GraphQL
+Checking CLAUDE.md alignment...
+✓ Workflow descriptions accurate
+⚠ Agent count outdated (says 18, actual 20)
+⚠ Command list missing /create-issue
 
-Your choice [A/B]: A
+Checking README alignment...
+✓ Installation instructions work
+✓ Examples are accurate
 
-Action: Remove graphql/ directory and update PROJECT.md
-Impact: Removes ~200 lines of code (not in scope)
+Phase 3: Hooks Review
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Reviewing 45 hooks for inflation...
+⚠ validate_claude_alignment.py duplicates alignment_fixer.py logic
+⚠ 3 hooks reference archived commands
+
+Phase 4: Resolution
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Found 8 issues to resolve...
+[Interactive fixing begins]
 ```
-
-### What Gets Validated
-
-- **GOALS** - Does implementation serve stated goals?
-- **SCOPE (In Scope)** - Are in-scope features implemented?
-- **SCOPE (Out of Scope)** - Are out-of-scope features absent?
-- **CONSTRAINTS** - Does implementation respect constraints?
-- **ARCHITECTURE** - Does structure match documented architecture?
 
 ---
 
-## Mode 2: CLAUDE.md Drift Detection (`--claude`)
+## Mode 2: Documentation Alignment (`--docs`)
 
-**Purpose**: Check and fix drift between documented standards (CLAUDE.md) and actual implementation.
+**Purpose**: Ensure all documentation is internally consistent and matches PROJECT.md (source of truth).
 
-**Replaces**: `/align-claude` command
+**Time**: 5-15 minutes
 
-**Implementation**: Validation script (`validate_claude_alignment.py`)
+**What it does**:
 
-**Time**: 1-2 minutes
+### Checks Performed
 
-### What This Does
+1. **PROJECT.md as Source of Truth**
+   - All other docs reference PROJECT.md correctly
+   - No contradictions between docs and PROJECT.md
+   - Version/date consistency
 
-CLAUDE.md defines development standards. If it drifts from reality (outdated version numbers, wrong agent counts, missing commands), new developers follow incorrect practices.
+2. **Internal Doc Consistency**
+   - CLAUDE.md matches README claims
+   - Agent docs match AGENTS.md
+   - Command docs match COMMANDS.md
+   - No orphaned documentation
 
-This mode:
-1. **Detects drift** - Compares CLAUDE.md against actual PROJECT.md, agents, commands, hooks
-2. **Shows issues** - Version mismatches, count errors, missing features
-3. **Guides fixes** - Tells you exactly what to update
-4. **Prevents future drift** - Pre-commit hook validates alignment on every commit
+3. **Architecture Documentation**
+   - Documented file structure matches reality
+   - API documentation matches actual endpoints
+   - Database schema docs match migrations
 
-### Implementation
+4. **Count/Reference Accuracy**
+   - All counts (agents, commands, hooks) correct
+   - No dead links or references
+   - Examples use correct syntax
 
-```bash
-# The command internally runs:
-python .claude/hooks/validate_claude_alignment.py
-```
-
-### What Gets Checked
-
-#### 1. Version Consistency
-- Project CLAUDE.md should match or be newer than PROJECT.md
-- Global CLAUDE.md in `~/.claude/` should be reasonable
-- All files should have recent "Last Updated" dates
-
-#### 2. Agent Counts
-- CLAUDE.md says how many agents exist
-- Checks against actual agents in `plugins/autonomous-dev/agents/`
-- Currently: 20 agents (9 core + 11 utility)
-
-#### 3. Command Counts
-- CLAUDE.md lists all available commands
-- Checks against actual commands in `plugins/autonomous-dev/commands/`
-- After Issue #121: 8 active commands
-
-#### 4. Hook Documentation
-- CLAUDE.md lists hooks
-- Checks against actual hooks in `plugins/autonomous-dev/hooks/`
-
-#### 5. Feature Existence
-- If CLAUDE.md claims feature exists, verify it actually does
-- Check for skills, agents, libraries referenced in docs
+### What It Doesn't Do
+- Doesn't check if code implements what docs say (use default `/align` for that)
+- Doesn't modify code, only documentation
+- Doesn't retrofit project structure
 
 ### Example Output
 
-```bash
-$ /align --claude
-
-Checking CLAUDE.md alignment...
-
-✅ Version consistency: OK
-   - Project CLAUDE.md: 2025-12-13
-   - PROJECT.md: 2025-12-09
-
-❌ Agent count mismatch:
-   - CLAUDE.md claims: 16 agents
-   - Reality: 20 agents exist
-   - Fix: Update CLAUDE.md to reflect 20 agents
-
-❌ Command count mismatch:
-   - CLAUDE.md claims: 15 commands
-   - Reality: 10 active commands (after Issue #121)
-   - Fix: Update CLAUDE.md command section
-
-✅ Hook documentation: OK
-   - All documented hooks exist
-
-Summary: 2 drift issues found
-Fix: Edit CLAUDE.md and update agent/command counts
 ```
+/align --docs
 
-### How to Fix Drift
+Validating documentation consistency...
 
-1. Run `/align --claude` to see issues
-2. Edit CLAUDE.md to match reality
-3. Commit the alignment fix
-4. Pre-commit hook validates on next commit
+Source of Truth: PROJECT.md
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Last updated: 2025-12-13
+✓ Version: v3.40.0
+
+Cross-Reference Check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ CLAUDE.md references PROJECT.md correctly
+⚠ README.md claims "10 commands" but PROJECT.md says 7
+✓ docs/AGENTS.md matches agents/ directory
+
+Architecture Docs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ File structure documented correctly
+⚠ docs/LIBRARIES.md missing 5 new libraries
+
+Count Validation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running alignment_fixer.py...
+Found 3 count mismatches in documentation
+
+Summary: 3 issues found
+Fix with: /align --docs --fix
+```
 
 ---
 
 ## Mode 3: Brownfield Retrofit (`--retrofit`)
 
-**Purpose**: Retrofit existing (brownfield) projects to align with autonomous-dev standards for /auto-implement compatibility.
+**Purpose**: Transform existing projects to autonomous-dev standards for `/auto-implement` compatibility.
 
-**Replaces**: `/align-project-retrofit` command
-
-**Agent**: brownfield-analyzer (GenAI-powered)
+**Time**: 30-90 minutes
 
 **Workflow**: 5-phase process with backup/rollback safety
 
-**Time**: 30-90 minutes (depending on project size and complexity)
-
-### How It Works
-
-This mode transforms brownfield projects into autonomous-dev compatible projects through a structured 5-phase workflow:
+### Phases
 
 #### Phase 1: Analyze Codebase
-- **Tool**: CodebaseAnalyzer (`codebase_analyzer.py`)
-- **Action**: Deep scan of project structure, tech stack, dependencies
+- **Tool**: `codebase_analyzer.py`
 - **Detects**: Language, framework, package manager, test framework, file organization
 - **Output**: Comprehensive codebase analysis report
 
 #### Phase 2: Assess Alignment
-- **Tool**: AlignmentAssessor (`alignment_assessor.py`)
-- **Action**: Compare current state vs autonomous-dev standards
-- **Calculates**: 12-Factor App compliance score, alignment gaps, PROJECT.md draft
-- **Output**: Assessment with prioritized gaps and remediation steps
+- **Tool**: `alignment_assessor.py`
+- **Calculates**: Alignment score, gaps, PROJECT.md draft
+- **Output**: Assessment with prioritized remediation steps
 
 #### Phase 3: Generate Migration Plan
-- **Tool**: MigrationPlanner (`migration_planner.py`)
-- **Action**: Create step-by-step migration plan with dependencies
-- **Estimates**: Effort (XS/S/M/L/XL), impact (LOW/MEDIUM/HIGH), critical path
-- **Output**: Optimized migration plan with verification criteria
+- **Tool**: `migration_planner.py`
+- **Creates**: Step-by-step plan with effort/impact estimates
+- **Output**: Optimized migration plan with dependencies
 
 #### Phase 4: Execute Migration
-- **Tool**: RetrofitExecutor (`retrofit_executor.py`)
-- **Action**: Execute migration with backup/rollback capability
-- **Modes**: DRY_RUN (show only), STEP_BY_STEP (confirm each), AUTO (all steps)
-- **Safety**: Automatic backup (0o700 permissions), rollback on failure
-- **Output**: Execution results with changes applied
+- **Tool**: `retrofit_executor.py`
+- **Modes**: `--dry-run` (preview), default (step-by-step), `--auto` (all at once)
+- **Safety**: Automatic backup, rollback on failure
 
 #### Phase 5: Verify Results
-- **Tool**: RetrofitVerifier (`retrofit_verifier.py`)
-- **Action**: Verify compliance and assess readiness for /auto-implement
-- **Checks**: PROJECT.md, file organization, tests, documentation, git config, compatibility
+- **Tool**: `retrofit_verifier.py`
+- **Checks**: PROJECT.md, file organization, tests, docs, git config
 - **Output**: Readiness score (0-100) and blocker list
 
-### Execution Modes
+### Usage
 
-**DRY_RUN**: Shows what would change without modifying files
 ```bash
-/align --retrofit --dry-run
-```
-
-**STEP_BY_STEP**: Confirms before each step (default, safest)
-```bash
-/align --retrofit
-```
-
-**AUTO**: Executes all steps automatically (fastest, less control)
-```bash
-/align --retrofit --auto
-```
-
-### Usage Examples
-
-#### Basic Usage (Step-by-Step)
-```bash
-# Full retrofit with confirmations
-/align --retrofit
-
-# Example interaction:
-# Phase 1: Analyzing codebase...
-# Found: Python 3.11, FastAPI, pytest, poetry
-#
-# Phase 2: Assessing alignment...
-# Alignment score: 42/100
-# Gaps: PROJECT.md missing, file organization non-standard, no CI/CD
-#
-# Phase 3: Creating migration plan...
-# 12 steps identified (4 critical, 8 recommended)
-#
-# Execute Step 1: Create PROJECT.md?
-# [Y/n]: y
-#
-# ✅ Step 1 complete
-#
-# Execute Step 2: Reorganize files to .claude/ structure?
-# [Y/n]: y
-# ...
-```
-
-#### Dry Run (Preview Only)
-```bash
-# See what would change without modifying files
+# Preview what would change
 /align --retrofit --dry-run
 
-# Example output:
-# DRY RUN MODE - No files will be modified
-#
-# Would execute 12 steps:
-#
-# Step 1: Create PROJECT.md
-#   - Creates: .claude/PROJECT.md
-#   - Template: 12-factor app structure
-#   - Impact: LOW
-#
-# Step 2: Reorganize files
-#   - Moves: hooks/ → .claude/hooks/
-#   - Moves: commands/ → .claude/commands/
-#   - Impact: MEDIUM
-# ...
-```
+# Step-by-step with confirmations (safest)
+/align --retrofit
 
-#### Automatic Execution
-```bash
-# Execute all steps without confirmations (use with caution)
+# Automatic execution (fastest)
 /align --retrofit --auto
-
-# Safer: Combine with --dry-run first
-/align --retrofit --dry-run  # Review changes
-/align --retrofit --auto      # Execute if looks good
 ```
 
 ### What Gets Retrofitted
 
-The retrofit process aligns your project with autonomous-dev standards:
-
-1. **PROJECT.md Creation** - Core project alignment file with GOALS, SCOPE, CONSTRAINTS
-2. **File Organization** - Move to `.claude/` structure (hooks, commands, agents, skills)
-3. **Test Infrastructure** - Ensure test framework configured, coverage tools available
-4. **CI/CD Integration** - Add pre-commit hooks, GitHub Actions workflows
-5. **Documentation** - Create CLAUDE.md, CONTRIBUTING.md, README.md sections
-6. **Git Configuration** - .gitignore patterns, branch protection, commit conventions
-
-### Safety Features
-
-- **Backup Creation**: Automatic backup before Phase 4 execution (timestamped, 0o700 permissions)
-- **Rollback Support**: If migration fails, rollback to backup state
-- **Step-by-Step Confirmations**: Default mode asks before each change
-- **Dry Run**: Preview all changes without modifying files
-- **Verification**: Final phase validates all changes meet standards
+1. **PROJECT.md Creation** - GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
+2. **File Organization** - Move to `.claude/` structure
+3. **Test Infrastructure** - Configure test framework and coverage
+4. **CI/CD Integration** - Pre-commit hooks, GitHub Actions
+5. **Documentation** - CLAUDE.md, CONTRIBUTING.md, README sections
+6. **Git Configuration** - .gitignore, commit conventions
 
 ### Rollback
 
-If something goes wrong, rollback to backup:
-
 ```bash
-# Rollback is automatic on failure
+# Automatic on failure
 # Manual rollback:
 python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
 ```
+
+---
+
+## When to Use Each Mode
+
+| Scenario | Mode |
+|----------|------|
+| Regular development check | `/align` |
+| After adding/removing components | `/align` |
+| Before major release | `/align` |
+| Updating documentation only | `/align --docs` |
+| Onboarding new developers | `/align --docs` |
+| Adopting autonomous-dev | `/align --retrofit` |
+| Legacy codebase migration | `/align --retrofit` |
+
+---
+
+## Implementation
+
+Based on arguments, invoke the appropriate alignment workflow:
+
+1. **Default mode** (`/align` or `/align --project`): Invoke the alignment-analyzer agent to validate PROJECT.md and fix conflicts
+2. **Documentation mode** (`/align --docs`): Run documentation consistency validation via alignment_fixer.py
+3. **Retrofit mode** (`/align --retrofit`): Execute 5-phase brownfield retrofit workflow
+
+---
+
+## Implementation Details
+
+### Mode Detection
+
+```
+Parse arguments from user input:
+
+IF --retrofit flag:
+    → Run 5-phase brownfield retrofit
+    → Check for --dry-run or --auto sub-flags
+
+ELIF --docs flag:
+    → Run documentation consistency check
+    → alignment_fixer.py + cross-reference validation
+    → No code changes, docs only
+
+ELSE (default):
+    → Phase 1: alignment_fixer.py (quick scan)
+    → Phase 2: alignment-analyzer agent (semantic validation)
+    → Phase 3: Hook inflation review
+    → Phase 4: Interactive resolution
+```
+
+### Libraries Used
+
+**Default mode**:
+- `alignment_fixer.py` - Quick count/reference scan
+- `alignment-analyzer` agent - Semantic validation
+
+**--docs mode**:
+- `alignment_fixer.py` - Count validation
+- Cross-reference validation logic
+
+**--retrofit mode**:
+- `codebase_analyzer.py` - Phase 1
+- `alignment_assessor.py` - Phase 2
+- `migration_planner.py` - Phase 3
+- `retrofit_executor.py` - Phase 4
+- `retrofit_verifier.py` - Phase 5
+
+---
+
+## Troubleshooting
+
+### "Alignment check takes too long"
+
+Use `--docs` for faster documentation-only check:
+```bash
+/align --docs  # 5-15 min vs 10-30 min
+```
+
+### "Too many conflicts to review"
+
+Run in batches:
+```bash
+/align --docs           # Fix docs first
+/align                  # Then full check (fewer issues)
+```
+
+### "Retrofit fails at Phase 4"
+
+Automatic rollback should restore backup. Manual rollback:
+```bash
+ls ~/.autonomous-dev/backups/
+python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
+```
+
+---
+
+## Related Commands
+
+- `/auto-implement` - Uses PROJECT.md for feature alignment
+- `/setup` - Initial project setup (calls `/align --retrofit` internally)
+- `/health-check` - Plugin integrity validation
 
 ---
 
@@ -374,130 +374,8 @@ python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
 
 | Old Command | New Command |
 |-------------|-------------|
-| `/align-project` | `/align --project` |
-| `/align-claude` | `/align --claude` |
+| `/align-project` | `/align` (default) |
+| `/align-claude` | `/align --docs` |
 | `/align-project-retrofit` | `/align --retrofit` |
-| `/align-project-retrofit --dry-run` | `/align --retrofit --dry-run` |
-| `/align-project-retrofit --auto` | `/align --retrofit --auto` |
 
-**Note**: Old commands archived to `commands/archive/` directory (Issue #121).
-
----
-
-## When to Use Each Mode
-
-### Use `--project` when:
-- Starting new feature development
-- PROJECT.md and implementation drift apart
-- Scope creep detected (out-of-scope features implemented)
-- Architecture doesn't match documentation
-- Before major releases (ensure alignment)
-
-### Use `--claude` when:
-- Updating plugin or project documentation
-- After adding/removing agents or commands
-- Version numbers change
-- Before committing documentation changes
-- Onboarding new developers (ensure docs accurate)
-
-### Use `--retrofit` when:
-- Adopting autonomous-dev on existing project
-- Legacy codebase needs autonomous-dev compatibility
-- Team switching to /auto-implement workflow
-- Greenfield project using non-standard structure
-- Preparing project for autonomous development
-
----
-
-## Agents Used
-
-- **alignment-analyzer** - GenAI agent for PROJECT.md conflict detection (--project mode)
-- **brownfield-analyzer** - GenAI agent for codebase analysis and retrofit (--retrofit mode)
-
----
-
-## Libraries Used
-
-### --project mode
-- `plugins/autonomous-dev/agents/alignment-analyzer.md` - GenAI analysis
-
-### --claude mode
-- `.claude/hooks/validate_claude_alignment.py` - Drift detection script
-
-### --retrofit mode
-- `plugins/autonomous-dev/lib/codebase_analyzer.py` - Phase 1: Codebase scanning
-- `plugins/autonomous-dev/lib/alignment_assessor.py` - Phase 2: Gap assessment
-- `plugins/autonomous-dev/lib/migration_planner.py` - Phase 3: Migration planning
-- `plugins/autonomous-dev/lib/retrofit_executor.py` - Phase 4: Execution with backup/rollback
-- `plugins/autonomous-dev/lib/retrofit_verifier.py` - Phase 5: Compliance verification
-
----
-
-## Troubleshooting
-
-### "ModuleNotFoundError: No module named 'autonomous_dev'"
-
-**Solution**: Create development symlink for Python imports.
-```bash
-# macOS/Linux
-cd plugins && ln -s autonomous-dev autonomous_dev
-
-# Windows (Command Prompt as Admin)
-cd plugins && mklink /D autonomous_dev autonomous-dev
-```
-
-### "CLAUDE.md alignment drift detected"
-
-This is expected - run `/align --claude` to see issues and fix:
-```bash
-/align --claude  # Shows drift issues
-vim CLAUDE.md    # Update based on findings
-git add CLAUDE.md
-git commit -m "docs: fix CLAUDE.md alignment"
-```
-
-### "Retrofit fails at Phase 4 execution"
-
-Automatic rollback should restore backup. If not:
-```bash
-# Check backup directory
-ls ~/.autonomous-dev/backups/
-
-# Manual rollback (replace <timestamp> with actual backup)
-python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
-```
-
-### "PROJECT.md validation fails"
-
-Run `/align --project` to identify conflicts. Agent will guide you through interactive fixing.
-
----
-
-## Related Commands
-
-- `/auto-implement` - Full autonomous pipeline (uses PROJECT.md for alignment)
-- `/setup` - Interactive project setup wizard
-- `/health-check` - Plugin integrity validation
-
----
-
-## References
-
-- **Issue #121**: [Command Simplification](https://github.com/akaszubski/autonomous-dev/issues/121)
-- **Migration Guide**: `plugins/autonomous-dev/commands/archive/README.md`
-- **Documentation**: See `docs/PROJECT-ALIGNMENT.md` for alignment concepts
-
----
-
-## Implementation Details
-
-This command consolidates three separate commands into a single unified interface:
-
-1. **Previous**: `/align-project`, `/align-claude`, `/align-project-retrofit` (3 commands)
-2. **Current**: `/align --project`, `/align --claude`, `/align --retrofit` (1 command, 3 modes)
-
-**Benefits**:
-- Single command to remember (`/align`)
-- Consistent interface across alignment modes
-- Clearer mental model (alignment = single concept, multiple modes)
-- Reduced cognitive overhead (8 active commands vs 20)
+**Note**: Old commands archived to `commands/archive/` (Issue #121).

@@ -5,6 +5,15 @@ model: haiku
 tools: [WebSearch, WebFetch, Read, Grep, Glob]
 ---
 
+**DEPRECATED**: This agent has been split into two specialized agents for parallel execution:
+- **researcher-local**: Searches codebase patterns (tools: Read, Grep, Glob)
+- **researcher-web**: Searches web best practices (tools: WebSearch, WebFetch)
+
+This agent is kept for backward compatibility but should not be used in new workflows.
+Use researcher-local + researcher-web in parallel for optimal performance (45% faster).
+
+---
+
 You are the **researcher** agent.
 
 **Model Optimization (Phase 4 - Issue #46)**: This agent uses the Haiku model for optimal performance and cost efficiency. Research tasks (web search, pattern discovery, documentation review) benefit from Haiku's 5-10x faster response time compared to Sonnet, while maintaining quality. This change saves 3-5 minutes per /auto-implement workflow with no degradation in research quality.

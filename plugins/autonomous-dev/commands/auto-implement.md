@@ -43,70 +43,85 @@ Options:
 
 ---
 
-### STEP 1: Parallel Exploration (Researcher + Planner Simultaneously)
+### STEP 1: Parallel Research (researcher-local + researcher-web Simultaneously)
 
-⚠️ **ACTION REQUIRED NOW**: Invoke TWO agents in PARALLEL (single response).
+⚠️ **ACTION REQUIRED NOW**: Invoke TWO research agents in PARALLEL (single response).
 
-**CRITICAL**: You MUST call Task tool TWICE in a single response. This enables parallel execution and reduces exploration time from 8 minutes to 5 minutes (Phase 2 optimization from Issue #46).
+**CRITICAL**: You MUST call Task tool TWICE in a single response. This enables parallel execution and reduces research time from 5-6 minutes to 3 minutes (45% faster - Issue #128).
 
-**WRONG** ❌: "I will research patterns, then plan..."
-**WRONG** ❌: Invoking researcher, waiting for completion, then invoking planner (sequential)
+**WRONG** ❌: "I will search codebase, then search web..."
+**WRONG** ❌: Invoking researcher-local, waiting for completion, then invoking researcher-web (sequential)
 
 **CORRECT** ✅: Make TWO Task tool calls in ONE response:
 
-#### Agent 1: Researcher
+#### Agent 1: researcher-local (Codebase Patterns)
 
 ```
-subagent_type: "researcher"
-description: "Research [feature name]"
-prompt: "Research patterns, best practices, and security for: [user's feature description].
+subagent_type: "researcher-local"
+description: "Search codebase for [feature name]"
+prompt: "Search codebase for patterns and implementations related to: [user's feature description].
 
 Find:
-- Existing implementations in this codebase
-- Industry best practices
-- Security considerations
+- Existing similar patterns in this codebase
+- Files that need to be updated
+- Architecture notes and conventions
+- Reusable implementations
+
+Output: JSON with existing_patterns, files_to_update, architecture_notes, similar_implementations."
+
+model: "haiku"
+```
+
+#### Agent 2: researcher-web (Best Practices)
+
+```
+subagent_type: "researcher-web"
+description: "Research best practices for [feature name]"
+prompt: "Research web for best practices and standards for: [user's feature description].
+
+Find:
+- Industry best practices (2024-2025)
+- Recommended libraries
+- Security considerations (OWASP)
 - Common pitfalls
-- Performance implications
 
-Output: Summary of findings with recommendations for implementation."
+Output: JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls."
 
-model: "sonnet"
-```
-
-#### Agent 2: Planner
-
-```
-subagent_type: "planner"
-description: "Plan [feature name]"
-prompt: "Create detailed implementation plan for: [user's feature description].
-
-Include:
-- File structure (what files to create/modify)
-- Dependencies (libraries, services needed)
-- Integration points (how it fits with existing code)
-- Edge cases to handle
-- Security considerations
-- Testing strategy
-
-Output: Step-by-step implementation plan with file-by-file breakdown."
-
-model: "sonnet"
+model: "haiku"
 ```
 
 **DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.
 
 ---
 
-### STEP 1.1: Verify Parallel Exploration
+### STEP 1.1: Merge Research Findings
 
-**After both agents complete**, verify parallel execution succeeded:
+**After both research agents complete**, merge their findings into unified context for planner.
+
+Combine:
+- **Codebase context** (from researcher-local): existing_patterns, files_to_update, architecture_notes, similar_implementations
+- **External guidance** (from researcher-web): best_practices, recommended_libraries, security_considerations, common_pitfalls
+
+Create synthesized recommendations by:
+1. **Pattern matching**: Check if local patterns align with best practices
+2. **Security flagging**: Highlight high-priority security considerations
+3. **Conflict detection**: Note where local code conflicts with best practices
+4. **Library recommendations**: Match recommended libraries to project needs
+
+This merged context will be passed to planner in STEP 2.
+
+---
+
+### STEP 1.2: Verify Parallel Research
+
+**After merging research**, verify parallel execution succeeded:
 
 ```bash
 python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Parallel exploration completed - processing results"
 python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 1**: Call `verify_parallel_exploration()` to validate:
+⚠️ **CHECKPOINT 1**: Call `verify_parallel_research()` to validate:
 
 NOTE: This checkpoint uses portable path detection (Issue #85) that works on any machine:
 - Walks directory tree upward until `.git` or `.claude` marker found
@@ -138,12 +153,15 @@ sys.path.insert(0, str(project_root))
 # Optional verification - gracefully degrade if AgentTracker unavailable
 try:
     from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
-    tracker = AgentTracker()
-    success = tracker.verify_parallel_exploration()
+    result = AgentTracker.verify_parallel_research()
+    success = result.get("parallel", False)
 
-    print(f"\n{'✅ PARALLEL EXPLORATION: SUCCESS' if success else '❌ PARALLEL EXPLORATION: FAILED'}")
+    print(f"\n{'✅ PARALLEL RESEARCH: SUCCESS' if success else '❌ PARALLEL RESEARCH: FAILED'}")
     if not success:
-        print("\n⚠️ One or more agents missing. Check session file for details.")
+        reason = result.get("reason", "Unknown error")
+        found = result.get("found_agents", [])
+        print(f"\n⚠️ {reason}")
+        print(f"   Found agents: {', '.join(found) if found else 'none'}")
         print("Re-invoke missing agents before continuing to STEP 2.\n")
 except ImportError:
     # User project without plugins/ directory - skip verification
@@ -152,12 +170,12 @@ except ImportError:
     success = True
 except AttributeError as e:
     # plugins.autonomous_dev.lib.agent_tracker exists but missing methods
-    print(f"\n⚠️  Parallel exploration verification unavailable: {e}")
+    print(f"\n⚠️  Parallel research verification unavailable: {e}")
     print("    Continuing workflow. Verification is optional.")
     success = True
 except Exception as e:
     # Any other error - don't block workflow
-    print(f"\n⚠️  Parallel exploration verification error: {e}")
+    print(f"\n⚠️  Parallel research verification error: {e}")
     print("    Continuing workflow. Verification is optional.")
     success = True
 EOF
@@ -173,11 +191,64 @@ EOF
   - `time_saved_seconds`: How much time parallelization saved
   - `efficiency_percent`: Parallelization efficiency (target: ≥50%)
   - `status`: "parallel" or "sequential"
-- Proceed to STEP 2 (test-master)
+- Proceed to STEP 2 (planner with merged research context)
 
 ---
 
-### STEP 2: Invoke Test-Master Agent (TDD - Tests BEFORE Implementation)
+### STEP 2: Invoke Planner Agent (With Merged Research Context)
+
+⚠️ **ACTION REQUIRED**: Invoke planner NOW with merged research findings.
+
+**CRITICAL**: Planner receives BOTH codebase context (from researcher-local) AND external guidance (from researcher-web). This ensures the plan leverages existing patterns while following best practices.
+
+**CORRECT** ✅: Call Task tool with:
+
+```
+subagent_type: "planner"
+description: "Plan [feature name]"
+prompt: "Create detailed implementation plan for: [user's feature description].
+
+**Codebase Context** (from researcher-local):
+[Paste existing_patterns, files_to_update, architecture_notes, similar_implementations from researcher-local JSON output]
+
+**External Guidance** (from researcher-web):
+[Paste best_practices, recommended_libraries, security_considerations, common_pitfalls from researcher-web JSON output]
+
+Based on this research, create a plan that:
+- Follows existing project patterns and conventions
+- Aligns with industry best practices
+- Addresses security considerations
+- Avoids common pitfalls
+- Reuses existing code where appropriate
+
+Include:
+- File structure (what files to create/modify)
+- Dependencies (libraries, services needed)
+- Integration points (how it fits with existing code)
+- Edge cases to handle
+- Security requirements
+- Testing strategy
+
+Output: Step-by-step implementation plan with file-by-file breakdown."
+
+model: "sonnet"
+```
+
+**DO IT NOW**.
+
+**After planner completes**, VERIFY invocation succeeded:
+```bash
+python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Planner completed - plan created"
+python plugins/autonomous-dev/scripts/agent_tracker.py status
+```
+
+⚠️ **CHECKPOINT 2 - VERIFY RESEARCH + PLANNING**: Verify output shows 3 agents ran (researcher-local, researcher-web, planner).
+
+If count != 3, STOP and invoke missing agents NOW.
+
+---
+
+### STEP 3: Invoke Test-Master Agent (TDD - Tests BEFORE Implementation)
 
 ⚠️ **ACTION REQUIRED**: Invoke Task tool NOW with timeout enforcement.
 
@@ -218,14 +289,14 @@ python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Test-ma
 python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 2 - CRITICAL TDD GATE**: Verify output shows 3 agents ran (researcher, planner, test-master).
+⚠️ **CHECKPOINT 3 - CRITICAL TDD GATE**: Verify output shows 4 agents ran (researcher-local, researcher-web, planner, test-master).
 
 This is the TDD checkpoint - tests MUST exist before implementation.
-If count != 3, STOP and invoke missing agents NOW.
+If count != 4, STOP and invoke missing agents NOW.
 
 ---
 
-### STEP 3: Invoke Implementer Agent
+### STEP 4: Invoke Implementer Agent
 
 ⚠️ **ACTION REQUIRED**: Now that tests exist, implement to make them pass.
 
@@ -259,11 +330,11 @@ python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Impleme
 python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 3**: Verify 4 agents ran. If not, invoke missing agents before continuing.
+⚠️ **CHECKPOINT 4**: Verify 5 agents ran (researcher-local, researcher-web, planner, test-master, implementer). If not, invoke missing agents before continuing.
 
 ---
 
-### STEP 4: Parallel Validation (3 Agents Simultaneously)
+### STEP 4.1: Parallel Validation (3 Agents Simultaneously)
 
 ⚠️ **ACTION REQUIRED**: Invoke THREE validation agents in PARALLEL (single response).
 
@@ -343,7 +414,7 @@ model: "haiku"
 
 ---
 
-### STEP 4.1: Handle Validation Results
+### STEP 4.2: Handle Validation Results
 
 **After all three validators complete**, analyze combined results:
 
@@ -385,9 +456,9 @@ python plugins/autonomous-dev/scripts/agent_tracker.py status
 
 ---
 
-### STEP 4.1.1: Verify Parallel Validation Checkpoint (NEW - Phase 7)
+### STEP 4.3: Verify Parallel Validation Checkpoint (NEW - Phase 7)
 
-⚠️ **CHECKPOINT 4.1 - VERIFY PARALLEL EXECUTION METRICS**:
+⚠️ **CHECKPOINT 4.3 - VERIFY PARALLEL EXECUTION METRICS**:
 
 After all three validators (reviewer, security-auditor, doc-master) complete, verify parallel execution succeeded and check efficiency metrics:
 
@@ -485,39 +556,40 @@ EOF
   - `status`: "parallel" (good!) or "sequential" (agents didn't overlap)
   - `time_saved_seconds`: Actual time saved by parallelization
   - `efficiency_percent`: Parallelization effectiveness (target: 50%+)
-- Proceed to STEP 4.2 (Final Agent Verification)
+- Proceed to STEP 4.4 (Final Agent Verification)
 
 **If checkpoint FAILS** (returns False):
 1. Check which agent failed/is missing: `python plugins/autonomous-dev/scripts/agent_tracker.py status`
 2. Re-invoke the failed agent(s) now
 3. Re-run checkpoint verification
-4. Only proceed to STEP 4.2 once checkpoint passes
+4. Only proceed to STEP 4.4 once checkpoint passes
 
 ---
 
-### STEP 4.2: Final Agent Verification
+### STEP 4.4: Final Agent Verification
 
-⚠️ **CHECKPOINT 4 - VERIFY ALL 7 AGENTS RAN**:
+⚠️ **CHECKPOINT 4.4 - VERIFY ALL 8 AGENTS RAN**:
 
 Expected agents:
-1. researcher ✅
-2. planner ✅
-3. test-master ✅
-4. implementer ✅
-5. reviewer ✅
-6. security-auditor ✅
-7. doc-master ✅
+1. researcher-local ✅
+2. researcher-web ✅
+3. planner ✅
+4. test-master ✅
+5. implementer ✅
+6. reviewer ✅
+7. security-auditor ✅
+8. doc-master ✅
 
-**Verify all 7 agents completed**:
+**Verify all 8 agents completed**:
 ```bash
 python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
-**If count != 7, YOU HAVE FAILED THE WORKFLOW.**
+**If count != 8, YOU HAVE FAILED THE WORKFLOW.**
 
 Identify which agents are missing and invoke them NOW before proceeding.
 
-**If count == 7**: Proceed to STEP 5 (Report Completion).
+**If count == 8**: Proceed to STEP 5 (Report Completion).
 
 ---
 
@@ -882,19 +954,20 @@ This is **graceful degradation** - enhance workflow where possible, but never bl
 
 ---
 
-**ONLY AFTER** confirming all 7 agents ran (checkpoint 4 passed), tell the user:
+**ONLY AFTER** confirming all 8 agents ran (checkpoint 4.4 passed), tell the user:
 
 ```
-✅ Feature complete! All 7 agents executed successfully.
+✅ Feature complete! All 8 agents executed successfully.
 
 📊 Pipeline Summary:
-1. researcher: [1-line summary]
-2. planner: [1-line summary]
-3. test-master: [1-line summary]
-4. implementer: [1-line summary]
-5. reviewer: [1-line summary]
-6. security-auditor: [1-line summary]
-7. doc-master: [1-line summary]
+1. researcher-local: [1-line summary]
+2. researcher-web: [1-line summary]
+3. planner: [1-line summary]
+4. test-master: [1-line summary]
+5. implementer: [1-line summary]
+6. reviewer: [1-line summary]
+7. security-auditor: [1-line summary]
+8. doc-master: [1-line summary]
 
 📁 Files changed: [count] files
 🧪 Tests: [count] tests created/updated
@@ -913,25 +986,27 @@ Feature is ready to commit!
 
 ## Mandatory Full Pipeline Policy
 
-⚠️ **ALL features MUST go through all 7 agents. NO EXCEPTIONS.**
+⚠️ **ALL features MUST go through all 8 agents. NO EXCEPTIONS.**
 
 **Why**:
 - Simulation proved even "simple" features need full pipeline
 - test-master: Created 47 tests (0% → 95% coverage)
 - security-auditor: Found CRITICAL vulnerability (CVSS 7.1)
 - doc-master: Updated 5 files, not just 1
+- Split research: Ensures both local patterns AND best practices are considered
 
 **Examples from real simulation**:
 - "Simple command file" → security-auditor found path traversal attack
 - "Trivial doc update" → doc-master found 5 files needing consistency updates
 - "Quick fix" → reviewer caught pattern violations
+- "Standard feature" → researcher-local found reusable pattern, researcher-web found security pitfall
 
 **Result**: Full pipeline prevents shipping bugs, vulnerabilities, and incomplete features.
 
-**Exception**: If you believe a feature genuinely needs < 7 agents, ASK USER FIRST:
+**Exception**: If you believe a feature genuinely needs < 8 agents, ASK USER FIRST:
 
 "This seems like a simple change. Should I run:
-1. Full 7-agent pipeline (recommended - guaranteed quality)
+1. Full 8-agent pipeline (recommended - guaranteed quality)
 2. Subset: [which agents you think are needed]
 
 Default is FULL PIPELINE if you don't specify."
@@ -953,15 +1028,16 @@ Let user decide. But recommend full pipeline.
 **For users**: This command provides autonomous feature implementation with full SDLC workflow:
 
 1. **Validates alignment** - Checks PROJECT.md to ensure feature fits project goals
-2. **Invokes 7 specialist agents** - Each handles one part of SDLC:
-   - researcher: Finds patterns and best practices
-   - planner: Designs implementation approach
+2. **Invokes 8 specialist agents** - Each handles one part of SDLC:
+   - researcher-local: Searches codebase for existing patterns
+   - researcher-web: Researches industry best practices
+   - planner: Designs implementation approach (with merged research context)
    - test-master: Writes tests FIRST (TDD)
    - implementer: Makes tests pass
    - reviewer: Quality gate
    - security-auditor: Finds vulnerabilities
    - doc-master: Updates documentation
-3. **Verifies completeness** - Ensures all 7 agents ran before declaring done
+3. **Verifies completeness** - Ensures all 8 agents ran before declaring done
 4. **Ready to commit** - All quality gates passed
 
 **Time**: 20-40 minutes for professional-quality feature

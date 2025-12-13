@@ -113,8 +113,16 @@ __all__ = ["AgentTracker", "get_project_root", "find_project_root"]
 # Agent display metadata
 AGENT_METADATA = {
     "researcher": {
-        "description": "Research patterns and best practices",
+        "description": "Research patterns and best practices (DEPRECATED - use researcher-local + researcher-web)",
         "emoji": "🔍"
+    },
+    "researcher-local": {
+        "description": "Search codebase for existing patterns",
+        "emoji": "🔍"
+    },
+    "researcher-web": {
+        "description": "Research industry best practices and standards",
+        "emoji": "🌐"
     },
     "planner": {
         "description": "Create architecture plan and design",
@@ -901,6 +909,8 @@ class AgentTracker:
     def verify_parallel_exploration(self) -> bool:
         """Verify parallel execution of researcher and planner agents.
 
+        DEPRECATED: Use verify_parallel_research() for new split-researcher workflow.
+
         Returns:
             True if researcher and planner executed in parallel (overlapping time windows),
             False otherwise.
@@ -937,6 +947,83 @@ class AgentTracker:
 
         except (ValueError, KeyError):
             return False
+
+    @classmethod
+    def verify_parallel_research(cls, session_file: Optional[Path] = None) -> Dict[str, Any]:
+        """Verify parallel execution of researcher-local and researcher-web agents (class method).
+
+        This is a convenience class method that allows verification without creating an instance first.
+        Use this in checkpoints where you want to verify parallel research without tracking state.
+
+        Args:
+            session_file: Optional path to session file. If None, uses most recent session.
+
+        Returns:
+            Dict with verification results:
+            {
+                "parallel": bool,  # True if executed in parallel
+                "found_agents": List[str],  # Names of agents found
+                "time_difference": float,  # Seconds between start times (if found)
+                "reason": str  # Explanation if verification failed
+            }
+
+        Design:
+            This enables stateless verification from checkpoints in /auto-implement (Issue #128).
+            Creates temporary tracker instance to read session file and check timestamps.
+            This replaces verify_parallel_exploration for split-researcher workflow.
+        """
+        # Create tracker instance (either with explicit session file or auto-detect)
+        if session_file:
+            tracker = cls(session_file=str(session_file))
+        else:
+            tracker = cls()
+
+        # Find researcher entries
+        local_entry = None
+        web_entry = None
+        for entry in tracker.session_data["agents"]:
+            if entry["agent"] == "researcher-local":
+                local_entry = entry
+            elif entry["agent"] == "researcher-web":
+                web_entry = entry
+
+        found_agents = [
+            entry["agent"] for entry in tracker.session_data["agents"]
+            if entry["agent"] in ["researcher-local", "researcher-web"]
+        ]
+
+        result = {
+            "parallel": False,  # Default to False
+            "found_agents": found_agents
+        }
+
+        if not local_entry or not web_entry:
+            result["reason"] = "Missing researcher agents"
+            return result
+
+        if "started_at" not in local_entry or "started_at" not in web_entry:
+            result["reason"] = "Missing start times"
+            return result
+
+        # Parse timestamps and check if parallel
+        try:
+            local_start = datetime.fromisoformat(local_entry["started_at"])
+            web_start = datetime.fromisoformat(web_entry["started_at"])
+            time_diff = abs((local_start - web_start).total_seconds())
+
+            result["time_difference"] = time_diff
+
+            # Check if start times are within 5 seconds of each other
+            # (parallel execution means they start nearly simultaneously)
+            if time_diff <= 5:
+                result["parallel"] = True
+            else:
+                result["reason"] = f"Research agents not executed in parallel (time diff: {time_diff}s)"
+
+        except (ValueError, KeyError) as e:
+            result["reason"] = f"Timestamp parsing error: {e}"
+
+        return result
 
     def verify_parallel_validation(self) -> bool:
         """Verify parallel execution of reviewer, security-auditor, and doc-master agents.

@@ -22,11 +22,10 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - 21 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
-**Commands (10 active)**:
+**Commands (7 active)**:
 
-**Core Workflow (9)**:
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
 - `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
 - `/create-issue` - Create GitHub issue with research + async scan + smart sections (3-5 min default, 8-12 min --thorough) - GitHub #122
@@ -41,17 +40,12 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--marketplace` - Marketplace update (version detection, orphan cleanup)
   - `--plugin-dev` - Plugin development sync (local testing)
   - `--all` - Execute all modes in sequence
-- `/status` - Track project progress (project-progress-tracker agent)
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
-- `/pipeline-status` - Track /auto-implement workflow (Python script)
 
-**Utility Commands (1)**:
-- `/test` - Run automated tests (pytest wrapper)
-
-**Archived Commands (12)** - Moved to `commands/archive/` - GitHub #121:
+**Archived Commands (15)** - Moved to `commands/archive/`:
 - Individual agent commands (7): research, plan, test-feature, implement, review, security-scan, update-docs
 - Old align commands (3): align-project, align-claude, align-project-retrofit
-- Utilities (2): uninstall, update-plugin
+- Removed utilities (5): uninstall, update-plugin, test, pipeline-status, status
 
 ---
 
@@ -318,17 +312,18 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 ---
 ## Architecture
 
-### Agents (20 specialists with active skill integration - GitHub Issue #35, #58, #59)
+### Agents (22 specialists with active skill integration - GitHub Issue #35, #58, #59, #128)
 
-20 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+22 specialized agents with skill integration for autonomous development (21 active + 1 deprecated). See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Core Workflow Agents (9)** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
-researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+**Core Workflow Agents (10)** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
+researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
 
 **Utility Agents (11)**:
 alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
 
 **Key Features**:
+- Parallel research (Issue #128): researcher-local + researcher-web run simultaneously (45% faster research phase)
 - Each agent references relevant skills (progressive disclosure)
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
 - Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
@@ -337,8 +332,9 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 Agent model assignments are optimized for cost-performance balance based on task complexity:
 
-**Tier 1: 8 Haiku agents** - Fast, cost-effective for pattern matching and structured output
-- researcher - Pattern discovery and codebase search
+**Tier 1: 9 Haiku agents** - Fast, cost-effective for pattern matching and structured output
+- researcher-local - Search codebase patterns and similar implementations (Issue #128)
+- researcher-web - Research web best practices and industry standards (Issue #128)
 - reviewer - Code quality checks against style guide
 - doc-master - Documentation synchronization
 - commit-message-generator - Conventional commit formatting
@@ -390,7 +386,7 @@ Agent model assignments are optimized for cost-performance balance based on task
 - **Refactored Skills** (16 of 28): All now under 500 lines with detailed content in docs/ subdirectories
 
 **Key Benefits**:
-- All 20 agents explicitly reference relevant skills (Issue #35)
+- All 21 agents explicitly reference relevant skills (Issue #35)
 - All 28 skills now satisfy official 500-line limit (Issue #110)
 - Prevents hallucination while maintaining scalability
 - Supports 50-100+ skills without context bloat
@@ -414,9 +410,9 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (45 total automation - unified PreToolUse hook eliminates collision)
+### Hooks (44 total automation - unified PreToolUse hook eliminates collision)
 
-45 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+44 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
 **Core Hooks** (13): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, validate_command_file_ops, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, pre_tool_use, session_tracker
 
@@ -444,8 +440,8 @@ python .claude/hooks/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 20 agents, orchestrator removed v3.2.2)
-- Command counts match installed commands (currently 10 active commands)
+- Agent counts match reality (currently 21 agents, researcher split into local/web per Issue #128)
+- Command counts match installed commands (currently 7 active commands)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date

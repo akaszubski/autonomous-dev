@@ -1,7 +1,7 @@
 # Agent Architecture
 
-**Last Updated**: 2025-12-09 (Added model tier strategy - Issue #108)
-**Agent Count**: 20 specialists (Tier 1: 8, Tier 2: 10, Tier 3: 2)
+**Last Updated**: 2025-12-13 (Split researcher into parallel agents - Issue #128)
+**Agent Count**: 21 specialists (Tier 1: 9, Tier 2: 10, Tier 3: 2)
 **Location**: `plugins/autonomous-dev/agents/`
 
 This document describes the complete agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
@@ -10,7 +10,7 @@ This document describes the complete agent architecture, including core workflow
 
 ## Overview
 
-The autonomous-dev plugin uses 20 specialized agents with active skill integration (GitHub Issue #35, #58, #59). Each agent has specific responsibilities and references relevant skills for enhanced decision-making.
+The autonomous-dev plugin uses 21 specialized agents with active skill integration (GitHub Issue #35, #58, #59). Each agent has specific responsibilities and references relevant skills for enhanced decision-making.
 
 ---
 
@@ -18,11 +18,12 @@ The autonomous-dev plugin uses 20 specialized agents with active skill integrati
 
 Agent model assignments are optimized for cost-performance balance based on task complexity.
 
-### Tier 1: Haiku (8 agents)
+### Tier 1: Haiku (9 agents)
 
 Fast, cost-effective models for pattern matching and structured output:
 
-- **researcher**: Pattern discovery and codebase search
+- **researcher-local**: Search codebase patterns and similar implementations
+- **researcher-web**: Research web best practices and industry standards
 - **reviewer**: Code quality checks against style guide
 - **doc-master**: Documentation synchronization
 - **commit-message-generator**: Conventional commit formatting
@@ -69,25 +70,34 @@ Maximum depth reasoning for critical analysis:
 
 ---
 
-## Core Workflow Agents (9)
+## Core Workflow Agents (10)
 
 These agents execute the main autonomous development workflow. The orchestrator was deprecated in v3.2.2 - Claude now coordinates directly.
 
-### researcher
+### researcher-local
 
-**Purpose**: Web research for patterns and best practices with parallel deep research capabilities
+**Purpose**: Search codebase for existing patterns and similar implementations
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns
-**Features**: Parallel source research, quality scoring, consensus detection, diminishing returns detection (Issue #111)
-**Rate Limiting**: Up to 3 parallel searches with exponential backoff
-**Execution**: Step 1 of /auto-implement workflow
+**Tools**: Read, Grep, Glob (local filesystem access only)
+**Execution**: Step 1A of /auto-implement workflow (parallel with researcher-web)
+**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128)
+
+### researcher-web
+
+**Purpose**: Research web best practices and industry standards
+**Model**: Haiku (Tier 1 - cost optimized for pattern matching)
+**Skills**: research-patterns
+**Tools**: WebSearch, WebFetch (external research only)
+**Execution**: Step 1B of /auto-implement workflow (parallel with researcher-local)
+**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128)
 
 ### planner
 
 **Purpose**: Architecture planning and design
 **Model**: Sonnet (Tier 2 - balanced reasoning for complex planning)
 **Skills**: architecture-patterns, api-design, database-design, testing-guide
-**Execution**: Step 2 of /auto-implement workflow
+**Execution**: Step 2 of /auto-implement workflow (after merging research findings from Step 1.1)
 
 ### test-master
 
@@ -110,21 +120,21 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Purpose**: Quality gate (code review)
 **Model**: Haiku (Tier 1 - cost optimized for pattern-based code review)
 **Skills**: code-review, consistency-enforcement, python-standards
-**Execution**: Step 5 of /auto-implement workflow (parallel validation)
+**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 
 ### security-auditor
 
 **Purpose**: Security scanning and vulnerability detection
 **Model**: Opus (Tier 3 - maximum depth for critical security analysis)
 **Skills**: security-patterns, python-standards
-**Execution**: Step 5 of /auto-implement workflow (parallel validation)
+**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 
 ### doc-master
 
 **Purpose**: Documentation synchronization
 **Model**: Haiku (Tier 1 - cost optimized for structured documentation updates)
 **Skills**: documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency
-**Execution**: Step 5 of /auto-implement workflow (parallel validation)
+**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 
 ### advisor
 
@@ -138,7 +148,7 @@ These agents execute the main autonomous development workflow. The orchestrator 
 **Purpose**: GenAI-powered feature validation (v3.0+)
 **Model**: Sonnet (Tier 2 - balanced reasoning for comprehensive validation)
 **Skills**: testing-guide, code-review
-**Execution**: Final validation step (triggers SubagentStop hook)
+**Execution**: Step 6 of /auto-implement workflow (Final validation step, triggers SubagentStop hook)
 
 ---
 

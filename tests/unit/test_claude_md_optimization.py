@@ -532,8 +532,8 @@ class TestAlignmentValidation:
 
         This ensures:
         - Version dates still consistent
-        - Agent counts still correct (20 specialists)
-        - Command counts still correct (9 commands - Issue #122)
+        - Agent counts still correct (22 specialists - Issue #128)
+        - Command counts still correct (7 commands - Issue #121)
         - No alignment drift introduced
         """
         project_root = Path(__file__).parent.parent.parent
@@ -600,12 +600,12 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for agent count (20 specialists)
+        # Check for agent count (22 specialists - Issue #128 added researcher-local, researcher-web)
         # Allow some flexibility in phrasing
         agent_count_patterns = [
-            r"20\s+(?:AI\s+)?agents",
-            r"20\s+specialists",
-            r"Agents\s+\(20\s+specialists",
+            r"22\s+(?:AI\s+)?agents",
+            r"22\s+specialists",
+            r"Agents\s+\(22\s+specialists",
         ]
 
         has_agent_count = any(
@@ -614,16 +614,16 @@ class TestAlignmentValidation:
         )
 
         assert has_agent_count, (
-            "CLAUDE.md missing correct agent count (20 specialists). "
+            "CLAUDE.md missing correct agent count (22 specialists). "
             "Ensure agent documentation preserved during optimization."
         )
 
     def test_command_count_still_correct_in_claude_md(self):
         """
-        CLAUDE.md should still document correct command count (10 commands).
+        CLAUDE.md should still document correct command count (7 commands).
 
         After optimization, command count documentation should remain accurate.
-        Updated per Issue #121 command simplification (20 -> 10 commands).
+        Updated per Issue #121 command consolidation (20 -> 7 active commands).
         """
         claude_md = Path(__file__).parent.parent.parent / "CLAUDE.md"
 
@@ -632,10 +632,10 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for command count (10 active per Issue #121)
+        # Check for command count (7 active per Issue #121)
         command_count_patterns = [
-            r"10\s+(?:active\s+)?commands",
-            r"Commands\s+\(10\s+active",
+            r"7\s+(?:active\s+)?commands",
+            r"Commands\s+\(7\s+active",
         ]
 
         has_command_count = any(
@@ -644,7 +644,7 @@ class TestAlignmentValidation:
         )
 
         assert has_command_count, (
-            "CLAUDE.md missing correct command count (10 commands). "
+            "CLAUDE.md missing correct command count (7 commands). "
             "Ensure command documentation preserved during optimization."
         )
 
