@@ -999,12 +999,29 @@ class SyncDispatcher:
                     except Exception:
                         pass  # Non-blocking
 
+                # Clear Python bytecode cache to ensure fresh imports
+                # This prevents stale .pyc files from being used instead of updated .py files
+                pycache_cleared = 0
+                for pycache_dir in [
+                    global_lib_dir / "__pycache__",
+                    self.project_path / ".claude" / "lib" / "__pycache__",
+                    self.project_path / "plugins" / "autonomous-dev" / "lib" / "__pycache__",
+                ]:
+                    if pycache_dir.exists():
+                        try:
+                            import shutil
+                            shutil.rmtree(pycache_dir)
+                            pycache_cleared += 1
+                        except Exception:
+                            pass  # Non-blocking
+
                 audit_log(
                     "github_sync",
                     "global_download",
                     {
                         "hooks_downloaded": global_hooks_copied,
                         "libs_downloaded": global_libs_copied,
+                        "pycache_cleared": pycache_cleared,
                         "global_dir": str(global_claude_dir),
                     },
                 )

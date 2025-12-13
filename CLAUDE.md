@@ -13,8 +13,20 @@
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 # Restart Claude Code (Cmd+Q / Ctrl+Q)
-/setup
 ```
+
+**What install.sh does** (Issue #132 - Complete auto-install):
+- Downloads all plugin components to `~/.autonomous-dev-staging/`
+- Installs global infrastructure: `~/.claude/hooks/` (49 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
+- Installs to `.claude/`:
+  - Commands (10) → `.claude/commands/`
+  - Agents (22) → `.claude/agents/`
+  - Scripts (11) → `.claude/scripts/`
+  - Config (6) → `.claude/config/`
+  - Templates (11) → `.claude/templates/`
+- Non-blocking installation: Missing components don't block workflow
+
+**Optional**: Run `/setup` in your project for guided PROJECT.md creation (only needed for FRESH installs).
 
 **Why not marketplace alone?** autonomous-dev requires global infrastructure that the marketplace cannot configure: `~/.claude/hooks/`, `~/.claude/lib/`, and `~/.claude/settings.json`. See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for complete explanation.
 

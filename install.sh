@@ -495,6 +495,457 @@ install_lib_files() {
     return 0
 }
 
+# Install agent files to .claude/agents/
+bootstrap_agents() {
+    log_step "Installing agent files to .claude/agents/..."
+
+    local agent_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/agents"
+    local agent_target_dir=".claude/agents"
+    local installed=0
+    local failed=0
+
+    # Check if agent source directory exists
+    if [[ ! -d "$agent_source_dir" ]]; then
+        log_warning "Agents directory not found in staging - agent files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$agent_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/agents/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .md files from agents directory
+    local agent_files
+    agent_files=$(find "$agent_source_dir" -maxdepth 1 -type f -name "*.md")
+
+    if [[ -z "$agent_files" ]]; then
+        log_info "No agent files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$agent_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} agent files to install"
+
+    # Copy each agent file
+    while IFS= read -r agent_file; do
+        if [[ -z "$agent_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$agent_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$agent_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$agent_file" "$agent_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$agent_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} agent files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} agent file(s) to .claude/agents/"
+    return 0
+}
+
+# Install command files to .claude/commands/ (excluding setup.md which is already bootstrapped)
+bootstrap_commands() {
+    log_step "Installing command files to .claude/commands/..."
+
+    local command_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/commands"
+    local command_target_dir=".claude/commands"
+    local installed=0
+    local failed=0
+
+    # Check if command source directory exists
+    if [[ ! -d "$command_source_dir" ]]; then
+        log_warning "Commands directory not found in staging - command files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist (should already exist from bootstrap_setup_command)
+    if ! mkdir -p "$command_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/commands/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .md files from commands directory (exclude setup.md - already installed)
+    local command_files
+    command_files=$(find "$command_source_dir" -maxdepth 1 -type f -name "*.md" ! -name "setup.md")
+
+    if [[ -z "$command_files" ]]; then
+        log_info "No additional command files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$command_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} command files to install (setup.md already installed)"
+
+    # Copy each command file
+    while IFS= read -r command_file; do
+        if [[ -z "$command_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$command_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$command_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$command_file" "$command_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$command_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} command files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} command file(s) to .claude/commands/"
+    return 0
+}
+
+# Install script files to .claude/scripts/
+bootstrap_scripts() {
+    log_step "Installing script files to .claude/scripts/..."
+
+    local script_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/scripts"
+    local script_target_dir=".claude/scripts"
+    local installed=0
+    local failed=0
+
+    # Check if script source directory exists
+    if [[ ! -d "$script_source_dir" ]]; then
+        log_warning "Scripts directory not found in staging - script files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$script_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/scripts/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .py files from scripts directory
+    local script_files
+    script_files=$(find "$script_source_dir" -maxdepth 1 -type f -name "*.py")
+
+    if [[ -z "$script_files" ]]; then
+        log_info "No script files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$script_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} script files to install"
+
+    # Copy each script file
+    while IFS= read -r script_file; do
+        if [[ -z "$script_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$script_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$script_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$script_file" "$script_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$script_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} script files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} script file(s) to .claude/scripts/"
+    return 0
+}
+
+# Install config files to .claude/config/
+bootstrap_config() {
+    log_step "Installing config files to .claude/config/..."
+
+    local config_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/config"
+    local config_target_dir=".claude/config"
+    local installed=0
+    local failed=0
+
+    # Check if config source directory exists
+    if [[ ! -d "$config_source_dir" ]]; then
+        log_warning "Config directory not found in staging - config files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$config_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/config/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .json files from config directory
+    local config_files
+    config_files=$(find "$config_source_dir" -maxdepth 1 -type f -name "*.json")
+
+    if [[ -z "$config_files" ]]; then
+        log_info "No config files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$config_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} config files to install"
+
+    # Copy each config file
+    while IFS= read -r config_file; do
+        if [[ -z "$config_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$config_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$config_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$config_file" "$config_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$config_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} config files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} config file(s) to .claude/config/"
+    return 0
+}
+
+# Install template files to .claude/templates/
+bootstrap_templates() {
+    log_step "Installing template files to .claude/templates/..."
+
+    local template_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/templates"
+    local template_target_dir=".claude/templates"
+    local installed=0
+    local failed=0
+
+    # Check if template source directory exists
+    if [[ ! -d "$template_source_dir" ]]; then
+        log_warning "Templates directory not found in staging - template files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$template_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/templates/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Get list of .json files from templates directory
+    local template_files
+    template_files=$(find "$template_source_dir" -maxdepth 1 -type f -name "*.json")
+
+    if [[ -z "$template_files" ]]; then
+        log_info "No template files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$template_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} template files to install"
+
+    # Copy each template file
+    while IFS= read -r template_file; do
+        if [[ -z "$template_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$template_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$template_file" ]]; then
+            log_warning "  Skipping symlink: $file_name"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$template_file" "$template_target_dir/$file_name"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $file_name"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $file_name"
+        fi
+    done <<< "$template_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} template files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} template file(s) to .claude/templates/"
+    return 0
+}
+
+# Install skill files to .claude/skills/ (recursive - includes subdirectories)
+bootstrap_skills() {
+    log_step "Installing skill files to .claude/skills/..."
+
+    local skill_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/skills"
+    local skill_target_dir=".claude/skills"
+    local installed=0
+    local failed=0
+
+    # Check if skill source directory exists
+    if [[ ! -d "$skill_source_dir" ]]; then
+        log_warning "Skills directory not found in staging - skill files won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$skill_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/skills/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Skills have subdirectories (e.g., api-design/docs/, testing-guide/docs/)
+    # We need to copy the entire directory structure
+    # Use find to get all files recursively, then recreate directory structure
+
+    local skill_files
+    skill_files=$(find "$skill_source_dir" -type f \( -name "*.md" -o -name "*.json" \))
+
+    if [[ -z "$skill_files" ]]; then
+        log_info "No skill files found to install"
+        return 0
+    fi
+
+    # Count total files
+    local total_files
+    total_files=$(echo "$skill_files" | wc -l | tr -d ' ')
+    log_info "Found ${total_files} skill files to install"
+
+    # Copy each skill file, preserving directory structure
+    while IFS= read -r skill_file; do
+        if [[ -z "$skill_file" ]]; then
+            continue
+        fi
+
+        # Get relative path from skill_source_dir
+        local relative_path="${skill_file#$skill_source_dir/}"
+        local target_file="$skill_target_dir/$relative_path"
+        local target_dir
+        target_dir=$(dirname "$target_file")
+
+        # Security: Check if file is a symlink
+        if [[ -L "$skill_file" ]]; then
+            log_warning "  Skipping symlink: $relative_path"
+            ((failed++))
+            continue
+        fi
+
+        # Create target subdirectory if needed
+        if ! mkdir -p "$target_dir" 2>/dev/null; then
+            log_warning "  Failed to create directory: $target_dir"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory (use -P to not follow symlinks)
+        if cp -P "$skill_file" "$target_file"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed: $relative_path"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $relative_path"
+        fi
+    done <<< "$skill_files"
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${total_files} skill files (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} skill file(s) to .claude/skills/"
+    return 0
+}
+
 main() {
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
@@ -563,6 +1014,60 @@ main() {
         log_info "  cp ${STAGING_DIR}/files/plugins/autonomous-dev/commands/setup.md .claude/commands/"
     fi
 
+    # Bootstrap remaining commands (non-blocking)
+    local commands_success=false
+    if bootstrap_commands; then
+        commands_success=true
+    else
+        log_warning "Failed to bootstrap command files"
+        log_info "Commands like /auto-implement, /batch-implement won't be available"
+    fi
+
+    # Bootstrap agents (non-blocking)
+    local agents_success=false
+    if bootstrap_agents; then
+        agents_success=true
+    else
+        log_warning "Failed to bootstrap agent files"
+        log_info "Autonomous development workflow won't work without agents"
+    fi
+
+    # Bootstrap scripts (non-blocking)
+    local scripts_success=false
+    if bootstrap_scripts; then
+        scripts_success=true
+    else
+        log_warning "Failed to bootstrap script files"
+        log_info "Some advanced features may not work correctly"
+    fi
+
+    # Bootstrap config (non-blocking)
+    local config_success=false
+    if bootstrap_config; then
+        config_success=true
+    else
+        log_warning "Failed to bootstrap config files"
+        log_info "Default configurations will be used"
+    fi
+
+    # Bootstrap templates (non-blocking)
+    local templates_success=false
+    if bootstrap_templates; then
+        templates_success=true
+    else
+        log_warning "Failed to bootstrap template files"
+        log_info "Project setup may require manual configuration"
+    fi
+
+    # Bootstrap skills (non-blocking) - 158 files with subdirectories
+    local skills_success=false
+    if bootstrap_skills; then
+        skills_success=true
+    else
+        log_warning "Failed to bootstrap skill files"
+        log_info "Skills provide context for agents - some features may be limited"
+    fi
+
     # Configure global settings.json (non-blocking)
     local settings_success=false
     if configure_global_settings; then
@@ -589,6 +1094,36 @@ main() {
     else
         log_warning "/setup command not installed (see above for manual steps)"
     fi
+    if $commands_success; then
+        log_success "Command files installed to .claude/commands/"
+    else
+        log_warning "Command files not installed (workflows won't be available)"
+    fi
+    if $agents_success; then
+        log_success "Agent files installed to .claude/agents/"
+    else
+        log_warning "Agent files not installed (autonomous workflow won't work)"
+    fi
+    if $scripts_success; then
+        log_success "Script files installed to .claude/scripts/"
+    else
+        log_warning "Script files not installed (some features may not work)"
+    fi
+    if $config_success; then
+        log_success "Config files installed to .claude/config/"
+    else
+        log_warning "Config files not installed (using defaults)"
+    fi
+    if $templates_success; then
+        log_success "Template files installed to .claude/templates/"
+    else
+        log_warning "Template files not installed (manual config may be needed)"
+    fi
+    if $skills_success; then
+        log_success "Skill files installed to .claude/skills/"
+    else
+        log_warning "Skill files not installed (agent context may be limited)"
+    fi
     if $settings_success; then
         log_success "Global settings configured in ~/.claude/settings.json"
     else
@@ -596,22 +1131,44 @@ main() {
     fi
     echo ""
 
-    if $bootstrap_success; then
+    # Calculate overall success
+    local all_critical_success=false
+    if $bootstrap_success && $commands_success && $agents_success; then
+        all_critical_success=true
+    fi
+
+    if $all_critical_success; then
         echo "╔══════════════════════════════════════════════════════════════╗"
-        echo "║                     NEXT STEPS                               ║"
+        echo "║               🎉 Installation Complete 🎉                    ║"
         echo "╠══════════════════════════════════════════════════════════════╣"
         echo "║                                                              ║"
-        echo "║  1. Restart Claude Code (required to load /setup command)    ║"
+        echo "║  1. Restart Claude Code (required to load commands)          ║"
         echo "║     Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)              ║"
         echo "║                                                              ║"
-        echo "║  2. Open your project and run:                               ║"
-        echo "║     /setup                                                   ║"
+        echo "║  2. All 7 commands and 22 agents are now available!          ║"
         echo "║                                                              ║"
-        echo "║  The /setup wizard will:                                     ║"
-        echo "║  • Detect fresh install vs update                            ║"
-        echo "║  • Install all plugin files                                  ║"
-        echo "║  • Protect your PROJECT.md and custom files                  ║"
-        echo "║  • Guide you through configuration                           ║"
+        echo "║  Commands available after restart:                           ║"
+        echo "║    /setup           - Interactive project setup              ║"
+        echo "║    /auto-implement  - Full autonomous development workflow   ║"
+        echo "║    /batch-implement - Process multiple features              ║"
+        echo "║    /sync            - Update plugin from GitHub/marketplace  ║"
+        echo "║    /align           - Fix PROJECT.md/doc alignment           ║"
+        echo "║    /health-check    - Validate plugin integrity              ║"
+        echo "║    /create-issue    - Create GitHub issues with research     ║"
+        echo "║                                                              ║"
+        echo "║  3. Run /setup in your project to begin                      ║"
+        echo "║                                                              ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+    elif $bootstrap_success; then
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║                  PARTIAL INSTALLATION                        ║"
+        echo "╠══════════════════════════════════════════════════════════════╣"
+        echo "║                                                              ║"
+        echo "║  /setup command installed, but some components failed.       ║"
+        echo "║  Check warnings above for details.                           ║"
+        echo "║                                                              ║"
+        echo "║  1. Restart Claude Code (Cmd+Q / Ctrl+Q)                     ║"
+        echo "║  2. Run /setup - it may help recover missing files           ║"
         echo "║                                                              ║"
         echo "╚══════════════════════════════════════════════════════════════╝"
     else
