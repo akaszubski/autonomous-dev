@@ -1,6 +1,98 @@
 ## [Unreleased]
 
+**Added**
+- **Issue #131: Add uninstall capability to install.sh and /sync command**
+  - **Problem**: No way to cleanly uninstall the autonomous-dev plugin from a project or global ~/.claude/ directory
+  - **Solution**: Add comprehensive uninstall functionality with three phases (Validate → Preview → Execute), backup creation, rollback support, and protected file preservation
+  - **Features**:
+    - **Three-phase execution**: Validate paths, preview changes, execute deletion
+    - **Dry-run mode** (default): Safe preview showing files to be removed without deletion
+    - **Execute with --force**: Requires explicit flag for actual uninstallation
+    - **Backup creation**: Automatic timestamped tar.gz backup before deletion
+    - **Rollback support**: Restore files from backup if needed
+    - **Protected file preservation**: Never removes PROJECT.md, settings.local.json, .env
+    - **Local-only mode**: Use --local-only to skip global ~/.claude/ files
+    - **Security hardening**: CWE-22 (path traversal), CWE-59 (symlink), CWE-367 (TOCTOU) prevention
+    - **Audit logging**: All operations logged for debugging and security
+  - **New Library**:
+    - **uninstall_orchestrator.py** (634 lines): Core uninstallation logic
+      - `UninstallOrchestrator` class: Main orchestration with three-phase execution
+      - `UninstallResult` dataclass: Result object with status, file counts, backup path, errors
+      - `validate_phase()`: Path validation and whitelist enforcement
+      - `preview_phase()`: Generate list of files to remove
+      - `execute_phase()`: Actual file deletion with error recovery
+      - `rollback()`: Restore files from backup
+      - **Security**: Path validation (CWE-22, CWE-59, CWE-367), whitelist enforcement, audit logging
+      - **Error handling**: Clear error messages with recovery hints
+      - **Design pattern**: Progressive enhancement with graceful degradation
+  - **Modified Library**:
+    - **sync_dispatcher.py**: Added uninstall mode delegation
+      - Check for --uninstall flag and delegate to UninstallOrchestrator
+      - Pass through --force and --local-only flags
+      - Return SyncResult with uninstall-specific fields (files_removed, backup_path)
+    - **sync_mode_detector.py**: Extended mode detection
+      - Detect --uninstall flag alongside other sync modes
+      - Validate mutual exclusivity (can't mix --uninstall with other flags)
+  - **Updated Command**:
+    - **sync.md**: Added --uninstall documentation
+      - Three modes: Preview (default), Execute (--force), Local-only (--local-only)
+      - When to use uninstall
+      - Examples and sample output
+      - Rollback instructions with Python code snippet
+      - Protected files list (never removed)
+      - Security guarantees (CWE coverage)
+  - **Tests** (2 new test files):
+    - **tests/unit/lib/test_uninstall_orchestrator.py** (18 tests):
+      - Test initialization and validation
+      - Test preview phase (files to remove)
+      - Test execute phase (actual deletion)
+      - Test protected file preservation
+      - Test backup creation and rollback
+      - Test error handling and recovery
+      - Test security validation (path traversal, symlinks)
+      - Test local-only mode
+    - **tests/integration/test_sync_uninstall.py** (12 tests):
+      - Integration: Preview → Execute → Rollback workflow
+      - Integration: Protected files not removed in any scenario
+      - Integration: Backup format and restoration
+      - Integration: Local-only vs full uninstall
+      - Integration: Concurrent safety (TOCTOU prevention)
+      - Integration: Audit log creation and content
+  - **Documentation Updates**:
+    - **CLAUDE.md**: Updated /sync modes from 5 to 6, listed --uninstall with GitHub #131 reference
+    - **plugins/autonomous-dev/commands/sync.md**: Added comprehensive --uninstall section (95 lines)
+    - **docs/SECURITY.md**: Added uninstall security guarantees and protected file list
+  - **Backward Compatibility**:
+    - Existing sync modes (--github, --env, --marketplace, --plugin-dev, --all) unchanged
+    - --uninstall is new flag, doesn't interfere with existing workflows
+    - Default behavior (no flags) still runs --github mode
+  - **Error Handling**:
+    - Path validation prevents operation outside allowed directories
+    - Clear error messages with recovery hints
+    - Audit logging for all operations (security and debugging)
+    - Non-blocking enhancements (missing backup lib doesn't block uninstall)
+  - **Performance**:
+    - Dry-run (preview): < 1 second (just file enumeration)
+    - Execute (with backup): 5-30 seconds (depends on plugin size and disk speed)
+    - Rollback: 2-10 seconds (extract from tar.gz)
+  - **Files Created**:
+    - plugins/autonomous-dev/lib/uninstall_orchestrator.py (634 lines)
+    - tests/unit/lib/test_uninstall_orchestrator.py (18 tests)
+    - tests/integration/test_sync_uninstall.py (12 tests)
+  - **Files Modified**:
+    - plugins/autonomous-dev/lib/sync_dispatcher.py - Added uninstall mode handling
+    - plugins/autonomous-dev/lib/sync_mode_detector.py - Added --uninstall flag detection
+    - plugins/autonomous-dev/commands/sync.md - Added --uninstall documentation (95 lines)
+    - CLAUDE.md - Updated /sync from 5 to 6 modes, Last Updated timestamp
+  - **Impact**:
+    - Users can now safely uninstall plugin without manual file cleanup
+    - Complete audit trail of all uninstall operations
+    - Zero data loss risk (backup created before deletion)
+    - Protected files ensure no accidental project configuration loss
+  - **Related**: GitHub Issue #131
+
 **Changed**
+
 - **Issue #132: Documentation updates for install.sh complete auto-install feature**
   - **Problem**: Installation documentation still described old two-phase architecture where install.sh only installed /setup command, then /setup wizard installed remaining components
   - **Solution**: Updated all installation documentation to reflect new single-phase behavior where install.sh installs all components directly (commands, agents, scripts, config, templates)

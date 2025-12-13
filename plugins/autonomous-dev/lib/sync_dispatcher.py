@@ -99,6 +99,12 @@ class SyncResult:
         error: Error message if sync failed
         version_comparison: Version comparison results (marketplace sync only)
         orphan_cleanup: Orphan cleanup results (marketplace sync only)
+        files_removed: Number of files removed (uninstall mode only)
+        files_to_remove: Number of files to remove (uninstall preview only)
+        total_size_bytes: Total size of files removed/to remove (uninstall only)
+        backup_path: Path to backup file (uninstall only)
+        dry_run: Whether this was a dry-run preview (uninstall only)
+        errors: List of errors (uninstall only)
     """
 
     success: bool
@@ -110,6 +116,22 @@ class SyncResult:
     orphan_cleanup: Optional[CleanupResult] = None
     settings_merged: Optional[MergeResult] = None
     validation: Optional["SyncValidationResult"] = None  # Post-sync validation results
+    # Uninstall-specific fields
+    files_removed: int = 0
+    files_to_remove: int = 0
+    total_size_bytes: int = 0
+    backup_path: Optional[Path] = None
+    dry_run: bool = False
+    errors: List[str] = field(default_factory=list)
+
+    @property
+    def status(self) -> str:
+        """Map success boolean to status string for compatibility.
+
+        Returns:
+            "success" if operation succeeded, "failure" otherwise
+        """
+        return "success" if self.success else "failure"
 
     @property
     def summary(self) -> str:
@@ -239,6 +261,63 @@ class SyncDispatcher:
             )
 
         self._backup_dir: Optional[Path] = None
+
+    def sync(
+        self,
+        mode: SyncMode,
+        force: bool = False,
+        dry_run: bool = False,
+        local_only: bool = False,
+        create_backup: bool = True
+    ) -> SyncResult:
+        """Unified sync interface with support for all modes including uninstall.
+
+        Args:
+            mode: Sync mode to execute
+            force: Force execution (required for UNINSTALL mode)
+            dry_run: Preview only, don't make changes (UNINSTALL mode only)
+            local_only: Skip global files (UNINSTALL mode only)
+            create_backup: Whether to create backup before sync (default: True)
+
+        Returns:
+            SyncResult with operation outcome
+        """
+        # For UNINSTALL mode, delegate to uninstall_orchestrator
+        if mode == SyncMode.UNINSTALL:
+            try:
+                from plugins.autonomous_dev.lib.uninstall_orchestrator import UninstallOrchestrator
+            except ImportError:
+                from uninstall_orchestrator import UninstallOrchestrator
+
+            orchestrator = UninstallOrchestrator(project_root=self.project_path)
+
+            # If force=False and dry_run=False, treat as preview (dry-run)
+            if not force and not dry_run:
+                dry_run = True
+
+            # Execute uninstall
+            uninstall_result = orchestrator.execute(
+                force=force,
+                dry_run=dry_run,
+                local_only=local_only
+            )
+
+            # Convert UninstallResult to SyncResult
+            return SyncResult(
+                success=uninstall_result.status == "success",
+                mode=mode,
+                message=f"Uninstall {uninstall_result.status}",
+                files_removed=uninstall_result.files_removed,
+                files_to_remove=uninstall_result.files_to_remove,
+                total_size_bytes=uninstall_result.total_size_bytes,
+                backup_path=uninstall_result.backup_path,
+                dry_run=uninstall_result.dry_run,
+                errors=uninstall_result.errors,
+                error="; ".join(uninstall_result.errors) if uninstall_result.errors else None,
+            )
+
+        # For other modes, delegate to dispatch
+        return self.dispatch(mode=mode, create_backup=create_backup)
 
     def dispatch(
         self, mode: SyncMode, create_backup: bool = True
@@ -1767,12 +1846,31 @@ Exit Codes:
         action='store_true',
         help='Execute all sync modes in sequence'
     )
+    mode_group.add_argument(
+        '--uninstall',
+        action='store_true',
+        help='Uninstall plugin (requires --force)'
+    )
+
+    # Additional arguments (not mutually exclusive with modes)
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Confirm deletion for uninstall mode'
+    )
+    parser.add_argument(
+        '--local-only',
+        action='store_true',
+        help='Skip global ~/.claude/ files (uninstall mode only)'
+    )
 
     try:
         args = parser.parse_args()
 
         # Determine sync mode (default to GITHUB)
-        if args.env:
+        if args.uninstall:
+            mode = SyncMode.UNINSTALL
+        elif args.env:
             mode = SyncMode.ENVIRONMENT
         elif args.marketplace:
             mode = SyncMode.MARKETPLACE
@@ -1790,7 +1888,16 @@ Exit Codes:
         # Execute sync
         try:
             dispatcher = SyncDispatcher(project_root=project_root)
-            result = dispatcher.dispatch(mode)
+
+            # Handle uninstall mode with additional arguments
+            if mode == SyncMode.UNINSTALL:
+                result = dispatcher.sync(
+                    mode=mode,
+                    force=getattr(args, 'force', False),
+                    local_only=getattr(args, 'local_only', False)
+                )
+            else:
+                result = dispatcher.dispatch(mode)
 
             # Output result
             if result.success:

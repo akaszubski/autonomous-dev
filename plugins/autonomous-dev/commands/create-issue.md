@@ -1,6 +1,6 @@
 ---
-description: Create GitHub issue with automated research and structured content
-argument-hint: Feature request or issue title (e.g., "Add JWT authentication")
+description: "Create GitHub issue with automated research (--thorough for full analysis)"
+argument_hint: "Issue title [--thorough] (e.g., 'Add JWT authentication' or 'Add JWT authentication --thorough')"
 ---
 
 # Create GitHub Issue with Research Integration

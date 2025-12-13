@@ -1,6 +1,7 @@
 ---
 name: batch-implement
-description: Execute multiple features sequentially with compaction-resilient state, crash recovery, and intelligent retry
+description: "Execute multiple features sequentially (--issues <nums> or --resume <id>)"
+argument_hint: "<features-file> or --issues <issue-numbers> or --resume <batch-id>"
 author: Claude
 version: 3.34.0
 date: 2025-12-13

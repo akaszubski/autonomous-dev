@@ -46,12 +46,13 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--claude` - Fix documentation drift (validation script) - formerly align-claude
   - `--retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - formerly align-project-retrofit - GitHub #59
 - `/setup` - Interactive setup wizard (project-bootstrapper agent)
-- `/sync` - Unified sync command with five modes:
+- `/sync` - Unified sync command with six modes:
   - `--github` - Fetch latest from GitHub (default) - GitHub #124
   - `--env` - Environment sync (dependencies, config, migrations)
   - `--marketplace` - Marketplace update (version detection, orphan cleanup)
   - `--plugin-dev` - Plugin development sync (local testing)
   - `--all` - Execute all modes in sequence
+  - `--uninstall` - Uninstall plugin (preview by default, use --force to execute) - GitHub #131
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 
 **Archived Commands (15)** - Moved to `commands/archive/`:
@@ -648,4 +649,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-11-18 (Added automatic failure recovery for /batch-implement - GitHub Issue #89, intelligent retry with transient classification and circuit breaker)
+**Last Updated**: 2025-12-14 (Added /sync --uninstall mode for plugin removal - GitHub Issue #131, with backup and rollback support)

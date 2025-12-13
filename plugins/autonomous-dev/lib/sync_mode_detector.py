@@ -65,6 +65,7 @@ class SyncMode(Enum):
     MARKETPLACE = "marketplace"
     PLUGIN_DEV = "plugin-dev"
     GITHUB = "github"  # Fetch latest from GitHub
+    UNINSTALL = "uninstall"  # Uninstall plugin completely
     ALL = "all"
 
 

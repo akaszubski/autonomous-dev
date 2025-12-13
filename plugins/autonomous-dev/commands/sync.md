@@ -1,6 +1,6 @@
 ---
-description: "Sync plugin files (--github default, --env, --marketplace, --plugin-dev, --all)"
-argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all"
+description: "Sync plugin files (--github default, --env, --marketplace, --plugin-dev, --all, --uninstall)"
+argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all, --uninstall [--force] [--local-only]"
 ---
 
 ## Implementation
@@ -31,6 +31,8 @@ The unified `/sync` command replaces `/sync-dev` and `/update-plugin` with intel
 /sync --marketplace      # Marketplace update only
 /sync --plugin-dev       # Plugin dev sync only
 /sync --all              # Execute all modes
+/sync --uninstall        # Preview uninstallation (safe)
+/sync --uninstall --force # Execute uninstallation
 ```
 
 **Time**: 10-90 seconds (depends on mode)
@@ -355,6 +357,103 @@ Executing all sync modes...
 ```
 
 **Rollback support**: If any mode fails, changes are rolled back automatically.
+
+---
+
+### Uninstall Mode (`--uninstall`)
+
+Completely removes the autonomous-dev plugin from your project:
+
+**What it does**:
+- Shows preview of files to be removed (default behavior)
+- Creates timestamped backup before deletion (when using `--force`)
+- Removes all plugin files from `.claude/` directory
+- Preserves protected files (PROJECT.md, .env, settings.local.json)
+- Supports rollback from backup if needed
+
+**Modes**:
+- **Preview** (default): Shows what will be removed without deleting
+- **Execute**: Requires `--force` flag for actual deletion
+- **Local-only**: Use `--local-only` to skip global `~/.claude/` files
+
+**When to use**:
+- Removing plugin from a project
+- Clean uninstall before reinstalling
+- Testing plugin installation/uninstallation
+
+**Examples**:
+```bash
+# Preview what will be removed (safe, no deletion)
+/sync --uninstall
+
+# Execute actual uninstallation
+/sync --uninstall --force
+
+# Uninstall from project only (preserve global files)
+/sync --uninstall --force --local-only
+```
+
+**Preview output**:
+```
+Uninstall Preview
+========================================
+Files to remove: 47
+Total size: 1.2 MB
+Backup will be created before deletion
+
+Files:
+  .claude/commands/auto-implement.md
+  .claude/commands/sync.md
+  .claude/agents/planner.md
+  ...
+
+Protected files (will NOT be removed):
+  .claude/PROJECT.md
+  .claude/config/settings.local.json
+  .env
+
+Run with --force to execute uninstallation
+```
+
+**Execute output**:
+```bash
+/sync --uninstall --force
+```
+```
+Uninstalling autonomous-dev plugin...
+Creating backup: .autonomous-dev/uninstall_backup_20251214_120000.tar.gz
+Removing 47 files...
+✓ Uninstall complete: 47 files removed (1.2 MB)
+✓ Backup: .autonomous-dev/uninstall_backup_20251214_120000.tar.gz
+
+To rollback:
+  python3 ~/.claude/lib/uninstall_orchestrator.py <project_root> --rollback .autonomous-dev/uninstall_backup_20251214_120000.tar.gz
+```
+
+**Rollback**:
+If you need to restore files after uninstallation:
+```python
+from pathlib import Path
+from uninstall_orchestrator import UninstallOrchestrator
+
+orchestrator = UninstallOrchestrator(project_root=Path.cwd())
+result = orchestrator.rollback(backup_path=Path(".autonomous-dev/uninstall_backup_20251214_120000.tar.gz"))
+print(f"Restored {result.files_restored} files")
+```
+
+**Security**:
+- Path traversal prevention (CWE-22)
+- Symlink attack prevention (CWE-59)
+- TOCTOU detection (CWE-367)
+- Whitelist enforcement (only operates within `.claude/` and `.autonomous-dev/`)
+- Protected file preservation
+- Audit logging for all operations
+
+**Protected files** (never removed):
+- `.claude/PROJECT.md` (project goals and scope)
+- `.claude/config/settings.local.json` (user settings)
+- `.env` (environment variables and secrets)
+- Any user-modified plugin files
 
 ---
 
