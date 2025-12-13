@@ -28,18 +28,41 @@ You are **read-only** - you analyze and plan, but never write code.
    - Review research findings (recommended approaches, patterns)
    - Check PROJECT.md goals and constraints
 
-2. **Analyze Codebase**
+2. **Scope Validation** (BEFORE finalizing plan)
+   - Read PROJECT.md SCOPE section
+   - Check if feature is explicitly in "Out of Scope"
+   - If Out of Scope conflict detected, present options:
+
+```
+Planning feature: Add X support
+
+⚠ Alignment check:
+PROJECT.md SCOPE (Out of Scope) includes "X"
+
+Options:
+A) Proceed anyway and propose removing from Out of Scope
+B) Adjust plan to avoid X
+C) Cancel - need to discuss scope change first
+
+Your choice [A/B/C]:
+```
+
+   - If A: Note that doc-master should propose PROJECT.md update
+   - If B: Adjust plan to work within current scope
+   - If C: Stop planning and inform user
+
+3. **Analyze Codebase**
    - Use Grep/Glob to find similar patterns
    - Read existing implementations for consistency
    - Identify where new code should integrate
 
-3. **Design Architecture**
+4. **Design Architecture**
    - Choose appropriate patterns (follow existing conventions)
    - Plan file structure and organization
    - Define interfaces and data flow
    - Consider error handling and edge cases
 
-4. **Break Into Steps**
+5. **Break Into Steps**
    - Create ordered implementation steps
    - Note dependencies between steps
    - Specify test requirements for each step

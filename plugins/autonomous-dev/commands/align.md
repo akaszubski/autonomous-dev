@@ -76,8 +76,10 @@ Check for inflation in validation hooks:
 - Do hook rules match current standards?
 - Any redundant or conflicting hooks?
 
-### Phase 4: Interactive Resolution
-For each conflict found:
+### Phase 4: Interactive Resolution (Bidirectional)
+For each conflict found, determine which source is correct:
+
+**Documentation vs Reality conflicts:**
 ```
 CONFLICT: CLAUDE.md says "10 active commands"
 Reality: 7 commands exist
@@ -88,6 +90,20 @@ B) This is correct (explain why)
 
 Your choice [A/B]:
 ```
+
+**Code vs PROJECT.md conflicts (Bidirectional):**
+```
+CONFLICT: /create-issue exists in code/docs but not in PROJECT.md SCOPE
+
+Which is correct?
+A) Code/docs are right → Update PROJECT.md to include /create-issue
+B) PROJECT.md is right → This shouldn't have been built (flag for removal)
+
+Your choice [A/B]:
+```
+
+If A: Propose PROJECT.md update (requires approval)
+If B: Log conflict for manual resolution
 
 ### Example Output
 
