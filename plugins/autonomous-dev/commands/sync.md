@@ -1,6 +1,6 @@
 ---
 description: Unified sync command - smart context detection for environment, marketplace, and plugin development
-argument_hint: "Optional flags: --env, --marketplace, --plugin-dev, --all"
+argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all"
 ---
 
 # Sync - Unified Synchronization Command
@@ -15,18 +15,19 @@ The unified `/sync` command replaces `/sync-dev` and `/update-plugin` with intel
 
 ```bash
 # Auto-detect and sync (recommended)
-/sync
+/sync                    # Fetches latest from GitHub (default)
 
 # Force specific mode
+/sync --github           # Fetch latest from GitHub (explicit)
 /sync --env              # Environment sync only
 /sync --marketplace      # Marketplace update only
 /sync --plugin-dev       # Plugin dev sync only
 /sync --all              # Execute all modes
 ```
 
-**Time**: 30-90 seconds (depends on mode)
+**Time**: 10-90 seconds (depends on mode)
 **Interactive**: Shows detected mode, asks for confirmation
-**Smart Detection**: Analyzes project structure to determine sync mode
+**Smart Detection**: Auto-detects context - developers get plugin-dev, users get GitHub sync
 
 ---
 
@@ -37,26 +38,55 @@ The command automatically detects the appropriate sync mode:
 ### Detection Priority (highest to lowest):
 
 1. **Plugin Development** → `--plugin-dev`
-   - Detected when: `plugins/autonomous-dev/plugin.json` exists
+   - Detected when: `plugins/autonomous-dev/` directory exists
    - Action: Sync plugin files to local `.claude/` directory
-   - Use case: Plugin developers testing changes
+   - Use case: Plugin developers testing changes in the autonomous-dev repo
 
-2. **Environment Sync** → `--env`
-   - Detected when: `.claude/PROJECT.md` exists
-   - Action: Sync development environment (dependencies, config, migrations)
-   - Use case: Daily development workflow
+2. **GitHub Sync** → `--github` (DEFAULT)
+   - Detected when: Not in plugin development context
+   - Action: Fetch latest files directly from GitHub
+   - Use case: Users updating to latest version in any project
 
-3. **Marketplace Update** → `--marketplace`
-   - Detected when: `~/.claude/installed_plugins.json` exists
-   - Action: Update plugin from Claude marketplace
-   - Use case: Updating to latest plugin release
-
-4. **Default Fallback** → `--env`
-   - If no context detected, defaults to environment sync (safest)
+**Simplified Logic**: If you're in the autonomous-dev repo, you get plugin-dev mode. Otherwise, you get GitHub sync.
 
 ---
 
 ## Sync Modes
+
+### GitHub Mode (`--github`) - DEFAULT
+
+Fetches the latest plugin files directly from GitHub:
+
+**What it does**:
+- Downloads files directly from `raw.githubusercontent.com/akaszubski/autonomous-dev/master`
+- Uses `install_manifest.json` to determine which files to fetch
+- Creates/updates `.claude/` directory structure
+- No git installation required - works anywhere
+
+**When to use**:
+- Updating to latest version (default behavior)
+- Getting new features and bug fixes
+- Running `/sync` in any project
+
+**Example**:
+```bash
+/sync                    # Auto-detects and uses GitHub mode
+/sync --github           # Explicitly use GitHub mode
+```
+
+**Output**:
+```
+Fetching latest from GitHub (akaszubski/autonomous-dev)...
+Downloading install_manifest.json...
+Syncing 47 files...
+✓ GitHub sync completed: 47 files updated from akaszubski/autonomous-dev
+```
+
+**Requirements**:
+- Internet connection
+- No GitHub account needed (public repo)
+
+---
 
 ### Environment Mode (`--env`)
 
@@ -304,6 +334,21 @@ See `docs/SECURITY.md` for comprehensive security documentation.
 ---
 
 ## Troubleshooting
+
+### "Failed to fetch manifest from GitHub"
+
+**Cause**: Network error or GitHub unavailable
+**Fix**: Check internet connection and try again
+
+```bash
+# Verify internet connection
+curl -I https://raw.githubusercontent.com
+
+# If working, try sync again
+/sync --github
+```
+
+---
 
 ### "Sync failed: Project path does not exist"
 
@@ -603,6 +648,7 @@ cp -r /tmp/claude_sync_backup_*/`.claude/` .claude/
 
 ---
 
-**Last Updated**: 2025-11-08
-**Issue**: GitHub #44 - Unified /sync command consolidation
+**Last Updated**: 2025-12-13
+**Issue**: GitHub #44 - Unified /sync command, GitHub #124 - Default to GitHub sync
 **Replaces**: `/sync-dev`, `/update-plugin`
+**Default Mode**: GitHub sync (fetches latest from repository)

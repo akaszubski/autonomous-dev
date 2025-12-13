@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-TDD Tests for Sync Mode Detector (FAILING - Red Phase)
+TDD Tests for Sync Mode Detector
 
-This module contains FAILING tests for sync_mode_detector.py which will provide
+This module contains tests for sync_mode_detector.py which provides
 intelligent context detection for the unified /sync command.
 
 Requirements:
-1. Auto-detect sync mode based on context (plugin-dev, environment, marketplace)
-2. Parse command-line flags (--env, --marketplace, --plugin-dev, --all)
+1. Auto-detect sync mode based on context (plugin-dev → PLUGIN_DEV, otherwise → GITHUB)
+2. Parse command-line flags (--github, --env, --marketplace, --plugin-dev, --all)
 3. Validate paths using security_utils.py
 4. Prevent flag conflicts (e.g., --env AND --marketplace together)
-5. Default to environment mode when no context detected
+5. Default to GITHUB mode when no plugin-dev context detected (user-friendly update)
 
 Test Coverage Target: 100% of detection logic
 
@@ -100,11 +100,11 @@ class TestContextDetection:
 
         assert mode == SyncMode.PLUGIN_DEV
 
-    def test_detect_environment_context_when_claude_dir_exists(self, temp_project):
+    def test_detect_github_when_claude_dir_exists_but_not_plugin_dev(self, temp_project):
         """Test detection when .claude/ directory exists but not plugin dir.
 
-        REQUIREMENT: Auto-detect environment sync mode.
-        Expected: Returns SyncMode.ENVIRONMENT when .claude/ directory present.
+        REQUIREMENT: Default to GITHUB mode for users (not in autonomous-dev repo).
+        Expected: Returns SyncMode.GITHUB even when .claude/ directory present.
         """
         # Create .claude directory
         claude_dir = temp_project / ".claude"
@@ -114,43 +114,30 @@ class TestContextDetection:
         detector = SyncModeDetector(str(temp_project))
         mode = detector.detect_mode()
 
-        assert mode == SyncMode.ENVIRONMENT
+        # Should return GITHUB (default for users), not ENVIRONMENT
+        assert mode == SyncMode.GITHUB
 
-    def test_detect_marketplace_context_when_installed_plugins_json_exists(self, temp_project):
-        """Test detection when ~/.claude/plugins/installed_plugins.json exists.
+    def test_marketplace_flag_still_works(self, temp_project):
+        """Test that --marketplace flag can still be used explicitly.
 
-        REQUIREMENT: Auto-detect marketplace sync mode.
-        Expected: Returns SyncMode.MARKETPLACE when marketplace installation detected.
+        REQUIREMENT: Allow explicit marketplace sync via flag.
+        Expected: Returns SyncMode.MARKETPLACE when --marketplace flag used.
         """
-        # Mock home directory with marketplace plugin
-        home_claude_dir = temp_project / ".claude_home"
-        home_claude_dir.mkdir()
-        plugins_dir = home_claude_dir / "plugins"
-        plugins_dir.mkdir()
-
-        installed_plugins = plugins_dir / "installed_plugins.json"
-        installed_plugins.write_text('{"autonomous-dev": {"version": "3.6.0"}}')
-
-        with patch.dict(os.environ, {'HOME': str(temp_project)}):
-            with patch('pathlib.Path.home', return_value=temp_project):
-                detector = SyncModeDetector(str(temp_project))
-                # Inject mock for installed_plugins.json check
-                detector._installed_plugins_path = installed_plugins
-                mode = detector.detect_mode()
-
+        mode = parse_sync_flags(['--marketplace'])
         assert mode == SyncMode.MARKETPLACE
 
-    def test_default_to_environment_when_no_context_detected(self, temp_project):
-        """Test fallback to environment mode when no specific context found.
+    def test_default_to_github_when_no_plugin_dev_context(self, temp_project):
+        """Test default to GITHUB mode when not in plugin-dev context.
 
-        REQUIREMENT: Safe default when context is ambiguous.
-        Expected: Returns SyncMode.ENVIRONMENT as default.
+        REQUIREMENT: User-friendly default for update workflow.
+        Expected: Returns SyncMode.GITHUB as default (fetch from GitHub).
         """
-        # Empty project directory
+        # Empty project directory (no plugins/autonomous-dev/)
         detector = SyncModeDetector(str(temp_project))
         mode = detector.detect_mode()
 
-        assert mode == SyncMode.ENVIRONMENT
+        # Should default to GITHUB for easy updates
+        assert mode == SyncMode.GITHUB
 
     def test_plugin_dev_takes_precedence_over_environment(self, temp_project):
         """Test priority when both plugin dir and .claude dir exist.
@@ -174,6 +161,15 @@ class TestContextDetection:
 
 class TestFlagParsing:
     """Test command-line flag parsing for mode overrides."""
+
+    def test_parse_github_flag(self):
+        """Test --github flag explicitly sets GitHub mode.
+
+        REQUIREMENT: Allow explicit GitHub sync via flag.
+        Expected: parse_sync_flags(['--github']) returns SyncMode.GITHUB.
+        """
+        mode = parse_sync_flags(['--github'])
+        assert mode == SyncMode.GITHUB
 
     def test_parse_env_flag(self):
         """Test --env flag overrides auto-detection.
@@ -399,7 +395,7 @@ class TestDetectorIntegration:
         """
         detector = SyncModeDetector(str(temp_project))
 
-        # Initial detection
+        # Initial detection (no plugins dir = GITHUB default)
         mode1 = detector.detect_mode()
 
         # Create plugin dir
@@ -409,11 +405,11 @@ class TestDetectorIntegration:
         # Reset cache
         detector.reset_cache()
 
-        # Should detect new mode
+        # Should detect new mode (PLUGIN_DEV)
         mode2 = detector.detect_mode()
 
-        assert mode1 == SyncMode.ENVIRONMENT
-        assert mode2 == SyncMode.PLUGIN_DEV
+        assert mode1 == SyncMode.GITHUB  # Default for users
+        assert mode2 == SyncMode.PLUGIN_DEV  # After plugin dir created
 
     def test_detector_get_detection_reason(self, temp_project):
         """Test that detector provides human-readable detection reason.
@@ -421,17 +417,13 @@ class TestDetectorIntegration:
         REQUIREMENT: Explain why mode was selected for user visibility.
         Expected: get_detection_reason() returns clear explanation.
         """
-        # Create .claude dir
-        claude_dir = temp_project / ".claude"
-        claude_dir.mkdir()
-
+        # Empty project - should default to GITHUB
         detector = SyncModeDetector(str(temp_project))
         mode = detector.detect_mode()
         reason = detector.get_detection_reason()
 
-        assert mode == SyncMode.ENVIRONMENT
-        assert '.claude' in reason.lower()
-        assert 'detected' in reason.lower()
+        assert mode == SyncMode.GITHUB
+        assert 'github' in reason.lower() or 'default' in reason.lower()
 
 
 class TestHelperFunctions:
@@ -441,17 +433,18 @@ class TestHelperFunctions:
         """Test that detect_sync_mode() is a convenient wrapper.
 
         REQUIREMENT: Provide simple API for common use case.
-        Expected: detect_sync_mode(path) returns mode without creating detector.
+        Expected: detect_sync_mode(path) returns GITHUB mode by default.
         """
         project_dir = tmp_path / "test"
         project_dir.mkdir()
 
-        # Create .claude dir
+        # Create .claude dir (doesn't matter - defaults to GITHUB for users)
         (project_dir / ".claude").mkdir()
 
         mode = detect_sync_mode(str(project_dir))
 
-        assert mode == SyncMode.ENVIRONMENT
+        # Default is now GITHUB for user-friendly updates
+        assert mode == SyncMode.GITHUB
 
     def test_detect_sync_mode_with_flags(self, tmp_path):
         """Test detect_sync_mode() with flag parsing integration.
@@ -481,11 +474,12 @@ class TestHelperFunctions:
 
         modes = get_all_sync_modes()
 
+        assert SyncMode.GITHUB in modes  # New default mode
         assert SyncMode.ENVIRONMENT in modes
         assert SyncMode.MARKETPLACE in modes
         assert SyncMode.PLUGIN_DEV in modes
         assert SyncMode.ALL in modes
-        assert len(modes) == 4
+        assert len(modes) == 5  # Now includes GITHUB
 
 
 class TestErrorHandling:
@@ -495,14 +489,16 @@ class TestErrorHandling:
         """Test that nonexistent paths are rejected.
 
         REQUIREMENT: Path must exist before detection.
-        Expected: SyncModeError for paths that don't exist.
+        Expected: SyncModeError for paths that don't exist or are outside allowed locations.
         """
         fake_path = "/nonexistent/path/12345"
 
         with pytest.raises(SyncModeError) as exc_info:
             SyncModeDetector(fake_path)
 
-        assert 'does not exist' in str(exc_info.value).lower()
+        # Error can be "does not exist" or "outside allowed locations" (security validation)
+        error_msg = str(exc_info.value).lower()
+        assert 'does not exist' in error_msg or 'outside allowed' in error_msg or 'invalid path' in error_msg
 
     def test_file_instead_of_directory_raises_error(self, tmp_path):
         """Test that file paths are rejected (must be directory).

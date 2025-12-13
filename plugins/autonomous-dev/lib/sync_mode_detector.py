@@ -6,16 +6,15 @@ This module provides automatic detection of sync context based on directory
 structure and parses command-line flags to override auto-detection.
 
 Sync Modes:
+- GITHUB: Fetch latest from GitHub (default for users)
+- PLUGIN_DEV: Sync plugin development environment (plugins/autonomous-dev/ exists)
 - ENVIRONMENT: Sync development environment (.claude/ directory exists)
 - MARKETPLACE: Update plugin from Claude marketplace
-- PLUGIN_DEV: Sync plugin development environment (plugins/autonomous-dev/ exists)
 - ALL: Execute all sync modes in sequence
 
 Auto-Detection Logic:
-1. Check for plugins/autonomous-dev/plugin.json → PLUGIN_DEV
-2. Check for .claude/PROJECT.md → ENVIRONMENT
-3. Check for ~/.claude/installed_plugins.json → MARKETPLACE
-4. Default: ENVIRONMENT (safest fallback)
+1. Check for plugins/autonomous-dev/ → PLUGIN_DEV (developer mode)
+2. Default → GITHUB (fetch latest from GitHub for users)
 
 Security:
 - All paths validated through security_utils.validate_path()
@@ -64,6 +63,7 @@ class SyncMode(Enum):
     ENVIRONMENT = "environment"
     MARKETPLACE = "marketplace"
     PLUGIN_DEV = "plugin-dev"
+    GITHUB = "github"  # Fetch latest from GitHub
     ALL = "all"
 
 
@@ -227,32 +227,23 @@ class SyncModeDetector:
 
         Note:
             This is separate from detect_mode() to allow mocking in tests.
+
+        Detection Priority:
+        1. plugins/autonomous-dev/ exists → PLUGIN_DEV (developer mode)
+        2. Default → GITHUB (fetch latest from GitHub for users)
+
+        The GITHUB default ensures users can always update to latest
+        without needing to be in the autonomous-dev repository.
         """
-        detected_mode = SyncMode.ENVIRONMENT  # Default fallback
-        reason = "Default (no context detected)"
+        detected_mode = SyncMode.GITHUB  # Default: fetch from GitHub
+        reason = "Default (fetching latest from GitHub)"
 
         # Check for plugin development context (highest priority)
+        # Only developers working on autonomous-dev repo itself use PLUGIN_DEV
         plugin_dir = self.project_path / "plugins" / "autonomous-dev"
         if plugin_dir.exists() and plugin_dir.is_dir():
             detected_mode = SyncMode.PLUGIN_DEV
             reason = f"Plugin directory detected: {plugin_dir}"
-
-        # Check for environment context
-        elif (self.project_path / ".claude").exists():
-            detected_mode = SyncMode.ENVIRONMENT
-            reason = ".claude directory detected"
-
-        # Check for marketplace context (lowest priority)
-        else:
-            # Allow test to inject custom path, otherwise use standard location
-            installed_plugins_path = (
-                self._installed_plugins_path
-                if self._installed_plugins_path
-                else Path.home().joinpath(".claude", "installed_plugins.json")
-            )
-            if installed_plugins_path.exists():
-                detected_mode = SyncMode.MARKETPLACE
-                reason = "Marketplace plugins installed"
 
         self._detection_reason = reason
         return detected_mode
@@ -338,6 +329,7 @@ def parse_sync_flags(flags: Optional[List[str]]) -> Optional[SyncMode]:
         "--env": SyncMode.ENVIRONMENT,
         "--marketplace": SyncMode.MARKETPLACE,
         "--plugin-dev": SyncMode.PLUGIN_DEV,
+        "--github": SyncMode.GITHUB,
         "--all": SyncMode.ALL,
     }
 
@@ -432,7 +424,7 @@ def get_all_sync_modes() -> List[SyncMode]:
     Usage:
         For programmatic access to all available modes
     """
-    return [SyncMode.ENVIRONMENT, SyncMode.MARKETPLACE, SyncMode.PLUGIN_DEV, SyncMode.ALL]
+    return [SyncMode.GITHUB, SyncMode.ENVIRONMENT, SyncMode.MARKETPLACE, SyncMode.PLUGIN_DEV, SyncMode.ALL]
 
 
 def get_individual_sync_modes() -> List[SyncMode]:
@@ -444,4 +436,4 @@ def get_individual_sync_modes() -> List[SyncMode]:
     Usage:
         Used by dispatcher to execute ALL mode in sequence
     """
-    return [SyncMode.ENVIRONMENT, SyncMode.MARKETPLACE, SyncMode.PLUGIN_DEV]
+    return [SyncMode.GITHUB, SyncMode.ENVIRONMENT, SyncMode.MARKETPLACE, SyncMode.PLUGIN_DEV]

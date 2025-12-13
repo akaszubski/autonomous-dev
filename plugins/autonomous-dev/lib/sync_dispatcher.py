@@ -6,6 +6,7 @@ This module coordinates sync operations by delegating to the appropriate
 sync mechanism based on detected or specified mode.
 
 Sync Operations:
+- GITHUB: Fetch latest files directly from GitHub (default for users)
 - ENVIRONMENT: Delegate to sync-validator agent for environment sync
 - MARKETPLACE: Copy files from installed plugin to project .claude/
 - PLUGIN_DEV: Sync plugin development files to local .claude/
@@ -43,6 +44,8 @@ import os
 import shutil
 import sys
 import tempfile
+import urllib.request
+import urllib.error
 from dataclasses import dataclass, field
 from pathlib import Path
 from shutil import copy2, copytree
@@ -258,7 +261,9 @@ class SyncDispatcher:
 
         # Dispatch to appropriate handler
         try:
-            if mode == SyncMode.ENVIRONMENT:
+            if mode == SyncMode.GITHUB:
+                result = self._dispatch_github()
+            elif mode == SyncMode.ENVIRONMENT:
                 result = self._dispatch_environment()
             elif mode == SyncMode.MARKETPLACE:
                 result = self._dispatch_marketplace()
@@ -715,6 +720,155 @@ class SyncDispatcher:
                 success=False,
                 mode=SyncMode.PLUGIN_DEV,
                 message="Plugin dev sync failed",
+                error=str(e),
+            )
+
+    def _dispatch_github(self) -> SyncResult:
+        """Dispatch GitHub sync - fetch latest files from GitHub.
+
+        This is the default sync mode for users. It fetches the latest
+        files directly from the GitHub repository without needing to
+        clone or pull the repo.
+
+        Returns:
+            SyncResult with fetch operation outcome
+
+        Note:
+            Uses raw.githubusercontent.com to fetch files listed in
+            the install_manifest.json from the repository.
+        """
+        # GitHub configuration
+        GITHUB_REPO = "akaszubski/autonomous-dev"
+        GITHUB_BRANCH = "master"
+        GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}"
+        MANIFEST_URL = f"{GITHUB_RAW_BASE}/plugins/autonomous-dev/config/install_manifest.json"
+
+        # Ensure target .claude directory exists
+        claude_dir = self.project_path / ".claude"
+        claude_dir.mkdir(exist_ok=True)
+
+        files_updated = 0
+        errors = []
+
+        try:
+            # Step 1: Fetch install_manifest.json
+            audit_log(
+                "github_sync",
+                "fetching_manifest",
+                {
+                    "url": MANIFEST_URL,
+                    "project_path": str(self.project_path),
+                },
+            )
+
+            try:
+                with urllib.request.urlopen(MANIFEST_URL, timeout=30) as response:
+                    manifest_data = json.loads(response.read().decode("utf-8"))
+            except urllib.error.URLError as e:
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.GITHUB,
+                    message="Failed to fetch manifest from GitHub",
+                    error=f"Network error: {e}",
+                )
+            except json.JSONDecodeError as e:
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.GITHUB,
+                    message="Failed to parse manifest from GitHub",
+                    error=f"JSON parse error: {e}",
+                )
+
+            # Step 2: Get list of files to fetch
+            files_to_fetch = manifest_data.get("files", [])
+            if not files_to_fetch:
+                return SyncResult(
+                    success=False,
+                    mode=SyncMode.GITHUB,
+                    message="No files listed in manifest",
+                    error="install_manifest.json has empty 'files' list",
+                )
+
+            # Step 3: Fetch each file
+            for file_path in files_to_fetch:
+                # Skip non-essential files (docs, tests, etc.)
+                if any(skip in file_path for skip in ["/docs/", "/tests/", "README.md", "CONTRIBUTING.md"]):
+                    continue
+
+                # Build GitHub URL
+                file_url = f"{GITHUB_RAW_BASE}/{file_path}"
+
+                # Determine destination path
+                # Convert from plugins/autonomous-dev/X to .claude/X
+                if file_path.startswith("plugins/autonomous-dev/"):
+                    relative_path = file_path.replace("plugins/autonomous-dev/", "")
+                    dest_path = claude_dir / relative_path
+                else:
+                    # For other files, place in .claude/
+                    dest_path = claude_dir / Path(file_path).name
+
+                try:
+                    # Create parent directories
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Fetch file
+                    with urllib.request.urlopen(file_url, timeout=30) as response:
+                        content = response.read()
+
+                    # Write file
+                    dest_path.write_bytes(content)
+                    files_updated += 1
+
+                except urllib.error.HTTPError as e:
+                    if e.code == 404:
+                        # File not found - skip silently (may be optional)
+                        continue
+                    errors.append(f"{file_path}: HTTP {e.code}")
+                except urllib.error.URLError as e:
+                    errors.append(f"{file_path}: {e}")
+                except Exception as e:
+                    errors.append(f"{file_path}: {e}")
+
+            # Log completion
+            audit_log(
+                "github_sync",
+                "completed",
+                {
+                    "project_path": str(self.project_path),
+                    "files_updated": files_updated,
+                    "errors": len(errors),
+                },
+            )
+
+            # Build result
+            if errors:
+                return SyncResult(
+                    success=True,  # Partial success
+                    mode=SyncMode.GITHUB,
+                    message=f"GitHub sync completed with warnings: {files_updated} files updated, {len(errors)} errors",
+                    details={
+                        "files_updated": files_updated,
+                        "errors": errors[:5],  # Limit to first 5 errors
+                        "source": GITHUB_REPO,
+                    },
+                )
+            else:
+                return SyncResult(
+                    success=True,
+                    mode=SyncMode.GITHUB,
+                    message=f"GitHub sync completed: {files_updated} files updated from {GITHUB_REPO}",
+                    details={
+                        "files_updated": files_updated,
+                        "source": GITHUB_REPO,
+                        "branch": GITHUB_BRANCH,
+                    },
+                )
+
+        except Exception as e:
+            return SyncResult(
+                success=False,
+                mode=SyncMode.GITHUB,
+                message="GitHub sync failed",
                 error=str(e),
             )
 
