@@ -74,8 +74,11 @@ model: "haiku"
 
 #### Agent 2: researcher-web (Best Practices)
 
+⚠️ **CRITICAL**: Must use `model: "sonnet"` - WebSearch/WebFetch tools require Sonnet+. Haiku CANNOT access web tools and will return 0 results.
+
 ```
 subagent_type: "researcher-web"
+model: "sonnet"  ← REQUIRED (WebSearch needs Sonnet+)
 description: "Research best practices for [feature name]"
 prompt: "Research web for best practices and standards for: [user's feature description].
 
@@ -86,8 +89,6 @@ Find:
 - Common pitfalls
 
 Output: JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls."
-
-model: "sonnet"
 ```
 
 **DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.
