@@ -64,6 +64,7 @@ try:
     )
     from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
     from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
+    from plugins.autonomous_dev.lib.sync_validator import SyncValidator, SyncValidationResult
 except ImportError:
     # Fallback for installed environment (.claude/lib/)
     from security_utils import validate_path, audit_log
@@ -76,6 +77,12 @@ except ImportError:
     )
     from file_discovery import FileDiscovery
     from settings_merger import SettingsMerger, MergeResult
+    try:
+        from sync_validator import SyncValidator, SyncValidationResult
+    except ImportError:
+        # Graceful degradation if sync_validator not available
+        SyncValidator = None
+        SyncValidationResult = None
 
 
 @dataclass
@@ -102,6 +109,7 @@ class SyncResult:
     version_comparison: Optional[VersionComparison] = None
     orphan_cleanup: Optional[CleanupResult] = None
     settings_merged: Optional[MergeResult] = None
+    validation: Optional["SyncValidationResult"] = None  # Post-sync validation results
 
     @property
     def summary(self) -> str:
@@ -143,6 +151,16 @@ class SyncResult:
                     parts.append(f"Settings merged: {sm.hooks_preserved} hooks preserved (no new hooks)")
             else:
                 parts.append(f"Settings merge failed: {sm.message}")
+
+        # Add validation information
+        if self.validation:
+            v = self.validation
+            if v.overall_passed:
+                parts.append("Validation: PASSED")
+            else:
+                parts.append(f"Validation: {v.total_errors} errors, {v.total_warnings} warnings")
+            if v.total_auto_fixed > 0:
+                parts.append(f"Auto-fixed: {v.total_auto_fixed}")
 
         return " | ".join(parts)
 
@@ -295,6 +313,22 @@ class SyncDispatcher:
                     "user": os.getenv("USER", "unknown"),
                 },
             )
+
+            # Post-sync validation (always runs, never blocks sync)
+            if result.success and SyncValidator is not None:
+                try:
+                    result = self._post_sync_validation(result)
+                except Exception as validation_error:
+                    # Validation errors should never fail the sync
+                    audit_log(
+                        "sync_validation",
+                        "error",
+                        {
+                            "operation": "post_sync_validation",
+                            "error": str(validation_error),
+                            "project_path": str(self.project_path),
+                        },
+                    )
 
             return result
 
@@ -788,8 +822,14 @@ class SyncDispatcher:
                     error=f"JSON parse error: {e}",
                 )
 
-            # Step 2: Get list of files to fetch
-            files_to_fetch = manifest_data.get("files", [])
+            # Step 2: Get list of files to fetch from components structure
+            # The manifest uses a components structure with nested files arrays
+            files_to_fetch = []
+            components = manifest_data.get("components", {})
+            for component_name, component_data in components.items():
+                if isinstance(component_data, dict) and "files" in component_data:
+                    files_to_fetch.extend(component_data["files"])
+
             if not files_to_fetch:
                 return SyncResult(
                     success=False,
@@ -976,6 +1016,82 @@ class SyncDispatcher:
                 "total_files_updated": total_files,
             },
         )
+
+    def _post_sync_validation(self, result: SyncResult) -> SyncResult:
+        """Run post-sync validation with auto-fix and reporting.
+
+        This method runs after a successful sync to:
+        1. Validate settings files (JSON syntax, hook paths)
+        2. Check hook integrity (syntax, imports, permissions)
+        3. Run semantic validation (GenAI-powered pattern checks)
+        4. Perform health check (component counts)
+
+        Auto-fixes are applied silently. Manual fix guidance is printed.
+
+        Args:
+            result: The successful sync result to enhance with validation
+
+        Returns:
+            SyncResult with validation field populated
+
+        Note:
+            This method never fails - validation errors are captured
+            in the result but don't affect sync success.
+        """
+        if SyncValidator is None:
+            # Graceful degradation - no validation available
+            return result
+
+        try:
+            validator = SyncValidator(self.project_path)
+            validation_result = validator.validate_all()
+
+            # Apply auto-fixes silently
+            if validation_result.has_fixable_issues:
+                fixes_applied = validator.apply_auto_fixes(validation_result)
+                audit_log(
+                    "sync_validation",
+                    "auto_fix",
+                    {
+                        "fixes_applied": fixes_applied,
+                        "project_path": str(self.project_path),
+                    },
+                )
+
+            # Print validation report
+            report = validator.generate_fix_report(validation_result)
+            print(report)
+
+            # Update result with validation
+            result.validation = validation_result
+
+            # Log validation outcome
+            audit_log(
+                "sync_validation",
+                "complete",
+                {
+                    "passed": validation_result.overall_passed,
+                    "errors": validation_result.total_errors,
+                    "warnings": validation_result.total_warnings,
+                    "auto_fixed": validation_result.total_auto_fixed,
+                    "manual_fixes": validation_result.total_manual_fixes,
+                    "project_path": str(self.project_path),
+                },
+            )
+
+        except Exception as e:
+            # Validation should never fail the sync
+            audit_log(
+                "sync_validation",
+                "error",
+                {
+                    "error": str(e),
+                    "project_path": str(self.project_path),
+                },
+            )
+            print(f"\nValidation skipped due to error: {e}")
+
+        return result
 
     def sync_marketplace(
         self,

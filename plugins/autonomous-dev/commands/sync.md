@@ -28,6 +28,77 @@ The unified `/sync` command replaces `/sync-dev` and `/update-plugin` with intel
 **Time**: 10-90 seconds (depends on mode)
 **Interactive**: Shows detected mode, asks for confirmation
 **Smart Detection**: Auto-detects context - developers get plugin-dev, users get GitHub sync
+**Post-Sync Validation**: Automatic 4-phase validation with auto-fix
+
+---
+
+## Post-Sync Validation (NEW)
+
+After every successful sync, automatic validation runs to ensure everything is working:
+
+### 4 Validation Phases
+
+1. **Settings Validation**
+   - Checks `settings.local.json` exists and is valid JSON
+   - Validates hook paths point to existing files
+   - Auto-fixes: Removes invalid hook entries
+
+2. **Hook Integrity**
+   - Verifies all hooks have valid Python syntax
+   - Checks hooks are executable (file permissions)
+   - Auto-fixes: `chmod +x` for non-executable hooks
+
+3. **Semantic Scan**
+   - Checks agent prompts reference valid skills
+   - Detects deprecated patterns
+   - Validates version consistency across config files
+   - Auto-fixes: Updates deprecated references
+
+4. **Health Check**
+   - Verifies expected component counts (agents, hooks, commands)
+   - Reports any missing components
+
+### Output Example
+
+```
+Post-Sync Validation
+========================================
+
+Settings Validation
+  ✅ All checks passed
+
+Hooks Validation
+  ⚠️  Hook not executable: my_hook.py
+      -> Auto-fixed: chmod +x my_hook.py
+
+Semantic Validation
+  ✅ No deprecated patterns detected
+
+Health Validation
+  ✅ All checks passed
+
+========================================
+Summary
+========================================
+✅ Sync validation PASSED
+   Auto-fixed: 1 issue
+```
+
+### When Issues Require Manual Fixes
+
+If validation finds issues that can't be auto-fixed, it provides step-by-step guidance:
+
+```
+❌ Sync validation FAILED (1 error)
+
+HOW TO FIX
+==========
+
+1. Fix hooks/broken_hook.py syntax error:
+   Location: .claude/hooks/broken_hook.py:45
+   Error: Missing closing parenthesis
+   Action: Add ')' at end of line 45
+```
 
 ---
 

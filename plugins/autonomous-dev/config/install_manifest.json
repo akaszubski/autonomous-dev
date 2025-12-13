@@ -132,6 +132,7 @@
         "plugins/autonomous-dev/lib/settings_merger.py",
         "plugins/autonomous-dev/lib/sync_dispatcher.py",
         "plugins/autonomous-dev/lib/sync_mode_detector.py",
+        "plugins/autonomous-dev/lib/sync_validator.py",
         "plugins/autonomous-dev/lib/tool_approval_audit.py",
         "plugins/autonomous-dev/lib/tool_validator.py",
         "plugins/autonomous-dev/lib/update_plugin.py",
