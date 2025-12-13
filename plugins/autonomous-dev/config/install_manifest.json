@@ -22,6 +22,8 @@
         "plugins/autonomous-dev/agents/project-status-analyzer.md",
         "plugins/autonomous-dev/agents/quality-validator.md",
         "plugins/autonomous-dev/agents/researcher.md",
+        "plugins/autonomous-dev/agents/researcher-local.md",
+        "plugins/autonomous-dev/agents/researcher-web.md",
         "plugins/autonomous-dev/agents/reviewer.md",
         "plugins/autonomous-dev/agents/security-auditor.md",
         "plugins/autonomous-dev/agents/setup-wizard.md",
@@ -90,7 +92,8 @@
         "plugins/autonomous-dev/hooks/validate_readme_sync.py",
         "plugins/autonomous-dev/hooks/validate_readme_with_genai.py",
         "plugins/autonomous-dev/hooks/validate_session_quality.py",
-        "plugins/autonomous-dev/hooks/verify_agent_pipeline.py"
+        "plugins/autonomous-dev/hooks/verify_agent_pipeline.py",
+        "plugins/autonomous-dev/hooks/validate_install_manifest.py"
       ]
     },
     "scripts": {
@@ -101,7 +104,12 @@
         "plugins/autonomous-dev/scripts/pipeline_controller.py",
         "plugins/autonomous-dev/scripts/progress_display.py",
         "plugins/autonomous-dev/scripts/install.py",
-        "plugins/autonomous-dev/scripts/configure_global_settings.py"
+        "plugins/autonomous-dev/scripts/configure_global_settings.py",
+        "plugins/autonomous-dev/scripts/agent_tracker.py",
+        "plugins/autonomous-dev/scripts/align_project_retrofit.py",
+        "plugins/autonomous-dev/scripts/genai_install_wrapper.py",
+        "plugins/autonomous-dev/scripts/invoke_agent.py",
+        "plugins/autonomous-dev/scripts/migrate_hook_paths.py"
       ]
     },
     "lib": {
@@ -184,8 +192,11 @@
       "target": ".claude/config",
       "files": [
         "plugins/autonomous-dev/config/auto_approve_policy.json",
+        "plugins/autonomous-dev/config/doc_change_registry.json",
+        "plugins/autonomous-dev/config/global_settings_template.json",
         "plugins/autonomous-dev/config/install_manifest.json",
-        "plugins/autonomous-dev/config/global_settings_template.json"
+        "plugins/autonomous-dev/config/installation_manifest.json",
+        "plugins/autonomous-dev/config/research_rate_limits.json"
       ]
     },
     "templates": {
@@ -195,7 +206,9 @@
         "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
         "plugins/autonomous-dev/templates/settings.granular-bash.json",
         "plugins/autonomous-dev/templates/settings.permission-batching.json",
-        "plugins/autonomous-dev/templates/settings.strict-mode.json"
+        "plugins/autonomous-dev/templates/settings.strict-mode.json",
+        "plugins/autonomous-dev/templates/settings.default.json",
+        "plugins/autonomous-dev/templates/project-structure.json"
       ]
     }
   },
