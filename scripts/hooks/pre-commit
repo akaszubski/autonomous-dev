@@ -45,6 +45,23 @@ echo "🔍 Validating slash command implementations..."
 # Run command validation
 python plugins/autonomous-dev/hooks/validate_commands.py
 
+echo "🔍 Syncing install manifest with source files..."
+
+# Auto-sync install_manifest.json (bidirectional - adds AND removes)
+python plugins/autonomous-dev/hooks/validate_install_manifest.py
+MANIFEST_EXIT=$?
+if [ $MANIFEST_EXIT -ne 0 ]; then
+    echo ""
+    echo "⚠️  Manifest sync failed. Check output above."
+    exit $MANIFEST_EXIT
+fi
+
+# If manifest was updated, stage it
+if git diff --name-only | grep -q "install_manifest.json"; then
+    echo "📦 Manifest updated - auto-staging..."
+    git add plugins/autonomous-dev/config/install_manifest.json
+fi
+
 echo "🔍 Running documentation validation tests..."
 
 # Check if venv exists and has pytest
