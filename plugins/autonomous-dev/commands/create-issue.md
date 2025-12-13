@@ -1,18 +1,18 @@
 ---
-description: "Create GitHub issue with automated research (--thorough for full analysis)"
-argument_hint: "Issue title [--thorough] (e.g., 'Add JWT authentication' or 'Add JWT authentication --thorough')"
+description: "Create GitHub issue with automated research and duplicate detection (--quick for fast mode)"
+argument_hint: "Issue title [--quick] (e.g., 'Add JWT authentication' or 'Add JWT authentication --quick')"
 ---
 
 # Create GitHub Issue with Research Integration
 
-Automate GitHub issue creation with research-backed, well-structured content.
+Automate GitHub issue creation with research-backed, well-structured content and duplicate detection.
 
 ## Modes
 
 | Mode | Time | Description |
 |------|------|-------------|
-| **Default (fast)** | 3-5 min | Async scan, smart sections, no prompts |
-| **--thorough** | 8-12 min | Full analysis, blocking duplicate check |
+| **Default (thorough)** | 8-12 min | Full analysis, blocking duplicate check |
+| **--quick** | 3-5 min | Async scan, smart sections, no prompts |
 
 ## Implementation
 
@@ -27,16 +27,16 @@ ARGUMENTS: {{ARGUMENTS}}
 Parse the ARGUMENTS to detect mode flags:
 
 ```
---thorough    Full analysis mode (blocking duplicate check, all sections)
+--quick    Fast mode (async scan, smart sections, no blocking prompts)
 ```
 
-**Default mode**: Fast mode with async scan, smart sections, no blocking prompts.
+**Default mode**: Thorough mode with full analysis, blocking duplicate check, all sections.
 
 Extract the feature request (everything except flags).
 
 ---
 
-### STEP 1: Research + Async Issue Scan (Parallel)
+### STEP 1: Research + Issue Scan (Parallel)
 
 Launch TWO agents in parallel using the Task tool:
 
@@ -45,13 +45,43 @@ Launch TWO agents in parallel using the Task tool:
 - Research best practices and security considerations
 - Identify recommended approaches
 
-**Agent 2: issue-scanner** (subagent_type="Explore", run_in_background=true)
-- Quick scan of existing issues for duplicates/related
+**Agent 2: issue-scanner** (subagent_type="Explore", run_in_background for --quick mode only)
+- Scan existing issues for duplicates/related
 - Use: `gh issue list --state all --limit 100 --json number,title,body,state`
 - Look for semantic similarity to the feature request
 - Confidence threshold: >80% for duplicate, >50% for related
 
 **CRITICAL**: Use a single message with TWO Task tool calls to run in parallel.
+
+**Default mode**: Issue scan runs in foreground (blocking) - results used in STEP 1.5
+**--quick mode**: Issue scan runs in background - results retrieved in STEP 3
+
+---
+
+### STEP 1.5: Duplicate Check (Default Mode Only)
+
+**Skip this step if --quick mode.**
+
+After issue scan completes, check for duplicates:
+
+If **duplicates found** (>80% similarity), prompt user before continuing:
+```
+Potential duplicate detected:
+  #45: "Implement JWT authentication" (92% similar)
+
+Options:
+1. Create anyway (may be intentional)
+2. Skip and link to existing issue
+3. Show me the existing issue first
+
+Reply with option number.
+```
+
+If user selects option 2, stop here and provide link to existing issue.
+If user selects option 3, show the existing issue body and ask again.
+If user selects option 1, continue to STEP 2.
+
+If **related issues found** (>50% similarity but <80%), note them for later display but continue.
 
 ---
 
@@ -64,8 +94,6 @@ Verify the researcher agent completed successfully:
 
 If research failed, stop and report error. Do NOT proceed to STEP 2.
 
-**Note**: Issue scan runs in background - results retrieved in STEP 3.
-
 ---
 
 ### STEP 2: Generate Issue with Deep Thinking Methodology
@@ -73,7 +101,7 @@ If research failed, stop and report error. Do NOT proceed to STEP 2.
 Use the Task tool to invoke the **issue-creator** agent (subagent_type="issue-creator") with:
 - Original feature request (from ARGUMENTS)
 - Research findings (from STEP 1)
-- Mode flag (default or thorough)
+- Mode flag (default or quick)
 
 **Deep Thinking Template** (issue-creator should follow - GitHub Issue #118):
 
@@ -121,7 +149,7 @@ Use the Task tool to invoke the **issue-creator** agent (subagent_type="issue-cr
 - ~~Estimated LOC~~ (usually wrong)
 - ~~Timeline~~ (scheduling not documentation)
 
-**--thorough mode**: Include ALL sections with full detail.
+**--quick mode**: Include only essential sections (Summary, Implementation Approach, Acceptance Criteria).
 
 ---
 
@@ -145,9 +173,9 @@ If issue creation failed, stop and report error. Do NOT proceed to STEP 3.
 
 ---
 
-### STEP 3: Retrieve Scan Results + Create Issue
+### STEP 3: Create Issue (+ Retrieve Scan for --quick)
 
-**3A: Retrieve async scan results**
+**3A: For --quick mode only - Retrieve async scan results**
 
 Use TaskOutput tool to retrieve the issue-scanner results (non-blocking, timeout 5s).
 
@@ -155,20 +183,7 @@ If scan found results:
 - **Duplicates** (>80% similarity): Store for post-creation info
 - **Related** (>50% similarity): Store for post-creation info
 
-**--thorough mode only**: If duplicates found, prompt user before creating:
-```
-Potential duplicate detected:
-  #45: "Implement JWT authentication" (92% similar)
-
-Options:
-1. Create anyway (may be intentional)
-2. Skip and link to existing issue
-3. Show me the existing issue first
-
-Reply with option number.
-```
-
-**Default mode**: No prompts. Create issue, show info after.
+**Default mode**: Duplicate check already done in STEP 1.5.
 
 **3B: Create GitHub issue via gh CLI**
 
@@ -197,7 +212,7 @@ Verify the gh CLI command succeeded:
 
 **4A: Display related issues (informational)**
 
-If the async scan found related/duplicate issues, display them AFTER creation:
+If the scan found related issues (or duplicates in --quick mode), display them AFTER creation:
 
 ```
 Issue #123 created successfully!
@@ -252,23 +267,25 @@ Reply 'yes' to proceed, or 'no' to stop here.
 
 | Step | Time | Description |
 |------|------|-------------|
-| Research + Scan | 2-3 min | Parallel: patterns + issue scan |
-| Generate Issue | 1-2 min | Smart sections only |
+| Research + Scan | 2-4 min | Parallel: patterns + duplicate detection |
+| Duplicate Check | 0-2 min | Blocking prompt if duplicates found (default mode) |
+| Generate Issue | 1-2 min | Full sections with deep thinking |
 | Create + Info | 15-30 sec | gh CLI + related issues |
-| **Total** | **3-5 min** | Default mode |
+| **Total** | **8-12 min** | Default mode (thorough) |
+| **Total** | **3-5 min** | --quick mode |
 
 ---
 
 ## Usage
 
 ```bash
-# Default mode (fast, smart sections)
+# Default mode (thorough, blocking duplicate check)
 /create-issue Add JWT authentication for API endpoints
 
-# Thorough mode (all sections, blocking duplicate check)
-/create-issue Add JWT authentication --thorough
+# Quick mode (fast, async scan, no blocking prompts)
+/create-issue Add JWT authentication --quick
 
-# Bug report
+# Bug report (default thorough mode)
 /create-issue Fix memory leak in background job processor
 ```
 
@@ -307,7 +324,7 @@ Error: gh CLI is not authenticated
 Run: gh auth login
 ```
 
-### Duplicate Detected (--thorough mode)
+### Duplicate Detected (Default Mode)
 
 ```
 Potential duplicate detected:
@@ -344,22 +361,22 @@ This integration saves 2-5 minutes when issues are implemented soon after creati
 **Agents Used**:
 - **researcher**: Research patterns and best practices (Haiku model, 2-3 min)
 - **issue-creator**: Generate structured issue body (Sonnet model, 1-2 min)
-- **Explore**: Quick issue scan for duplicates/related (background, <30 sec)
+- **Explore**: Issue scan for duplicates/related (foreground default, background --quick)
 
 **Tools Used**:
 - gh CLI: Issue listing and creation
-- TaskOutput: Retrieve background scan results
+- TaskOutput: Retrieve background scan results (--quick mode)
 
 **Security**:
 - CWE-78: Command injection prevention (no shell metacharacters in title)
 - CWE-20: Input validation (length limits, format validation)
 
 **Performance**:
-- Default mode: 3-5 minutes (no prompts)
-- Thorough mode: 8-12 minutes (with prompts)
+- Default mode: 8-12 minutes (blocking duplicate check)
+- Quick mode: 3-5 minutes (no blocking prompts)
 
 ---
 
 **Part of**: Core workflow commands
 **Related**: `/auto-implement`, `/align`
-**Enhanced in**: v3.41.0 (GitHub Issues #118, #122)
+**Enhanced in**: v3.42.0 (thorough default, --quick flag - GitHub Issue #122)
