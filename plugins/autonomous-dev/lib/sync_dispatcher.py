@@ -326,9 +326,10 @@ class SyncDispatcher:
         src: Path,
         dst: Path,
         pattern: str = "*",
-        description: str = "files"
+        description: str = "files",
+        delete_orphans: bool = False
     ) -> int:
-        """Sync directory with per-file operations (Issue #97 fix).
+        """Sync directory with per-file operations and optional orphan deletion.
 
         Replaces shutil.copytree() which silently fails to copy new files
         when destination directory already exists (dirs_exist_ok=True bug).
@@ -336,11 +337,15 @@ class SyncDispatcher:
         This method uses FileDiscovery + per-file shutil.copy2() to ensure
         all files are copied, even when destination directory exists.
 
+        When delete_orphans=True, performs TRUE SYNC by deleting files in
+        destination that don't exist in source (rsync --delete behavior).
+
         Args:
             src: Source directory path
             dst: Destination directory path
             pattern: File pattern to match (e.g., "*.md", "*.py")
             description: Human-readable description for logging
+            delete_orphans: If True, delete files in dst not in src (default: False)
 
         Returns:
             Number of files successfully copied
@@ -353,7 +358,8 @@ class SyncDispatcher:
             ...     src=plugin_dir / "commands",
             ...     dst=claude_dir / "commands",
             ...     pattern="*.md",
-            ...     description="command files"
+            ...     description="command files",
+            ...     delete_orphans=True  # True sync - mirror source
             ... )
         """
         # Validate source exists
@@ -418,6 +424,38 @@ class SyncDispatcher:
                 # Continue on error (don't fail entire sync)
                 continue
 
+        # Delete orphaned files (TRUE SYNC behavior)
+        orphans_deleted = 0
+        if delete_orphans and dst.exists():
+            # Get source file names (relative to src)
+            source_names = {f.name for f in matching_files}
+
+            # Find files in destination that don't exist in source
+            import fnmatch as fn
+            for dst_file in dst.iterdir():
+                if dst_file.is_file() and fn.fnmatch(dst_file.name, pattern):
+                    if dst_file.name not in source_names:
+                        try:
+                            dst_file.unlink()
+                            orphans_deleted += 1
+                            audit_log(
+                                "sync_directory",
+                                "orphan_deleted",
+                                {
+                                    "file": str(dst_file),
+                                    "reason": "not in source",
+                                }
+                            )
+                        except Exception as e:
+                            audit_log(
+                                "sync_directory",
+                                "orphan_delete_error",
+                                {
+                                    "file": str(dst_file),
+                                    "error": str(e),
+                                }
+                            )
+
         # Audit log summary
         audit_log(
             "sync_directory",
@@ -427,6 +465,7 @@ class SyncDispatcher:
                 "dst": str(dst),
                 "pattern": pattern,
                 "files_copied": files_copied,
+                "orphans_deleted": orphans_deleted,
                 "errors": len(errors),
             }
         )
@@ -604,31 +643,61 @@ class SyncDispatcher:
         claude_dir = self.project_path / ".claude"
         claude_dir.mkdir(exist_ok=True)
 
-        # Copy plugin files to .claude/
+        # Sync plugin files to .claude/ (TRUE SYNC - delete orphans)
         files_updated = 0
         try:
-            # Copy commands (using _sync_directory to fix Issue #97)
+            # Sync commands (delete orphans = true sync)
             commands_src = plugin_dir / "commands"
             commands_dst = claude_dir / "commands"
             if commands_src.exists():
                 files_updated += self._sync_directory(
-                    commands_src, commands_dst, pattern="*.md", description="command files"
+                    commands_src, commands_dst, pattern="*.md",
+                    description="command files", delete_orphans=True
                 )
 
-            # Copy hooks (using _sync_directory to fix Issue #97)
+            # Sync hooks (delete orphans = true sync)
             hooks_src = plugin_dir / "hooks"
             hooks_dst = claude_dir / "hooks"
             if hooks_src.exists():
                 files_updated += self._sync_directory(
-                    hooks_src, hooks_dst, pattern="*.py", description="hook files"
+                    hooks_src, hooks_dst, pattern="*.py",
+                    description="hook files", delete_orphans=True
                 )
 
-            # Copy agents (if needed for local development) (using _sync_directory to fix Issue #97)
+            # Sync agents (delete orphans = true sync)
             agents_src = plugin_dir / "agents"
             agents_dst = claude_dir / "agents"
             if agents_src.exists():
                 files_updated += self._sync_directory(
-                    agents_src, agents_dst, pattern="*.md", description="agent files"
+                    agents_src, agents_dst, pattern="*.md",
+                    description="agent files", delete_orphans=True
+                )
+
+            # Sync lib files (delete orphans = true sync)
+            lib_src = plugin_dir / "lib"
+            lib_dst = claude_dir / "lib"
+            if lib_src.exists():
+                files_updated += self._sync_directory(
+                    lib_src, lib_dst, pattern="*.py",
+                    description="lib files", delete_orphans=True
+                )
+
+            # Sync config files (delete orphans = true sync)
+            config_src = plugin_dir / "config"
+            config_dst = claude_dir / "config"
+            if config_src.exists():
+                files_updated += self._sync_directory(
+                    config_src, config_dst, pattern="*.json",
+                    description="config files", delete_orphans=True
+                )
+
+            # Sync scripts (delete orphans = true sync)
+            scripts_src = plugin_dir / "scripts"
+            scripts_dst = claude_dir / "scripts"
+            if scripts_src.exists():
+                files_updated += self._sync_directory(
+                    scripts_src, scripts_dst, pattern="*.py",
+                    description="script files", delete_orphans=True
                 )
 
             return SyncResult(
