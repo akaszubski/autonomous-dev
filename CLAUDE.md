@@ -55,11 +55,6 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--uninstall` - Uninstall plugin (preview by default, use --force to execute) - GitHub #131
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 
-**Archived Commands (15)** - Moved to `commands/archive/`:
-- Individual agent commands (7): research, plan, test-feature, implement, review, security-scan, update-docs
-- Old align commands (3): align-project, align-claude, align-project-retrofit
-- Removed utilities (5): uninstall, update-plugin, test, pipeline-status, status
-
 ---
 
 ## Context Management (CRITICAL!)
