@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
 **Last Updated**: 2025-12-13
-**Total Hooks**: 45 (comprehensive audit and cleanup)
+**Total Hooks**: 49 (added PostToolUse error capture)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -200,6 +200,7 @@ modern = migrate_hook_format_cc2(legacy)
 |-----------|-------|-------|
 | **SessionStart** | 1 | auto_bootstrap |
 | **PreToolUse** | 2 | pre_tool_use, batch_permission_approver |
+| **PostToolUse** | 1 | post_tool_use_error_capture |
 | **PreCommit** | 24 | See Core + Validation sections |
 | **SubagentStop** | 3 | session_tracker, log_agent_completion, auto_git_workflow |
 | **Utility** | 6 | genai_prompts, genai_utils, github_issue_manager, health_check, setup, sync_to_installed |
@@ -216,6 +217,22 @@ modern = migrate_hook_format_cc2(legacy)
 - Copies all plugin commands from plugin directory if missing
 - Creates marker file (`.autonomous-dev-bootstrapped`) to track completion
 **Lifecycle**: SessionStart
+
+---
+
+## PostToolUse Hooks (1)
+
+### post_tool_use_error_capture.py
+
+**Purpose**: Captures tool failures for analysis and GitHub issue creation (Issue #124)
+**Actions**:
+- Captures all tool failures (non-zero exit codes, stderr errors)
+- Logs errors to `.claude/logs/errors/{date}.jsonl`
+- Classifies errors as transient vs permanent using `failure_classifier.py`
+- Redacts secrets (API keys, tokens) from error messages (CWE-532)
+- Non-blocking (failures don't interrupt workflow)
+**Lifecycle**: PostToolUse
+**Dependencies**: `error_analyzer.py`, `failure_classifier.py`, `path_utils.py`
 
 ---
 
