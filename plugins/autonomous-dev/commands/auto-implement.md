@@ -52,44 +52,27 @@ Options:
 **WRONG** ❌: "I will search codebase, then search web..."
 **WRONG** ❌: Invoking researcher-local, waiting for completion, then invoking researcher-web (sequential)
 
-**CORRECT** ✅: Make TWO Task tool calls in ONE response:
+**CORRECT** ✅: Make TWO Task tool calls in ONE response with these EXACT parameters:
 
-#### Agent 1: researcher-local (Codebase Patterns)
+#### Task Tool Call 1: researcher-local
 
-```
-subagent_type: "researcher-local"
-description: "Search codebase for [feature name]"
-prompt: "Search codebase for patterns and implementations related to: [user's feature description].
+Use the Task tool with these parameters:
+- **subagent_type**: `"researcher-local"`
+- **model**: `"haiku"`
+- **description**: `"Search codebase for [feature name]"`
+- **prompt**: Search codebase for patterns related to [user's feature]. Find existing patterns, files to update, architecture notes, similar implementations. Output JSON.
 
-Find:
-- Existing similar patterns in this codebase
-- Files that need to be updated
-- Architecture notes and conventions
-- Reusable implementations
+#### Task Tool Call 2: researcher-web
 
-Output: JSON with existing_patterns, files_to_update, architecture_notes, similar_implementations."
+⚠️ **CRITICAL MODEL REQUIREMENT**: You MUST pass `model: "sonnet"` to the Task tool. WebSearch/WebFetch tools ONLY work with Sonnet or higher. If you use Haiku or omit the model parameter, the agent will return 0 results and fail silently.
 
-model: "haiku"
-```
+Use the Task tool with these parameters:
+- **subagent_type**: `"researcher-web"`
+- **model**: `"sonnet"` ← MANDATORY - WebSearch requires Sonnet+
+- **description**: `"Research best practices for [feature name]"`
+- **prompt**: Research web for best practices (2024-2025), recommended libraries, security considerations (OWASP), common pitfalls. Output JSON.
 
-#### Agent 2: researcher-web (Best Practices)
-
-⚠️ **CRITICAL**: Must use `model: "sonnet"` - WebSearch/WebFetch tools require Sonnet+. Haiku CANNOT access web tools and will return 0 results.
-
-```
-subagent_type: "researcher-web"
-model: "sonnet"  ← REQUIRED (WebSearch needs Sonnet+)
-description: "Research best practices for [feature name]"
-prompt: "Research web for best practices and standards for: [user's feature description].
-
-Find:
-- Industry best practices (2024-2025)
-- Recommended libraries
-- Security considerations (OWASP)
-- Common pitfalls
-
-Output: JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls."
-```
+**VERIFY BEFORE SENDING**: Check that your researcher-web Task tool call includes `model: "sonnet"`. Without this parameter, web research will fail.
 
 **DO BOTH NOW IN ONE RESPONSE**. This allows them to run simultaneously.
 
