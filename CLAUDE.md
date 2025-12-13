@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-13
+**Last Updated**: 2025-12-14
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.40.0
+**Version**: v3.41.0
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
