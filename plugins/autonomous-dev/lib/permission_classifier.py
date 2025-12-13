@@ -44,7 +44,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+except ImportError:
+    from security_utils import validate_path, audit_log
 
 
 class PermissionLevel(Enum):

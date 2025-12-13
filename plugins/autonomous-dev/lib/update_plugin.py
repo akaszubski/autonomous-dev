@@ -52,16 +52,26 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib.plugin_updater import (
-    PluginUpdater,
-    UpdateResult,
-    UpdateError,
-)
-from plugins.autonomous_dev.lib.version_detector import VersionComparison
-from plugins.autonomous_dev.lib.hook_activator import HookActivator
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    # Development environment
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from plugins.autonomous_dev.lib.plugin_updater import (
+        PluginUpdater,
+        UpdateResult,
+        UpdateError,
+    )
+    from plugins.autonomous_dev.lib.version_detector import VersionComparison
+    from plugins.autonomous_dev.lib.hook_activator import HookActivator
+except ImportError:
+    # Installed environment (.claude/lib/)
+    from plugin_updater import (
+        PluginUpdater,
+        UpdateResult,
+        UpdateError,
+    )
+    from version_detector import VersionComparison
+    from hook_activator import HookActivator
 
 
 def parse_args() -> argparse.Namespace:

@@ -43,10 +43,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib import security_utils
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    # Development environment
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from plugins.autonomous_dev.lib import security_utils
+except ImportError:
+    # Installed environment (.claude/lib/)
+    import security_utils
 
 
 class TechStack(Enum):

@@ -58,28 +58,50 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from plugins.autonomous_dev.lib import security_utils
-from plugins.autonomous_dev.lib.version_detector import (
-    detect_version_mismatch,
-    VersionComparison,
-)
-from plugins.autonomous_dev.lib.sync_dispatcher import (
-    sync_marketplace,
-    SyncResult,
-)
-from plugins.autonomous_dev.lib.hook_activator import (
-    HookActivator,
-    ActivationResult,
-    ActivationError,
-)
-from plugins.autonomous_dev.lib.settings_generator import (
-    validate_permission_patterns,
-    fix_permission_patterns,
-    PermissionIssue,
-)
+# Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
+try:
+    # Development environment
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from plugins.autonomous_dev.lib import security_utils
+    from plugins.autonomous_dev.lib.version_detector import (
+        detect_version_mismatch,
+        VersionComparison,
+    )
+    from plugins.autonomous_dev.lib.sync_dispatcher import (
+        sync_marketplace,
+        SyncResult,
+    )
+    from plugins.autonomous_dev.lib.hook_activator import (
+        HookActivator,
+        ActivationResult,
+        ActivationError,
+    )
+    from plugins.autonomous_dev.lib.settings_generator import (
+        validate_permission_patterns,
+        fix_permission_patterns,
+        PermissionIssue,
+    )
+except ImportError:
+    # Installed environment (.claude/lib/)
+    import security_utils
+    from version_detector import (
+        detect_version_mismatch,
+        VersionComparison,
+    )
+    from sync_dispatcher import (
+        sync_marketplace,
+        SyncResult,
+    )
+    from hook_activator import (
+        HookActivator,
+        ActivationResult,
+        ActivationError,
+    )
+    from settings_generator import (
+        validate_permission_patterns,
+        fix_permission_patterns,
+        PermissionIssue,
+    )
 
 
 # Exception hierarchy pattern from error-handling-patterns skill:

@@ -6,7 +6,7 @@ argument_hint: "Optional flags: --github (default), --env, --marketplace, --plug
 ## Implementation
 
 ```bash
-python3 .claude/lib/sync_dispatcher.py "$@"
+python3 ~/.claude/lib/sync_dispatcher.py "$@"
 ```
 
 ---
