@@ -254,6 +254,7 @@ We document **typical performance**, not marketing claims.
 - [Hooks](docs/HOOKS.md) - 49 automation hooks
 - [Batch Processing](docs/BATCH-PROCESSING.md) - Multi-feature workflows
 - [Git Automation](docs/GIT-AUTOMATION.md) - Auto-commit, push, PR
+- [Environment Configuration](docs/ENV-CONFIGURATION.md) - All .env variables and settings
 - [Troubleshooting](plugins/autonomous-dev/docs/TROUBLESHOOTING.md)
 
 ---
