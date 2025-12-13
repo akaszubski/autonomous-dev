@@ -523,6 +523,33 @@ Hooks for ensuring documentation, commands, and codebase stay in sync.
 - Supports `STRICT_PIPELINE=1` to block commits
 **Lifecycle**: PreCommit
 
+### validate_settings_hooks.py
+
+**Purpose**: Ensure hooks referenced in settings template exist
+**Actions**:
+- Parses global_settings_template.json for hook commands
+- Validates each referenced hook file exists in hooks/
+- Prevents "hook not found" errors after install
+**Lifecycle**: PreCommit
+
+### validate_lib_imports.py
+
+**Purpose**: Catch broken library imports
+**Actions**:
+- Scans all hooks and libs for import statements
+- Validates imported libs exist in lib/
+- Catches deleted/renamed lib issues before commit
+**Lifecycle**: PreCommit
+
+### validate_hooks_documented.py
+
+**Purpose**: Ensure all hooks are documented in HOOKS.md
+**Actions**:
+- Compares hooks/ directory against HOOKS.md
+- Blocks commits if new hooks lack documentation
+- Provides format guidance for adding docs
+**Lifecycle**: PreCommit
+
 ---
 
 ## Utility Hooks (6)

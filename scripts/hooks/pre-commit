@@ -84,6 +84,17 @@ if [ $IMPORTS_EXIT -ne 0 ]; then
     exit $IMPORTS_EXIT
 fi
 
+echo "🔍 Validating all hooks documented..."
+
+# Ensure all hooks have documentation in HOOKS.md
+python plugins/autonomous-dev/hooks/validate_hooks_documented.py
+DOCS_EXIT=$?
+if [ $DOCS_EXIT -ne 0 ]; then
+    echo ""
+    echo "⚠️  New hooks need documentation. Add to docs/HOOKS.md before committing."
+    exit $DOCS_EXIT
+fi
+
 echo "🔍 Running documentation validation tests..."
 
 # Check if venv exists and has pytest

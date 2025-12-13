@@ -84,6 +84,7 @@
         "plugins/autonomous-dev/hooks/validate_commands.py",
         "plugins/autonomous-dev/hooks/validate_docs_consistency.py",
         "plugins/autonomous-dev/hooks/validate_documentation_alignment.py",
+        "plugins/autonomous-dev/hooks/validate_hooks_documented.py",
         "plugins/autonomous-dev/hooks/validate_install_manifest.py",
         "plugins/autonomous-dev/hooks/validate_lib_imports.py",
         "plugins/autonomous-dev/hooks/validate_project_alignment.py",
