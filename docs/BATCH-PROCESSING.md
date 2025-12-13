@@ -299,24 +299,32 @@ The `in_batch_mode=True` parameter signals that:
 
 ---
 
-## Context Management (Hybrid Pause/Resume)
+## Context Management (Compaction-Resilient)
 
-The batch system uses a hybrid approach to handle context limits, supporting both short batches (4-5 features) and extended batches (50+ features).
+The batch system uses a compaction-resilient design that survives Claude Code's automatic context summarization, enabling truly unattended operation for large batches.
 
 **How It Works**:
 
-1. **Automatic monitoring**: System tracks context usage (~25-35K tokens per feature)
-2. **Smart pausing**: At ~150K tokens (4-5 features), system pauses and saves state
-3. **User clears context**: User runs `/clear` to reset conversation context
-4. **Resume processing**: User runs `/batch-implement --resume <batch-id>` to continue
-5. **Repeat as needed**: Multiple pause/resume cycles support unlimited features
+1. **Externalized state**: All progress tracked in `batch_state.json`, not conversation memory
+2. **Self-contained features**: Each `/auto-implement` bootstraps fresh from external sources
+3. **Auto-compaction safe**: When Claude Code summarizes context, processing continues seamlessly
+4. **Git preserves work**: Every completed feature is committed before moving on
+5. **Resume for crashes only**: `--resume` only needed if Claude Code actually exits/crashes
+
+**Why This Works**:
+
+Each feature implementation reads from external state:
+- **Requirements**: Fetched from GitHub issue (not memory)
+- **Codebase state**: Read from filesystem (not memory)
+- **Progress**: Tracked in batch_state.json (not memory)
+- **Completed work**: Committed to git (permanent)
 
 **Benefits**:
-- **Short batches (4-5 features)**: No interruption, runs unattended (~2 hours)
-- **Extended batches (50+ features)**: Pause/resume cycles prevent context bloat
-- **Zero data loss**: State persists across `/clear` events
-- **Graceful UX**: Clear instructions when manual intervention needed
-- **Scalable**: Proven for 50+ feature batches via resume workflow
+- **Fully unattended**: No manual `/clear` cycles needed
+- **Unlimited batch sizes**: 50+ features run continuously
+- **Auto-compaction safe**: Claude Code's summarization doesn't break workflow
+- **Zero data loss**: State externalized, not dependent on conversation context
+- **Crash recovery**: `--resume` available for actual crashes
 
 ### Crash Recovery
 

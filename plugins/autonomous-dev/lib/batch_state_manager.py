@@ -5,9 +5,12 @@ Batch State Manager - State-based tracking for /batch-implement command.
 Manages persistent state for batch feature processing. Enables crash recovery,
 resume functionality, and multi-feature batch processing.
 
+DESIGN (v3.34.0): Compaction-resilient - all state is externalized (batch_state.json,
+git commits, GitHub issues). Batches survive Claude Code's auto-compaction because
+each feature bootstraps fresh from external state, not conversation memory.
+
 NOTE: Context clearing functions (should_clear_context, pause_batch_for_clear,
-get_clear_notification_message) remain active for hybrid pause/resume workflow.
-System pauses at ~150K tokens, user manually runs /clear, then --resume to continue.
+get_clear_notification_message) are DEPRECATED. Kept for backward compatibility only.
 
 Key Features:
 1. Persistent state storage (.claude/batch_state.json)
@@ -188,8 +191,9 @@ def get_default_state_file():
         # This maintains backward compatibility
         return Path(".claude/batch_state.json")
 
-# Context token threshold for auto-clearing (150K tokens)
-# DEPRECATED: Claude Code manages context automatically (200K budget with compression)
+# Context token threshold (DEPRECATED - v3.34.0)
+# No longer used: Compaction-resilient design survives auto-compaction via externalized state.
+# Kept for backward compatibility with deprecated should_clear_context() function.
 CONTEXT_THRESHOLD = 150000
 
 # File lock timeout (seconds)

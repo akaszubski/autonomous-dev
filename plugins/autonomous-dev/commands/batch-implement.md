@@ -1,14 +1,14 @@
 ---
 name: batch-implement
-description: Execute multiple features sequentially with automatic context management, crash recovery, and intelligent retry
+description: Execute multiple features sequentially with compaction-resilient state, crash recovery, and intelligent retry
 author: Claude
-version: 3.33.0
-date: 2025-11-19
+version: 3.34.0
+date: 2025-12-13
 ---
 
 # /batch-implement - Overnight Feature Queue
 
-Process multiple features unattended - queue them up, let it run overnight, wake up to completed work.
+Process multiple features fully unattended - queue them up, let it run overnight, wake up to completed work. Survives auto-compaction via externalized state.
 
 ## Usage
 
@@ -29,7 +29,7 @@ Process multiple features unattended - queue them up, let it run overnight, wake
 
 **State Management** (v3.1.0+):
 - Persistent state file: `.claude/batch_state.json`
-- Hybrid context management: Auto-pause at 150K tokens, user runs `/clear`, then `--resume`
+- Compaction-resilient: Survives auto-compaction via externalized state
 - Crash recovery: Continue with `--resume <batch-id>` flag
 - Progress tracking: Completed features, failed features, processing history
 
@@ -95,7 +95,7 @@ Fetch issue titles directly from GitHub:
    - Next feature
 5. Cleanup state file on success
 
-**Hybrid Context Management**: System monitors context usage and pauses at ~150K tokens (after 4-5 features). User manually runs `/clear` to reset context, then `/batch-implement --resume <batch-id>` to continue. This enables processing 50+ features via multiple pause/resume cycles.
+**Compaction-Resilient Design**: All critical state is externalized (batch_state.json, git commits, GitHub issues, codebase). If Claude Code auto-compacts during long batches, processing continues seamlessly - each feature bootstraps fresh from external state, not conversation memory. Use `--resume` only for crash recovery.
 
 **Crash Recovery**: If batch is interrupted:
 - State file persists: `.claude/batch_state.json`
@@ -497,23 +497,33 @@ All features have been processed.
 
 ## Context Management Strategy
 
-Batch processing uses a hybrid pause/resume workflow to handle context limits efficiently.
+Batch processing uses a compaction-resilient design that survives Claude Code's automatic context summarization.
 
 ### How It Works
 
-1. **Unattended processing**: Features 1-4 or 1-5 run without interruption (~2 hours)
-2. **Smart pause detection**: At ~150K tokens, system pauses and saves state to `.claude/batch_state.json`
-3. **User intervention**: User manually runs `/clear` to reset conversation context
-4. **Seamless resume**: User runs `/batch-implement --resume <batch-id>` to continue from next feature
-5. **Repeat as needed**: Multiple cycles support unlimited batch sizes
+1. **Fully unattended**: All features run without manual intervention
+2. **Externalized state**: Progress tracked in `batch_state.json`, not conversation memory
+3. **Auto-compaction safe**: When Claude Code summarizes context, processing continues
+4. **Each feature bootstraps fresh**: Reads issue from GitHub, reads codebase, implements
+5. **Git commits preserve work**: Every completed feature is committed before moving on
+
+### Why This Works
+
+Each `/auto-implement` is self-contained:
+- Fetches requirements from GitHub issue (not memory)
+- Reads current codebase state (not memory)
+- Implements based on what it reads
+- Commits to git (permanent)
+- Updates batch_state.json (permanent)
+
+The conversation context is just a working buffer - all real state is externalized.
 
 ### Benefits
 
-- **Short batches (4-5 features)**: Fully unattended, no manual intervention
-- **Extended batches (50+ features)**: Pause/resume workflow prevents context bloat
-- **Zero data loss**: All progress saved before each pause
-- **Clear instructions**: System provides exact resume command when pausing
-- **Production tested**: Proven workflow for large feature batches
+- **Truly unattended**: No manual `/clear` + resume cycles needed
+- **Unlimited batch sizes**: 50+ features run continuously
+- **Crash recovery**: `--resume` only needed for actual crashes, not context limits
+- **Production tested**: Externalized state proven reliable
 
 ---
 
@@ -523,8 +533,8 @@ Batch processing uses a hybrid pause/resume workflow to handle context limits ef
 2. **Check .env**: Ensure MCP_AUTO_APPROVE=true and AUTO_GIT_ENABLED=true
 3. **Feature order**: Put critical features first (in case batch interrupted)
 4. **Feature size**: Keep features small and focused (easier to debug failures)
-5. **Short batches**: 4-5 features run unattended (~2 hours)
-6. **Extended batches**: Expect pause/resume at 150K tokens (manual `/clear` + `--resume` needed)
+5. **Large batches**: 50+ features run fully unattended (compaction-resilient design)
+6. **Crash recovery**: Use `--resume <batch-id>` only if Claude Code crashes/exits
 
 ---
 

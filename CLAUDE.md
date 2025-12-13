@@ -247,23 +247,22 @@ Process multiple features sequentially with intelligent state management, automa
   - **No prompts**: Batch mode skips interactive consent prompts (uses `.env` configuration)
   - **Audit trail**: All git operations recorded in batch_state.json for debugging
   - **Non-blocking failures**: Git errors don't stop batch processing
-- **Hybrid context management**: Auto-pause at ~150K tokens, manual `/clear` + `--resume` to continue
-- **Resume support**: `--resume <batch-id>` continues from last completed feature
+- **Compaction-resilient** (v3.34.0): Survives auto-compaction via externalized state - no manual `/clear` needed
+- **Resume support**: `--resume <batch-id>` for crash recovery only (not context limits)
 - **Automatic retry** (v3.33.0, Issue #89): Intelligent classification and retry for transient failures
   - **Transient**: Network errors, timeouts, API rate limits (automatically retried up to 3x)
   - **Permanent**: Syntax errors, import errors, type errors (never retried)
   - **Safety limits**: Max 3 retries per feature, circuit breaker after 5 consecutive failures
   - **Consent-based**: First-run prompt (can be overridden via `BATCH_RETRY_ENABLED` env var)
-- **Unattended**: 4-5 features run without intervention (~2 hours)
-- **Extended batches**: 50+ features via pause/resume cycles (manual `/clear` needed)
+- **Fully unattended**: All features run without manual intervention
 
 **Performance**: ~20-30 min per feature
 
-**Typical workflows**:
-- **Short batches (4-5 features)**: Fully unattended (~2 hours)
-- **Extended batches (50+ features)**: System pauses at ~150K tokens, you run `/clear`, then `--resume <batch-id>`
-
-**Context Reality**: Each feature consumes ~25-35K tokens across full pipeline. After 4-5 features (~150K tokens), system pauses for manual context reset. This is intentional design, not a limitation — enables unlimited batch sizes via pause/resume workflow.
+**Why compaction-resilient works**:
+- Each `/auto-implement` bootstraps fresh from external state (GitHub issues, codebase, batch_state.json)
+- Git commits preserve completed work permanently
+- Conversation context is just a working buffer - real state is externalized
+- If Claude Code auto-compacts mid-batch, processing continues seamlessly
 
 ---
 
