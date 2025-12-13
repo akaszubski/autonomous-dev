@@ -68,6 +68,10 @@
           {
             "type": "command",
             "command": "python .claude/hooks/security_scan.py"
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/validate_command_file_ops.py"
           }
         ]
       }

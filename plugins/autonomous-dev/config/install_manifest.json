@@ -61,6 +61,7 @@
         "plugins/autonomous-dev/hooks/session_tracker.py",
         "plugins/autonomous-dev/hooks/setup.py",
         "plugins/autonomous-dev/hooks/validate_claude_alignment.py",
+        "plugins/autonomous-dev/hooks/validate_command_file_ops.py",
         "plugins/autonomous-dev/hooks/validate_project_alignment.py"
       ]
     },
