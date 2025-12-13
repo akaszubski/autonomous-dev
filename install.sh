@@ -1190,5 +1190,7 @@ main() {
     echo ""
 }
 
-# Run main
-main
+# Run main only when executed directly (not when sourced for testing)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main
+fi

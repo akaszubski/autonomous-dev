@@ -1,5 +1,41 @@
 ## [Unreleased]
 
+**Changed**
+- **Issue #132: Documentation updates for install.sh complete auto-install feature**
+  - **Problem**: Installation documentation still described old two-phase architecture where install.sh only installed /setup command, then /setup wizard installed remaining components
+  - **Solution**: Updated all installation documentation to reflect new single-phase behavior where install.sh installs all components directly (commands, agents, scripts, config, templates)
+  - **Documentation Updates**:
+    - **CLAUDE.md** (Installation Section):
+      - Updated to show install.sh installs all components directly (10 commands, 22 agents, 11 scripts, 6 config files, 11 templates)
+      - Changed from "run /setup to complete" to "optional: run /setup for PROJECT.md creation"
+      - Added explanation that non-blocking installation means missing components don't block workflow
+    - **docs/BOOTSTRAP_PARADOX_SOLUTION.md** (Complete Refactor):
+      - Phase 1 (install.sh): Now documents installing ALL components (not just /setup)
+      - Phase 2 (/setup): Marked as optional for PROJECT.md creation and advanced setup
+      - Architecture Workflow: Simplified from two-phase to single-phase installation
+      - Step-by-Step Workflow: Updated to show no need to run /setup after install.sh (now optional)
+      - Added "Issue #132" reference documenting v3.42.0+ changes
+    - **README.md** (Installation Sections):
+      - One-Liner Install: Changed "run /setup to complete" to "done! all commands available"
+      - Added note that /setup is optional and only needed for PROJECT.md customization
+      - Install Options: Updated to specify single-phase installation with component counts
+      - How It Works: Rewrote from two-phase to single-phase architecture
+      - Added Issue #132 reference and explanation of single-phase benefits
+  - **Files Modified**:
+    - /CLAUDE.md - Installation section (lines 11-31)
+    - /docs/BOOTSTRAP_PARADOX_SOLUTION.md - Lines 42-141 (Phase 1/2 sections) and 200-236 (workflow diagram and step-by-step)
+    - /README.md - Lines 145-203 (installation sections)
+  - **Validation**:
+    - All cross-references verified and tested
+    - Component counts match actual installation (48 hooks, 66 libs, 10 commands, 22 agents, 11 scripts, 6 config, 11 templates)
+    - Installation workflow accurately reflects install.sh behavior
+    - No broken markdown links
+  - **Impact**:
+    - Users now understand install.sh provides complete out-of-the-box setup
+    - Documentation no longer contradicts actual implementation
+    - Clear messaging that /setup is optional (only for PROJECT.md creation)
+    - Architecture diagrams now accurately represent single-phase installation
+
 **Added**
 - **Issue #130: Expand researcher output for implementer and test-master guidance**
   - **Problem**: Implementer and test-master agents relied on pattern discovery via Grep/Glob, missing context about design patterns, testing frameworks, mocking strategies, and error handling patterns available from researcher agents

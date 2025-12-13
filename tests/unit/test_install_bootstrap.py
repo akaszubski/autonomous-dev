@@ -149,19 +149,15 @@ class TestBootstrapFunctionCalls:
 class TestBootstrapAgentsIntegration:
     """Test bootstrap_agents() file copy operations."""
 
-    def test_bootstrap_agents_copies_all_22_agents(self, tmp_path, monkeypatch):
+    def test_bootstrap_agents_copies_all_22_agents(self, tmp_path):
         """Test that bootstrap_agents copies all 22 agent files.
 
         Expected agents (from manifest):
         - 22 total agents including researcher-local.md and researcher-web.md
-
-        Current: FAILS - Function doesn't exist
         """
-        # Arrange: Create staging directory with 22 agents
-        staging_dir = tmp_path / ".autonomous-dev-staging"
-        staging_dir.mkdir()
-
-        plugin_agents = staging_dir / "plugins" / "autonomous-dev" / "agents"
+        # Arrange: Create staging directory with 22 agents (note: files/ subdirectory!)
+        staging_dir = tmp_path / "staging"
+        plugin_agents = staging_dir / "files" / "plugins" / "autonomous-dev" / "agents"
         plugin_agents.mkdir(parents=True)
 
         # Create all 22 agents from manifest
@@ -193,26 +189,27 @@ class TestBootstrapAgentsIntegration:
         for agent in agents:
             (plugin_agents / agent).write_text(f"# {agent}\nAgent content")
 
-        # Create target directory
+        # Target directory
         target_dir = tmp_path / ".claude" / "agents"
-        target_dir.mkdir(parents=True)
 
-        # Monkeypatch HOME to use tmp_path
-        monkeypatch.setenv("HOME", str(tmp_path))
+        # Act: Run bootstrap_agents with proper env vars
+        install_sh = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/install.sh")
+        env = os.environ.copy()
+        env["STAGING_DIR"] = str(staging_dir)
+        env["VERBOSE"] = "false"
 
-        # Act: Run bootstrap_agents (would be via subprocess in real test)
-        # For now, we're testing the expected behavior
         result = subprocess.run(
-            ["bash", "-c", f"cd {tmp_path} && source /Users/akaszubski/Documents/GitHub/autonomous-dev/install.sh && bootstrap_agents"],
+            ["bash", "-c", f"cd {tmp_path} && source {install_sh} && bootstrap_agents"],
             capture_output=True,
             text=True,
+            env=env,
         )
 
         # Assert: All 22 agents copied
-        assert result.returncode == 0, f"bootstrap_agents failed: {result.stderr}"
+        assert result.returncode == 0, f"bootstrap_agents failed: {result.stderr}\nstdout: {result.stdout}"
 
         copied_agents = list(target_dir.glob("*.md"))
-        assert len(copied_agents) == 22, f"Expected 22 agents, found {len(copied_agents)}"
+        assert len(copied_agents) == 22, f"Expected 22 agents, found {len(copied_agents)}: {[a.name for a in copied_agents]}"
 
         # Verify specific agents exist
         assert (target_dir / "researcher-local.md").exists()
