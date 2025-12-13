@@ -173,6 +173,7 @@ class ClaudeAlignmentValidator:
         # Check key commands mentioned
         commands_mentioned = [
             "/auto-implement",
+            "/create-issue",
             "/align",
             "/setup",
             "/test",

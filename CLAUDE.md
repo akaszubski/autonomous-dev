@@ -24,10 +24,11 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **Core Plugin**: `autonomous-dev` - 20 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
 
-**Commands (8 active, simplified from 20 in Issue #121)**:
+**Commands (9 active)**:
 
-**Core Workflow (7)**:
+**Core Workflow (8)**:
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
+- `/create-issue` - Create GitHub issue with research + async scan + smart sections (3-5 min default, 8-12 min --thorough) - GitHub #122
 - `/align` - Unified alignment command with three modes:
   - `--project` - Fix PROJECT.md conflicts (alignment-analyzer agent) - formerly align-project
   - `--claude` - Fix documentation drift (validation script) - formerly align-claude
@@ -41,10 +42,10 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 **Utility Commands (1)**:
 - `/test` - Run automated tests (pytest wrapper)
 
-**Archived Commands (13)** - Moved to `commands/archive/` - GitHub #121:
+**Archived Commands (12)** - Moved to `commands/archive/` - GitHub #121:
 - Individual agent commands (7): research, plan, test-feature, implement, review, security-scan, update-docs
 - Old align commands (3): align-project, align-claude, align-project-retrofit
-- Utilities (3): batch-implement, create-issue, update-plugin
+- Utilities (2): batch-implement, update-plugin
 
 ---
 

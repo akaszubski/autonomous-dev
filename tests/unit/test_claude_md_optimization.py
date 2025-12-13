@@ -533,7 +533,7 @@ class TestAlignmentValidation:
         This ensures:
         - Version dates still consistent
         - Agent counts still correct (20 specialists)
-        - Command counts still correct (8 commands - Issue #121)
+        - Command counts still correct (9 commands - Issue #122)
         - No alignment drift introduced
         """
         project_root = Path(__file__).parent.parent.parent

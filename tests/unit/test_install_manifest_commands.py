@@ -134,42 +134,41 @@ class TestManifestCommandCount:
         """Extract command file paths from manifest."""
         return manifest_data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_manifest_has_8_commands(self, command_files):
-        """Test that manifest lists exactly 8 command files.
+    def test_manifest_has_9_commands(self, command_files):
+        """Test that manifest lists exactly 9 command files.
 
-        RED PHASE: Should fail until manifest updated with 8 commands
-        EXPECTATION: Exactly 8 command paths in manifest
+        EXPECTATION: Exactly 9 command paths in manifest
 
-        This validates the command simplification from 20 to 8:
-        - Original: 20 commands
-        - Simplified: 8 active commands
-        - Archived: 13 commands (moved to commands/archive/)
+        This validates the active commands:
+        - 8 core workflow commands + 1 utility = 9 total
+        - Archived: 12 commands (moved to commands/archive/)
 
-        Math: 20 - 13 = 7... wait, that's 7 not 8.
-              Actually: 8 active commands total
-              * auto-implement
-              * align (unified)
-              * setup
-              * sync
-              * status
-              * health-check
-              * pipeline-status
-              = 7 core workflow commands (Issue #121 says "8" but PROJECT.md lists 7 core + 1 test)
+        Active commands:
+        * auto-implement
+        * create-issue (enhanced in Issue #122)
+        * align (unified)
+        * setup
+        * sync
+        * status
+        * health-check
+        * pipeline-status
+        * test
         """
-        assert len(command_files) == 8, (
-            f"Expected 8 command files in manifest, found {len(command_files)}\n"
+        assert len(command_files) == 9, (
+            f"Expected 9 command files in manifest, found {len(command_files)}\n"
             f"Actual files: {command_files}\n"
-            "Expected 8 active commands:\n"
+            "Expected 9 active commands:\n"
             "  1. auto-implement.md\n"
-            "  2. align.md (unified)\n"
-            "  3. setup.md\n"
-            "  4. sync.md\n"
-            "  5. status.md\n"
-            "  6. health-check.md\n"
-            "  7. pipeline-status.md\n"
-            "  8. test.md (utility)\n"
-            "Archived (13): All others moved to commands/archive/\n"
-            "See GitHub Issue #121 for details"
+            "  2. create-issue.md\n"
+            "  3. align.md (unified)\n"
+            "  4. setup.md\n"
+            "  5. sync.md\n"
+            "  6. status.md\n"
+            "  7. health-check.md\n"
+            "  8. pipeline-status.md\n"
+            "  9. test.md (utility)\n"
+            "Archived (12): All others moved to commands/archive/\n"
+            "See GitHub Issues #121, #122 for details"
         )
 
     def test_manifest_command_paths_format(self, command_files):

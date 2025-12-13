@@ -34,6 +34,7 @@
       "files": [
         "plugins/autonomous-dev/commands/align.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
+        "plugins/autonomous-dev/commands/create-issue.md",
         "plugins/autonomous-dev/commands/health-check.md",
         "plugins/autonomous-dev/commands/pipeline-status.md",
         "plugins/autonomous-dev/commands/setup.md",
