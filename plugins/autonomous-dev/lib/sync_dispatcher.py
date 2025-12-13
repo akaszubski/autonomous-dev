@@ -1551,6 +1551,53 @@ class SyncDispatcher:
                 )
                 # settings_merge_result stays None - sync continues
 
+            # Step 2.6: Migrate hooks from array format to object format (Issue #135)
+            # This runs AFTER settings merge to catch any new hooks in array format
+            try:
+                from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+                settings_path = Path.home() / ".claude" / "settings.json"
+                if settings_path.exists():
+                    migration_result = migrate_hooks_to_object_format(settings_path)
+
+                    if migration_result['migrated']:
+                        # Migration performed - log success
+                        audit_log(
+                            "marketplace_sync",
+                            "hooks_migrated",
+                            {
+                                "project_path": str(self.project_path),
+                                "settings_path": str(settings_path),
+                                "backup_path": str(migration_result['backup_path']),
+                                "format": migration_result['format'],
+                            },
+                        )
+                        # Optionally notify user (this will be visible in sync result)
+                        # Note: We don't print here since sync_dispatcher returns a result object
+                    elif migration_result['error']:
+                        # Migration failed - log but don't block sync
+                        audit_log(
+                            "marketplace_sync",
+                            "hooks_migration_failed",
+                            {
+                                "project_path": str(self.project_path),
+                                "settings_path": str(settings_path),
+                                "error": migration_result['error'],
+                            },
+                        )
+                    # else: No migration needed (already object format or missing)
+
+            except Exception as e:
+                # Migration failed - log but don't block sync (non-blocking enhancement)
+                audit_log(
+                    "marketplace_sync",
+                    "hooks_migration_exception",
+                    {
+                        "project_path": str(self.project_path),
+                        "error": str(e),
+                    },
+                )
+
         except Exception as e:
             # Core sync failed - return failure
             return SyncResult(

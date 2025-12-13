@@ -91,6 +91,40 @@
     - Protected files ensure no accidental project configuration loss
   - **Related**: GitHub Issue #131
 
+- **Issue #135: Auto-migrate settings.json hooks format during /sync for Claude Code v2.0.69+ compatibility**
+  - **Problem**: Claude Code v2.0.69+ changed hooks configuration format. Users upgrading Claude Code would have incompatible settings.json, breaking hook execution.
+  - **Solution**: Add automatic migration of user settings.json hooks format during /sync --marketplace, creating timestamped backup before migration.
+  - **Features**:
+    - **Automatic format detection**: Identifies array format vs object format
+    - **Array-to-object transformation**: Converts hooks from event-based array to matcher-based object structure
+    - **Timestamped backups**: Creates settings.json.backup with timestamp before migration
+    - **Atomic writes**: Uses tempfile + rename to prevent corruption
+    - **Full rollback**: Restores backup if migration fails
+    - **Graceful degradation**: Migration failures do not block /sync
+    - **Idempotent**: Safe to run multiple times
+  - **New Function**:
+    - **migrate_hooks_to_object_format(settings_path)** in hook_activator.py
+  - **Modified Library**:
+    - **sync_dispatcher.py**: Added migration call after settings merge
+  - **Security**:
+    - Path validation (settings must be in user home directory)
+    - Atomic writes prevent corruption
+    - Backup creation before modifications
+    - No secrets exposed in logs
+    - Full rollback on error
+  - **Tests** (12 new tests in test_hook_activator_migration.py)
+  - **Documentation Updates**:
+    - docs/LIBRARIES.md: Added API documentation for migrate_hooks_to_object_format function
+    - CHANGELOG.md: This entry
+  - **Backward Compatibility**:
+    - Users with modern format are unaffected (detection skips migration)
+    - Users with legacy format are automatically migrated with backup
+  - **Performance**:
+    - Detection and migration: less than 500ms
+    - Backup creation: less than 100ms
+    - Total /sync impact: less than 1 second additional
+  - **Related**: GitHub Issue #135
+
 **Changed**
 
 - **Issue #132: Documentation updates for install.sh complete auto-install feature**

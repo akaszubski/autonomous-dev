@@ -902,30 +902,46 @@ See `docs/SECURITY.md` for comprehensive security guide
   # Result: modern['hooks']['PrePush'][0]['hooks'][0]['timeout'] == 5
   ```
 
-#### `_backup_settings(settings_path)` (NEW - Issue #112)
-- **Purpose**: Create timestamped backup before format migration
+#### migrate_hooks_to_object_format(settings_path) (NEW - Issue #135)
+- **Purpose**: Auto-migrate hooks from array format to object format during /sync --marketplace (Claude Code v2.0.69+ compatibility)
 - **Parameters**:
-  - `settings_path` (Path): Path to settings.json
-- **Returns**: `Path` to backup file
-- **Backup Strategy**:
-  - Timestamped filename: `settings.json.backup.YYYYMMDD_HHMMSS`
-  - Atomic write: tempfile + rename
-  - Secure permissions: 0o600 (user-only)
-- **Path Validation**: Via security_utils (CWE-22, CWE-59 prevention)
-- **Raises**: `ActivationError` if backup fails
+  - settings_path (Path): Path to settings.json (typically user home/.claude/settings.json)
+- **Returns**: Dict with keys:
+  - migrated (bool): True if migration was performed
+  - backup_path (Optional[Path]): Path to timestamped backup if migrated
+  - format (str): Detected format - array (needs migration), object (already modern), invalid, or missing
+  - error (Optional[str]): Error message if migration failed
+- **Format Detection**:
+  - **Array format** (pre-v2.0.69): Array of hook objects with event and command fields
+  - **Object format** (v2.0.69+): Object keyed by event name with nested matcher and hooks arrays
+- **Migration Steps**:
+  1. Check if file exists (returns format: missing if not)
+  2. Read and parse JSON (graceful error handling for corrupted files)
+  3. Detect format (array vs object)
+  4. If array format: Create timestamped backup, transform array to object structure, write atomically (tempfile + rename), return success with backup path
+  5. If migration fails: Rollback from backup (no partial migrations)
+- **Security** (CWE-22, CWE-362, CWE-404 prevention):
+  - Path validation (settings must be in user home/.claude/)
+  - Atomic writes prevent corruption
+  - Backup creation before modifications
+  - No secrets exposed in logs
+  - Full rollback on error
+- **Integration**: Called automatically during /sync --marketplace after settings merge
+- **Non-blocking**: Migration failures do not stop sync (graceful degradation)
 
 ### Security
 - Path validation via security_utils
-- Audit logging to `logs/security_audit.log`
+- Audit logging to logs/security_audit.log
 - Secure permissions (0o600)
 - Backup creation before format migration
 
 ### Error Handling
-- Non-blocking (activation failures don't block plugin update)
+- Non-blocking (activation failures do not block plugin update)
 - Graceful degradation if migration fails (existing settings preserved)
 
-### Format Migration (Issue #112)
-- **Automatic**: Runs during `activate_hooks()` if legacy format detected
+### Format Migration (Issue #112 and Issue #135)
+- **Issue #112**: Automatic migration during activate_hooks() if legacy format detected
+- **Issue #135**: Automatic migration during /sync --marketplace for user settings
 - **Transparent**: Backup created before any changes
 - **Idempotent**: Safe to run multiple times
 - **Backwards Compatible**: Legacy settings continue to work unchanged
@@ -933,13 +949,16 @@ See `docs/SECURITY.md` for comprehensive security guide
 ### Test Coverage
 - 41 unit tests (first install, updates, merge logic, error cases, malformed JSON)
 - 28 migration tests (format detection, legacy-to-CC2 conversion, backup creation)
+- 12 tests for Issue #135 migration (array-to-object format, backup creation, rollback)
 
 ### Used By
 - plugin_updater.py for /update-plugin command
 - activate_hooks() for automatic format migration during install/update
+- sync_dispatcher.py for /sync --marketplace command (Issue #135)
 
 ### Related
 - GitHub Issue #112 (Hook Format Migration to Claude Code 2.0)
+- GitHub Issue #135 (Auto-migrate settings.json hooks format during /sync)
 
 ---
 

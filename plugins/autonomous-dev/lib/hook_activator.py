@@ -465,6 +465,398 @@ def _backup_settings(settings_path: Path) -> Path:
         raise ActivationError(f"Failed to create settings backup: {e}") from e
 
 
+def migrate_hooks_to_object_format(settings_path: Path) -> Dict[str, Any]:
+    """Migrate settings.json from array format to object format (Issue #135).
+
+    Migrates user's ~/.claude/settings.json from OLD array-based hooks format
+    to NEW object-based format required by Claude Code v2.0.69+.
+
+    OLD Array Format (pre-v2.0.69):
+    {
+        "hooks": [
+            {"event": "PreToolUse", "command": "python hook.py"},
+            {"event": "SubagentStop", "command": "python log.py"}
+        ]
+    }
+
+    NEW Object Format (v2.0.69+):
+    {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "*", "hooks": [{"type": "command", "command": "python hook.py", "timeout": 5}]}
+            ],
+            "SubagentStop": [
+                {"matcher": "*", "hooks": [{"type": "command", "command": "python log.py", "timeout": 5}]}
+            ]
+        }
+    }
+
+    Migration Steps:
+    1. Check if file exists → Return 'missing' if not
+    2. Read and parse JSON → Handle malformed gracefully
+    3. Detect format:
+       - hooks is list → array format (needs migration)
+       - hooks is dict → object format (already migrated, skip)
+       - hooks missing/invalid → invalid format
+    4. If array format:
+       a. Create timestamped backup
+       b. Transform array to object (group by event, wrap in CC2 structure)
+       c. Write atomically (tempfile + rename)
+       d. Return success with backup path
+    5. Rollback from backup on any failure
+
+    Args:
+        settings_path: Path to settings.json (typically ~/.claude/settings.json)
+
+    Returns:
+        dict with keys:
+            - 'migrated': bool (True if migration performed)
+            - 'backup_path': Optional[Path] (backup location if migrated)
+            - 'format': str ('array', 'object', 'invalid', 'missing')
+            - 'error': Optional[str] (error message if failed)
+
+    Security:
+    - Validates settings_path is in ~/.claude/ directory (CWE-22)
+    - Uses atomic writes to prevent corruption (CWE-362)
+    - Creates backup before any modifications (CWE-404)
+    - Never exposes secrets in logs
+    - Rolls back on any error (no partial migrations)
+
+    Example:
+        >>> from pathlib import Path
+        >>> settings_path = Path.home() / ".claude" / "settings.json"
+        >>> result = migrate_hooks_to_object_format(settings_path)
+        >>> if result['migrated']:
+        ...     print(f"Migrated! Backup: {result['backup_path']}")
+        >>> else:
+        ...     print(f"No migration needed: {result['format']}")
+    """
+    # Step 1: Check if file exists
+    if not settings_path.exists():
+        return {
+            'migrated': False,
+            'backup_path': None,
+            'format': 'missing',
+            'error': None
+        }
+
+    # Validate settings path (security)
+    try:
+        security_utils.validate_path(
+            settings_path,
+            purpose="settings.json for array-to-object migration"
+        )
+    except (ValueError, FileNotFoundError) as e:
+        return {
+            'migrated': False,
+            'backup_path': None,
+            'format': 'invalid',
+            'error': f"Path validation failed: {e}"
+        }
+
+    # Step 2: Read and parse JSON
+    try:
+        content = settings_path.read_text(encoding="utf-8")
+
+        # Handle empty file
+        if not content.strip():
+            # Empty file → treat as missing hooks, replace with template
+            template_settings = {"hooks": {}}
+            settings_path.write_text(json.dumps(template_settings, indent=2))
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'missing',
+                'error': None
+            }
+
+        settings_data = json.loads(content)
+
+    except json.JSONDecodeError as e:
+        # Malformed JSON → backup corrupted file, replace with template
+        try:
+            # Create backup of corrupted file
+            backup_path = _backup_settings(settings_path)
+
+            # Replace with template
+            template_settings = {"hooks": {}}
+            settings_path.write_text(json.dumps(template_settings, indent=2))
+
+            security_utils.audit_log(
+                event_type="hook_migration",
+                status="corrupted_file_replaced",
+                context={
+                    "operation": "migrate_hooks_to_object_format",
+                    "error": str(e),
+                    "backup_path": str(backup_path),
+                    "settings_path": str(settings_path)
+                }
+            )
+
+            return {
+                'migrated': False,
+                'backup_path': backup_path,
+                'format': 'invalid',
+                'error': f"Malformed JSON replaced with template (backup created): {e}"
+            }
+
+        except Exception as backup_error:
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'invalid',
+                'error': f"Failed to handle malformed JSON: {backup_error}"
+            }
+
+    except OSError as e:
+        return {
+            'migrated': False,
+            'backup_path': None,
+            'format': 'invalid',
+            'error': f"Failed to read settings file: {e}"
+        }
+
+    # Step 3: Detect format
+    if 'hooks' not in settings_data:
+        # Missing hooks key → add it and write back
+        settings_data['hooks'] = {}
+        try:
+            settings_path.write_text(json.dumps(settings_data, indent=2))
+        except OSError as e:
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'object',
+                'error': f"Failed to write settings with hooks key: {e}"
+            }
+        return {
+            'migrated': False,
+            'backup_path': None,
+            'format': 'object',
+            'error': None
+        }
+
+    hooks = settings_data['hooks']
+
+    # Check if hooks is array (legacy format)
+    if isinstance(hooks, list):
+        # Array format detected → needs migration
+        format_type = 'array'
+        needs_migration = True
+
+    elif isinstance(hooks, dict):
+        # Object format → already migrated
+        return {
+            'migrated': False,
+            'backup_path': None,
+            'format': 'object',
+            'error': None
+        }
+
+    else:
+        # Invalid hooks structure
+        try:
+            # Create backup of invalid file
+            backup_path = _backup_settings(settings_path)
+
+            # Replace with template
+            template_settings = {"hooks": {}}
+            settings_path.write_text(json.dumps(template_settings, indent=2))
+
+            security_utils.audit_log(
+                event_type="hook_migration",
+                status="invalid_structure_replaced",
+                context={
+                    "operation": "migrate_hooks_to_object_format",
+                    "error": f"hooks is {type(hooks).__name__}, expected list or dict",
+                    "backup_path": str(backup_path),
+                    "settings_path": str(settings_path)
+                }
+            )
+
+            return {
+                'migrated': False,
+                'backup_path': backup_path,
+                'format': 'invalid',
+                'error': f"Invalid hooks structure (type: {type(hooks).__name__}), replaced with template"
+            }
+
+        except Exception as backup_error:
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'invalid',
+                'error': f"Failed to handle invalid structure: {backup_error}"
+            }
+
+    # Step 4: Perform migration (array → object)
+    backup_path = None
+    try:
+        # 4a. Create timestamped backup
+        backup_path = _backup_settings(settings_path)
+
+        security_utils.audit_log(
+            event_type="hook_migration",
+            status="backup_created",
+            context={
+                "operation": "migrate_hooks_to_object_format",
+                "settings_path": str(settings_path),
+                "backup_path": str(backup_path),
+                "format": "array"
+            }
+        )
+
+        # 4b. Transform array to object
+        # Group hooks by event
+        object_hooks = {}
+
+        for hook_entry in hooks:
+            if not isinstance(hook_entry, dict):
+                # Skip invalid entries
+                continue
+
+            event = hook_entry.get('event')
+            command = hook_entry.get('command')
+
+            if not event or not command:
+                # Skip entries without required fields
+                continue
+
+            # Create CC2 structure: nested object with matcher and timeout
+            # Preserve custom matcher if present, otherwise default to "*"
+            matcher = hook_entry.get('matcher', '*')
+
+            # Preserve custom timeout if present, otherwise default to 5
+            timeout = hook_entry.get('timeout', 5)
+
+            hook_config = {
+                "matcher": matcher,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": command,
+                        "timeout": timeout
+                    }
+                ]
+            }
+
+            # Preserve additional matcher fields (glob, path, etc.)
+            for key in ['glob', 'path']:
+                if key in hook_entry:
+                    hook_config[key] = hook_entry[key]
+
+            # Add to object hooks, grouped by event
+            if event not in object_hooks:
+                object_hooks[event] = []
+
+            object_hooks[event].append(hook_config)
+
+        # Update settings_data with migrated hooks
+        migrated_settings = settings_data.copy()
+        migrated_settings['hooks'] = object_hooks
+
+        # 4c. Write atomically (tempfile + rename)
+        fd = None
+        temp_path = None
+        try:
+            fd, temp_path = tempfile.mkstemp(
+                dir=str(settings_path.parent),
+                prefix=".settings-migrate-",
+                suffix=".json.tmp"
+            )
+
+            # Write migrated content to temp file
+            migrated_content = json.dumps(migrated_settings, indent=2)
+            os.write(fd, migrated_content.encode("utf-8"))
+            os.close(fd)
+            fd = None
+
+            # Set secure permissions (user-only read/write)
+            try:
+                os.chmod(temp_path, 0o600)
+            except (OSError, FileNotFoundError):
+                # If chmod fails in test scenarios (mocked mkstemp), continue
+                pass
+
+            # Atomic rename to final settings path
+            os.rename(temp_path, settings_path)
+
+            security_utils.audit_log(
+                event_type="hook_migration",
+                status="success",
+                context={
+                    "operation": "migrate_hooks_to_object_format",
+                    "settings_path": str(settings_path),
+                    "backup_path": str(backup_path),
+                    "events_migrated": list(object_hooks.keys()),
+                    "total_hooks": sum(len(v) for v in object_hooks.values())
+                }
+            )
+
+            return {
+                'migrated': True,
+                'backup_path': backup_path,
+                'format': format_type,
+                'error': None
+            }
+
+        except OSError as write_error:
+            # Clean up temp file on write error
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+
+            raise write_error
+
+    except Exception as e:
+        # Step 5: Rollback on failure
+        if backup_path and backup_path.exists():
+            try:
+                # Restore from backup
+                backup_content = backup_path.read_text()
+                settings_path.write_text(backup_content)
+
+                security_utils.audit_log(
+                    event_type="hook_migration",
+                    status="rollback_success",
+                    context={
+                        "operation": "migrate_hooks_to_object_format",
+                        "settings_path": str(settings_path),
+                        "backup_path": str(backup_path),
+                        "error": str(e)
+                    }
+                )
+
+            except Exception as rollback_error:
+                security_utils.audit_log(
+                    event_type="hook_migration",
+                    status="rollback_failure",
+                    context={
+                        "operation": "migrate_hooks_to_object_format",
+                        "settings_path": str(settings_path),
+                        "backup_path": str(backup_path),
+                        "original_error": str(e),
+                        "rollback_error": str(rollback_error)
+                    }
+                )
+
+        # Return failure result
+        return {
+            'migrated': False,
+            'backup_path': backup_path,
+            'format': format_type if 'format_type' in locals() else 'unknown',
+            'error': f"Migration failed: {e}"
+        }
+
+
 # ============================================================================
 # Hook Activator Class
 # ============================================================================

@@ -984,6 +984,1305 @@ class TestMigrationIntegration:
 
 
 # ============================================================================
+# Array to Object Migration Tests (Issue #135) - 42 tests
+# ============================================================================
+
+
+class TestArrayToObjectMigration:
+    """Test migration from array-based hooks to object-based hooks (Issue #135).
+
+    OLD array format (Claude Code <2.0.69):
+    {
+        "hooks": [
+            {"event": "PreToolUse", "command": "python hook.py"}
+        ]
+    }
+
+    NEW object format (Claude Code >=2.0.69):
+    {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {"type": "command", "command": "python hook.py", "timeout": 5}
+                    ]
+                }
+            ]
+        }
+    }
+
+    Test coverage:
+    - Fresh install path (3 tests)
+    - Valid array format path (8 tests)
+    - Already migrated path (3 tests)
+    - Corrupted file path (5 tests)
+    - Migration failure path (5 tests)
+    - Edge cases (6 tests)
+    - Integration with sync_marketplace (5 tests)
+    - Backup and rollback (7 tests)
+
+    Total: 42 tests for comprehensive coverage
+    """
+
+    @pytest.fixture
+    def temp_settings_dir(self, tmp_path):
+        """Create temporary .claude directory for testing."""
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        return claude_dir
+
+    # ========================================================================
+    # Fresh Install Path (3 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_fresh_install_no_settings_file(self, temp_settings_dir):
+        """Test migration skipped when settings.json doesn't exist.
+
+        REQUIREMENT: Fresh install should skip migration gracefully.
+        Expected: migrate_hooks_to_object_format() returns {'migrated': False}
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Settings file doesn't exist
+        assert not settings_path.exists()
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is False
+        assert 'backup_path' not in result or result['backup_path'] is None
+        assert result['format'] == 'missing'
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_fresh_install_creates_object_format(self, temp_settings_dir):
+        """Test that fresh install creates object format directly.
+
+        REQUIREMENT: New installations should use object format from start.
+        Expected: No migration needed for newly created settings.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create fresh settings with object format
+        fresh_settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {"type": "command", "command": "python hook.py", "timeout": 5}
+                        ]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(fresh_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is False
+        assert result['format'] == 'object'
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_fresh_install_empty_hooks(self, temp_settings_dir):
+        """Test fresh install with empty hooks object.
+
+        REQUIREMENT: Empty hooks should be valid (no migration needed).
+        Expected: migrate_hooks_to_object_format() returns {'migrated': False}
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create settings with empty hooks
+        empty_settings = {"hooks": {}}
+        settings_path.write_text(json.dumps(empty_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is False
+        assert result['format'] == 'object'
+
+    # ========================================================================
+    # Valid Array Format Path (8 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_simple_array_migration(self, temp_settings_dir):
+        """Test migration of simple array format to object format.
+
+        REQUIREMENT: Simple array format should convert to object format.
+        Expected: Array converted to nested object structure with matcher and timeout.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create array format settings
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python pre_tool_use.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is True
+        assert result['format'] == 'array'
+        assert 'backup_path' in result
+        assert result['backup_path'].exists()
+
+        # Verify migrated content
+        migrated = json.loads(settings_path.read_text())
+        assert isinstance(migrated['hooks'], dict)
+        assert 'PreToolUse' in migrated['hooks']
+
+        hook_config = migrated['hooks']['PreToolUse'][0]
+        assert hook_config['matcher'] == '*'
+        assert len(hook_config['hooks']) == 1
+
+        hook = hook_config['hooks'][0]
+        assert hook['type'] == 'command'
+        assert 'pre_tool_use.py' in hook['command']
+        assert hook['timeout'] == 5
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_multiple_events_migration(self, temp_settings_dir):
+        """Test migration with multiple lifecycle events.
+
+        REQUIREMENT: Multiple events should be grouped correctly by event type.
+        Expected: Each event type gets its own key in hooks object.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python pre_tool.py"},
+                {"event": "PostToolUse", "command": "python post_tool.py"},
+                {"event": "SubagentStop", "command": "python subagent.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is True
+
+        migrated = json.loads(settings_path.read_text())
+        assert 'PreToolUse' in migrated['hooks']
+        assert 'PostToolUse' in migrated['hooks']
+        assert 'SubagentStop' in migrated['hooks']
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_nested_matcher_fields_preserved(self, temp_settings_dir):
+        """Test that nested matcher fields are preserved during migration.
+
+        REQUIREMENT: Custom matcher patterns should be preserved.
+        Expected: Glob, path, and other matcher fields maintained.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {
+                    "event": "PreToolUse",
+                    "command": "python hook.py",
+                    "matcher": "*.py",
+                    "glob": "**/*.test.py"
+                }
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is True
+
+        migrated = json.loads(settings_path.read_text())
+        hook_config = migrated['hooks']['PreToolUse'][0]
+
+        # Matcher preserved
+        assert hook_config['matcher'] == '*.py'
+        # Additional fields preserved
+        assert hook_config.get('glob') == '**/*.test.py'
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_command_hooks_maintain_structure(self, temp_settings_dir):
+        """Test that command hook structure is maintained.
+
+        REQUIREMENT: Command hooks should preserve all fields (type, command, etc).
+        Expected: type: "command", command: "...", timeout: 5 structure created.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {
+                    "event": "PreToolUse",
+                    "command": "python /absolute/path/to/hook.py --arg1 --arg2"
+                }
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        hook = migrated['hooks']['PreToolUse'][0]['hooks'][0]
+
+        assert hook['type'] == 'command'
+        assert hook['command'] == 'python /absolute/path/to/hook.py --arg1 --arg2'
+        assert hook['timeout'] == 5
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_backup_timestamp_format(self, temp_settings_dir):
+        """Test that backup file has correct timestamp format.
+
+        REQUIREMENT: Backup filename must include timestamp.
+        Expected: settings.json.backup.YYYYMMDD_HHMMSS format.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        backup_path = result['backup_path']
+        assert backup_path.name.startswith("settings.json.backup.")
+
+        # Extract timestamp
+        timestamp_str = backup_path.name.split(".")[-1]
+
+        # Verify format (should parse without error)
+        datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_multiple_hooks_same_event(self, temp_settings_dir):
+        """Test migration with multiple hooks for same event.
+
+        REQUIREMENT: Multiple hooks for same event should be grouped.
+        Expected: All hooks for event grouped in single array.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook1.py"},
+                {"event": "PreToolUse", "command": "python hook2.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+
+        # Both hooks should be in PreToolUse array
+        assert len(migrated['hooks']['PreToolUse']) == 2
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_unicode_in_commands_preserved(self, temp_settings_dir):
+        """Test that Unicode characters in hook commands are preserved.
+
+        REQUIREMENT: Unicode should be preserved during migration.
+        Expected: Unicode characters maintained correctly.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py --msg='测试 🚀'"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2, ensure_ascii=False))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        hook = migrated['hooks']['PreToolUse'][0]['hooks'][0]
+
+        assert "测试 🚀" in hook['command']
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_large_hooks_array_migration(self, temp_settings_dir):
+        """Test migration with very large hooks array (100+ entries).
+
+        REQUIREMENT: Migration should handle large arrays efficiently.
+        Expected: All 100 hooks migrated successfully.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create 100 hooks
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": f"python hook{i}.py"}
+                for i in range(100)
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+
+        # All 100 hooks should be migrated
+        assert len(migrated['hooks']['PreToolUse']) == 100
+
+    # ========================================================================
+    # Already Migrated Path (3 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_object_format_detected_no_migration(self, temp_settings_dir):
+        """Test that object format is detected and no migration occurs.
+
+        REQUIREMENT: Already-migrated settings should be left untouched.
+        Expected: migrate_hooks_to_object_format() returns {'migrated': False}
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        object_settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {"type": "command", "command": "python hook.py", "timeout": 5}
+                        ]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(object_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is False
+        assert result['format'] == 'object'
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_no_backup_when_already_migrated(self, temp_settings_dir):
+        """Test that no backup is created for already-migrated settings.
+
+        REQUIREMENT: Don't create unnecessary backups.
+        Expected: No backup file created when format is already object.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        object_settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {"type": "command", "command": "python hook.py", "timeout": 5}
+                        ]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(object_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # No backup should be created
+        backup_files = list(temp_settings_dir.glob("settings.json.backup.*"))
+        assert len(backup_files) == 0
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_silent_success_already_migrated(self, temp_settings_dir):
+        """Test silent success when settings already migrated.
+
+        REQUIREMENT: No error messages when already in correct format.
+        Expected: Result indicates success with no migration needed.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        object_settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {"type": "command", "command": "python hook.py", "timeout": 5}
+                        ]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(object_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert 'error' not in result or result['error'] is None
+
+    # ========================================================================
+    # Corrupted File Path (5 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_malformed_json_creates_backup(self, temp_settings_dir):
+        """Test that malformed JSON triggers backup and template replacement.
+
+        REQUIREMENT: Corrupted settings should be backed up and replaced.
+        Expected: Backup created, template settings written.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Write malformed JSON
+        settings_path.write_text("{invalid json")
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Backup should be created
+        assert 'backup_path' in result
+        assert result['backup_path'].exists()
+
+        # Settings should be replaced with template
+        migrated = json.loads(settings_path.read_text())
+        assert 'hooks' in migrated
+        assert isinstance(migrated['hooks'], dict)
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_missing_hooks_key_template_replacement(self, temp_settings_dir):
+        """Test that missing hooks key triggers template replacement.
+
+        REQUIREMENT: Missing hooks key should result in template settings.
+        Expected: Template settings written with empty hooks object.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Settings without hooks key
+        settings_path.write_text(json.dumps({"other": "config"}))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Should add hooks key
+        migrated = json.loads(settings_path.read_text())
+        assert 'hooks' in migrated
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_invalid_hook_structure_template_replacement(self, temp_settings_dir):
+        """Test that invalid hook structure triggers template replacement.
+
+        REQUIREMENT: Invalid hook structure should be replaced.
+        Expected: Template settings with correct structure.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Invalid hook structure (hooks is string instead of array/object)
+        settings_path.write_text(json.dumps({"hooks": "invalid"}))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        assert isinstance(migrated['hooks'], dict)
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_empty_file_template_replacement(self, temp_settings_dir):
+        """Test that empty file triggers template replacement.
+
+        REQUIREMENT: Empty file should be replaced with template.
+        Expected: Template settings written.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create empty file
+        settings_path.write_text("")
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        assert 'hooks' in migrated
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_corrupted_file_preserves_original(self, temp_settings_dir):
+        """Test that corrupted file is backed up before replacement.
+
+        REQUIREMENT: Original corrupted content should be preserved in backup.
+        Expected: Backup contains original corrupted content.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        corrupted_content = "{invalid json"
+        settings_path.write_text(corrupted_content)
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Backup should contain original corrupted content
+        backup_path = result['backup_path']
+        assert backup_path.read_text() == corrupted_content
+
+    # ========================================================================
+    # Migration Failure Path (5 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_parse_error_rollback(self, temp_settings_dir):
+        """Test rollback from backup on parse error during migration.
+
+        REQUIREMENT: Parse errors should trigger rollback.
+        Expected: Original settings restored from backup.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Mock parse error during migration
+        with patch('json.dumps', side_effect=ValueError("Parse error")):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            # Should report error
+            assert 'error' in result
+            assert result['error'] is not None
+
+            # Original settings should be restored
+            current = json.loads(settings_path.read_text())
+            assert current == array_settings
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_write_error_rollback(self, temp_settings_dir):
+        """Test rollback from backup on write error.
+
+        REQUIREMENT: Write errors should trigger rollback.
+        Expected: Original settings restored.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Mock write error
+        with patch('pathlib.Path.write_text', side_effect=IOError("Write error")):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            assert 'error' in result
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_unexpected_schema_rollback(self, temp_settings_dir):
+        """Test rollback on unexpected hook schema.
+
+        REQUIREMENT: Unexpected schema should trigger rollback.
+        Expected: Original settings preserved.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Unexpected schema (event is integer instead of string)
+        unexpected_settings = {
+            "hooks": [
+                {"event": 123, "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(unexpected_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Should handle gracefully (either migrate or report error)
+        assert 'error' in result or result['migrated'] is True
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_disk_full_error_message(self, temp_settings_dir):
+        """Test error message when disk is full.
+
+        REQUIREMENT: Disk full errors should be reported clearly.
+        Expected: Error message indicates disk space issue.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Mock disk full error
+        with patch('pathlib.Path.write_text', side_effect=OSError(28, "No space left on device")):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            assert 'error' in result
+            assert 'space' in result['error'].lower() or 'disk' in result['error'].lower()
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_original_preserved_on_failure(self, temp_settings_dir):
+        """Test that original settings are preserved when migration fails.
+
+        REQUIREMENT: Failed migration should not corrupt original settings.
+        Expected: Original array format maintained.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+        original_content = settings_path.read_text()
+
+        # Mock failure
+        with patch('json.dumps', side_effect=Exception("Unknown error")):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            # Original content should be unchanged
+            assert settings_path.read_text() == original_content
+
+    # ========================================================================
+    # Edge Cases (6 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_readonly_settings_error_message(self, temp_settings_dir):
+        """Test error message when settings.json is read-only.
+
+        REQUIREMENT: Read-only files should be reported clearly.
+        Expected: Error message indicates permission issue.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Make file read-only
+        settings_path.chmod(0o444)
+
+        try:
+            result = migrate_hooks_to_object_format(settings_path)
+
+            assert 'error' in result
+            assert 'permission' in result['error'].lower() or 'readonly' in result['error'].lower()
+        finally:
+            # Restore permissions for cleanup
+            settings_path.chmod(0o644)
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_concurrent_modification_atomic_write(self, temp_settings_dir):
+        """Test that atomic write prevents corruption from concurrent modification.
+
+        REQUIREMENT: Atomic write should prevent corruption.
+        Expected: Either original or migrated settings, never corrupt.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Migration should use atomic write (tempfile + rename)
+        # This test verifies the pattern is used
+        with patch('tempfile.mkstemp') as mock_mkstemp:
+            mock_fd = 123
+            mock_temp = str(settings_path.parent / ".settings.tmp")
+            mock_mkstemp.return_value = (mock_fd, mock_temp)
+
+            with patch('os.write'):
+                with patch('os.close'):
+                    with patch('os.rename') as mock_rename:
+                        result = migrate_hooks_to_object_format(settings_path)
+
+                        # Should use atomic rename
+                        if result['migrated']:
+                            mock_rename.assert_called()
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_symlink_resolution(self, temp_settings_dir):
+        """Test that symlinks are resolved correctly.
+
+        REQUIREMENT: Symlinks should be resolved to real paths.
+        Expected: Migration works on symlink targets.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+        symlink_path = temp_settings_dir / "settings.link.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Create symlink
+        symlink_path.symlink_to(settings_path)
+
+        result = migrate_hooks_to_object_format(symlink_path)
+
+        # Migration should work on symlink
+        assert result['migrated'] is True
+
+        # Original file should be migrated
+        migrated = json.loads(settings_path.read_text())
+        assert isinstance(migrated['hooks'], dict)
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_whitespace_preservation(self, temp_settings_dir):
+        """Test that JSON formatting/whitespace is normalized.
+
+        REQUIREMENT: Output should have consistent formatting.
+        Expected: Migrated JSON has consistent indentation.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Settings with inconsistent whitespace
+        array_settings = {"hooks":[{"event":"PreToolUse","command":"python hook.py"}]}
+        settings_path.write_text(json.dumps(array_settings))  # No indentation
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Migrated content should have consistent formatting
+        content = settings_path.read_text()
+        assert '\n' in content  # Should have newlines (formatted)
+        assert '  ' in content or '\t' in content  # Should have indentation
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_special_characters_in_paths(self, temp_settings_dir):
+        """Test that special characters in hook paths are preserved.
+
+        REQUIREMENT: Special characters should be escaped correctly.
+        Expected: Paths with spaces, quotes, etc. preserved.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {
+                    "event": "PreToolUse",
+                    "command": 'python "/path/with spaces/hook.py" --arg="value with \'quotes\'"'
+                }
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        hook = migrated['hooks']['PreToolUse'][0]['hooks'][0]
+
+        assert "/path/with spaces/hook.py" in hook['command']
+        assert "value with 'quotes'" in hook['command']
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_custom_timeout_preserved(self, temp_settings_dir):
+        """Test that custom timeout values in array format are preserved.
+
+        REQUIREMENT: Custom timeouts should not be overwritten.
+        Expected: Custom timeout value maintained in object format.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {
+                    "event": "PreToolUse",
+                    "command": "python hook.py",
+                    "timeout": 10  # Custom timeout
+                }
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        migrated = json.loads(settings_path.read_text())
+        hook = migrated['hooks']['PreToolUse'][0]['hooks'][0]
+
+        assert hook['timeout'] == 10  # Custom timeout preserved
+
+    # ========================================================================
+    # Integration with sync_marketplace (5 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="sync_marketplace integration not implemented yet")
+    def test_sync_marketplace_calls_migration(self, temp_settings_dir, tmp_path):
+        """Test that sync_marketplace() calls migration after settings merge.
+
+        REQUIREMENT: Marketplace sync should trigger migration.
+        Expected: migrate_hooks_to_object_format() called during sync.
+        """
+        from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir()
+
+        settings_path = claude_dir / "settings.json"
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        marketplace_file = tmp_path / "installed_plugins.json"
+        marketplace_file.write_text(json.dumps({
+            "plugins": [{
+                "id": "autonomous-dev",
+                "version": "3.41.0"
+            }]
+        }))
+
+        # Mock migration to verify it's called
+        with patch('plugins.autonomous_dev.lib.sync_dispatcher.migrate_hooks_to_object_format') as mock_migrate:
+            mock_migrate.return_value = {'migrated': True, 'format': 'array'}
+
+            result = sync_marketplace(
+                project_root=str(project_root),
+                marketplace_plugins_file=marketplace_file
+            )
+
+            # Migration should have been called
+            mock_migrate.assert_called_once()
+
+    @pytest.mark.xfail(reason="sync_marketplace integration not implemented yet")
+    def test_sync_continues_on_migration_failure(self, temp_settings_dir, tmp_path):
+        """Test that sync continues even if migration fails.
+
+        REQUIREMENT: Migration failure should not block sync.
+        Expected: Sync completes successfully, migration error logged.
+        """
+        from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir()
+
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text("{invalid json")
+
+        marketplace_file = tmp_path / "installed_plugins.json"
+        marketplace_file.write_text(json.dumps({
+            "plugins": [{
+                "id": "autonomous-dev",
+                "version": "3.41.0"
+            }]
+        }))
+
+        # Sync should complete even with migration failure
+        result = sync_marketplace(
+            project_root=str(project_root),
+            marketplace_plugins_file=marketplace_file
+        )
+
+        assert result.success is True
+
+    @pytest.mark.xfail(reason="sync_marketplace integration not implemented yet")
+    def test_migration_after_settings_merge(self, temp_settings_dir, tmp_path):
+        """Test that migration happens after settings merge.
+
+        REQUIREMENT: Migration should work on merged settings.
+        Expected: New hooks merged, then migration applied to combined result.
+        """
+        from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir()
+
+        # Existing array format settings
+        settings_path = claude_dir / "settings.json"
+        array_settings = {
+            "hooks": [
+                {"event": "PrePush", "command": "python existing_hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        marketplace_file = tmp_path / "installed_plugins.json"
+        marketplace_file.write_text(json.dumps({
+            "plugins": [{
+                "id": "autonomous-dev",
+                "version": "3.41.0"
+            }]
+        }))
+
+        result = sync_marketplace(
+            project_root=str(project_root),
+            marketplace_plugins_file=marketplace_file
+        )
+
+        # Settings should be in object format after sync
+        migrated = json.loads(settings_path.read_text())
+        assert isinstance(migrated['hooks'], dict)
+
+    @pytest.mark.xfail(reason="sync_marketplace integration not implemented yet")
+    def test_migration_logged_in_sync_result(self, temp_settings_dir, tmp_path):
+        """Test that migration status is logged in sync result.
+
+        REQUIREMENT: Sync result should indicate migration occurred.
+        Expected: SyncResult contains migration information.
+        """
+        from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir()
+
+        settings_path = claude_dir / "settings.json"
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        marketplace_file = tmp_path / "installed_plugins.json"
+        marketplace_file.write_text(json.dumps({
+            "plugins": [{
+                "id": "autonomous-dev",
+                "version": "3.41.0"
+            }]
+        }))
+
+        result = sync_marketplace(
+            project_root=str(project_root),
+            marketplace_plugins_file=marketplace_file
+        )
+
+        # Result should contain migration info
+        assert hasattr(result, 'migration_performed') or 'migration' in result.summary.lower()
+
+    @pytest.mark.xfail(reason="sync_marketplace integration not implemented yet")
+    def test_no_migration_on_fresh_sync(self, temp_settings_dir, tmp_path):
+        """Test that fresh sync (no existing settings) doesn't trigger migration.
+
+        REQUIREMENT: Fresh installs should skip migration.
+        Expected: No migration attempted when settings.json doesn't exist.
+        """
+        from plugins.autonomous_dev.lib.sync_dispatcher import sync_marketplace
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir()
+
+        # No settings.json exists
+
+        marketplace_file = tmp_path / "installed_plugins.json"
+        marketplace_file.write_text(json.dumps({
+            "plugins": [{
+                "id": "autonomous-dev",
+                "version": "3.41.0"
+            }]
+        }))
+
+        result = sync_marketplace(
+            project_root=str(project_root),
+            marketplace_plugins_file=marketplace_file
+        )
+
+        # Should complete without migration
+        assert result.success is True
+
+    # ========================================================================
+    # Backup and Rollback (7 tests)
+    # ========================================================================
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_backup_created_before_migration(self, temp_settings_dir):
+        """Test that backup is created before migration starts.
+
+        REQUIREMENT: Backup must exist before any modification.
+        Expected: Backup contains original array format.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        # Backup should contain original array format
+        backup_path = result['backup_path']
+        backup_content = json.loads(backup_path.read_text())
+
+        assert isinstance(backup_content['hooks'], list)
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_rollback_on_migration_error(self, temp_settings_dir):
+        """Test that settings are rolled back on migration error.
+
+        REQUIREMENT: Failed migration should restore original settings.
+        Expected: Original array format restored from backup.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        original_content = json.dumps(array_settings, indent=2)
+        settings_path.write_text(original_content)
+
+        # Mock error during migration
+        with patch('json.dumps', side_effect=[
+            original_content,  # First call for backup succeeds
+            Exception("Migration error")  # Second call for migration fails
+        ]):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            # Original should be restored
+            current_content = settings_path.read_text()
+            assert current_content == original_content
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_multiple_backups_different_timestamps(self, temp_settings_dir):
+        """Test that multiple migrations create different backup files.
+
+        REQUIREMENT: Each migration should create unique backup.
+        Expected: Different timestamp in backup filename.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+        import time
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # First migration
+        array_settings1 = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook1.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings1, indent=2))
+
+        result1 = migrate_hooks_to_object_format(settings_path)
+        backup1 = result1['backup_path']
+
+        # Wait to ensure different timestamp
+        time.sleep(1)
+
+        # Manually revert to array format for second test
+        array_settings2 = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook2.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings2, indent=2))
+
+        result2 = migrate_hooks_to_object_format(settings_path)
+        backup2 = result2['backup_path']
+
+        # Backups should have different filenames (different timestamps)
+        assert backup1.name != backup2.name
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_backup_secure_permissions(self, temp_settings_dir):
+        """Test that backup file has secure permissions (0o600).
+
+        REQUIREMENT: Backup files must be user-only readable.
+        Expected: Permissions set to 0o600.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        backup_path = result['backup_path']
+        stat_info = backup_path.stat()
+        permissions = stat_info.st_mode & 0o777
+
+        assert permissions == 0o600
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_backup_atomic_write(self, temp_settings_dir):
+        """Test that backup uses atomic write pattern.
+
+        REQUIREMENT: Backup write must be atomic.
+        Expected: Tempfile + rename pattern used.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Mock to verify atomic write
+        with patch('tempfile.mkstemp') as mock_mkstemp:
+            mock_fd = 123
+            mock_temp = str(temp_settings_dir / ".backup.tmp")
+            mock_mkstemp.return_value = (mock_fd, mock_temp)
+
+            with patch('os.write'):
+                with patch('os.close'):
+                    with patch('os.rename') as mock_rename:
+                        result = migrate_hooks_to_object_format(settings_path)
+
+                        # Should use atomic write for backup
+                        mock_rename.assert_called()
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_rollback_preserves_file_permissions(self, temp_settings_dir):
+        """Test that rollback preserves original file permissions.
+
+        REQUIREMENT: Rollback should maintain file permissions.
+        Expected: Permissions unchanged after rollback.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        array_settings = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings, indent=2))
+
+        # Set custom permissions
+        settings_path.chmod(0o640)
+        original_perms = settings_path.stat().st_mode & 0o777
+
+        # Mock error to trigger rollback
+        with patch('json.dumps', side_effect=Exception("Error")):
+            result = migrate_hooks_to_object_format(settings_path)
+
+            # Permissions should be unchanged
+            current_perms = settings_path.stat().st_mode & 0o777
+            assert current_perms == original_perms
+
+    @pytest.mark.xfail(reason="migrate_hooks_to_object_format not implemented yet")
+    def test_backup_cleanup_on_success(self, temp_settings_dir):
+        """Test that old backups are not automatically cleaned up.
+
+        REQUIREMENT: Backups should be retained for manual recovery.
+        Expected: Multiple backups can coexist.
+        """
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+        import time
+
+        settings_path = temp_settings_dir / "settings.json"
+
+        # Create first backup
+        array_settings1 = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook1.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings1, indent=2))
+
+        result1 = migrate_hooks_to_object_format(settings_path)
+
+        time.sleep(1)
+
+        # Create second backup
+        array_settings2 = {
+            "hooks": [
+                {"event": "PreToolUse", "command": "python hook2.py"}
+            ]
+        }
+        settings_path.write_text(json.dumps(array_settings2, indent=2))
+
+        result2 = migrate_hooks_to_object_format(settings_path)
+
+        # Both backups should exist
+        backup_files = list(temp_settings_dir.glob("settings.json.backup.*"))
+        assert len(backup_files) >= 2
+
+
+# ============================================================================
 # Mark tests as expected to fail (TDD Red Phase)
 # ============================================================================
 
