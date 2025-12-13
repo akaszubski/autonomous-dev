@@ -19,17 +19,21 @@ One command. Full pipeline: research → plan → tests → code → review → 
 
 ## Quick Start
 
+**Step 1: Install**
 ```bash
-# Install (30 seconds)
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-
-# Restart Claude Code (Cmd+Q / Ctrl+Q), then:
-/setup
 ```
 
-That's it. Run `/auto-implement "your feature"` and watch 7 agents build it.
+**Step 2: Restart Claude Code**
+- Press `Cmd+Q` (Mac) or `Ctrl+Q` (Windows/Linux)
+- Reopen Claude Code
 
-> Need more install options? See [Install](#install) for prerequisites, plugin system, and troubleshooting.
+**Done!** All 7 commands and 22 agents are ready. Try:
+```bash
+/auto-implement "your feature description"
+```
+
+> **Optional**: Run `/setup` to create PROJECT.md with your project goals and constraints.
 
 ---
 
@@ -139,90 +143,51 @@ This is how Claude stays aligned — it reads PROJECT.md before every feature.
 |-------------|---------|
 | **Claude Code 2.0+** | [Download](https://claude.ai/download) |
 | **Python 3.9+** | `python3 --version` to verify |
-| **gh CLI** (GitHub) | `brew install gh && gh auth login` |
-| **Network** | HTTPS access to github.com (for curl installer) |
+| **gh CLI** (optional) | For GitHub automation: `brew install gh && gh auth login` |
 
-### One-Liner Install
+### Installation
 
 ```bash
-cd /path/to/your/project
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-Then:
-1. **Restart Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux)
-2. Run `/setup` to complete installation
+Then restart Claude Code (`Cmd+Q` / `Ctrl+Q`).
 
-That's it! Works for both fresh installs and updates.
+**What gets installed:**
+- `~/.claude/hooks/` - 48 automation hooks (global)
+- `~/.claude/lib/` - 68 Python libraries (global)
+- `.claude/commands/` - 7 slash commands (project)
+- `.claude/agents/` - 22 AI agents (project)
+- `.claude/scripts/`, `.claude/config/`, `.claude/templates/` - Supporting files
 
-### Install Options
+### Updating
 
-autonomous-dev is a **development system**, not a simple plugin. It requires global infrastructure that the marketplace can't configure:
-- Global hooks in `~/.claude/hooks/` (auto-approval, security validation)
-- Python libraries in `~/.claude/lib/` (agent dependencies)
-- Specific `~/.claude/settings.json` format (permission patterns)
-
-**Primary method: `install.sh`** (required for first install)
-- Configures global `~/.claude/` infrastructure
-- Two-phase bootstrap: download → setup wizard
-- Works for fresh installs, brownfield projects, and upgrades
-
-**Supplemental: Marketplace** (optional for updates)
-- Easy version browsing and updates
-- Only updates plugin files (not global infrastructure)
-- Requires `install.sh` to have run at least once
-
-The marketplace can download files, but it **cannot** create global directories, modify `~/.claude/settings.json`, or install dependencies. That's why `install.sh` exists.
-
-See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for the complete technical explanation of why marketplace-only installation doesn't work.
-
-### How It Works
-
-The installer uses a **two-phase architecture**:
-
-```
-install.sh → Downloads files to ~/.autonomous-dev-staging/
-           → Installs /setup command to .claude/commands/
-           → You restart Claude Code
-
-/setup     → Detects: FRESH, BROWNFIELD, or UPGRADE
-           → Installs plugin files intelligently
-           → Preserves your customizations
-           → Cleans up staging
+Same command as install - it detects existing installation and updates:
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-**Why two phases?** Claude Code caches commands at startup. The installer bootstraps `/setup` directly so it works even on fresh installs.
+Or use `/sync` from within Claude Code to fetch latest from GitHub.
 
-### Installation Types
-
-| Type | Detection | What Happens |
-|------|-----------|--------------|
-| **FRESH** | No `.claude/` directory | Copies all plugin files, guides PROJECT.md creation |
-| **BROWNFIELD** | Has `.claude/` but no plugin | Preserves your existing files, adds plugin around them |
-| **UPGRADE** | Has existing plugin | Updates plugin files, preserves all customizations |
-
-### Protected Files (Never Overwritten)
-
-- `PROJECT.md` - Your project definition
-- `.env`, `.env.local` - Your secrets
-- Custom hooks with your modifications
-- State files (`batch_state.json`, etc.)
-
-The `/setup` wizard analyzes each file and asks before touching anything you've customized.
-
-### Installation Troubleshooting
+### Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| `/setup` command not found | Fully restart Claude Code (Cmd+Q / Ctrl+Q), not just close window |
-| Network download failed | Check HTTPS access to github.com, or use plugin system instead |
-| Permission denied | Ensure `.claude/` directory is writable |
-| Staging directory stuck | Delete `~/.autonomous-dev-staging/` and re-run installer |
+| Commands not found | Fully restart Claude Code (`Cmd+Q` / `Ctrl+Q`), not just close window |
+| Network error | Check HTTPS access to github.com |
+| Permission denied | Ensure `~/.claude/` and `.claude/` are writable |
 
-For debugging, use verbose mode:
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --verbose
-```
+<details>
+<summary><b>Technical details</b></summary>
+
+autonomous-dev requires global infrastructure that the marketplace can't configure. The installer:
+1. Downloads all files to `~/.autonomous-dev-staging/`
+2. Installs global components to `~/.claude/` (hooks, libs, settings)
+3. Installs project components to `.claude/` (commands, agents, scripts, config, templates)
+4. Preserves existing files (PROJECT.md, .env, custom hooks)
+
+See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for why marketplace-only installation doesn't work.
+</details>
 
 ---
 
@@ -313,11 +278,11 @@ I want to add autonomous-dev to this existing project:
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| **Commands** | 20 | Slash commands for workflows |
-| **Agents** | 20 | Specialized AI for each SDLC stage |
+| **Commands** | 7 | Slash commands for workflows |
+| **Agents** | 22 | Specialized AI for each SDLC stage |
 | **Skills** | 28 | Domain knowledge (progressive disclosure) |
-| **Hooks** | 44 | Automatic validation on commits |
-| **Libraries** | 40+ | Reusable Python utilities |
+| **Hooks** | 48 | Automatic validation on commits |
+| **Libraries** | 68 | Reusable Python utilities |
 
 ### Key Agents
 
@@ -404,21 +369,18 @@ We document **typical performance**, not best-case marketing claims:
 ## Quick Reference
 
 ```bash
-# Install (one-liner)
+# Install
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
-# Restart Claude Code (Cmd+Q / Ctrl+Q), then run /setup
+# Then restart Claude Code (Cmd+Q / Ctrl+Q)
 
 # Daily workflow
 /auto-implement "issue #72"     # Single feature
 /batch-implement --issues 1 2 3 # Multiple features
 /clear                          # Reset context between batches
 
-# Check status
+# Maintenance
 /health-check                   # Verify installation
-/status                         # View alignment
-
-# Update (same as install - /setup detects upgrade)
-/update-plugin                  # Or re-run install.sh + /setup
+/sync                           # Update to latest version
 ```
 
 ---
