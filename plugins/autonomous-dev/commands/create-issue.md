@@ -11,8 +11,8 @@ Automate GitHub issue creation with research-backed, well-structured content and
 
 | Mode | Time | Description |
 |------|------|-------------|
-| **Default (thorough)** | 8-12 min | Full analysis, blocking duplicate check |
-| **--quick** | 3-5 min | Async scan, smart sections, no prompts |
+| **Default** | 8-12 min | Full analysis, blocking duplicate check, all sections |
+| **--quick** | 3-5 min | Async scan, essential sections only, no blocking prompts |
 
 ## Implementation
 
@@ -27,10 +27,10 @@ ARGUMENTS: {{ARGUMENTS}}
 Parse the ARGUMENTS to detect mode flags:
 
 ```
---quick    Fast mode (async scan, smart sections, no blocking prompts)
+--quick    Fast mode (async scan, essential sections only, no blocking prompts)
 ```
 
-**Default mode**: Thorough mode with full analysis, blocking duplicate check, all sections.
+**Default mode** (no flags): Thorough mode with full analysis, blocking duplicate check, all sections.
 
 Extract the feature request (everything except flags).
 
