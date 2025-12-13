@@ -178,6 +178,7 @@
         "plugins/autonomous-dev/lib/testing_tier_selector.py",
         "plugins/autonomous-dev/lib/tool_approval_audit.py",
         "plugins/autonomous-dev/lib/tool_validator.py",
+        "plugins/autonomous-dev/lib/uninstall_orchestrator.py",
         "plugins/autonomous-dev/lib/update_plugin.py",
         "plugins/autonomous-dev/lib/user_state_manager.py",
         "plugins/autonomous-dev/lib/validate_documentation_parity.py",

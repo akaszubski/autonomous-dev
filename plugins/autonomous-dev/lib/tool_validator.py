@@ -510,6 +510,10 @@ class ToolValidator:
                     expanded = os.path.expanduser(path_str)
                     return (False, f"Path {path_str} expands to home directory {expanded} which is outside project root")
 
+            # Whitelist system temp directories (safe for temporary file operations)
+            if path_str.startswith('/tmp/') or path_str.startswith('/var/tmp/') or path_str.startswith('/var/folders/'):
+                continue  # Skip containment check for temp directories
+
             # Convert to Path object
             try:
                 path = Path(path_str)
