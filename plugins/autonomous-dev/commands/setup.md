@@ -224,9 +224,9 @@ Then:
 
 ### Optional: Hook Configuration
 
-**Slash Commands Mode** (default):
+**Manual Mode** (default):
 - No additional config needed
-- User runs `/format`, `/test` manually
+- User runs formatting and testing tools manually
 
 **Automatic Hooks Mode**:
 ```json

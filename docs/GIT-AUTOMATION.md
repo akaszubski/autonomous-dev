@@ -118,7 +118,7 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 ### Workflow Steps
 
 **Step 1-2: Feature Completion**
-- `/auto-implement` runs through all 7 agents
+- `/auto-implement` runs through all 8 agents
 - Final validation completes with quality-validator agent
 
 **Step 3: Hook Activation**

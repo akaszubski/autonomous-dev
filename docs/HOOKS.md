@@ -278,8 +278,8 @@ Essential hooks for autonomous development workflow and security enforcement.
 
 ### enforce_pipeline_complete.py
 
-**Purpose**: Validates all 7 agents ran (v3.2.2+)
-**Checks**: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master
+**Purpose**: Validates all 8 agents ran (v3.2.2+)
+**Checks**: researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master
 **Lifecycle**: PreCommit
 
 ### enforce_tdd.py

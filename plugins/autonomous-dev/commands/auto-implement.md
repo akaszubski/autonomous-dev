@@ -616,7 +616,7 @@ Identify which agents are missing and invoke them NOW before proceeding.
 
 ### STEP 5: Report Completion
 
-**AFTER** all 7 agents complete successfully, offer to commit and push changes.
+**AFTER** all 8 agents complete successfully, offer to commit and push changes.
 
 **IMPORTANT**: This step is OPTIONAL and consent-based. If user declines or prerequisites fail, feature is still successful (graceful degradation).
 
@@ -881,8 +881,9 @@ Generates markdown summary with workflow metadata:
 ```markdown
 ## Issue #8 Completed via /auto-implement
 ### Workflow Status
-All 7 agents passed:
-- researcher
+All 8 agents passed:
+- researcher-local
+- researcher-web
 - planner
 - test-master
 - implementer
@@ -996,9 +997,8 @@ This is **graceful degradation** - enhance workflow where possible, but never bl
 📖 Documentation: [list docs updated]
 
 🎯 Next steps:
-1. Run `/pipeline-status` to see full execution details
-2. Review agent outputs in docs/sessions/ if needed
-3. Run `/clear` before starting next feature (mandatory for performance)
+1. Review agent outputs in docs/sessions/ if needed
+2. Run `/clear` before starting next feature (recommended for performance)
 
 Feature is ready to commit!
 ```
@@ -1073,10 +1073,9 @@ Let user decide. But recommend full pipeline.
 **Workflow**:
 ```bash
 /auto-implement "add user authentication"
-# ... 7 agents execute ...
+# ... 8 agents execute ...
 # ✅ Feature complete!
 
-/pipeline-status  # Verify all 7 agents ran
 /clear            # Reset context for next feature
 ```
 
@@ -1084,11 +1083,9 @@ Let user decide. But recommend full pipeline.
 
 ## Troubleshooting
 
-**If fewer than 7 agents ran**:
+**If fewer than 8 agents ran**:
 ```bash
-/pipeline-status
-# Shows: "5 agents ran" (missing test-master, security-auditor)
-
+# Check the summary table above for which agents completed
 # Solution: Re-run /auto-implement
 # Claude will invoke missing agents
 ```
@@ -1108,11 +1105,9 @@ Let user decide. But recommend full pipeline.
 
 ## Related Commands
 
-- `/pipeline-status` - View agent execution details
-- `/status` - Check PROJECT.md goal progress
 - `/health-check` - Verify plugin integrity
 - `/clear` - Reset context (run after each feature)
 
 ---
 
-**Philosophy**: This command embodies "not a toolkit, a team" - You describe what you want, Claude coordinates 7 specialists to build it professionally.
+**Philosophy**: This command embodies "not a toolkit, a team" - You describe what you want, Claude coordinates 8 specialists to build it professionally.

@@ -71,7 +71,7 @@ Total: 5 + 3 + 5 + ... = 28+ minutes
 
 **Impact**:
 - Each agent invocation: 5-10 tool approval prompts
-- 7 agents × 10 approvals = 70 manual approvals per feature
+- 8 agents × 10 approvals = 80 manual approvals per feature
 - Estimated overhead: **2-3 minutes per feature** (not the primary issue)
 
 ---

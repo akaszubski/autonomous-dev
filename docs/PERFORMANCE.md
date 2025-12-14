@@ -278,7 +278,7 @@ metrics = analyze_performance_logs(Path("/path/to/custom.json"))
     - Agents used: doc-master only
   - FULL tier: Features, improvements, new implementations (standard 20 minute path)
     - Keywords: "add", "create", "implement", "feature", "new", "build", "enhancement"
-    - Uses: All 7 agents in standard pipeline
+    - Uses: All 8 agents in standard pipeline
     - Conservative fallback: Ambiguous requests default to FULL
 
 - **Duration Tracking Enhancement** (agent_tracker.py Phase 2 - in progress)
