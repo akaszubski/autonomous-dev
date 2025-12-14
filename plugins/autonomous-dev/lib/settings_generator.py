@@ -1190,9 +1190,34 @@ class SettingsGenerator:
             merged_deny = list(set(template_deny + user_deny))
             template_perms["deny"] = sorted(merged_deny)
 
-        # Preserve user hooks completely (Claude Code 2.0 format)
-        if "hooks" in user_settings:
-            merged["hooks"] = user_settings["hooks"]
+        # Merge hooks by lifecycle event (Issue #138: Fix hook loss during merge)
+        # Previously: User hooks completely replaced template hooks, losing UserPromptSubmit
+        # Now: Merge hooks - template hooks + user hooks (user wins for duplicates)
+        template_hooks = merged.get("hooks", {})
+        user_hooks = user_settings.get("hooks", {})
+
+        # Start with template hooks (to preserve UserPromptSubmit, etc.)
+        merged_hooks = json.loads(json.dumps(template_hooks))  # Deep copy
+
+        # Merge user hooks on top (by lifecycle event)
+        for lifecycle, hooks in user_hooks.items():
+            if lifecycle not in merged_hooks:
+                # New lifecycle from user - add all hooks
+                merged_hooks[lifecycle] = json.loads(json.dumps(hooks))
+            else:
+                # Existing lifecycle - merge individual hooks (avoid duplicates)
+                existing_hooks = merged_hooks[lifecycle]
+                for hook in hooks:
+                    # Check if this exact hook already exists
+                    hook_exists = any(
+                        h.get("command") == hook.get("command") and h.get("matcher") == hook.get("matcher")
+                        for h in existing_hooks
+                    )
+                    if not hook_exists:
+                        existing_hooks.append(json.loads(json.dumps(hook)))
+
+        if merged_hooks:
+            merged["hooks"] = merged_hooks
 
         # Preserve all other user settings not in template
         for key, value in user_settings.items():
