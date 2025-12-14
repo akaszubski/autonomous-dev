@@ -65,6 +65,7 @@
         "plugins/autonomous-dev/hooks/enforce_bloat_prevention.py",
         "plugins/autonomous-dev/hooks/enforce_command_limit.py",
         "plugins/autonomous-dev/hooks/enforce_file_organization.py",
+        "plugins/autonomous-dev/hooks/enforce_implementation_workflow.py",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
         "plugins/autonomous-dev/hooks/enforce_pipeline_complete.py",
         "plugins/autonomous-dev/hooks/enforce_tdd.py",

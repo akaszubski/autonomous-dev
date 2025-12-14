@@ -193,7 +193,7 @@ We document **typical performance**, not marketing claims.
 
 ```
 ~/.claude/              # Global (shared across projects)
-├── hooks/              # 49 automation hooks
+├── hooks/              # 51 automation hooks
 ├── lib/                # 70 Python libraries
 └── settings.json       # Hook configuration
 
@@ -251,7 +251,7 @@ We document **typical performance**, not marketing claims.
 
 - [Architecture](docs/ARCHITECTURE.md) - How the two-layer system works
 - [Agents](docs/AGENTS.md) - 22 specialized agents
-- [Hooks](docs/HOOKS.md) - 49 automation hooks
+- [Hooks](docs/HOOKS.md) - 51 automation hooks
 - [Batch Processing](docs/BATCH-PROCESSING.md) - Multi-feature workflows
 - [Git Automation](docs/GIT-AUTOMATION.md) - Auto-commit, push, PR
 - [Environment Configuration](docs/ENV-CONFIGURATION.md) - All .env variables and settings

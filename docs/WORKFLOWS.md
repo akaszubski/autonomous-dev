@@ -290,7 +290,7 @@ URL: https://github.com/owner/repo/issues/75
 
 ✅ All 22 agents loaded
 ✅ All 28 skills available
-✅ All 50 hooks registered
+✅ All 51 hooks registered
 ✅ All 7 commands functional
 ✅ Marketplace version: v3.21.0 (latest)
 

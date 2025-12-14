@@ -114,6 +114,11 @@
             "type": "command",
             "command": "MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/pre_tool_use.py",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/enforce_implementation_workflow.py",
+            "timeout": 5
           }
         ]
       }

@@ -131,7 +131,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 | Agents | 22 | Specialized AI assistants (researcher, planner, implementer, etc.) |
 | Skills | 28 | Progressive disclosure knowledge packages |
 | Commands | 7 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue) |
-| Hooks | 50 | Automation and enforcement |
+| Hooks | 51 | Automation and enforcement |
 | Libraries | 35 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
@@ -166,7 +166,7 @@ autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
 │   ├── agents/                 # 22 AI agents
 │   ├── commands/               # 7 slash commands
-│   ├── hooks/                  # 50 automation hooks
+│   ├── hooks/                  # 51 automation hooks
 │   ├── skills/                 # 28 skill packages
 │   ├── lib/                    # 35 Python libraries
 │   └── docs/                   # User documentation
@@ -195,7 +195,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does:**
 - Downloads all plugin components
-- Installs global infrastructure (~50 hooks, ~70 libs)
+- Installs global infrastructure (~51 hooks, ~70 libs)
 - Installs project components (commands, agents, config)
 - Non-blocking: Missing components don't block workflow
 

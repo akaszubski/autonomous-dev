@@ -1,7 +1,7 @@
 # Automation Hooks Reference
 
 **Last Updated**: 2025-12-14
-**Total Hooks**: 50 (added command frontmatter flag validation - GitHub #133)
+**Total Hooks**: 51 (added implementation workflow enforcement - GitHub #139)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
@@ -199,7 +199,7 @@ modern = migrate_hook_format_cc2(legacy)
 | Lifecycle | Count | Hooks |
 |-----------|-------|-------|
 | **SessionStart** | 1 | auto_bootstrap |
-| **PreToolUse** | 2 | pre_tool_use, batch_permission_approver |
+| **PreToolUse** | 3 | pre_tool_use, batch_permission_approver, enforce_implementation_workflow |
 | **PostToolUse** | 1 | post_tool_use_error_capture |
 | **PreCommit** | 24 | See Core + Validation sections |
 | **SubagentStop** | 3 | session_tracker, log_agent_completion, auto_git_workflow |
@@ -236,7 +236,7 @@ modern = migrate_hook_format_cc2(legacy)
 
 ---
 
-## Core Hooks (13)
+## Core Hooks (14)
 
 Essential hooks for autonomous development workflow and security enforcement.
 
@@ -349,6 +349,84 @@ Hook output: None - correct command, processes normally
 - CLAUDE.md Workflow Discipline section (explains philosophy)
 - Issue #137 (workflow enforcement)
 - `/create-issue` command (proper GitHub issue creation workflow)
+
+### enforce_implementation_workflow.py
+
+**Purpose**: Catch autonomous implementation bypasses - prevent Claude from making significant code changes without proper workflow (Issue #139, v3.41.0+)
+**Lifecycle**: PreToolUse (intercepts Edit and Write tool calls on code files)
+**Exit Code**: 0 (always - allows Claude Code to process the permission decision)
+
+**How It Works**:
+1. Intercepts Edit and Write tool calls before execution
+2. Analyzes code changes for significant additions (new functions, classes, >10 lines)
+3. If significant: DENIES with guidance to use `/create-issue` or `/auto-implement`
+4. If minor (typos, small fixes): ALLOWS through
+
+**Significant Code Patterns Detected**:
+- New function definitions (Python `def`, JavaScript `function`, Go `func`, Rust `fn`, etc.)
+- New async functions (`async def`, `async function`)
+- New class definitions (Python `class`, JavaScript class syntax)
+- New exports (JavaScript `export`, TypeScript)
+- Significant line additions (>10 new lines)
+
+**Authorized Agents** (allowed to make significant changes):
+- `implementer` - Makes code changes as part of /auto-implement workflow
+- `test-master` - Writes tests as part of /auto-implement workflow
+- `brownfield-analyzer` - Analyzes legacy code during retrofit
+- `setup-wizard` - Generates initial project setup code
+- `project-bootstrapper` - Creates project scaffolding
+
+**Control**:
+- **ENFORCE_IMPLEMENTATION_WORKFLOW** env var (default: `true`)
+  - Set to `false` to disable implementation workflow enforcement
+  - Recommended: Keep enabled to prevent bypasses
+- **CLAUDE_AGENT_NAME** env var: If set to an authorized agent, permits significant changes
+
+**Example Scenarios**:
+
+❌ **Autonomous Implementation (DENIED)**:
+```
+Claude (not in /auto-implement): Attempts to write a new function to production.py
+Hook output: DENIES with message:
+  "AUTONOMOUS IMPLEMENTATION DETECTED
+   New Python function detected
+   File: production.py
+
+   STOP. Use /auto-implement instead for feature implementation."
+```
+
+✅ **Authorized Agent (ALLOWED)**:
+```
+Implementer agent (inside /auto-implement #123): Writes function to implement feature
+CLAUDE_AGENT_NAME=implementer set by auto-implement command
+Hook output: ALLOWS (passes through)
+```
+
+✅ **Minor Fix (ALLOWED)**:
+```
+Claude: Fixes typo (changes 1 line, no new functions)
+Hook output: ALLOWS - "Minor edit, no significant code additions detected"
+```
+
+✅ **Non-Code File (ALLOWED)**:
+```
+Claude: Edits README.md or configuration.yaml
+Hook output: ALLOWS - "Non-code file, no enforcement needed"
+```
+
+**Why This Matters**:
+- Prevents vibe coding (Claude implementing features without validation)
+- Enforces TDD (tests must come first via /auto-implement)
+- Ensures security review happens (part of /auto-implement pipeline)
+- Maintains audit trail of all significant code changes
+- Guarantees PROJECT.md alignment check before implementation
+
+**Related**:
+- CLAUDE.md Workflow Discipline section (explains philosophy)
+- Issue #139 (implementation workflow enforcement)
+- Issue #137 (comprehensive workflow discipline)
+- `/auto-implement` command (proper feature implementation workflow)
+- `/create-issue` command (GitHub issue creation)
 
 ### auto_git_workflow.py
 

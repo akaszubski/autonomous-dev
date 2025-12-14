@@ -17,7 +17,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does** (Issue #132 - Complete auto-install):
 - Downloads all plugin components to `~/.autonomous-dev-staging/`
-- Installs global infrastructure: `~/.claude/hooks/` (50 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
+- Installs global infrastructure: `~/.claude/hooks/` (51 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
 - Installs to `.claude/`:
   - Commands (7) → `.claude/commands/`
   - Agents (22) → `.claude/agents/`
@@ -69,33 +69,79 @@ Claude must ALWAYS use the proper commands instead of attempting direct operatio
 |----------|---------------|------------------------|-----|
 | **Create GitHub Issue** | `gh issue create` (direct CLI)<br>`create issue` (ask Claude)<br>`make/open/file issue` | `/create-issue "description"` | Research integration<br>Duplicate detection<br>Cache for /auto-implement |
 | **Implement Feature** | "implement X" (vibe coding)<br>"add X" (direct request) | `/auto-implement "#123"` | PROJECT.md alignment<br>Full agent pipeline<br>TDD enforcement |
+| **Implement Code Directly** | Edit/Write tools for new functions<br>Adding classes or methods<br>Significant code changes (10+ lines) | `/create-issue` then `/auto-implement` | TDD enforcement<br>Security audit<br>Code review |
 | **Align Project** | Edit PROJECT.md directly<br>Manual conflict resolution | `/align --project` | Semantic validation<br>Conflict detection<br>Automated resolution |
 | **Sync Plugin** | `git pull` (direct Git)<br>Manual file copy | `/sync --github` | Version detection<br>Orphan cleanup<br>Safe updates |
 
-### Enforcement (Opt-Out Available)
+### Self-Check Before Implementing (CRITICAL - Issue #139)
 
-**Default**: Workflow enforcement is ENABLED
+**Before using Edit or Write on code files, Claude MUST ask itself:**
 
-The `detect_feature_request.py` hook (UserPromptSubmit) enforces these workflows:
+> "Am I about to implement a feature, fix, or significant code change?"
+
+**Signs you're about to implement:**
+- Adding a new function (`def`, `function`, `func`)
+- Adding a new class or method
+- Adding 10+ lines of code
+- Fixing a bug that requires new logic
+- Adding error handling, validation, or new behavior
+
+**If YES → Use the pipeline:**
+```
+1. STOP - Do not use Edit/Write directly
+2. RUN: /create-issue "description of what you were about to implement"
+3. WAIT for issue creation to complete
+4. RUN: /auto-implement "#issue-number"
+```
+
+**If NO → Proceed normally:**
+- Fixing typos (1-2 lines)
+- Updating documentation (.md files)
+- Changing configuration (.json, .yaml)
+- Minor refactoring (renaming, moving)
+
+**Why this matters**: Direct implementation bypasses research, TDD, security audits, and code review. The pipeline ensures professional-quality output.
+
+### Enforcement (Two-Layer Defense, Opt-Out Available)
+
+**Default**: Workflow enforcement is ENABLED at two levels
+
+**Layer 1: UserPromptSubmit Hook** (`detect_feature_request.py`)
+Catches explicit feature requests in user prompts:
 
 1. **Feature Requests** (Exit code 1 - WARN):
    - Patterns: "implement X", "add X", "create X", "build X"
    - Action: Suggests `/auto-implement` with PROJECT.md alignment
-   - User sees: Warning message with correct command
 
 2. **Bypass Attempts** (Exit code 2 - BLOCK):
    - Patterns: "gh issue create", "create issue", "skip /create-issue"
    - Action: BLOCKS the prompt, requires `/create-issue` command
-   - User sees: Blocking message explaining correct workflow
 
 3. **Normal Prompts** (Exit code 0 - PASS):
    - Questions, queries, non-feature requests
-   - Action: Proceeds normally without intervention
+   - Action: Proceeds normally
+
+**Layer 2: PreToolUse Hook** (`enforce_implementation_workflow.py` - Issue #139)
+Catches Claude's autonomous implementation attempts:
+
+1. **Significant Code Changes** (decision: deny):
+   - Triggers: New functions, classes, or 10+ lines in code files
+   - Action: BLOCKS Edit/Write, nudges Claude to use `/create-issue` → `/auto-implement`
+   - Claude sees: Message explaining correct workflow
+
+2. **Approved Agent Operations** (decision: allow):
+   - Agents: implementer, test-master, brownfield-analyzer, setup-wizard, project-bootstrapper
+   - Action: Allows changes (these agents are part of /auto-implement pipeline)
+
+3. **Minor Changes** (decision: allow):
+   - Triggers: Small edits (<10 lines), non-code files, typo fixes
+   - Action: Proceeds normally
 
 **To Disable** (not recommended):
 ```bash
 # Add to .env file
-ENFORCE_WORKFLOW=false
+ENFORCE_WORKFLOW=false                    # Disables Layer 1 (UserPromptSubmit)
+ENFORCE_IMPLEMENTATION_WORKFLOW=false     # Disables Layer 2 (PreToolUse)
 ```
 
 **Why This Matters**:
@@ -484,11 +530,11 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (50 total automation - unified PreToolUse hook eliminates collision)
+### Hooks (51 total automation - unified PreToolUse hook eliminates collision)
 
-50 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+51 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
-**Core Hooks** (14): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, validate_command_file_ops, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, auto_git_workflow, pre_tool_use, post_tool_use_error_capture, session_tracker
+**Core Hooks** (15): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, validate_command_file_ops, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, enforce_implementation_workflow, auto_git_workflow, pre_tool_use, post_tool_use_error_capture, session_tracker
 
 **Optional Hooks** (30): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 15 additional hooks for extended enforcement and validation
 
