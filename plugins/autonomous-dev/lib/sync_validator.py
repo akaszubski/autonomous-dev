@@ -527,7 +527,7 @@ class SyncValidator:
         # Expected counts (from CLAUDE.md)
         expected_agents = 20
         expected_hooks = 16  # Core hooks
-        expected_commands = 10  # Active commands
+        expected_commands = 7  # Active commands (per CLAUDE.md)
 
         if agents_count < expected_agents:
             result.issues.append(ValidationIssue(
