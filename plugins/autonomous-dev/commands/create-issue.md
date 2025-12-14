@@ -236,18 +236,46 @@ This cache is used by `/auto-implement` to skip duplicate research.
 
 ---
 
-### STEP 5 (Optional): Offer Auto-Implement
+### STEP 5 (MANDATORY): Validation and Review
+
+**STOP**: Before proceeding, the user MUST validate and review the created issue.
+
+Display the following message:
 
 ```
-Would you like to start implementing this feature now?
+Issue #123 created successfully!
+  https://github.com/owner/repo/issues/123
 
-/auto-implement "#123"
+**MANDATORY NEXT STEP**: Review and validate the issue before implementation
 
-This will use the research already completed (saves 2-5 min).
-Estimated time: 15-25 minutes
+Please review the issue content at the URL above and confirm:
+- [ ] Summary is accurate
+- [ ] Implementation approach is correct
+- [ ] Test scenarios cover all paths
+- [ ] Acceptance criteria are complete
 
-Reply 'yes' to proceed, or 'no' to stop here.
+Once you've reviewed the issue, you can proceed with implementation:
+  /auto-implement "#123"
+
+This workflow ensures:
+- ✅ Issue is validated before work begins
+- ✅ Research is cached and reused (saves 2-5 min)
+- ✅ Full traceability from issue to implementation
+
+**Estimated implementation time**: 15-25 minutes
+
+Wait for confirmation before proceeding. User must confirm they have reviewed the issue.
 ```
+
+**Why This Is Mandatory**:
+- Prevents implementing issues with incorrect requirements
+- Ensures user validates research findings before committing to implementation
+- Provides opportunity to revise issue before starting work
+- Maintains audit trail from issue to implementation
+
+**DO NOT** automatically proceed to /auto-implement without explicit user confirmation.
+
+User must approve before continuing. Require confirmation that the issue has been validated.
 
 ---
 

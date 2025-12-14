@@ -125,6 +125,104 @@
     - Total /sync impact: less than 1 second additional
   - **Related**: GitHub Issue #135
 
+- **Issue #137: Workflow discipline enforcement - detect feature requests and bypass attempts**
+  - **Problem**: Users were bypassing proper workflows (vibe coding), creating issues manually without research, and skipping validation pipelines
+  - **Solution**: Implement workflow discipline enforcement via enhanced detect_feature_request.py hook with three-tier detection (PASS/WARN/BLOCK)
+  - **Features**:
+    - **Three-tier response system**:
+      - **0 (PASS)**: Normal prompts, queries, questions - proceed without intervention
+      - **1 (WARN)**: Feature request patterns ("implement X", "add X") - suggest /auto-implement
+      - **2 (BLOCK)**: Bypass attempts ("gh issue create", "create issue") - BLOCK and require /create-issue
+    - **Enhanced detection algorithms**:
+      - `is_feature_request()`: Distinguishes feature requests from queries using strong/regular/exclusion patterns
+      - `is_bypass_attempt()`: Detects manual issue creation attempts while allowing /create-issue command
+      - `get_bypass_message()`: Generates detailed blocking message explaining correct workflow
+    - **Environment control**:
+      - **ENFORCE_WORKFLOW** env var (default: true) - allows opt-out if needed
+      - Graceful degradation when enforcement disabled
+    - **UserPromptSubmit lifecycle**: Runs on every user input for immediate feedback
+  - **Hook Enhancement**:
+    - **detect_feature_request.py**: Complete rewrite from PreCommit detection to UserPromptSubmit enforcement
+      - New exit code semantics (0/1/2 instead of 0/1)
+      - Three detection functions with clear responsibilities
+      - Detailed blocking message for bypass attempts
+      - Environment variable support for opt-out
+      - Comprehensive docstrings documenting all patterns
+  - **Template Updates**:
+    - **settings.local.json**: Added UserPromptSubmit hook configuration
+      - Runs detect_feature_request.py with 5-second timeout
+      - Applies to all user prompts (matcher: "*")
+  - **Documentation Updates**:
+    - **docs/HOOKS.md**: Complete documentation of detect_feature_request enhancement
+      - Purpose, lifecycle, exit codes explained
+      - All three detection functions documented with examples
+      - ENFORCE_WORKFLOW env var documented
+      - Scenario examples (WARN, BLOCK, PASS, Correct)
+      - Links to related documentation
+    - **docs/ENV-CONFIGURATION.md**: New Workflow Discipline section
+      - ENFORCE_WORKFLOW variable documented with table
+      - Explanation of what enforcement detects
+      - Opt-out instructions (not recommended)
+      - Example scenarios with output
+      - Links to related commands and hooks
+    - **CLAUDE.md**: New Workflow Discipline section
+      - Philosophy: "NEVER bypass pipelines. ALWAYS ask before acting."
+      - Table of required pipelines vs never-do patterns
+      - Enforcement details (exit codes, patterns)
+      - Opt-out instructions
+      - Example scenario (wrong vs correct)
+      - Cross-reference to hook implementation
+  - **Enforcement Table**:
+    | Scenario | NEVER Do This | ALWAYS Do This Instead | Why |
+    |----------|---------------|------------------------|-----|
+    | **Create GitHub Issue** | direct gh CLI or "create issue" | `/create-issue "description"` | Research integration, duplicate detection, cache |
+    | **Implement Feature** | "implement X" or "add X" | `/auto-implement "#123"` | PROJECT.md alignment, full pipeline, TDD |
+    | **Align Project** | Edit PROJECT.md directly | `/align --project` | Semantic validation, conflict detection |
+    | **Sync Plugin** | git pull or manual copy | `/sync --github` | Version detection, orphan cleanup, safety |
+  - **Test Coverage**:
+    - **tests/unit/hooks/test_detect_feature_request.py**: Unit tests for all detection functions
+      - Test is_feature_request() patterns (strong, regular, exclusion)
+      - Test is_bypass_attempt() patterns and /create-issue exception
+      - Test get_bypass_message() output formatting
+      - Test exit code mapping (0/1/2)
+      - Test ENFORCE_WORKFLOW=false behavior
+    - **tests/integration/test_workflow_enforcement.py**: Integration tests
+      - Test full UserPromptSubmit lifecycle
+      - Test stdin/stdout behavior with hook
+      - Test settings.local.json hook activation
+      - Test all three exit code scenarios
+  - **Philosophy**:
+    - Users should ask before acting (ALWAYS use proper commands)
+    - Pipelines enforce consistency (tested and proven)
+    - Bypass attempts are security risk (no validation, audit trail, or research)
+    - Enforcement makes workflows automatic and trustworthy
+  - **Why This Matters**:
+    - Prevents accidental vibe coding (direct implementation without validation)
+    - Ensures all issues go through research pipeline (no duplicate work)
+    - Maintains audit trail from issue to implementation (traceability)
+    - Forces proper workflows that catch errors early (fail fast)
+  - **Backward Compatibility**:
+    - ENFORCE_WORKFLOW env var defaults to true (enforcement enabled)
+    - Users can disable via ENFORCE_WORKFLOW=false if needed
+    - Normal workflows (questions, queries) unaffected
+    - Correct commands (/create-issue, /auto-implement) work normally
+  - **Performance Impact**:
+    - Hook runs on every user input (less than 100ms per execution)
+    - No performance impact for normal prompts (just pattern matching)
+    - Blocking message displays immediately for bypass attempts
+  - **Files Created**:
+    - tests/unit/hooks/test_detect_feature_request.py
+    - tests/integration/test_workflow_enforcement.py
+  - **Files Modified**:
+    - plugins/autonomous-dev/hooks/detect_feature_request.py - Complete rewrite for UserPromptSubmit
+    - plugins/autonomous-dev/templates/settings.local.json - Added UserPromptSubmit hook
+    - plugins/autonomous-dev/commands/create-issue.md - STEP 5 now mandatory validation
+    - CLAUDE.md - New Workflow Discipline section
+    - docs/HOOKS.md - Enhanced detect_feature_request documentation
+    - docs/ENV-CONFIGURATION.md - New Workflow Discipline section
+  - **Related**: GitHub Issue #137
+
+
 **Changed**
 
 - **Issue #132: Documentation updates for install.sh complete auto-install feature**

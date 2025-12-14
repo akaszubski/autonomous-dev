@@ -125,6 +125,80 @@ MCP_AUTO_APPROVE=true
 
 ---
 
+## Workflow Discipline (Issue #137, v3.41.0+)
+
+Enforces proper command-based workflows to prevent vibe coding and ensure validation pipelines.
+
+| Variable | Default | Values | Description |
+|----------|---------|--------|-------------|
+| `ENFORCE_WORKFLOW` | `true` | `true`, `false` | Enable/disable workflow enforcement |
+
+### What It Enforces
+
+The `detect_feature_request.py` hook (UserPromptSubmit lifecycle) enforces these workflows:
+
+**Feature Requests** (Exit code 1 - WARN):
+- Detects: "implement X", "add X", "create X", "build X"
+- Action: Suggests using `/auto-implement` instead
+- Reason: Ensures PROJECT.md alignment and full TDD pipeline
+
+**Bypass Attempts** (Exit code 2 - BLOCK):
+- Detects: "gh issue create", "create issue", "skip /create-issue", "make issue"
+- Action: BLOCKS the prompt and requires `/create-issue` command
+- Reason: Ensures all issues go through research + duplicate detection + cache
+
+**Normal Prompts** (Exit code 0 - PASS):
+- Questions, queries, non-feature requests
+- Action: Proceeds normally without intervention
+
+### Opt-Out (Not Recommended)
+
+```bash
+# Disable all workflow enforcement
+ENFORCE_WORKFLOW=false
+```
+
+**Why keep it enabled**:
+- Prevents accidental vibe coding (direct implementation without validation)
+- Ensures all issues go through research pipeline (no duplicate work)
+- Maintains audit trail from issue to implementation
+- Forces proper workflows (tested and proven to work)
+
+### Example Scenarios
+
+**Scenario 1: Feature Request (Warned)**
+```bash
+User: "implement JWT authentication"
+Hook: Exit 1 (WARN) - Suggests /auto-implement "#123"
+```
+
+**Scenario 2: Bypass Attempt (Blocked)**
+```bash
+User: "gh issue create --title JWT auth"
+Hook: Exit 2 (BLOCK) - Requires /create-issue "JWT auth"
+```
+
+**Scenario 3: Normal Prompt (Passed)**
+```bash
+User: "What is JWT and how does it work?"
+Hook: Exit 0 (PASS) - Proceeds normally
+```
+
+**Scenario 4: Correct Workflow (Passed)**
+```bash
+User: "/create-issue Add JWT authentication"
+Hook: Exit 0 (PASS) - Correct command, proceeds normally
+```
+
+### See Also
+
+- CLAUDE.md: Workflow Discipline section (explains philosophy)
+- `/create-issue` command: Proper GitHub issue creation workflow
+- `/auto-implement` command: Feature implementation with alignment validation
+- plugins/autonomous-dev/hooks/detect_feature_request.py: Hook implementation
+
+---
+
 ## Batch Processing
 
 Controls `/batch-implement` behavior.

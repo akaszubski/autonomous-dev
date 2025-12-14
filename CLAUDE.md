@@ -57,6 +57,73 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 ---
 
+## Workflow Discipline (Issue #137)
+
+**Philosophy**: NEVER bypass pipelines. ALWAYS ask before acting.
+
+Claude must ALWAYS use the proper commands instead of attempting direct operations. This ensures validation, research, and audit trails.
+
+### Required Pipelines vs Never Do Directly
+
+| Scenario | NEVER Do This | ALWAYS Do This Instead | Why |
+|----------|---------------|------------------------|-----|
+| **Create GitHub Issue** | `gh issue create` (direct CLI)<br>`create issue` (ask Claude)<br>`make/open/file issue` | `/create-issue "description"` | Research integration<br>Duplicate detection<br>Cache for /auto-implement |
+| **Implement Feature** | "implement X" (vibe coding)<br>"add X" (direct request) | `/auto-implement "#123"` | PROJECT.md alignment<br>Full agent pipeline<br>TDD enforcement |
+| **Align Project** | Edit PROJECT.md directly<br>Manual conflict resolution | `/align --project` | Semantic validation<br>Conflict detection<br>Automated resolution |
+| **Sync Plugin** | `git pull` (direct Git)<br>Manual file copy | `/sync --github` | Version detection<br>Orphan cleanup<br>Safe updates |
+
+### Enforcement (Opt-Out Available)
+
+**Default**: Workflow enforcement is ENABLED
+
+The `detect_feature_request.py` hook (UserPromptSubmit) enforces these workflows:
+
+1. **Feature Requests** (Exit code 1 - WARN):
+   - Patterns: "implement X", "add X", "create X", "build X"
+   - Action: Suggests `/auto-implement` with PROJECT.md alignment
+   - User sees: Warning message with correct command
+
+2. **Bypass Attempts** (Exit code 2 - BLOCK):
+   - Patterns: "gh issue create", "create issue", "skip /create-issue"
+   - Action: BLOCKS the prompt, requires `/create-issue` command
+   - User sees: Blocking message explaining correct workflow
+
+3. **Normal Prompts** (Exit code 0 - PASS):
+   - Questions, queries, non-feature requests
+   - Action: Proceeds normally without intervention
+
+**To Disable** (not recommended):
+```bash
+# Add to .env file
+ENFORCE_WORKFLOW=false
+```
+
+**Why This Matters**:
+- ❌ Direct operations bypass validation (security risk)
+- ❌ No research integration (duplicate work)
+- ❌ No audit trail (compliance issues)
+- ✅ Commands ensure consistency (tested workflows)
+- ✅ Proper pipelines catch errors early (fail fast)
+- ✅ Full traceability for all operations (debugging)
+
+**Example Scenario**:
+
+```bash
+# ❌ WRONG: Vibe coding (bypass)
+User: "implement JWT authentication"
+Claude: Implements directly (no PROJECT.md check, no TDD, no research)
+
+# ✅ CORRECT: Use pipeline
+User: "/create-issue Add JWT authentication"
+Claude: Creates issue with research + duplicate check + cache
+User: "/auto-implement #123"
+Claude: Validates alignment → TDD → implements → reviews → documents
+```
+
+**See Also**: `plugins/autonomous-dev/hooks/detect_feature_request.py` for implementation details
+
+---
+
 ## Context Management (CRITICAL!)
 
 ### Why This Matters
