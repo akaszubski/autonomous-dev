@@ -83,7 +83,7 @@ For each conflict found, determine which source is correct:
 **Documentation vs Reality conflicts:**
 ```
 CONFLICT: CLAUDE.md says "10 active commands"
-Reality: 7 commands exist
+Reality: 7 commands exist (example - already fixed)
 
 What should we do?
 A) Update CLAUDE.md to say "7 commands"
@@ -200,7 +200,7 @@ Source of Truth: PROJECT.md
 Cross-Reference Check
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ CLAUDE.md references PROJECT.md correctly
-⚠ README.md claims "10 commands" but PROJECT.md says 7
+✓ README.md and PROJECT.md both say 7 commands
 ✓ docs/AGENTS.md matches agents/ directory
 
 Architecture Docs

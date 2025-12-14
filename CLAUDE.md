@@ -19,7 +19,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 - Downloads all plugin components to `~/.autonomous-dev-staging/`
 - Installs global infrastructure: `~/.claude/hooks/` (50 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
 - Installs to `.claude/`:
-  - Commands (10) → `.claude/commands/`
+  - Commands (7) → `.claude/commands/`
   - Agents (22) → `.claude/agents/`
   - Scripts (11) → `.claude/scripts/`
   - Config (6) → `.claude/config/`

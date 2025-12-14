@@ -1,16 +1,15 @@
 # Command Reference
 
-**Complete list of all 10 active slash commands (simplified per Issue #121)**
+**Complete list of all 7 active slash commands**
 
 ---
 
 ## Overview
 
-Commands were simplified from 20+ to 10 active commands in Issue #121. Individual agent commands were archived - use `/auto-implement` for the full pipeline instead.
+Commands were consolidated to 7 active commands. Individual agent commands were archived - use `/auto-implement` for the full pipeline instead.
 
-**Total Active Commands**: 10
-- **Core Workflow** (9): `/auto-implement`, `/batch-implement`, `/align`, `/setup`, `/sync`, `/status`, `/health-check`, `/pipeline-status`, `/create-issue`
-- **Utility** (1): `/test`
+**Total Active Commands**: 7
+- **Core Workflow**: `/auto-implement`, `/batch-implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`
 
 **Archived** (12 commands): Individual agent commands (`/research`, `/plan`, `/implement`, etc.) and redundant variants moved to `commands/archive/`
 

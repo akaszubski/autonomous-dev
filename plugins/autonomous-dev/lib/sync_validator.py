@@ -525,7 +525,7 @@ class SyncValidator:
             commands_count = len(list(commands_dir.glob("*.md")))
 
         # Expected counts (from CLAUDE.md)
-        expected_agents = 20
+        expected_agents = 22
         expected_hooks = 16  # Core hooks
         expected_commands = 7  # Active commands (per CLAUDE.md)
 

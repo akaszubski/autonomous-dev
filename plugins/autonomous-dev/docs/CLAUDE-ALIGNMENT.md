@@ -57,17 +57,14 @@ Fix: Update heading to "### Agents (16 specialists)"
 
 **Why**: If you tell someone "use /auto-implement", that command must exist
 
-**Current Reality** (10 commands, per Issue #121):
+**Current Reality** (7 commands):
 - `/auto-implement` - Full feature development pipeline
 - `/batch-implement` - Process multiple features with state management
 - `/create-issue` - Create GitHub issues with research
 - `/align` - Unified alignment (--project, --claude, --retrofit)
 - `/setup` - Interactive setup wizard
 - `/sync` - Smart sync (dev env, marketplace, or plugin-dev)
-- `/status` - View project status
 - `/health-check` - Diagnostic health check
-- `/pipeline-status` - Track /auto-implement workflow
-- `/test` - Run test suite
 
 **Example Drift**:
 ```markdown

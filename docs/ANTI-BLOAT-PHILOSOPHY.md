@@ -167,7 +167,7 @@ If you hear/say these phrases, STOP and reassess:
 - Blocks net growth without cleanup
 
 **enforce_command_limit.py** (PreCommit hook):
-- Hard limit: 10 commands maximum
+- Hard limit: 8 commands maximum
 - Validates .claude/commands/ directory
 - Blocks new commands if at limit
 
