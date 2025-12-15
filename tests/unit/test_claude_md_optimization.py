@@ -600,12 +600,12 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for agent count (22 specialists - Issue #128 added researcher-local, researcher-web)
+        # Check for agent count (21 specialists - researcher consolidated into researcher-local + researcher-web)
         # Allow some flexibility in phrasing
         agent_count_patterns = [
-            r"22\s+(?:AI\s+)?agents",
-            r"22\s+specialists",
-            r"Agents\s+\(22\s+specialists",
+            r"21\s+(?:AI\s+)?agents",
+            r"21\s+specialists",
+            r"Agents\s+\(21\s+specialists",
         ]
 
         has_agent_count = any(
@@ -614,7 +614,7 @@ class TestAlignmentValidation:
         )
 
         assert has_agent_count, (
-            "CLAUDE.md missing correct agent count (22 specialists). "
+            "CLAUDE.md missing correct agent count (21 specialists). "
             "Ensure agent documentation preserved during optimization."
         )
 

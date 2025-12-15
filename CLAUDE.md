@@ -20,7 +20,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 - Installs global infrastructure: `~/.claude/hooks/` (10 unified hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
 - Installs to `.claude/`:
   - Commands (7) → `.claude/commands/`
-  - Agents (22) → `.claude/agents/`
+  - Agents (21) → `.claude/agents/`
   - Scripts (11) → `.claude/scripts/`
   - Config (6) → `.claude/config/`
   - Templates (11) → `.claude/templates/`
@@ -76,11 +76,7 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 | Documentation drift | 67% (manual sync) | 2% (auto-synced) |
 | Test coverage | 43% (optional) | 94% (required) |
 
-**The Workflow Benefits**:
-1. Research phase catches duplicate work (saves 2-4 hours)
-2. TDD catches bugs before commit (saves 1-3 hour debug cycles)
-3. Security audit blocks vulnerabilities (saves days in incident response)
-4. Auto-docs prevent drift (saves weeks in alignment work)
+**Benefits**: Research catches duplicates, TDD catches bugs, security blocks vulns, docs stay synced.
 
 ### When to Use Each Approach
 
@@ -175,7 +171,16 @@ User: "/auto-implement #123"
 Claude: Validates alignment → TDD → implements → reviews → documents
 ```
 
-**See Also**: `plugins/autonomous-dev/hooks/detect_feature_request.py` for bypass detection implementation
+### 4-Layer Consistency Architecture (Epic #142)
+
+| Layer | % | Purpose | Implementation |
+|-------|---|---------|----------------|
+| **HOOKS** | 10 | Deterministic blocking | `unified_pre_tool.py`, `unified_prompt_validator.py` |
+| **CLAUDE.md** | 30 | Persuasion via data | Workflow Discipline section (above) |
+| **CONVENIENCE** | 40 | Quality path easiest | `/auto-implement` pipeline |
+| **SKILLS** | 20 | Agent expertise | Native `skills:` frontmatter |
+
+**Completed**: #140-146. **Details**: `docs/epic-142-closeout.md`
 
 ---
 
@@ -435,15 +440,15 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 
 **Security**: 6 layers of defense (MCP security validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
 
-**Hook**: `pre_tool_use.py` (PreToolUse lifecycle standalone script, chains MCP security + auto-approval)
+**Hook**: `unified_pre_tool.py` (PreToolUse lifecycle, chains MCP security + auto-approval + batch approval)
 **Policy**: `plugins/autonomous-dev/config/auto_approve_policy.json` (v2.0 permissive mode)
 
 ---
 ## Architecture
 
-### Agents (22 specialists with active skill integration - GitHub Issue #35, #58, #59, #128)
+### Agents (21 specialists with active skill integration - GitHub Issue #35, #58, #59, #128)
 
-22 specialized agents with skill integration for autonomous development (21 active + 1 deprecated). See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+21 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
 **Core Workflow Agents (10)** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
 researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
@@ -539,9 +544,9 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (10 Unified Hooks - Issue #144)
+### Hooks (52 total - 10 Unified + 42 Individual - Issue #144)
 
-10 unified hooks consolidate 51 individual hooks using dispatcher pattern. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+10 unified hooks using dispatcher pattern, plus 42 individual hooks for specialized tasks. 9 legacy hooks archived (replaced by unified hooks). See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
 | Lifecycle | Hook | Consolidates |
 |-----------|------|--------------|
