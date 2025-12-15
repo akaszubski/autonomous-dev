@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/pre_tool_use.py",
+            "command": "MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/unified_pre_tool.py",
             "timeout": 5
           }
         ]
