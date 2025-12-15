@@ -1,10 +1,10 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-12-14
-**Total Hooks**: 51 (added implementation workflow enforcement - GitHub #139)
+**Last Updated**: 2025-12-15
+**Total Hooks**: 10 unified hooks (consolidated from 51 individual hooks - GitHub #144)
 **Location**: `plugins/autonomous-dev/hooks/`
 
-This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including core hooks, optional hooks, and lifecycle hooks.
+This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including unified hooks, core hooks, optional hooks, and lifecycle hooks.
 
 ---
 
@@ -194,15 +194,92 @@ modern = migrate_hook_format_cc2(legacy)
 
 ---
 
+## Unified Hooks (10) - Issue #144
+
+Consolidated dispatcher hooks that combine multiple individual hooks for reduced collision and easier maintenance.
+
+### unified_prompt_validator.py
+
+**Purpose**: Bypass detection for workflow enforcement
+**Consolidates**: detect_feature_request.py
+**Lifecycle**: UserPromptSubmit
+**Environment Variables**: ENFORCE_WORKFLOW
+
+### unified_pre_tool.py
+
+**Purpose**: MCP security validation, agent authorization, batch permission approval
+**Consolidates**: pre_tool_use.py, enforce_implementation_workflow.py, batch_permission_approver.py
+**Lifecycle**: PreToolUse
+**Environment Variables**: PRE_TOOL_MCP_SECURITY, PRE_TOOL_AGENT_AUTH, PRE_TOOL_BATCH_PERMISSION, MCP_AUTO_APPROVE
+
+### unified_post_tool.py
+
+**Purpose**: Tool error capture and logging
+**Consolidates**: post_tool_use_error_capture.py
+**Lifecycle**: PostToolUse
+**Environment Variables**: CAPTURE_TOOL_ERRORS
+
+### unified_session_tracker.py
+
+**Purpose**: Session logging, pipeline tracking, progress updates
+**Consolidates**: session_tracker.py, log_agent_completion.py, auto_update_project_progress.py
+**Lifecycle**: SubagentStop
+**Environment Variables**: TRACK_SESSIONS, TRACK_PIPELINE, AUTO_UPDATE_PROGRESS
+
+### unified_git_automation.py
+
+**Purpose**: Automatic git commit, push, PR creation
+**Consolidates**: auto_git_workflow.py
+**Lifecycle**: SubagentStop
+**Environment Variables**: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+
+### unified_code_quality.py
+
+**Purpose**: Code formatting, testing, security scanning, TDD enforcement, coverage
+**Consolidates**: auto_format.py, auto_test.py, security_scan.py, enforce_tdd.py, auto_enforce_coverage.py
+**Lifecycle**: PreCommit
+**Environment Variables**: AUTO_FORMAT, AUTO_TEST, SECURITY_SCAN, ENFORCE_TDD, ENFORCE_COVERAGE
+
+### unified_structure_enforcer.py
+
+**Purpose**: File organization, bloat prevention, command limits, pipeline validation
+**Consolidates**: enforce_file_organization.py, enforce_bloat_prevention.py, enforce_command_limit.py, enforce_pipeline_complete.py, enforce_orchestrator.py, verify_agent_pipeline.py
+**Lifecycle**: PreCommit
+**Environment Variables**: ENFORCE_FILE_ORGANIZATION, ENFORCE_BLOAT_PREVENTION, ENFORCE_COMMAND_LIMIT, ENFORCE_PIPELINE_COMPLETE, ENFORCE_ORCHESTRATOR, VERIFY_AGENT_PIPELINE
+
+### unified_doc_validator.py
+
+**Purpose**: Documentation alignment, consistency, README accuracy
+**Consolidates**: validate_project_alignment.py, validate_claude_alignment.py, validate_documentation_alignment.py, validate_docs_consistency.py, validate_readme_accuracy.py, validate_readme_sync.py, validate_readme_with_genai.py, validate_command_file_ops.py, validate_commands.py, validate_hooks_documented.py, validate_command_frontmatter_flags.py
+**Lifecycle**: PreCommit
+**Environment Variables**: VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT, VALIDATE_DOC_ALIGNMENT, VALIDATE_DOCS_CONSISTENCY, VALIDATE_README_ACCURACY, VALIDATE_README_SYNC, VALIDATE_README_GENAI, VALIDATE_COMMAND_FILE_OPS, VALIDATE_COMMANDS, VALIDATE_HOOKS_DOCS, VALIDATE_COMMAND_FRONTMATTER
+
+### unified_doc_auto_fix.py
+
+**Purpose**: Auto-fix documentation, sync development, TDD enforcement, issue tracking
+**Consolidates**: auto_fix_docs.py, auto_update_docs.py, auto_add_to_regression.py, auto_generate_tests.py, auto_sync_dev.py, auto_tdd_enforcer.py, auto_track_issues.py, detect_doc_changes.py
+**Lifecycle**: PreCommit/PostToolUse
+**Environment Variables**: AUTO_FIX_DOCS, AUTO_UPDATE_DOCS, AUTO_ADD_REGRESSION, AUTO_GENERATE_TESTS, AUTO_SYNC_DEV, AUTO_TDD_ENFORCER, AUTO_TRACK_ISSUES, DETECT_DOC_CHANGES
+
+### unified_manifest_sync.py
+
+**Purpose**: Install manifest validation and settings hooks validation
+**Consolidates**: validate_install_manifest.py, validate_settings_hooks.py
+**Lifecycle**: PreCommit
+**Environment Variables**: VALIDATE_MANIFEST, VALIDATE_SETTINGS, AUTO_UPDATE_MANIFEST
+
+---
+
 ## Quick Reference by Lifecycle
 
 | Lifecycle | Count | Hooks |
 |-----------|-------|-------|
 | **SessionStart** | 1 | auto_bootstrap |
-| **PreToolUse** | 3 | pre_tool_use, batch_permission_approver, enforce_implementation_workflow |
-| **PostToolUse** | 1 | post_tool_use_error_capture |
-| **PreCommit** | 24 | See Core + Validation sections |
-| **SubagentStop** | 3 | session_tracker, log_agent_completion, auto_git_workflow |
+| **PreToolUse** | 1 | unified_pre_tool |
+| **PostToolUse** | 1 | unified_post_tool |
+| **PreCommit** | 5 | unified_code_quality, unified_structure_enforcer, unified_doc_validator, unified_doc_auto_fix, unified_manifest_sync |
+| **SubagentStop** | 2 | unified_session_tracker, unified_git_automation |
+| **UserPromptSubmit** | 1 | unified_prompt_validator |
 | **Utility** | 6 | genai_prompts, genai_utils, github_issue_manager, health_check, setup, sync_to_installed |
 
 ---

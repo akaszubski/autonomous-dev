@@ -17,7 +17,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does** (Issue #132 - Complete auto-install):
 - Downloads all plugin components to `~/.autonomous-dev-staging/`
-- Installs global infrastructure: `~/.claude/hooks/` (51 hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
+- Installs global infrastructure: `~/.claude/hooks/` (10 unified hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
 - Installs to `.claude/`:
   - Commands (7) → `.claude/commands/`
   - Agents (22) → `.claude/agents/`
@@ -539,15 +539,24 @@ See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and ag
 
 **Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
 
-### Hooks (51 total automation - unified PreToolUse hook eliminates collision)
+### Hooks (10 Unified Hooks - Issue #144)
 
-51 automation hooks for quality enforcement and workflow automation. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
+10 unified hooks consolidate 51 individual hooks using dispatcher pattern. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
-**Core Hooks** (15): auto_format, auto_test, security_scan, validate_project_alignment, validate_claude_alignment, validate_command_file_ops, enforce_file_organization, enforce_pipeline_complete, enforce_tdd, detect_feature_request, enforce_implementation_workflow, auto_git_workflow, pre_tool_use, post_tool_use_error_capture, session_tracker
+| Lifecycle | Hook | Consolidates |
+|-----------|------|--------------|
+| UserPromptSubmit | unified_prompt_validator.py | 1 hook (bypass detection) |
+| PreToolUse | unified_pre_tool.py | 3 hooks (MCP security, agent auth, batch approval) |
+| PostToolUse | unified_post_tool.py | 1 hook (error capture) |
+| SubagentStop | unified_session_tracker.py | 3 hooks (session, pipeline, progress) |
+| SubagentStop | unified_git_automation.py | 1 hook (git workflow) |
+| PreCommit | unified_code_quality.py | 5 hooks (format, test, security, TDD, coverage) |
+| PreCommit | unified_structure_enforcer.py | 6 hooks (file org, bloat, limits) |
+| PreCommit | unified_doc_validator.py | 11 hooks (alignment, consistency) |
+| PreCommit | unified_doc_auto_fix.py | 8 hooks (auto-fix, sync) |
+| PreCommit | unified_manifest_sync.py | 2 hooks (manifest, settings) |
 
-**Optional Hooks** (30): auto_enforce_coverage, auto_fix_docs, auto_add_to_regression, auto_track_issues, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_update_docs, auto_update_project_progress, detect_doc_changes, enforce_bloat_prevention, enforce_command_limit, post_file_move, validate_documentation_alignment, validate_session_quality, plus 15 additional hooks for extended enforcement and validation
-
-**Lifecycle Hooks** (2): UserPromptSubmit (display context), SubagentStop (log completion, auto-update progress)
+**Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
 
 
 ---

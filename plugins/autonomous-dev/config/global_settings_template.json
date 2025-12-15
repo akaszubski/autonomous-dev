@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/detect_feature_request.py",
+            "command": "python3 ~/.claude/hooks/unified_prompt_validator.py",
             "timeout": 5
           }
         ]
@@ -112,12 +112,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/pre_tool_use.py",
+            "command": "MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/unified_pre_tool.py",
             "timeout": 5
-          },
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/enforce_implementation_workflow.py",
+            "command": "python3 ~/.claude/hooks/unified_post_tool.py",
             "timeout": 5
           }
         ]
@@ -125,11 +132,21 @@
     ],
     "SubagentStop": [
       {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/unified_session_tracker.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "quality-validator",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/auto_git_workflow.py",
+            "command": "python3 ~/.claude/hooks/unified_git_automation.py",
             "timeout": 30
           }
         ]

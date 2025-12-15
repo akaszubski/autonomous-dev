@@ -1,6 +1,42 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #144: Consolidate 51+ hooks into 10 unified hooks using dispatcher pattern**
+  - **Problem**: 51 individual hooks created race conditions, ordering dependencies, and management overhead. Each hook ran independently, potentially conflicting with others in the same lifecycle.
+  - **Solution**: Consolidate into 10 unified hooks using dispatcher pattern. Each unified hook contains multiple validators that coordinate via environment variables.
+  - **Implementation**:
+    - **unified_code_quality.py** (PreCommit) - Consolidates 5 hooks: auto_format, auto_test, security_scan, enforce_tdd, auto_enforce_coverage
+    - **unified_prompt_validator.py** (UserPromptSubmit) - Consolidates 1 hook: detect_feature_request
+    - **unified_pre_tool.py** (PreToolUse) - Consolidates 3 hooks: pre_tool_use, enforce_implementation_workflow, batch_permission_approver
+    - **unified_post_tool.py** (PostToolUse) - Consolidates 1 hook: post_tool_use_error_capture
+    - **unified_session_tracker.py** (SubagentStop) - Consolidates 3 hooks: session_tracker, log_agent_completion, auto_update_project_progress
+    - **unified_git_automation.py** (SubagentStop) - Consolidates 1 hook: auto_git_workflow
+    - **unified_structure_enforcer.py** (PreCommit) - Consolidates 6 hooks: enforce_file_organization, enforce_bloat_prevention, enforce_command_limit, enforce_pipeline_complete, enforce_orchestrator, verify_agent_pipeline
+    - **unified_doc_validator.py** (PreCommit) - Consolidates 11 hooks: validate_project_alignment, validate_claude_alignment, validate_documentation_alignment, validate_docs_consistency, validate_readme_accuracy, validate_readme_sync, validate_readme_with_genai, validate_command_file_ops, validate_commands, validate_hooks_documented, validate_command_frontmatter_flags
+    - **unified_doc_auto_fix.py** (PreCommit/PostToolUse) - Consolidates 8 hooks: auto_fix_docs, auto_update_docs, auto_add_to_regression, auto_generate_tests, auto_sync_dev, auto_tdd_enforcer, auto_track_issues, detect_doc_changes
+    - **unified_manifest_sync.py** (PreCommit) - Consolidates 2 hooks: validate_install_manifest, validate_settings_hooks
+  - **Key Features**:
+    - **Dispatcher Pattern**: Each unified hook routes to multiple validators based on environment variables
+    - **Graceful Degradation**: If one validator fails, others still run (non-blocking) - no cascade failures
+    - **Environment Control**: All enforcement can be fine-tuned via environment variables in .env (e.g., AUTO_FORMAT=false, ENFORCE_COVERAGE=true)
+    - **Backward Compatible**: Replacement seamless - same lifecycle hooks, same behavior, existing configurations continue to work
+    - **Reduced Collision**: Eliminates race conditions and ordering issues from 51 individual hooks
+  - **Files Modified**:
+    - New files: 10 unified hook dispatchers in plugins/autonomous-dev/hooks/
+    - plugins/autonomous-dev/config/global_settings_template.json: Updated hook commands to reference unified hooks
+    - plugins/autonomous-dev/config/install_manifest.json: Updated manifest to include unified hooks
+  - **Documentation Updated**:
+    - CLAUDE.md: Updated from "51 hooks" to "10 unified hooks", documented dispatcher pattern and consolidation
+  - **Performance Impact**:
+    - Reduced startup time: 51 hook processes → 10 processes
+    - Reduced context bloat: Centralized logging and coordination
+    - Improved debugging: Single entry point per lifecycle instead of multiple callbacks
+  - **Backward Compatibility**:
+    - Environment variables remain consistent with original individual hooks (e.g., AUTO_FORMAT, SECURITY_SCAN)
+    - Pre-existing configurations in .env continue to work
+    - No user-facing API changes
+  - **Related**: GitHub Issue #142 (PreToolUse consolidation), GitHub Issue #141 (Workflow enforcement)
+
 - **Issue #146: Add allowed-tools frontmatter to all 28 skills for least privilege enforcement**
   - **Problem**: Skills had no tool restrictions, violating principle of least privilege. Claude Code 2.0 supports allowed-tools frontmatter for fine-grained permission control at skill level.
   - **Solution**: Add allowed-tools field to frontmatter of all 28 skill files with minimal required tools per skill category.

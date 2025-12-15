@@ -154,19 +154,34 @@ class ClaudeAlignmentValidator:
 
     def _check_hook_counts(self, project_claude: str):
         """Check hook counts are documented."""
-        # Extract documented vs actual
-        actual_count = len(list((self.repo_root / "plugins/autonomous-dev/hooks").glob("*.py")))
+        hooks_dir = self.repo_root / "plugins/autonomous-dev/hooks"
         documented_count = self._extract_hook_count(project_claude)
 
-        if documented_count and documented_count != actual_count:
-            self.issues.append(AlignmentIssue(
-                severity="info",
-                category="count",
-                message=f"Hook count changed: CLAUDE.md says ~{documented_count}, actual is {actual_count}",
-                expected=str(actual_count),
-                actual=str(documented_count),
-                location="plugins/autonomous-dev/hooks/"
-            ))
+        # Issue #144: Support unified hooks architecture
+        # If CLAUDE.md mentions "unified hooks", count unified_*.py files
+        if "unified" in project_claude.lower() and "hooks" in project_claude.lower():
+            unified_count = len(list(hooks_dir.glob("unified_*.py")))
+            if documented_count and documented_count != unified_count:
+                self.issues.append(AlignmentIssue(
+                    severity="info",
+                    category="count",
+                    message=f"Unified hook count changed: CLAUDE.md says {documented_count}, actual is {unified_count}",
+                    expected=str(unified_count),
+                    actual=str(documented_count),
+                    location="plugins/autonomous-dev/hooks/unified_*.py"
+                ))
+        else:
+            # Legacy: count all *.py files
+            actual_count = len(list(hooks_dir.glob("*.py")))
+            if documented_count and documented_count != actual_count:
+                self.issues.append(AlignmentIssue(
+                    severity="info",
+                    category="count",
+                    message=f"Hook count changed: CLAUDE.md says ~{documented_count}, actual is {actual_count}",
+                    expected=str(actual_count),
+                    actual=str(documented_count),
+                    location="plugins/autonomous-dev/hooks/"
+                ))
 
     def _check_documented_features_exist(self, project_claude: str):
         """Check that documented features actually exist."""
@@ -221,8 +236,9 @@ class ClaudeAlignmentValidator:
 
     def _extract_hook_count(self, text: str) -> Optional[int]:
         """Extract hook count from text."""
-        # Look for "15+ automation" or similar
-        match = re.search(r"(\d+)\+?\s+(?:automation|hooks)", text, re.IGNORECASE)
+        # Look for "10 unified hooks" (Issue #144) or "15+ automation" or similar
+        # Match: "10 unified hooks", "51 hooks", "15+ automation"
+        match = re.search(r"(\d+)\+?\s+(?:unified\s+)?(?:automation|hooks)", text, re.IGNORECASE)
         return int(match.group(1)) if match else None
 
 
