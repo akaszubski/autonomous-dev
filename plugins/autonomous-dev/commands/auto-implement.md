@@ -11,6 +11,38 @@ Execute the following steps IN ORDER. Each step is MANDATORY - NO EXCEPTIONS.
 
 ---
 
+### SKILL INJECTION (Issue #140)
+
+**CRITICAL**: Before EACH Task tool call, load relevant skills for the target agent.
+
+**Why**: Subagents spawned via Task tool do not inherit skills from the main conversation.
+Skills must be explicitly injected into the Task prompt.
+
+**How to inject skills** (run this Python before each Task call):
+
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py [agent_name]
+```
+
+**Example for implementer**:
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py implementer
+```
+
+This outputs XML-formatted skill content. **Prepend this output to your Task prompt**.
+
+**Agent-Skill Mapping** (reference):
+- test-master: testing-guide, python-standards
+- implementer: python-standards, testing-guide, error-handling-patterns
+- reviewer: code-review, python-standards
+- security-auditor: security-patterns, error-handling-patterns
+- doc-master: documentation-guide, git-workflow
+- planner: architecture-patterns, project-management
+
+**Token Budget**: ~1,500 lines max per agent (skills are compact SKILL.md files under 500 lines each).
+
+---
+
 ### STEP 0: Validate PROJECT.md Alignment
 
 **ACTION REQUIRED**: Before any implementation work:
@@ -202,12 +234,20 @@ EOF
 
 **CRITICAL**: Planner receives BOTH codebase context (from researcher-local) AND external guidance (from researcher-web). This ensures the plan leverages existing patterns while following best practices.
 
+**SKILL INJECTION** (Issue #140): Before calling Task, load skills:
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py planner
+```
+Prepend the output to the prompt below.
+
 **CORRECT** ✅: Call Task tool with:
 
 ```
 subagent_type: "planner"
 description: "Plan [feature name]"
-prompt: "Create detailed implementation plan for: [user's feature description].
+prompt: "[PREPEND SKILL OUTPUT HERE]
+
+Create detailed implementation plan for: [user's feature description].
 
 **Codebase Context** (from researcher-local):
 [Paste existing_patterns, files_to_update, architecture_notes, similar_implementations from researcher-local JSON output]
@@ -262,12 +302,20 @@ If count != 3, STOP and invoke missing agents NOW.
 - Safety buffer: 5 minutes
 - Total: 20 minutes (1200 seconds)
 
+**SKILL INJECTION** (Issue #140): Before calling Task, load skills:
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py test-master
+```
+Prepend the output to the prompt below.
+
 **CORRECT** ✅: Call Task tool with:
 
 ```
 subagent_type: "test-master"
 description: "Write tests for [feature name]"
-prompt: "Write comprehensive tests for: [user's feature description].
+prompt: "[PREPEND SKILL OUTPUT HERE]
+
+Write comprehensive tests for: [user's feature description].
 
 **Codebase Testing Patterns** (from researcher-local):
 - Test file patterns: [Paste testing_guidance.test_file_patterns]
@@ -312,12 +360,20 @@ If count != 4, STOP and invoke missing agents NOW.
 
 ⚠️ **ACTION REQUIRED**: Now that tests exist, implement to make them pass.
 
+**SKILL INJECTION** (Issue #140): Before calling Task, load skills:
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py implementer
+```
+Prepend the output to the prompt below.
+
 **CORRECT** ✅: Call Task tool with:
 
 ```
 subagent_type: "implementer"
 description: "Implement [feature name]"
-prompt: "Implement production-quality code for: [user's feature description].
+prompt: "[PREPEND SKILL OUTPUT HERE]
+
+Implement production-quality code for: [user's feature description].
 
 **Codebase Implementation Patterns** (from researcher-local):
 - Reusable functions: [Paste implementation_guidance.reusable_functions]
@@ -363,6 +419,14 @@ python plugins/autonomous-dev/scripts/agent_tracker.py status
 
 **DO NOT** invoke agents sequentially. **DO NOT** wait between invocations. Call all three NOW:
 
+**SKILL INJECTION** (Issue #140): Before calling Task tools, load skills for all three:
+```bash
+python3 plugins/autonomous-dev/lib/skill_loader.py reviewer
+python3 plugins/autonomous-dev/lib/skill_loader.py security-auditor
+python3 plugins/autonomous-dev/lib/skill_loader.py doc-master
+```
+Prepend the respective skill output to each agent's prompt below.
+
 #### Validator 1: Reviewer (Quality Gate)
 
 **Call Task tool with**:
@@ -370,7 +434,9 @@ python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 subagent_type: "reviewer"
 description: "Review [feature name]"
-prompt: "Review implementation in: [list files].
+prompt: "[PREPEND REVIEWER SKILL OUTPUT HERE]
+
+Review implementation in: [list files].
 
 Check:
 - Code quality (readability, maintainability)
@@ -392,7 +458,9 @@ model: "sonnet"
 ```
 subagent_type: "security-auditor"
 description: "Security scan [feature name]"
-prompt: "Scan implementation in: [list files].
+prompt: "[PREPEND SECURITY-AUDITOR SKILL OUTPUT HERE]
+
+Scan implementation in: [list files].
 
 Check for:
 - Hardcoded secrets (API keys, passwords)
@@ -415,7 +483,9 @@ model: "haiku"
 ```
 subagent_type: "doc-master"
 description: "Update docs for [feature name]"
-prompt: "Update documentation for feature: [feature name].
+prompt: "[PREPEND DOC-MASTER SKILL OUTPUT HERE]
+
+Update documentation for feature: [feature name].
 
 Changed files: [list all modified/created files]
 

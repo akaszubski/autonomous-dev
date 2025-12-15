@@ -173,6 +173,7 @@
         "plugins/autonomous-dev/lib/session_tracker.py",
         "plugins/autonomous-dev/lib/settings_generator.py",
         "plugins/autonomous-dev/lib/settings_merger.py",
+        "plugins/autonomous-dev/lib/skill_loader.py",
         "plugins/autonomous-dev/lib/staging_manager.py",
         "plugins/autonomous-dev/lib/sync_dispatcher.py",
         "plugins/autonomous-dev/lib/sync_mode_detector.py",

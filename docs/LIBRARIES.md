@@ -6725,3 +6725,99 @@ Coverage Target: 95%+ for CLI script
 - **BOOTSTRAP_PARADOX_SOLUTION.md** - Why global infrastructure needed
 - **VERIFICATION-ISSUE-116.md** - Documentation verification report
 - **SettingsGenerator** - Python API for settings merge and fix logic
+
+---
+
+## 43. skill_loader.py (320 lines, v3.43.0+, Issue #140)
+
+**Purpose**: Load and inject skill content into subagent prompts spawned via Task tool.
+
+**Location**: `plugins/autonomous-dev/lib/skill_loader.py`
+
+**Problem Solved**: Subagents spawned via Task tool do not inherit skills from the main conversation. Skills must be explicitly injected into Task prompts.
+
+### Quick Start
+
+```bash
+# Load skills for an agent
+python3 plugins/autonomous-dev/lib/skill_loader.py implementer
+
+# List available skills
+python3 plugins/autonomous-dev/lib/skill_loader.py --list
+
+# Show agent-skill mapping
+python3 plugins/autonomous-dev/lib/skill_loader.py --map
+```
+
+### Core Functions
+
+#### `load_skills_for_agent(agent_name: str) -> Dict[str, str]`
+
+Load all relevant skills for an agent.
+
+**Parameters**:
+- `agent_name` (str): Name of the agent (e.g., "implementer")
+
+**Returns**: Dict mapping skill names to their content
+
+#### `format_skills_for_prompt(skills: Dict[str, str], max_total_lines: int = 1500) -> str`
+
+Format loaded skills as XML tags for prompt injection.
+
+**Parameters**:
+- `skills` (Dict[str, str]): Dict mapping skill names to content
+- `max_total_lines` (int): Maximum total lines across all skills (default 1500)
+
+**Returns**: Formatted string with skills in XML tags
+
+#### `get_skill_injection_for_agent(agent_name: str) -> str`
+
+Convenience function to get formatted skill injection for an agent.
+
+**Parameters**:
+- `agent_name` (str): Name of the agent
+
+**Returns**: Formatted skill content ready for prompt injection
+
+### Agent-Skill Mapping
+
+| Agent | Skills |
+|-------|--------|
+| test-master | testing-guide, python-standards |
+| implementer | python-standards, testing-guide, error-handling-patterns |
+| reviewer | code-review, python-standards |
+| security-auditor | security-patterns, error-handling-patterns |
+| doc-master | documentation-guide, git-workflow |
+| planner | architecture-patterns, project-management |
+
+### Security Features
+
+- **Trusted Directory Only**: Skills loaded from `plugins/autonomous-dev/skills/` only
+- **No Path Traversal**: Rejects skill names with `/`, `\`, or `..`
+- **Text Injection Only**: Skill content is not executed, only injected as text
+- **Audit Logging**: Missing skills logged to stderr for debugging
+
+### Integration with auto-implement.md
+
+The `/auto-implement` command uses skill_loader.py before each Task call:
+
+```markdown
+**SKILL INJECTION** (Issue #140): Before calling Task, load skills:
+\`\`\`bash
+python3 plugins/autonomous-dev/lib/skill_loader.py test-master
+\`\`\`
+Prepend the output to the prompt below.
+```
+
+### Related Components
+
+**Imports**:
+- `path_utils.get_project_root()` - Project root detection
+
+**Used By**:
+- `auto-implement.md` - Skill injection before Task calls
+
+**Related Issues**:
+- GitHub Issue #140 - Skills not available to subagents
+- GitHub Issue #35 - Agents should actively use skills
+- GitHub Issue #110 - Skills refactoring to under 500 lines

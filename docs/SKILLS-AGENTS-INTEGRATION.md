@@ -937,6 +937,99 @@ Claude loads SKILL.md, then only loads examples.md when analyzing existing API.
 
 ---
 
+## Part 8: Skill Injection for Subagents (Issue #140)
+
+### The Problem
+
+Subagents spawned via the Task tool do **not** inherit skills from the main conversation. When `/auto-implement` invokes agents like `test-master` or `implementer`, those agents run with fresh context and cannot access skills.
+
+**Result**: Agent frontmatter says "Relevant Skills: testing-guide, python-standards" but the agent never receives that content.
+
+### The Solution: Explicit Skill Injection
+
+Skills must be **explicitly injected** into Task prompts. The `skill_loader.py` library handles this:
+
+```bash
+# Load skills for an agent
+python3 plugins/autonomous-dev/lib/skill_loader.py implementer
+
+# Output: XML-formatted skill content to prepend to Task prompt
+<skills>
+The following skills provide guidance for this task:
+
+<skill name="python-standards">
+[content of python-standards/SKILL.md]
+</skill>
+
+<skill name="testing-guide">
+[content of testing-guide/SKILL.md]
+</skill>
+</skills>
+```
+
+### How to Use
+
+**In auto-implement.md** (and other commands that spawn agents):
+
+1. Before each Task tool call, run `skill_loader.py [agent_name]`
+2. Prepend the output to the Task prompt
+3. Agent receives skill content in its context
+
+**Example**:
+```python
+# Before invoking implementer
+skills = subprocess.check_output(['python3', 'plugins/autonomous-dev/lib/skill_loader.py', 'implementer'])
+
+# Task prompt becomes:
+prompt = f"{skills}\n\nImplement production-quality code for: {feature}"
+```
+
+### Agent-Skill Mapping
+
+| Agent | Skills Injected |
+|-------|-----------------|
+| test-master | testing-guide, python-standards |
+| implementer | python-standards, testing-guide, error-handling-patterns |
+| reviewer | code-review, python-standards |
+| security-auditor | security-patterns, error-handling-patterns |
+| doc-master | documentation-guide, git-workflow |
+| planner | architecture-patterns, project-management |
+
+### Token Budget
+
+- **Max per agent**: ~1,500 lines (configurable)
+- **Typical**: 3-7 skills × 200-400 lines each = 600-2,800 lines
+- **SKILL.md files**: All under 500 lines (Issue #110 refactoring)
+
+### Graceful Degradation
+
+If a skill file is missing:
+1. Warning logged to stderr
+2. Workflow continues without that skill
+3. Other skills still injected normally
+
+### Security
+
+- Skills loaded from trusted plugin directory only (`plugins/autonomous-dev/skills/`)
+- No path traversal allowed in skill names
+- Skill content is not executed, only injected as text
+
+### Verification
+
+Check skill injection is working:
+```bash
+# List available skills
+python3 plugins/autonomous-dev/lib/skill_loader.py --list
+
+# Show agent-skill mapping
+python3 plugins/autonomous-dev/lib/skill_loader.py --map
+
+# Test loading for specific agent
+python3 plugins/autonomous-dev/lib/skill_loader.py test-master | head -20
+```
+
+---
+
 ## References
 
 - **Official Anthropic Skills Guide**: https://docs.claude.com/en/docs/claude-code/skills.md
