@@ -611,7 +611,31 @@ python plugins/autonomous-dev/scripts/agent_tracker.py status
 
 Identify which agents are missing and invoke them NOW before proceeding.
 
-**If count == 8**: Proceed to STEP 5 (Report Completion).
+**If count == 8**: Proceed to STEP 4.5 (Regression Gate).
+
+---
+
+### STEP 4.5: Regression Smoke Test Gate
+
+⚠️ **CHECKPOINT 4.5 - VERIFY NO REGRESSIONS**:
+
+Before committing, run smoke tests to ensure the implementation didn't break existing functionality.
+
+```bash
+python3 -m pytest tests/regression/smoke/ -q --tb=line -o "addopts="
+```
+
+**Expected**: All smoke tests pass (10/10 or similar).
+
+**If tests FAIL**:
+1. Review failure output to identify broken functionality
+2. Fix the regression (may need to invoke implementer again)
+3. Re-run smoke tests until passing
+4. Then proceed to Step 5
+
+**If tests PASS**: Proceed to STEP 5 (Report Completion).
+
+**Note**: This is a fast gate (~10-30 seconds). Full regression suite runs in CI/CD on push.
 
 ---
 

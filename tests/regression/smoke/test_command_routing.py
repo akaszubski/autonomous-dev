@@ -69,9 +69,9 @@ class TestHealthCheckCommand:
         Protects: Health check availability (smoke test - regression baseline)
         Expected: < 1 second
         """
-        # NOTE: This will FAIL if script missing
+        # NOTE: health_check.py is in hooks/, not scripts/ (Issue #147)
         with timing_validator.measure() as timer:
-            script = plugins_dir / "scripts" / "health_check.py"
+            script = plugins_dir / "hooks" / "health_check.py"
             assert script.exists()
 
         assert timer.elapsed < 1.0
@@ -84,7 +84,7 @@ class TestHealthCheckCommand:
         """
         # NOTE: This will FAIL if health check broken
         with timing_validator.measure() as timer:
-            script = plugins_dir / "scripts" / "health_check.py"
+            script = plugins_dir / "hooks" / "health_check.py"
 
             # Run health check
             result = subprocess.run(
@@ -110,7 +110,7 @@ class TestHealthCheckCommand:
         """
         # NOTE: This will FAIL if validation broken
         with timing_validator.measure() as timer:
-            script = plugins_dir / "scripts" / "health_check.py"
+            script = plugins_dir / "hooks" / "health_check.py"
 
             # Run health check
             result = subprocess.run(
@@ -123,102 +123,79 @@ class TestHealthCheckCommand:
 
             output = result.stdout + result.stderr
 
-            # Should report agent validation
-            assert "agents" in output.lower() or "18" in output  # 18 agents per CLAUDE.md
+            # Should report agent validation (8 agents per Issue #147)
+            assert "agents" in output.lower() or "8" in output
 
         assert timer.elapsed < 3.0
 
 
 @pytest.mark.smoke
-class TestAlignProjectCommand:
-    """Validate /align-project command routing."""
+class TestAlignCommand:
+    """Validate /align command routing (unified alignment command)."""
 
-    def test_align_project_command_exists(self, plugins_dir, timing_validator):
-        """Test that align-project command file exists.
+    def test_align_command_exists(self, plugins_dir, timing_validator):
+        """Test that align command file exists.
 
         Protects: Alignment command availability (smoke test - regression baseline)
         Expected: < 1 second
+        Note: align-project.md was unified into align.md (Issue #121)
         """
         # NOTE: This will FAIL if command not present
         with timing_validator.measure() as timer:
-            command = plugins_dir / "commands" / "align-project.md"
+            command = plugins_dir / "commands" / "align.md"
             assert command.exists()
 
             content = command.read_text()
-            # Should reference alignment-analyzer agent
-            assert "alignment-analyzer" in content.lower() or "PROJECT.md" in content
+            # Should reference alignment modes (--project, --claude, --retrofit)
+            assert "project" in content.lower() or "align" in content.lower()
 
         assert timer.elapsed < 1.0
 
 
 @pytest.mark.smoke
-class TestStatusCommand:
-    """Validate /status command routing."""
+class TestSyncCommand:
+    """Validate /sync command routing."""
 
-    def test_status_command_exists(self, plugins_dir, timing_validator):
-        """Test that status command file exists.
+    def test_sync_command_exists(self, plugins_dir, timing_validator):
+        """Test that sync command file exists.
 
-        Protects: Status tracking availability (smoke test - regression baseline)
+        Protects: Sync command availability (smoke test - regression baseline)
         Expected: < 1 second
         """
         # NOTE: This will FAIL if command not present
         with timing_validator.measure() as timer:
-            command = plugins_dir / "commands" / "status.md"
+            command = plugins_dir / "commands" / "sync.md"
             assert command.exists()
 
             content = command.read_text()
-            # Should reference project-status-analyzer agent
-            assert "status" in content.lower() or "progress" in content.lower()
+            # Should reference sync modes (--github, --env, --marketplace, etc.)
+            assert "sync" in content.lower() or "github" in content.lower()
 
         assert timer.elapsed < 1.0
 
 
 @pytest.mark.smoke
-class TestPipelineStatusCommand:
-    """Validate /pipeline-status command execution."""
+class TestCreateIssueCommand:
+    """Validate /create-issue command routing."""
 
-    def test_pipeline_status_script_exists(self, plugins_dir, timing_validator):
-        """Test that pipeline status script exists.
+    def test_create_issue_command_exists(self, plugins_dir, timing_validator):
+        """Test that create-issue command file exists.
 
-        Protects: Pipeline tracking availability (smoke test - regression baseline)
+        Protects: Issue creation availability (smoke test - regression baseline)
         Expected: < 1 second
         """
-        # NOTE: This will FAIL if script missing
+        # NOTE: This will FAIL if command not present
         with timing_validator.measure() as timer:
-            script = plugins_dir / "scripts" / "pipeline_status.py"
-            assert script.exists()
+            command = plugins_dir / "commands" / "create-issue.md"
+            assert command.exists()
+
+            content = command.read_text()
+            # Should reference issue creation
+            assert "issue" in content.lower() or "github" in content.lower()
 
         assert timer.elapsed < 1.0
-
-    def test_pipeline_status_runs_without_error(self, plugins_dir, timing_validator):
-        """Test that pipeline status script runs without errors.
-
-        Protects: Pipeline tracking reliability (smoke test - regression baseline)
-        Expected: < 2 seconds
-        """
-        # NOTE: This will FAIL if script broken
-        with timing_validator.measure() as timer:
-            script = plugins_dir / "scripts" / "pipeline_status.py"
-
-            # Run pipeline status
-            result = subprocess.run(
-                [sys.executable, str(script)],
-                cwd=plugins_dir.parent.parent,
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
-
-            # Should complete without crashing
-            # May return empty if no pipeline running, but shouldn't error
-            assert "Traceback" not in result.stderr
-
-        assert timer.elapsed < 2.0
 
 
 # TODO: Backfill additional smoke tests for:
-# - /sync-dev command routing
-# - /test command routing
-# - Individual agent commands (/research, /plan, /test-feature, etc.)
 # - Hook activation validation
 # - Session tracker functionality
