@@ -181,7 +181,7 @@ class TestAgentStreamliningWorkflow:
     """Test end-to-end agent streamlining workflow."""
 
     def test_all_agents_reference_skill(self):
-        """Test all 20 agents reference skill-integration-templates skill."""
+        """Test all 8 active agents reference skill-integration-templates skill (Issue #147)."""
         agents_with_refs = []
         agents_without_refs = []
 
@@ -194,8 +194,8 @@ class TestAgentStreamliningWorkflow:
                 else:
                     agents_without_refs.append(agent_file)
 
-        assert len(agents_with_refs) == 20, (
-            f"All 20 agents must reference skill-integration-templates\n"
+        assert len(agents_with_refs) == 8, (
+            f"All 8 agents must reference skill-integration-templates\n"
             f"With references: {len(agents_with_refs)}\n"
             f"Without references: {agents_without_refs}"
         )
@@ -291,10 +291,10 @@ class TestTokenReductionWorkflow:
         )
 
     def test_token_reduction_meets_minimum_target(self):
-        """Test token reduction meets minimum 3% target (600 tokens)."""
-        # Baseline estimate: 20,000 tokens across 20 agents
-        baseline_estimate = 20000
-        minimum_reduction = 600  # 3%
+        """Test token reduction meets minimum 3% target (240 tokens) - Issue #147."""
+        # Baseline estimate: 8,000 tokens across 8 agents (Issue #147)
+        baseline_estimate = 8000
+        minimum_reduction = 240  # 3%
 
         # Count streamlined agents
         streamlined_count = 0

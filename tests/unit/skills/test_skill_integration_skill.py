@@ -25,7 +25,7 @@ Skill Requirements:
    - examples/skill-reference-diagram.md: Visual skill relationship diagram
 
 4. Agent integration:
-   - Update all 20 agents to reference skill-integration skill
+   - Update all 8 active agents to reference skill-integration skill (Issue #147)
    - Replace verbose "Relevant Skills" sections with reference
    - Standardize skill reference format
 
@@ -415,7 +415,7 @@ class TestSkillIntegrationExamples:
 
 
 class TestAgentSkillIntegrationReferences:
-    """Test all 20 agents reference skill-integration skill."""
+    """Test all 8 active agents reference skill-integration skill (Issue #147)."""
 
     @pytest.mark.parametrize("agent_name", ALL_AGENTS)
     def test_agent_has_relevant_skills_section(self, agent_name):
@@ -502,7 +502,7 @@ class TestTokenReductionFromSkillIntegration:
         )
 
     def test_total_token_savings_across_all_agents(self):
-        """Test total token savings of ~400 tokens across all 20 agents."""
+        """Test total token savings of ~160 tokens across all 8 agents (Issue #147)."""
         total_savings = 0
 
         for agent_name in ALL_AGENTS:
@@ -516,11 +516,11 @@ class TestTokenReductionFromSkillIntegration:
             # (some agents save more, some less)
             total_savings += 20
 
-        # Expected: ~400 tokens total (20 tokens × 20 agents)
-        assert total_savings >= 400, (
+        # Expected: ~160 tokens total (20 tokens × 8 agents) - Issue #147
+        assert total_savings >= 160, (
             f"Total token savings too low: {total_savings}\n"
-            f"Expected: ≥400 tokens saved across all 20 agents\n"
-            f"See: Issue #68"
+            f"Expected: ≥160 tokens saved across all 8 agents\n"
+            f"See: Issue #68, #147"
         )
 
 

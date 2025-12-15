@@ -142,7 +142,7 @@ class TestPhase1AgentSkillsFrontmatter:
 
 
 class TestPhase2AgentSkillMapAlignment:
-    """Phase 2: Verify skills: field matches AGENT_SKILL_MAP for all 21 agents."""
+    """Phase 2: Verify skills: field matches AGENT_SKILL_MAP for all 8 active agents (Issue #147)."""
 
     def test_all_mapped_agents_have_correct_skills(self):
         """All agents in AGENT_SKILL_MAP should have matching skills: frontmatter."""
@@ -171,10 +171,10 @@ class TestPhase2AgentSkillMapAlignment:
             "\n".join(f"  - {m}" for m in mismatches)
         )
 
-    def test_agent_skill_map_has_21_agents(self):
-        """AGENT_SKILL_MAP should have 21 agents (orchestrator deprecated)."""
-        assert len(AGENT_SKILL_MAP) == 21, (
-            f"Expected 21 agents in AGENT_SKILL_MAP, got {len(AGENT_SKILL_MAP)}"
+    def test_agent_skill_map_has_8_agents(self):
+        """AGENT_SKILL_MAP should have 8 active agents (Issue #147)."""
+        assert len(AGENT_SKILL_MAP) == 8, (
+            f"Expected 8 agents in AGENT_SKILL_MAP, got {len(AGENT_SKILL_MAP)}"
         )
 
     def test_all_agent_files_are_in_map(self):
@@ -469,10 +469,11 @@ class TestBackwardsCompatibility:
         assert skill_loader.exists(), "skill_loader.py should remain for debugging"
 
     def test_agent_skill_map_still_accurate(self):
-        """AGENT_SKILL_MAP should be accurate reference."""
-        assert len(AGENT_SKILL_MAP) == 21
+        """AGENT_SKILL_MAP should be accurate reference (Issue #147: 8 active agents)."""
+        assert len(AGENT_SKILL_MAP) == 8
         assert 'implementer' in AGENT_SKILL_MAP
         assert 'orchestrator' not in AGENT_SKILL_MAP  # Deprecated in v3.2.2
+        assert 'advisor' not in AGENT_SKILL_MAP  # Archived in Issue #147
 
 
 if __name__ == "__main__":

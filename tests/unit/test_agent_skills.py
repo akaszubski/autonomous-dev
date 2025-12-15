@@ -158,9 +158,9 @@ class TestAgentSkillsSections:
         assert self.AGENTS_DIR.exists(), f"Agents directory not found: {self.AGENTS_DIR}"
         assert self.AGENTS_DIR.is_dir(), f"Agents path is not a directory: {self.AGENTS_DIR}"
 
-        # Verify at least 18 agent files exist
+        # Verify 8 active agent files exist (Issue #147: consolidated from 21 to 8)
         agent_files = list(self.AGENTS_DIR.glob("*.md"))
-        assert len(agent_files) >= 18, f"Expected at least 18 agents, found {len(agent_files)}"
+        assert len(agent_files) >= 8, f"Expected at least 8 agents, found {len(agent_files)}"
 
     def test_all_target_agents_have_skill_sections(self):
         """

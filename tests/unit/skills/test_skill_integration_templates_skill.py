@@ -14,7 +14,7 @@ Skill Requirements:
    - Progressive disclosure usage guidelines
    - Integration best practices
 4. Example skill sections from real agents (examples/ directory)
-5. Token reduction: ~30-50 tokens per agent × 20 agents = ~600-1,000 tokens (3-5%)
+5. Token reduction: ~30-50 tokens per agent × 8 agents = ~240-400 tokens (Issue #147)
 
 Test Coverage Target: 53 tests (15 unit + 20 agent + 10 integration + 8 token)
 
@@ -597,7 +597,7 @@ class TestTokenReduction:
         # This test will fail until agents are streamlined
 
         # After streamlining, agents should reference skill instead of inline patterns
-        # Expected reduction: 30-50 tokens per agent × 20 agents = 600-1,000 tokens
+        # Expected reduction: 30-50 tokens per agent × 8 agents = 240-400 tokens (Issue #147)
 
         total_skill_refs = 0
 
@@ -610,19 +610,19 @@ class TestTokenReduction:
                 if "skill-integration-templates" in content:
                     total_skill_refs += 1
 
-        # All 20 agents should reference skill
-        assert total_skill_refs == 20, (
-            f"Expected all 20 agents to reference skill-integration-templates\n"
+        # All 8 active agents should reference skill (Issue #147)
+        assert total_skill_refs == 8, (
+            f"Expected all 8 agents to reference skill-integration-templates\n"
             f"Found: {total_skill_refs} agents with references\n"
-            f"Missing: {20 - total_skill_refs} agents"
+            f"Missing: {8 - total_skill_refs} agents"
         )
 
     def test_token_reduction_target_3_percent_minimum(self):
         """Test token reduction meets minimum 3% target."""
         # Calculate reduction from baseline
 
-        # Baseline estimate: ~20,000 tokens across 20 agents
-        baseline_estimate = 20000
+        # Baseline estimate: ~8,000 tokens across 8 agents (Issue #147)
+        baseline_estimate = 8000
 
         # After streamlining: Should save ~600 tokens (3%)
         minimum_reduction = baseline_estimate * 0.03  # 600 tokens
@@ -714,7 +714,7 @@ class TestTokenReduction:
                 )
 
     def test_total_reduction_accumulates_across_agents(self):
-        """Test total reduction accumulates correctly across all 20 agents."""
+        """Test total reduction accumulates correctly across all 8 agents (Issue #147)."""
         # Sum of individual reductions should equal total reduction
 
         agents_with_refs = 0
@@ -727,7 +727,7 @@ class TestTokenReduction:
                     agents_with_refs += 1
 
         # Total reduction = agents_with_refs × avg_reduction_per_agent
-        # Expected: 20 agents × ~30-50 tokens = 600-1,000 tokens
+        # Expected: 8 agents × ~30-50 tokens = 240-400 tokens (Issue #147)
 
         assert agents_with_refs > 0, (
             "Must have at least one agent with skill reference to measure reduction"

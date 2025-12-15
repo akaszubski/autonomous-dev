@@ -54,29 +54,19 @@ except ImportError:
 
 
 # Mapping of agent names to their skill files
-# This is extracted from agent frontmatter "Relevant Skills" sections
+# Issue #147: Consolidated to 8 active agents only
+# This is extracted from agent frontmatter "skills:" field
 AGENT_SKILL_MAP: Dict[str, List[str]] = {
-    "implementer": ["python-standards", "testing-guide", "error-handling-patterns"],
+    # Pipeline agents (7)
+    "researcher-local": ["research-patterns"],
+    "planner": ["architecture-patterns", "project-management"],
     "test-master": ["testing-guide", "python-standards"],
+    "implementer": ["python-standards", "testing-guide", "error-handling-patterns"],
     "reviewer": ["code-review", "python-standards"],
     "security-auditor": ["security-patterns", "error-handling-patterns"],
     "doc-master": ["documentation-guide", "git-workflow"],
-    "planner": ["architecture-patterns", "project-management"],
-    "researcher-local": ["research-patterns"],
-    "researcher-web": ["research-patterns"],
-    "advisor": ["architecture-patterns", "security-patterns"],
-    "alignment-validator": ["project-alignment-validation"],
-    "commit-message-generator": ["git-workflow"],
-    "pr-description-generator": ["github-workflow"],
+    # Utility agents (1)
     "issue-creator": ["github-workflow", "research-patterns"],
-    "brownfield-analyzer": ["architecture-patterns", "project-alignment"],
-    "project-progress-tracker": ["project-management"],
-    "alignment-analyzer": ["project-alignment-validation", "project-alignment"],
-    "project-bootstrapper": ["project-management", "architecture-patterns"],
-    "setup-wizard": ["project-management"],
-    "project-status-analyzer": ["project-management", "project-alignment"],
-    "sync-validator": ["git-workflow"],
-    "quality-validator": ["testing-guide", "code-review"],
 }
 
 
