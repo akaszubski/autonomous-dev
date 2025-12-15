@@ -3,6 +3,7 @@ name: setup-wizard
 description: Intelligent setup wizard - analyzes tech stack, generates PROJECT.md, configures hooks
 model: sonnet
 tools: [Read, Write, Bash, Grep, Glob, AskUserQuestion]
+skills: [project-management]
 ---
 
 # Setup Wizard Agent

@@ -937,56 +937,41 @@ Claude loads SKILL.md, then only loads examples.md when analyzing existing API.
 
 ---
 
-## Part 8: Skill Injection for Subagents (Issue #140)
+## Part 8: Native Claude Code 2.0 Skill Integration (Issue #143)
 
-### The Problem
+### The Solution: Claude Code 2.0 Native Skills Frontmatter
 
-Subagents spawned via the Task tool do **not** inherit skills from the main conversation. When `/auto-implement` invokes agents like `test-master` or `implementer`, those agents run with fresh context and cannot access skills.
+**Problem Solved** (Issue #140 v1 → Issue #143 v2):
+- Old approach (Issue #140): Required explicit skill injection via `skill_loader.py` in every Task call
+- New approach (Issue #143): Claude Code 2.0 natively handles skills via agent frontmatter `skills:` field
 
-**Result**: Agent frontmatter says "Relevant Skills: testing-guide, python-standards" but the agent never receives that content.
+**How It Works**:
 
-### The Solution: Explicit Skill Injection
+Each agent declares required skills in its frontmatter:
 
-Skills must be **explicitly injected** into Task prompts. The `skill_loader.py` library handles this:
-
-```bash
-# Load skills for an agent
-python3 plugins/autonomous-dev/lib/skill_loader.py implementer
-
-# Output: XML-formatted skill content to prepend to Task prompt
-<skills>
-The following skills provide guidance for this task:
-
-<skill name="python-standards">
-[content of python-standards/SKILL.md]
-</skill>
-
-<skill name="testing-guide">
-[content of testing-guide/SKILL.md]
-</skill>
-</skills>
+```yaml
+---
+name: test-master
+description: Testing specialist - TDD workflow
+model: sonnet
+tools: [Read, Write, Edit, Bash, Grep, Glob]
+skills: testing-guide, python-standards
+---
 ```
 
-### How to Use
+When Claude Code spawns the agent via Task tool:
+1. **Parse frontmatter**: Claude Code detects `skills:` field
+2. **Auto-load skills**: Declared skills automatically loaded from `plugins/autonomous-dev/skills/`
+3. **Inject context**: Skill content injected into agent context (no manual work needed)
+4. **Execute**: Agent receives full context with skills pre-loaded
 
-**In auto-implement.md** (and other commands that spawn agents):
+**Result**: Agents access relevant skills automatically without any special code in commands or Task prompts.
 
-1. Before each Task tool call, run `skill_loader.py [agent_name]`
-2. Prepend the output to the Task prompt
-3. Agent receives skill content in its context
+### Agent-Skill Mapping (Source of Truth)
 
-**Example**:
-```python
-# Before invoking implementer
-skills = subprocess.check_output(['python3', 'plugins/autonomous-dev/lib/skill_loader.py', 'implementer'])
+Mapping defined in `skill_loader.py` AGENT_SKILL_MAP (matches frontmatter declarations):
 
-# Task prompt becomes:
-prompt = f"{skills}\n\nImplement production-quality code for: {feature}"
-```
-
-### Agent-Skill Mapping
-
-| Agent | Skills Injected |
+| Agent | Skills Declared |
 |-------|-----------------|
 | test-master | testing-guide, python-standards |
 | implementer | python-standards, testing-guide, error-handling-patterns |
@@ -994,39 +979,74 @@ prompt = f"{skills}\n\nImplement production-quality code for: {feature}"
 | security-auditor | security-patterns, error-handling-patterns |
 | doc-master | documentation-guide, git-workflow |
 | planner | architecture-patterns, project-management |
+| researcher-local | research-patterns |
+| researcher-web | research-patterns |
+| issue-creator | github-workflow, research-patterns |
+| project-bootstrapper | project-management, documentation-guide |
+| setup-wizard | project-management |
+| alignment-analyzer | project-alignment-validation |
+| brownfield-analyzer | research-patterns, documentation-guide |
+| quality-validator | code-review, testing-guide |
+| advisor | advisor-triggers, security-patterns |
+| commit-message-generator | git-workflow |
+| pr-description-generator | git-workflow, github-workflow |
+| project-progress-tracker | project-management |
+| project-status-analyzer | project-management |
+| alignment-validator | project-alignment-validation |
+| sync-validator | git-workflow |
 
-### Token Budget
+### Implementation Details
 
-- **Max per agent**: ~1,500 lines (configurable)
-- **Typical**: 3-7 skills × 200-400 lines each = 600-2,800 lines
-- **SKILL.md files**: All under 500 lines (Issue #110 refactoring)
+**Frontmatter Format**:
+```yaml
+skills: skill1, skill2, skill3  # Comma-separated list (no brackets needed)
+```
 
-### Graceful Degradation
+**Skill Loading**:
+- Skills loaded from: `plugins/autonomous-dev/skills/[skill-name]/SKILL.md`
+- Content progressively disclosed: Compact SKILL.md files with detailed docs in subdirectories
+- Missing skills: Logged as warning, workflow continues (graceful degradation)
 
-If a skill file is missing:
-1. Warning logged to stderr
-2. Workflow continues without that skill
-3. Other skills still injected normally
+**No Manual Work Required**:
+- No skill_loader.py calls needed in commands
+- No subprocess management needed
+- No token budget calculation needed
+- Claude Code handles everything
 
-### Security
+### Token Efficiency
 
-- Skills loaded from trusted plugin directory only (`plugins/autonomous-dev/skills/`)
-- No path traversal allowed in skill names
-- Skill content is not executed, only injected as text
+- **Compact SKILL.md files**: 87-315 lines each (Issue #110 refactoring)
+- **Detailed content**: Moved to docs/ subdirectories (6,000+ lines preserved)
+- **Progressive disclosure**: Agents access metadata (quick) + details on-demand
+- **Overall reduction**: ~16,833-17,233 tokens saved vs monolithic skills (26-35% reduction)
 
 ### Verification
 
-Check skill injection is working:
+Check agent-skill mapping:
 ```bash
-# List available skills
-python3 plugins/autonomous-dev/lib/skill_loader.py --list
+# Show mapping source of truth
+cat plugins/autonomous-dev/lib/skill_loader.py | grep -A 100 "AGENT_SKILL_MAP"
 
-# Show agent-skill mapping
-python3 plugins/autonomous-dev/lib/skill_loader.py --map
-
-# Test loading for specific agent
-python3 plugins/autonomous-dev/lib/skill_loader.py test-master | head -20
+# Verify skill files exist
+ls plugins/autonomous-dev/skills/*/SKILL.md
 ```
+
+### Graceful Degradation
+
+If skill file missing:
+- Claude Code logs warning
+- Agent continues without that skill
+- Workflow not blocked
+- Other agents unaffected
+
+### Backwards Compatibility
+
+The `skill_loader.py` library remains available for:
+- Manual skill loading queries: `python3 plugins/autonomous-dev/lib/skill_loader.py --list`
+- Developer verification: `python3 plugins/autonomous-dev/lib/skill_loader.py --map`
+- Custom integrations: Manual skill content retrieval if needed
+
+**Primary usage** (Issue #143): Deprecated for Task-based workflows (Claude Code 2.0 handles it natively)
 
 ---
 

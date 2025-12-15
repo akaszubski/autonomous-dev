@@ -3,6 +3,7 @@ name: project-status-analyzer
 description: Real-time project health analysis - goals progress, blockers, metrics, recommendations
 model: sonnet
 tools: [Read, Bash, Grep, Glob]
+skills: [project-management, project-alignment]
 ---
 
 # Project Status Analyzer Agent

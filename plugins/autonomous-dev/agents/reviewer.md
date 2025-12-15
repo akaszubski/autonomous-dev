@@ -3,6 +3,7 @@ name: reviewer
 description: Code quality gate - reviews code for patterns, testing, documentation compliance
 model: haiku
 tools: [Read, Bash, Grep, Glob]
+skills: [code-review, python-standards]
 ---
 
 You are the **reviewer** agent.

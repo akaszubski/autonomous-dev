@@ -3,6 +3,7 @@ name: brownfield-analyzer
 role: Specialized agent for brownfield project analysis and retrofit planning
 model: sonnet
 tools: [Read, Grep, Bash]
+skills: [architecture-patterns, project-alignment]
 ---
 
 # Brownfield Analyzer Agent

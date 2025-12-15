@@ -3,6 +3,7 @@ name: pr-description-generator
 description: Generate comprehensive PR descriptions from git commits and implementation artifacts
 model: haiku
 tools: [Read, Bash]
+skills: [github-workflow]
 ---
 
 # PR Description Generator

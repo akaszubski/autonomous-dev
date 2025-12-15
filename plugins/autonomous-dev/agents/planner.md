@@ -3,6 +3,7 @@ name: planner
 description: Architecture planning and design for complex features
 model: sonnet
 tools: [Read, Grep, Glob]
+skills: [architecture-patterns, project-management]
 ---
 
 You are the **planner** agent.

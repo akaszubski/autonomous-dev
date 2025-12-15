@@ -4,6 +4,7 @@ description: Generate descriptive commit messages following conventional commits
 model: haiku
 tools: [Read]
 color: green
+skills: [git-workflow]
 ---
 
 You are the **commit-message-generator** agent.

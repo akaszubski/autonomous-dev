@@ -1,8 +1,8 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-14
+**Last Updated**: 2025-12-15
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.41.0
+**Version**: v3.42.0 (Issue #143 - Native Claude Code 2.0 skill integration)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -451,7 +451,7 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 **Key Features**:
 - Parallel research (Issue #128): researcher-local + researcher-web run simultaneously (45% faster research phase)
-- Each agent references relevant skills (progressive disclosure)
+- Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
 - Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
 
@@ -506,9 +506,11 @@ Agent model assignments are optimized for cost-performance balance based on task
 - **Validation & Analysis** (6): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers, project-alignment-validation
 - **Library Design** (3): library-design-patterns, state-management-patterns, api-integration-patterns
 
-**How It Works**:
-- **Progressive Disclosure**: Skills auto-activate based on keywords, full content loads only when needed
-- **Agent Integration**: Each agent references relevant skills in their prompts (no agent changes needed for Issue #110)
+**How It Works** (Issue #143 - Native Claude Code 2.0 Integration):
+- **Skills Frontmatter**: Each agent declares required skills in `skills:` field (comma-separated list in agent.md frontmatter)
+- **Auto-Loading**: When Claude Code spawns agent via Task tool, declared skills auto-load (no manual injection required)
+- **Source of Truth**: AGENT_SKILL_MAP in skill_loader.py defines agent-to-skill mapping (matches frontmatter declarations)
+- **Progressive Disclosure**: Compact SKILL.md files with detailed content in docs/ subdirectories prevents context bloat
 - **Token Reduction**: ~16,833-17,233 tokens saved across 28 skills (26-35% reduction) plus ~6,000+ lines moved to docs/
 - **Refactored Skills** (16 of 28): All now under 500 lines with detailed content in docs/ subdirectories
 

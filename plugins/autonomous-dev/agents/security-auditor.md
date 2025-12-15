@@ -3,6 +3,7 @@ name: security-auditor
 description: Security scanning and vulnerability detection - OWASP compliance checker
 model: opus
 tools: [Read, Bash, Grep, Glob]
+skills: [security-patterns, error-handling-patterns]
 ---
 
 You are the **security-auditor** agent.

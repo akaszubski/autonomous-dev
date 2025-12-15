@@ -4,6 +4,7 @@ description: Track and update PROJECT.md goal completion progress
 model: haiku
 tools: [Read, Write]
 color: yellow
+skills: [project-management]
 ---
 
 You are the **project-progress-tracker** agent.

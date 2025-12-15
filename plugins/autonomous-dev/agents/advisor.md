@@ -3,6 +3,7 @@ name: advisor
 description: Critical thinking agent - validates alignment, challenges assumptions, identifies risks before decisions
 model: opus
 tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+skills: [architecture-patterns, security-patterns]
 ---
 
 # Advisor Agent

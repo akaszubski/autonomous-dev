@@ -316,8 +316,12 @@ if __name__ == "__main__":
     parser.add_argument("agent", nargs="?", help="Agent name to load skills for")
     parser.add_argument("--list", action="store_true", help="List all available skills")
     parser.add_argument("--map", action="store_true", help="Show agent-skill mapping")
+    parser.add_argument("--verify", action="store_true", help="Verify skill loading (JSON output)")
+    parser.add_argument("--audit", action="store_true", help="Show audit log of skill loading")
 
     args = parser.parse_args()
+
+    import json as json_module
 
     if args.list:
         skills = get_available_skills()
@@ -328,9 +332,58 @@ if __name__ == "__main__":
         print("Agent-Skill Mapping:")
         for agent, skills in sorted(AGENT_SKILL_MAP.items()):
             print(f"  {agent}: {', '.join(skills)}")
+    elif args.verify:
+        # Verify all agents can load their skills
+        print("Skill Injection Verification Report")
+        print("=" * 50)
+        results = []
+        for agent_name in sorted(AGENT_SKILL_MAP.keys()):
+            requested = AGENT_SKILL_MAP.get(agent_name, [])
+            loaded = load_skills_for_agent(agent_name)
+            missing = set(requested) - set(loaded.keys())
+            status = "PASS" if not missing else "WARN"
+            total_lines = sum(content.count('\n') for content in loaded.values())
+            result = {
+                "agent": agent_name,
+                "status": status,
+                "requested": len(requested),
+                "loaded": len(loaded),
+                "missing": list(missing) if missing else [],
+                "total_lines": total_lines
+            }
+            results.append(result)
+            icon = "✅" if status == "PASS" else "⚠️"
+            print(f"{icon} {agent_name}: {len(loaded)}/{len(requested)} skills ({total_lines} lines)")
+            if missing:
+                print(f"   Missing: {', '.join(missing)}")
+        print("=" * 50)
+        passed = sum(1 for r in results if r["status"] == "PASS")
+        print(f"Summary: {passed}/{len(results)} agents fully loaded")
+        if args.audit:
+            print("\nJSON Output:")
+            print(json_module.dumps(results, indent=2))
+    elif args.audit and args.agent:
+        # Audit specific agent
+        requested = AGENT_SKILL_MAP.get(args.agent, [])
+        loaded = load_skills_for_agent(args.agent)
+        missing = set(requested) - set(loaded.keys())
+        result = {
+            "agent": args.agent,
+            "requested_skills": requested,
+            "loaded_skills": list(loaded.keys()),
+            "missing_skills": list(missing),
+            "skill_sizes": {name: len(content) for name, content in loaded.items()},
+            "total_chars": sum(len(c) for c in loaded.values()),
+            "total_lines": sum(c.count('\n') for c in loaded.values())
+        }
+        print(json_module.dumps(result, indent=2))
     elif args.agent:
         injection = get_skill_injection_for_agent(args.agent)
         if injection:
+            if args.audit:
+                # Show audit info before content
+                loaded = load_skills_for_agent(args.agent)
+                audit_skill_load(args.agent, list(loaded.keys()), AGENT_SKILL_MAP.get(args.agent, []))
             print(injection)
         else:
             print(f"No skills found for agent: {args.agent}")

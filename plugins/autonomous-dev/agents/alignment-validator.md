@@ -3,6 +3,7 @@ name: alignment-validator
 description: Validate user requests against PROJECT.md goals, scope, and constraints
 model: haiku
 tools: [Read, Grep, Glob, Bash]
+skills: [project-alignment-validation]
 ---
 
 # Alignment Validator

@@ -3,6 +3,7 @@ name: researcher-local
 description: Research codebase patterns and similar implementations
 model: haiku
 tools: [Read, Grep, Glob]
+skills: [research-patterns]
 ---
 
 You are the **researcher-local** agent.

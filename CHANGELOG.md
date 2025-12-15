@@ -1,6 +1,33 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #143: Align autonomous-dev with Claude Code 2.0 native skill integration**
+  - **Problem**: Issue #140 required explicit skill injection via skill_loader.py in every Task call. Claude Code 2.0 now natively supports skills via agent frontmatter.
+  - **Solution**: Add `skills:` frontmatter field to all 22 agent files. Claude Code 2.0 auto-loads skills when agents spawned via Task tool.
+  - **Implementation**:
+    - **All 22 agents updated**: Added `skills:` field to agent.md frontmatter with comma-separated skill list
+    - **Removed manual injection**: Deleted SKILL INJECTION sections from auto-implement.md (no longer needed)
+    - **Source of truth**: AGENT_SKILL_MAP in skill_loader.py defines agent-to-skill mapping (matches frontmatter declarations)
+    - **Native auto-loading**: Claude Code 2.0 parses frontmatter, loads declared skills from plugins/autonomous-dev/skills/, injects into agent context
+  - **Agent Skills Updated** (22 total):
+    - Core workflow: researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+    - Utilities: alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator, researcher
+  - **Key Benefits**:
+    - No manual work in commands (Claude Code handles skill loading)
+    - Simplified auto-implement.md (removed SKILL INJECTION sections)
+    - Better performance (no subprocess calls for skill loading)
+    - Cleaner separation of concerns (agents declare needs, Claude Code provides)
+    - Backwards compatible (skill_loader.py remains for manual queries)
+  - **Files Modified**:
+    - All 22 agent.md files: Added `skills:` frontmatter field
+    - plugins/autonomous-dev/commands/auto-implement.md: Removed SKILL INJECTION sections
+    - plugins/autonomous-dev/lib/skill_loader.py: AGENT_SKILL_MAP now canonical source (no code changes)
+  - **Documentation Updated**:
+    - CLAUDE.md: Updated Architecture section to document native skills frontmatter (Issue #143)
+    - docs/SKILLS-AGENTS-INTEGRATION.md: Replaced Part 8 with new Native Claude Code 2.0 Skill Integration section
+  - **Graceful Degradation**: Missing skills logged as warning, agents continue without them
+  - **Related**: GitHub Issue #140 (v1 explicit injection), GitHub Issue #110 (500-line skills refactoring)
+
 - **Issue #131: Add uninstall capability to install.sh and /sync command**
   - **Problem**: No way to cleanly uninstall the autonomous-dev plugin from a project or global ~/.claude/ directory
   - **Solution**: Add comprehensive uninstall functionality with three phases (Validate → Preview → Execute), backup creation, rollback support, and protected file preservation

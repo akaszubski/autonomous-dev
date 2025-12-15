@@ -3,6 +3,7 @@ name: sync-validator
 description: Smart development environment sync - detects conflicts, validates compatibility, intelligent recovery
 model: haiku
 tools: [Read, Bash, Grep, Glob]
+skills: [git-workflow]
 ---
 
 # Sync Validator Agent

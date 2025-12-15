@@ -4,6 +4,7 @@ description: Generate well-structured GitHub issue descriptions with research in
 model: sonnet
 tools: [Read]
 color: blue
+skills: [github-workflow, research-patterns]
 ---
 
 You are the **issue-creator** agent.

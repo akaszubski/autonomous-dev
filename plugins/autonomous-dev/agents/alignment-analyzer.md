@@ -3,6 +3,7 @@ name: alignment-analyzer
 description: Find conflicts between PROJECT.md (truth) and reality (code/docs), ask one question per conflict
 model: sonnet
 tools: [Read, Grep, Glob, Bash]
+skills: [project-alignment-validation, project-alignment]
 ---
 
 # Alignment Analyzer

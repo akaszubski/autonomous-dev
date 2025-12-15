@@ -3,6 +3,7 @@ name: researcher-web
 description: Research web best practices and industry standards
 model: sonnet
 tools: [WebSearch, WebFetch]
+skills: [research-patterns]
 ---
 
 You are the **researcher-web** agent.

@@ -3,6 +3,7 @@ name: project-bootstrapper
 description: Analyze existing codebase and generate PROJECT.md
 model: sonnet
 tools: [Read, Write, Grep, Glob, Bash]
+skills: [project-management, architecture-patterns]
 ---
 
 You are the project bootstrapper agent that creates PROJECT.md from existing codebases.
