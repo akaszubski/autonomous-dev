@@ -349,9 +349,78 @@ configure_global_settings() {
     fi
 }
 
+# Clean orphan files from a directory based on manifest
+# Usage: clean_orphan_files <target_dir> <component_name> <file_extension>
+clean_orphan_files() {
+    local target_dir="$1"
+    local component_name="$2"
+    local file_ext="$3"
+    local manifest_path="${STAGING_DIR}/manifest.json"
+    local cleaned=0
+
+    # Skip if target directory doesn't exist
+    if [[ ! -d "$target_dir" ]]; then
+        return 0
+    fi
+
+    # Get expected files from manifest
+    local expected_files
+    expected_files=$(python3 -c "
+import json
+import sys
+from pathlib import Path
+
+with open('${manifest_path}') as f:
+    manifest = json.load(f)
+
+component = manifest.get('components', {}).get('${component_name}', {})
+for file_path in component.get('files', []):
+    print(Path(file_path).name)
+" 2>/dev/null)
+
+    if [[ -z "$expected_files" ]]; then
+        return 0
+    fi
+
+    # Find and remove orphan files (files in target but not in manifest)
+    while IFS= read -r actual_file; do
+        if [[ -z "$actual_file" ]]; then
+            continue
+        fi
+
+        local file_name
+        file_name=$(basename "$actual_file")
+
+        # Skip __init__.py and __pycache__
+        if [[ "$file_name" == "__init__.py" ]] || [[ "$file_name" == "__pycache__" ]]; then
+            continue
+        fi
+
+        # Check if file is in expected list
+        if ! echo "$expected_files" | grep -qx "$file_name"; then
+            # File is orphan - remove it
+            if rm "$actual_file" 2>/dev/null; then
+                ((cleaned++))
+                if $VERBOSE; then
+                    log_warning "  Removed orphan: $file_name"
+                fi
+            fi
+        fi
+    done < <(find "$target_dir" -maxdepth 1 -type f -name "*${file_ext}" 2>/dev/null)
+
+    if [[ $cleaned -gt 0 ]]; then
+        log_info "Cleaned ${cleaned} orphan ${component_name} file(s)"
+    fi
+
+    return 0
+}
+
 # Install hook files to ~/.claude/hooks/
 install_hook_files() {
     log_step "Installing hook files to ~/.claude/hooks/..."
+
+    # Clean orphan hooks first (TRUE SYNC - remove files not in manifest)
+    clean_orphan_files "${HOME}/.claude/hooks" "hooks" ".py"
 
     local hook_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/hooks"
     local hook_target_dir="${HOME}/.claude/hooks"
@@ -425,6 +494,9 @@ install_hook_files() {
 # Install lib files to ~/.claude/lib/
 install_lib_files() {
     log_step "Installing lib files to ~/.claude/lib/..."
+
+    # Clean orphan libs first (TRUE SYNC - remove files not in manifest)
+    clean_orphan_files "${HOME}/.claude/lib" "lib" ".py"
 
     local lib_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/lib"
     local lib_target_dir="${HOME}/.claude/lib"

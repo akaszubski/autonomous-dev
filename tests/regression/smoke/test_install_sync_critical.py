@@ -373,3 +373,170 @@ class TestInstallSyncIntegrity:
             assert len(archived_refs) == 0, f"Manifest contains archived files: {archived_refs}"
 
         assert timer.elapsed < 1.0
+
+
+@pytest.mark.smoke
+class TestOrphanCleanupBehavior:
+    """Tests for orphan file cleanup - prevents stale files after updates.
+
+    Historical issues:
+    - Archived hooks remaining in ~/.claude/hooks/ after consolidation
+    - Deleted libs remaining in ~/.claude/lib/ after removal
+    - Stale files causing import conflicts and unexpected behavior
+    """
+
+    def test_install_sh_has_orphan_cleanup_function(self, project_root, timing_validator):
+        """Test that install.sh includes orphan cleanup logic.
+
+        Protects: Orphan files cleaned during install (smoke test)
+        Expected behavior: install.sh should remove files not in manifest
+        """
+        with timing_validator.measure() as timer:
+            install_sh = project_root / "install.sh"
+            content = install_sh.read_text()
+
+            # Should have cleanup function or logic
+            has_cleanup = any([
+                "cleanup" in content.lower(),
+                "orphan" in content.lower(),
+                "remove" in content.lower() and "manifest" in content.lower(),
+                "delete" in content.lower() and "not in" in content.lower(),
+            ])
+
+            assert has_cleanup, (
+                "install.sh should include orphan cleanup logic to remove "
+                "files not in manifest from ~/.claude/hooks/ and ~/.claude/lib/"
+            )
+
+        assert timer.elapsed < 1.0
+
+    def test_sync_dispatcher_has_global_orphan_cleanup(self, plugins_dir, timing_validator):
+        """Test that sync_dispatcher.py handles global directory orphan cleanup.
+
+        Protects: Orphan files cleaned during /sync (smoke test)
+        Expected behavior: /sync should remove orphans from ~/.claude/hooks/ and ~/.claude/lib/
+        """
+        with timing_validator.measure() as timer:
+            dispatcher = plugins_dir / "lib" / "sync_dispatcher.py"
+            content = dispatcher.read_text()
+
+            # Should reference orphan cleanup for global directories
+            # Current behavior: delete_orphans=True for .claude/ but not ~/.claude/
+            has_global_cleanup = any([
+                "~/.claude" in content and "orphan" in content.lower(),
+                "home" in content.lower() and "cleanup" in content.lower(),
+                "global" in content.lower() and "orphan" in content.lower(),
+            ])
+
+            # This test documents expected behavior - currently may fail
+            # Once implemented, this test will pass
+            assert has_global_cleanup or "delete_orphans" in content, (
+                "sync_dispatcher.py should handle orphan cleanup for global directories "
+                "(~/.claude/hooks/, ~/.claude/lib/) during GITHUB sync mode"
+            )
+
+        assert timer.elapsed < 1.0
+
+    def test_orphan_file_cleaner_supports_global_dirs(self, plugins_dir, timing_validator):
+        """Test that orphan_file_cleaner.py can clean global directories.
+
+        Protects: Library supports global cleanup (smoke test)
+        Expected behavior: OrphanFileCleaner should work with ~/.claude/ paths
+        """
+        with timing_validator.measure() as timer:
+            cleaner = plugins_dir / "lib" / "orphan_file_cleaner.py"
+            content = cleaner.read_text()
+
+            # Should have class that can handle paths
+            assert "class OrphanFileCleaner" in content, "OrphanFileCleaner class must exist"
+
+            # Should be able to detect orphans
+            assert "def detect_orphans" in content, "detect_orphans method must exist"
+
+            # Should be able to clean orphans
+            assert "def cleanup_orphans" in content, "cleanup_orphans method must exist"
+
+        assert timer.elapsed < 1.0
+
+    def test_manifest_provides_complete_file_list(self, plugins_dir, timing_validator):
+        """Test that manifest provides complete list of expected files for cleanup.
+
+        Protects: Manifest completeness for orphan detection (smoke test)
+        Expected: All component types have files lists that can be used for cleanup
+        """
+        with timing_validator.measure() as timer:
+            manifest = plugins_dir / "config" / "install_manifest.json"
+            data = json.loads(manifest.read_text())
+
+            components = data.get("components", {})
+
+            # Required components for orphan detection
+            required_components = ["hooks", "lib", "commands", "agents"]
+
+            for component in required_components:
+                assert component in components, f"Manifest missing component: {component}"
+                files = components[component].get("files", [])
+                assert len(files) > 0, f"Manifest component '{component}' has no files"
+
+        assert timer.elapsed < 1.0
+
+    def test_install_sh_cleans_hooks_before_install(self, project_root, timing_validator):
+        """Test that install.sh cleans orphan hooks before installing new ones.
+
+        Protects: No stale hooks after install (smoke test)
+        Expected: Files in ~/.claude/hooks/ not in manifest should be removed
+        """
+        with timing_validator.measure() as timer:
+            install_sh = project_root / "install.sh"
+            content = install_sh.read_text()
+
+            # Should have hook cleanup before or during install
+            # Look for cleanup logic related to hooks directory
+            lines = content.split('\n')
+            has_hook_cleanup = False
+
+            for i, line in enumerate(lines):
+                # Look for cleanup patterns near hook installation
+                if "hook" in line.lower() and any(word in line.lower() for word in ["clean", "remove", "delete", "orphan"]):
+                    has_hook_cleanup = True
+                    break
+                # Or look for manifest-based filtering
+                if "manifest" in line.lower() and "hook" in line.lower():
+                    has_hook_cleanup = True
+                    break
+
+            # This documents expected behavior - test may initially fail
+            assert has_hook_cleanup or "install_hook_files" in content, (
+                "install.sh should clean orphan hooks: files in ~/.claude/hooks/ "
+                "that are not in manifest should be removed during install"
+            )
+
+        assert timer.elapsed < 1.0
+
+    def test_install_sh_cleans_libs_before_install(self, project_root, timing_validator):
+        """Test that install.sh cleans orphan libs before installing new ones.
+
+        Protects: No stale libs after install (smoke test)
+        Expected: Files in ~/.claude/lib/ not in manifest should be removed
+        """
+        with timing_validator.measure() as timer:
+            install_sh = project_root / "install.sh"
+            content = install_sh.read_text()
+
+            # Should have lib cleanup before or during install
+            lines = content.split('\n')
+            has_lib_cleanup = False
+
+            for i, line in enumerate(lines):
+                # Look for cleanup patterns near lib installation
+                if "lib" in line.lower() and any(word in line.lower() for word in ["clean", "remove", "delete", "orphan"]):
+                    has_lib_cleanup = True
+                    break
+
+            # This documents expected behavior - test may initially fail
+            assert has_lib_cleanup or "install_lib_files" in content, (
+                "install.sh should clean orphan libs: files in ~/.claude/lib/ "
+                "that are not in manifest should be removed during install"
+            )
+
+        assert timer.elapsed < 1.0

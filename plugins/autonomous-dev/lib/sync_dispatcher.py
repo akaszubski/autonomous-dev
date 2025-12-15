@@ -1040,6 +1040,8 @@ class SyncDispatcher:
             global_claude_dir = Path.home() / ".claude"
             global_hooks_copied = 0
             global_libs_copied = 0
+            global_hooks_orphans_deleted = 0
+            global_libs_orphans_deleted = 0
 
             try:
                 # Get hooks and libs from manifest
@@ -1049,6 +1051,28 @@ class SyncDispatcher:
                 # Download hooks directly to ~/.claude/hooks/
                 global_hooks_dir = global_claude_dir / "hooks"
                 global_hooks_dir.mkdir(parents=True, exist_ok=True)
+
+                # Clean orphan hooks from ~/.claude/hooks/ (TRUE SYNC)
+                # Get expected hook names from manifest
+                expected_hooks = {Path(f).name for f in hook_files}
+                # Get actual hooks in directory
+                actual_hooks = {f.name for f in global_hooks_dir.glob("*.py") if not f.name.startswith("__")}
+                # Delete orphans (files not in manifest)
+                orphan_hooks = actual_hooks - expected_hooks
+                global_hooks_orphans_deleted = 0
+                for orphan in orphan_hooks:
+                    orphan_path = global_hooks_dir / orphan
+                    try:
+                        orphan_path.unlink()
+                        global_hooks_orphans_deleted += 1
+                        audit_log(
+                            "github_sync",
+                            "orphan_hook_deleted",
+                            {"path": str(orphan_path), "reason": "not in manifest"},
+                        )
+                    except Exception:
+                        pass  # Non-blocking
+
                 for file_path in hook_files:
                     if ".." in file_path or file_path.startswith("/"):
                         continue
@@ -1065,6 +1089,28 @@ class SyncDispatcher:
                 # Download libs directly to ~/.claude/lib/
                 global_lib_dir = global_claude_dir / "lib"
                 global_lib_dir.mkdir(parents=True, exist_ok=True)
+
+                # Clean orphan libs from ~/.claude/lib/ (TRUE SYNC)
+                # Get expected lib names from manifest
+                expected_libs = {Path(f).name for f in lib_files}
+                # Get actual libs in directory
+                actual_libs = {f.name for f in global_lib_dir.glob("*.py") if not f.name.startswith("__")}
+                # Delete orphans (files not in manifest)
+                orphan_libs = actual_libs - expected_libs
+                global_libs_orphans_deleted = 0
+                for orphan in orphan_libs:
+                    orphan_path = global_lib_dir / orphan
+                    try:
+                        orphan_path.unlink()
+                        global_libs_orphans_deleted += 1
+                        audit_log(
+                            "github_sync",
+                            "orphan_lib_deleted",
+                            {"path": str(orphan_path), "reason": "not in manifest"},
+                        )
+                    except Exception:
+                        pass  # Non-blocking
+
                 for file_path in lib_files:
                     if ".." in file_path or file_path.startswith("/"):
                         continue
@@ -1100,6 +1146,8 @@ class SyncDispatcher:
                     {
                         "hooks_downloaded": global_hooks_copied,
                         "libs_downloaded": global_libs_copied,
+                        "hooks_orphans_deleted": global_hooks_orphans_deleted,
+                        "libs_orphans_deleted": global_libs_orphans_deleted,
                         "pycache_cleared": pycache_cleared,
                         "global_dir": str(global_claude_dir),
                     },
@@ -1130,7 +1178,9 @@ class SyncDispatcher:
             )
 
             # Build result
-            global_msg = f", {global_hooks_copied} hooks + {global_libs_copied} libs to ~/.claude/"
+            orphans_deleted = global_hooks_orphans_deleted + global_libs_orphans_deleted
+            orphan_msg = f", {orphans_deleted} orphans cleaned" if orphans_deleted > 0 else ""
+            global_msg = f", {global_hooks_copied} hooks + {global_libs_copied} libs to ~/.claude/{orphan_msg}"
             if errors:
                 return SyncResult(
                     success=True,  # Partial success
