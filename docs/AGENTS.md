@@ -9,69 +9,56 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Overview
 
-Specialized agents with skill integration. Each agent has specific responsibilities and references relevant skills for enhanced decision-making.
+8 active agents with skill integration (Issue #147 - consolidated from 21). Each agent has specific responsibilities and references relevant skills.
+
+**Active Agents**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
+
+**Archived Agents** (in `agents/archived/`): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, orchestrator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, researcher-web, setup-wizard, sync-validator
 
 ---
 
-## Model Tier Strategy (Issue #108)
+## Model Tier Strategy (Issue #108, Updated #147)
 
-Agent model assignments are optimized for cost-performance balance based on task complexity.
+Agent model assignments optimized for cost-performance balance (8 active agents):
 
-### Tier 1: Haiku
+### Tier 1: Haiku (3 agents)
 
-Fast, cost-effective models for pattern matching and structured output:
+Fast, cost-effective for pattern matching:
 
-- **researcher-local**: Search codebase patterns and similar implementations
-- **reviewer**: Code quality checks against style guide
-- **doc-master**: Documentation synchronization
-- **commit-message-generator**: Conventional commit formatting
-- **alignment-validator**: PROJECT.md validation
-- **project-progress-tracker**: Progress tracking and reporting
-- **sync-validator**: Development environment sync validation
-- **pr-description-generator**: PR description formatting
+- **researcher-local**: Search codebase patterns
+- **reviewer**: Code quality checks
+- **doc-master**: Documentation sync
 
-**Use Case**: Tasks with clear patterns, structured output, or simple validation logic.
+### Tier 2: Sonnet (4 agents)
 
-### Tier 2: Sonnet
+Balanced reasoning for implementation:
 
-Balanced reasoning for implementation and planning tasks:
+- **implementer**: Code implementation
+- **test-master**: TDD test generation
+- **planner**: Architecture planning
+- **issue-creator**: GitHub issue creation
 
-- **researcher-web**: Research web best practices and industry standards (requires Sonnet for WebSearch/WebFetch)
-- **implementer**: Code implementation to make tests pass
-- **test-master**: TDD test generation with comprehensive coverage
-- **planner**: Architecture and implementation planning
-- **issue-creator**: GitHub issue creation with research
-- **setup-wizard**: Interactive project setup
-- **project-bootstrapper**: Project initialization and tech stack analysis
-- **brownfield-analyzer**: Legacy codebase analysis
-- **quality-validator**: Final validation orchestration
-- **alignment-analyzer**: PROJECT.md conflict resolution
-- **project-status-analyzer**: Project status assessment and health metrics
+### Tier 3: Opus (1 agent)
 
-**Use Case**: Complex implementation, test design, and planning requiring strong reasoning capabilities.
+Maximum depth for security:
 
-### Tier 3: Opus (2 agents)
-
-Maximum depth reasoning for critical analysis:
-
-- **security-auditor**: OWASP security scanning and vulnerability detection
-- **advisor**: Critical thinking, trade-off analysis, risk identification
-
-**Use Case**: Critical security and architectural decisions requiring maximum reasoning depth.
+- **security-auditor**: OWASP security scanning
 
 ### Rationale
 
 - **Tier 1 (Haiku)**: Cost optimization for well-defined tasks (40-60% cost reduction vs Opus)
 - **Tier 2 (Sonnet)**: Sweet spot for development work requiring both speed and reasoning
-- **Tier 3 (Opus)**: Reserved for high-risk decisions where reasoning depth is critical
+- **Tier 3 (Opus)**: Reserved for high-risk security decisions
 
-**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality standards across all workflows.
+**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality.
 
 ---
 
-## Core Workflow Agents (10)
+## Core Workflow Agents (7 active + 1 utility)
 
-These agents execute the main autonomous development workflow. The orchestrator was deprecated in v3.2.2 - Claude now coordinates directly.
+These agents execute the main autonomous development workflow. Issue #147 consolidated 21 agents to 8 active.
+
+**Note**: Sections below document both active and archived agents for historical reference. Active agents are marked with ✅.
 
 ### researcher-local
 
@@ -277,7 +264,7 @@ These agents provide specialized functionality for alignment, git operations, an
 
 ## Agent-Skill Integration
 
-All 20 agents explicitly reference relevant skills for enhanced decision-making (Issue #35). This prevents hallucination while maintaining scalability through progressive disclosure.
+All 8 active agents reference relevant skills via `skills:` frontmatter (Issue #35, #143, #147). Claude Code 2.0 auto-loads skills when agents are spawned.
 
 **How It Works**:
 1. Each agent's prompt includes a "Relevant Skills" section

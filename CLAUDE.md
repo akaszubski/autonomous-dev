@@ -42,10 +42,10 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 - `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
 - `/create-issue` - Create GitHub issue with research + blocking duplicate check + all sections (8-12 min default, 3-5 min --quick) - GitHub #122
 - `/align` - Unified alignment command with three modes:
-  - `--project` - Fix PROJECT.md conflicts (alignment-analyzer agent) - formerly align-project
+  - `--project` - Fix PROJECT.md conflicts - formerly align-project
   - `--claude` - Fix documentation drift (validation script) - formerly align-claude
   - `--retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - formerly align-project-retrofit - GitHub #59
-- `/setup` - Interactive setup wizard (project-bootstrapper agent)
+- `/setup` - Interactive setup wizard for PROJECT.md creation
 - `/sync` - Unified sync command with six modes:
   - `--github` - Fetch latest from GitHub (default) - GitHub #124
   - `--env` - Environment sync (dependencies, config, migrations)
@@ -448,57 +448,39 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 
 ### Agents
 
-Specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+8 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Core Workflow Agents** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
-researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
+**Active Agents** (Issue #147 - consolidated from 21 to 8):
+- **Pipeline**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master
+- **Utility**: issue-creator
 
-**Utility Agents**:
-alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
+**Archived Agents** (in `agents/archived/`):
+advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, orchestrator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, researcher-web, setup-wizard, sync-validator
 
 **Key Features**:
-- Parallel research (Issue #128): researcher-local + researcher-web run simultaneously (45% faster research phase)
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
-- Orchestrator removed v3.2.2 (Claude coordinates directly from auto-implement.md)
+- All 8 agents actively used in `/auto-implement` or `/create-issue` commands
 
 ### Model Tier Strategy
 
-Agent model assignments are optimized for cost-performance balance based on task complexity:
+Agent model assignments optimized for cost-performance balance (8 active agents):
 
-**Tier 1 (Haiku)** - Fast, cost-effective for pattern matching and structured output
-- researcher-local - Search codebase patterns and similar implementations (Issue #128)
-- reviewer - Code quality checks against style guide
-- doc-master - Documentation synchronization
-- commit-message-generator - Conventional commit formatting
-- alignment-validator - PROJECT.md validation
-- project-progress-tracker - Progress tracking and reporting
-- sync-validator - Development environment sync validation
-- pr-description-generator - PR description formatting
+**Tier 1 (Haiku)** - Fast, cost-effective for pattern matching
+- researcher-local - Search codebase patterns
+- reviewer - Code quality checks
+- doc-master - Documentation sync
 
-**Tier 2 (Sonnet)** - Balanced reasoning for implementation and planning
-- researcher-web - Research web best practices (requires Sonnet for WebSearch/WebFetch tools)
-- implementer - Code implementation to make tests pass
-- test-master - TDD test generation with comprehensive coverage
-- planner - Architecture and implementation planning
-- issue-creator - GitHub issue creation with research
-- setup-wizard - Interactive project setup
-- project-bootstrapper - Project initialization
-- brownfield-analyzer - Legacy codebase analysis
-- quality-validator - Final validation orchestration
-- alignment-analyzer - PROJECT.md conflict resolution
-- project-status-analyzer - Project status assessment
+**Tier 2 (Sonnet)** - Balanced reasoning for implementation
+- implementer - Code implementation
+- test-master - TDD test generation
+- planner - Architecture planning
+- issue-creator - GitHub issue creation
 
-**Tier 3 (Opus)** - Deep reasoning for critical analysis
-- security-auditor - OWASP security scanning and vulnerability detection
-- advisor - Critical thinking, trade-off analysis, risk identification
+**Tier 3 (Opus)** - Deep reasoning for security
+- security-auditor - OWASP security scanning
 
-**Rationale**:
-- **Tier 1 (Haiku)**: Tasks with clear patterns, structured output, or simple validation (research, formatting, sync checks)
-- **Tier 2 (Sonnet)**: Complex implementation, test design, and planning requiring strong reasoning (TDD, architecture, code)
-- **Tier 3 (Opus)**: Critical security and architectural decisions requiring maximum depth (security audits, trade-off analysis)
-
-**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality standards across all workflows.
+**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality.
 
 ### Skills
 
