@@ -1,6 +1,7 @@
 ---
 description: "Create GitHub issue with automated research (--quick for fast mode)"
 argument_hint: "Issue title [--quick] (e.g., 'Add JWT authentication' or 'Add JWT authentication --quick')"
+allowed-tools: [Task, Read, Bash, Grep, Glob]
 ---
 
 # Create GitHub Issue with Research Integration

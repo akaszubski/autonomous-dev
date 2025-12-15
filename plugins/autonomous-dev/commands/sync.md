@@ -1,6 +1,7 @@
 ---
 description: "Sync plugin files (--github default, --env, --marketplace, --plugin-dev, --all, --uninstall)"
 argument_hint: "Optional flags: --github (default), --env, --marketplace, --plugin-dev, --all, --uninstall [--force] [--local-only]"
+allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 
 ## Implementation

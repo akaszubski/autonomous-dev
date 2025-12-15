@@ -5,6 +5,7 @@ argument_hint: "<features-file> or --issues <issue-numbers> or --resume <batch-i
 author: Claude
 version: 3.34.0
 date: 2025-12-13
+allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 
 # /batch-implement - Overnight Feature Queue

@@ -5,6 +5,7 @@ argument_hint: "Mode flags: --project (PROJECT.md conflicts), --docs (doc drift)
 version: 3.0.0
 category: core
 tools: [Bash, Read, Write, Grep, Edit, Task]
+allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 ---
 
 # /align - Unified Alignment Command

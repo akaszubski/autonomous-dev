@@ -55,6 +55,8 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--uninstall` - Uninstall plugin (preview by default, use --force to execute) - GitHub #131
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
 
+**Command Security (Issue #145)**: All commands use `allowed-tools:` frontmatter for principle of least privilege. Claude Code 2.0 enforces tool restrictions at runtime.
+
 ---
 
 ## Workflow Discipline (Issue #137, Updated #141)

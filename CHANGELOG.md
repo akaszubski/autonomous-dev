@@ -1,6 +1,43 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #145: Add allowed-tools frontmatter to all 7 commands for least privilege enforcement**
+  - **Problem**: Commands had no tool restrictions, violating principle of least privilege. Claude Code 2.0 supports allowed-tools frontmatter for fine-grained permission control.
+  - **Solution**: Add `allowed-tools:` field to frontmatter of all 7 command files with minimal required tools per command.
+  - **Implementation**:
+    - **All 7 commands updated** with allowed-tools declarations:
+      - `/auto-implement`: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch] - Full toolkit for comprehensive feature development
+      - `/batch-implement`: [Task, Read, Write, Bash, Grep, Glob] - Batch processing needs file write + task execution
+      - `/create-issue`: [Task, Read, Bash, Grep, Glob] - Creates GitHub issues, no file writing
+      - `/align`: [Task, Read, Write, Edit, Grep, Glob] - Alignment fixes require doc editing, no Bash
+      - `/sync`: [Task, Read, Write, Bash, Grep, Glob] - Sync needs file operations + bash commands
+      - `/setup`: [Task, Read, Write, Bash, Grep, Glob] - Project setup requires file operations
+      - `/health-check`: [Read, Bash, Grep, Glob] - Read-only health validation, no Task tool
+  - **Security Benefits**:
+    - **Principle of least privilege**: Each command gets only tools it actually uses
+    - **Attack surface reduction**: Eliminates unnecessary tool access
+    - **Intentional design**: Tool restrictions are explicit, not implicit
+    - **Defense in depth**: Complements MCP security policy for additional assurance
+  - **Files Modified**:
+    - plugins/autonomous-dev/commands/auto-implement.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/batch-implement.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/create-issue.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/align.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/sync.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/setup.md - Added allowed-tools
+    - plugins/autonomous-dev/commands/health-check.md - Added allowed-tools
+  - **Documentation Updated**:
+    - CLAUDE.md: Updated Commands section to document allowed-tools security feature
+  - **Enforcement**:
+    - Claude Code 2.0 enforces allowed-tools at runtime
+    - Tool calls outside allowed-tools are blocked with clear error message
+    - Graceful degradation if Claude Code doesn't recognize allowed-tools (forward compatible)
+  - **Backward Compatibility**:
+    - Older Claude Code versions without allowed-tools support ignore the field (no errors)
+    - Behavior is identical on older versions (all tools available)
+    - New versions get enhanced security automatically
+  - **Related**: GitHub Issue #145
+
 - **Issue #143: Align autonomous-dev with Claude Code 2.0 native skill integration**
   - **Problem**: Issue #140 required explicit skill injection via skill_loader.py in every Task call. Claude Code 2.0 now natively supports skills via agent frontmatter.
   - **Solution**: Add `skills:` frontmatter field to all 22 agent files. Claude Code 2.0 auto-loads skills when agents spawned via Task tool.

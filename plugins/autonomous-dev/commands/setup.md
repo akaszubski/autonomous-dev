@@ -1,5 +1,6 @@
 ---
 description: Interactive setup wizard - analyzes tech stack, generates PROJECT.md, configures hooks
+allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 
 # /setup - Project Initialization Wizard
