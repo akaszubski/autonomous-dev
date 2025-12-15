@@ -46,6 +46,31 @@ except ImportError:
     from security_utils import validate_path, audit_log
 
 
+# Issue #144: Migration mapping from unified hooks to replaced hooks
+# When a unified hook is added, remove the old hooks it replaces
+UNIFIED_HOOK_REPLACEMENTS = {
+    "unified_pre_tool.py": [
+        "pre_tool_use.py",
+        "enforce_implementation_workflow.py",
+        "batch_permission_approver.py",
+    ],
+    "unified_prompt_validator.py": [
+        "detect_feature_request.py",
+    ],
+    "unified_post_tool.py": [
+        "post_tool_use_error_capture.py",
+    ],
+    "unified_session_tracker.py": [
+        "session_tracker.py",
+        "log_agent_completion.py",
+        "auto_update_project_progress.py",
+    ],
+    "unified_git_automation.py": [
+        "auto_git_workflow.py",
+    ],
+}
+
+
 @dataclass
 class MergeResult:
     """Result of settings merge operation.
@@ -56,6 +81,7 @@ class MergeResult:
         settings_path: Path to merged settings file (None if merge failed)
         hooks_added: Number of hooks added from template
         hooks_preserved: Number of existing hooks preserved
+        hooks_migrated: Number of old hooks removed during migration
         details: Additional result details (errors, warnings, etc.)
     """
 
@@ -64,6 +90,7 @@ class MergeResult:
     settings_path: Optional[str] = None
     hooks_added: int = 0
     hooks_preserved: int = 0
+    hooks_migrated: int = 0
     details: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -215,8 +242,8 @@ class SettingsMerger:
             # Step 4: Merge dictionaries
             merged_data = self._merge_dicts(user_data, template_data)
 
-            # Step 5: Merge hooks (track counts)
-            merged_hooks, hooks_added, hooks_preserved = self._merge_hooks(
+            # Step 5: Merge hooks (track counts, migrate old hooks to unified)
+            merged_hooks, hooks_added, hooks_preserved, hooks_migrated = self._merge_hooks(
                 user_data.get("hooks", {}), template_data.get("hooks", {})
             )
             merged_data["hooks"] = merged_hooks
@@ -234,6 +261,7 @@ class SettingsMerger:
                     "template_path": str(template_path),
                     "hooks_added": hooks_added,
                     "hooks_preserved": hooks_preserved,
+                    "hooks_migrated": hooks_migrated,
                     "write_result": write_result,
                 },
             )
@@ -242,6 +270,8 @@ class SettingsMerger:
             message = "Settings merged successfully"
             if not user_path.exists() or not user_data:
                 message = "Settings created from template"
+            elif hooks_migrated > 0:
+                message = f"Settings merged successfully (migrated {hooks_migrated} hooks to unified)"
 
             return MergeResult(
                 success=True,
@@ -249,6 +279,7 @@ class SettingsMerger:
                 settings_path=str(user_path),
                 hooks_added=hooks_added,
                 hooks_preserved=hooks_preserved,
+                hooks_migrated=hooks_migrated,
                 details={
                     "template_path": str(template_path),
                     "write_result": write_result,
@@ -323,29 +354,59 @@ class SettingsMerger:
 
     def _merge_hooks(
         self, existing: Dict, new: Dict
-    ) -> Tuple[Dict, int, int]:
+    ) -> Tuple[Dict, int, int, int]:
         """Merge hooks by lifecycle event, avoiding duplicates.
 
         This merges hooks with special logic:
         - Merge by lifecycle event (PreToolUse, PostToolUse, etc.)
         - Avoid duplicate hooks (by exact dict comparison)
         - Preserve existing hooks (user customizations)
+        - Issue #144: Migrate old hooks to unified hooks (remove replaced hooks)
 
         Args:
             existing: Existing hooks dictionary (user hooks)
             new: New hooks dictionary (template hooks)
 
         Returns:
-            Tuple of (merged_hooks, hooks_added, hooks_preserved)
+            Tuple of (merged_hooks, hooks_added, hooks_preserved, hooks_migrated)
         """
         merged_hooks = {}
         hooks_added = 0
         hooks_preserved = 0
+        hooks_migrated = 0
 
-        # Start with existing hooks (preserve user customizations)
+        # Issue #144: Build set of old hooks to remove (based on unified hooks in new)
+        hooks_to_remove = set()
+        for lifecycle, hooks in new.items():
+            for hook in hooks:
+                if isinstance(hook, dict):
+                    cmd = hook.get("command", "")
+                    # Check if this is a unified hook
+                    for unified_hook, replaced_hooks in UNIFIED_HOOK_REPLACEMENTS.items():
+                        if unified_hook in cmd:
+                            # Mark old hooks for removal
+                            hooks_to_remove.update(replaced_hooks)
+
+        # Start with existing hooks (preserve user customizations, migrate old hooks)
         for lifecycle, hooks in existing.items():
-            merged_hooks[lifecycle] = hooks.copy()
-            hooks_preserved += len(hooks)
+            filtered_hooks = []
+            for hook in hooks:
+                if isinstance(hook, dict):
+                    cmd = hook.get("command", "")
+                    # Check if this hook should be migrated (replaced by unified hook)
+                    should_remove = False
+                    for old_hook in hooks_to_remove:
+                        if old_hook in cmd:
+                            should_remove = True
+                            hooks_migrated += 1
+                            break
+                    if not should_remove:
+                        filtered_hooks.append(hook)
+                        hooks_preserved += 1
+                else:
+                    filtered_hooks.append(hook)
+                    hooks_preserved += 1
+            merged_hooks[lifecycle] = filtered_hooks
 
         # Add new hooks from template
         for lifecycle, hooks in new.items():
@@ -361,7 +422,7 @@ class SettingsMerger:
                         existing_list.append(hook)
                         hooks_added += 1
 
-        return merged_hooks, hooks_added, hooks_preserved
+        return merged_hooks, hooks_added, hooks_preserved, hooks_migrated
 
     def _atomic_write(self, path: Path, content: Dict) -> None:
         """Write JSON file atomically with secure permissions.
