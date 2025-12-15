@@ -1,7 +1,8 @@
 ---
 name: semantic-validation
-description: GenAI-powered semantic validation - detects outdated docs, version mismatches, and architectural drift
 version: 1.0.0
+type: knowledge
+description: GenAI-powered semantic validation - detects outdated docs, version mismatches, and architectural drift
 category: validation
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]

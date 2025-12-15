@@ -1,11 +1,11 @@
 ---
 name: observability
+version: 1.0.0
 type: knowledge
 description: Structured logging, debugging techniques (pdb/ipdb), profiling (cProfile/line_profiler), stack traces, performance monitoring, and metrics. Use when adding logging, debugging issues, or optimizing performance.
 keywords: logging, debug, profiling, performance, monitoring, metrics, pdb, cProfile, observability, tracing
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]
-
 ---
 
 # Observability Skill

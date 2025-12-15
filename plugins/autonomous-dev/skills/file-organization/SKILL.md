@@ -1,7 +1,8 @@
 ---
 name: file-organization
-description: Enforces project file organization standards from CLAUDE.md/PROJECT.md - auto-fix mode
 version: 1.0.0
+type: knowledge
+description: Enforces project file organization standards from CLAUDE.md/PROJECT.md - auto-fix mode
 category: enforcement
 auto_activate: true
 allowed-tools: [Read, Write, Edit, Grep, Glob]

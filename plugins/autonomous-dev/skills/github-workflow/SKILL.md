@@ -1,8 +1,9 @@
 ---
 name: github-workflow
+version: 1.2.0
+type: knowledge
 description: GitHub-first workflow - Issues, PRs, milestones, auto-tracking for solo developer productivity. Includes PR description templates, issue templates, automation patterns, and webhook security.
 category: workflow
-version: 1.2.0
 keywords:
   - github
   - pull request

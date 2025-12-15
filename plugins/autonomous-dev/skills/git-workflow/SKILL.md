@@ -1,5 +1,6 @@
 ---
 name: git-workflow
+version: 1.0.0
 type: knowledge
 description: Git best practices, commit conventions, branching strategies, and pull request workflows. Use when working with git operations, commits, branches, or PRs.
 keywords:
@@ -16,7 +17,6 @@ keywords:
   - workflow
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]
-
 ---
 
 # Git Workflow Skill

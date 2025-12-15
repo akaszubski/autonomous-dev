@@ -1,7 +1,8 @@
 ---
 name: cross-reference-validation
-description: Validates all documentation references - file paths, links, line numbers, code examples
 version: 1.0.0
+type: knowledge
+description: Validates all documentation references - file paths, links, line numbers, code examples
 category: validation
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]

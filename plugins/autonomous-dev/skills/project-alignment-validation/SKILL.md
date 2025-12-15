@@ -1,11 +1,11 @@
 ---
 name: project-alignment-validation
+version: 1.0.0
 type: knowledge
 description: Semantic validation patterns for PROJECT.md alignment (GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE)
 keywords: alignment, PROJECT.md, validation, GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE, semantic, gap, conflict, resolution
 auto_activate: true
 allowed-tools: [Read, Grep, Glob]
-
 ---
 
 # Project Alignment Validation Skill

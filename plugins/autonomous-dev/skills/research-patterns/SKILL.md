@@ -1,11 +1,11 @@
 ---
 name: research-patterns
+version: 1.0.0
 type: knowledge
 description: Research methodology and best practices for finding existing patterns
 keywords: research, investigate, pattern, best practice, design, architecture, how should i, what's the best
 auto_activate: true
 allowed-tools: [Read, Grep, Glob]
-
 ---
 
 # Research Patterns Skill

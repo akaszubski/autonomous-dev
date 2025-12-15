@@ -1,4 +1,5 @@
 ---
+name: health-check
 description: Validate all plugin components are working correctly (agents, hooks, commands)
 allowed-tools: [Read, Bash, Grep, Glob]
 ---

@@ -1,11 +1,11 @@
 ---
 name: testing-guide
+version: 1.0.0
 type: knowledge
 description: Test-driven development (TDD), unit/integration/UAT testing strategies, test organization, coverage requirements, and GenAI validation patterns. Use when writing tests, validating code, or ensuring quality.
 keywords: test, testing, tdd, unit test, integration test, coverage, pytest, validation, quality assurance, genai validation
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]
-
 ---
 
 # Testing Guide Skill

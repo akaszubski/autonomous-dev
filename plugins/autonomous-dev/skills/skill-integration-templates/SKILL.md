@@ -1,5 +1,6 @@
 ---
 name: skill-integration-templates
+version: 1.0.0
 type: knowledge
 description: "Standardized templates and patterns for integrating skills into agent prompts. Reduces token overhead through reusable skill reference syntax, action verbs, and progressive disclosure usage guidelines."
 keywords:
@@ -11,7 +12,6 @@ keywords:
   - agent-action-verbs
 auto_activate: true
 allowed-tools: [Read]
-
 ---
 
 ## Overview

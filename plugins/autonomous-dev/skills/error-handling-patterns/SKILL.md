@@ -1,11 +1,11 @@
 ---
 name: error-handling-patterns
+version: 1.0.0
 type: knowledge
 description: Standardized error handling patterns including exception hierarchy, error message formatting, security audit logging, and graceful degradation. Use when raising exceptions, handling errors, or implementing validation.
 keywords: error, exception, validation, raise, try, catch, except, audit, logging, graceful degradation, error handling
 auto_activate: true
 allowed-tools: [Read]
-
 ---
 
 # Error Handling Patterns Skill

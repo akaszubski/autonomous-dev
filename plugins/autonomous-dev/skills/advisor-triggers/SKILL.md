@@ -1,7 +1,8 @@
 ---
 name: advisor-triggers
-description: Detects when user requests warrant critical analysis via /advise command
 version: 1.0.0
+type: trigger
+description: Detects when user requests warrant critical analysis via /advise command
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]
 

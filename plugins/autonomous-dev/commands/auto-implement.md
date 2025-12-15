@@ -1,4 +1,5 @@
 ---
+name: auto-implement
 description: Autonomously implement a feature with full SDLC workflow
 argument_hint: Feature description (e.g., "user authentication with JWT tokens")
 allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch]
