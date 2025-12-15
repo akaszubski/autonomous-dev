@@ -49,8 +49,18 @@ from unittest.mock import Mock, patch, call, MagicMock
 
 import pytest
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Portable path detection (works from any test location)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        PROJECT_ROOT = current
+        break
+    current = current.parent
+else:
+    PROJECT_ROOT = Path.cwd()
+
+# Add project root to path for imports
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import the library (not scripts - portable design)
 from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
@@ -105,9 +115,10 @@ class TestAgentCheckpointClassMethod:
         assert 'agent_name' in params, "Missing agent_name parameter"
         assert 'message' in params, "Missing message parameter"
 
-        # Verify cls is first parameter (class method convention)
-        assert params[0] == 'cls' or params[0] == 'self', \
-            "First parameter should be cls (class method)"
+        # Note: Python 3 doesn't include 'cls' in signature for bound classmethods
+        # The classmethod decorator is verified in test_save_agent_checkpoint_method_exists
+        assert params[0] == 'agent_name', \
+            "First visible parameter should be agent_name (cls is implicit for classmethod)"
 
     @patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root')
     def test_save_agent_checkpoint_uses_portable_paths(self, mock_get_root, temp_project_root):
@@ -481,9 +492,10 @@ class TestAgentCheckpointDocumentation:
 
     @pytest.fixture
     def core_agents(self):
-        """List of 7 core workflow agents that need checkpoint integration."""
+        """List of core workflow agents that need checkpoint integration."""
+        # Note: researcher was archived (Issue #128), replaced by researcher-local and researcher-web
         return [
-            "researcher",
+            "researcher-local",
             "planner",
             "test-master",
             "implementer",
@@ -498,7 +510,7 @@ class TestAgentCheckpointDocumentation:
         REQUIREMENT: Each agent must document checkpoint integration
         Expected: Agent .md file contains checkpoint example code
         """
-        agents_dir = Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "agents"
+        agents_dir = PROJECT_ROOT / "plugins" / "autonomous-dev" / "agents"
 
         for agent_name in core_agents:
             agent_file = agents_dir / f"{agent_name}.md"
@@ -522,7 +534,7 @@ class TestAgentCheckpointDocumentation:
         REQUIREMENT: Examples must show correct usage pattern
         Expected: AgentTracker.save_agent_checkpoint() (not tracker.save...)
         """
-        agents_dir = Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "agents"
+        agents_dir = PROJECT_ROOT / "plugins" / "autonomous-dev" / "agents"
 
         for agent_name in core_agents:
             agent_file = agents_dir / f"{agent_name}.md"

@@ -30,15 +30,20 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
+# Portable path detection (works from any test location)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        PROJECT_ROOT = current
+        break
+    current = current.parent
+else:
+    PROJECT_ROOT = Path.cwd()
+
 # Add lib directory to path for imports
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent.parent
-        / "plugins"
-        / "autonomous-dev"
-        / "lib"
-    ),
+    str(PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"),
 )
 
 # Import will fail - modules don't exist yet (TDD!)

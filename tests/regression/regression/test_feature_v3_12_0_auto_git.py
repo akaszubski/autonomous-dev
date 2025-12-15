@@ -43,7 +43,8 @@ sys.path.insert(
     ),
 )
 
-# Import will fail - hook doesn't exist yet (TDD!)
+# Import will fail - hook has been consolidated into unified_git_automation.py (Issue #144)
+# The old auto_git_workflow.py is now a shim that redirects to the unified hook
 try:
     from auto_git_workflow import (
         should_trigger_git_workflow,
@@ -55,8 +56,8 @@ try:
         run_hook,
         main,
     )
-except ImportError as e:
-    pytest.skip(f"Implementation not found (TDD red phase): {e}", allow_module_level=True)
+except (ImportError, SystemExit) as e:
+    pytest.skip(f"Hook consolidated into unified_git_automation.py (Issue #144): {e}", allow_module_level=True)
 
 
 class TestTriggerConditions:

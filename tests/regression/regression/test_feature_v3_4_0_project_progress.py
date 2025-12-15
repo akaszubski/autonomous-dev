@@ -36,12 +36,13 @@ class TestSubagentStopHook:
     Protects: v3.4.0 auto-update feature activation
     """
 
+    @pytest.mark.skip(reason="Hook archived to hooks/archived/ (Issue #144 consolidation)")
     def test_hook_exists(self, plugins_dir):
         """Test that auto_update_project_progress hook exists.
 
         Protects: Hook availability (v3.4.0 regression)
+        NOTE: Hook archived - functionality consolidated into unified hooks
         """
-        # NOTE: This will FAIL if hook not created
         hook = plugins_dir / "hooks" / "auto_update_project_progress.py"
         assert hook.exists(), f"Hook missing: {hook}"
 
@@ -89,15 +90,17 @@ class TestProjectProgressTrackerAgent:
     Protects: v3.4.0 GenAI assessment workflow
     """
 
+    @pytest.mark.skip(reason="Agent archived to agents/archived/ (functionality consolidated)")
     def test_agent_file_exists(self, plugins_dir):
         """Test that project-progress-tracker agent exists.
 
         Protects: Agent availability (v3.4.0 regression)
+        NOTE: Agent archived - functionality consolidated
         """
-        # NOTE: This will FAIL if agent not present
         agent = plugins_dir / "agents" / "project-progress-tracker.md"
         assert agent.exists(), f"Agent missing: {agent}"
 
+    @pytest.mark.skip(reason="Agent archived to agents/archived/ (functionality consolidated)")
     def test_agent_outputs_yaml_format(self, plugins_dir):
         """Test that agent is configured to output YAML.
 
@@ -168,27 +171,27 @@ class TestProjectMdUpdater:
         lib = plugins_dir / "lib" / "project_md_updater.py"
         assert lib.exists(), f"Library missing: {lib}"
 
-    def test_update_goal_progress_method_exists(self):
+    def test_update_goal_progress_method_exists(self, isolated_project):
         """Test that update_goal_progress() method exists.
 
         Protects: Public API availability (v3.4.0 regression)
         """
-        # NOTE: This will FAIL if method not implemented
         import project_md_updater
 
-        updater = project_md_updater.ProjectMdUpdater(Path("/tmp/PROJECT.md"))
+        project_md = isolated_project / ".claude" / "PROJECT.md"
+        updater = project_md_updater.ProjectMdUpdater(project_md)
         assert hasattr(updater, 'update_goal_progress'), \
             "ProjectMdUpdater must have update_goal_progress() method"
 
-    def test_atomic_write_method_exists(self):
+    def test_atomic_write_method_exists(self, isolated_project):
         """Test that _atomic_write() method exists.
 
         Protects: Atomic write capability (v3.4.0 regression)
         """
-        # NOTE: This will FAIL if method not implemented
         import project_md_updater
 
-        updater = project_md_updater.ProjectMdUpdater(Path("/tmp/PROJECT.md"))
+        project_md = isolated_project / ".claude" / "PROJECT.md"
+        updater = project_md_updater.ProjectMdUpdater(project_md)
         assert hasattr(updater, '_atomic_write'), \
             "ProjectMdUpdater must have _atomic_write() method"
 

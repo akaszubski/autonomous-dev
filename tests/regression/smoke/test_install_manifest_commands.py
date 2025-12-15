@@ -29,8 +29,18 @@ from typing import Dict, List, Set
 
 import pytest
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Portable path detection (works from any test location)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        project_root = current
+        break
+    current = current.parent
+else:
+    project_root = Path.cwd()
+
+# Add project root to path for imports
+sys.path.insert(0, str(project_root))
 
 
 class TestInstallManifestStructure:
@@ -40,7 +50,7 @@ class TestInstallManifestStructure:
     def manifest_path(self):
         """Get path to install manifest."""
         return (
-            Path(__file__).parent.parent.parent
+            project_root
             / "plugins"
             / "autonomous-dev"
             / "config"
@@ -120,7 +130,7 @@ class TestManifestCommandCount:
     def manifest_data(self):
         """Load manifest JSON."""
         manifest_path = (
-            Path(__file__).parent.parent.parent
+            project_root
             / "plugins"
             / "autonomous-dev"
             / "config"
@@ -134,41 +144,31 @@ class TestManifestCommandCount:
         """Extract command file paths from manifest."""
         return manifest_data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_manifest_has_9_commands(self, command_files):
-        """Test that manifest lists exactly 9 command files.
+    def test_manifest_has_7_commands(self, command_files):
+        """Test that manifest lists exactly 7 command files.
 
-        EXPECTATION: Exactly 9 command paths in manifest
+        EXPECTATION: Exactly 7 command paths in manifest
 
-        This validates the active commands:
-        - 8 core workflow commands + 1 utility = 9 total
-        - Archived: 12 commands (moved to commands/archive/)
-
-        Active commands:
-        * auto-implement
-        * create-issue (enhanced in Issue #122)
-        * align (unified)
-        * setup
-        * sync
-        * status
-        * health-check
-        * pipeline-status
-        * test
+        Active commands (current state):
+        * align.md (unified)
+        * auto-implement.md
+        * batch-implement.md
+        * create-issue.md
+        * health-check.md
+        * setup.md
+        * sync.md
         """
-        assert len(command_files) == 9, (
-            f"Expected 9 command files in manifest, found {len(command_files)}\n"
+        assert len(command_files) == 7, (
+            f"Expected 7 command files in manifest, found {len(command_files)}\n"
             f"Actual files: {command_files}\n"
-            "Expected 9 active commands:\n"
-            "  1. auto-implement.md\n"
-            "  2. create-issue.md\n"
-            "  3. align.md (unified)\n"
-            "  4. setup.md\n"
-            "  5. sync.md\n"
-            "  6. status.md\n"
-            "  7. health-check.md\n"
-            "  8. pipeline-status.md\n"
-            "  9. test.md (utility)\n"
-            "Archived (12): All others moved to commands/archive/\n"
-            "See GitHub Issues #121, #122 for details"
+            "Expected 7 active commands:\n"
+            "  1. align.md (unified)\n"
+            "  2. auto-implement.md\n"
+            "  3. batch-implement.md\n"
+            "  4. create-issue.md\n"
+            "  5. health-check.md\n"
+            "  6. setup.md\n"
+            "  7. sync.md\n"
         )
 
     def test_manifest_command_paths_format(self, command_files):
@@ -194,7 +194,7 @@ class TestManifestIncludesAlignCommand:
     def command_files(self) -> List[str]:
         """Extract command file paths from manifest."""
         manifest_path = (
-            Path(__file__).parent.parent.parent
+            project_root
             / "plugins"
             / "autonomous-dev"
             / "config"
@@ -244,7 +244,7 @@ class TestManifestExcludesArchivedCommands:
     def command_files(self) -> List[str]:
         """Extract command file paths from manifest."""
         manifest_path = (
-            Path(__file__).parent.parent.parent
+            project_root
             / "plugins"
             / "autonomous-dev"
             / "config"
@@ -283,39 +283,35 @@ class TestManifestExcludesArchivedCommands:
             "Rationale: Consolidated into /auto-implement pipeline"
         )
 
-    def test_excludes_utility_commands(self, command_files):
-        """Test that utility commands excluded from manifest.
+    def test_excludes_deprecated_commands(self, command_files):
+        """Test that deprecated commands excluded from manifest.
 
-        RED PHASE: Should fail if utility commands still in manifest
-        EXPECTATION: create-issue, update-plugin NOT in files list
+        EXPECTATION: update-plugin NOT in files list
         """
-        archived_utilities = {
-            "create-issue.md",
+        deprecated_commands = {
             "update-plugin.md",
         }
 
         manifest_commands = {Path(f).name for f in command_files}
-        found_archived = archived_utilities & manifest_commands
+        found_deprecated = deprecated_commands & manifest_commands
 
-        assert not found_archived, (
-            f"Utility commands still in manifest: {found_archived}\n"
+        assert not found_deprecated, (
+            f"Deprecated commands still in manifest: {found_deprecated}\n"
             "These should be removed:\n"
-            f"  {chr(10).join(sorted(found_archived))}\n"
-            "Rationale: Superseded by core workflow commands"
+            f"  {chr(10).join(sorted(found_deprecated))}\n"
+            "Rationale: Superseded by /sync command"
         )
 
-    def test_excludes_batch_implement(self, command_files):
-        """Test that batch-implement command excluded from manifest.
+    def test_includes_batch_implement(self, command_files):
+        """Test that batch-implement command is in manifest.
 
-        RED PHASE: Should fail if batch-implement still in manifest
-        EXPECTATION: batch-implement.md NOT in files list
+        EXPECTATION: batch-implement.md IS in files list
         """
         manifest_commands = {Path(f).name for f in command_files}
 
-        assert "batch-implement.md" not in manifest_commands, (
-            f"batch-implement.md still in manifest\n"
-            "This should be removed\n"
-            "Rationale: Functionality consolidated into /auto-implement --batch"
+        assert "batch-implement.md" in manifest_commands, (
+            f"batch-implement.md missing from manifest\n"
+            "This should be included for multi-feature processing\n"
         )
 
     def test_excludes_old_align_commands(self, command_files):
@@ -348,7 +344,7 @@ class TestManifestActiveCommandsPaths:
     def command_files(self) -> List[str]:
         """Extract command file paths from manifest."""
         manifest_path = (
-            Path(__file__).parent.parent.parent
+            project_root
             / "plugins"
             / "autonomous-dev"
             / "config"
@@ -386,13 +382,6 @@ class TestManifestActiveCommandsPaths:
             "Expected: plugins/autonomous-dev/commands/sync.md"
         )
 
-    def test_status_in_manifest(self, command_files):
-        """Test that status.md is in manifest."""
-        assert self._check_command_in_manifest(command_files, "status.md"), (
-            "status.md not in manifest\n"
-            "Expected: plugins/autonomous-dev/commands/status.md"
-        )
-
     def test_health_check_in_manifest(self, command_files):
         """Test that health-check.md is in manifest."""
         assert self._check_command_in_manifest(command_files, "health-check.md"), (
@@ -400,18 +389,18 @@ class TestManifestActiveCommandsPaths:
             "Expected: plugins/autonomous-dev/commands/health-check.md"
         )
 
-    def test_pipeline_status_in_manifest(self, command_files):
-        """Test that pipeline-status.md is in manifest."""
-        assert self._check_command_in_manifest(command_files, "pipeline-status.md"), (
-            "pipeline-status.md not in manifest\n"
-            "Expected: plugins/autonomous-dev/commands/pipeline-status.md"
+    def test_batch_implement_in_manifest(self, command_files):
+        """Test that batch-implement.md is in manifest."""
+        assert self._check_command_in_manifest(command_files, "batch-implement.md"), (
+            "batch-implement.md not in manifest\n"
+            "Expected: plugins/autonomous-dev/commands/batch-implement.md"
         )
 
-    def test_test_command_in_manifest(self, command_files):
-        """Test that test.md is in manifest."""
-        assert self._check_command_in_manifest(command_files, "test.md"), (
-            "test.md not in manifest\n"
-            "Expected: plugins/autonomous-dev/commands/test.md"
+    def test_create_issue_in_manifest(self, command_files):
+        """Test that create-issue.md is in manifest."""
+        assert self._check_command_in_manifest(command_files, "create-issue.md"), (
+            "create-issue.md not in manifest\n"
+            "Expected: plugins/autonomous-dev/commands/create-issue.md"
         )
 
 

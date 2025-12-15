@@ -106,9 +106,16 @@ class TestInstallShCritical:
             manifest = plugins_dir / "config" / "install_manifest.json"
             data = json.loads(manifest.read_text())
 
-            # Get actual hooks
+            # Get actual hooks (excluding backward compatibility shims)
             hooks_dir = plugins_dir / "hooks"
-            actual_hooks = {f.name for f in hooks_dir.glob("*.py") if not f.name.startswith("__")}
+            # Shims redirect to unified hooks - they're intentionally not in manifest
+            BACKWARD_COMPAT_SHIMS = {
+                "auto_git_workflow.py",  # Shim → unified_git_automation.py (Issue #144)
+            }
+            actual_hooks = {
+                f.name for f in hooks_dir.glob("*.py")
+                if not f.name.startswith("__") and f.name not in BACKWARD_COMPAT_SHIMS
+            }
 
             # Get hooks in manifest (new structure: components.hooks.files)
             manifest_hooks = set()

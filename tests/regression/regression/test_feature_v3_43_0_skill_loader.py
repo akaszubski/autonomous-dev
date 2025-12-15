@@ -16,8 +16,18 @@ import pytest
 import sys
 from pathlib import Path
 
+# Portable path detection (works from any test location)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        PROJECT_ROOT = current
+        break
+    current = current.parent
+else:
+    PROJECT_ROOT = Path.cwd()
+
 # Add lib to path
-lib_path = Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "lib"
+lib_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"
 sys.path.insert(0, str(lib_path))
 
 from skill_loader import (

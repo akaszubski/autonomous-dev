@@ -30,8 +30,16 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Set
 
-# Project paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# Portable path detection (works from any test location)
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        PROJECT_ROOT = current
+        break
+    current = current.parent
+else:
+    PROJECT_ROOT = Path.cwd()
+
 SKILLS_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev" / "skills"
 
 # Valid Claude Code tools (comprehensive list)
