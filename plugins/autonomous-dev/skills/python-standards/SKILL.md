@@ -4,6 +4,8 @@ type: knowledge
 description: Python code quality standards (PEP 8, type hints, docstrings). Use when writing Python code.
 keywords: python, pep8, type hints, docstrings, black, isort, formatting
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Python Standards Skill

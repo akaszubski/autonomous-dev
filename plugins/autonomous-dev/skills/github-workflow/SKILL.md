@@ -19,6 +19,8 @@ keywords:
   - pr automation
   - issue automation
 auto_activate: true
+allowed-tools: [Read, Grep, Glob, Bash]
+
 ---
 
 # Github Workflow Skill

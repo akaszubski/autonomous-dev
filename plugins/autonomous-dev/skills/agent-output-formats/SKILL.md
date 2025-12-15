@@ -4,6 +4,8 @@ type: knowledge
 description: Standardized output formats for research, planning, implementation, and review agents. Use when generating agent outputs or parsing agent responses.
 keywords: output, format, research, planning, implementation, review, agent response, findings, recommendations, architecture, changes
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Agent Output Formats Skill

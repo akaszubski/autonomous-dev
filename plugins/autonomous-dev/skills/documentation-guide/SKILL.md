@@ -4,6 +4,8 @@ type: knowledge
 description: Documentation standards and automation. Use when updating docs, writing guides, or synchronizing code with documentation.
 keywords: documentation, docs, readme, changelog, guides, api docs, parity, validation, docstring, standards
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Documentation Guide Skill

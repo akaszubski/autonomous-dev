@@ -508,13 +508,11 @@ Agent model assignments are optimized for cost-performance balance based on task
 - **Validation & Analysis** (6): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers, project-alignment-validation
 - **Library Design** (3): library-design-patterns, state-management-patterns, api-integration-patterns
 
-**How It Works** (Issue #143 - Native Claude Code 2.0 Integration):
-- **Skills Frontmatter**: Each agent declares required skills in `skills:` field (comma-separated list in agent.md frontmatter)
-- **Auto-Loading**: When Claude Code spawns agent via Task tool, declared skills auto-load (no manual injection required)
-- **Source of Truth**: AGENT_SKILL_MAP in skill_loader.py defines agent-to-skill mapping (matches frontmatter declarations)
-- **Progressive Disclosure**: Compact SKILL.md files with detailed content in docs/ subdirectories prevents context bloat
-- **Token Reduction**: ~16,833-17,233 tokens saved across 28 skills (26-35% reduction) plus ~6,000+ lines moved to docs/
-- **Refactored Skills** (16 of 28): All now under 500 lines with detailed content in docs/ subdirectories
+**How It Works** (Issue #143, #146):
+- **Skills Frontmatter**: Agents declare skills in `skills:` field, auto-loaded when spawned
+- **Tool Restrictions**: Each skill declares `allowed-tools:` for least privilege (read-only → full-access)
+- **Progressive Disclosure**: Compact SKILL.md files, detailed content in docs/ subdirectories
+- **Token Reduction**: ~17K tokens saved across 28 skills (26-35% reduction)
 
 **Key Benefits**:
 - All 21 agents explicitly reference relevant skills (Issue #35)
@@ -768,4 +766,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-12-14 (Added /sync --uninstall mode for plugin removal - GitHub Issue #131, with backup and rollback support)
+**Last Updated**: 2025-12-15 (Added allowed-tools frontmatter to all 28 skills for least privilege enforcement - GitHub Issue #146, with 58 tests validating tool assignments)

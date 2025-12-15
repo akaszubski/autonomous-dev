@@ -15,6 +15,8 @@ keywords:
   - commit patterns
   - workflow
 auto_activate: true
+allowed-tools: [Read, Grep, Glob, Bash]
+
 ---
 
 # Git Workflow Skill

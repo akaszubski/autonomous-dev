@@ -4,6 +4,8 @@ type: knowledge
 description: Standardized patterns for how agents discover, reference, and compose skills using progressive disclosure architecture
 keywords: skill, skills, progressive disclosure, skill discovery, skill composition, agent integration, skill reference
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Skill Integration Skill

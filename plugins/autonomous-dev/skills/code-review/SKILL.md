@@ -4,6 +4,8 @@ type: knowledge
 description: This skill should be used when reviewing code or preparing code for review. It provides guidelines for what to look for in reviews, how to write constructive feedback, and standards for review comments.
 keywords: code review, review, pr review, pull request review, feedback, comment, critique, quality check
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Code Review Skill

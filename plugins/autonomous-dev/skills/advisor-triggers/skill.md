@@ -3,6 +3,8 @@ name: advisor-triggers
 description: Detects when user requests warrant critical analysis via /advise command
 version: 1.0.0
 auto_invoke: false
+allowed-tools: [Read, Grep, Glob]
+
 ---
 
 # Advisor Auto-Invoke Triggers

@@ -4,6 +4,8 @@ type: knowledge
 description: This skill should be used when designing system architecture, making architectural decisions, or evaluating design patterns. It provides guidance on common patterns, ADR templates, design principles, and tradeoff analysis.
 keywords: architecture, design, pattern, decision, tradeoffs, adr, system design, scalability, microservices, mvc, design patterns, solid
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Architecture Patterns Skill

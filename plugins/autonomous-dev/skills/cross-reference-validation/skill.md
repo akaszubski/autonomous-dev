@@ -4,6 +4,8 @@ description: Validates all documentation references - file paths, links, line nu
 version: 1.0.0
 category: validation
 auto_invoke: false
+allowed-tools: [Read, Grep, Glob]
+
 ---
 
 # Cross Reference Validation Skill

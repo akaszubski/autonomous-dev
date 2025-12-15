@@ -4,6 +4,8 @@ description: Detects stale documentation - outdated status markers, old TODOs, v
 version: 1.0.0
 category: validation
 auto_invoke: false
+allowed-tools: [Read, Grep, Glob]
+
 ---
 
 # Documentation Currency Skill

@@ -4,6 +4,8 @@ type: knowledge
 description: This skill should be used when creating or updating PROJECT.md files, planning sprints, defining project goals, or managing project scope. It provides templates and best practices for PROJECT.md-first development.
 keywords: project.md, milestone, sprint, roadmap, planning, goals, scope, constraints, project management, okr, smart goals
 auto_activate: true
+allowed-tools: [Read, Write, Edit, Grep, Glob]
+
 ---
 
 # Project Management Skill

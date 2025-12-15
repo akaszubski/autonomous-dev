@@ -4,6 +4,8 @@ description: GenAI-powered semantic validation - detects outdated docs, version 
 version: 1.0.0
 category: validation
 auto_invoke: false
+allowed-tools: [Read, Grep, Glob]
+
 ---
 
 # Semantic Validation Skill

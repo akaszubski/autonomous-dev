@@ -1,6 +1,42 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #146: Add allowed-tools frontmatter to all 28 skills for least privilege enforcement**
+  - **Problem**: Skills had no tool restrictions, violating principle of least privilege. Claude Code 2.0 supports allowed-tools frontmatter for fine-grained permission control at skill level.
+  - **Solution**: Add allowed-tools field to frontmatter of all 28 skill files with minimal required tools per skill category.
+  - **Implementation**:
+    - **All 28 skills updated** with allowed-tools declarations organized by category:
+      - **Read-only skills (15)**: api-design, architecture-patterns, code-review, documentation-guide, error-handling-patterns, library-design-patterns, python-standards, security-patterns, skill-integration, skill-integration-templates, state-management-patterns, api-integration-patterns, agent-output-formats, project-alignment, consistency-enforcement - Tools: [Read]
+      - **Search skills (6)**: research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers, project-alignment-validation - Tools: [Read, Grep, Glob]
+      - **Bash-enabled skills (4)**: testing-guide, observability, git-workflow, github-workflow - Tools: [Read, Grep, Glob, Bash]
+      - **Full-access skills (3)**: database-design, file-organization, project-management - Tools: [Read, Write, Edit, Grep, Glob]
+  - **Security Benefits**:
+    - **Principle of least privilege**: Each skill gets only tools it actually uses
+    - **Attack surface reduction**: Read-only skills cannot call Bash/Write/Edit
+    - **Intentional design**: Tool restrictions are explicit, not implicit
+    - **Defense in depth**: Complements command-level and MCP security policies
+    - **Prevents skill-based exploits**: Cannot abuse skills to bypass restrictions
+  - **Files Modified**:
+    - All 28 skill files in plugins/autonomous-dev/skills/: Added allowed-tools frontmatter field
+  - **Tests** (58 tests validating assignments):
+    - **tests/unit/test_skill_allowed_tools.py** (58 tests):
+      - All 28 skills have allowed-tools field
+      - allowed-tools is YAML list (not string)
+      - Each skill has correct tools per category
+      - No dangerous patterns (wildcards)
+      - Tool names are valid Claude Code tools
+  - **Documentation Updated**:
+    - CLAUDE.md: Updated Skills section to document allowed-tools security feature
+  - **Enforcement**:
+    - Claude Code 2.0 enforces allowed-tools at runtime for skills
+    - Tool calls outside allowed-tools are blocked with clear error message
+    - Graceful degradation if Claude Code doesn't recognize allowed-tools (forward compatible)
+  - **Backward Compatibility**:
+    - Older Claude Code versions without allowed-tools support ignore the field
+    - Behavior is identical on older versions (all tools available)
+    - New versions get enhanced security automatically
+  - **Related**: GitHub Issue #145 (command-level allowed-tools), GitHub Issue #143 (skills frontmatter)
+
 - **Issue #145: Add allowed-tools frontmatter to all 7 commands for least privilege enforcement**
   - **Problem**: Commands had no tool restrictions, violating principle of least privilege. Claude Code 2.0 supports allowed-tools frontmatter for fine-grained permission control.
   - **Solution**: Add `allowed-tools:` field to frontmatter of all 7 command files with minimal required tools per command.

@@ -4,6 +4,8 @@ type: knowledge
 description: PROJECT.md alignment patterns and validation strategies
 keywords: project, alignment, goals, scope, constraints, architecture
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 # Project Alignment Skill

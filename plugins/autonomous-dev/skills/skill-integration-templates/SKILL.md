@@ -10,6 +10,8 @@ keywords:
   - skill-section
   - agent-action-verbs
 auto_activate: true
+allowed-tools: [Read]
+
 ---
 
 ## Overview

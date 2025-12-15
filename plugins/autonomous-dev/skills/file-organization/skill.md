@@ -4,10 +4,12 @@ description: Enforces project file organization standards from CLAUDE.md/PROJECT
 version: 1.0.0
 category: enforcement
 auto_invoke: true
+allowed-tools: [Read, Write, Edit, Grep, Glob]
 triggers:
   - before_file_create
   - before_file_move
   - before_directory_create
+
 ---
 
 # File Organization Skill
