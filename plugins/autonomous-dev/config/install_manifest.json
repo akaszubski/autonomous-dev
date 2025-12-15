@@ -7,26 +7,13 @@
     "agents": {
       "target": ".claude/agents",
       "files": [
-        "plugins/autonomous-dev/agents/advisor.md",
-        "plugins/autonomous-dev/agents/alignment-analyzer.md",
-        "plugins/autonomous-dev/agents/alignment-validator.md",
-        "plugins/autonomous-dev/agents/brownfield-analyzer.md",
-        "plugins/autonomous-dev/agents/commit-message-generator.md",
         "plugins/autonomous-dev/agents/doc-master.md",
         "plugins/autonomous-dev/agents/implementer.md",
         "plugins/autonomous-dev/agents/issue-creator.md",
         "plugins/autonomous-dev/agents/planner.md",
-        "plugins/autonomous-dev/agents/pr-description-generator.md",
-        "plugins/autonomous-dev/agents/project-bootstrapper.md",
-        "plugins/autonomous-dev/agents/project-progress-tracker.md",
-        "plugins/autonomous-dev/agents/project-status-analyzer.md",
-        "plugins/autonomous-dev/agents/quality-validator.md",
         "plugins/autonomous-dev/agents/researcher-local.md",
-        "plugins/autonomous-dev/agents/researcher-web.md",
         "plugins/autonomous-dev/agents/reviewer.md",
         "plugins/autonomous-dev/agents/security-auditor.md",
-        "plugins/autonomous-dev/agents/setup-wizard.md",
-        "plugins/autonomous-dev/agents/sync-validator.md",
         "plugins/autonomous-dev/agents/test-master.md"
       ]
     },

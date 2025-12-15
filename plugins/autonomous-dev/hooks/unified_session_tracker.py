@@ -286,9 +286,9 @@ def check_pipeline_complete() -> bool:
         session_data = json.loads(latest_session.read_text())
 
         # Check if all expected agents completed
+        # Issue #147: Consolidated to only active agents in /auto-implement pipeline
         expected_agents = [
             "researcher-local",
-            "researcher-web",
             "planner",
             "test-master",
             "implementer",
@@ -318,9 +318,8 @@ def update_project_progress() -> bool:
         return False
 
     try:
-        # Note: Actual implementation would invoke project-progress-tracker agent
-        # and update PROJECT.md via ProjectMdUpdater. For now, stub implementation.
-        # Full implementation requires agent invocation infrastructure.
+        # Note: Progress tracking feature deprioritized (Issue #147: Agent consolidation)
+        # Would update PROJECT.md via ProjectMdUpdater if implemented.
         return False
     except Exception:
         return False

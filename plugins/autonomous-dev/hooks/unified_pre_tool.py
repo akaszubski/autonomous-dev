@@ -108,12 +108,11 @@ def load_env():
 
 
 # Agents authorized for code changes (pipeline agents)
+# Issue #147: Consolidated to only active agents that write code/tests/docs
 PIPELINE_AGENTS = [
     'implementer',
     'test-master',
-    'brownfield-analyzer',
-    'setup-wizard',
-    'project-bootstrapper',
+    'doc-master',
 ]
 
 

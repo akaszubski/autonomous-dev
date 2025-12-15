@@ -31,46 +31,34 @@ import plugins.autonomous_dev.lib.validate_marketplace_version as validate_marke
 class PluginHealthCheck:
     """Validates autonomous-dev plugin component integrity."""
 
-    # Expected components (from PROJECT.md)
-    # 20 agents total (orchestrator removed in v3.2.2 - Claude coordinates directly)
+    # Expected components - 8 active agents (Issue #147: Agent consolidation)
+    # Only agents actually invoked by commands are validated
     EXPECTED_AGENTS = [
-        "advisor",
-        "alignment-analyzer",
-        "alignment-validator",
-        "brownfield-analyzer",
-        "commit-message-generator",
         "doc-master",
         "implementer",
         "issue-creator",
         "planner",
-        "pr-description-generator",
-        "project-bootstrapper",
-        "project-progress-tracker",
-        "project-status-analyzer",
-        "quality-validator",
-        "researcher",
+        "researcher-local",
         "reviewer",
         "security-auditor",
-        "setup-wizard",
-        "sync-validator",
         "test-master",
     ]
 
     # Skills removed per Issue #5 - PROJECT.md: "No skills/ directory - anti-pattern"
     EXPECTED_SKILLS = []
 
-    # Core hooks (13) - essential for autonomous workflow
+    # Core hooks - Issue #144 consolidated 51 hooks into unified hooks
+    # Issue #147: Updated to match actual hooks after consolidation
     EXPECTED_HOOKS = [
         "auto_format.py",
         "auto_test.py",
-        "auto_git_workflow.py",
-        "detect_feature_request.py",
         "enforce_file_organization.py",
         "enforce_pipeline_complete.py",
         "enforce_tdd.py",
-        "pre_tool_use.py",
         "security_scan.py",
-        "session_tracker.py",
+        "unified_pre_tool.py",
+        "unified_prompt_validator.py",
+        "unified_session_tracker.py",
         "validate_claude_alignment.py",
         "validate_command_file_ops.py",
         "validate_project_alignment.py",
