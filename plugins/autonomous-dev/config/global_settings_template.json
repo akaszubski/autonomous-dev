@@ -60,7 +60,7 @@
       "SlashCommand",
       "EnterPlanMode",
       "AgentOutputTool",
-      "Mcp__*"
+      "mcp__*"
     ],
     "deny": [
       "Read(./.env)",

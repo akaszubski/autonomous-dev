@@ -122,24 +122,12 @@ pytest tests/test_documentation_consistency.py -v
 - ✅ Common drift scenarios documented
 - ✅ Automated test reminder
 
-### Layer 3: Pre-commit Hook (Optional)
+### Layer 3: Pre-Tool-Use Hook (Optional)
 **Location**: `hooks/validate_docs_consistency.py`
 
-**What it does**: Blocks commits if documentation is inconsistent
+**What it does**: Validates documentation consistency before file modifications
 
-**Enable**:
-```json
-// .claude/settings.local.json
-{
-  "hooks": {
-    "PreCommit": {
-      "*": ["python .claude/hooks/validate_docs_consistency.py"]
-    }
-  }
-}
-```
-
-**Note**: Can be annoying, so it's optional. Use for critical repositories.
+**Note**: Integrated into unified_pre_tool.py hook. Can be annoying, so it's optional. Use for critical repositories.
 
 ### Layer 4: This Skill (Auto-Reminder)
 **Location**: `skills/consistency-enforcement/SKILL.md`

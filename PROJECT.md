@@ -109,7 +109,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 ### Dual-Layer System
 
 **Layer 1: Hook-Based Enforcement** (Automatic, 100% Reliable)
-- PreCommit hooks validate ALL quality gates
+- Git-level pre-commit hooks validate ALL quality gates
 - Enforces: PROJECT.md alignment, security, tests, docs, file organization
 - Blocks commits if violations detected
 - **Guaranteed execution** — hooks run on every commit

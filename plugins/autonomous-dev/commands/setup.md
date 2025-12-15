@@ -230,23 +230,10 @@ Then:
 - User runs formatting and testing tools manually
 
 **Automatic Hooks Mode**:
-```json
-// .claude/settings.local.json
-{
-  "hooks": {
-    "PostToolUse": {
-      "Write": ["python .claude/hooks/auto_format.py"],
-      "Edit": ["python .claude/hooks/auto_format.py"]
-    },
-    "PreCommit": {
-      "*": [
-        "python .claude/hooks/auto_test.py",
-        "python .claude/hooks/security_scan.py"
-      ]
-    }
-  }
-}
-```
+- Hooks are configured automatically in settings.local.json
+- Post-edit formatting via unified_post_tool.py
+- Pre-tool-use validation via unified_pre_tool.py
+- See `.claude/settings.local.json` for full hook configuration
 
 ---
 

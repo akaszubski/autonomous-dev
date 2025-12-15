@@ -46,11 +46,13 @@ from typing import Dict, List, Any, Optional
 # Import security utilities
 try:
     from autonomous_dev.lib.security_utils import validate_path, audit_log
+    from autonomous_dev.lib.settings_merger import UNIFIED_HOOK_REPLACEMENTS
 except ImportError:
     # Fallback for direct script execution
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
     from security_utils import validate_path, audit_log
+    from settings_merger import UNIFIED_HOOK_REPLACEMENTS
 
 
 # =============================================================================
@@ -1193,28 +1195,99 @@ class SettingsGenerator:
         # Merge hooks by lifecycle event (Issue #138: Fix hook loss during merge)
         # Previously: User hooks completely replaced template hooks, losing UserPromptSubmit
         # Now: Merge hooks - template hooks + user hooks (user wins for duplicates)
+        # Issue #144: Migrate old hooks to unified hooks (remove replaced hooks)
         template_hooks = merged.get("hooks", {})
         user_hooks = user_settings.get("hooks", {})
+
+        # Issue #144: Build set of old hooks to remove based on unified hooks in template
+        hooks_to_remove = set()
+        for lifecycle, matcher_configs in template_hooks.items():
+            for config in matcher_configs:
+                if isinstance(config, dict):
+                    inner_hooks = config.get("hooks", [config])
+                    for hook in inner_hooks:
+                        if isinstance(hook, dict):
+                            cmd = hook.get("command", "")
+                            for unified_hook, replaced_hooks in UNIFIED_HOOK_REPLACEMENTS.items():
+                                if unified_hook in cmd:
+                                    hooks_to_remove.update(replaced_hooks)
 
         # Start with template hooks (to preserve UserPromptSubmit, etc.)
         merged_hooks = json.loads(json.dumps(template_hooks))  # Deep copy
 
-        # Merge user hooks on top (by lifecycle event)
+        # Merge user hooks on top (by lifecycle event), filtering out old hooks
         for lifecycle, hooks in user_hooks.items():
             if lifecycle not in merged_hooks:
-                # New lifecycle from user - add all hooks
-                merged_hooks[lifecycle] = json.loads(json.dumps(hooks))
+                # New lifecycle from user - add all hooks (filtering old ones)
+                filtered_hooks = []
+                for hook in hooks:
+                    if isinstance(hook, dict):
+                        if "hooks" in hook:
+                            # Nested format - filter inner hooks
+                            filtered_inner = []
+                            for inner_hook in hook.get("hooks", []):
+                                if isinstance(inner_hook, dict):
+                                    cmd = inner_hook.get("command", "")
+                                    should_remove = any(old_hook in cmd for old_hook in hooks_to_remove)
+                                    if not should_remove:
+                                        filtered_inner.append(inner_hook)
+                                else:
+                                    filtered_inner.append(inner_hook)
+                            if filtered_inner:
+                                filtered_hooks.append({**hook, "hooks": filtered_inner})
+                        else:
+                            # Flat format - check command directly
+                            cmd = hook.get("command", "")
+                            should_remove = any(old_hook in cmd for old_hook in hooks_to_remove)
+                            if not should_remove:
+                                filtered_hooks.append(hook)
+                    else:
+                        filtered_hooks.append(hook)
+                if filtered_hooks:
+                    merged_hooks[lifecycle] = json.loads(json.dumps(filtered_hooks))
             else:
-                # Existing lifecycle - merge individual hooks (avoid duplicates)
+                # Existing lifecycle - merge individual hooks (avoid duplicates, filter old)
                 existing_hooks = merged_hooks[lifecycle]
                 for hook in hooks:
-                    # Check if this exact hook already exists
-                    hook_exists = any(
-                        h.get("command") == hook.get("command") and h.get("matcher") == hook.get("matcher")
-                        for h in existing_hooks
-                    )
-                    if not hook_exists:
-                        existing_hooks.append(json.loads(json.dumps(hook)))
+                    if isinstance(hook, dict):
+                        if "hooks" in hook:
+                            # Nested format - filter and merge inner hooks
+                            for inner_hook in hook.get("hooks", []):
+                                if isinstance(inner_hook, dict):
+                                    cmd = inner_hook.get("command", "")
+                                    should_remove = any(old_hook in cmd for old_hook in hooks_to_remove)
+                                    if should_remove:
+                                        continue
+                                    # Check if this exact hook already exists
+                                    hook_exists = any(
+                                        h.get("command") == cmd for h in existing_hooks
+                                        if isinstance(h, dict) and "command" in h
+                                    )
+                                    # Also check nested hooks
+                                    for existing in existing_hooks:
+                                        if isinstance(existing, dict) and "hooks" in existing:
+                                            hook_exists = hook_exists or any(
+                                                ih.get("command") == cmd
+                                                for ih in existing.get("hooks", [])
+                                                if isinstance(ih, dict)
+                                            )
+                                    if not hook_exists:
+                                        # Add to first matcher config's hooks
+                                        if existing_hooks and isinstance(existing_hooks[0], dict) and "hooks" in existing_hooks[0]:
+                                            existing_hooks[0]["hooks"].append(json.loads(json.dumps(inner_hook)))
+                        else:
+                            # Flat format - check command directly
+                            cmd = hook.get("command", "")
+                            should_remove = any(old_hook in cmd for old_hook in hooks_to_remove)
+                            if should_remove:
+                                continue
+                            hook_exists = any(
+                                h.get("command") == hook.get("command") and h.get("matcher") == hook.get("matcher")
+                                for h in existing_hooks
+                                if isinstance(h, dict)
+                            )
+                            if not hook_exists:
+                                existing_hooks.append(json.loads(json.dumps(hook)))
 
         if merged_hooks:
             merged["hooks"] = merged_hooks

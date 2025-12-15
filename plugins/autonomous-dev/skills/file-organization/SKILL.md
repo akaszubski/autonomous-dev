@@ -3,7 +3,7 @@ name: file-organization
 description: Enforces project file organization standards from CLAUDE.md/PROJECT.md - auto-fix mode
 version: 1.0.0
 category: enforcement
-auto_invoke: true
+auto_activate: true
 allowed-tools: [Read, Write, Edit, Grep, Glob]
 triggers:
   - before_file_create

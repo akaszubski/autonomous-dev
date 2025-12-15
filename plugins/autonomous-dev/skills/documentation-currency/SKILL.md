@@ -3,7 +3,7 @@ name: documentation-currency
 description: Detects stale documentation - outdated status markers, old TODOs, version lag
 version: 1.0.0
 category: validation
-auto_invoke: false
+auto_activate: false
 allowed-tools: [Read, Grep, Glob]
 
 ---

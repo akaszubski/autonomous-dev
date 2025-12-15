@@ -253,8 +253,9 @@ python hooks/enforce_file_organization.py --fix  # Auto-fix structure
 → Proceeds with agent pipeline if aligned
 ```
 
-### PreCommit Hook (Blocking)
+### Git Pre-Commit Hook (Blocking)
 ```python
+# Git-level hook (configured in settings.json)
 # Runs BEFORE every commit
 → PROJECT.md alignment validation
 → All tests must pass
@@ -288,90 +289,18 @@ Location: `.claude/settings.local.json`
 
 **Fix for Issue #84**: Hook paths now correctly reference plugin location.
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/detect_feature_request.py && echo '[Auto-Orchestration] Invoking orchestrator for PROJECT.md validation...'"
-          }
-        ]
-      }
-    ],
-    "PreFileEdit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
-          }
-        ]
-      }
-    ],
-    "PostFileEdit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/auto_format.py"
-          }
-        ]
-      }
-    ],
-    "PreCommit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/validate_project_alignment.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/enforce_orchestrator.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/enforce_tdd.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/auto_fix_docs.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/validate_session_quality.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/auto_test.py || exit 1"
-          },
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/security_scan.py || exit 1"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/session_tracker.py subagent 'Subagent completed task'"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+Strict mode uses unified hooks for Claude Code 2.0 compatibility:
+- `unified_prompt_validator.py` - Validates user prompts (UserPromptSubmit lifecycle)
+- `unified_pre_tool.py` - Pre-tool-use validation (PreToolUse lifecycle)
+- `unified_post_tool.py` - Post-tool-use actions (PostToolUse lifecycle)
+- `unified_session_tracker.py` - Session tracking (SubagentStop lifecycle)
+- `unified_git_automation.py` - Git operations (SubagentStop lifecycle)
+
+See `.claude/settings.local.json` for complete hook configuration.
 
 **Key Path Changes (Issue #84)**:
-- `.claude/hooks/` → `plugins/autonomous-dev/hooks/` (plugin location)
-- `scripts/session_tracker.py` → `plugins/autonomous-dev/hooks/session_tracker.py` (new hook location)
+- `.claude/hooks/` → `~/.claude/hooks/` (global hooks)
+- Unified hook pattern replaces individual hooks
 - Ensures hooks resolve correctly in both plugin-installed and development environments
 
 ---

@@ -2,7 +2,7 @@
 name: advisor-triggers
 description: Detects when user requests warrant critical analysis via /advise command
 version: 1.0.0
-auto_invoke: false
+auto_activate: false
 allowed-tools: [Read, Grep, Glob]
 
 ---
@@ -171,8 +171,8 @@ advisor_triggers:
     technology_swaps: true
     scale_changes: true
   
-  # Auto-invoke (don't ask, just run)
-  auto_invoke: false  # If true, runs /advise automatically
+  # Auto-activation (don't ask, just run)
+  auto_activate: false  # If true, runs /advise automatically
 ```
 
 ## Integration Points
