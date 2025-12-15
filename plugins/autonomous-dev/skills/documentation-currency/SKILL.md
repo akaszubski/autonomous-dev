@@ -6,6 +6,13 @@ description: Detects stale documentation - outdated status markers, old TODOs, v
 category: validation
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]
+keywords:
+  - documentation
+  - currency
+  - stale
+  - outdated
+  - version
+  - lag
 
 ---
 

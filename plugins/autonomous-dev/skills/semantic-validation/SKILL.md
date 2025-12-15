@@ -6,6 +6,13 @@ description: GenAI-powered semantic validation - detects outdated docs, version 
 category: validation
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]
+keywords:
+  - semantic
+  - validation
+  - documentation
+  - drift
+  - version
+  - mismatch
 
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: health-check
 description: Validate all plugin components are working correctly (agents, hooks, commands)
+argument_hint: "[--verbose]"
 allowed-tools: [Read, Bash, Grep, Glob]
 ---
 

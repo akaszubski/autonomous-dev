@@ -1,10 +1,17 @@
 ---
 name: advisor-triggers
 version: 1.0.0
-type: trigger
+type: automation
 description: Detects when user requests warrant critical analysis via /advise command
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]
+keywords:
+  - advisor
+  - triggers
+  - automation
+  - detection
+  - patterns
+  - analysis
 
 ---
 

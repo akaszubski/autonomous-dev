@@ -1,4 +1,22 @@
-"""Shared pytest fixtures for all tests."""
+"""Shared pytest fixtures for all tests.
+
+Auto-Marker System:
+Tests are automatically marked based on their file location:
+- tests/regression/smoke/     -> @pytest.mark.smoke (Tier 0 - < 5s, CI gate)
+- tests/regression/regression/ -> @pytest.mark.regression (Tier 1 - < 30s)
+- tests/regression/extended/   -> @pytest.mark.extended (Tier 2 - < 5min)
+- tests/regression/progression/ -> @pytest.mark.progression (Tier 3 - TDD)
+- tests/unit/                  -> @pytest.mark.unit
+- tests/integration/           -> @pytest.mark.integration
+- tests/security/              -> Inherits from location + security focus
+- tests/hooks/                 -> @pytest.mark.hooks
+
+Run specific tiers:
+  pytest -m smoke              # Smoke tests only (fast, CI gate)
+  pytest -m regression         # Regression tests
+  pytest -m "smoke or regression"  # Both
+  pytest -m "not slow"         # Exclude slow tests
+"""
 
 import pytest
 import sys
@@ -9,6 +27,57 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "plugins"))
 
 # Import path_utils for cache reset
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
+
+
+# =============================================================================
+# PYTEST OPTIONS
+# =============================================================================
+
+def pytest_addoption(parser):
+    """Register custom command-line options."""
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests (skipped by default)"
+    )
+
+
+# =============================================================================
+# AUTO-MARKER SYSTEM
+# Automatically applies pytest markers based on file location
+# =============================================================================
+
+# Map directory patterns to markers
+DIRECTORY_MARKERS = {
+    "regression/smoke": ["smoke"],
+    "regression/regression": ["regression"],
+    "regression/extended": ["extended", "slow"],
+    "regression/progression": ["progression", "tdd_red"],
+    "unit/": ["unit"],
+    "integration/": ["integration"],
+    "security/": ["unit"],  # Security tests are unit tests
+    "hooks/": ["hooks", "unit"],
+}
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-apply markers to tests based on their file location.
+
+    This hook runs after test collection and automatically adds markers
+    so tests don't need manual @pytest.mark decorators.
+    """
+    for item in items:
+        # Get the test file path relative to tests/
+        fspath = str(item.fspath)
+
+        # Apply markers based on directory
+        for dir_pattern, markers in DIRECTORY_MARKERS.items():
+            if dir_pattern in fspath:
+                for marker_name in markers:
+                    marker = getattr(pytest.mark, marker_name)
+                    item.add_marker(marker)
+                break  # Only match first pattern
 
 
 @pytest.fixture(autouse=True)

@@ -6,6 +6,13 @@ description: Validates all documentation references - file paths, links, line nu
 category: validation
 auto_activate: false
 allowed-tools: [Read, Grep, Glob]
+keywords:
+  - cross-reference
+  - validation
+  - links
+  - paths
+  - references
+  - documentation
 
 ---
 

@@ -172,30 +172,70 @@ def test_regression_issue_123_handles_empty_input():
 
 ---
 
-### 7. Test Organization & Best Practices
+### 7. Test Tiers & Auto-Categorization (CRITICAL!)
 
-Directory structure, naming conventions, and testing best practices.
+Tests are **automatically marked** based on directory location. No manual `@pytest.mark` needed!
 
-**Directory Structure**:
+**Tier Structure**:
 ```
 tests/
-├── unit/              # Fast, isolated tests
-├── integration/       # Component interaction tests
-├── uat/              # End-to-end scenarios
-├── progression/      # Performance baselines
-└── conftest.py       # Shared fixtures
+├── regression/
+│   ├── smoke/           # Tier 0: Critical path (<5s) - CI GATE
+│   ├── regression/      # Tier 1: Feature protection (<30s)
+│   ├── extended/        # Tier 2: Deep validation (<5min)
+│   └── progression/     # Tier 3: TDD red phase
+├── unit/                # Unit tests (isolated functions)
+├── integration/         # Integration tests (multi-component)
+├── security/            # Security-focused tests
+├── hooks/               # Hook-specific tests
+└── archived/            # Obsolete tests (excluded)
 ```
+
+**Where to Put New Tests**:
+```
+Is it protecting a released feature?
+├─ Yes → Critical path (install, sync, load)?
+│        ├─ Yes → tests/regression/smoke/
+│        └─ No  → tests/regression/regression/
+└─ No  → TDD red phase (not implemented)?
+         ├─ Yes → tests/regression/progression/
+         └─ No  → Single function/class?
+                  ├─ Yes → tests/unit/{subcategory}/
+                  └─ No  → tests/integration/
+```
+
+**Run by Tier**:
+```bash
+pytest -m smoke              # CI gate (must pass)
+pytest -m regression         # Feature protection
+pytest -m "smoke or regression"  # Both
+pytest -m unit               # Unit tests only
+```
+
+**Validate Categorization**:
+```bash
+python scripts/validate_test_categorization.py --report
+```
+
+**See**: `docs/TESTING-TIERS.md` for complete tier definitions and examples
+
+---
+
+### 8. Test Organization & Best Practices
+
+Directory structure, naming conventions, and testing best practices.
 
 **Naming Conventions**:
 - Test files: `test_*.py`
 - Test functions: `test_*`
+- Regression tests: `test_feature_v{VERSION}_{name}.py`
 - Fixtures: descriptive names (no `test_` prefix)
 
 **See**: `docs/test-organization-best-practices.md` for detailed conventions and best practices
 
 ---
 
-### 8. Pytest Fixtures & Coverage
+### 9. Pytest Fixtures & Coverage
 
 Common fixtures for setup/teardown and coverage measurement strategies.
 
@@ -219,7 +259,7 @@ pytest --cov=src --cov-report=term-missing
 
 ---
 
-### 9. CI/CD Integration
+### 10. CI/CD Integration
 
 Automated testing in pre-push hooks and GitHub Actions.
 
@@ -243,6 +283,7 @@ pytest tests/ || exit 1
 
 | Pattern | Use Case | Details |
 |---------|----------|---------|
+| **Test Tiers** | Auto-categorization | `docs/TESTING-TIERS.md` |
 | Three-Layer Strategy | Complete testing approach | `docs/three-layer-strategy.md` |
 | Testing Layers | Pytest pyramid | `docs/testing-layers.md` |
 | TDD Methodology | Test-first development | `docs/tdd-methodology.md` |
@@ -251,6 +292,17 @@ pytest tests/ || exit 1
 | Test Organization | Directory structure | `docs/test-organization-best-practices.md` |
 | Pytest Fixtures | Setup/teardown patterns | `docs/pytest-fixtures-coverage.md` |
 | CI/CD Integration | Automated testing | `docs/ci-cd-integration.md` |
+
+### Test Tier Quick Reference
+
+| Tier | Directory | Time Limit | Purpose |
+|------|-----------|------------|---------|
+| **0 (Smoke)** | `regression/smoke/` | <5s | CI gate, critical path |
+| **1 (Regression)** | `regression/regression/` | <30s | Feature protection |
+| **2 (Extended)** | `regression/extended/` | <5min | Deep validation |
+| **3 (Progression)** | `regression/progression/` | - | TDD red phase |
+| **Unit** | `unit/` | <1s | Isolated functions |
+| **Integration** | `integration/` | <30s | Multi-component |
 
 ---
 
@@ -303,15 +355,18 @@ This skill uses progressive disclosure to prevent context bloat:
 
 ## Key Takeaways
 
-1. **Write tests first** (TDD) - Guarantees coverage and drives better design
-2. **Use the testing pyramid** - Many unit tests, some integration, few UAT
-3. **Aim for 80%+ coverage** - Focus on critical paths
-4. **Fast tests matter** - Keep unit tests under 1 second
-5. **Name tests clearly** - `test_<function>_<scenario>_<expected>`
-6. **One assertion per test** - Clear failure messages
-7. **Use fixtures** - DRY principle for setup/teardown
-8. **Test behavior, not implementation** - Tests should survive refactoring
-9. **Add regression tests** - Prevent fixed bugs from returning
-10. **Automate testing** - Pre-push hooks and CI/CD
-11. **Use GenAI validation** - Architectural reasoning beyond syntax
-12. **Track performance** - Progression tests for optimization validation
+1. **Put tests in the right directory** - Auto-markers handle the rest (no manual @pytest.mark)
+2. **Smoke tests for critical paths** - `regression/smoke/` = CI gate
+3. **Write tests first** (TDD) - Guarantees coverage and drives better design
+4. **Use the testing pyramid** - Many unit tests, some integration, few UAT
+5. **Aim for 80%+ coverage** - Focus on critical paths
+6. **Fast tests matter** - Keep unit tests under 1 second
+7. **Name tests clearly** - `test_<function>_<scenario>_<expected>`
+8. **One assertion per test** - Clear failure messages
+9. **Use fixtures** - DRY principle for setup/teardown
+10. **Test behavior, not implementation** - Tests should survive refactoring
+11. **Add regression tests** - Prevent fixed bugs from returning
+12. **Automate testing** - Pre-push hooks and CI/CD
+13. **Use GenAI validation** - Architectural reasoning beyond syntax
+14. **Track performance** - Progression tests for optimization validation
+15. **Validate categorization** - Run `python scripts/validate_test_categorization.py`

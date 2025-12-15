@@ -6,6 +6,13 @@ description: Enforces project file organization standards from CLAUDE.md/PROJECT
 category: enforcement
 auto_activate: true
 allowed-tools: [Read, Write, Edit, Grep, Glob]
+keywords:
+  - file
+  - organization
+  - structure
+  - directory
+  - standards
+  - enforcement
 triggers:
   - before_file_create
   - before_file_move

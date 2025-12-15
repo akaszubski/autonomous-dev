@@ -1,6 +1,7 @@
 ---
 name: setup
 description: Interactive setup wizard - analyzes tech stack, generates PROJECT.md, configures hooks
+argument_hint: "[--project-dir <path>]"
 allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 
