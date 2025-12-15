@@ -414,12 +414,13 @@ class TestNavigationFlowIntegration:
 
         claude_content = claude_md.read_text(encoding="utf-8")
 
-        # CLAUDE.md should mention libraries AND link to LIBRARIES.md (updated to 33 libraries in v3.41.0+)
-        mentions_libraries = re.search(r'[Ll]ibraries?.*[23][0-9]', claude_content)
+        # CLAUDE.md should mention libraries AND link to LIBRARIES.md
+        # Note: Hardcoded counts removed to prevent drift (see refactor in Dec 2025)
+        mentions_libraries = "### Libraries" in claude_content or "Libraries" in claude_content
         links_to_libraries = "LIBRARIES.md" in claude_content
 
         assert mentions_libraries, (
-            "CLAUDE.md should mention libraries (with count)"
+            "CLAUDE.md should mention libraries section"
         )
         assert links_to_libraries, (
             "CLAUDE.md should link to LIBRARIES.md for details"

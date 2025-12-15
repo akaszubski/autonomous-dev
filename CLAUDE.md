@@ -17,13 +17,13 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does** (Issue #132 - Complete auto-install):
 - Downloads all plugin components to `~/.autonomous-dev-staging/`
-- Installs global infrastructure: `~/.claude/hooks/` (10 unified hooks), `~/.claude/lib/` (69 libs), `~/.claude/settings.json`
+- Installs global infrastructure: `~/.claude/hooks/`, `~/.claude/lib/`, `~/.claude/settings.json`
 - Installs to `.claude/`:
-  - Commands (7) → `.claude/commands/`
-  - Agents (21) → `.claude/agents/`
-  - Scripts (11) → `.claude/scripts/`
-  - Config (6) → `.claude/config/`
-  - Templates (11) → `.claude/templates/`
+  - Commands → `.claude/commands/`
+  - Agents → `.claude/agents/`
+  - Scripts → `.claude/scripts/`
+  - Config → `.claude/config/`
+  - Templates → `.claude/templates/`
 - Non-blocking installation: Missing components don't block workflow
 
 **Optional**: Run `/setup` in your project for guided PROJECT.md creation (only needed for FRESH installs).
@@ -34,9 +34,9 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **autonomous-dev** - Plugin repository for autonomous development in Claude Code.
 
-**Core Plugin**: `autonomous-dev` - 21 AI agents, 28 skills, automation hooks, and slash commands for autonomous feature development
+**Core Plugin**: `autonomous-dev` - AI agents, skills, automation hooks, and slash commands for autonomous feature development
 
-**Commands (7 active)**:
+**Commands**:
 
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
 - `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
@@ -446,14 +446,14 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 ---
 ## Architecture
 
-### Agents (21 specialists with active skill integration - GitHub Issue #35, #58, #59, #128)
+### Agents
 
-21 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+Specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Core Workflow Agents (10)** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
+**Core Workflow Agents** (orchestrator deprecated v3.2.2 - Claude coordinates directly):
 researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master, advisor, quality-validator
 
-**Utility Agents (11)**:
+**Utility Agents**:
 alignment-validator, commit-message-generator, pr-description-generator, issue-creator, brownfield-analyzer, project-progress-tracker, alignment-analyzer, project-bootstrapper, setup-wizard, project-status-analyzer, sync-validator
 
 **Key Features**:
@@ -466,7 +466,7 @@ alignment-validator, commit-message-generator, pr-description-generator, issue-c
 
 Agent model assignments are optimized for cost-performance balance based on task complexity:
 
-**Tier 1: 8 Haiku agents** - Fast, cost-effective for pattern matching and structured output
+**Tier 1 (Haiku)** - Fast, cost-effective for pattern matching and structured output
 - researcher-local - Search codebase patterns and similar implementations (Issue #128)
 - reviewer - Code quality checks against style guide
 - doc-master - Documentation synchronization
@@ -476,7 +476,7 @@ Agent model assignments are optimized for cost-performance balance based on task
 - sync-validator - Development environment sync validation
 - pr-description-generator - PR description formatting
 
-**Tier 2: 11 Sonnet agents** - Balanced reasoning for implementation and planning
+**Tier 2 (Sonnet)** - Balanced reasoning for implementation and planning
 - researcher-web - Research web best practices (requires Sonnet for WebSearch/WebFetch tools)
 - implementer - Code implementation to make tests pass
 - test-master - TDD test generation with comprehensive coverage
@@ -489,7 +489,7 @@ Agent model assignments are optimized for cost-performance balance based on task
 - alignment-analyzer - PROJECT.md conflict resolution
 - project-status-analyzer - Project status assessment
 
-**Tier 3: 2 Opus agents** - Deep reasoning for critical analysis
+**Tier 3 (Opus)** - Deep reasoning for critical analysis
 - security-auditor - OWASP security scanning and vulnerability detection
 - advisor - Critical thinking, trade-off analysis, risk identification
 
@@ -500,66 +500,24 @@ Agent model assignments are optimized for cost-performance balance based on task
 
 **Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality standards across all workflows.
 
-### Skills (28 Active - Progressive Disclosure + Agent Integration - Issue #110)
+### Skills
 
-28 specialized skill packages using progressive disclosure to prevent context bloat while scaling to 100+ skills.
+Specialized skill packages using progressive disclosure to prevent context bloat. See [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for complete list.
 
-**Issue #110 Completion (v3.41.0)**: All 28 skills now under 500-line official limit. 16 skills refactored with progressive disclosure pattern: compact SKILL.md files (87-315 lines) with detailed content moved to docs/ subdirectories (~6,000+ lines of detailed guides, examples, and references).
+**How It Works**:
+- Agents declare skills in `skills:` frontmatter field, auto-loaded when spawned
+- Each skill declares `allowed-tools:` for least privilege
+- Compact SKILL.md files with detailed content in docs/ subdirectories 
 
-**Categories**:
-- **Core Development** (7): api-design, architecture-patterns, code-review, database-design, testing-guide, security-patterns, error-handling-patterns
-- **Workflow & Automation** (7): git-workflow, github-workflow, project-management, documentation-guide, agent-output-formats, skill-integration, skill-integration-templates
-- **Code & Quality** (4): python-standards, observability, consistency-enforcement, file-organization
-- **Validation & Analysis** (6): research-patterns, semantic-validation, cross-reference-validation, documentation-currency, advisor-triggers, project-alignment-validation
-- **Library Design** (3): library-design-patterns, state-management-patterns, api-integration-patterns
+### Libraries
 
-**How It Works** (Issue #143, #146):
-- **Skills Frontmatter**: Agents declare skills in `skills:` field, auto-loaded when spawned
-- **Tool Restrictions**: Each skill declares `allowed-tools:` for least privilege (read-only → full-access)
-- **Progressive Disclosure**: Compact SKILL.md files, detailed content in docs/ subdirectories
-- **Token Reduction**: ~17K tokens saved across 28 skills (26-35% reduction)
+Reusable Python libraries for security, validation, automation, and more. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
 
-**Key Benefits**:
-- All 21 agents explicitly reference relevant skills (Issue #35)
-- All 28 skills now satisfy official 500-line limit (Issue #110)
-- Prevents hallucination while maintaining scalability
-- Supports 50-100+ skills without context bloat
-- Test coverage: 328/355 tests passing
+**Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
 
-See `docs/SKILLS-AGENTS-INTEGRATION.md` for complete architecture details and agent-skill mapping table. See `docs/SKILLS.md` for refactoring summary.
+### Hooks
 
-### Libraries (35 Documented Libraries)
-
-34 reusable Python libraries for security, validation, automation, installation, brownfield retrofit, git hook utilities, and CLI wrappers. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
-
-**Core Libraries** (17): security_utils, project_md_updater, version_detector, orphan_file_cleaner, sync_dispatcher, validate_marketplace_version, plugin_updater, update_plugin, hook_activator, validate_documentation_parity, auto_implement_git_integration, batch_state_manager, github_issue_fetcher, path_utils, validation, settings_merger, settings_generator
-
-**Installation Libraries** (8): file_discovery, copy_system, installation_validator, install_orchestrator, staging_manager, protected_file_detector, installation_analyzer, install_audit
-
-**Utility Libraries** (2): math_utils, git_hooks
-
-**Script Utilities** (1): genai_install_wrapper (CLI wrapper for setup-wizard Phase 0 - Issue #109)
-
-**Brownfield Retrofit Libraries** (6): brownfield_retrofit, codebase_analyzer, alignment_assessor, migration_planner, retrofit_executor, retrofit_verifier
-
-**Design Pattern**: Progressive enhancement (string → path → whitelist), two-tier design (core logic + CLI), non-blocking enhancements
-
-### Hooks (52 total - 10 Unified + 42 Individual - Issue #144)
-
-10 unified hooks using dispatcher pattern, plus 42 individual hooks for specialized tasks. 9 legacy hooks archived (replaced by unified hooks). See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
-
-| Lifecycle | Hook | Consolidates |
-|-----------|------|--------------|
-| UserPromptSubmit | unified_prompt_validator.py | 1 hook (bypass detection) |
-| PreToolUse | unified_pre_tool.py | 3 hooks (MCP security, agent auth, batch approval) |
-| PostToolUse | unified_post_tool.py | 1 hook (error capture) |
-| SubagentStop | unified_session_tracker.py | 3 hooks (session, pipeline, progress) |
-| SubagentStop | unified_git_automation.py | 1 hook (git workflow) |
-| PreCommit | unified_code_quality.py | 5 hooks (format, test, security, TDD, coverage) |
-| PreCommit | unified_structure_enforcer.py | 6 hooks (file org, bloat, limits) |
-| PreCommit | unified_doc_validator.py | 11 hooks (alignment, consistency) |
-| PreCommit | unified_doc_auto_fix.py | 8 hooks (auto-fix, sync) |
-| PreCommit | unified_manifest_sync.py | 2 hooks (manifest, settings) |
+Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
 
 **Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
 
@@ -583,8 +541,6 @@ python .claude/hooks/validate_claude_alignment.py
 
 **What it validates**:
 - Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Agent counts match reality (currently 21 agents, researcher split into local/web per Issue #128)
-- Command counts match installed commands (currently 7 active commands)
 - Documented features actually exist
 - Security requirements documented
 - Best practices are up-to-date

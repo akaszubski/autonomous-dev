@@ -1,10 +1,9 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-12-15
-**Total Hooks**: 10 unified hooks (consolidated from 51 individual hooks - GitHub #144)
+**Last Updated**: 2025-12-16
 **Location**: `plugins/autonomous-dev/hooks/`
 
-This document provides a complete reference for all automation hooks in the autonomous-dev plugin, including unified hooks, core hooks, optional hooks, and lifecycle hooks.
+This document provides a complete reference for automation hooks in the autonomous-dev plugin.
 
 ---
 

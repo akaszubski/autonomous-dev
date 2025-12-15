@@ -600,53 +600,30 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for agent count (21 specialists - researcher consolidated into researcher-local + researcher-web)
-        # Allow some flexibility in phrasing
-        agent_count_patterns = [
-            r"21\s+(?:AI\s+)?agents",
-            r"21\s+specialists",
-            r"Agents\s+\(21\s+specialists",
-        ]
+        # Check that agents section exists and links to detailed docs
+        # Note: Hardcoded counts removed to prevent drift (see refactor in Dec 2025)
+        assert "### Agents" in content, "CLAUDE.md missing Agents section"
+        assert "docs/AGENTS.md" in content, "CLAUDE.md should link to AGENTS.md for details"
 
-        has_agent_count = any(
-            re.search(pattern, content, re.IGNORECASE)
-            for pattern in agent_count_patterns
-        )
-
-        assert has_agent_count, (
-            "CLAUDE.md missing correct agent count (21 specialists). "
-            "Ensure agent documentation preserved during optimization."
-        )
-
-    def test_command_count_still_correct_in_claude_md(self):
+    def test_commands_section_exists_in_claude_md(self):
         """
-        CLAUDE.md should still document correct command count (7 commands).
+        CLAUDE.md should document available commands.
 
-        After optimization, command count documentation should remain accurate.
-        Updated per Issue #121 command consolidation (20 -> 7 active commands).
+        Note: Hardcoded counts removed to prevent drift (see refactor in Dec 2025).
+        Commands section should exist and list available commands.
         """
         claude_md = Path(__file__).parent.parent.parent / "CLAUDE.md"
 
-        # This will FAIL if count removed/incorrect
         assert claude_md.exists(), "CLAUDE.md not found"
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for command count (7 active per Issue #121)
-        command_count_patterns = [
-            r"7\s+(?:active\s+)?commands",
-            r"Commands\s+\(7\s+active",
-        ]
-
-        has_command_count = any(
-            re.search(pattern, content, re.IGNORECASE)
-            for pattern in command_count_patterns
+        # Check that commands section exists and lists key commands
+        assert "**Commands**:" in content or "## Commands" in content, (
+            "CLAUDE.md missing Commands section"
         )
-
-        assert has_command_count, (
-            "CLAUDE.md missing correct command count (7 commands). "
-            "Ensure command documentation preserved during optimization."
-        )
+        assert "/auto-implement" in content, "CLAUDE.md should document /auto-implement"
+        assert "/sync" in content, "CLAUDE.md should document /sync"
 
 
 class TestContentCompletenessValidation:

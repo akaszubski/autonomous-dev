@@ -193,13 +193,13 @@ We document **typical performance**, not marketing claims.
 
 ```
 ~/.claude/              # Global (shared across projects)
-├── hooks/              # 51 automation hooks
-├── lib/                # 70 Python libraries
+├── hooks/              # Automation hooks
+├── lib/                # Shared Python libraries
 └── settings.json       # Hook configuration
 
 .claude/                # Per-project
-├── commands/           # 7 slash commands
-├── agents/             # 22 AI agents
+├── commands/           # Slash commands
+├── agents/             # AI agents
 ├── config/             # Policy files
 ├── scripts/            # Utility scripts
 └── PROJECT.md          # Your scope definition
@@ -250,8 +250,8 @@ We document **typical performance**, not marketing claims.
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) - How the two-layer system works
-- [Agents](docs/AGENTS.md) - 22 specialized agents
-- [Hooks](docs/HOOKS.md) - 51 automation hooks
+- [Agents](docs/AGENTS.md) - Specialized AI agents
+- [Hooks](docs/HOOKS.md) - Automation hooks reference
 - [Batch Processing](docs/BATCH-PROCESSING.md) - Multi-feature workflows
 - [Git Automation](docs/GIT-AUTOMATION.md) - Auto-commit, push, PR
 - [Environment Configuration](docs/ENV-CONFIGURATION.md) - All .env variables and settings

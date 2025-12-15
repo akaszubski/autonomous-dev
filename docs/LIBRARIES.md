@@ -3,11 +3,11 @@
 **Last Updated: 2025-12-13
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
-This document provides detailed API documentation for all 44 shared libraries and utilities in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
+This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
 
 ## Overview
 
-The autonomous-dev plugin includes **44 shared libraries and utilities** organized into thirteen categories:
+The autonomous-dev plugin includes shared libraries organized into the following categories:
 
 ### Core Libraries (22)
 

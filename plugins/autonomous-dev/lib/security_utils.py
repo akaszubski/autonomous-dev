@@ -66,12 +66,14 @@ from typing import Optional, Dict, Any
 def _detect_project_root() -> Path:
     """Dynamically detect project root from current working directory.
 
-    Detection strategy:
-    1. Check CWD and parents for .git or .claude directory (project markers)
-    2. Fall back to CWD if no markers found
-    3. Use plugin root only for plugin development/testing
+    Detection strategy (prioritizes .git over .claude):
+    1. Search ALL the way up for .git first (git repos take precedence)
+    2. If no .git found, search for .claude directory
+    3. Fall back to CWD if no markers found
 
     This enables auto-approval to work across ALL projects, not just autonomous-dev.
+    Prioritizing .git prevents nested .claude directories (e.g., plugins/autonomous-dev/.claude)
+    from being incorrectly detected as project root.
 
     Returns:
         Detected project root directory
@@ -80,16 +82,22 @@ def _detect_project_root() -> Path:
         validate_path() still enforces security boundaries - this just makes
         those boundaries project-specific instead of hardcoded to plugin location.
     """
-    # Start from current working directory
-    current = Path.cwd()
+    start = Path.cwd()
 
-    # Search up to 10 levels for project markers
+    # Priority 1: Search ALL the way up for .git (git repos take precedence)
+    current = start
     for _ in range(10):
-        # Check for .git or .claude directory (common project markers)
-        if (current / ".git").exists() or (current / ".claude").exists():
+        if (current / ".git").exists():
             return current.resolve()
+        if current.parent == current:
+            break  # Reached filesystem root
+        current = current.parent
 
-        # Move to parent
+    # Priority 2: Search for .claude if no .git found
+    current = start
+    for _ in range(10):
+        if (current / ".claude").exists():
+            return current.resolve()
         if current.parent == current:
             break  # Reached filesystem root
         current = current.parent

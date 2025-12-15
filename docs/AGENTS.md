@@ -1,16 +1,15 @@
 # Agent Architecture
 
-**Last Updated**: 2025-12-13 (Expanded researcher output for implementer and test-master - Issue #130)
-**Agent Count**: 21 specialists (Tier 1: 9, Tier 2: 10, Tier 3: 2)
+**Last Updated**: 2025-12-16
 **Location**: `plugins/autonomous-dev/agents/`
 
-This document describes the complete agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
+This document describes the agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
 
 ---
 
 ## Overview
 
-The autonomous-dev plugin uses 21 specialized agents with active skill integration (GitHub Issue #35, #58, #59). Each agent has specific responsibilities and references relevant skills for enhanced decision-making.
+Specialized agents with skill integration. Each agent has specific responsibilities and references relevant skills for enhanced decision-making.
 
 ---
 
@@ -18,12 +17,11 @@ The autonomous-dev plugin uses 21 specialized agents with active skill integrati
 
 Agent model assignments are optimized for cost-performance balance based on task complexity.
 
-### Tier 1: Haiku (9 agents)
+### Tier 1: Haiku
 
 Fast, cost-effective models for pattern matching and structured output:
 
 - **researcher-local**: Search codebase patterns and similar implementations
-- **researcher-web**: Research web best practices and industry standards
 - **reviewer**: Code quality checks against style guide
 - **doc-master**: Documentation synchronization
 - **commit-message-generator**: Conventional commit formatting
@@ -34,10 +32,11 @@ Fast, cost-effective models for pattern matching and structured output:
 
 **Use Case**: Tasks with clear patterns, structured output, or simple validation logic.
 
-### Tier 2: Sonnet (10 agents)
+### Tier 2: Sonnet
 
 Balanced reasoning for implementation and planning tasks:
 
+- **researcher-web**: Research web best practices and industry standards (requires Sonnet for WebSearch/WebFetch)
 - **implementer**: Code implementation to make tests pass
 - **test-master**: TDD test generation with comprehensive coverage
 - **planner**: Architecture and implementation planning
