@@ -38,6 +38,7 @@
         "plugins/autonomous-dev/hooks/auto_fix_docs.py",
         "plugins/autonomous-dev/hooks/auto_format.py",
         "plugins/autonomous-dev/hooks/auto_generate_tests.py",
+        "plugins/autonomous-dev/hooks/auto_git_workflow.py",
         "plugins/autonomous-dev/hooks/auto_sync_dev.py",
         "plugins/autonomous-dev/hooks/auto_tdd_enforcer.py",
         "plugins/autonomous-dev/hooks/auto_test.py",
