@@ -377,36 +377,63 @@ class SettingsMerger:
 
         # Issue #144: Build set of old hooks to remove (based on unified hooks in new)
         hooks_to_remove = set()
-        for lifecycle, hooks in new.items():
-            for hook in hooks:
-                if isinstance(hook, dict):
-                    cmd = hook.get("command", "")
-                    # Check if this is a unified hook
-                    for unified_hook, replaced_hooks in UNIFIED_HOOK_REPLACEMENTS.items():
-                        if unified_hook in cmd:
-                            # Mark old hooks for removal
-                            hooks_to_remove.update(replaced_hooks)
+        for lifecycle, matcher_configs in new.items():
+            for config in matcher_configs:
+                if isinstance(config, dict):
+                    # Handle nested structure: {"matcher": "*", "hooks": [...]}
+                    inner_hooks = config.get("hooks", [config])  # Fallback to config itself if no nested hooks
+                    for hook in inner_hooks:
+                        if isinstance(hook, dict):
+                            cmd = hook.get("command", "")
+                            # Check if this is a unified hook
+                            for unified_hook, replaced_hooks in UNIFIED_HOOK_REPLACEMENTS.items():
+                                if unified_hook in cmd:
+                                    # Mark old hooks for removal
+                                    hooks_to_remove.update(replaced_hooks)
 
         # Start with existing hooks (preserve user customizations, migrate old hooks)
-        for lifecycle, hooks in existing.items():
-            filtered_hooks = []
-            for hook in hooks:
-                if isinstance(hook, dict):
-                    cmd = hook.get("command", "")
-                    # Check if this hook should be migrated (replaced by unified hook)
-                    should_remove = False
-                    for old_hook in hooks_to_remove:
-                        if old_hook in cmd:
-                            should_remove = True
-                            hooks_migrated += 1
-                            break
-                    if not should_remove:
-                        filtered_hooks.append(hook)
-                        hooks_preserved += 1
+        for lifecycle, matcher_configs in existing.items():
+            filtered_configs = []
+            for config in matcher_configs:
+                if isinstance(config, dict):
+                    # Handle nested structure: {"matcher": "*", "hooks": [...]}
+                    if "hooks" in config:
+                        # Nested format - filter inner hooks
+                        filtered_inner = []
+                        for hook in config.get("hooks", []):
+                            if isinstance(hook, dict):
+                                cmd = hook.get("command", "")
+                                should_remove = False
+                                for old_hook in hooks_to_remove:
+                                    if old_hook in cmd:
+                                        should_remove = True
+                                        hooks_migrated += 1
+                                        break
+                                if not should_remove:
+                                    filtered_inner.append(hook)
+                                    hooks_preserved += 1
+                            else:
+                                filtered_inner.append(hook)
+                                hooks_preserved += 1
+                        # Only add config if it still has hooks
+                        if filtered_inner:
+                            filtered_configs.append({**config, "hooks": filtered_inner})
+                    else:
+                        # Flat format - check command directly
+                        cmd = config.get("command", "")
+                        should_remove = False
+                        for old_hook in hooks_to_remove:
+                            if old_hook in cmd:
+                                should_remove = True
+                                hooks_migrated += 1
+                                break
+                        if not should_remove:
+                            filtered_configs.append(config)
+                            hooks_preserved += 1
                 else:
-                    filtered_hooks.append(hook)
+                    filtered_configs.append(config)
                     hooks_preserved += 1
-            merged_hooks[lifecycle] = filtered_hooks
+            merged_hooks[lifecycle] = filtered_configs
 
         # Add new hooks from template
         for lifecycle, hooks in new.items():
