@@ -1,42 +1,37 @@
 #!/usr/bin/env python3
 """
-Feature Request Detection Hook - Auto-Orchestration Engine
+Workflow Bypass Detection Hook - Blocks Explicit Pipeline Bypass Attempts
 
-This hook runs on UserPromptSubmit to detect when the user is requesting
-a feature implementation via natural language ("vibe coding").
+This hook runs on UserPromptSubmit to detect when the user is explicitly
+trying to bypass the /create-issue workflow (e.g., "gh issue create").
 
-When detected, it automatically invokes the orchestrator agent which:
-1. Checks PROJECT.md alignment FIRST
-2. Blocks work if feature not in SCOPE
-3. Triggers full agent pipeline if aligned
+Issue #141: Removed intent detection (doesn't work - Claude rephrases).
+Now focuses only on BLOCKING explicit bypass attempts.
 
-Issue #137: Enhanced with workflow bypass detection to enforce proper
-pipelines and prevent shortcuts that skip validation steps.
+What this hook does:
+- BLOCKS: "gh issue create" (direct gh CLI bypass)
+- BLOCKS: "skip /create-issue" (explicit bypass language)
+- PASSES: Everything else (intent detection removed)
 
-Relevant Skills:
-- project-alignment-validation: Semantic validation approach for request understanding
+What was removed (Issue #141):
+- Feature request detection (Claude rephrases to avoid patterns)
+- "implement X", "add X" patterns (easily bypassed)
+- Warning messages suggesting /auto-implement
 
-Usage:
-    Add to .claude/settings.local.json:
-    {
-      "hooks": {
-        "UserPromptSubmit": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/detect_feature_request.py"
-          }
-        ]
-      }
-    }
+Philosophy: Hooks cannot detect intent. Instead of trying to detect
+"did Claude mean to implement?", we:
+1. Keep deterministic blocks (explicit bypasses)
+2. Add persuasion to CLAUDE.md (data-driven)
+3. Make /auto-implement faster (convenience)
+4. Let skills guide agents (knowledge)
 
 Exit codes:
-- 0: Pass - Not a feature request (proceed normally)
-- 1: Warn - Feature request detected (suggest /auto-implement)
+- 0: Pass - Not a bypass attempt (proceed normally)
 - 2: Block - Bypass attempt detected (enforce /create-issue workflow)
 
 Environment Variables:
 - ENFORCE_WORKFLOW: Enable/disable enforcement (default: true)
-  Set to "false" to disable all workflow enforcement
+  Set to "false" to disable bypass detection
 """
 
 import os
@@ -45,86 +40,17 @@ import re
 from pathlib import Path
 
 
-def is_feature_request(user_input: str) -> bool:
-    """
-    Detect if user input is requesting feature implementation.
-
-    Triggers on keywords like:
-    - "implement X"
-    - "add X"
-    - "create X"
-    - "build X"
-    - "develop X"
-    - "write X"
-    - "make X"
-
-    Returns:
-        True if feature request detected, False otherwise
-    """
-    # Convert to lowercase for matching
-    text = user_input.lower()
-
-    # Feature request patterns (check BEFORE exclusions)
-    # These are strong indicators of feature requests
-    strong_patterns = [
-        # "Can you implement/add..." (even with question mark, this is a request)
-        r'\b(can\s+you|could\s+you|please)\s+(implement|add|create|build|write|make)',
-
-        # "I want/need to..."
-        r'\b(i\s+want|i\s+need|i\'d\s+like)\s+to\s+(implement|add|create|build)',
-    ]
-
-    for pattern in strong_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
-
-    # Exclude questions and queries (these shouldn't trigger)
-    exclusion_patterns = [
-        r'^\s*(what|why|how|when|where|who|explain|describe|tell\s+me)',
-        r'^\s*(show|display|list|find|search)',
-        r'\?$',  # Ends with question mark
-    ]
-
-    for pattern in exclusion_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return False
-
-    # Regular feature request patterns
-    patterns = [
-        # Direct implementation requests
-        r'\b(implement|add|create|build|develop|write|make)\s+',
-
-        # "Let's implement/add..."
-        r'\b(let\'s|lets)\s+(implement|add|create|build|write|make)',
-
-        # Feature-specific keywords
-        r'\b(new\s+feature|feature\s+request)',
-        r'\b(authentication|authorization|user\s+management)',
-        r'\b(api\s+endpoint|rest\s+api|graphql)',
-        r'\b(database|model|schema)',
-        r'\b(ui\s+component|frontend|backend)',
-    ]
-
-    # Check if any pattern matches
-    for pattern in patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
-
-    return False
-
-
 def is_bypass_attempt(user_input: str) -> bool:
     """
     Detect if user input is attempting to bypass proper workflow.
 
     Triggers on patterns that try to skip /create-issue pipeline:
     - "gh issue create" (direct gh CLI usage)
-    - "create issue" / "create github issue" (asking Claude to bypass)
-    - "make issue" / "open issue" / "file issue" (similar bypass attempts)
     - "skip /create-issue" / "bypass /create-issue" (explicit bypass)
 
     Does NOT trigger on:
     - "/create-issue" command itself (that's the CORRECT workflow)
+    - Feature requests like "implement X" (moved to persuasion, not enforcement)
 
     Returns:
         True if bypass attempt detected, False otherwise
@@ -134,7 +60,7 @@ def is_bypass_attempt(user_input: str) -> bool:
 
     # Explicit bypass language (skip/bypass) - check FIRST
     # "skip /create-issue" or "bypass /create-issue" are ALWAYS bypass attempts
-    if re.search(r'\b(skip|bypass)\s+', text, re.IGNORECASE):
+    if re.search(r'\b(skip|bypass)\s+/?(create-issue|auto-implement)', text, re.IGNORECASE):
         return True
 
     # Check for legitimate /create-issue command (without skip/bypass)
@@ -142,19 +68,9 @@ def is_bypass_attempt(user_input: str) -> bool:
     if re.search(r'/create[\s-]issue', text, re.IGNORECASE):
         return False
 
-    # Bypass attempt patterns
-    bypass_patterns = [
-        # Direct gh CLI usage
-        r'\bgh\s+issue\s+create\b',
-
-        # Asking Claude to create issue (bypass /create-issue workflow)
-        r'\b(create|make|open|file)\s+(a\s+)?(new\s+)?(github\s+)?issue\b',
-    ]
-
-    # Check if any bypass pattern matches
-    for pattern in bypass_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
+    # Direct gh CLI usage to create issues (bypasses research, validation)
+    if re.search(r'\bgh\s+issue\s+create\b', text, re.IGNORECASE):
+        return True
 
     return False
 
@@ -167,66 +83,36 @@ def get_bypass_message(user_input: str) -> str:
         Formatted message explaining why bypass is blocked and correct workflow
     """
     return f"""
-🚫 **WORKFLOW BYPASS BLOCKED**
+WORKFLOW BYPASS BLOCKED
 
-**Detected Pattern**: {user_input[:100]}{'...' if len(user_input) > 100 else ''}
+Detected Pattern: {user_input[:100]}{'...' if len(user_input) > 100 else ''}
 
-**SECURITY: You MUST use the correct workflow**:
-  /create-issue {user_input[:60]}{'...' if len(user_input) > 60 else ''}
+You MUST use the correct workflow:
+  /create-issue "description"
 
-**Why This Is Blocked**:
-- ❌ Direct issue creation bypasses validation
-- ❌ Skips duplicate detection
-- ❌ Skips research integration
-- ❌ No cache for /auto-implement reuse
+Why This Is Blocked:
+- Direct issue creation bypasses duplicate detection
+- Skips research integration (cached for /auto-implement)
+- No PROJECT.md alignment validation
 
-**Correct Workflow**:
+Correct Workflow:
 1. Run: /create-issue "feature description"
 2. Command validates + researches + creates issue
 3. Optionally run: /auto-implement "#123"
 
-**To Disable** (not recommended):
+To Disable (not recommended):
   Set ENFORCE_WORKFLOW=false in .env file
-
-**DO NOT attempt to bypass this workflow** - Use the /create-issue command above.
 """
 
 
-def get_orchestrator_message(user_input: str) -> str:
+def should_block():
     """
-    Generate message to display when feature request is detected.
+    Determine if the prompt should be blocked.
+
+    Reads from stdin (user's message) and checks for bypass attempts.
 
     Returns:
-        Formatted message reminding Claude to invoke /auto-implement
-    """
-    return f"""
-🎯 **STRICT MODE: Feature Request Detected**
-
-**User Request**: {user_input[:100]}{'...' if len(user_input) > 100 else ''}
-
-**ACTION REQUIRED**: You MUST run /auto-implement command now:
-  /auto-implement "{user_input[:80]}{'...' if len(user_input) > 80 else ''}"
-
-**Why**: Strict mode requires orchestrator to validate PROJECT.md alignment
-before any implementation work begins. This ensures:
-- ✅ Feature aligns with PROJECT.md (GOALS, SCOPE, CONSTRAINTS)
-- ✅ Full agent pipeline executes (researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master)
-- ✅ SDLC best practices enforced automatically
-- ✅ Background validation via PreCommit hooks
-
-**DO NOT respond conversationally** - Run the command above to trigger the autonomous workflow.
-"""
-
-
-def should_invoke_orchestrator():
-    """
-    Determine if orchestrator should be invoked based on user input.
-
-    Reads from stdin (user's message) and applies feature detection.
-
-    Returns:
-        True if orchestrator should be invoked (feature request)
-        "BLOCK" if bypass attempt detected (workflow violation)
+        True if bypass attempt detected (should block)
         False if normal prompt (proceed normally)
     """
     # Check if enforcement is enabled (default: true)
@@ -243,16 +129,10 @@ def should_invoke_orchestrator():
     if not user_input:
         return False
 
-    # PRIORITY 1: Check for bypass attempts (BLOCK immediately)
+    # Check for bypass attempts (BLOCK)
     if is_bypass_attempt(user_input):
         # Print blocking message to stderr (visible to user)
         print(get_bypass_message(user_input), file=sys.stderr)
-        return "BLOCK"
-
-    # PRIORITY 2: Check if this is a feature request (WARN)
-    if is_feature_request(user_input):
-        # Print orchestrator message to stderr (visible to user)
-        print(get_orchestrator_message(user_input), file=sys.stderr)
         return True
 
     # Normal prompt - proceed
@@ -261,29 +141,23 @@ def should_invoke_orchestrator():
 
 def main() -> int:
     """
-    Main entry point for feature detection hook.
+    Main entry point for bypass detection hook.
 
     Returns:
-        0 - Pass: Not a feature request (proceed normally)
-        1 - Warn: Feature request detected (suggest /auto-implement)
+        0 - Pass: Not a bypass attempt (proceed normally)
         2 - Block: Bypass attempt detected (enforce /create-issue workflow)
     """
     try:
-        result = should_invoke_orchestrator()
-
-        if result == "BLOCK":
+        if should_block():
             # Bypass attempt - BLOCK the prompt
             return 2
-        elif result is True:
-            # Feature request detected - WARN user to use /auto-implement
-            return 1
         else:
             # Normal prompt - PASS through
             return 0
 
     except Exception as e:
         # On error, don't block - proceed normally
-        print(f"Warning: Feature detection error: {e}", file=sys.stderr)
+        print(f"Warning: Bypass detection error: {e}", file=sys.stderr)
         return 0
 
 
