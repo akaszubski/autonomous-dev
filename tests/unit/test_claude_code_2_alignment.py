@@ -75,7 +75,7 @@ class TestPhase1AgentSkillsFrontmatter:
     def test_all_agents_have_frontmatter(self):
         """All agent files should have valid YAML frontmatter."""
         agent_files = get_all_agent_files()
-        assert len(agent_files) >= 22, f"Expected at least 22 agents, found {len(agent_files)}"
+        assert len(agent_files) >= 8, f"Expected at least 8 agents (Issue #147), found {len(agent_files)}"
 
         for agent_file in agent_files:
             frontmatter = parse_frontmatter(agent_file)
@@ -432,7 +432,7 @@ class TestIntegrationClaude2Alignment:
             1 for f in agent_files
             if 'skills' in parse_frontmatter(f)
         )
-        assert agents_with_skills >= 21, "Phase 1 incomplete"
+        assert agents_with_skills >= 8, "Phase 1 incomplete (Issue #147: 8 active agents)"
 
         # Phase 2: skills: matches AGENT_SKILL_MAP
         for agent_name in AGENT_SKILL_MAP:

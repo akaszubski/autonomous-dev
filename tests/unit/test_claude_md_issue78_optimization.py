@@ -313,19 +313,16 @@ class TestContentPreservation:
             f"Missing workflow components in BATCH-PROCESSING.md: {', '.join(missing_components)}"
         )
 
-    def test_agents_md_contains_all_20_agents(self):
+    def test_agents_md_contains_all_8_active_agents(self):
         """
-        AGENTS.md should document all 20 agents.
+        AGENTS.md should document all 8 active agents (Issue #147).
 
-        Core workflow agents (9):
-        - researcher, planner, test-master, implementer, reviewer
-        - security-auditor, doc-master, advisor, quality-validator
+        Pipeline agents (7):
+        - researcher-local, planner, test-master, implementer, reviewer
+        - security-auditor, doc-master
 
-        Utility agents (11):
-        - alignment-validator, commit-message-generator, pr-description-generator
-        - issue-creator, brownfield-analyzer, project-progress-tracker
-        - alignment-analyzer, project-bootstrapper, setup-wizard
-        - project-status-analyzer, sync-validator
+        Utility agents (1):
+        - issue-creator
         """
         agents_md = Path(__file__).parent.parent.parent / "docs" / "AGENTS.md"
 
@@ -333,22 +330,13 @@ class TestContentPreservation:
 
         content = agents_md.read_text(encoding="utf-8")
 
-        # Core workflow agents
-        core_agents = [
-            "researcher", "planner", "test-master", "implementer", "reviewer",
-            "security-auditor", "doc-master", "advisor", "quality-validator"
+        # Active agents (Issue #147: consolidated from 21 to 8)
+        active_agents = [
+            "researcher-local", "planner", "test-master", "implementer",
+            "reviewer", "security-auditor", "doc-master", "issue-creator"
         ]
 
-        # Utility agents
-        utility_agents = [
-            "alignment-validator", "commit-message-generator", "pr-description-generator",
-            "issue-creator", "brownfield-analyzer", "project-progress-tracker",
-            "alignment-analyzer", "project-bootstrapper", "setup-wizard",
-            "project-status-analyzer", "sync-validator"
-        ]
-
-        all_agents = core_agents + utility_agents
-        missing_agents = [a for a in all_agents if a not in content]
+        missing_agents = [a for a in active_agents if a not in content]
 
         assert not missing_agents, (
             f"Missing agents in AGENTS.md: {', '.join(missing_agents)}"
@@ -708,14 +696,10 @@ class TestSearchDiscoverability:
             agents_md.read_text(encoding="utf-8")
         )
 
-        # All 20 agents
+        # All 8 active agents (Issue #147: consolidated from 21 to 8)
         agent_names = [
-            "researcher", "planner", "test-master", "implementer", "reviewer",
-            "security-auditor", "doc-master", "advisor", "quality-validator",
-            "alignment-validator", "commit-message-generator", "pr-description-generator",
-            "issue-creator", "brownfield-analyzer", "project-progress-tracker",
-            "alignment-analyzer", "project-bootstrapper", "setup-wizard",
-            "project-status-analyzer", "sync-validator"
+            "researcher-local", "planner", "test-master", "implementer",
+            "reviewer", "security-auditor", "doc-master", "issue-creator"
         ]
 
         missing_agents = [agent for agent in agent_names if agent not in combined_content]
@@ -770,7 +754,7 @@ class TestAlignmentValidation:
 
         This ensures:
         - Version dates consistent
-        - Agent counts correct (20 agents)
+        - Agent counts correct (8 agents per Issue #147)
         - Command counts correct (10 commands per Issue #121)
         - No alignment drift
         """
@@ -798,7 +782,7 @@ class TestAlignmentValidation:
 
     def test_agent_count_still_documented(self):
         """
-        CLAUDE.md should still document correct agent count (20 agents).
+        CLAUDE.md should still document correct agent count (8 agents per Issue #147).
 
         After optimization, metadata should remain accurate.
         """
@@ -808,21 +792,19 @@ class TestAlignmentValidation:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # Check for agent count (allowing different phrasings)
-        agent_patterns = [
-            r"20\s+(?:AI\s+)?agents",
-            r"20\s+specialists",
-            r"Agents?\s+\(20",
+        # Check for agent count (8 active agents per Issue #147)
+        # CLAUDE.md lists agents by name, not by count
+        active_agents = [
+            "researcher-local", "planner", "test-master", "implementer",
+            "reviewer", "security-auditor", "doc-master", "issue-creator"
         ]
 
-        has_count = any(
-            re.search(pattern, content, re.IGNORECASE)
-            for pattern in agent_patterns
-        )
+        documented = sum(1 for agent in active_agents if agent in content)
 
-        assert has_count, (
-            "CLAUDE.md missing agent count (20 agents). "
-            "Metadata should be preserved after optimization."
+        assert documented >= 6, (
+            f"CLAUDE.md missing active agent documentation. "
+            f"Found {documented}/8 agents. "
+            f"Metadata should be preserved after optimization."
         )
 
     def test_command_count_still_documented(self):

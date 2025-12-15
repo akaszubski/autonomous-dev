@@ -592,11 +592,11 @@ class TestPhase5RegressionChecks:
             "Expected: All agents should still be present"
         )
 
-        # Count agent files
+        # Count agent files (Issue #147: 8 active agents, rest archived)
         agent_files = list(agents_dir.glob("*.md"))
-        assert len(agent_files) >= 20, (
+        assert len(agent_files) >= 8, (
             f"Regression: Only {len(agent_files)} agent files found\n"
-            "Expected: At least 20 agent files (22 documented in CLAUDE.md)"
+            "Expected: At least 8 agent files (8 active per CLAUDE.md)"
         )
 
     def test_skills_directory_still_exists(self, project_root):

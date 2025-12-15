@@ -34,27 +34,15 @@ SKILL_DIR = Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" /
 SKILL_FILE = SKILL_DIR / "SKILL.md"
 AGENTS_DIR = Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "agents"
 
-# All 20 agent files
+# All 8 active agent files (Issue #147: consolidated from 21 to 8)
 AGENT_FILES = [
-    "advisor.md",
-    "alignment-analyzer.md",
-    "alignment-validator.md",
-    "brownfield-analyzer.md",
-    "commit-message-generator.md",
     "doc-master.md",
     "implementer.md",
     "issue-creator.md",
     "planner.md",
-    "pr-description-generator.md",
-    "project-bootstrapper.md",
-    "project-progress-tracker.md",
-    "project-status-analyzer.md",
-    "quality-validator.md",
-    "researcher.md",
+    "researcher-local.md",
     "reviewer.md",
     "security-auditor.md",
-    "setup-wizard.md",
-    "sync-validator.md",
     "test-master.md",
 ]
 
@@ -313,7 +301,7 @@ class TestTokenReductionWorkflow:
             f"Token reduction below minimum target\n"
             f"Expected: >={minimum_reduction} tokens (3%)\n"
             f"Estimated: {estimated_reduction} tokens\n"
-            f"Streamlined agents: {streamlined_count}/20"
+            f"Streamlined agents: {streamlined_count}/8"
         )
 
     def test_skill_overhead_doesnt_negate_savings(self):

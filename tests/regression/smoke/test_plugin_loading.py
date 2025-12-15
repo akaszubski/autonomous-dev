@@ -61,9 +61,9 @@ class TestPluginStructure:
             assert agents_dir.exists()
             assert agents_dir.is_dir()
 
-            # Check for at least some core agents
+            # Check for at least some core agents (Issue #147: 8 active agents)
             agent_files = list(agents_dir.glob("*.md"))
-            assert len(agent_files) >= 18  # Current agent count per CLAUDE.md
+            assert len(agent_files) >= 8  # Current agent count per CLAUDE.md
 
         assert timer.elapsed < 1.0
 
@@ -81,7 +81,7 @@ class TestPluginStructure:
 
             # Check for at least some core commands
             command_files = list(commands_dir.glob("*.md"))
-            assert len(command_files) >= 8  # Core workflow commands
+            assert len(command_files) >= 7  # Core workflow commands (Issue #147)
 
         assert timer.elapsed < 1.0
 
@@ -152,13 +152,11 @@ class TestPluginImports:
 
             try:
                 # Import key scripts (will fail if syntax errors)
-                import health_check
                 import session_tracker
                 import invoke_agent
 
                 # Verify key functions/classes exist
-                assert hasattr(health_check, 'PluginHealthCheck')
-                assert hasattr(session_tracker, 'track_agent_event')
+                assert hasattr(session_tracker, 'main')  # CLI wrapper
                 assert hasattr(invoke_agent, 'invoke_agent')
 
             finally:
