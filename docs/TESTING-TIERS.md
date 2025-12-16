@@ -59,9 +59,29 @@ def test_install_manifest_exists():
 
 **Criteria**:
 - Execution time: **< 30 seconds** per test
-- One test file per released feature/fix
+- Tests grouped by domain (consolidated Dec 2025)
 - Tests specific bug fixes or features
-- Named with version: `test_feature_v3_3_0_parallel_validation.py`
+
+**Naming Convention**:
+- **Domain-based** (preferred): `test_mcp.py`, `test_skills.py`, `test_batch.py`
+- **Version-based** (legacy): `test_feature_v3_3_0_parallel_validation.py`
+
+**Current Test Files** (12 files, 468 tests):
+
+| File | Domain | Tests |
+|------|--------|-------|
+| `test_mcp.py` | MCP security, profiles, bypass prevention | TDD |
+| `test_skills.py` | Skill compliance, tools, loader | ~200 |
+| `test_sync.py` | Marketplace sync, settings merge | TDD |
+| `test_approval.py` | Auto-approval, security attacks | TDD |
+| `test_batch.py` | Batch state, retry logic | TDD |
+| `test_claude2_compliance.py` | Claude Code 2.0 compliance | ~50 |
+| `test_feature_v3_12_0_auto_git.py` | Auto git workflow | ~20 |
+| `test_feature_v3_12_0_user_state.py` | User state persistence | ~15 |
+| `test_feature_v3_28_0_tracking.py` | Session tracking | ~30 |
+| `test_feature_v3_3_0_parallel_validation.py` | Parallel validation | ~20 |
+| `test_feature_v3_4_0_project_progress.py` | Project progress | ~15 |
+| `test_security_v3_4_1_race_condition.py` | Race condition prevention | ~10 |
 
 **What belongs here**:
 - Feature-specific regression tests
@@ -71,10 +91,11 @@ def test_install_manifest_exists():
 
 **Example**:
 ```python
-# tests/regression/regression/test_feature_v3_3_0_parallel_validation.py
-def test_parallel_validation_agents_execute():
-    """Verify parallel validation from v3.3.0 still works."""
-    # Test the specific feature behavior
+# tests/regression/regression/test_skills.py (domain-based)
+class TestSkillCompliance:
+    def test_all_skills_under_500_lines(self):
+        """Verify all skill files are under 500 lines."""
+        # Test the specific feature behavior
 ```
 
 ### Tier 2: Extended Tests (`tests/regression/extended/`)
@@ -225,10 +246,20 @@ When a feature is released and should be protected:
 
 1. Identify the test that validates the feature
 2. Move it to `tests/regression/regression/`
-3. Rename with version: `test_feature_v{VERSION}_{name}.py`
-4. Ensure it runs in < 30 seconds
+3. **Preferred**: Add to existing domain file (e.g., `test_skills.py`)
+4. **Alternative**: Create new file with version: `test_feature_v{VERSION}_{name}.py`
+5. Ensure it runs in < 30 seconds
 
-Example:
+Example (domain-based - preferred):
+```python
+# Add to existing tests/regression/regression/test_skills.py
+class TestNewSkillFeature:
+    def test_skill_auto_activation(self):
+        """v3.43.0: Verify skill auto-activation works."""
+        pass
+```
+
+Example (version-based - legacy):
 ```bash
 # Feature released in v3.42.0
 mv tests/unit/test_skill_loader.py \
