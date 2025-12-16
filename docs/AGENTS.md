@@ -9,11 +9,9 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Overview
 
-8 active agents with skill integration (Issue #147 - consolidated from 21). Each agent has specific responsibilities and references relevant skills.
+8 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
 
 **Active Agents**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-
-**Archived Agents** (in `agents/archived/`): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, orchestrator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, researcher-web, setup-wizard, sync-validator
 
 ---
 
@@ -56,9 +54,7 @@ Maximum depth for security:
 
 ## Core Workflow Agents (7 active + 1 utility)
 
-These agents execute the main autonomous development workflow. Issue #147 consolidated 21 agents to 8 active.
-
-**Note**: Sections below document both active and archived agents for historical reference. Active agents are marked with ✅.
+These agents execute the main autonomous development workflow.
 
 ### researcher-local
 
@@ -77,8 +73,7 @@ These agents execute the main autonomous development workflow. Issue #147 consol
     - test_file_patterns: Structure of tests, pytest patterns, common fixtures
     - edge_cases_to_test: Edge cases identified in similar code with expected behavior
     - mocking_patterns: Mocking approaches used in existing tests with examples
-**Research Persistence** (Issue #151): Optionally persists significant research findings to `docs/research/` for future reuse (portable, archived researcher-local agent)
-**Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128); output expanded in Issue #130
+**Research Persistence** (Issue #151): Optionally persists significant research findings to `docs/research/` for future reuse
 
 ### researcher-web
 
@@ -248,20 +243,6 @@ These agents provide specialized functionality for alignment, git operations, an
 **Model**: Haiku (Tier 1 - cost optimized for validation and sync)
 **Skills**: consistency-enforcement, file-organization, python-standards, security-patterns
 **Command**: /sync
-
----
-
-## Orchestrator Removal (v3.2.2)
-
-**Historical Note**: The "orchestrator" agent was removed because it created a logical impossibility - it was Claude coordinating Claude.
-
-**Problem**: When `/auto-implement` invoked the orchestrator agent, it just loaded orchestrator.md as Claude's system prompt, but it was still the same Claude instance making decisions. This allowed Claude to skip agents by reasoning they weren't needed.
-
-**Solution**: Moved all coordination logic directly into `commands/auto-implement.md`. Now Claude explicitly coordinates the 7-agent workflow without pretending to be a separate orchestrator.
-
-**Result**: Same checkpoints, simpler architecture, more reliable execution.
-
-**Archive**: See `agents/archived/orchestrator.md` for history.
 
 ---
 

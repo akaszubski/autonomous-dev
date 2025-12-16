@@ -465,12 +465,9 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 
 8 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Active Agents** (Issue #147 - consolidated from 21 to 8):
+**Active Agents** (8 total):
 - **Pipeline**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master
 - **Utility**: issue-creator
-
-**Archived Agents** (in `agents/archived/`):
-advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, orchestrator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, researcher-web, setup-wizard, sync-validator
 
 **Key Features**:
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned

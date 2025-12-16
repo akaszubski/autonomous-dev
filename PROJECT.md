@@ -128,7 +128,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Agents | 22 | Specialized AI assistants (researcher, planner, implementer, etc.) |
+| Agents | 8 | Specialized AI assistants (researcher, planner, implementer, etc.) |
 | Skills | 28 | Progressive disclosure knowledge packages |
 | Commands | 7 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue) |
 | Hooks | 51 | Automation and enforcement |
@@ -164,7 +164,7 @@ Git Operations (commit, push, PR)
 ```
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
-│   ├── agents/                 # 22 AI agents
+│   ├── agents/                 # 8 AI agents
 │   ├── commands/               # 7 slash commands
 │   ├── hooks/                  # 51 automation hooks
 │   ├── skills/                 # 28 skill packages
