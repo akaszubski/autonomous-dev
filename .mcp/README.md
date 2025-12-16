@@ -118,7 +118,23 @@ For Claude Desktop integration, add to `~/Library/Application Support/Claude/cla
 
 ### 1. MCP Server Configuration
 
-**File**: `.mcp/config.json`
+**File**: `.mcp/config.json` (generated from `.mcp/config.template.json`)
+
+**Template**: `.mcp/config.template.json` - Portable configuration template with environment variable substitution
+
+To create your `config.json` from the template:
+
+```bash
+# Copy template (replaces hardcoded paths with ${CLAUDE_PROJECT_DIR})
+cp .mcp/config.template.json .mcp/config.json
+
+# Update hardcoded paths to your project directory
+sed -i 's|${CLAUDE_PROJECT_DIR}|/path/to/your/project|g' .mcp/config.json
+
+# Or use directly in Claude Desktop config (it supports ${CLAUDE_PROJECT_DIR})
+```
+
+**Why use the template?** The template.json uses `${CLAUDE_PROJECT_DIR}` (portable) instead of hardcoded paths, making configuration portable across machines and projects.
 
 Defines which MCP servers to run and their configuration:
 
