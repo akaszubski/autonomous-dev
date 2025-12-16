@@ -77,13 +77,14 @@ These agents execute the main autonomous development workflow. Issue #147 consol
     - test_file_patterns: Structure of tests, pytest patterns, common fixtures
     - edge_cases_to_test: Edge cases identified in similar code with expected behavior
     - mocking_patterns: Mocking approaches used in existing tests with examples
+**Research Persistence** (Issue #151): Optionally persists significant research findings to `docs/research/` for future reuse (portable, archived researcher-local agent)
 **Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128); output expanded in Issue #130
 
 ### researcher-web
 
 **Purpose**: Research web best practices and industry standards
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
-**Skills**: research-patterns
+**Skills**: research-patterns, documentation-guide
 **Tools**: WebSearch, WebFetch (external research only)
 **Execution**: Step 1B of /auto-implement workflow (parallel with researcher-local)
 **Output Format**: JSON schema with antipatterns array plus implementation_guidance and testing_guidance sections
@@ -96,6 +97,7 @@ These agents execute the main autonomous development workflow. Issue #147 consol
     - testing_frameworks: Framework recommendations (pytest, unittest) with key features
     - coverage_recommendations: Coverage targets by area (error handling 100%, happy path 80%)
     - testing_antipatterns: Common testing mistakes and preferred alternatives
+**Research Persistence** (Issue #151): Persists substantial research findings (2+ best practices, 3+ sources) to `docs/research/` with SCREAMING_SNAKE_CASE naming (e.g., JWT_AUTHENTICATION_RESEARCH.md)
 **Related**: Deprecated researcher.md combined functionality split into local/web agents (Issue #128); output expanded in Issue #130
 
 ### planner
@@ -144,10 +146,11 @@ These agents execute the main autonomous development workflow. Issue #147 consol
 
 ### doc-master
 
-**Purpose**: Documentation synchronization
+**Purpose**: Documentation synchronization and research management
 **Model**: Haiku (Tier 1 - cost optimized for structured documentation updates)
 **Skills**: documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency
 **Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
+**Research Documentation** (Issue #151): Validates and maintains research documentation in `docs/research/` - enforces naming conventions, format standards, README sync, and parity validation
 
 ### advisor
 

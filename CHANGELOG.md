@@ -1,6 +1,34 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #151: Research Persistence for Researcher Agents and README Sync**
+  - **Problem**: Research findings from researcher agents (local/web) were temporary and lost between sessions. No centralized knowledge base for reusable research across features.
+  - **Solution**: Implement research persistence to docs/research/ directory with standardized format, enabling knowledge reuse and continuous improvement.
+  - **Features**:
+    - **researcher-web**: Persists substantial research findings (2+ best practices, 3+ sources) to docs/research/ with SCREAMING_SNAKE_CASE naming
+    - **researcher** (archived): Optional persistence for significant research (conditionally persists to docs/research/)
+    - **doc-master**: Validates and maintains research documentation - enforces naming conventions, format standards, README sync
+    - **documentation-guide skill**: New research-doc-standards.md with complete template and standards
+  - **Naming Convention**: SCREAMING_SNAKE_CASE (e.g., JWT_AUTHENTICATION_RESEARCH.md)
+  - **Directory Structure**: All research documents saved to docs/research/
+  - **Format Standards**: Follows template from documentation-guide skill with Issue Reference, Research Date, Status frontmatter
+  - **README Management**: doc-master validates docs/research/README.md exists and is synced with all research documents
+  - **Files Modified**:
+    - plugins/autonomous-dev/agents/archived/researcher-web.md: Added research persistence section with criteria and template
+    - plugins/autonomous-dev/agents/archived/researcher.md: Added optional persistence step
+    - plugins/autonomous-dev/agents/doc-master.md: Added research documentation management responsibilities
+    - plugins/autonomous-dev/skills/documentation-guide/SKILL.md: Added research-doc-standards.md reference
+    - plugins/autonomous-dev/skills/documentation-guide/docs/research-doc-standards.md: NEW file with complete standards
+  - **Documentation Updated**:
+    - docs/AGENTS.md: Added Research Persistence notes to researcher-local, researcher-web, and doc-master sections
+    - CHANGELOG.md: This entry (Issue #151)
+  - **Validation**:
+    - Format validation: SCREAMING_SNAKE_CASE naming, required frontmatter sections
+    - Content quality: Substantial research (2+ best practices), authoritative sources, actionable notes
+    - README sync: docs/research/README.md must list all research documents with descriptions
+    - Parity validation: Research docs included in documentation parity checks
+  - **Related**: Issue #148 (Claude Code 2.0 compliance), Issue #150 (Documentation sync improvements)
+
 - **Epic #142: New Balance Consistency Architecture (Issues #140-146)**
   - **Completed**: 2025-12-16
   - **Summary**: Implemented 4-layer consistency architecture to ensure Claude follows quality practices (TDD, research, security, documentation) without relying on broken intent detection.

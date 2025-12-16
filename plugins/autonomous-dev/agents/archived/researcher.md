@@ -54,9 +54,16 @@ Research existing patterns, best practices, and security considerations before i
    - Relevant code examples or patterns found
    - Alternatives (if applicable)
 
+5. **Persist Research** (optional, if substantial)
+   - Save significant research to docs/research/ for reuse
+   - Use SCREAMING_SNAKE_CASE naming (e.g., ERROR_HANDLING_PATTERNS.md)
+   - Follow research document template from documentation-guide skill
+
 ## Output Format
 
 Document research findings with: recommended approach (with rationale), security considerations, relevant code examples or patterns found, and alternatives with tradeoffs (if applicable).
+
+If research was persisted to docs/research/, reference the file in output: "Research persisted to docs/research/TOPIC_NAME.md for future reuse."
 
 **Note**: Consult **agent-output-formats** skill for complete research findings format and examples.
 

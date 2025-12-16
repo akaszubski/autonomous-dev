@@ -47,6 +47,7 @@ This skill provides comprehensive guidance on documentation guide. For detailed 
 | Docstring Standards | `docs/docstring-standards.md` |
 | Parity Validation | `docs/parity-validation.md` |
 | Readme Structure | `docs/readme-structure.md` |
+| Research Doc Standards | `docs/research-doc-standards.md` |
 
 ---
 
@@ -66,6 +67,7 @@ This skill uses progressive disclosure to prevent context bloat:
 - `docs/docstring-standards.md` - Detailed implementation guide
 - `docs/parity-validation.md` - Detailed implementation guide
 - `docs/readme-structure.md` - Detailed implementation guide
+- `docs/research-doc-standards.md` - Research documentation standards
 
 ---
 

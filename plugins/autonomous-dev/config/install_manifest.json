@@ -254,6 +254,7 @@
         "plugins/autonomous-dev/skills/documentation-guide/docs/docstring-standards.md",
         "plugins/autonomous-dev/skills/documentation-guide/docs/parity-validation.md",
         "plugins/autonomous-dev/skills/documentation-guide/docs/readme-structure.md",
+        "plugins/autonomous-dev/skills/documentation-guide/docs/research-doc-standards.md",
         "plugins/autonomous-dev/skills/documentation-guide/templates/changelog-template.md",
         "plugins/autonomous-dev/skills/documentation-guide/templates/readme-template.md",
         "plugins/autonomous-dev/skills/error-handling-patterns/SKILL.md",
