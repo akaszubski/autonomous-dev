@@ -162,15 +162,14 @@ class TestContentExtractionValidation:
         7. plugin_updater.py
         8. update_plugin.py
         9. hook_activator.py
-        10. validate_documentation_parity.py
-        11. auto_implement_git_integration.py
-        12. github_issue_automation.py
-        13. brownfield_retrofit.py
-        14. codebase_analyzer.py
-        15. alignment_assessor.py
-        16. migration_planner.py
-        17. retrofit_executor.py
-        18. retrofit_verifier.py
+        10. auto_implement_git_integration.py
+        11. github_issue_automation.py
+        12. brownfield_retrofit.py
+        13. codebase_analyzer.py
+        14. alignment_assessor.py
+        15. migration_planner.py
+        16. retrofit_executor.py
+        17. retrofit_verifier.py
         """
         libraries_md = Path(__file__).parent.parent.parent / "docs" / "LIBRARIES.md"
 
@@ -190,7 +189,6 @@ class TestContentExtractionValidation:
             "plugin_updater.py",
             "update_plugin.py",
             "hook_activator.py",
-            "validate_documentation_parity.py",
             "auto_implement_git_integration.py",
             "github_issue_closer.py",
             "github_issue_fetcher.py",
@@ -558,35 +556,6 @@ class TestAlignmentValidation:
             f"STDERR: {result.stderr}"
         )
 
-    def test_validate_documentation_parity_passes(self):
-        """
-        validate_documentation_parity.py should pass after optimization.
-
-        This ensures:
-        - Documentation consistency maintained
-        - Cross-references valid
-        - No parity issues introduced
-        """
-        project_root = Path(__file__).parent.parent.parent
-        parity_script = project_root / "plugins" / "autonomous_dev" / "lib" / "validate_documentation_parity.py"
-
-        # This will FAIL if parity broken
-        assert parity_script.exists(), "validate_documentation_parity.py not found"
-
-        # Run validator (should exit 0 on success)
-        import subprocess
-        result = subprocess.run(
-            ["python3", str(parity_script), "--project-root", str(project_root)],
-            capture_output=True,
-            text=True
-        )
-
-        assert result.returncode == 0, (
-            f"Documentation parity validation failed:\n"
-            f"STDOUT: {result.stdout}\n"
-            f"STDERR: {result.stderr}"
-        )
-
     def test_agent_count_still_correct_in_claude_md(self):
         """
         CLAUDE.md should still document correct agent count (19 specialists).
@@ -653,7 +622,6 @@ class TestContentCompletenessValidation:
             "plugin_updater.py": 868,
             "update_plugin.py": 380,
             "hook_activator.py": 539,
-            "validate_documentation_parity.py": 880,
             "auto_implement_git_integration.py": 1466,
             "github_issue_closer.py": 583,
             "github_issue_fetcher.py": 484,
@@ -674,8 +642,8 @@ class TestContentCompletenessValidation:
             f"Missing libraries in docs/LIBRARIES.md: {', '.join(missing_libraries)}"
         )
 
-        assert len(expected_libraries) == 19, (
-            f"Expected 19 libraries, found {len(expected_libraries)}"
+        assert len(expected_libraries) == 18, (
+            f"Expected 18 libraries, found {len(expected_libraries)}"
         )
 
     def test_key_terms_still_searchable_in_claude_md(self):
