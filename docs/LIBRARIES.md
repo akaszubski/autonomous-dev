@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2025-12-16
+**Last Updated: 2025-12-17
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -33,17 +33,18 @@ The autonomous-dev plugin includes shared libraries organized into the following
 20. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
 21. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
 
-### Tracking Libraries (2) - NEW in v3.28.0
+### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
-22. **agent_tracker.py** (see section 25)
-23. **session_tracker.py** (see section 26)
+22. **agent_tracker.py** (see section 24)
+23. **session_tracker.py** (see section 25)
+24. **workflow_tracker.py** (see section 26) - Workflow state tracking for preference learning (Issue #155)
 
 ### Installation Libraries (4) - NEW in v3.29.0
 
-24. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
-25. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
-26. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
-27. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
+25. **file_discovery.py** - Comprehensive file discovery with exclusion patterns (Issue #80)
+26. **copy_system.py** - Structure-preserving file copying with permission handling (Issue #80)
+27. **installation_validator.py** - Coverage validation and missing file detection (Issue #80)
+28. **install_orchestrator.py** - Coordinates complete installation workflows (Issue #80)
 
 ### Brownfield Retrofit Libraries (6)
 
@@ -3499,6 +3500,483 @@ except ValueError as e:
 - **Non-blocking**: Logging failures don't break workflows
 
 ---
+
+## 26. workflow_tracker.py (528 lines, v3.48.0+, Issue #155)
+
+**Purpose**: Workflow state tracking for preference learning - records which quality workflow steps were taken/skipped, detects user corrections from feedback, and learns preferences over time.
+
+**Location**: `plugins/autonomous-dev/lib/workflow_tracker.py`
+
+**Problem Solved (Issue #155)**: Claude can't remember workflow preferences across sessions. This library enables learning from user corrections to improve workflow decisions over time.
+
+### Key Features
+
+- **Step tracking**: Records which quality steps were taken (research, testing, planning, review, security, docs, etc.) vs skipped
+- **Correction detection**: Parses user feedback patterns to detect improvement signals
+- **Preference learning**: Derives user preferences from correction patterns over time
+- **Privacy-preserving**: Local storage only (~/.autonomous-dev/workflow_state.json), no cloud sync
+- **Atomic persistence**: Thread-safe with file locking for concurrent access
+- **Time-based decay**: Preferences evolve as user practices change (configurable 30-day window)
+
+### Quick Start
+
+```python
+from workflow_tracker import WorkflowTracker, detect_correction
+
+# Track workflow steps
+tracker = WorkflowTracker()
+tracker.start_session()
+tracker.record_step("research", taken=True)
+tracker.record_step("testing", taken=False, reason="quick fix")
+tracker.save()
+
+# Detect corrections in user feedback
+correction = detect_correction("you should have researched first")
+if correction:
+    tracker.record_correction(correction["step"], correction["text"])
+
+# Get learned preferences
+prefs = tracker.get_preferences()
+recommended = tracker.get_recommended_steps()
+```
+
+### Workflow Steps
+
+8 quality workflow steps tracked:
+
+- `alignment` - PROJECT.md alignment check
+- `research` - Codebase/web research
+- `planning` - Implementation planning
+- `testing` - TDD tests
+- `implementation` - Code implementation
+- `review` - Code review
+- `security` - Security audit
+- `documentation` - Doc updates
+
+### Public API
+
+#### `detect_correction(user_input: str) -> Optional[Dict[str, str]]`
+
+**Purpose**: Detect correction signals in user feedback using pattern matching
+
+**Parameters**:
+- `user_input` (str): User's message text
+
+**Returns**: Dict with 'step', 'text', 'pattern', 'keyword' if detected, None otherwise
+
+**Patterns Detected**:
+- "you should have X" → `should_have` pattern
+- "need to X first" → `need_to` pattern
+- "forgot to X" → `forgot` pattern
+- "should always X" → `always_should` pattern
+- "didn't X" → `didnt` pattern
+- "should X before" → `should_before` pattern
+
+**Example**:
+```python
+result = detect_correction("you should have researched first")
+# Returns: {
+#   'step': 'research',
+#   'text': 'you should have researched first',
+#   'pattern': 'should_have',
+#   'keyword': 'researched'
+# }
+```
+
+#### `class WorkflowTracker`
+
+Main tracker for session and preference management.
+
+**Constructor**:
+```python
+tracker = WorkflowTracker(state_file: Optional[Path] = None)
+```
+
+**Parameters**:
+- `state_file` (Optional[Path]): Custom state file path (default: ~/.autonomous-dev/workflow_state.json)
+
+**Attributes**:
+- `state_file: Path` - Path to workflow state JSON file
+- `_state: Dict[str, Any]` - In-memory state dict
+- `_current_session: Optional[Dict[str, Any]]` - Current active session
+
+### Session Management Methods
+
+#### `start_session(task_type: Optional[str] = None) -> str`
+
+Start a new workflow session.
+
+**Parameters**:
+- `task_type` (Optional[str]): Task type for context (e.g., 'feature', 'bugfix', 'docs')
+
+**Returns**: Session ID (UUID string)
+
+**Example**:
+```python
+session_id = tracker.start_session(task_type="feature")
+```
+
+#### `end_session() -> None`
+
+End current session and add to history. Automatically saves state.
+
+**Trimming**: Keeps max 50 most recent sessions to prevent unbounded growth
+
+#### `get_sessions() -> List[Dict[str, Any]]`
+
+Get all recorded sessions.
+
+**Returns**: List of session dicts with session_id, started_at, ended_at, steps, task_type
+
+#### `get_current_session_steps() -> List[Dict[str, Any]]`
+
+Get steps from current active session.
+
+**Returns**: List of step records with step name, taken (bool), timestamp, optional reason
+
+### Step Tracking Methods
+
+#### `record_step(step: str, taken: bool, reason: Optional[str] = None) -> None`
+
+Record a workflow step taken or skipped.
+
+**Parameters**:
+- `step` (str): Step name (alignment, research, testing, etc.)
+- `taken` (bool): True if step was taken, False if skipped
+- `reason` (Optional[str]): Why step was skipped (e.g., 'quick fix', 'already researched')
+
+**Example**:
+```python
+tracker.record_step("testing", taken=False, reason="quick fix")
+tracker.record_step("documentation", taken=True)
+```
+
+### Correction Tracking Methods
+
+#### `record_correction(step: str, text: str, task_type: Optional[str] = None) -> None`
+
+Record a user correction to update preferences.
+
+**Parameters**:
+- `step` (str): Step that was corrected
+- `text` (str): Original user text that contained correction
+- `task_type` (Optional[str]): Task type for context-specific learning
+
+**Behavior**: Increments correction count for the step and updates task-type preferences
+
+**Example**:
+```python
+tracker.record_correction("research", "you should have researched first", task_type="feature")
+```
+
+#### `get_corrections() -> List[Dict[str, Any]]`
+
+Get all recorded corrections.
+
+**Returns**: List of correction dicts with step, text, timestamp, task_type
+
+### Preference Learning Methods
+
+#### `get_preferences() -> Dict[str, Any]`
+
+Get learned preferences.
+
+**Returns**: Dict with:
+- `emphasized_steps` (Dict[str, int]): step → correction count
+- `task_type_preferences` (Dict[str, Dict[str, int]]): task_type → {step → count}
+
+#### `get_recommended_steps(task_type: Optional[str] = None) -> List[str]`
+
+Get recommended workflow steps based on learned preferences.
+
+**Parameters**:
+- `task_type` (Optional[str]): Task type for context-specific recommendations
+
+**Returns**: List of step names in priority order (most corrections first)
+
+**Algorithm**:
+- Steps above `CORRECTION_THRESHOLD` (default: 3) are recommended
+- Task-type specific steps merged with general preferences
+- Results sorted by correction count (highest priority first)
+
+**Example**:
+```python
+# After 3+ corrections for research step
+recommended = tracker.get_recommended_steps()
+# Returns: ['research', ...]
+
+# Task-specific recommendations
+recommended = tracker.get_recommended_steps(task_type="bugfix")
+# Returns: ['security', 'testing', ...] if those were corrected for bugfixes
+```
+
+#### `apply_preference_decay() -> None`
+
+Apply time-based decay to old corrections.
+
+**Behavior**:
+- Removes corrections older than `PREFERENCE_DECAY_DAYS` (default: 30)
+- Allows preferences to evolve as user practices change
+- Updates emphasized_steps from recent corrections only
+
+**Example**:
+```python
+# Run weekly to keep preferences fresh
+tracker.apply_preference_decay()
+tracker.save()
+```
+
+### Persistence Methods
+
+#### `save() -> bool`
+
+Save state to file using atomic write.
+
+**Returns**: True if save succeeded, False otherwise
+
+**Implementation**:
+- Atomic write: Tempfile + rename pattern
+- Creates ~/.autonomous-dev/ directory if missing
+- Updates metadata timestamps
+- Graceful error handling (non-blocking)
+
+### State File Format
+
+**Location**: ~/.autonomous-dev/workflow_state.json
+
+**Structure**:
+```json
+{
+  "version": "1.0",
+  "sessions": [
+    {
+      "session_id": "abc123-...",
+      "started_at": "2025-12-17T10:30:00Z",
+      "ended_at": "2025-12-17T10:45:00Z",
+      "task_type": "feature",
+      "steps": [
+        {
+          "step": "research",
+          "taken": true,
+          "timestamp": "2025-12-17T10:30:05Z"
+        },
+        {
+          "step": "testing",
+          "taken": false,
+          "reason": "quick fix",
+          "timestamp": "2025-12-17T10:30:10Z"
+        }
+      ]
+    }
+  ],
+  "preferences": {
+    "emphasized_steps": {
+      "research": 5,
+      "security": 3
+    },
+    "task_type_preferences": {
+      "feature": {
+        "testing": 4,
+        "research": 3
+      }
+    }
+  },
+  "corrections": [
+    {
+      "step": "research",
+      "text": "you should have researched first",
+      "timestamp": "2025-12-17T10:45:00Z",
+      "task_type": "feature"
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-12-17T10:00:00Z",
+    "updated_at": "2025-12-17T10:45:00Z"
+  }
+}
+```
+
+### Configuration Constants
+
+- `MAX_SESSIONS = 50` - Maximum sessions to keep
+- `CORRECTION_THRESHOLD = 3` - Minimum corrections to emphasize a step
+- `PREFERENCE_DECAY_DAYS = 30` - Days before old corrections decay
+- `WORKFLOW_STEPS` - List of 8 quality workflow steps
+
+### Keyword Matching
+
+Step detection from user text uses keyword mappings:
+
+```python
+STEP_KEYWORDS = {
+    "research": ["research", "searched", "looked", "checked", "investigated"],
+    "testing": ["test", "tested", "tests", "tdd", "unittest", "write"],
+    "planning": ["plan", "planned", "planning", "design"],
+    "review": ["review", "reviewed", "check", "checked"],
+    "security": ["security", "secure", "audit", "audited", "vulnerability", "run"],
+    "documentation": ["document", "documented", "docs", "readme"],
+    "alignment": ["align", "aligned", "project", "goals"],
+    "implementation": ["implement", "implemented", "code", "coded"],
+}
+```
+
+### Thread Safety
+
+- Thread-safe with `threading.RLock()` for concurrent access
+- Atomic file writes prevent corruption
+- In-memory state protected by lock
+
+### Error Handling
+
+All errors are non-blocking:
+- Load errors (corrupted JSON, missing file) → return defaults
+- Save errors (permission denied, disk full) → log and continue
+- Invalid inputs → logged but don't raise exceptions
+
+### CLI Entry Point
+
+```bash
+# Detect correction in text
+python plugins/autonomous-dev/lib/workflow_tracker.py detect "you should have researched first"
+
+# Show learned preferences
+python plugins/autonomous-dev/lib/workflow_tracker.py preferences
+
+# Show session count
+python plugins/autonomous-dev/lib/workflow_tracker.py sessions
+```
+
+### Usage Examples
+
+#### Tracking a feature development workflow
+```python
+from workflow_tracker import WorkflowTracker
+
+tracker = WorkflowTracker()
+tracker.start_session(task_type="feature")
+
+# Took research step
+tracker.record_step("research", taken=True)
+
+# Skipped testing due to small change
+tracker.record_step("testing", taken=False, reason="small change")
+
+# Took other steps
+tracker.record_step("implementation", taken=True)
+tracker.record_step("review", taken=True)
+tracker.record_step("security", taken=True)
+
+tracker.end_session()
+tracker.save()
+```
+
+#### Learning from user feedback
+```python
+from workflow_tracker import WorkflowTracker, detect_correction
+
+tracker = WorkflowTracker()
+
+# User says: "you should have written tests before implementing"
+feedback = "you should have written tests before implementing"
+correction = detect_correction(feedback)
+
+if correction:
+    # correction = {'step': 'testing', 'text': '...', 'pattern': 'should_have', 'keyword': 'written'}
+    tracker.record_correction(correction['step'], feedback, task_type="feature")
+    tracker.save()
+
+# After 3+ corrections on testing for features
+tracker.apply_preference_decay()
+recommended = tracker.get_recommended_steps(task_type="feature")
+# recommended = ['testing', ...] (emphasized because of corrections)
+```
+
+#### Preference-based workflow recommendations
+```python
+tracker = WorkflowTracker()
+
+# Get user's learned preferences
+prefs = tracker.get_preferences()
+emphasized = prefs.get("emphasized_steps", {})
+
+# Use in decision-making
+if "testing" in emphasized and emphasized["testing"] >= 3:
+    # User frequently corrected skipping tests
+    # Recommend always taking testing step
+    print("Based on your feedback, testing is important")
+```
+
+### Design Patterns
+
+- **Non-blocking**: All saves gracefully degrade if they fail
+- **Atomic writes**: Tempfile + rename prevents corruption
+- **Thread-safe**: RLock protects concurrent access
+- **Preference decay**: Old corrections naturally fade (30 days default)
+- **Progressive learning**: Tracks both sessions and corrections
+
+### Performance Characteristics
+
+- **Session storage**: Max 50 sessions × ~500 bytes = 25KB typical
+- **Correction tracking**: Unlimited, but old corrections decay
+- **Save latency**: <100ms for typical state size
+- **Memory footprint**: <10MB with 50 sessions + history
+
+### Security Features
+
+- **Local storage only**: No cloud sync, no network calls
+- **User home directory**: ~/.autonomous-dev/ owned by user
+- **Atomic writes**: Prevents partial corruption
+- **No sensitive data**: No passwords, keys, or PII stored
+- **Privacy preserving**: Data never leaves machine
+
+### Related Components
+
+**Imports**:
+- `threading` - Thread-safe access
+- `tempfile` - Atomic writes
+- `json` - State serialization
+- `pathlib.Path` - Path handling
+- `uuid` - Session ID generation
+- `datetime` - Timestamp recording
+- `dataclasses` - Optional future enhancement
+- `regex` - Correction pattern detection
+
+**Used By**:
+- Future: Agent learning system (preference-based decision making)
+- Future: Claude's workflow optimization
+- Testing: Preference learning validation
+
+**Related Issues**:
+- GitHub Issue #155 - Workflow state tracking for preference learning
+- GitHub Issue #140 - Agent skills and knowledge injection (related)
+- GitHub Issue #148 - Claude Code 2.0 compliance (context)
+
+### Troubleshooting
+
+**Permissions Denied**: If ~/.autonomous-dev/ creation fails:
+```bash
+mkdir -p ~/.autonomous-dev
+chmod 700 ~/.autonomous-dev
+```
+
+**State File Corruption**: Corrupted JSON is automatically handled:
+```python
+# Corrupted file is ignored, fresh state created
+tracker = WorkflowTracker()
+tracker.save()  # Creates new clean state file
+```
+
+**Preference Not Learning**: Check correction recording:
+```python
+tracker = WorkflowTracker()
+corrections = tracker.get_corrections()
+prefs = tracker.get_preferences()
+print(f"Corrections: {len(corrections)}")
+print(f"Preferences: {prefs}")
+```
+
+---
+
 
 ## Design Pattern
 
