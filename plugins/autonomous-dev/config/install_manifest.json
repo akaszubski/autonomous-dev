@@ -121,6 +121,7 @@
         "plugins/autonomous-dev/lib/brownfield_retrofit.py",
         "plugins/autonomous-dev/lib/checkpoint.py",
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
+        "plugins/autonomous-dev/lib/context_skill_injector.py",
         "plugins/autonomous-dev/lib/copy_system.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",
         "plugins/autonomous-dev/lib/error_messages.py",

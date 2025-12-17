@@ -6158,3 +6158,130 @@ Prepend the output to the prompt below.
 - GitHub Issue #140 - Skills not available to subagents
 - GitHub Issue #35 - Agents should actively use skills
 - GitHub Issue #110 - Skills refactoring to under 500 lines
+
+---
+
+## 50. context_skill_injector.py (320 lines, v3.47.0+, Issue #154)
+
+**Purpose**: Auto-inject relevant skills based on conversation context patterns, not just agent frontmatter declarations.
+
+**Location**: `plugins/autonomous-dev/lib/context_skill_injector.py`
+
+**Problem Solved**: Agents with fixed skill_loader mappings miss skills relevant to dynamic user prompts. Pattern-based detection enables adaptive skill injection that responds to actual conversation context.
+
+### Quick Start
+
+```bash
+# Detect patterns in a prompt
+python3 plugins/autonomous-dev/lib/context_skill_injector.py "implement secure API endpoint"
+
+# Typical output:
+# Prompt: implement secure API endpoint
+# Detected patterns: {'security', 'api'}
+# Selected skills: ['security-patterns', 'api-design', 'api-integration-patterns']
+```
+
+### Core Functions
+
+#### `detect_context_patterns(user_prompt: Optional[str]) -> Set[str]`
+
+Detect context patterns in user prompt using regex matching.
+
+**Parameters**:
+- `user_prompt` (str): User's prompt text
+
+**Returns**: Set of pattern category names (e.g., {"security", "api"})
+
+**Pattern Categories**:
+- `security` - auth, tokens, passwords, JWT, encryption
+- `api` - REST endpoints, HTTP methods, webhooks
+- `database` - SQL, migrations, schemas, ORMs
+- `git` - commits, branches, pull requests
+- `testing` - unit tests, pytest, TDD, mocks
+- `python` - type hints, docstrings, PEP standards
+
+#### `select_skills_for_context(user_prompt: Optional[str], max_skills: int = 5) -> List[str]`
+
+Select relevant skills based on detected context patterns.
+
+**Parameters**:
+- `user_prompt` (str): User's prompt text
+- `max_skills` (int): Maximum number of skills to return (default: 5)
+
+**Returns**: Prioritized list of skill names limited to max_skills
+
+**Priority Order**: Security → Testing → API → Database → Python → Git
+
+#### `get_context_skill_injection(user_prompt: Optional[str], max_skills: int = 5) -> str`
+
+Main entry point: combine pattern detection, skill selection, and skill loading.
+
+**Parameters**:
+- `user_prompt` (str): User's prompt text
+- `max_skills` (int): Maximum number of skills to inject
+
+**Returns**: Formatted skill content string (XML-tagged) or empty string
+
+### Usage Example
+
+```python
+from context_skill_injector import get_context_skill_injection
+
+# Automatically select and load skills based on prompt
+prompt = "implement JWT authentication with secure password hashing"
+skill_content = get_context_skill_injection(prompt)
+
+# Returns security-patterns skill (detected: "JWT", "auth", "password")
+# Max 5 skills injected to prevent context bloat
+```
+
+### Pattern Detection
+
+Patterns use case-insensitive regex with word boundaries to avoid partial matches:
+
+```python
+CONTEXT_PATTERNS = {
+    "security": [
+        r"\b(auth|authenticat\w*|authoriz\w*)\b",
+        r"\b(token|jwt|oauth|api.?key)\b",
+        r"\b(password|secret|credential|encrypt)\b",
+        # ... more patterns
+    ],
+    # ... other categories
+}
+```
+
+### Performance Characteristics
+
+- **Latency**: <100ms for pattern detection (regex, not LLM)
+- **Context Impact**: 5 skills × 50-100 lines each = 250-500 tokens (controllable)
+- **Graceful Degradation**: Missing skills don't block workflow (returns empty string)
+
+### Integration Points
+
+**Imports**:
+- `skill_loader.load_skill_content()` - Load actual skill files
+- `skill_loader.format_skills_for_prompt()` - Format for injection
+
+**Used By**:
+- Agent prompts (future) - Can augment skill_loader agent-based injection
+- Custom commands - Can use for dynamic skill selection
+
+### Security Features
+
+- **Trusted Directory Only**: Skills loaded from `plugins/autonomous-dev/skills/` only
+- **No LLM**: Pattern detection via regex only (deterministic, auditable)
+- **Text Injection Only**: Skill content is not executed, only injected
+- **Limited Context**: Max 5 skills prevents unbounded context growth
+
+### Related Components
+
+**Depends On**:
+- `skill_loader.py` - Load and format skill content
+- `CONTEXT_PATTERNS` dict - Regex patterns for detection
+- `PATTERN_SKILL_MAP` dict - Pattern-to-skill mappings
+
+**Related Issues**:
+- GitHub Issue #154 - Context-triggered skill injection
+- GitHub Issue #140 - Skills not available to subagents (related work)
+- GitHub Issue #35 - Agents should actively use skills (related goal)
