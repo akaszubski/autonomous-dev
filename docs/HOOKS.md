@@ -199,10 +199,16 @@ Consolidated dispatcher hooks that combine multiple individual hooks for reduced
 
 ### unified_prompt_validator.py
 
-**Purpose**: Bypass detection for workflow enforcement
-**Consolidates**: detect_feature_request.py
+**Purpose**: Bypass detection for workflow enforcement + quality workflow nudges
+**Consolidates**: detect_feature_request.py, quality_workflow_nudge
 **Lifecycle**: UserPromptSubmit
-**Environment Variables**: ENFORCE_WORKFLOW
+**Environment Variables**: ENFORCE_WORKFLOW, QUALITY_NUDGE_ENABLED
+
+**Features**:
+- Detects workflow bypasses (gh issue create, skip /create-issue) - BLOCKING (exit 2)
+- Detects implementation intent (implement/add/create/build X) - NON-BLOCKING quality reminder (exit 0 with nudge)
+- Non-blocking nudges shown to stderr with helpful guidance
+- Controlled via QUALITY_NUDGE_ENABLED (default: true)
 
 ### unified_pre_tool.py
 
@@ -366,65 +372,16 @@ Essential hooks for autonomous development workflow and security enforcement.
 
 ### detect_feature_request.py
 
-**Purpose**: Enforce workflow discipline - detect feature requests and bypass attempts (Issue #137, v3.41.0+)
-**Lifecycle**: UserPromptSubmit (runs on every user input)
-**Exit Codes**:
-- **0 (PASS)**: Not a feature request - proceed normally
-- **1 (WARN)**: Feature request detected - suggest `/auto-implement`
-- **2 (BLOCK)**: Bypass attempt detected - BLOCK and enforce `/create-issue` workflow
+**CONSOLIDATED**: Functionality moved to `unified_prompt_validator.py` (Issue #153, v3.43.0+)
 
-**Functions**:
-- `is_feature_request()`: Detects patterns like "implement X", "add X", "create X", "build X"
-  - Strong patterns: "can/could/please implement/add/create/build"
-  - Excludes: Questions (ending with ?), queries (what/why/how), commands (show/display/list)
-- `is_bypass_attempt()`: Detects patterns trying to skip proper pipelines
-  - "gh issue create" (direct gh CLI usage)
-  - "create/make/open/file issue" (asking Claude to bypass)
-  - "skip/bypass /create-issue" (explicit bypass attempts)
-  - Returns False for legitimate `/create-issue` command (correct workflow)
-- `get_bypass_message()`: Generates blocking message explaining correct workflow
+**Legacy Purpose**: Enforce workflow discipline - detect feature requests and bypass attempts (Issue #137, v3.41.0+)
 
-**Control**:
-- **ENFORCE_WORKFLOW** env var (default: `true`)
-  - Set to `false` to disable all workflow enforcement
-  - Recommended: Keep enabled for discipline
+**Migration Info**:
+- Bypass detection (BLOCK exit 2) → Part of `unified_prompt_validator.py`
+- Quality nudge detection (NON-BLOCK) → Part of `unified_prompt_validator.py` with QUALITY_NUDGE_ENABLED control
+- Controlled by: ENFORCE_WORKFLOW (bypass blocking) and QUALITY_NUDGE_ENABLED (quality nudges)
 
-**Example Scenarios**:
-
-❌ **Feature Request (Exit 1 - WARN)**:
-```
-User: "implement JWT authentication"
-Hook output: Suggests /auto-implement with PROJECT.md alignment
-```
-
-❌ **Bypass Attempt (Exit 2 - BLOCK)**:
-```
-User: "gh issue create --title JWT auth"
-Hook output: BLOCKS prompt, shows blocking message, requires /create-issue
-```
-
-✅ **Normal Prompt (Exit 0 - PASS)**:
-```
-User: "What is JWT?"
-Hook output: None - proceeds normally
-```
-
-✅ **Correct Workflow**:
-```
-User: "/create-issue Add JWT authentication"
-Hook output: None - correct command, processes normally
-```
-
-**Why This Matters**:
-- Prevents vibe coding (direct implementation without validation)
-- Ensures all issues go through research pipeline
-- Maintains audit trail from issue to implementation
-- Blocks manual issue creation (use `/create-issue` instead)
-
-**Related**:
-- CLAUDE.md Workflow Discipline section (explains philosophy)
-- Issue #137 (workflow enforcement)
-- `/create-issue` command (proper GitHub issue creation workflow)
+**See**: `unified_prompt_validator.py` above for current implementation
 
 ### enforce_implementation_workflow.py
 

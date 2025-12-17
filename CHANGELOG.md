@@ -1,6 +1,22 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #153: Quality Nudge System for unified_prompt_validator.py**
+  - **Problem**: Implementation intent detection was removed in Issue #141 (enforcement restructure), but there's no gentle guidance when users mention implementing features directly.
+  - **Solution**: Add non-blocking quality nudge system that detects implementation intent and provides helpful guidance about quality workflows, respecting user agency while surfacing best practices.
+  - **Features**:
+    - **Implementation Intent Detection**: Detects patterns like "implement X", "add X", "create X", "build X" using case-insensitive regex matching
+    - **Non-Blocking Nudges**: Shows helpful guidance message to stderr with exit code 0 (never blocks workflow)
+    - **Environment Control**: QUALITY_NUDGE_ENABLED env var (default: true) allows users to disable nudges if desired
+    - **Consolidated into unified_prompt_validator**: Quality nudges run alongside bypass detection in single UserPromptSubmit hook
+  - **Files Modified**:
+    - plugins/autonomous-dev/hooks/unified_prompt_validator.py: Added is_implementation_intent() function and quality nudge system
+    - tests/unit/hooks/test_issue_153_quality_nudge.py: Added 5-phase test suite (35+ test cases)
+  - **Documentation Updated**:
+    - docs/HOOKS.md: Updated unified_prompt_validator.py section with quality nudge features; marked detect_feature_request.py as consolidated
+    - CHANGELOG.md: This entry (Issue #153)
+  - **Related**: Issue #141 (Intent Detection Removal), Issue #152 (Constitutional Self-Critique), Epic #142 (4-Layer Consistency)
+
 - **Issue #152: Constitutional Self-Critique Quality Reflexes (Guidance-Based Enforcement)**
   - **Problem**: Rigid enforcement of /auto-implement pipeline blocked quick documentation fixes and created friction. Intent detection hooks were easily bypassed and caused false positives on legitimate edits.
   - **Solution**: Implement constitutional self-critique pattern using natural language guidance questions instead of enforcement blocking. Users reflect on quality considerations before implementation, respecting agency while surfacing best practices.

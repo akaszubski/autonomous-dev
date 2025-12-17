@@ -3,23 +3,28 @@
 Unified Prompt Validator Hook - Dispatcher for UserPromptSubmit Checks
 
 Consolidates UserPromptSubmit hooks:
-- detect_feature_request.py (workflow bypass detection)
+- detect_feature_request.py (workflow bypass detection - BLOCKING)
+- quality_workflow_nudge (implementation intent - NON-BLOCKING)
 
 Hook: UserPromptSubmit (runs when user submits a prompt)
 
 Environment Variables (opt-in/opt-out):
-    ENFORCE_WORKFLOW=true/false (default: true)
+    ENFORCE_WORKFLOW=true/false (default: true) - Controls bypass blocking
+    QUALITY_NUDGE_ENABLED=true/false (default: true) - Controls quality reminders
 
 Exit codes:
-    0: Pass - No issues detected
+    0: Pass - No issues detected OR nudge shown (non-blocking)
     2: Block - Workflow bypass detected
 
 Usage:
     # As UserPromptSubmit hook (automatic)
     echo '{"userPrompt": "gh issue create"}' | python unified_prompt_validator.py
 
-    # Manual run
-    echo '{"userPrompt": "implement auth"}' | ENFORCE_WORKFLOW=false python unified_prompt_validator.py
+    # Test quality nudge
+    echo '{"userPrompt": "implement auth feature"}' | python unified_prompt_validator.py
+
+    # Disable nudges
+    echo '{"userPrompt": "implement auth"}' | QUALITY_NUDGE_ENABLED=false python unified_prompt_validator.py
 """
 
 import json
@@ -71,6 +76,7 @@ if LIB_DIR:
 
 # Check configuration from environment
 ENFORCE_WORKFLOW = os.environ.get("ENFORCE_WORKFLOW", "true").lower() == "true"
+QUALITY_NUDGE_ENABLED = os.environ.get("QUALITY_NUDGE_ENABLED", "true").lower() == "true"
 
 
 # ============================================================================
@@ -180,6 +186,133 @@ def check_workflow_bypass(user_input: str) -> Dict[str, any]:
 
 
 # ============================================================================
+# Quality Workflow Nudge Detection (Issue #153)
+# ============================================================================
+
+# Implementation intent patterns - detect phrases indicating new code creation
+IMPLEMENTATION_PATTERNS = [
+    # Direct implementation verbs with feature/component targets
+    # Uses (?:\w+\s+)* to match zero or more words before target (e.g., "JWT authentication feature")
+    r'\b(implement|create|add|build|write|develop)\s+(?:a\s+)?(?:new\s+)?'
+    r'(?:\w+\s+)*(feature|function|class|method|module|component|api|endpoint|'
+    r'service|handler|controller|model|interface|code|authentication|system|'
+    r'logic|workflow|validation|integration)',
+    # Feature addition patterns (direct like "add support" or with description)
+    r'\b(add|implement)\s+(?:.*\s+)?(support|functionality|capability)\b',
+    # System modification patterns
+    r'\b(modify|update|change|refactor)\s+.*\s+to\s+(add|support|implement)\b',
+]
+
+# Quality nudge message template
+QUALITY_NUDGE_MESSAGE = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Quality Workflow Reminder
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+It looks like you're about to implement a feature.
+
+Before implementing directly, consider the quality workflow:
+
+1. Check PROJECT.md alignment
+   Does this feature serve project GOALS and respect CONSTRAINTS?
+
+2. Search codebase for existing patterns
+   Use Grep/Glob to find similar implementations first.
+
+3. Consider /auto-implement (recommended)
+   Research → Plan → TDD → Implement → Review → Security → Docs
+
+Why /auto-implement works better (production data):
+  - Bug rate: 23% (direct) vs 4% (pipeline)
+  - Security issues: 12% (direct) vs 0.3% (pipeline)
+  - Test coverage: 43% (direct) vs 94% (pipeline)
+
+This is a reminder, not a requirement. Proceed if you prefer direct implementation.
+
+To disable: Set QUALITY_NUDGE_ENABLED=false in .env
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
+
+def is_implementation_intent(user_input: str) -> bool:
+    """
+    Check if user input indicates implementation intent.
+
+    Uses regex patterns to detect phrases like:
+    - "implement X feature"
+    - "add Y function"
+    - "create Z class"
+    - "build new component"
+
+    Does NOT trigger for:
+    - Questions ("How do I implement...?")
+    - Documentation updates
+    - Bug fixes
+    - Reading/searching operations
+    - Already using /auto-implement or /create-issue
+
+    Args:
+        user_input: User prompt text
+
+    Returns:
+        True if implementation intent detected, False otherwise
+
+    Example:
+        >>> is_implementation_intent("implement JWT authentication feature")
+        True
+        >>> is_implementation_intent("How do I implement this?")
+        False
+        >>> is_implementation_intent("/auto-implement #123")
+        False
+    """
+    if not user_input or not user_input.strip():
+        return False
+
+    text = user_input.lower().strip()
+
+    # Skip if already using quality commands
+    if re.search(r'/auto-implement|/create-issue', text, re.IGNORECASE):
+        return False
+
+    # Skip questions (end with ?)
+    if text.rstrip().endswith('?'):
+        return False
+
+    # Check implementation patterns
+    for pattern in IMPLEMENTATION_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+
+    return False
+
+
+def detect_implementation_intent(user_input: str) -> Dict[str, any]:
+    """
+    Detect implementation intent and provide quality workflow nudge.
+
+    This is a NON-BLOCKING check. It never prevents the prompt from
+    being processed. Instead, it provides a helpful reminder about
+    quality workflows.
+
+    Args:
+        user_input: User prompt text
+
+    Returns:
+        Dict with 'nudge' (bool) and 'message' (str)
+    """
+    if not QUALITY_NUDGE_ENABLED:
+        return {'nudge': False, 'message': ''}
+
+    if is_implementation_intent(user_input):
+        return {
+            'nudge': True,
+            'message': QUALITY_NUDGE_MESSAGE,
+        }
+
+    return {'nudge': False, 'message': ''}
+
+
+# ============================================================================
 # Main Hook Entry Point
 # ============================================================================
 
@@ -188,9 +321,12 @@ def main() -> int:
     Main hook entry point.
 
     Reads stdin for hook input, dispatches checks, outputs result.
+    Handles both blocking checks (workflow bypass) and non-blocking
+    nudges (quality workflow reminders).
 
     Returns:
-        0 if all checks pass, 2 if any check fails (blocking)
+        0 if all checks pass or nudge detected (non-blocking)
+        2 if workflow bypass detected (blocking)
     """
     # Read input from stdin
     try:
@@ -208,7 +344,7 @@ def main() -> int:
     # Extract user prompt
     user_prompt = input_data.get('userPrompt', '')
 
-    # Check for workflow bypass
+    # Check for workflow bypass (BLOCKING)
     workflow_check = check_workflow_bypass(user_prompt)
 
     if not workflow_check['passed']:
@@ -223,7 +359,22 @@ def main() -> int:
         print(json.dumps(output))
         return 2
 
-    # Pass: All checks succeeded
+    # Check for implementation intent (NON-BLOCKING)
+    intent_check = detect_implementation_intent(user_prompt)
+
+    if intent_check['nudge']:
+        # Nudge: Print reminder to stderr but still allow (exit 0)
+        print(intent_check['message'], file=sys.stderr)
+        output = {
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "nudge": intent_check['message']
+            }
+        }
+        print(json.dumps(output))
+        return 0
+
+    # Pass: All checks succeeded, no nudges
     output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit"
