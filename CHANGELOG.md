@@ -1,6 +1,35 @@
 ## [Unreleased]
 
 **Added**
+- **Issue #152: Constitutional Self-Critique Quality Reflexes (Guidance-Based Enforcement)**
+  - **Problem**: Rigid enforcement of /auto-implement pipeline blocked quick documentation fixes and created friction. Intent detection hooks were easily bypassed and caused false positives on legitimate edits.
+  - **Solution**: Implement constitutional self-critique pattern using natural language guidance questions instead of enforcement blocking. Users reflect on quality considerations before implementation, respecting agency while surfacing best practices.
+  - **Features**:
+    - **Quality Reflexes Section** (CLAUDE.md lines 202-232): Five self-validation questions
+      1. Alignment - Does this feature align with PROJECT.md goals?
+      2. Research - Have I researched existing patterns in the codebase?
+      3. Duplicates - Am I duplicating work that's already implemented or open issues?
+      4. Tests First - Should I write tests first for this change? (TDD)
+      5. Documentation - Will this require documentation updates?
+    - **Constitutional AI Pattern Explanation**: Guided reasoning via questions rather than enforcement
+    - **Data-Driven Decision Making**: Quality metrics showing 23%→4% bug rate, 12%→0.3% security issues, 67%→2% documentation drift
+    - **Respects Agency**: Users decide whether to follow pipeline or proceed directly based on their judgment
+  - **Philosophy**:
+    - **Persuasion > Enforcement**: CLAUDE.md 4-layer architecture allocates 30% to persuasion (guidance via data)
+    - **Removes Intent Detection**: Intent detection from hooks eliminated (Issue #141) - hooks only block verifiable violations
+    - **Embraces User Choice**: /auto-implement is faster than manual implementation (15-25 min pipeline vs variable manual time), making quality path the easiest path
+    - **Trust the Model**: Constitutional AI respects Claude's reasoning while surfacing quality considerations
+  - **Integration with 4-Layer Consistency Architecture**:
+    - Layer 1 (10%): HOOKS - Deterministic blocking for bypass patterns only
+    - Layer 2 (30%): CLAUDE.md - Persuasion via data (THIS ISSUE IMPLEMENTS THIS LAYER)
+    - Layer 3 (40%): CONVENIENCE - /auto-implement one-command pipeline
+    - Layer 4 (20%): SKILLS - Agent expertise injection
+  - **Files Modified**:
+    - CLAUDE.md: Added "Quality Reflexes (Constitutional Self-Critique)" section at lines 202-232
+  - **Documentation Updated**:
+    - CHANGELOG.md: This entry (Issue #152)
+  - **Related**: Issue #141 (Enforcement Restructure), Issue #140 (Skill Injection), Epic #142 (4-Layer Consistency Architecture)
+
 - **Issue #151: Research Persistence for Researcher Agents and README Sync**
   - **Problem**: Research findings from researcher agents (local/web) were temporary and lost between sessions. No centralized knowledge base for reusable research across features.
   - **Solution**: Implement research persistence to docs/research/ directory with standardized format, enabling knowledge reuse and continuous improvement.

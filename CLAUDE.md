@@ -199,6 +199,39 @@ Claude: Validates alignment → TDD → implements → reviews → documents
 
 ---
 
+## Quality Reflexes (Constitutional Self-Critique)
+
+Before implementing any feature directly, ask yourself these questions. This is guidance, not enforcement — you decide whether to follow the pipeline or proceed directly.
+
+**Self-Validation Questions**:
+
+1. **Alignment**: Does this feature align with PROJECT.md goals? (If unsure → `cat .claude/PROJECT.md`)
+2. **Research**: Have I researched existing patterns in the codebase? (If not → `grep`/`glob` first)
+3. **Duplicates**: Am I duplicating work that's already implemented or exists as an open issue? (If unsure → `gh issue list --search`)
+4. **Tests First**: Should I write tests first for this change? (If yes → TDD approach)
+5. **Documentation**: Will this require documentation updates? (If yes → plan doc changes now)
+
+**Why This Works** (Constitutional AI Pattern):
+
+Constitutional AI uses natural language principles for self-critique rather than rigid enforcement. By asking questions, Claude can reflect on the best approach before committing to implementation. This respects your agency while surfacing quality considerations.
+
+The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion (this section) — guidance through data and reasoning, not blocking.
+
+**The Data Shows** (from Workflow Discipline section above):
+
+| Metric | Direct Implementation | /auto-implement Pipeline |
+|--------|----------------------|--------------------------|
+| Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
+| Security issues | 12% (need audit) | 0.3% (caught by auditor) |
+| Documentation drift | 67% (manual sync) | 2% (auto-synced) |
+| Test coverage | 43% (optional) | 94% (required) |
+
+**Your Choice**:
+
+Consider using `/auto-implement` for features where quality matters. For quick fixes, documentation updates, or trivial changes, direct implementation may be appropriate. The data above helps you decide — the choice is yours.
+
+---
+
 ## Context Management (CRITICAL!)
 
 ### Why This Matters
