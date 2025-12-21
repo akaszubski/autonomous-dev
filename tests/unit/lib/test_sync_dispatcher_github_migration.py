@@ -176,6 +176,124 @@ class TestMigrateFunctionExists:
         assert 'PreToolUse' in migrated['hooks']
 
 
+class TestNormalizeMatcher:
+    """Test the _normalize_matcher helper function."""
+
+    def test_normalize_string_wildcard(self):
+        """Test that '*' string passes through unchanged."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        assert _normalize_matcher("*") == "*"
+
+    def test_normalize_string_tool_name(self):
+        """Test that tool name string passes through unchanged."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        assert _normalize_matcher("Bash") == "Bash"
+        assert _normalize_matcher("Write") == "Write"
+
+    def test_normalize_new_format_tools_array(self):
+        """Test that new format {"tools": [...]} passes through unchanged."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        matcher = {"tools": ["Write", "Bash"]}
+        assert _normalize_matcher(matcher) == matcher
+
+    def test_normalize_old_format_tool_only(self):
+        """Test old format {"tool": "Write"} converts to "Write"."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        assert _normalize_matcher({"tool": "Write"}) == "Write"
+        assert _normalize_matcher({"tool": "Bash"}) == "Bash"
+
+    def test_normalize_old_format_with_file_pattern(self):
+        """Test old format with file_pattern loses the pattern."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        old_matcher = {"tool": "Write", "file_pattern": "src/**/*.py"}
+        assert _normalize_matcher(old_matcher) == "Write"
+
+    def test_normalize_old_format_with_pattern(self):
+        """Test old format with pattern (regex) loses the pattern."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        old_matcher = {"tool": "Bash", "pattern": ".*(rm -rf).*"}
+        assert _normalize_matcher(old_matcher) == "Bash"
+
+    def test_normalize_unknown_dict_returns_wildcard(self):
+        """Test unknown dict format defaults to '*'."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        assert _normalize_matcher({"unknown": "value"}) == "*"
+        assert _normalize_matcher({}) == "*"
+
+    def test_normalize_invalid_type_returns_wildcard(self):
+        """Test invalid types default to '*'."""
+        from plugins.autonomous_dev.lib.hook_activator import _normalize_matcher
+        assert _normalize_matcher(123) == "*"
+        assert _normalize_matcher(None) == "*"
+        assert _normalize_matcher(["list"]) == "*"
+
+
+class TestMigrateFixesOldMatchers:
+    """Test that migration fixes old matcher format in object hooks."""
+
+    def test_migrate_fixes_object_format_old_matchers(self, tmp_path):
+        """Test migration fixes old matchers in existing object format hooks."""
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        # Create object format settings with OLD matcher format
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        settings_path = claude_dir / "settings.json"
+
+        old_object_settings = {
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": {"tool": "Write", "file_pattern": "src/**/*.py"},
+                        "hooks": [{"type": "command", "command": "python format.py", "timeout": 30}]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": {"tool": "Bash", "pattern": ".*(rm -rf).*"},
+                        "hooks": [{"type": "command", "command": "echo blocked", "timeout": 5}]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(old_object_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is True
+        assert result['backup_path'].exists()
+
+        # Verify matchers are now strings
+        migrated = json.loads(settings_path.read_text())
+        assert migrated['hooks']['PostToolUse'][0]['matcher'] == "Write"
+        assert migrated['hooks']['PreToolUse'][0]['matcher'] == "Bash"
+
+    def test_migrate_skips_already_correct_object_format(self, tmp_path):
+        """Test migration skips object format with correct matchers."""
+        from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        settings_path = claude_dir / "settings.json"
+
+        correct_settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [{"type": "command", "command": "python hook.py", "timeout": 5}]
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(correct_settings, indent=2))
+
+        result = migrate_hooks_to_object_format(settings_path)
+
+        assert result['migrated'] is False
+        assert result['format'] == 'object'
+
+
 class TestSyncResultIncludesMigrationInfo:
     """Verify that SyncResult includes hooks_migrated field."""
 

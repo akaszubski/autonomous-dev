@@ -465,6 +465,48 @@ def _backup_settings(settings_path: Path) -> Path:
         raise ActivationError(f"Failed to create settings backup: {e}") from e
 
 
+def _normalize_matcher(matcher: Any) -> str:
+    """Convert old matcher format to Claude Code 2.0 format (Issue #156).
+
+    Claude Code 2.0 expects matchers in one of these formats:
+    - "*" (string) - matches all tools
+    - "ToolName" (string) - matches specific tool
+    - {"tools": ["Tool1", "Tool2"]} - matches multiple tools
+
+    Old formats that need conversion:
+    - {"tool": "Write"} → "Write"
+    - {"tool": "Bash", "pattern": "..."} → "Bash" (pattern not supported)
+    - {"tool": "Write", "file_pattern": "..."} → "Write" (file_pattern not supported)
+
+    Args:
+        matcher: The matcher value from old hook config
+
+    Returns:
+        Normalized matcher string or valid object
+    """
+    # Already a string - valid format
+    if isinstance(matcher, str):
+        return matcher
+
+    # Object format - check if old or new style
+    if isinstance(matcher, dict):
+        # New format: {"tools": [...]} - keep as-is
+        if "tools" in matcher:
+            return matcher
+
+        # Old format: {"tool": "ToolName", ...} - extract tool name
+        if "tool" in matcher:
+            tool_name = matcher["tool"]
+            if isinstance(tool_name, str):
+                return tool_name
+
+        # Unknown object format - default to wildcard
+        return "*"
+
+    # Unknown type - default to wildcard
+    return "*"
+
+
 def migrate_hooks_to_object_format(settings_path: Path) -> Dict[str, Any]:
     """Migrate settings.json from array format to object format (Issue #135).
 
@@ -645,13 +687,77 @@ def migrate_hooks_to_object_format(settings_path: Path) -> Dict[str, Any]:
         needs_migration = True
 
     elif isinstance(hooks, dict):
-        # Object format → already migrated
-        return {
-            'migrated': False,
-            'backup_path': None,
-            'format': 'object',
-            'error': None
-        }
+        # Object format → check if matchers need normalization (Issue #156)
+        needs_matcher_fix = False
+        for event_hooks in hooks.values():
+            if isinstance(event_hooks, list):
+                for hook_entry in event_hooks:
+                    if isinstance(hook_entry, dict) and 'matcher' in hook_entry:
+                        matcher = hook_entry['matcher']
+                        # Check if matcher is old format (dict with "tool" key)
+                        if isinstance(matcher, dict) and 'tool' in matcher:
+                            needs_matcher_fix = True
+                            break
+                if needs_matcher_fix:
+                    break
+
+        if not needs_matcher_fix:
+            # Already has correct format
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'object',
+                'error': None
+            }
+
+        # Fix old matchers in object format (Issue #156)
+        try:
+            backup_path = _backup_settings(settings_path)
+
+            # Normalize all matchers
+            fixed_hooks = {}
+            for event, event_hooks in hooks.items():
+                if isinstance(event_hooks, list):
+                    fixed_hooks[event] = []
+                    for hook_entry in event_hooks:
+                        if isinstance(hook_entry, dict):
+                            fixed_entry = hook_entry.copy()
+                            if 'matcher' in fixed_entry:
+                                fixed_entry['matcher'] = _normalize_matcher(fixed_entry['matcher'])
+                            fixed_hooks[event].append(fixed_entry)
+                        else:
+                            fixed_hooks[event].append(hook_entry)
+                else:
+                    fixed_hooks[event] = event_hooks
+
+            # Update settings
+            settings_data['hooks'] = fixed_hooks
+            settings_path.write_text(json.dumps(settings_data, indent=2))
+
+            security_utils.audit_log(
+                event_type="hook_migration",
+                status="matchers_normalized",
+                context={
+                    "operation": "migrate_hooks_to_object_format",
+                    "settings_path": str(settings_path),
+                    "backup_path": str(backup_path)
+                }
+            )
+
+            return {
+                'migrated': True,
+                'backup_path': backup_path,
+                'format': 'object',
+                'error': None
+            }
+
+        except Exception as e:
+            return {
+                'migrated': False,
+                'backup_path': None,
+                'format': 'object',
+                'error': f"Failed to normalize matchers: {e}"
+            }
 
     else:
         # Invalid hooks structure
@@ -723,8 +829,9 @@ def migrate_hooks_to_object_format(settings_path: Path) -> Dict[str, Any]:
                 continue
 
             # Create CC2 structure: nested object with matcher and timeout
-            # Preserve custom matcher if present, otherwise default to "*"
-            matcher = hook_entry.get('matcher', '*')
+            # Convert old matcher format to CC2 format (Issue #156)
+            raw_matcher = hook_entry.get('matcher', '*')
+            matcher = _normalize_matcher(raw_matcher)
 
             # Preserve custom timeout if present, otherwise default to 5
             timeout = hook_entry.get('timeout', 5)
