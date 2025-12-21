@@ -1164,6 +1164,53 @@ class SyncDispatcher:
                 )
                 errors.append(f"Global download failed: {e}")
 
+            # Step 5: Migrate hooks from array format to object format (Issue #135)
+            # This runs after global file downloads to fix any old format settings
+            hooks_migrated = False
+            try:
+                from plugins.autonomous_dev.lib.hook_activator import migrate_hooks_to_object_format
+
+                settings_path = Path.home() / ".claude" / "settings.json"
+                if settings_path.exists():
+                    migration_result = migrate_hooks_to_object_format(settings_path)
+
+                    if migration_result['migrated']:
+                        # Migration performed - log success
+                        hooks_migrated = True
+                        audit_log(
+                            "github_sync",
+                            "hooks_migrated",
+                            {
+                                "project_path": str(self.project_path),
+                                "settings_path": str(settings_path),
+                                "backup_path": str(migration_result['backup_path']),
+                                "format": migration_result['format'],
+                            },
+                        )
+                    elif migration_result['error']:
+                        # Migration failed - log but don't block sync
+                        audit_log(
+                            "github_sync",
+                            "hooks_migration_failed",
+                            {
+                                "project_path": str(self.project_path),
+                                "settings_path": str(settings_path),
+                                "error": migration_result['error'],
+                            },
+                        )
+                    # else: No migration needed (already object format or missing)
+
+            except Exception as e:
+                # Migration failed - log but don't block sync (non-blocking enhancement)
+                audit_log(
+                    "github_sync",
+                    "hooks_migration_exception",
+                    {
+                        "project_path": str(self.project_path),
+                        "error": str(e),
+                    },
+                )
+
             # Log completion
             audit_log(
                 "github_sync",
@@ -1180,7 +1227,8 @@ class SyncDispatcher:
             # Build result
             orphans_deleted = global_hooks_orphans_deleted + global_libs_orphans_deleted
             orphan_msg = f", {orphans_deleted} orphans cleaned" if orphans_deleted > 0 else ""
-            global_msg = f", {global_hooks_copied} hooks + {global_libs_copied} libs to ~/.claude/{orphan_msg}"
+            migration_msg = ", hooks format migrated" if hooks_migrated else ""
+            global_msg = f", {global_hooks_copied} hooks + {global_libs_copied} libs to ~/.claude/{orphan_msg}{migration_msg}"
             if errors:
                 return SyncResult(
                     success=True,  # Partial success
@@ -1190,6 +1238,7 @@ class SyncDispatcher:
                         "files_updated": files_updated,
                         "global_hooks": global_hooks_copied,
                         "global_libs": global_libs_copied,
+                        "hooks_migrated": hooks_migrated,
                         "errors": errors[:5],  # Limit to first 5 errors
                         "source": GITHUB_REPO,
                     },
@@ -1203,6 +1252,7 @@ class SyncDispatcher:
                         "files_updated": files_updated,
                         "global_hooks": global_hooks_copied,
                         "global_libs": global_libs_copied,
+                        "hooks_migrated": hooks_migrated,
                         "source": GITHUB_REPO,
                         "branch": GITHUB_BRANCH,
                     },

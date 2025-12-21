@@ -349,6 +349,69 @@ configure_global_settings() {
     fi
 }
 
+# Migrate hooks from array format to object format (Claude Code 2.0)
+# Issue #156: Users with old settings.json need hooks migrated
+migrate_hooks_format() {
+    log_step "Checking hooks format..."
+
+    local lib_path="${STAGING_DIR}/files/plugins/autonomous-dev/lib"
+    local settings_path="${HOME}/.claude/settings.json"
+
+    # Check if settings.json exists
+    if [[ ! -f "$settings_path" ]]; then
+        log_info "No settings.json found - skipping hooks migration"
+        return 0
+    fi
+
+    # Check if hook_activator.py was downloaded
+    if [[ ! -f "${lib_path}/hook_activator.py" ]]; then
+        log_warning "hook_activator.py not found - skipping hooks migration"
+        return 1
+    fi
+
+    # Run migration (Python one-liner to call the function)
+    local result
+    result=$(PYTHONPATH="${lib_path}:${lib_path}/.." python3 -c "
+import sys
+sys.path.insert(0, '${STAGING_DIR}/files/plugins/autonomous-dev/lib')
+sys.path.insert(0, '${STAGING_DIR}/files/plugins')
+from pathlib import Path
+try:
+    from hook_activator import migrate_hooks_to_object_format
+    result = migrate_hooks_to_object_format(Path('${settings_path}'))
+    import json
+    print(json.dumps(result, default=str))
+except Exception as e:
+    import json
+    print(json.dumps({'migrated': False, 'error': str(e)}))
+" 2>&1)
+
+    # Parse result
+    local migrated
+    migrated=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print('true' if data.get('migrated') else 'false')" 2>/dev/null || echo "false")
+
+    if [[ "$migrated" == "true" ]]; then
+        log_success "Migrated hooks to Claude Code 2.0 format"
+        return 0
+    else
+        local format_type
+        format_type=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print(data.get('format', 'unknown'))" 2>/dev/null || echo "unknown")
+
+        if [[ "$format_type" == "object" ]]; then
+            log_info "Hooks already in correct format"
+            return 0
+        elif [[ "$format_type" == "missing" ]]; then
+            log_info "No hooks to migrate"
+            return 0
+        else
+            local error_msg
+            error_msg=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print(data.get('error', 'Unknown'))" 2>/dev/null || echo "Unknown")
+            log_warning "Hooks migration: ${error_msg}"
+            return 1
+        fi
+    fi
+}
+
 # Clean orphan files from a directory based on manifest
 # Usage: clean_orphan_files <target_dir> <component_name> <file_extension>
 clean_orphan_files() {
@@ -1146,6 +1209,12 @@ main() {
         settings_success=true
     else
         log_warning "Settings configuration skipped (will use defaults)"
+    fi
+
+    # Migrate hooks from array to object format (Issue #156)
+    local hooks_migrated=false
+    if migrate_hooks_format; then
+        hooks_migrated=true
     fi
 
     # Print results
