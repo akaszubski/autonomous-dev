@@ -54,6 +54,7 @@
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.py",
         "plugins/autonomous-dev/hooks/github_issue_manager.py",
+        "plugins/autonomous-dev/hooks/pre_tool_use.py",
         "plugins/autonomous-dev/hooks/health_check.py",
         "plugins/autonomous-dev/hooks/post_file_move.py",
         "plugins/autonomous-dev/hooks/security_scan.py",
