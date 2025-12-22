@@ -209,6 +209,33 @@ We document **typical performance**, not marketing claims.
 
 ---
 
+## Using in Multiple Repos
+
+After the initial install, adding autonomous-dev to another project is simple:
+
+```bash
+# 1. Open the new project in Claude Code
+cd /path/to/your/other/project
+
+# 2. Sync commands and agents (global hooks already work)
+/sync
+
+# 3. Restart Claude Code to load new commands
+# Press Cmd+Q, then reopen
+
+# 4. Create PROJECT.md for this repo (optional but recommended)
+/setup
+```
+
+**What `/sync` does:**
+- Pulls commands to `.claude/commands/`
+- Pulls agents to `.claude/agents/`
+- Global hooks already work (installed to `~/.claude/hooks/`)
+
+**Important:** Always restart Claude Code after `/sync` — commands are cached in memory.
+
+---
+
 ## Known Limitations
 
 ### Platform

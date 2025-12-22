@@ -554,6 +554,71 @@ install_hook_files() {
     return 0
 }
 
+# Install core commands globally to ~/.claude/commands/ (sync.md, setup.md)
+# These commands must be available in ALL repos for bootstrapping
+install_global_commands() {
+    log_step "Installing core commands to ~/.claude/commands/..."
+
+    local command_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/commands"
+    local command_target_dir="${HOME}/.claude/commands"
+    local installed=0
+    local failed=0
+
+    # Core commands that must be available globally for bootstrapping
+    local core_commands=("sync.md" "setup.md" "health-check.md")
+
+    # Check if command source directory exists
+    if [[ ! -d "$command_source_dir" ]]; then
+        log_warning "Commands directory not found in staging - global commands won't be installed"
+        return 1
+    fi
+
+    # Create target directory if it doesn't exist
+    if ! mkdir -p "$command_target_dir" 2>/dev/null; then
+        log_error "Failed to create ~/.claude/commands/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Install each core command
+    for cmd in "${core_commands[@]}"; do
+        local source_file="$command_source_dir/$cmd"
+        local target_file="$command_target_dir/$cmd"
+
+        if [[ ! -f "$source_file" ]]; then
+            log_warning "  Not found in staging: $cmd"
+            ((failed++))
+            continue
+        fi
+
+        # Security: Check if file is a symlink
+        if [[ -L "$source_file" ]]; then
+            log_warning "  Skipping symlink: $cmd"
+            ((failed++))
+            continue
+        fi
+
+        # Copy file to target directory
+        if cp -P "$source_file" "$target_file"; then
+            ((installed++))
+            if $VERBOSE; then
+                log_success "  Installed globally: $cmd"
+            fi
+        else
+            ((failed++))
+            log_warning "  Failed: $cmd"
+        fi
+    done
+
+    # Report results
+    if [[ $failed -gt 0 ]]; then
+        log_warning "Installed ${installed}/${#core_commands[@]} core commands globally (${failed} failed)"
+        return 1
+    fi
+
+    log_success "Installed ${installed} core command(s) to ~/.claude/commands/"
+    return 0
+}
+
 # Install lib files to ~/.claude/lib/
 install_lib_files() {
     log_step "Installing lib files to ~/.claude/lib/..."
@@ -1139,6 +1204,15 @@ main() {
         log_info "Lib files are used by hooks for auto-approval and security validation"
     fi
 
+    # Install core commands globally to ~/.claude/commands/ (enables /sync in any repo)
+    local global_commands_success=false
+    if install_global_commands; then
+        global_commands_success=true
+    else
+        log_warning "Failed to install global commands"
+        log_info "/sync and /setup won't be available in new repos until you run install.sh in that repo"
+    fi
+
     # Bootstrap /setup command directly (enables fresh installs)
     local bootstrap_success=false
     if bootstrap_setup_command; then
@@ -1229,6 +1303,11 @@ main() {
         log_success "Lib files installed to ~/.claude/lib/"
     else
         log_warning "Lib files not installed (hooks may not work correctly)"
+    fi
+    if $global_commands_success; then
+        log_success "Core commands installed to ~/.claude/commands/ (/sync, /setup available globally)"
+    else
+        log_warning "Global commands not installed (/sync won't work in new repos)"
     fi
     if $bootstrap_success; then
         log_success "/setup command installed to .claude/commands/"
