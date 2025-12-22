@@ -128,6 +128,7 @@
         "plugins/autonomous-dev/lib/error_messages.py",
         "plugins/autonomous-dev/lib/failure_classifier.py",
         "plugins/autonomous-dev/lib/feature_completion_detector.py",
+        "plugins/autonomous-dev/lib/feature_dependency_analyzer.py",
         "plugins/autonomous-dev/lib/file_discovery.py",
         "plugins/autonomous-dev/lib/first_run_warning.py",
         "plugins/autonomous-dev/lib/git_operations.py",

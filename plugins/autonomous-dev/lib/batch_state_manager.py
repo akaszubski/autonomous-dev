@@ -262,6 +262,9 @@ class BatchState:
     paused_at_feature_index: Optional[int] = None
     retry_attempts: Dict[int, int] = field(default_factory=dict)  # Issue #89: Track retry counts per feature
     git_operations: Dict[int, Dict[str, Any]] = field(default_factory=dict)  # Issue #93: Track git operations per feature
+    feature_order: List[int] = field(default_factory=list)  # Issue #157: Optimized execution order
+    feature_dependencies: Dict[int, List[int]] = field(default_factory=dict)  # Issue #157: Dependency graph
+    analysis_metadata: Dict[str, Any] = field(default_factory=dict)  # Issue #157: Analysis info (stats, timing, etc.)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""

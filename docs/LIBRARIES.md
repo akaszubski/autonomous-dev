@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (21)
+### Core Libraries (22)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -32,6 +32,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 19. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
 20. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
 21. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
+22. **feature_dependency_analyzer.py** - Smart dependency ordering for /batch-implement (v1.0.0, Issue #157)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -6763,3 +6764,301 @@ CONTEXT_PATTERNS = {
 - GitHub Issue #154 - Context-triggered skill injection
 - GitHub Issue #140 - Skills not available to subagents (related work)
 - GitHub Issue #35 - Agents should actively use skills (related goal)
+
+
+---
+
+## 33. feature_dependency_analyzer.py (509 lines, v1.0.0 - Issue #157)
+
+**Purpose**: Analyze feature descriptions for dependencies and optimize batch execution order using topological sort
+
+**Location**: plugins/autonomous-dev/lib/feature_dependency_analyzer.py
+
+**Dependencies**: validation.py (optional, graceful degradation)
+
+### Classes
+
+#### FeatureDependencyError
+
+Base exception for feature dependency operations.
+
+#### CircularDependencyError
+
+Raised when circular dependencies are detected in the dependency graph.
+
+#### TimeoutError
+
+Raised when analysis exceeds 5-second timeout.
+
+### Functions
+
+#### detect_keywords(feature_text: str) -> Set[str]
+
+Extract dependency keywords from feature text.
+
+**Parameters**:
+- feature_text (str): Feature description text
+
+**Returns**: Set of detected keywords (lowercase)
+
+**Detects**:
+- Dependency keywords: requires, depends, after, before, uses, needs
+- File references: .py, .md, .json, .yaml, .yml, .sh, .ts, .js, .tsx, .jsx
+
+**Example**:
+```python
+keywords = detect_keywords("Add tests for auth (requires auth implementation)")
+# Returns: {"requires", "tests", "auth"}
+```
+
+#### build_dependency_graph(features: List[str], keywords: Dict[int, Set[str]]) -> Dict[int, List[int]]
+
+Build directed dependency graph from feature keywords.
+
+**Parameters**:
+- features (List[str]): List of feature descriptions
+- keywords (Dict[int, Set[str]]): Keywords detected per feature (from detect_keywords)
+
+**Returns**: Dependency graph where deps[i] = [j, k] means features i depends on j and k
+
+**Algorithm**: Analyzes feature names for references to other features using keyword matching and file similarity.
+
+#### analyze_dependencies(features: List[str]) -> Dict[int, List[int]]
+
+Main entry point: analyze features for dependencies.
+
+**Parameters**:
+- features (List[str]): List of feature descriptions
+
+**Returns**: Dependency graph (Dict[int, List[int]])
+
+**Execution**:
+1. Validates input (max 1000 features, sanitizes text)
+2. Detects keywords for each feature
+3. Builds dependency graph
+4. Detects circular dependencies
+5. Returns graph with timeout protection (5 seconds)
+
+**Graceful Degradation**: Returns empty dict (no dependencies) if analysis fails
+
+#### topological_sort(features: List[str], deps: Dict[int, List[int]]) -> List[int]
+
+Order features using topological sort (Kahn's algorithm).
+
+**Parameters**:
+- features (List[str]): Feature descriptions
+- deps (Dict[int, List[int]]): Dependency graph from analyze_dependencies()
+
+**Returns**: Feature indices in dependency order
+
+**Algorithm**: Kahn's algorithm for topological sort
+- Time complexity: O(V + E) where V = features, E = dependencies
+- Circular dependencies raise CircularDependencyError
+
+**Example**:
+```python
+features = ["Add auth", "Add tests for auth"]
+deps = analyze_dependencies(features)
+order = topological_sort(features, deps)
+# Returns: [0, 1] (implement auth before testing)
+```
+
+#### visualize_graph(features: List[str], deps: Dict[int, List[int]]) -> str
+
+Generate ASCII visualization of dependency graph.
+
+**Parameters**:
+- features (List[str]): Feature descriptions
+- deps (Dict[int, List[int]]): Dependency graph
+
+**Returns**: Formatted ASCII string showing graph relationships
+
+**Example Output**:
+```
+Feature Dependency Graph
+========================
+
+Feature 0: Add auth
+  └─> [depends on] (no dependencies)
+
+Feature 1: Add tests for auth
+  └─> [depends on] Feature 0: Add auth
+
+Feature 2: Add password reset
+  └─> [depends on] Feature 0: Add auth
+```
+
+#### detect_circular_dependencies(deps: Dict[int, List[int]]) -> List[List[int]]
+
+Detect circular dependency cycles in graph.
+
+**Parameters**:
+- deps (Dict[int, List[int]]): Dependency graph
+
+**Returns**: List of cycles (each cycle is list of feature indices)
+
+**Returns empty list if no cycles detected**
+
+#### get_execution_order_stats(features: List[str], deps: Dict[int, List[int]], order: List[int]) -> Dict[str, Any]
+
+Generate statistics about execution order.
+
+**Parameters**:
+- features (List[str]): Feature descriptions
+- deps (Dict[int, List[int]]): Dependency graph
+- order (List[int]): Topologically sorted order
+
+**Returns**: Dictionary with statistics:
+```python
+{
+    "total_dependencies": 3,      # Total edges in graph
+    "independent_features": 1,    # Features with no dependencies
+    "dependent_features": 2,      # Features with dependencies
+    "max_depth": 2,              # Longest dependency chain
+    "total_features": 3,
+}
+```
+
+### Security
+
+**Input Validation** (CWE-22, CWE-78):
+- Text sanitization via validation.sanitize_text_input() (max 10,000 chars per feature)
+- No shell execution
+- Path traversal protection via safe regex matching
+- Command injection prevention - only text analysis
+
+**Resource Limits**:
+- MAX_FEATURES: 1000 (prevents unbounded processing)
+- TIMEOUT_SECONDS: 5 (prevents infinite loops in circular detection)
+- Memory: O(V + E) for graph storage (linear in feature count)
+
+### Performance Characteristics
+
+- **Analysis Time**: <100ms for typical batches (50 features)
+- **Memory**: O(V + E) where V = features, E = dependencies
+- **Topological Sort**: O(V + E) via Kahn's algorithm
+- **Circular Detection**: O(V + E) via DFS
+- **Graph Visualization**: O(V + E) for ASCII rendering
+
+### Error Handling
+
+**Graceful Degradation**:
+- If analysis fails: Returns empty dict (no dependencies detected)
+- If topological sort fails: CircularDependencyError raised
+- If timeout exceeded: TimeoutError raised
+- If validation fails: Returns fallback (original order)
+
+### Test Coverage
+
+**Test File**: tests/unit/lib/test_feature_dependency_analyzer.py
+
+**Coverage Areas**:
+- Keyword detection (requires, depends, after, before, uses, needs)
+- File reference detection (.py, .md, .json, etc.)
+- Dependency graph construction
+- Topological sort correctness
+- Circular dependency detection
+- ASCII visualization formatting
+- Timeout protection
+- Memory limits for large batches
+- Security validations (CWE-22, CWE-78)
+- Graceful degradation with invalid inputs
+
+**Target**: 90%+ coverage
+
+### Used By
+
+- /batch-implement command (STEP 1.5 - Analyze Dependencies)
+- batch_state_manager.py - Stores optimized order and dependency info
+- Batch processing workflow for reordering features
+
+### Related Issues
+
+- GitHub Issue #157 - Smart dependency ordering for /batch-implement
+- GitHub Issue #88 - Batch processing support
+- GitHub Issue #89 - Automatic retry for batch features
+- GitHub Issue #93 - Git automation for batch mode
+
+### Related Components
+
+**Dependencies**:
+- validation.py - Input sanitization (optional, graceful degradation)
+
+**Used By**:
+- batch_state_manager.py - Stores dependency metadata
+- /batch-implement command - STEP 1.5 dependency analysis
+
+### Example Workflow
+
+```python
+from plugins.autonomous_dev.lib.feature_dependency_analyzer import (
+    analyze_dependencies,
+    topological_sort,
+    visualize_graph,
+    get_execution_order_stats
+)
+
+# Features to process
+features = [
+    "Add JWT authentication module",
+    "Add tests for JWT validation",
+    "Add password reset endpoint (requires auth)"
+]
+
+# Analyze dependencies
+deps = analyze_dependencies(features)
+
+# Get optimized order
+order = topological_sort(features, deps)
+
+# Get statistics
+stats = get_execution_order_stats(features, deps, order)
+
+# Visualize for user
+graph = visualize_graph(features, deps)
+
+print(f"Dependencies detected: {stats['total_dependencies']}")
+print(f"Independent features: {stats['independent_features']}")
+print(graph)
+
+# Use optimized order in batch processing
+for idx in order:
+    process_feature(features[idx])
+```
+
+### Integration with /batch-implement
+
+STEP 1.5 in /batch-implement command now calls this analyzer:
+
+```python
+# Import analyzer
+from plugins.autonomous_dev.lib.feature_dependency_analyzer import (
+    analyze_dependencies,
+    topological_sort,
+    visualize_graph,
+    get_execution_order_stats
+)
+
+# Analyze and optimize order
+try:
+    deps = analyze_dependencies(features)
+    feature_order = topological_sort(features, deps)
+    stats = get_execution_order_stats(features, deps, feature_order)
+    graph = visualize_graph(features, deps)
+
+    # Store in batch state
+    state.feature_dependencies = deps
+    state.feature_order = feature_order
+    state.analysis_metadata = {"stats": stats}
+
+    # Show user
+    print(f"Dependencies detected: {stats['total_dependencies']}")
+    print(graph)
+except Exception as e:
+    # Graceful degradation
+    print(f"Dependency analysis failed: {e}")
+    feature_order = list(range(len(features)))
+    state.feature_order = feature_order
+```
+
+---

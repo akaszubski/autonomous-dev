@@ -1,7 +1,7 @@
 # Batch Feature Processing
 
-**Last Updated**: 2025-12-06
-**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93)
+**Last Updated**: 2025-12-23
+**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157)
 **Command**: `/batch-implement`
 
 This document describes the batch feature processing system for sequential multi-feature development with intelligent state management, automatic context management, and per-feature git automation.
@@ -161,6 +161,287 @@ State tracked in `.claude/batch_state.json`:
 }
 ```
 
+---
+
+## Dependency Analysis (NEW in v3.44.0 - Issue #157)
+
+**Smart dependency ordering for intelligent feature sequencing**
+
+### Overview
+
+When processing multiple features with `/batch-implement`, features may have implicit dependencies (e.g., implementing auth before testing it, or modifying a shared file). The dependency analyzer automatically detects these relationships and reorders features to prevent conflicts.
+
+**How It Works**:
+
+1. **Analyze Phase**: Parse feature descriptions for dependency keywords
+2. **Detect Phase**: Build dependency graph from keyword analysis
+3. **Order Phase**: Use topological sort to find optimal execution order
+4. **Validate Phase**: Detect circular dependencies (prevent impossible orderings)
+5. **Execute Phase**: Process features in dependency-optimized order
+
+### Dependency Keywords
+
+The analyzer detects these keywords in feature descriptions:
+
+**Dependency Keywords**:
+- `requires` - Feature X requires Feature Y to be implemented first
+- `depends` - Feature X depends on Feature Y
+- `after` - Feature X should run after Feature Y
+- `before` - Feature X should run before Feature Y
+- `uses` - Feature X uses/modifies code from Feature Y
+- `needs` - Feature X needs Feature Y as a prerequisite
+
+**File References**:
+- `.py`, `.md`, `.json`, `.yaml`, `.yml`, `.sh`, `.ts`, `.js`, `.tsx`, `.jsx`
+
+### Example: Dependency Detection
+
+Given these features:
+
+```text
+Add JWT authentication module
+Add tests for JWT validation (requires JWT authentication)
+Add password reset endpoint (requires auth, uses email service)
+Add email service module
+```
+
+The analyzer detects:
+
+- Feature 1 (tests) depends on Feature 0 (auth)
+- Feature 2 (password reset) depends on Feature 0 (auth)
+- Feature 2 (password reset) depends on Feature 3 (email)
+
+### Optimal Ordering
+
+Using topological sort (Kahn's algorithm), features are reordered:
+
+```
+Original Order:        Optimized Order:
+1. Add JWT auth        1. Add JWT auth (no deps)
+2. Add tests (dep 1)   2. Add email service (no deps)
+3. Add password reset  3. Add tests (depends on JWT)
+4. Add email service   4. Add password reset (depends on JWT, email)
+```
+
+**Benefits**:
+- Tests run after implementation (can pass)
+- Features with dependencies run after prerequisites (can access needed code)
+- Files modified in correct order (avoid conflicts)
+
+### Circular Dependency Detection
+
+If the analyzer detects circular dependencies, it:
+
+1. **Reports the cycle** - Shows which features form the loop
+2. **Gracefully degrades** - Falls back to original order
+3. **Continues processing** - Batch doesn't fail, just uses original order
+
+**Example Circular**:
+```
+Feature A depends on Feature B
+Feature B depends on Feature A
+```
+
+**Result**: Uses original order, logs warning
+
+### ASCII Graph Visualization
+
+When dependency analysis completes, users see:
+
+```
+Dependency Analysis Complete:
+  Total dependencies detected: 3
+  Independent features: 1
+  Dependent features: 3
+
+Feature Dependency Graph
+========================
+
+Feature 0: Add JWT authentication
+  └─> [no dependencies]
+
+Feature 1: Add tests for JWT (requires JWT)
+  └─> [depends on] Feature 0: Add JWT authentication
+
+Feature 2: Add password reset (requires auth, uses email)
+  └─> [depends on] Feature 0: Add JWT authentication
+  └─> [depends on] Feature 3: Add email service
+
+Feature 3: Add email service
+  └─> [no dependencies]
+```
+
+### State Storage
+
+Dependency information is stored in batch state:
+
+```json
+{
+  "batch_id": "batch-20251223-features",
+  "feature_order": [0, 3, 1, 2],
+  "feature_dependencies": {
+    "0": [],
+    "1": [0],
+    "2": [0, 3],
+    "3": []
+  },
+  "analysis_metadata": {
+    "stats": {
+      "total_dependencies": 3,
+      "independent_features": 1,
+      "dependent_features": 3,
+      "max_depth": 2,
+      "total_features": 4
+    },
+    "analyzed_at": "2025-12-23T10:00:00Z"
+  }
+}
+```
+
+### Performance
+
+**Analysis Time**:
+- Typical (50 features): <100ms
+- Large (500 features): <500ms
+- Max (1000 features): <1000ms (timeout: 5 seconds)
+
+**Memory**: O(V + E) where V = features, E = dependencies
+- Linear in feature count, not exponential
+- Safe for 100+ feature batches
+
+**Algorithm**: Kahn's algorithm for topological sort
+- Time complexity: O(V + E)
+- Space complexity: O(V + E)
+
+### Security
+
+**Input Validation**:
+- Text sanitization (max 10,000 chars per feature)
+- No shell execution
+- Path traversal protection (CWE-22)
+- Command injection prevention (CWE-78)
+
+**Resource Limits**:
+- MAX_FEATURES: 1000
+- TIMEOUT_SECONDS: 5
+- Memory limits enforced
+
+### Graceful Degradation
+
+If dependency analysis fails:
+
+```python
+try:
+    deps = analyze_dependencies(features)
+    order = topological_sort(features, deps)
+except Exception as e:
+    print(f"Dependency analysis failed: {e}")
+    order = list(range(len(features)))  # Use original order
+    print("Continuing with original order...")
+```
+
+**Result**: Batch processing continues with original order, no data loss
+
+### Implementation Details
+
+**File**: `plugins/autonomous-dev/lib/feature_dependency_analyzer.py` (509 lines)
+
+**Key Functions**:
+- `analyze_dependencies(features)` - Main entry point
+- `topological_sort(features, deps)` - Reorder using Kahn's algorithm
+- `visualize_graph(features, deps)` - Generate ASCII visualization
+- `get_execution_order_stats(features, deps, order)` - Statistics
+
+See `docs/LIBRARIES.md` section 33 for complete API reference.
+
+### Integration with /batch-implement
+
+STEP 1.5 of `/batch-implement` now analyzes dependencies:
+
+```python
+# STEP 1.5: Analyze Dependencies and Optimize Order (Issue #157)
+
+from plugins.autonomous_dev.lib.feature_dependency_analyzer import (
+    analyze_dependencies,
+    topological_sort,
+    visualize_graph,
+    get_execution_order_stats
+)
+
+try:
+    deps = analyze_dependencies(features)
+    feature_order = topological_sort(features, deps)
+    stats = get_execution_order_stats(features, deps, feature_order)
+    graph = visualize_graph(features, deps)
+
+    state.feature_dependencies = deps
+    state.feature_order = feature_order
+    state.analysis_metadata = {"stats": stats}
+
+    print(f"Dependencies detected: {stats['total_dependencies']}")
+    print(graph)
+
+except Exception as e:
+    print(f"Dependency analysis failed: {e}")
+    feature_order = list(range(len(features)))
+    state.feature_order = feature_order
+    state.feature_dependencies = {i: [] for i in range(len(features))}
+```
+
+Then STEP 2+ uses `state.feature_order` for processing order.
+
+### Related Documentation
+
+- `docs/LIBRARIES.md` section 33 - Complete API reference
+- `plugins/autonomous-dev/commands/batch-implement.md` - STEP 1.5 implementation
+- `plugins/autonomous-dev/lib/batch_state_manager.py` - State storage
+
+### Examples
+
+**Example 1: Simple Linear Dependency**
+
+```text
+Implement database schema
+Add migrations for schema
+Run migrations in test
+```
+
+Detected dependencies:
+- Feature 1 depends on Feature 0
+- Feature 2 depends on Feature 1
+
+Optimized order: [0, 1, 2] (same as original - already correct)
+
+**Example 2: Multiple Independent Trees**
+
+```text
+Add JWT authentication
+Add tests for JWT
+Add password hashing utility
+Add hashing tests
+Add login endpoint
+```
+
+Detected dependencies:
+- Feature 1 (JWT tests) depends on Feature 0 (JWT)
+- Feature 3 (hashing tests) depends on Feature 2 (hashing)
+- Feature 4 (login) depends on Feature 0 (JWT) and Feature 2 (hashing)
+
+Optimized order: [0, 2, 1, 3, 4]
+
+**Example 3: Circular Dependencies (Graceful Degradation)**
+
+```text
+Feature A (requires B)
+Feature B (requires C)
+Feature C (requires A)
+```
+
+Detected: Circular dependency detected among [A, B, C]
+
+Result: Uses original order [0, 1, 2], continues processing
+
+---
 ## Git Automation (NEW in v3.36.0 - Issue #93)
 
 **Per-feature git commits during batch processing** - Each feature in `/batch-implement` workflow now automatically creates a git commit with conventional commit messages, optional push, and optional PR creation.
@@ -543,6 +824,7 @@ Automatic retry implements defensive security:
 - [commands/auto-implement.md](/plugins/autonomous-dev/commands/auto-implement.md) - Individual feature workflow
 - [lib/batch_state_manager.py](/plugins/autonomous-dev/lib/batch_state_manager.py) - State management implementation
 - [lib/github_issue_fetcher.py](/plugins/autonomous-dev/lib/github_issue_fetcher.py) - GitHub integration
+- [lib/feature_dependency_analyzer.py](/plugins/autonomous-dev/lib/feature_dependency_analyzer.py) - Dependency ordering (Issue #157)
 - [lib/failure_classifier.py](/plugins/autonomous-dev/lib/failure_classifier.py) - Error classification logic (Issue #89)
 - [lib/batch_retry_manager.py](/plugins/autonomous-dev/lib/batch_retry_manager.py) - Retry orchestration (Issue #89)
 - [lib/batch_retry_consent.py](/plugins/autonomous-dev/lib/batch_retry_consent.py) - User consent handling (Issue #89)

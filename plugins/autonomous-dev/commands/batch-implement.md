@@ -218,6 +218,69 @@ Starting batch processing...
 
 ---
 
+### STEP 1.5: Analyze Dependencies and Optimize Order (NEW - Issue #157)
+
+**Action**: Analyze feature dependencies and optimize execution order
+
+Import the analyzer:
+```python
+from plugins.autonomous_dev.lib.feature_dependency_analyzer import (
+    analyze_dependencies,
+    topological_sort,
+    visualize_graph,
+    get_execution_order_stats
+)
+```
+
+Analyze and optimize:
+```python
+try:
+    # Analyze dependencies
+    deps = analyze_dependencies(features)
+
+    # Get optimized order
+    feature_order = topological_sort(features, deps)
+
+    # Get statistics
+    stats = get_execution_order_stats(features, deps, feature_order)
+
+    # Generate visualization
+    graph = visualize_graph(features, deps)
+
+    # Update batch state with dependency info
+    state.feature_dependencies = deps
+    state.feature_order = feature_order
+    state.analysis_metadata = {
+        "stats": stats,
+        "analyzed_at": datetime.utcnow().isoformat(),
+        "total_dependencies": sum(len(d) for d in deps.values()),
+    }
+
+    # Display dependency graph to user
+    print("\nDependency Analysis Complete:")
+    print(f"  Total dependencies detected: {stats['total_dependencies']}")
+    print(f"  Independent features: {stats['independent_features']}")
+    print(f"  Dependent features: {stats['dependent_features']}")
+    print(f"\n{graph}")
+
+except Exception as e:
+    # Graceful degradation - use original order if analysis fails
+    print(f"\nDependency analysis failed: {e}")
+    print("Continuing with original order...")
+    feature_order = list(range(len(features)))
+    state.feature_order = feature_order
+    state.feature_dependencies = {i: [] for i in range(len(features))}
+    state.analysis_metadata = {"error": str(e), "fallback": "original_order"}
+```
+
+**Why this matters**:
+- Executes features in dependency order (tests after implementation, dependent features after prerequisites)
+- Reduces failures from missing dependencies
+- Provides visual feedback on feature relationships
+- Gracefully degrades to original order if analysis fails
+
+---
+
 ### STEP 2: Create Todo List
 
 **Action**: Use TodoWrite tool to create todo items for tracking
@@ -237,9 +300,13 @@ This gives visual progress tracking during batch execution.
 
 ### STEP 3: Process Each Feature
 
-**Action**: Loop through features sequentially
+**Action**: Loop through features in optimized order
 
-**For each feature (1 through N)**:
+**For each feature index in `state.feature_order`** (uses dependency-optimized order from STEP 1.5):
+
+Get the feature: `feature = features[feature_index]`
+
+**For each feature**:
 
 1. **Mark todo as in_progress** using TodoWrite
 
