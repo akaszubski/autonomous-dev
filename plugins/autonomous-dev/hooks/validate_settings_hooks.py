@@ -59,10 +59,14 @@ def extract_hook_files(settings: dict) -> list[str]:
 
 
 def validate_settings_hooks() -> tuple[bool, list[str]]:
-    """Validate all hooks in settings template exist.
+    """Validate all hooks in settings template exist AND are in install manifest.
+
+    IMPORTANT: Hooks must be both:
+    1. Present in source (plugins/autonomous-dev/hooks/)
+    2. Listed in install_manifest.json (so they get installed to ~/.claude/hooks/)
 
     Returns:
-        Tuple of (success, list of missing hooks)
+        Tuple of (success, list of error messages)
     """
     project_root = get_project_root()
     plugin_dir = project_root / "plugins" / "autonomous-dev"
@@ -77,21 +81,44 @@ def validate_settings_hooks() -> tuple[bool, list[str]]:
     except json.JSONDecodeError as e:
         return False, [f"Invalid JSON in settings template: {e}"]
 
+    # Load install manifest
+    manifest_path = plugin_dir / "config" / "install_manifest.json"
+    manifest_hooks = set()
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            manifest_hooks = {
+                Path(p).name
+                for p in manifest.get("components", {}).get("hooks", {}).get("files", [])
+            }
+        except json.JSONDecodeError:
+            pass  # Will be caught by other validation
+
     # Extract referenced hooks
     referenced_hooks = extract_hook_files(settings)
     if not referenced_hooks:
         return True, []  # No hooks referenced
 
-    # Check each hook exists
+    # Check each hook exists in source AND manifest
     hooks_dir = plugin_dir / "hooks"
-    missing = []
+    errors = []
 
     for hook_file in referenced_hooks:
         hook_path = hooks_dir / hook_file
-        if not hook_path.exists():
-            missing.append(hook_file)
 
-    return len(missing) == 0, missing
+        # Check 1: Exists in source
+        if not hook_path.exists():
+            errors.append(f"{hook_file}: Missing from source directory")
+            continue
+
+        # Check 2: Listed in manifest (so it gets installed)
+        if hook_file not in manifest_hooks:
+            errors.append(
+                f"{hook_file}: Exists in source but NOT in install_manifest.json! "
+                f"This hook won't be installed to ~/.claude/hooks/"
+            )
+
+    return len(errors) == 0, errors
 
 
 def main() -> int:
