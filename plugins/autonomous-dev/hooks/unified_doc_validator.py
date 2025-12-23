@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unified Documentation Validator Hook
 
-Consolidates 11 validation hooks into a single dispatcher:
+Consolidates 12 validation hooks into a single dispatcher:
 - validate_project_alignment.py
 - validate_claude_alignment.py
 - validate_documentation_alignment.py
@@ -13,6 +13,7 @@ Consolidates 11 validation hooks into a single dispatcher:
 - validate_commands.py
 - validate_hooks_documented.py
 - validate_command_frontmatter_flags.py
+- validate_manifest_doc_alignment.py (Issue #159)
 
 Usage:
     python unified_doc_validator.py
@@ -30,6 +31,7 @@ Environment Variables:
     VALIDATE_COMMANDS=false             - Disable command validation
     VALIDATE_HOOKS_DOCS=false           - Disable hooks documentation validation
     VALIDATE_COMMAND_FRONTMATTER=false  - Disable command frontmatter validation
+    VALIDATE_MANIFEST_DOC_ALIGNMENT=false - Disable manifest-doc alignment validation
 
 Exit Codes:
     0 = All validators passed or skipped
@@ -420,6 +422,32 @@ def validate_command_frontmatter_flags() -> bool:
             return True
 
 
+def validate_manifest_doc_alignment() -> bool:
+    """Validate manifest-documentation alignment (Issue #159).
+
+    Ensures CLAUDE.md and PROJECT.md component counts match install_manifest.json.
+    """
+    try:
+        from validate_manifest_doc_alignment import main
+        return main([]) == 0
+    except ImportError:
+        try:
+            lib_dir = get_lib_directory()
+            validator_path = lib_dir / "validate_manifest_doc_alignment.py"
+            if not validator_path.exists():
+                return True  # Skip if not installed
+
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, str(validator_path)],
+                capture_output=True,
+                timeout=30
+            )
+            return result.returncode == 0
+        except Exception:
+            return True  # Graceful degradation
+
+
 def main() -> int:
     """Main entry point for unified documentation validator.
 
@@ -487,6 +515,11 @@ def main() -> int:
         "Command Frontmatter Flags",
         "VALIDATE_COMMAND_FRONTMATTER",
         validate_command_frontmatter_flags
+    )
+    dispatcher.register(
+        "Manifest-Doc Alignment",
+        "VALIDATE_MANIFEST_DOC_ALIGNMENT",
+        validate_manifest_doc_alignment
     )
 
     # Run all validators

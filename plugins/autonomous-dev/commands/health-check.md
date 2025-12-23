@@ -79,14 +79,14 @@ Hooks: 12/12 executable
   validate_project_alignment.py . PASS
 
 Commands: 8/8 present
-  /advise ......................... PASS
-  /align ......................... PASS
-  /auto-implement ................ PASS
-  /batch-implement ............... PASS
-  /create-issue .................. PASS
-  /health-check .................. PASS
-  /setup ......................... PASS
-  /sync .......................... PASS
+  /advise ....................... PASS
+  /align ........................ PASS
+  /auto-implement ............... PASS
+  /batch-implement .............. PASS
+  /create-issue ................. PASS
+  /health-check ................. PASS
+  /setup ........................ PASS
+  /sync ......................... PASS
 
 Marketplace: N/A | Project: N/A | Status: UNKNOWN
 

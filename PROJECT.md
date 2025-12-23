@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-12-14
-**Version**: v3.41.0
+**Last Updated**: 2025-12-24
+**Version**: v3.44.0
 
 ---
 
@@ -124,15 +124,15 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - **Hooks = enforcement** (quality gates, always active, blocking)
 - **Agents = intelligence** (expert assistance, conditionally invoked, advisory)
 
-### Current Components (v3.41.0)
+### Current Components (v3.44.0)
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Agents | 8 | Specialized AI assistants (researcher, planner, implementer, etc.) |
+| Agents | 21 | Specialized AI assistants (8 pipeline + 13 utility) |
 | Skills | 28 | Progressive disclosure knowledge packages |
-| Commands | 7 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue) |
-| Hooks | 51 | Automation and enforcement |
-| Libraries | 35 | Python utilities for security, validation, automation |
+| Commands | 8 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue, /advise) |
+| Hooks | 60 | Automation and enforcement |
+| Libraries | 74 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
 
@@ -156,19 +156,23 @@ Git Operations (commit, push, PR)
 
 **Model Tiers:**
 - **Haiku** (8 agents): Fast pattern matching — researcher-local, reviewer, doc-master, commit-message-generator, alignment-validator, project-progress-tracker, sync-validator, pr-description-generator
-- **Sonnet** (11 agents): Balanced reasoning — researcher-web, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer
+- **Sonnet** (11 agents): Balanced reasoning — researcher, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer
 - **Opus** (2 agents): Deep analysis — security-auditor, advisor
+
+**Agent Categories** (21 total):
+- **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
+- **Utility** (13): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator
 
 ### Repository Structure
 
 ```
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
-│   ├── agents/                 # 8 AI agents
-│   ├── commands/               # 7 slash commands
-│   ├── hooks/                  # 51 automation hooks
+│   ├── agents/                 # 21 AI agents
+│   ├── commands/               # 8 slash commands
+│   ├── hooks/                  # 60 automation hooks
 │   ├── skills/                 # 28 skill packages
-│   ├── lib/                    # 35 Python libraries
+│   ├── lib/                    # 74 Python libraries
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
 ├── tests/                      # Test suite
@@ -195,7 +199,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does:**
 - Downloads all plugin components
-- Installs global infrastructure (~51 hooks, ~70 libs)
+- Installs global infrastructure (~60 hooks, ~74 libs)
 - Installs project components (commands, agents, config)
 - Non-blocking: Missing components don't block workflow
 

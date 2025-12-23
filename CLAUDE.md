@@ -1,9 +1,9 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-17
-**Last Validated**: 2025-12-17
+**Last Updated**: 2025-12-24
+**Last Validated**: 2025-12-24
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.43.0 (Issue #148 - Claude Code 2.0 compliance 98%)
+**Version**: v3.44.0 (Issue #159 - Manifest completeness audit)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -15,11 +15,11 @@
 |-----------|---------|-------|--------|
 | Skills | 1.0.0 | 28 | ✅ Compliant |
 | Commands | 1.0.0 | 8 | ✅ Compliant |
-| Agents | 1.0.0 | 8 | ✅ Compliant |
-| Hooks | 1.0.0 | 11 core | ✅ Compliant |
+| Agents | 1.0.0 | 21 | ✅ Compliant |
+| Hooks | 1.0.0 | 60 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2025-12-16 (Issue #148)
+**Last Compliance Check**: 2025-12-24 (Issue #159)
 
 ---
 
@@ -497,16 +497,16 @@ MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 
 ### Agents
 
-8 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+21 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Active Agents** (8 total):
-- **Pipeline**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master
-- **Utility**: issue-creator
+**Active Agents** (21 total):
+- **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
+- **Utility** (13): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator
 
 **Key Features**:
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
-- All 8 agents actively used in `/auto-implement` or `/create-issue` commands
+- 8 pipeline agents used in `/auto-implement`, 13 utility agents for specialized tasks
 
 ### Model Tier Strategy
 
