@@ -7062,3 +7062,349 @@ except Exception as e:
 ```
 
 ---
+
+## 51. genai_manifest_validator.py (474 lines, v3.44.0+ - Issue #160)
+
+**Purpose**: GenAI-powered manifest alignment validation using Claude Sonnet 4.5 with structured output.
+
+**Module**: plugins/autonomous-dev/lib/genai_manifest_validator.py
+
+**Problem Solved**:
+- Manual CLAUDE.md updates may create drift between documented component counts and actual manifest
+- Regex-only validation misses semantic inconsistencies and version conflicts
+- Need LLM reasoning to catch complex alignment issues
+
+**Solution**:
+- Uses Claude Sonnet 4.5 with structured JSON output for manifest validation
+- Validates manifest (plugin.json) against documentation (CLAUDE.md)
+- Detects count mismatches, version drift, missing components, inconsistent configurations
+- Returns None when API key absent (enables fallback to regex validator)
+- Supports both Anthropic and OpenRouter API keys for flexibility
+
+### Core Classes
+
+#### ManifestIssue
+Represents a single manifest alignment issue with severity level.
+
+#### IssueLevel
+Enum for validation issue severity levels with ERROR, WARNING, and INFO levels.
+
+#### ManifestValidationResult
+Complete validation result with component breakdown, counts, versions, and timestamp.
+
+#### GenAIManifestValidator
+Main validator class using Claude Sonnet 4.5 with structured output.
+
+### API Reference
+
+#### GenAIManifestValidator.validate()
+
+Main validation entry point.
+
+**Returns**: Optional[ManifestValidationResult]
+- ManifestValidationResult on successful validation
+- None if API key missing (graceful fallback)
+
+**Raises**:
+- json.JSONDecodeError - If plugin.json is malformed
+- FileNotFoundError - If plugin.json or CLAUDE.md not found
+- Exception - If API call fails (will be caught and logged)
+
+**Security**:
+- Path validation via security_utils (CWE-22, CWE-59)
+- Token budget enforcement (max 8K tokens)
+- API key never logged
+- Input sanitization
+
+### Validation Checks
+
+GenAI validator checks for:
+1. Count Mismatches: Documented vs actual component counts
+2. Version Drift: Documented versions vs manifest versions
+3. Missing Components: Components in manifest but not documented
+4. Undocumented Components: Components documented but not in manifest
+5. Configuration Inconsistencies: Settings conflicts between manifest and docs
+6. Dependency Issues: Component dependencies that cannot be satisfied
+
+### LLM Reasoning
+
+Uses Claude Sonnet 4.5 for semantic validation:
+- Understands natural language descriptions in CLAUDE.md
+- Detects logical inconsistencies (e.g., documented 8 agents but manifest shows 7)
+- Catches version mismatches across multiple files
+- Identifies scope creep (features documented but not implemented)
+- Validates architectural claims against actual implementation
+
+### API Support
+
+**Primary API**: Anthropic (ANTHROPIC_API_KEY)
+
+**Fallback API**: OpenRouter (OPENROUTER_API_KEY)
+
+### Security
+
+**Input Validation** (CWE-22, CWE-59):
+- Path validation via security_utils.validate_path()
+- Only allows project root and system temp directories
+- Symlink resolution and normalization
+
+**Token Budget**:
+- MAX_TOKENS = 8000
+- Enforced in prompt construction
+- Prevents runaway API costs
+
+**API Key Handling**:
+- Keys read from environment only
+- Never logged or exposed in output
+- Graceful degradation if missing
+
+**Data Handling**:
+- No sensitive data in audit logs
+- Results include only validation metadata
+- No raw file contents in output
+
+### Performance Characteristics
+
+- API Latency: 5-15 seconds (Anthropic/OpenRouter)
+- Local Processing: less than 100ms
+- Total Time: 5-15 seconds per validation
+- Token Usage: 2-4K tokens typical (within 8K budget)
+- Memory: less than 50MB
+
+### Error Handling
+
+**Graceful Degradation**:
+- API key missing: Returns None (signals fallback)
+- API call fails: Logs error, returns None
+- Invalid JSON: Raises JSONDecodeError (should be caught by hybrid validator)
+- File not found: Returns None (signals regex fallback)
+- Token budget exceeded: Truncates input gracefully
+
+### Test Coverage
+
+**Test File**: tests/unit/lib/test_genai_manifest_validator.py
+
+**Coverage Areas**:
+- API key detection (Anthropic, OpenRouter, missing)
+- Manifest loading and validation
+- CLAUDE.md parsing
+- Count mismatch detection
+- Version drift detection
+- Missing component detection
+- Prompt construction with token budget
+- LLM response parsing
+- Error handling (missing files, invalid JSON)
+- Security validations (path traversal, injection)
+- Graceful degradation
+
+**Target**: 85 percent coverage
+
+### Used By
+
+- hybrid_validator.py - Primary GenAI validator (tries first, falls back if no API key)
+- /health-check command - Optional GenAI validation if API key available
+- CI/CD validation - For GenAI-powered alignment checks
+
+### Related Issues
+
+- GitHub Issue #160 - GenAI manifest alignment validation
+- GitHub Issue #148 - Claude Code 2.0 compliance
+- GitHub Issue #146 - Tool least privilege enforcement
+
+### Related Components
+
+**Dependencies**:
+- security_utils.py - Path validation and audit logging
+- anthropic package (optional) - Anthropic API
+- openai package (optional) - OpenRouter API via OpenAI client
+
+**Used By**:
+- hybrid_validator.py - Orchestrator that wraps this validator
+- validate_documentation_parity.py - Complements parity validation
+
+### Fallback Mechanism
+
+GenAI validator is designed to fail gracefully. When API key is missing, it returns None which signals the hybrid validator to fall back to regex validation. This enables LLM-powered validation in environments with API keys while maintaining regex-based validation for users without them.
+
+---
+
+## 52. hybrid_validator.py (378 lines, v3.44.0+ - Issue #160)
+
+**Purpose**: Orchestrates GenAI and regex manifest validation with automatic fallback.
+
+**Module**: plugins/autonomous-dev/lib/hybrid_validator.py
+
+**Problem Solved**:
+- Users with API keys get LLM-powered validation (better accuracy)
+- Users without API keys get regex validation (still catches issues)
+- Need unified API for both approaches
+
+**Solution**:
+- Three validation modes: AUTO (default), GENAI_ONLY, REGEX_ONLY
+- AUTO mode tries GenAI first, falls back to regex if API key missing
+- Returns consistent HybridValidationReport format
+- Used by /health-check and CI/CD validation pipelines
+
+### Core Classes
+
+#### ValidationMode
+Enum for validation execution modes with AUTO, GENAI_ONLY, and REGEX_ONLY values.
+
+#### HybridValidationReport
+Extended validation report with hybrid metadata tracking which validator was used.
+
+#### HybridManifestValidator
+Main validator orchestrator with mode-specific behavior.
+
+### API Reference
+
+#### HybridManifestValidator.__init__()
+
+Initialize validator with mode selection.
+
+**Parameters**:
+- repo_root (Path): Repository root directory
+- mode (ValidationMode): Validation mode (default: AUTO)
+
+**Raises**:
+- ValueError - If repo_root invalid or outside allowed locations
+
+#### HybridManifestValidator.validate()
+
+Main validation entry point with mode-specific behavior.
+
+**Returns**: HybridValidationReport
+- Always returns a report (never None)
+- validator_used field indicates which backend was used
+
+**Raises**:
+- RuntimeError - Only in GENAI_ONLY mode if no API key
+- FileNotFoundError - If required files missing
+
+### Validation Modes
+
+#### AUTO Mode (Default)
+
+Strategy: LLM first, regex fallback
+
+1. Try GenAI: Attempt validation with Claude Sonnet 4.5
+2. Success Path: Return GenAI result (validator_used="genai")
+3. Fallback Path: If API key missing, use regex validation
+4. Final Result: Always returns HybridValidationReport
+
+Best For: Production environments where API key may be available
+
+#### GENAI_ONLY Mode
+
+Strategy: Strict LLM validation
+
+1. Check API Key: Verify ANTHROPIC_API_KEY or OPENROUTER_API_KEY
+2. Fail if Missing: Raise RuntimeError
+3. Validate: Use Claude Sonnet 4.5 validation
+
+Best For: CI/CD pipelines that require LLM-powered validation
+
+#### REGEX_ONLY Mode
+
+Strategy: Pattern-based validation
+
+1. Use Regex: Validate with pattern matching (no API call)
+2. Return Result: Always succeeds (validator_used="regex")
+
+Best For: Quick validation without API latency, offline environments
+
+### Validation Report
+
+All modes return HybridValidationReport with:
+- validator_used: "genai" or "regex"
+- version_issues: Version mismatches
+- count_issues: Count discrepancies
+- cross_reference_issues: Missing references
+- error_count: Number of errors
+- warning_count: Number of warnings
+- info_count: Number of info messages
+- is_valid: True if error_count equals zero
+
+### Security
+
+**Input Validation** (CWE-22, CWE-59):
+- Path validation via security_utils.validate_path()
+- Repository root must be within project boundaries
+- No path traversal allowed
+
+**API Key Handling**:
+- Keys read from environment only
+- Never exposed in output or logs
+- Missing key triggers graceful fallback (AUTO mode)
+
+**Data Flow**:
+- GenAI validator: Processes manifest and docs, returns issues
+- Regex validator: Pattern matching only, no LLM calls
+- Report: Contains only validation metadata, no sensitive data
+
+### Performance Characteristics
+
+**AUTO Mode**:
+- With API Key: 5-15 seconds (GenAI latency)
+- Without API Key: less than 1 second (regex fallback)
+- Typical: 1-3 seconds (regex)
+
+**GENAI_ONLY Mode**:
+- With API Key: 5-15 seconds
+- Without API Key: RuntimeError (fails immediately)
+
+**REGEX_ONLY Mode**:
+- Always: less than 1 second
+- Memory: less than 10MB
+
+### Error Handling
+
+**Graceful Degradation**:
+- AUTO mode: Missing API key -> Falls back to regex
+- GENAI_ONLY mode: Missing API key -> Raises RuntimeError
+- REGEX_ONLY mode: Always succeeds (worst case: minimal validation)
+- Invalid paths: Raises ValueError early (before validation)
+- Missing files: Returns report with errors (no exception)
+
+### Test Coverage
+
+**Test File**: tests/unit/lib/test_hybrid_validator.py
+
+**Coverage Areas**:
+- Mode selection (AUTO, GENAI_ONLY, REGEX_ONLY)
+- API key detection and fallback
+- GenAI validation integration
+- Regex validation fallback
+- Report generation and formatting
+- Error handling (missing files, invalid paths)
+- Graceful degradation
+- Security validations (path traversal)
+
+**Target**: 85 percent coverage
+
+### Used By
+
+- /health-check command - Manifest alignment validation
+- CI/CD validation pipelines - Automated alignment checks
+- genai_manifest_validator.py - Wrapped by this orchestrator
+- validate_documentation_parity.py - Complementary validation
+
+### Related Issues
+
+- GitHub Issue #160 - GenAI manifest alignment validation
+- GitHub Issue #148 - Claude Code 2.0 compliance
+- GitHub Issue #50 - /health-check command
+
+### Related Components
+
+**Dependencies**:
+- genai_manifest_validator.py - LLM-powered validation
+- validate_manifest_doc_alignment.py - Regex-based validation
+- validate_documentation_parity.py - Parity validation (shared models)
+- security_utils.py - Path validation
+
+**Used By**:
+- /health-check command
+- CI/CD validation scripts
+
+---

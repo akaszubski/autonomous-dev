@@ -2,6 +2,48 @@
 
 **Added**
 
+- **Issue #160: GenAI Manifest Alignment Validation**
+  - **Problem**: Manual CLAUDE.md updates can create drift between documented component counts and actual manifest. Regex-only validation misses semantic inconsistencies and version conflicts.
+  - **Solution**: Add GenAI-powered validation using Claude Sonnet 4.5 with structured output, with automatic fallback to regex validation for environments without API keys.
+  - **Features**:
+    - **GenAI Validator**: LLM-powered manifest alignment validation with structured JSON output
+    - **Hybrid Orchestrator**: Three validation modes (AUTO, GENAI_ONLY, REGEX_ONLY)
+    - **Graceful Fallback**: AUTO mode tries GenAI first, falls back to regex if API key missing
+    - **Multi-API Support**: Works with both Anthropic and OpenRouter APIs
+    - **Semantic Validation**: Detects logical inconsistencies beyond simple count mismatches
+    - **Token Budget**: 8K token limit with input truncation for cost control
+  - **Files Created**:
+    - plugins/autonomous-dev/lib/genai_manifest_validator.py (474 lines, v3.44.0+)
+    - plugins/autonomous-dev/lib/hybrid_validator.py (378 lines, v3.44.0+)
+    - tests/unit/lib/test_genai_manifest_validator.py (comprehensive test suite)
+    - tests/unit/lib/test_hybrid_validator.py (mode and fallback testing)
+  - **Validation Checks**:
+    - Count Mismatches: Documented vs actual component counts
+    - Version Drift: Documented versions vs manifest versions
+    - Missing Components: Components in manifest but not documented
+    - Undocumented Components: Components documented but not in manifest
+    - Configuration Inconsistencies: Settings conflicts between manifest and docs
+    - Dependency Issues: Component dependencies that cannot be satisfied
+  - **API Reference**:
+    - GenAIManifestValidator.validate(): Optional[ManifestValidationResult] - Returns None if API key missing
+    - HybridManifestValidator.validate(mode: ValidationMode): HybridValidationReport - Never returns None
+  - **Documentation Updated**:
+    - docs/LIBRARIES.md: Added sections 51 and 52 for genai_manifest_validator and hybrid_validator
+  - **Security**:
+    - Path validation via security_utils (CWE-22, CWE-59)
+    - API key never logged or exposed
+    - Token budget enforcement prevents runaway costs
+    - Input sanitization for manifest and CLAUDE.md parsing
+  - **Performance**:
+    - GenAI mode: 5-15 seconds (API latency)
+    - Regex fallback: less than 1 second
+    - Typical: 1-3 seconds (regex)
+    - Token usage: 2-4K tokens typical (within 8K budget)
+  - **Integration**:
+    - Used by /health-check command for optional GenAI validation
+    - Can be integrated into CI/CD validation pipelines
+    - Complements existing validate_documentation_parity.py
+
 - **Issue #157: Smart Dependency Ordering for /batch-implement**
   - **Problem**: Batch feature processing executes features in file order, which may cause failures when features have undeclared dependencies (e.g., testing a feature before implementing it, or modifying a file that another feature depends on).
   - **Solution**: Add intelligent dependency analyzer that extracts dependency information from feature descriptions, reorders features using topological sort (Kahn's algorithm), and provides visual dependency graphs.
