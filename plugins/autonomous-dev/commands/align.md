@@ -46,24 +46,18 @@ allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 
 **What it does**:
 
-### Phase 1: Quick Scan (Hybrid GenAI + Regex)
-Run GenAI-powered manifest alignment validation (falls back to regex if no API key):
+### Phase 1: Quick Scan (Regex + Claude Code)
+Run manifest alignment validation:
 
 ```bash
-python plugins/autonomous-dev/lib/genai_validate.py manifest-alignment
+python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
 ```
 
 **Validates**:
 - Count mismatches (agents, commands, hooks, skills) vs install_manifest.json
 - Version consistency (CLAUDE.md, PROJECT.md, manifest)
-- Semantic alignment (component descriptions match reality)
 
-**Fallback**: If `ANTHROPIC_API_KEY` not set, automatically uses regex validation.
-
-**Modes** (optional flags):
-- `--mode auto` (default): Try GenAI first, fallback to regex
-- `--mode genai-only`: Require GenAI validation (fails if no API key)
-- `--mode regex-only`: Skip GenAI, use regex only
+**Semantic validation**: Claude Code performs semantic analysis directly in the conversation (uses your Max subscription - no API key needed).
 
 ### Phase 2: Semantic Validation (GenAI)
 Run `alignment-analyzer` agent to check:
@@ -350,9 +344,8 @@ ELSE (default):
 ### Libraries Used
 
 **Default mode**:
-- `hybrid_validator.py` - GenAI manifest validation with regex fallback (Issue #160)
-- `alignment_fixer.py` - Quick count/reference scan (legacy, used as fallback)
-- `alignment-analyzer` agent - Semantic validation
+- `validate_manifest_doc_alignment.py` - Quick count/reference scan
+- `alignment-analyzer` agent - Semantic validation (via Claude Code)
 
 **--docs mode**:
 - `alignment_fixer.py` - Count validation

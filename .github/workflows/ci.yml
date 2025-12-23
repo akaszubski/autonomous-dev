@@ -42,18 +42,10 @@ jobs:
           echo "Running smoke tests (fast sanity check)..."
           python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts="
 
-      - name: Validate manifest-doc alignment (GenAI + regex fallback)
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Validate manifest-doc alignment
         run: |
           echo "Validating documentation matches install_manifest.json..."
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            echo "Using GenAI validation (API key available)"
-            python -c "from plugins.autonomous_dev.lib.hybrid_validator import validate_manifest_alignment; import sys; result = validate_manifest_alignment('.'); sys.exit(result.get_exit_code())"
-          else
-            echo "Using regex validation (no API key)"
-            python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
-          fi
+          python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
 
   # Stage 2: Full test suite (only if smoke passes)
   test:
