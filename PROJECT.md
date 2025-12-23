@@ -132,7 +132,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 | Skills | 28 | Progressive disclosure knowledge packages |
 | Commands | 8 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue, /advise) |
 | Hooks | 60 | Automation and enforcement |
-| Libraries | 74 | Python utilities for security, validation, automation |
+| Libraries | 75 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
 
@@ -172,7 +172,7 @@ autonomous-dev/
 │   ├── commands/               # 8 slash commands
 │   ├── hooks/                  # 60 automation hooks
 │   ├── skills/                 # 28 skill packages
-│   ├── lib/                    # 74 Python libraries
+│   ├── lib/                    # 75 Python libraries
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
 ├── tests/                      # Test suite
@@ -199,7 +199,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does:**
 - Downloads all plugin components
-- Installs global infrastructure (~60 hooks, ~74 libs)
+- Installs global infrastructure (~60 hooks, ~75 libs)
 - Installs project components (commands, agents, config)
 - Non-blocking: Missing components don't block workflow
 

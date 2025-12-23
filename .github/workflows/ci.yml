@@ -42,6 +42,11 @@ jobs:
           echo "Running smoke tests (fast sanity check)..."
           python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts="
 
+      - name: Validate manifest-doc alignment
+        run: |
+          echo "Validating documentation matches install_manifest.json..."
+          python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+
   # Stage 2: Full test suite (only if smoke passes)
   test:
     name: Full Test Suite
