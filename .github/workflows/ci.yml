@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pyyaml
+          pip install pytest pyyaml anthropic
 
       - name: Validate test categorization
         run: |
@@ -42,10 +42,18 @@ jobs:
           echo "Running smoke tests (fast sanity check)..."
           python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts="
 
-      - name: Validate manifest-doc alignment
+      - name: Validate manifest-doc alignment (GenAI + regex fallback)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "Validating documentation matches install_manifest.json..."
-          python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "Using GenAI validation (API key available)"
+            python -c "from plugins.autonomous_dev.lib.hybrid_validator import validate_manifest_alignment; import sys; result = validate_manifest_alignment('.'); sys.exit(result.get_exit_code())"
+          else
+            echo "Using regex validation (no API key)"
+            python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+          fi
 
   # Stage 2: Full test suite (only if smoke passes)
   test:

@@ -2,7 +2,7 @@
 name: align
 description: "Unified alignment command (--project, --docs, --retrofit)"
 argument_hint: "Mode flags: --project (PROJECT.md conflicts), --docs (doc drift), --retrofit (brownfield) [--dry-run] [--auto]"
-version: 3.0.0
+version: 3.1.0
 category: core
 tools: [Bash, Read, Write, Grep, Edit, Task]
 allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
@@ -46,11 +46,24 @@ allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 
 **What it does**:
 
-### Phase 1: Quick Scan (Python)
-Run `alignment_fixer.py` for fast detection:
-- Count mismatches (agents, commands, hooks, skills)
-- Dead command references
-- Obvious drift
+### Phase 1: Quick Scan (Hybrid GenAI + Regex)
+Run GenAI-powered manifest alignment validation (falls back to regex if no API key):
+
+```bash
+python plugins/autonomous-dev/lib/genai_validate.py manifest-alignment
+```
+
+**Validates**:
+- Count mismatches (agents, commands, hooks, skills) vs install_manifest.json
+- Version consistency (CLAUDE.md, PROJECT.md, manifest)
+- Semantic alignment (component descriptions match reality)
+
+**Fallback**: If `ANTHROPIC_API_KEY` not set, automatically uses regex validation.
+
+**Modes** (optional flags):
+- `--mode auto` (default): Try GenAI first, fallback to regex
+- `--mode genai-only`: Require GenAI validation (fails if no API key)
+- `--mode regex-only`: Skip GenAI, use regex only
 
 ### Phase 2: Semantic Validation (GenAI)
 Run `alignment-analyzer` agent to check:
@@ -337,7 +350,8 @@ ELSE (default):
 ### Libraries Used
 
 **Default mode**:
-- `alignment_fixer.py` - Quick count/reference scan
+- `hybrid_validator.py` - GenAI manifest validation with regex fallback (Issue #160)
+- `alignment_fixer.py` - Quick count/reference scan (legacy, used as fallback)
 - `alignment-analyzer` agent - Semantic validation
 
 **--docs mode**:

@@ -2,6 +2,23 @@
 """
 Manifest-Documentation Alignment Validator.
 
+DEPRECATED: This regex-based validator is deprecated as of v3.44.0.
+Use hybrid_validator.py instead, which provides GenAI-powered semantic
+validation with automatic fallback to regex if no API key is available.
+
+Migration:
+    # Old (deprecated):
+    from validate_manifest_doc_alignment import validate_alignment
+    result = validate_alignment(manifest_path)
+
+    # New (recommended):
+    from hybrid_validator import validate_manifest_alignment
+    report = validate_manifest_alignment(repo_root)
+
+Removal planned: v3.45.0
+
+---
+
 Validates that CLAUDE.md, PROJECT.md, and health-check.py component counts
 match install_manifest.json (the single source of truth).
 
@@ -13,14 +30,25 @@ Usage:
     python validate_manifest_doc_alignment.py --manifest path/to/manifest.json
 
 Issue #159: Prevent documentation drift after manifest completeness audit
+Issue #160: GenAI-powered validation replaces regex-based approach
 """
 
 import argparse
 import json
 import re
 import sys
+import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+
+# Emit deprecation warning on module import
+warnings.warn(
+    "validate_manifest_doc_alignment is deprecated as of v3.44.0. "
+    "Use hybrid_validator.validate_manifest_alignment() instead. "
+    "This module will be removed in v3.45.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class DocumentationDriftError(Exception):

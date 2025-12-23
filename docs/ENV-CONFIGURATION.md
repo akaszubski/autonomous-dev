@@ -54,8 +54,26 @@ ANTHROPIC_API_KEY=sk-ant-your_key_here
 - `GENAI_SECURITY_SCAN` - AI-powered security scanning
 - `GENAI_TEST_GENERATION` - Smart test case generation
 - `GENAI_DOC_AUTOFIX` - Automatic documentation fixes
+- `/align` - GenAI-powered manifest alignment validation (Issue #160)
+- CI Pipeline - Semantic validation in GitHub Actions
 
-**Note**: Optional. Features gracefully degrade without it.
+**Note**: Optional. Features gracefully degrade to regex validation without it.
+
+#### CI/CD Integration (GitHub Actions)
+
+To enable GenAI validation in CI:
+
+1. Go to repository **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Name: `ANTHROPIC_API_KEY`
+4. Value: Your Anthropic API key (sk-ant-...)
+5. Click **Add secret**
+
+**What happens**:
+- With secret: CI uses GenAI for semantic validation (~15 seconds)
+- Without secret: CI falls back to regex validation (~1 second)
+
+**Security**: The key is never logged or exposed in CI output.
 
 ---
 
