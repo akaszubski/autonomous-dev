@@ -144,12 +144,13 @@ class TestManifestCommandCount:
         """Extract command file paths from manifest."""
         return manifest_data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_manifest_has_7_commands(self, command_files):
-        """Test that manifest lists exactly 7 command files.
+    def test_manifest_has_8_commands(self, command_files):
+        """Test that manifest lists exactly 8 command files.
 
-        EXPECTATION: Exactly 7 command paths in manifest
+        EXPECTATION: Exactly 8 command paths in manifest
 
         Active commands (current state):
+        * advise.md (critical analysis - GitHub #158)
         * align.md (unified)
         * auto-implement.md
         * batch-implement.md
@@ -158,17 +159,18 @@ class TestManifestCommandCount:
         * setup.md
         * sync.md
         """
-        assert len(command_files) == 7, (
-            f"Expected 7 command files in manifest, found {len(command_files)}\n"
+        assert len(command_files) == 8, (
+            f"Expected 8 command files in manifest, found {len(command_files)}\n"
             f"Actual files: {command_files}\n"
-            "Expected 7 active commands:\n"
-            "  1. align.md (unified)\n"
-            "  2. auto-implement.md\n"
-            "  3. batch-implement.md\n"
-            "  4. create-issue.md\n"
-            "  5. health-check.md\n"
-            "  6. setup.md\n"
-            "  7. sync.md\n"
+            "Expected 8 active commands:\n"
+            "  1. advise.md (critical analysis - GitHub #158)\n"
+            "  2. align.md (unified)\n"
+            "  3. auto-implement.md\n"
+            "  4. batch-implement.md\n"
+            "  5. create-issue.md\n"
+            "  6. health-check.md\n"
+            "  7. setup.md\n"
+            "  8. sync.md\n"
         )
 
     def test_manifest_command_paths_format(self, command_files):

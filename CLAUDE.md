@@ -14,7 +14,7 @@
 | Component | Version | Count | Status |
 |-----------|---------|-------|--------|
 | Skills | 1.0.0 | 28 | ✅ Compliant |
-| Commands | 1.0.0 | 7 | ✅ Compliant |
+| Commands | 1.0.0 | 8 | ✅ Compliant |
 | Agents | 1.0.0 | 8 | ✅ Compliant |
 | Hooks | 1.0.0 | 11 core | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
@@ -53,6 +53,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **Commands**:
 
+- `/advise` - Critical thinking analysis (validates alignment, challenges assumptions, identifies risks) - GitHub #158
 - `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
 - `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
 - `/create-issue` - Create GitHub issue with research + blocking duplicate check + all sections (8-12 min default, 3-5 min --quick) - GitHub #122

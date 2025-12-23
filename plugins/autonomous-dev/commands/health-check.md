@@ -38,8 +38,8 @@ Validates 3 critical component types:
    - unified_pre_tool.py, unified_prompt_validator.py, unified_session_tracker.py
    - validate_claude_alignment.py, validate_command_file_ops.py, validate_project_alignment.py
 
-3. **Commands** (7 active commands)
-   - Core: auto-implement, batch-implement, align, setup, sync, health-check, create-issue
+3. **Commands** (8 active commands)
+   - Core: advise, auto-implement, batch-implement, align, setup, sync, health-check, create-issue
 
 4. **Marketplace Version** (optional)
    - Detects version differences between marketplace and project plugin
@@ -78,7 +78,8 @@ Hooks: 12/12 executable
   validate_command_file_ops.py .. PASS
   validate_project_alignment.py . PASS
 
-Commands: 7/7 present
+Commands: 8/8 present
+  /advise ......................... PASS
   /align ......................... PASS
   /auto-implement ................ PASS
   /batch-implement ............... PASS
@@ -110,7 +111,7 @@ Agents: 7/8 loaded
   implementer ................. FAIL (file missing: implementer.md)
   [... other agents ...]
 
-Commands: 6/7 present
+Commands: 7/8 present
   /sync ....................... FAIL (file missing)
   [... other commands ...]
 

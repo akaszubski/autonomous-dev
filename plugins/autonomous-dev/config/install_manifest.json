@@ -20,6 +20,7 @@
     "commands": {
       "target": ".claude/commands",
       "files": [
+        "plugins/autonomous-dev/commands/advise.md",
         "plugins/autonomous-dev/commands/align.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
         "plugins/autonomous-dev/commands/batch-implement.md",
