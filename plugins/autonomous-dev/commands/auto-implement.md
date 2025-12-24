@@ -1107,6 +1107,215 @@ Let user decide. But recommend full pipeline.
 
 ---
 
+## Batch Mode Behavior (For /batch-implement)
+
+When invoked from `/batch-implement`, this command runs in **batch mode** which modifies error handling to be non-blocking.
+
+### Detecting Batch Mode
+
+Check if batch processing is active:
+
+```python
+import os
+from pathlib import Path
+
+def is_batch_mode():
+    """Check if running inside /batch-implement workflow."""
+    # Check 1: Batch state file exists and is in_progress
+    batch_state = Path(".claude/batch_state.json")
+    if batch_state.exists():
+        import json
+        try:
+            state = json.loads(batch_state.read_text())
+            if state.get("status") == "in_progress":
+                return True
+        except:
+            pass
+
+    # Check 2: Environment variable
+    if os.environ.get("BATCH_MODE") == "true":
+        return True
+
+    return False
+```
+
+### Batch Mode Modifications
+
+| Checkpoint | Interactive Mode | Batch Mode |
+|------------|------------------|------------|
+| **STEP 0: Alignment** | BLOCK and ask user | WARN and continue (log to batch state) |
+| **STEP 1.1: Web research fail** | STOP and wait | Retry once, then continue without web research |
+| **STEP 4.2: Reviewer issues** | ASK "Fix now?" | Auto-skip (defer to next iteration) |
+| **STEP 4.4: Agent count < 8** | STOP | Record missing agents, continue |
+| **STEP 4.5: Regression fail** | STOP | Record failure, mark feature as failed, continue to next |
+| **Git operations** | Prompt for consent | Use environment defaults (AUTO_GIT_*) |
+| **Issue close** | Prompt for consent | Auto-close if issue number found |
+
+### Non-Blocking Error Handling
+
+In batch mode, errors are **recorded but not blocking**:
+
+```python
+def handle_batch_error(step: str, error: str, severity: str = "warning"):
+    """Record error in batch state instead of blocking."""
+    if not is_batch_mode():
+        # Interactive mode: raise/stop as usual
+        raise Exception(f"{step}: {error}")
+
+    # Batch mode: record and continue
+    import json
+    from pathlib import Path
+    from datetime import datetime
+
+    batch_state_path = Path(".claude/batch_state.json")
+    if batch_state_path.exists():
+        state = json.loads(batch_state_path.read_text())
+
+        # Add error to current feature's record
+        current_idx = state.get("current_index", 0)
+        if "feature_errors" not in state:
+            state["feature_errors"] = {}
+        if str(current_idx) not in state["feature_errors"]:
+            state["feature_errors"][str(current_idx)] = []
+
+        state["feature_errors"][str(current_idx)].append({
+            "step": step,
+            "error": error,
+            "severity": severity,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        })
+
+        batch_state_path.write_text(json.dumps(state, indent=2))
+
+    # Log warning but continue
+    print(f"⚠️  [{step}] {error} (continuing in batch mode)")
+```
+
+### Retry Logic for Transient Failures
+
+Batch mode automatically retries transient failures:
+
+```python
+def batch_retry_step(step_func, step_name: str, max_retries: int = 2):
+    """Retry step with exponential backoff in batch mode."""
+    import time
+
+    for attempt in range(max_retries + 1):
+        try:
+            return step_func()
+        except Exception as e:
+            error_str = str(e).lower()
+
+            # Transient errors: retry
+            transient_patterns = ["timeout", "connection", "rate limit", "503", "502"]
+            is_transient = any(p in error_str for p in transient_patterns)
+
+            if is_transient and attempt < max_retries:
+                wait_time = 2 ** attempt  # 1, 2, 4 seconds
+                print(f"⚠️  [{step_name}] Transient error, retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+
+            # Permanent error or max retries: handle
+            if is_batch_mode():
+                handle_batch_error(step_name, str(e), "error")
+                return None  # Continue to next step
+            else:
+                raise
+```
+
+### Modified Checkpoints for Batch Mode
+
+#### STEP 0: Alignment (Batch Mode)
+
+```python
+if not is_aligned:
+    if is_batch_mode():
+        # Don't block - record warning and proceed
+        handle_batch_error("STEP 0: Alignment",
+            f"Feature may not align with PROJECT.md: {reason}",
+            severity="warning")
+        print("⚠️  Proceeding despite alignment warning (batch mode)")
+        # Continue to STEP 1
+    else:
+        # Interactive mode: block as usual
+        print("❌ BLOCKED: Feature not aligned with PROJECT.md")
+        return
+```
+
+#### STEP 1.1: Web Research (Batch Mode)
+
+```python
+if web_research_tool_uses == 0:
+    if is_batch_mode():
+        # Retry once
+        print("⚠️  Web research failed, retrying...")
+        retry_result = invoke_web_research()
+
+        if retry_result.tool_uses == 0:
+            # Still failed - continue without web research
+            handle_batch_error("STEP 1.1: Web Research",
+                "Web research unavailable, using local research only",
+                severity="warning")
+            # Continue to STEP 1.2 with local-only context
+        else:
+            # Retry succeeded
+            web_research_results = retry_result
+    else:
+        # Interactive mode: stop as usual
+        print("❌ Web research failed: 0 WebSearch calls made")
+        return
+```
+
+#### STEP 4.2: Reviewer Issues (Batch Mode)
+
+```python
+if reviewer_requested_changes:
+    if is_batch_mode():
+        # Auto-defer changes (don't block batch)
+        handle_batch_error("STEP 4.2: Review",
+            f"Reviewer suggested improvements: {issues}. Deferred.",
+            severity="info")
+        print("ℹ️  Reviewer issues deferred (batch mode)")
+        # Continue to next step
+    else:
+        # Interactive mode: ask user
+        response = ask_user("Fix now? (yes/no/later)")
+        # ... handle response
+```
+
+#### STEP 4.5: Regression Test (Batch Mode)
+
+```python
+if regression_tests_failed:
+    if is_batch_mode():
+        # Mark feature as failed, continue to next feature
+        handle_batch_error("STEP 4.5: Regression",
+            f"Regression tests failed: {test_output}",
+            severity="error")
+        # Update batch state to mark this feature as failed
+        mark_feature_failed(current_index, "Regression tests failed")
+        print("❌ Feature marked as failed (regression). Continuing to next feature.")
+        return  # Exit this feature, batch will continue
+    else:
+        # Interactive mode: stop and fix
+        print("❌ Regression tests failed. Fix before continuing.")
+        return
+```
+
+### Summary: Batch Mode Guarantees
+
+1. **Never blocks on prompts** - Uses environment defaults or auto-skips
+2. **Never stops batch on soft errors** - Records and continues
+3. **Retries transient failures** - Network issues, timeouts, rate limits
+4. **Marks failures properly** - Failed features recorded in batch_state.json
+5. **Full audit trail** - All errors logged with timestamps
+6. **Feature isolation** - One failed feature doesn't stop others
+
+This enables `/batch-implement` to run 50+ features unattended overnight.
+
+---
+
 ## Troubleshooting
 
 **If fewer than 8 agents ran**:

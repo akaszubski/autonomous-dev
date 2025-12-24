@@ -426,26 +426,35 @@ def validate_manifest_doc_alignment() -> bool:
     """Validate manifest-documentation alignment (Issue #159).
 
     Ensures CLAUDE.md and PROJECT.md component counts match install_manifest.json.
+
+    CRITICAL: This validator fails LOUDLY. No graceful degradation.
+    If it can't run, it returns False (blocks commit).
     """
     try:
         from validate_manifest_doc_alignment import main
         return main([]) == 0
     except ImportError:
-        try:
-            lib_dir = get_lib_directory()
-            validator_path = lib_dir / "validate_manifest_doc_alignment.py"
-            if not validator_path.exists():
-                return True  # Skip if not installed
+        lib_dir = get_lib_directory()
+        validator_path = lib_dir / "validate_manifest_doc_alignment.py"
+        if not validator_path.exists():
+            # FAIL LOUD: If validator is missing, that's a problem
+            print(f"ERROR: Validator not found at {validator_path}")
+            return False
 
-            import subprocess
-            result = subprocess.run(
-                [sys.executable, str(validator_path)],
-                capture_output=True,
-                timeout=30
-            )
-            return result.returncode == 0
-        except Exception:
-            return True  # Graceful degradation
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(validator_path)],
+            capture_output=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            print(result.stdout.decode() if result.stdout else "")
+            print(result.stderr.decode() if result.stderr else "")
+        return result.returncode == 0
+    except Exception as e:
+        # FAIL LOUD: Any error is a validation failure
+        print(f"ERROR: Manifest-doc alignment validation failed: {e}")
+        return False
 
 
 def main() -> int:

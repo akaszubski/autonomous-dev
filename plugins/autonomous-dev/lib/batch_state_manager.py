@@ -265,6 +265,9 @@ class BatchState:
     feature_order: List[int] = field(default_factory=list)  # Issue #157: Optimized execution order
     feature_dependencies: Dict[int, List[int]] = field(default_factory=dict)  # Issue #157: Dependency graph
     analysis_metadata: Dict[str, Any] = field(default_factory=dict)  # Issue #157: Analysis info (stats, timing, etc.)
+    # Compaction-resilience: Workflow methodology survives context summarization
+    workflow_mode: str = "auto-implement"  # "auto-implement" or "direct" - tells Claude HOW to process features
+    workflow_reminder: str = "Use /auto-implement for each feature. Do NOT implement directly."  # Reinjects methodology after compaction
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -668,6 +671,12 @@ def load_batch_state(state_file: Path | str) -> BatchState:
             else:
                 # JSON converts integer keys to strings, convert back to int
                 data['git_operations'] = {int(k): v for k, v in data['git_operations'].items()}
+
+            # Compaction-resilience: workflow_mode and workflow_reminder (for backward compatibility)
+            if 'workflow_mode' not in data:
+                data['workflow_mode'] = 'auto-implement'
+            if 'workflow_reminder' not in data:
+                data['workflow_reminder'] = 'Use /auto-implement for each feature. Do NOT implement directly.'
 
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)

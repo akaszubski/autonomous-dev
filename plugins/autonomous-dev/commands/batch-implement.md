@@ -575,6 +575,7 @@ Batch processing uses a compaction-resilient design that survives Claude Code's 
 3. **Auto-compaction safe**: When Claude Code summarizes context, processing continues
 4. **Each feature bootstraps fresh**: Reads issue from GitHub, reads codebase, implements
 5. **Git commits preserve work**: Every completed feature is committed before moving on
+6. **SessionStart hook**: Re-injects workflow methodology after compaction (NEW)
 
 ### Why This Works
 
@@ -587,10 +588,44 @@ Each `/auto-implement` is self-contained:
 
 The conversation context is just a working buffer - all real state is externalized.
 
+### Compaction Recovery (SessionStart Hook)
+
+When Claude Code auto-compacts context (at 64-75% capacity), it may lose the instruction to use `/auto-implement` for each feature. The **SessionStart hook with `"compact"` matcher** automatically re-injects the workflow methodology:
+
+```bash
+# Hook file: plugins/autonomous-dev/hooks/SessionStart-batch-recovery.sh
+# Fires AFTER compaction completes
+# Re-injects: "Use /auto-implement for each feature"
+```
+
+**What survives compaction**:
+- ✅ Completed git commits
+- ✅ batch_state.json (externalized)
+- ✅ File changes
+- ✅ Workflow methodology (via SessionStart hook)
+
+**What would be lost without the hook**:
+- ❌ "Use /auto-implement" instruction
+- ❌ Procedural context
+- ❌ Pipeline requirements
+
+The hook reads `batch_state.json` and displays:
+```
+**BATCH PROCESSING RESUMED AFTER COMPACTION**
+
+Batch ID: batch-20251223-...
+Progress: Feature 42 of 81
+
+CRITICAL WORKFLOW REQUIREMENT:
+- Use /auto-implement for EACH remaining feature
+- NEVER implement directly
+```
+
 ### Benefits
 
 - **Truly unattended**: No manual `/clear` + resume cycles needed
 - **Unlimited batch sizes**: 50+ features run continuously
+- **Methodology preserved**: SessionStart hook survives compaction
 - **Crash recovery**: `--resume` only needed for actual crashes, not context limits
 - **Production tested**: Externalized state proven reliable
 

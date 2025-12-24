@@ -106,6 +106,15 @@ tmp_test/
 tmp/
 temp/
 *_tmp/
+test_venv/
+.claude-plugin/
+
+# Session logs (all of them)
+docs/sessions/
+
+# Issue-specific documentation (temporary working files)
+docs/ISSUE-*.md
+DOCUMENTATION_*.md
 
 # Plugin installation (installed via /plugin install, not source code)
 # Source of truth: plugins/autonomous-dev/ (commit this)
