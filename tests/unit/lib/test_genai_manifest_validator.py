@@ -472,9 +472,8 @@ class TestRateLimitAndTimeoutHandling:
         mock_client = MagicMock()
         mock_anthropic.return_value = mock_client
 
-        # Simulate rate limit error
-        import anthropic
-        mock_client.messages.create.side_effect = anthropic.RateLimitError("Rate limit exceeded")
+        # Simulate rate limit error (use generic Exception since anthropic errors require response/body)
+        mock_client.messages.create.side_effect = Exception("Rate limit exceeded")
 
         validator = GenAIManifestValidator(temp_repo)
         result = validator.validate()
