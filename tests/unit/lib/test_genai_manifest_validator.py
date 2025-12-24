@@ -769,3 +769,181 @@ class TestEdgeCases:
             validator = GenAIManifestValidator(repo_root)
             # Should initialize without error
             assert validator is not None
+
+
+class TestOpenRouterIntegration:
+    """Test OpenRouter integration for GenAI validation."""
+
+    @pytest.fixture
+    def temp_repo(self, tmp_path):
+        """Create temporary repository with manifest."""
+        repo_root = tmp_path / "test_repo"
+        repo_root.mkdir()
+
+        plugin_dir = repo_root / "plugins" / "autonomous-dev"
+        plugin_dir.mkdir(parents=True)
+
+        manifest = {
+            "name": "autonomous-dev",
+            "version": "3.44.0",
+            "agents": 8,
+            "skills": 28,
+        }
+        (plugin_dir / "plugin.json").write_text(json.dumps(manifest, indent=2))
+        (repo_root / "CLAUDE.md").write_text("# Claude Code\n**Version**: v3.44.0\n")
+
+        return repo_root
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-or-test123"}, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_initialization(self, mock_openai, temp_repo):
+        """Test validator initializes with OpenRouter API key.
+
+        REQUIREMENT: Support OpenRouter as alternative to Anthropic.
+        Expected: Validator uses OpenRouter client when OPENROUTER_API_KEY set.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        validator = GenAIManifestValidator(temp_repo)
+
+        assert validator.has_api_key is True
+        assert validator.client_type == "openrouter"
+        mock_openai.assert_called_once_with(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-test123",
+        )
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-or-test123"}, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_uses_default_model(self, mock_openai, temp_repo):
+        """Test OpenRouter uses cheap default model.
+
+        REQUIREMENT: Default to Gemini Flash for cost efficiency.
+        Expected: Model set to google/gemini-2.0-flash-exp.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        validator = GenAIManifestValidator(temp_repo)
+
+        assert validator.model == "google/gemini-2.0-flash-exp"
+
+    @patch.dict(os.environ, {
+        "OPENROUTER_API_KEY": "sk-or-test123",
+        "OPENROUTER_MODEL": "anthropic/claude-3-haiku"
+    }, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_model_override(self, mock_openai, temp_repo):
+        """Test OpenRouter model can be overridden via env var.
+
+        REQUIREMENT: Allow model selection via OPENROUTER_MODEL.
+        Expected: Uses specified model instead of default.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        validator = GenAIManifestValidator(temp_repo)
+
+        assert validator.model == "anthropic/claude-3-haiku"
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-or-test123"}, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_validation_success(self, mock_openai, temp_repo):
+        """Test successful validation via OpenRouter.
+
+        REQUIREMENT: Complete validation flow with OpenRouter.
+        Expected: Returns valid ManifestValidationResult.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        # Mock OpenRouter response (OpenAI-compatible format)
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps({
+            "is_aligned": True,
+            "issues": [],
+            "summary": "All components aligned"
+        })
+        mock_client.chat.completions.create.return_value = mock_response
+
+        validator = GenAIManifestValidator(temp_repo)
+        result = validator.validate()
+
+        assert result is not None
+        assert result.is_valid is True
+        assert len(result.issues) == 0
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-or-test123"}, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_detects_mismatches(self, mock_openai, temp_repo):
+        """Test OpenRouter detects component mismatches.
+
+        REQUIREMENT: GenAI validation detects issues via OpenRouter.
+        Expected: Returns issues when counts don't match.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps({
+            "is_aligned": False,
+            "issues": [
+                {
+                    "component": "agents",
+                    "level": "ERROR",
+                    "message": "Agent count mismatch",
+                    "details": "Manifest: 8, CLAUDE.md: 10",
+                    "location": "CLAUDE.md:15"
+                }
+            ],
+            "summary": "1 component mismatch found"
+        })
+        mock_client.chat.completions.create.return_value = mock_response
+
+        validator = GenAIManifestValidator(temp_repo)
+        result = validator.validate()
+
+        assert result is not None
+        assert result.is_valid is False
+        assert len(result.issues) == 1
+        assert result.issues[0].component == "agents"
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-or-test123"}, clear=True)
+    @patch("openai.OpenAI")
+    def test_openrouter_api_error_returns_none(self, mock_openai, temp_repo):
+        """Test OpenRouter API errors return None for fallback.
+
+        REQUIREMENT: Graceful degradation on API errors.
+        Expected: Returns None (not exception) for regex fallback.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        # Simulate API error
+        mock_client.chat.completions.create.side_effect = Exception("OpenRouter API error")
+
+        validator = GenAIManifestValidator(temp_repo)
+        result = validator.validate()
+
+        assert result is None
+
+    @patch.dict(os.environ, {
+        "ANTHROPIC_API_KEY": "sk-ant-test123",
+        "OPENROUTER_API_KEY": "sk-or-test123"
+    }, clear=True)
+    @patch("anthropic.Anthropic")
+    def test_anthropic_takes_priority_over_openrouter(self, mock_anthropic, temp_repo):
+        """Test Anthropic API key takes priority over OpenRouter.
+
+        REQUIREMENT: Prefer Anthropic when both keys available.
+        Expected: Uses Anthropic client when both keys set.
+        """
+        mock_client = MagicMock()
+        mock_anthropic.return_value = mock_client
+
+        validator = GenAIManifestValidator(temp_repo)
+
+        assert validator.client_type == "anthropic"
