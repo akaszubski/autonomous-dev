@@ -125,3 +125,6 @@ DOCUMENTATION_*.md
 
 # Autonomous-dev plugin (gitignored)
 .claude/settings.local.json
+
+# Disabled hooks (kept for reference but not active)
+*.disabled
