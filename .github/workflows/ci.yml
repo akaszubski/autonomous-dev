@@ -43,9 +43,18 @@ jobs:
           python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts="
 
       - name: Validate manifest-doc alignment
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "Validating documentation matches install_manifest.json..."
-          python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            echo "Using GenAI validation via OpenRouter (Gemini Flash)"
+            pip install openai -q
+            python -c "from plugins.autonomous_dev.lib.hybrid_validator import validate_manifest_alignment; import sys; result = validate_manifest_alignment('.'); sys.exit(result.get_exit_code())"
+          else
+            echo "Using regex validation (no API key)"
+            python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+          fi
 
   # Stage 2: Full test suite (only if smoke passes)
   test:

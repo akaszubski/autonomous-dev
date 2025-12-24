@@ -194,7 +194,9 @@ class GenAIManifestValidator:
                     base_url="https://openrouter.ai/api/v1",
                     api_key=openrouter_key,
                 )
-                self.model = "anthropic/claude-sonnet-4.5"
+                # Use cheap, fast model for validation (override with OPENROUTER_MODEL)
+                # Gemini 2.0 Flash: ~$0.10/1M input, $0.40/1M output (vs $3/$15 for Sonnet)
+                self.model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp")
                 self.client_type = "openrouter"
                 self.has_api_key = True
             except ImportError:

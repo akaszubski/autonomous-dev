@@ -46,18 +46,26 @@ allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 
 **What it does**:
 
-### Phase 1: Quick Scan (Regex + Claude Code)
+### Phase 1: Quick Scan (GenAI or Regex)
 Run manifest alignment validation:
 
 ```bash
+# With OpenRouter (recommended - cheap GenAI validation)
+OPENROUTER_API_KEY=sk-or-... python plugins/autonomous-dev/lib/genai_validate.py manifest-alignment
+
+# Without API key (regex fallback)
 python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
 ```
 
 **Validates**:
 - Count mismatches (agents, commands, hooks, skills) vs install_manifest.json
 - Version consistency (CLAUDE.md, PROJECT.md, manifest)
+- Semantic alignment (GenAI mode only)
 
-**Semantic validation**: Claude Code performs semantic analysis directly in the conversation (uses your Max subscription - no API key needed).
+**Options**:
+- **OpenRouter** (recommended): ~$0.001 per validation, uses Gemini Flash
+- **Claude Code**: Semantic analysis in conversation (uses Max subscription)
+- **Regex only**: Fast, free, catches count mismatches
 
 ### Phase 2: Semantic Validation (GenAI)
 Run `alignment-analyzer` agent to check:

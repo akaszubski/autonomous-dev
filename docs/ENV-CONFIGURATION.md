@@ -42,7 +42,7 @@ GITHUB_TOKEN=ghp_your_token_here
 - `/batch-implement --issues` - Fetch issue titles
 - Auto-tracking hooks
 
-### ANTHROPIC_API_KEY
+### ANTHROPIC_API_KEY (Optional)
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-your_key_here
@@ -55,7 +55,44 @@ ANTHROPIC_API_KEY=sk-ant-your_key_here
 - `GENAI_TEST_GENERATION` - Smart test case generation
 - `GENAI_DOC_AUTOFIX` - Automatic documentation fixes
 
-**Note**: Optional. Most GenAI features work through Claude Code directly (uses your Max subscription). The API key is only needed for standalone scripts that call the Anthropic API.
+**Note**: Optional. Most GenAI features work through Claude Code directly (uses your Max subscription). Consider using OpenRouter instead for standalone scripts (cheaper).
+
+### OPENROUTER_API_KEY (Recommended for CI/automation)
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-your_key_here
+```
+
+**Get from**: https://openrouter.ai/keys
+
+**Used by**:
+- CI Pipeline - GenAI validation in GitHub Actions
+- `/align` command - Manifest alignment validation
+- Standalone validation scripts
+
+**Why OpenRouter?**
+- Much cheaper: ~$0.10/1M tokens (Gemini Flash) vs $3/1M (Claude Sonnet)
+- One API key for 400+ models
+- Perfect for automated validation tasks
+
+**Model selection** (optional):
+```bash
+OPENROUTER_MODEL=google/gemini-2.0-flash-exp  # Default (cheapest)
+OPENROUTER_MODEL=anthropic/claude-3-haiku     # Fast Claude
+OPENROUTER_MODEL=openai/gpt-4o-mini           # OpenAI alternative
+```
+
+#### CI/CD Integration (GitHub Actions)
+
+To enable GenAI validation in CI:
+
+1. Go to repository **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Name: `OPENROUTER_API_KEY`
+4. Value: Your OpenRouter API key (sk-or-v1-...)
+5. Click **Add secret**
+
+**Cost**: ~$0.001 per CI run (virtually free)
 
 ---
 
