@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (25)
+### Core Libraries (26)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -36,6 +36,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 23. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
 24. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
 25. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
+26. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -7769,5 +7770,262 @@ Validate code coverage threshold.
 **Used By**:
 - test_tier_organizer.py - After test organization
 - acceptance_criteria_parser.py - Works with parsed criteria
+
+
+---
+
+## 56. tech_debt_detector.py (759 lines, v1.0.0 - Issue #162)
+
+**Purpose**: Proactive code quality issue detection with severity classification.
+
+**Module**: plugins/autonomous-dev/lib/tech_debt_detector.py
+
+**Problem Solved**:
+- Reviewers need structured detection of common code quality issues
+- Manual inspection of large files, circular imports, dead code is error-prone
+- Need severity levels to distinguish blocking issues from warnings
+- Need integration point for reviewer checklist
+
+**Solution**:
+- 7 detection methods for different tech debt patterns
+- Severity enum (CRITICAL, HIGH, MEDIUM, LOW)
+- Dataclass-based issue representation for structured results
+- Convenience function for one-shot project scanning
+- Path traversal prevention for security
+
+### Classes
+
+#### Severity
+
+Enumeration for tech debt issue severity levels.
+
+**Values**:
+- CRITICAL (4) - Blocks workflow (exit code 1 in hooks)
+- HIGH (3) - Warning only (exit code 0, show message)
+- MEDIUM (2) - Informational (tracked but not blocking)
+- LOW (1) - Minor issues (low priority)
+
+#### TechDebtIssue
+
+Dataclass representing a single tech debt issue.
+
+**Attributes**:
+- category (str): Type of issue (e.g., "large_file", "circular_import")
+- severity (Severity): Severity level
+- file_path (str): Path to affected file
+- metric_value (int): Measured value (e.g., LOC count, complexity score)
+- threshold (int): Threshold that was exceeded
+- message (str): Human-readable description
+- recommendation (str): Suggested fix
+
+#### TechDebtReport
+
+Dataclass aggregating all detected issues.
+
+**Attributes**:
+- issues (List[TechDebtIssue]): All detected issues
+- counts (Dict[Severity, int]): Count by severity level
+- blocked (bool): True if CRITICAL issues found
+
+### Detection Methods
+
+#### detect_large_files() -> List[TechDebtIssue]
+
+Identify files exceeding size thresholds.
+
+**Thresholds**:
+- 1500+ LOC: CRITICAL
+- 1000-1499 LOC: HIGH
+
+**Returns**: List of issues for oversized files
+
+**Use Case**: Large files indicate monolithic design, harder to test and maintain
+
+#### detect_circular_imports() -> List[TechDebtIssue]
+
+Detect import cycles via AST analysis (Python files only).
+
+**Algorithm**: Build import graph, detect cycles using DFS
+
+**Returns**: List of issues for circular dependencies
+
+**Use Case**: Circular imports cause initialization issues, indicate tight coupling
+
+#### detect_red_test_accumulation() -> List[TechDebtIssue]
+
+Count RED test markers (failing tests) in codebase.
+
+**Markers**: Lines containing "RED" or "@skip" or "@xfail"
+
+**Thresholds**:
+- 20+ RED markers: CRITICAL
+- 10-19 RED markers: HIGH
+
+**Returns**: List of issues for accumulated failed tests
+
+**Use Case**: Accumulating RED tests indicate feature rot, incomplete implementation
+
+#### detect_config_proliferation() -> List[TechDebtIssue]
+
+Identify scattered configuration files.
+
+**Patterns**: .env, .config.json, config.yaml, settings.ini, etc.
+
+**Thresholds**:
+- 10+ config files: CRITICAL
+- 5-9 config files: HIGH
+
+**Returns**: List of issues for config sprawl
+
+**Use Case**: Config proliferation makes setup complex, increases errors
+
+#### detect_duplicate_directories() -> List[TechDebtIssue]
+
+Find directories with similar names suggesting duplication.
+
+**Patterns**: utils, util, helpers, helper; config, configs, configuration, etc.
+
+**Returns**: List of issues for naming inconsistencies
+
+**Use Case**: Duplicate directories indicate unclear organization
+
+#### detect_dead_code() -> List[TechDebtIssue]
+
+Identify unused imports and function definitions.
+
+**Methods**:
+- Unused imports: Import statements with no references
+- Unused functions: Function definitions with no calls (conservative approach)
+
+**Returns**: List of issues for dead code
+
+**Use Case**: Dead code accumulates, adds noise, increases maintenance burden
+
+#### calculate_complexity() -> List[TechDebtIssue]
+
+Measure McCabe cyclomatic complexity using radon library (optional dependency).
+
+**Thresholds** (per function):
+- 15+ complexity: CRITICAL
+- 10-14 complexity: HIGH
+
+**Returns**: List of issues for overly complex functions
+
+**Use Case**: High complexity indicates functions doing too much, harder to test
+
+### Methods
+
+#### __init__(project_root: Path)
+
+Initialize detector with project root path.
+
+**Parameters**:
+- project_root (Path): Root directory to analyze
+
+**Validation**: Path must exist and be readable
+
+#### analyze() -> TechDebtReport
+
+Run all detection methods and aggregate results.
+
+**Returns**: Aggregated report with all issues and statistics
+
+**Execution Order**:
+1. Large files detection
+2. Circular imports detection
+3. Red test accumulation
+4. Config proliferation
+5. Duplicate directories
+6. Dead code detection
+7. Complexity analysis
+
+### Module Functions
+
+#### scan_project(project_root: Path) -> TechDebtReport
+
+Convenience function for one-shot project scanning.
+
+**Parameters**:
+- project_root (Path): Root directory to analyze
+
+**Returns**: Complete tech debt report
+
+**Usage Example**:
+
+```
+from tech_debt_detector import scan_project
+
+report = scan_project(Path("/path/to/project"))
+if report.blocked:
+    print("CRITICAL issues found!")
+    for issue in report.issues:
+        if issue.severity == Severity.CRITICAL:
+            print(f"  {issue.message}")
+```
+
+### Integration Points
+
+- reviewer agent - Integrated into code review checklist (CHECKPOINT 4.2 in /auto-implement)
+- /health-check command - Optional tech debt analysis
+- CI/CD pipelines - Pre-commit quality gate
+
+### Security Features
+
+- Path traversal prevention (CWE-22) via security_utils validation
+- Symlink resolution for safe path handling (CWE-59)
+- Conservative detection logic to minimize false positives
+- No arbitrary code execution (AST parsing only, no eval)
+
+### Performance Characteristics
+
+- Large files: O(n) where n = files scanned
+- Circular imports: O(V + E) where V = modules, E = imports
+- Config proliferation: O(n) glob pattern matching
+- Dead code: O(n*m) where m = lines per file
+- Complexity: Depends on radon library (typically less than 100ms per file)
+- Typical project (1000 files): 2-5 seconds total
+
+### Test Coverage
+
+**Test File**: tests/unit/lib/test_tech_debt_detector.py
+
+**Coverage Areas**:
+- Severity enumeration and values
+- Issue dataclass creation and validation
+- Large files detection with thresholds
+- Circular import detection via AST
+- RED test accumulation and counting
+- Config proliferation detection
+- Duplicate directory detection
+- Dead code detection (imports and functions)
+- Complexity calculation with radon
+- Report aggregation and statistics
+- Security (path validation, traversal prevention)
+- Error handling (missing files, invalid paths, unreadable directories)
+
+**Target**: 90 percent coverage
+
+### Used By
+
+- reviewer agent - Code quality analysis during /auto-implement
+- /health-check command - Optional tech debt scanning
+- CI/CD integration - Pre-commit quality gates
+
+### Related Issues
+
+- GitHub Issue #162 - Tech Debt Detection System
+- GitHub Issue #141 - Workflow discipline (guides usage of detector)
+
+### Related Components
+
+**Dependencies**:
+- pathlib - Path handling
+- ast - Python import graph analysis
+- radon (optional) - McCabe complexity calculation
+- security_utils.py - Path validation (CWE-22, CWE-59 prevention)
+
+**Used By**:
+- reviewer.md agent - Code review checklist integration
+- health_check.py hook - Optional tech debt analysis
 
 ---

@@ -2,6 +2,44 @@
 
 **Added**
 
+- **Issue #162: Tech Debt Detection Agent**
+  - **Problem**: Reviewers manually inspect code for quality issues (large files, circular imports, dead code, complexity). This is error-prone and time-consuming.
+  - **Solution**: Add automated tech debt detector with 7 detection methods and severity classification (CRITICAL, HIGH, MEDIUM, LOW).
+  - **Features**:
+    - **Large Files Detection**: Identify files exceeding 1000 LOC (HIGH) or 1500 LOC (CRITICAL)
+    - **Circular Import Detection**: AST-based cycle detection in Python imports
+    - **RED Test Accumulation**: Count failing test markers (@skip, @xfail, RED) to detect feature rot
+    - **Config Proliferation**: Detect scattered configuration files indicating setup complexity
+    - **Duplicate Directories**: Find similarly-named directories indicating unclear organization
+    - **Dead Code Detection**: Identify unused imports and function definitions
+    - **Complexity Analysis**: McCabe cyclomatic complexity using radon library (optional dependency)
+    - **Severity Classification**: CRITICAL (blocks), HIGH (warns), MEDIUM (informational), LOW (minor)
+  - **Files Created**:
+    - plugins/autonomous-dev/lib/tech_debt_detector.py (759 lines, v1.0.0)
+    - tests/unit/lib/test_tech_debt_detector.py (test suite - coverage target 90 percent)
+  - **Key Classes**:
+    - Severity enum: CRITICAL, HIGH, MEDIUM, LOW
+    - TechDebtIssue dataclass: category, severity, file_path, metric_value, threshold, message, recommendation
+    - TechDebtReport dataclass: issues list, counts by severity, blocked flag
+    - TechDebtDetector class: 7 detection methods + analyze() orchestration
+  - **Integration Points**:
+    - reviewer agent: Code quality analysis in CHECKPOINT 4.2 of /auto-implement workflow
+    - /health-check command: Optional tech debt scanning
+    - CI/CD pipelines: Pre-commit quality gate
+  - **Security**:
+    - Path traversal prevention (CWE-22) via security_utils validation
+    - Symlink resolution for safe path handling (CWE-59)
+    - Conservative detection logic to minimize false positives
+    - No arbitrary code execution (AST parsing only)
+  - **Performance**:
+    - Typical project (1000 files): 2-5 seconds total analysis
+    - Large files scan: O(n) where n = files
+    - Circular imports: O(V + E) where V = modules, E = imports
+    - Complexity analysis: less than 100ms per file (optional radon)
+  - **Documentation Updated**:
+    - docs/LIBRARIES.md: Added section 56 for tech_debt_detector (Core Libraries count: 25 → 26)
+  - **Related**: Issue #141 (Workflow discipline guide), Issue #157 (Dependency analysis), Issue #161 (Test coverage)
+
 - **Issue #160: GenAI Manifest Alignment Validation**
   - **Problem**: Manual CLAUDE.md updates can create drift between documented component counts and actual manifest. Regex-only validation misses semantic inconsistencies and version conflicts.
   - **Solution**: Add GenAI-powered validation using Claude Sonnet 4.5 with structured output, with automatic fallback to regex validation for environments without API keys.

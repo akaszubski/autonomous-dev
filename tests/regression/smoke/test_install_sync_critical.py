@@ -310,9 +310,14 @@ class TestInstallSyncIntegrity:
         assert timer.elapsed < 2.0
 
     def test_all_commands_in_manifest(self, plugins_dir, timing_validator):
-        """Test that all command files are in install manifest.
+        """Test that all ACTIVE command files are in install manifest.
 
-        Protects: All commands get installed (smoke test)
+        Protects: All active commands get installed (smoke test)
+
+        Note: Archived/deprecated commands are NOT included per Issue #121:
+        - Individual agent commands (research, plan, etc.) → consolidated into /auto-implement
+        - Old align commands → unified into /align with --project | --claude | --retrofit flags
+        - Deprecated commands (update-plugin) → superseded by /sync
         """
         with timing_validator.measure() as timer:
             manifest = plugins_dir / "config" / "install_manifest.json"
@@ -322,15 +327,29 @@ class TestInstallSyncIntegrity:
             commands_dir = plugins_dir / "commands"
             actual_commands = {f.name for f in commands_dir.glob("*.md")}
 
+            # Archived/deprecated commands NOT included in manifest (Issue #121)
+            archived_commands = {
+                # Individual agent commands (consolidated into /auto-implement)
+                "research.md", "plan.md", "test-feature.md", "implement.md",
+                "review.md", "security-scan.md", "update-docs.md", "test.md",
+                # Old align commands (unified into /align with flags)
+                "align-project.md", "align-claude.md", "align-project-retrofit.md",
+                # Deprecated commands (superseded)
+                "update-plugin.md", "status.md", "pipeline-status.md",
+            }
+
+            # Filter to active commands only
+            active_commands = actual_commands - archived_commands
+
             # Get commands in manifest (new structure: components.commands.files)
             manifest_commands = set()
             commands_component = data.get("components", {}).get("commands", {})
             for file_path in commands_component.get("files", []):
                 manifest_commands.add(Path(file_path).name)
 
-            # All actual commands should be in manifest
-            missing = actual_commands - manifest_commands
-            assert len(missing) == 0, f"Commands missing from manifest: {missing}"
+            # All active commands should be in manifest
+            missing = active_commands - manifest_commands
+            assert len(missing) == 0, f"Active commands missing from manifest: {missing}"
 
         assert timer.elapsed < 2.0
 
