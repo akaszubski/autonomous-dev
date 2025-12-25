@@ -2861,7 +2861,7 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
 - error-handling-patterns skill for exception hierarchy
 
-## 24. agent_tracker.py (1,185 lines, v3.34.0+, Issue #79)
+## 24. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
 
 **Purpose**: Portable tracking infrastructure for agent execution with dynamic project root detection
 
@@ -2870,16 +2870,37 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - Running from project subdirectories (couldn't find project root)
 - Commands invoked from installation path vs development path
 
-**Solution**: Library-based implementation in `plugins/autonomous-dev/lib/agent_tracker.py` with:
+**Solution (Issue #165 Refactoring)**: Monolithic library file (1,185 lines) split into focused package with 8 modules for maintainability:
+
+**Package Structure** (`plugins/autonomous-dev/lib/agent_tracker/`):
+- `__init__.py` (72 lines): Re-exports for backward compatibility
+- `models.py` (64 lines): Data structures (AGENT_METADATA, EXPECTED_AGENTS)
+- `state.py` (408 lines): Session state management and agent lifecycle
+- `tracker.py` (441 lines): Main AgentTracker class with delegation pattern
+- `metrics.py` (116 lines): Progress calculation and time estimation
+- `verification.py` (311 lines): Parallel execution verification
+- `display.py` (200 lines): Status display and visualization
+- `cli.py` (98 lines): Command-line interface
+
+**Backward Compatibility**: All imports continue to work via re-exports:
+- Old: `from agent_tracker import AgentTracker` ✅ still works
+- New: `from agent_tracker.tracker import AgentTracker` (preferred)
+- Path utilities also re-exported for legacy code
+
+**Benefits**:
 - Dynamic project root detection via path_utils
 - Portable path resolution (no hardcoded paths)
 - Atomic file writes for data consistency
 - Comprehensive error handling with context
+- Clearer module responsibilities (each <500 lines)
+- Easier testing and maintenance
+- Better IDE support and code navigation
 
 ### Classes
 
 #### `AgentTracker`
 - **Purpose**: Track agent execution with structured logging
+- **Location**: `tracker.py` (delegates to state manager)
 - **Initialization**: `AgentTracker(session_file=None)`
   - `session_file` (Optional[str]): Path to session file for testing
   - If None: Creates/finds session file automatically using path_utils
@@ -2956,31 +2977,37 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - **Purpose**: Return list of expected agents for workflow
 - **Returns**: List of agent names (hardcoded per workflow type)
 - **Used By**: Progress calculations, pipeline verification
+- **Location**: Delegates to `metrics.py`
 
 #### `calculate_progress() -> int`
 - **Purpose**: Calculate workflow completion percentage
 - **Returns**: Integer 0-100
 - **Calculation**: `(agents_completed / agents_expected) * 100`
+- **Location**: Delegates to `metrics.py`
 
 #### `get_average_agent_duration() -> Optional[int]`
 - **Purpose**: Calculate average duration of completed agents
 - **Returns**: Seconds (or None if no agents completed)
 - **Uses**: Estimation of remaining time
+- **Location**: Delegates to `metrics.py`
 
 #### `estimate_remaining_time() -> Optional[int]`
 - **Purpose**: Estimate time until workflow completion
 - **Returns**: Seconds (or None if insufficient data)
 - **Calculation**: `(pending_agents * average_duration) + safety_buffer`
+- **Location**: Delegates to `metrics.py`
 
 #### `get_pending_agents() -> List[str]`
 - **Purpose**: List agents not yet started
 - **Returns**: List of agent names
 - **Uses**: Progress tracking and timeout calculations
+- **Location**: Delegates to `state.py`
 
 #### `get_running_agent() -> Optional[str]`
 - **Purpose**: Get currently running agent
 - **Returns**: Agent name (or None if none running)
 - **Uses**: Checkpoint verification, deadlock detection
+- **Location**: Delegates to `state.py`
 
 #### Verification Methods
 
@@ -2994,6 +3021,7 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - **Output**: Displays efficiency metrics and time saved
 - **Used By**: auto-implement.md CHECKPOINT 1 (line 109)
 - **Graceful Degradation**: Returns False if AgentTracker unavailable (non-blocking)
+- **Location**: Delegates to `verification.py`
 
 #### `verify_parallel_validation() -> bool`
 - **Purpose**: Verify parallel validation checkpoint (STEP 4.1)
@@ -3006,6 +3034,7 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - **Output**: Displays efficiency metrics
 - **Used By**: auto-implement.md CHECKPOINT 4.1 (line 390)
 - **Graceful Degradation**: Returns False if unavailable (non-blocking)
+- **Location**: Delegates to `verification.py`
 
 #### `get_parallel_validation_metrics() -> Dict[str, Any]`
 - **Purpose**: Extract metrics from parallel validation execution
@@ -3018,16 +3047,19 @@ User state stored in `~/.autonomous-dev/user_state.json`:
   - `time_saved`: sequential - parallel
   - `efficiency_percent`: (time_saved / sequential) * 100
 - **Uses**: Checkpoint display and performance analysis
+- **Location**: Delegates to `verification.py`
 
 #### `is_pipeline_complete() -> bool`
 - **Purpose**: Check if all expected agents completed
 - **Returns**: True if all agents in "completed" or "failed" state
 - **Uses**: Workflow completion detection
+- **Location**: Delegates to `state.py`
 
 #### `is_agent_tracked(agent_name) -> bool`
 - **Purpose**: Check if agent has been logged
 - **Parameters**: `agent_name` (str): Agent to check
 - **Returns**: True if agent found in session
+- **Location**: Delegates to `state.py`
 
 #### Environment Tracking
 
@@ -3049,6 +3081,7 @@ User state stored in `~/.autonomous-dev/user_state.json`:
   - Ensures parallel Task tool agents (reviewer, security-auditor, doc-master) are tracked
   - Prevents incomplete entries (completion without start)
   - Idempotent design prevents duplicates when combined with explicit tracking
+- **Location**: Delegates to `state.py`
 
 ### Formatting & Display Methods
 
@@ -3059,10 +3092,12 @@ User state stored in `~/.autonomous-dev/user_state.json`:
   - "completed" → "✅"
   - "failed" → "❌"
   - "pending" → "⏳"
+- **Location**: `display.py`
 
 #### `get_agent_color(status) -> str`
 - **Purpose**: Get ANSI color code for status
 - **Colors**: Green (completed), Red (failed), Yellow (started), Gray (pending)
+- **Location**: `display.py`
 
 #### `get_display_metadata() -> Dict[str, Any]`
 - **Purpose**: Get formatted metadata for display
@@ -3072,10 +3107,12 @@ User state stored in `~/.autonomous-dev/user_state.json`:
   - `duration`: Total elapsed time
   - `progress`: Completion percentage
   - `agents_summary`: Count by status
+- **Location**: `display.py`
 
 #### `get_tree_view_data() -> Dict[str, Any]`
 - **Purpose**: Get tree structure for ASCII tree display
 - **Returns**: Hierarchical dictionary representing workflow execution
+- **Location**: `display.py`
 
 ### Session Data Format
 
@@ -3127,7 +3164,7 @@ JSON session files stored in `docs/sessions/YYYYMMDD-HHMMSS-pipeline.json`:
 
 ### Class Methods
 
-#### `AgentTracker.save_agent_checkpoint()` (NEW - Issue #79, v3.36.0+)
+#### `AgentTracker.save_agent_checkpoint()` (Issue #79, v3.36.0+)
 
 **Signature**:
 ```python
@@ -3201,10 +3238,10 @@ AgentTracker.save_agent_checkpoint(
 
 **Graceful Degradation**:
 When running in environments without tracking infrastructure:
-- User projects (no `plugins/` directory) → skips, returns False
-- Import errors (missing dependencies) → skips, returns False
-- Filesystem errors (permission denied) → skips, returns False
-- Unexpected errors → logs warning, returns False
+- User projects (no `plugins/` directory) -> skips, returns False
+- Import errors (missing dependencies) -> skips, returns False
+- Filesystem errors (permission denied) -> skips, returns False
+- Unexpected errors -> logs warning, returns False
 
 This allows agents to be portable across development and user environments.
 
@@ -3212,12 +3249,60 @@ This allows agents to be portable across development and user environments.
 
 **Related**: GitHub Issue #79 (Dogfooding bug fix), Issue #82 (Optional checkpoint verification)
 
+### Module Architecture (Issue #165)
+
+**Purpose of Refactoring**: Split monolithic 1,185-line file into focused modules for:
+- Easier testing (unit test each responsibility separately)
+- Better maintainability (changes isolated to relevant modules)
+- Clearer code organization (each module has single responsibility)
+- Performance monitoring (metrics in dedicated module)
+- Display logic separation (display.py handles all formatting)
+
+**Delegation Pattern**:
+- `tracker.py` (441 lines): AgentTracker class coordinates via delegation
+- Methods call specialized manager classes from other modules
+- Reduces complexity: Main class focuses on public API, not implementation details
+- Example: `calculate_progress()` delegates to `metrics.calculate_progress()`
+
+**State Management** (state.py - 408 lines):
+- `StateManager` class handles session file I/O
+- Tracks agent start/completion times
+- Manages JSON serialization and atomic writes
+- Enforces security constraints (path validation)
+
+**Metrics Calculation** (metrics.py - 116 lines):
+- `MetricsCalculator` class handles all time-based calculations
+- Progress percentage, average duration, remaining time estimates
+- No I/O operations (pure calculation)
+- Easy to unit test
+
+**Verification Logic** (verification.py - 311 lines):
+- `ParallelVerifier` class handles parallel execution checks
+- Validates checkpoint requirements (agents completed, time thresholds)
+- Extracts and formats metrics for display
+- Used by CHECKPOINT 1 and CHECKPOINT 4.1
+
+**Display Formatting** (display.py - 200 lines):
+- `DisplayFormatter` class handles all output formatting
+- ANSI colors, emoji status indicators, tree view generation
+- Separated from logic (can swap formatters for testing)
+- Enables future HTML/JSON output formats
+
+**Data Models** (models.py - 64 lines):
+- Constants: `AGENT_METADATA`, `EXPECTED_AGENTS` per workflow
+- Enum for agent status values
+- Type hints for consistency
+
+**CLI Wrapper** (cli.py - 98 lines):
+- Command-line interface delegating to AgentTracker
+- Commands: start, complete, fail, status, set-github-issue
+- Argument parsing and error handling
 
 ### CLI Wrapper
 
 **File**: `plugins/autonomous-dev/scripts/agent_tracker.py`
 - **Purpose**: CLI interface for library functionality
-- **Design**: Delegates to `plugins/autonomous-dev/lib/agent_tracker.py`
+- **Design**: Delegates to `plugins/autonomous-dev/lib/agent_tracker/` package
 - **Commands**:
   - `start <agent_name> <message>`: Start agent tracking
   - `complete <agent_name> <message> [--tools tool1,tool2]`: Complete agent
@@ -3231,7 +3316,7 @@ This allows agents to be portable across development and user environments.
 - **Reason**: Hardcoded paths fail in user projects and subdirectories
 - **Migration**:
   - For CLI: Use `plugins/autonomous-dev/scripts/agent_tracker.py` (installed plugin)
-  - For imports: Use `from plugins.autonomous-dev.lib.agent_tracker import AgentTracker`
+  - For imports: Use `from plugins.autonomous_dev.lib.agent_tracker import AgentTracker`
   - Existing code continues to work (delegates to library implementation)
   - Will be removed in v4.0.0
 
@@ -3239,7 +3324,7 @@ This allows agents to be portable across development and user environments.
 
 #### Basic Usage (Standard Mode)
 ```python
-from plugins.autonomous_dev.lib.agent_tracker import AgentTracker
+from agent_tracker import AgentTracker
 
 # Create tracker (auto-detects project root)
 tracker = AgentTracker()
@@ -3306,28 +3391,18 @@ except ValueError as e:
 - GitHub Issue #79 (Dogfooding bug - tracking infrastructure hardcoded paths)
 - GitHub Issue #82 (Optional checkpoint verification with graceful degradation)
 - GitHub Issue #45 (Atomic write pattern and security hardening)
+- GitHub Issue #165 (Package refactoring - monolithic to modular)
 - path_utils.py (Dynamic project root detection)
 - security_utils.py (Path validation and input bounds checking)
 
 ### Design Patterns
 - **Two-tier Design**: Library (core logic) + CLI wrapper (interface)
+- **Delegation Pattern**: AgentTracker delegates to specialized manager classes
 - **Progressive Enhancement**: Features gracefully degrade if infrastructure unavailable
 - **Atomic Writes**: Tempfile + rename for consistency
 - **Path Portability**: Uses path_utils instead of hardcoded paths
+- **Modular Responsibility**: Each module handles single concern (~100-400 lines)
 
-## 25. session_tracker.py (165 lines, v3.28.0+, Issue #79)
-
-**Purpose**: Session logging for agent actions with portable path detection
-
-**Problem Solved (Issue #79)**: Original session tracking had hardcoded `docs/sessions/` path that failed when:
-- Running from user projects (no `docs/` directory available)
-- Running from project subdirectories (couldn't dynamically find project root)
-- Commands invoked from installation path vs development path
-
-**Solution**: Library-based implementation in `plugins/autonomous-dev/lib/session_tracker.py` with:
-- Dynamic session directory detection via path_utils
-- Portable path resolution (no hardcoded paths)
-- Graceful error handling with fallbacks
 - Comprehensive docstrings with design patterns
 
 ### Classes

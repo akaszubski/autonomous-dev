@@ -22,6 +22,28 @@
   - **Verification**: All tests passing after cleanup (unit, integration, UAT)
   - **Related**: Issue #162 (Tech Debt Detection - dead code prevention)
 
+- refactor: Split agent_tracker.py (1,185 LOC) into focused package with 8 modules (Issue #165)
+  - **Motivation**: Monolithic tracking library difficult to test and maintain. Refactoring improves code organization and enables targeted testing.
+  - **Structure**: agent_tracker/ package with focused modules:
+    - models.py (64 lines): Data structures (AGENT_METADATA, EXPECTED_AGENTS, status enums)
+    - state.py (408 lines): Session state management and agent lifecycle tracking
+    - tracker.py (441 lines): Main AgentTracker class with delegation pattern
+    - metrics.py (116 lines): Progress calculation and time estimation (pure functions)
+    - verification.py (311 lines): Parallel execution verification and checkpoint validation
+    - display.py (200 lines): Status display formatting (ANSI colors, emojis, tree view)
+    - cli.py (98 lines): Command-line interface
+    - __init__.py (72 lines): Re-exports for backward compatibility
+  - **Backward Compatibility**: All imports continue to work via re-exports (from agent_tracker import AgentTracker still works)
+  - **New Import Patterns**: Preferred way uses submodules (from agent_tracker.tracker import AgentTracker)
+  - **Benefits**:
+    - Clearer module responsibilities (each <500 lines)
+    - Easier to unit test (state, metrics, verification, display separated)
+    - Better IDE support and code navigation
+    - Enables targeted optimization (metrics module has pure functions only)
+  - **Testing**: All existing tests passing without modification (backward compatibility verified)
+  - **Documentation Updated**: docs/LIBRARIES.md section 24 (agent_tracker package overview, module architecture, delegation pattern)
+  - **Related**: Issue #79 (Dogfooding bug - portable path tracking), Issue #164 (sync_dispatcher.py refactoring pattern)
+
 **Added**
 
 - **Issue #162: Tech Debt Detection Agent**
