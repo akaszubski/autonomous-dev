@@ -356,8 +356,8 @@ class TechDebtDetector:
                     cycle = has_cycle(neighbor, path[:])
                     if cycle:
                         return cycle
-                elif neighbor in rec_stack:
-                    # Found cycle
+                elif neighbor in rec_stack and neighbor in path:
+                    # Found cycle - neighbor is in current path
                     cycle_start = path.index(neighbor)
                     return path[cycle_start:] + [neighbor]
 
