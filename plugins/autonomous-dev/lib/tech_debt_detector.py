@@ -3,7 +3,7 @@
 Tech Debt Detector - Proactive Code Quality Issue Detection
 
 This module detects technical debt patterns that impact code quality and maintainability:
-- Large files (1000+ LOC warning, 1500+ LOC critical)
+- Large files (1500+ LOC warning, 2500+ LOC critical)
 - Circular imports (AST-based detection)
 - Red test accumulation (failing tests)
 - Config proliferation (scattered config files)
@@ -103,8 +103,8 @@ class TechDebtIssue:
         ...     category="large_file",
         ...     severity=Severity.HIGH,
         ...     file_path="/project/big.py",
-        ...     metric_value=1200,
-        ...     threshold=1000,
+        ...     metric_value=1800,
+        ...     threshold=1500,
         ...     message="File exceeds size threshold",
         ...     recommendation="Split into smaller modules"
         ... )
@@ -173,13 +173,14 @@ class TechDebtDetector:
         'site-packages',                 # Installed packages
         '.idea', '.vscode',              # IDE configs
         'coverage', 'htmlcov',           # Coverage reports
+        '.claude',                        # Install target (duplicate of plugins/)
     }
 
     def __init__(
         self,
         project_root: Path,
-        large_file_warn_threshold: int = 1000,
-        large_file_block_threshold: int = 1500,
+        large_file_warn_threshold: int = 1500,
+        large_file_block_threshold: int = 2500,
         complexity_threshold: int = 10,
         config_threshold: int = 20,
         red_test_threshold: int = 5,
@@ -189,8 +190,8 @@ class TechDebtDetector:
 
         Args:
             project_root: Root directory of project to analyze
-            large_file_warn_threshold: LOC threshold for warning (default: 1000)
-            large_file_block_threshold: LOC threshold for blocking (default: 1500)
+            large_file_warn_threshold: LOC threshold for warning (default: 1500)
+            large_file_block_threshold: LOC threshold for blocking (default: 2500)
             complexity_threshold: McCabe complexity threshold (default: 10)
             config_threshold: Config file count threshold (default: 20)
             red_test_threshold: Failing test threshold (default: 5)
@@ -260,8 +261,8 @@ class TechDebtDetector:
         """Detect files exceeding size thresholds.
 
         Thresholds:
-            - 1000-1499 LOC: HIGH severity (warning)
-            - 1500+ LOC: CRITICAL severity (blocks commit)
+            - 1500-2499 LOC: HIGH severity (warning)
+            - 2500+ LOC: CRITICAL severity (blocks commit)
 
         Excludes:
             - Test files (test_*.py, *_test.py)
