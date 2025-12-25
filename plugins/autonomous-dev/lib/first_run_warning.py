@@ -25,7 +25,6 @@ Design Patterns:
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Import user state manager (standard pattern from project libraries)
 try:

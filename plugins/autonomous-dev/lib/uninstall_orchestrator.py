@@ -48,9 +48,7 @@ Design Patterns:
 
 import json
 import os
-import shutil
 import tarfile
-import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -62,7 +60,7 @@ try:
     from plugins.autonomous_dev.lib.protected_file_detector import ProtectedFileDetector
 except ImportError:
     # Fallback for installed environment (.claude/lib/)
-    from security_utils import validate_path, audit_log
+    from security_utils import audit_log
     from protected_file_detector import ProtectedFileDetector
 
 

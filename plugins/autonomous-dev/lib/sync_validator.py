@@ -26,7 +26,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional
 
 # Import with fallback for both dev and installed environments
 try:

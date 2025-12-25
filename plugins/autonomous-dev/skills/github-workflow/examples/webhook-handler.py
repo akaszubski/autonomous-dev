@@ -27,8 +27,7 @@ Example:
 import hmac
 import hashlib
 import logging
-from typing import Dict, Any, Optional, Callable
-from functools import wraps
+from typing import Dict, Any, Callable
 
 logger = logging.getLogger(__name__)
 

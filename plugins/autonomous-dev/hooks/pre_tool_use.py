@@ -69,7 +69,6 @@ def main():
         # Import and run validation
         try:
             from auto_approval_engine import should_auto_approve
-            from tool_validator import ToolValidator
 
             approved, reason = should_auto_approve(tool_name, tool_input, agent_name)
 

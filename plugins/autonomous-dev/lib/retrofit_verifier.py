@@ -26,7 +26,6 @@ Design Patterns:
     See library-design-patterns skill for standardized design patterns.
 """
 
-import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path

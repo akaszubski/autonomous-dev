@@ -42,7 +42,6 @@ Design Patterns:
 import argparse
 import json
 import os
-import shutil
 import sys
 import tempfile
 import urllib.request
@@ -71,7 +70,6 @@ except ImportError:
     from sync_mode_detector import SyncMode, get_individual_sync_modes
     from version_detector import detect_version_mismatch, VersionComparison
     from orphan_file_cleaner import (
-        detect_orphans,
         cleanup_orphans as cleanup_orphan_files,
         CleanupResult,
     )

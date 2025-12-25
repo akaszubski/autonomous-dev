@@ -41,7 +41,7 @@ import json
 import re
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 from genai_utils import GenAIAnalyzer, parse_binary_response
 from genai_prompts import DESCRIPTION_VALIDATION_PROMPT

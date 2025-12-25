@@ -10,7 +10,7 @@ See error-handling-patterns skill for audit logging patterns.
 
 import json
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
 from datetime import datetime
 
 

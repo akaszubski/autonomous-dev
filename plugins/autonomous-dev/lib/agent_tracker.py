@@ -102,10 +102,9 @@ from security_utils import (
     validate_agent_name,
     validate_github_issue,
     validate_input_length,
-    audit_log,
-    PROJECT_ROOT
+    audit_log
 )
-from path_utils import get_session_dir, get_project_root, find_project_root
+from path_utils import get_project_root, find_project_root
 
 # Re-export for backward compatibility and testing
 __all__ = ["AgentTracker", "get_project_root", "find_project_root"]

@@ -36,7 +36,6 @@ Design Patterns:
     See library-design-patterns skill for standardized design patterns.
 """
 
-import os
 import json
 from pathlib import Path
 from typing import Optional, List

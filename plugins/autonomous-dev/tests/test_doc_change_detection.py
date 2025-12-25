@@ -5,11 +5,9 @@ Tests the detect_doc_changes.py hook that blocks commits when required
 documentation updates are missing.
 """
 
-import json
 import pytest
 from pathlib import Path
 import sys
-import os
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "hooks"))

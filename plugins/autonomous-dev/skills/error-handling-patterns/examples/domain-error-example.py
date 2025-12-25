@@ -9,7 +9,6 @@ has its own base error, with specific errors inheriting from the domain base.
 See error-handling-patterns skill for complete exception hierarchy and usage.
 """
 
-from typing import Optional
 
 
 class AutonomousDevError(Exception):

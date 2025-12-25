@@ -41,7 +41,7 @@ Phase: TDD Green (making tests pass)
 import re
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any
 
 
 def run_tests(

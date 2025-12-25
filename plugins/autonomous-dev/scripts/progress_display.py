@@ -23,8 +23,6 @@ Usage:
 """
 
 import json
-import os
-import shutil
 import sys
 import time
 from datetime import datetime

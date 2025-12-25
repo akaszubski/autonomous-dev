@@ -12,8 +12,7 @@ Design Patterns:
     See state-management-patterns skill for standardized design patterns.
 """
 
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 # Use absolute imports for better test compatibility
 # (relative imports fail when module is imported from test files)

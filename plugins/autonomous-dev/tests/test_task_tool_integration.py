@@ -14,7 +14,6 @@ lib_dir = Path(__file__).parent
 sys.path.insert(0, str(lib_dir))
 
 from orchestrator import Orchestrator
-from artifacts import ArtifactManager
 from checkpoint import CheckpointManager
 
 

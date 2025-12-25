@@ -33,7 +33,6 @@ Exit codes:
 
 import sys
 import re
-from pathlib import Path
 
 
 def is_feature_request(user_input: str) -> bool:

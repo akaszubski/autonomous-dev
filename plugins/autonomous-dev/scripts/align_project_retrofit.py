@@ -24,12 +24,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.brownfield_retrofit import BrownfieldRetrofit
 from lib.codebase_analyzer import CodebaseAnalyzer
 from lib.alignment_assessor import AlignmentAssessor
 from lib.migration_planner import MigrationPlanner

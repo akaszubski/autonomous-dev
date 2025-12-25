@@ -15,10 +15,8 @@ File operations MUST use these libraries:
 Run this as part of CI/CD or pre-commit to catch missing library usage.
 """
 
-import os
 import sys
 import re
-import json
 from pathlib import Path
 
 

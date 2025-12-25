@@ -35,7 +35,6 @@ See ARCHITECTURE.md § Testing This Document for full validation strategy.
 
 from pathlib import Path
 import pytest
-import re
 
 
 class TestProjectMdFirstArchitecture:

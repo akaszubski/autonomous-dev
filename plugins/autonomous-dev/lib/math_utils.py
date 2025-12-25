@@ -43,7 +43,6 @@ Design Patterns:
 """
 
 from typing import Literal, Tuple
-import functools
 
 # Import security utilities for audit logging
 # Note: Import via absolute path for proper mocking in tests

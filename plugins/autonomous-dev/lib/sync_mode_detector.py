@@ -42,10 +42,9 @@ Agent: implementer
 """
 
 import os
-import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 # Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
 try:

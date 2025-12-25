@@ -54,7 +54,7 @@ lib_dir = Path(__file__).parent.parent / "lib"
 sys.path.insert(0, str(lib_dir))
 
 # Import dependencies
-from tool_validator import ToolValidator, ValidationResult, load_policy
+from tool_validator import ToolValidator, load_policy
 from tool_approval_audit import ToolApprovalAuditor
 from auto_approval_consent import check_user_consent, get_auto_approval_mode
 from user_state_manager import DEFAULT_STATE_FILE

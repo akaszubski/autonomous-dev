@@ -44,10 +44,9 @@ Design Patterns:
 
 import json
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 # Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
 try:

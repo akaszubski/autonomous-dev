@@ -195,7 +195,6 @@ class PipelineController:
 
 def main():
     """Main entry point for CLI usage."""
-    import json
 
     if len(sys.argv) < 2:
         print("Usage: pipeline_controller.py <session_file.json>")

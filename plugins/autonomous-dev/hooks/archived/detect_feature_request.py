@@ -37,7 +37,6 @@ Environment Variables:
 import os
 import sys
 import re
-from pathlib import Path
 
 
 def is_bypass_attempt(user_input: str) -> bool:

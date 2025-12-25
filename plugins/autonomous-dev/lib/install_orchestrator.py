@@ -43,7 +43,6 @@ Design Patterns:
 
 import json
 import shutil
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -67,7 +66,7 @@ except ImportError:
 
     from file_discovery import FileDiscovery
     from copy_system import CopySystem
-    from installation_validator import InstallationValidator, ValidationResult
+    from installation_validator import InstallationValidator
     from security_utils import validate_path, audit_log
 
 

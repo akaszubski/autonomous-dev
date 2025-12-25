@@ -46,7 +46,7 @@ Design Patterns:
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 # Security utilities for path validation and audit logging
 try:

@@ -5,7 +5,6 @@ See: plugins/autonomous-dev/lib/auto_implement_git_integration.py
 """
 
 import subprocess
-from typing import Optional
 
 
 def create_github_pr_safe(

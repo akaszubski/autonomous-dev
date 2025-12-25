@@ -22,7 +22,7 @@ from typing import Dict, List, Tuple, Any
 
 # Add lib to path for error_messages module
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from error_messages import ErrorMessage, ErrorCode, print_info
+from error_messages import ErrorMessage, ErrorCode
 
 # Import validate_marketplace_version - will be mocked in tests
 import plugins.autonomous_dev.lib.validate_marketplace_version as validate_marketplace_version_module

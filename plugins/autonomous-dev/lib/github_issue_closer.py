@@ -76,7 +76,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from subprocess import CalledProcessError, TimeoutExpired
 
 # Import security utilities for audit logging

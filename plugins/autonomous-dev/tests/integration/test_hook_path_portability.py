@@ -8,7 +8,7 @@ These tests should FAIL initially (TDD red phase).
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 

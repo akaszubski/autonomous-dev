@@ -32,7 +32,7 @@ import sys
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List, Optional, Set
 
 from genai_utils import GenAIAnalyzer, parse_binary_response
 from genai_prompts import COMPLEXITY_ASSESSMENT_PROMPT

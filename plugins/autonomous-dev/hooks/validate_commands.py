@@ -8,7 +8,6 @@ without any actual bash/agent invocation instructions.
 Run this as part of CI/CD or pre-commit to catch missing implementations.
 """
 
-import os
 import sys
 import re
 from pathlib import Path

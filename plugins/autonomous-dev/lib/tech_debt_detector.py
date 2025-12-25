@@ -46,12 +46,10 @@ Design Patterns:
 """
 
 import ast
-import re
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Set, Optional, Tuple
+from typing import List, Dict, Set, Optional
 from collections import defaultdict
 
 # Try to import radon for complexity analysis (optional dependency)

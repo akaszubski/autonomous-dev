@@ -36,7 +36,7 @@ Agent: implementer
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # Import installation libraries
 try:
@@ -57,8 +57,8 @@ except ImportError:
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
     from staging_manager import StagingManager
-    from installation_analyzer import InstallationAnalyzer, InstallationType
-    from protected_file_detector import ProtectedFileDetector, ALWAYS_PROTECTED
+    from installation_analyzer import InstallationAnalyzer
+    from protected_file_detector import ProtectedFileDetector
     from copy_system import CopySystem
     from install_audit import InstallAudit
 

@@ -25,8 +25,6 @@ Usage:
 """
 
 import pytest
-from unittest.mock import Mock, patch
-from pathlib import Path
 import json
 
 

@@ -90,17 +90,14 @@ except ImportError:
     )
     from sync_dispatcher import (
         sync_marketplace,
-        SyncResult,
     )
     from hook_activator import (
         HookActivator,
         ActivationResult,
-        ActivationError,
     )
     from settings_generator import (
         validate_permission_patterns,
         fix_permission_patterns,
-        PermissionIssue,
     )
 
 

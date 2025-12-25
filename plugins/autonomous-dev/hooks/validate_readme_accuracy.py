@@ -15,11 +15,9 @@ Checks:
 - Agent descriptions are present
 """
 
-import os
 import sys
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 
 class ReadmeValidator:

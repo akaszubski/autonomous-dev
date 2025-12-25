@@ -28,12 +28,10 @@ Usage:
   python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --audit --genai
 """
 
-import os
 import sys
 import re
-import json
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List
 from dataclasses import dataclass
 from datetime import datetime
 

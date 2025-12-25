@@ -43,7 +43,7 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 import re
 
 from genai_utils import GenAIAnalyzer

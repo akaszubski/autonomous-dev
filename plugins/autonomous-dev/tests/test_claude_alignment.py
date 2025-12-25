@@ -9,10 +9,9 @@ Tests ensure that:
 5. Session tracking works (no spam warnings)
 """
 
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -22,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from validate_claude_alignment import (
     ClaudeAlignmentValidator,
-    AlignmentIssue,
     extract_date,
     extract_agent_count,
     extract_command_count,

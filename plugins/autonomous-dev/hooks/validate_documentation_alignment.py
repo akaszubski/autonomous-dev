@@ -18,7 +18,6 @@ Exit Codes:
 - 2: Critical failures (block commit, must fix)
 """
 
-import json
 import re
 import sys
 from pathlib import Path

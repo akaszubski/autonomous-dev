@@ -30,7 +30,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .security_utils import audit_log, validate_path
 from .alignment_assessor import AlignmentGap, AssessmentResult, Severity

@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+
+**Changed**
+
+- refactor: Remove 157 unused imports across 104 Python files using Ruff F401 rule (Issue #163)
+  - **Impact**: Improved code cleanliness, reduced namespace pollution, minor performance benefit from fewer import statements
+  - **Methodology**: Automated detection using Ruff static analysis tool with F401 (unused imports)
+  - **Scope**: Core plugin code, agents, hooks, libraries, and test files across entire codebase
+  - **Verification**: All tests passing after cleanup (unit, integration, UAT)
+  - **Related**: Issue #162 (Tech Debt Detection - dead code prevention)
+
 **Added**
 
 - **Issue #162: Tech Debt Detection Agent**

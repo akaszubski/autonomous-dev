@@ -28,10 +28,9 @@ Usage:
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
 
 # ============================================================================

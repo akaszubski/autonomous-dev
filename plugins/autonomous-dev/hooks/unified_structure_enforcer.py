@@ -35,7 +35,7 @@ import os
 import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
 
 def find_lib_directory(hook_path: Path) -> Optional[Path]:

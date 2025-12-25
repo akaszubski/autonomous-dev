@@ -33,7 +33,6 @@ Usage:
 
 import re
 import sys
-from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 # ============================================================================
@@ -290,7 +289,6 @@ def get_skills_for_pattern(pattern: str) -> List[str]:
 
 def main():
     """CLI entry point for testing."""
-    import json
 
     if len(sys.argv) < 2:
         print("Usage: python context_skill_injector.py <prompt>")

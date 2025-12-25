@@ -7,7 +7,6 @@ Allowed commands:
   Individual Agents (7): research, plan, test-feature, implement, review, security-scan, update-docs
 """
 
-import subprocess
 import sys
 from pathlib import Path
 

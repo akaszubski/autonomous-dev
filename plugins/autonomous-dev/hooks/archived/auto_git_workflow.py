@@ -30,7 +30,6 @@ Phase: TDD Green (implementation to make tests pass)
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Any, Optional

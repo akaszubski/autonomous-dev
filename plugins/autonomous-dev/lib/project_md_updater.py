@@ -35,7 +35,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, Any
 
 # Import shared security utilities
 # Handle both module import (from package) and direct script execution

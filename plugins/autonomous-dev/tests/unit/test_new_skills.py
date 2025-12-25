@@ -4,7 +4,6 @@ Tests for new skills: database-design, api-design, observability.
 Validates skill structure, frontmatter, keywords, and content quality.
 """
 
-import re
 from pathlib import Path
 
 import pytest

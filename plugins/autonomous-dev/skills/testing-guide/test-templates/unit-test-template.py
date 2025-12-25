@@ -19,7 +19,6 @@ Usage:
 
 import pytest
 from unittest.mock import Mock, patch, mock_open
-from pathlib import Path
 
 
 # ============================================================================

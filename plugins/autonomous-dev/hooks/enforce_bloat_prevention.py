@@ -9,7 +9,6 @@ Blocks commits if:
 - Net growth without cleanup
 """
 
-import json
 import subprocess
 import sys
 from pathlib import Path

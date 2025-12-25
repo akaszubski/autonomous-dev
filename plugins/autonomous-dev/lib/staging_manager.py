@@ -44,7 +44,7 @@ from typing import List, Dict, Any, Optional
 try:
     from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
 except ImportError:
-    from security_utils import validate_path, audit_log
+    from security_utils import audit_log
 
 
 class StagingManager:

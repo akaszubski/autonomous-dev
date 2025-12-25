@@ -36,7 +36,7 @@ Agent: implementer
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Import path_utils for project root detection
 try:

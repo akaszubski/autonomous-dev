@@ -846,6 +846,49 @@ ls -la plugins/autonomous-dev/commands/*.md | wc -l
 
 ---
 
+## Code Quality Standards (Ruff Linting)
+
+**Tool**: Ruff is used for automated code quality checks across the Python codebase.
+
+**Configuration**: See `pyproject.toml` for complete Ruff settings including line length, import rules, and error codes.
+
+**Running Linting**:
+```bash
+# Check for all issues (no fixes)
+ruff check plugins/autonomous-dev/ tests/
+
+# Check specific rule (e.g., unused imports F401)
+ruff check --select F401 plugins/autonomous-dev/ tests/
+
+# Auto-fix issues (import organization, formatting)
+ruff check --fix plugins/autonomous-dev/ tests/
+
+# Auto-format code
+ruff format plugins/autonomous-dev/ tests/
+```
+
+**Common Rules**:
+- **F401**: Unused imports (dead code) - Fixed via `ruff check --fix`
+- **E501**: Line too long - Check via `ruff check`, configure max length in pyproject.toml
+- **I**: Import organization - Fixed automatically
+- **UP**: Python upgrade suggestions - Check via `ruff check`
+
+**Pre-Commit Integration**:
+Ruff checks run as part of PreCommit hooks. Fix issues before committing:
+```bash
+# Run before committing
+ruff check --fix plugins/autonomous-dev/ tests/
+git add -A
+git commit -m "refactor: Fix linting issues"
+```
+
+**Dead Code Cleanup History**:
+- **Issue #163** (v3.45.0): Removed 157 unused imports across 104 Python files using Ruff F401 rule
+  - Scope: Core plugin code, agents, hooks, libraries, and test files
+  - Impact: Improved code cleanliness, reduced namespace pollution
+
+---
+
 ## Quick Validation Checklist
 
 **Before starting any session:**

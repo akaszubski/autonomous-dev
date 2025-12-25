@@ -11,11 +11,8 @@ These tests validate the COMPLETE user experience.
 """
 
 import json
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 class TestPluginInstallation:

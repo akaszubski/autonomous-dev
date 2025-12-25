@@ -16,7 +16,6 @@ Exit codes:
 - 2: Critical misalignment (blocks commit in strict mode)
 """
 
-import json
 import re
 import sys
 from dataclasses import dataclass

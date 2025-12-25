@@ -32,7 +32,7 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 from genai_utils import GenAIAnalyzer, parse_classification_response
 from genai_prompts import INTENT_CLASSIFICATION_PROMPT

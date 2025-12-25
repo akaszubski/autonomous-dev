@@ -20,11 +20,10 @@ Usage:
 
 import argparse
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 
 class SetupWizard:

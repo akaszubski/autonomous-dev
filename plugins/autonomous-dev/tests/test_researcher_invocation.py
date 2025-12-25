@@ -14,8 +14,7 @@ lib_dir = Path(__file__).parent
 sys.path.insert(0, str(lib_dir))
 
 from orchestrator import Orchestrator
-from artifacts import ArtifactManager, generate_workflow_id
-import json
+from artifacts import ArtifactManager
 
 
 def print_section(title):

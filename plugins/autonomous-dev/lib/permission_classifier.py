@@ -39,7 +39,6 @@ Issue: GitHub #60 (Permission Batching System)
 Agent: implementer
 """
 
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -48,7 +47,7 @@ from typing import Dict, Any, Optional
 try:
     from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
 except ImportError:
-    from security_utils import validate_path, audit_log
+    from security_utils import audit_log
 
 
 class PermissionLevel(Enum):

@@ -25,9 +25,7 @@ Usage:
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
 import subprocess
-import re
 
 
 def is_strict_mode_enabled() -> bool:

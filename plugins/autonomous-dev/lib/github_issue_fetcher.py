@@ -65,7 +65,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional
-from subprocess import CalledProcessError, TimeoutExpired
+from subprocess import TimeoutExpired
 
 # Import security utilities for audit logging
 import sys

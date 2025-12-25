@@ -55,7 +55,6 @@ from artifacts import ArtifactManager
 from git_operations import auto_commit_and_push
 from pr_automation import create_pull_request
 from security_utils import audit_log
-import security_utils  # Make accessible for testing
 
 # Import first-run warning system (Issue #61)
 try:

@@ -24,8 +24,6 @@ Design Patterns:
     See state-management-patterns skill for standardized design patterns.
 """
 
-import json
-import logging
 import os
 import re
 import shutil
@@ -41,7 +39,7 @@ except ImportError:
     # Direct script execution - add lib dir to path
     lib_dir = Path(__file__).parent.resolve()
     sys.path.insert(0, str(lib_dir))
-    from security_utils import audit_log, validate_path
+    from security_utils import audit_log
 
 # Import user state manager for consent workflow
 try:
@@ -53,7 +51,6 @@ try:
     )
 except ImportError:
     from user_state_manager import (
-        UserStateManager,
         DEFAULT_STATE_FILE,
         get_user_preference,
         set_user_preference,

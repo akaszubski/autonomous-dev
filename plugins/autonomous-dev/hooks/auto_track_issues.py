@@ -30,7 +30,7 @@ import json
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Configuration from .env
 AUTO_TRACK_ENABLED = os.getenv("GITHUB_AUTO_TRACK_ISSUES", "false").lower() == "true"

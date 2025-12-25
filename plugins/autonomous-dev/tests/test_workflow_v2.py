@@ -4,7 +4,6 @@ Test Script for autonomous-dev v2.0 Workflow
 Demonstrates orchestrator → researcher pipeline with artifact handoff
 """
 
-import json
 import sys
 from pathlib import Path
 from orchestrator import Orchestrator

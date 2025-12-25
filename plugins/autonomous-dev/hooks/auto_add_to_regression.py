@@ -21,7 +21,6 @@ Usage:
 """
 
 import html
-import json
 import keyword
 import subprocess
 import sys

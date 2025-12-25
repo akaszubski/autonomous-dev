@@ -58,7 +58,6 @@ except ImportError:
     # Direct script execution
     lib_dir = Path(__file__).parent.resolve()
     sys.path.insert(0, str(lib_dir))
-    from security_utils import validate_path
 
 
 # =============================================================================

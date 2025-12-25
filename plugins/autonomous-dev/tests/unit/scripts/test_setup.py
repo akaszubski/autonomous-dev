@@ -6,7 +6,6 @@ Tests the SetupWizard class and its methods for plugin setup automation.
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
