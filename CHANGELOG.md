@@ -3,6 +3,18 @@
 
 **Changed**
 
+- refactor: Split sync_dispatcher.py (2,074 LOC) into focused package with 4 modules (Issue #164)
+  - **Motivation**: Large monolithic file difficult to maintain and test. Refactoring improves code organization and modularity.
+  - **Structure**: sync_dispatcher/ package with focused modules:
+    - models.py (158 lines): Data structures (SyncResult, SyncDispatcherError, SyncError)
+    - modes.py (749 lines): Mode-specific dispatch functions (marketplace, env, plugin-dev, github)
+    - dispatcher.py (1,017 lines): Main SyncDispatcher class and orchestration logic
+    - cli.py (262 lines): CLI interface and convenience functions
+  - **Backward Compatibility**: Maintained via re-export shim (sync_dispatcher.py) - existing imports continue working
+  - **New Import Patterns**: Old way still works; new preferred way imports directly from submodules
+  - **Benefits**: Clearer module responsibilities, easier to test, reduced cognitive load for maintainers
+  - **Testing**: All existing tests passing without modification (backward compatibility verified)
+
 - refactor: Remove 157 unused imports across 104 Python files using Ruff F401 rule (Issue #163)
   - **Impact**: Improved code cleanliness, reduced namespace pollution, minor performance benefit from fewer import statements
   - **Methodology**: Automated detection using Ruff static analysis tool with F401 (unused imports)

@@ -197,8 +197,23 @@ class TestSyncCommandCritical:
         Historical issue: fb3769f - silent failure with missing functions
         """
         with timing_validator.measure() as timer:
-            dispatcher = plugins_dir / "lib" / "sync_dispatcher.py"
-            content = dispatcher.read_text()
+            # Check for sync_dispatcher package (Issue #164 refactoring)
+            dispatcher_pkg = plugins_dir / "lib" / "sync_dispatcher"
+            dispatcher_shim = plugins_dir / "lib" / "sync_dispatcher.py"
+
+            # Collect content from package modules or legacy single file
+            if dispatcher_pkg.is_dir():
+                # New package structure (Issue #164)
+                dispatcher_content = dispatcher_pkg / "dispatcher.py"
+                models_content = dispatcher_pkg / "models.py"
+                content = ""
+                if dispatcher_content.exists():
+                    content += dispatcher_content.read_text()
+                if models_content.exists():
+                    content += models_content.read_text()
+            else:
+                # Legacy single file
+                content = dispatcher_shim.read_text()
 
             # Required functions/classes (SyncMode is imported from sync_mode_detector)
             required = [
@@ -208,7 +223,7 @@ class TestSyncCommandCritical:
             ]
 
             for func in required:
-                assert func in content, f"sync_dispatcher.py missing: {func}"
+                assert func in content, f"sync_dispatcher missing: {func}"
 
         assert timer.elapsed < 1.0
 
@@ -443,8 +458,19 @@ class TestOrphanCleanupBehavior:
         Expected behavior: /sync should remove orphans from ~/.claude/hooks/ and ~/.claude/lib/
         """
         with timing_validator.measure() as timer:
-            dispatcher = plugins_dir / "lib" / "sync_dispatcher.py"
-            content = dispatcher.read_text()
+            # Check for sync_dispatcher package (Issue #164 refactoring)
+            dispatcher_pkg = plugins_dir / "lib" / "sync_dispatcher"
+            dispatcher_shim = plugins_dir / "lib" / "sync_dispatcher.py"
+
+            # Collect content from package modules or legacy single file
+            if dispatcher_pkg.is_dir():
+                # New package structure (Issue #164)
+                content = ""
+                for py_file in dispatcher_pkg.glob("*.py"):
+                    content += py_file.read_text()
+            else:
+                # Legacy single file
+                content = dispatcher_shim.read_text()
 
             # Should reference orphan cleanup for global directories
             # Current behavior: delete_orphans=True for .claude/ but not ~/.claude/
@@ -457,7 +483,7 @@ class TestOrphanCleanupBehavior:
             # This test documents expected behavior - currently may fail
             # Once implemented, this test will pass
             assert has_global_cleanup or "delete_orphans" in content, (
-                "sync_dispatcher.py should handle orphan cleanup for global directories "
+                "sync_dispatcher should handle orphan cleanup for global directories "
                 "(~/.claude/hooks/, ~/.claude/lib/) during GITHUB sync mode"
             )
 

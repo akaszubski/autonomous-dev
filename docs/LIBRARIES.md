@@ -410,9 +410,21 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 5. sync_dispatcher.py (1530 lines, v3.7.1+ - Issue #127 CLI wrapper added)
+## 5. sync_dispatcher package (Issue #164 - Refactored from 2,074 LOC monolithic file into 4 focused modules)
 
 **Purpose**: Intelligent sync orchestration with version detection and cleanup (Issue #97: Fixed sync directory silent failures)
+
+**Package Structure**: Refactored from monolithic sync_dispatcher.py (2,074 LOC) into focused package with 4 modules (Issue #164):
+- models.py (158 lines): Data structures (SyncResult, SyncDispatcherError, SyncError)
+- modes.py (749 lines): Mode-specific dispatch functions (marketplace, env, plugin-dev, github)
+- dispatcher.py (1,017 lines): Main SyncDispatcher class with orchestration logic and _sync_directory() method
+- cli.py (262 lines): CLI interface and convenience functions (dispatch_sync, main)
+
+**Backward Compatibility**: All existing imports continue working via re-export shim (sync_dispatcher.py)
+
+**Import Patterns**:
+- Old (still works): `from sync_dispatcher import SyncResult, SyncDispatcher, dispatch_sync`
+- New (preferred): `from sync_dispatcher.models import SyncResult` or `from sync_dispatcher.dispatcher import SyncDispatcher`
 
 ### Classes
 
@@ -452,9 +464,6 @@ See `docs/SECURITY.md` for comprehensive security guide
   - Security: Validates paths to prevent CWE-22 (path traversal) and CWE-59 (symlink attacks)
   - Continues on individual file errors (doesn't fail entire sync)
   - Audit logging per operation for debugging
-- **Examples**:
-  - `files = dispatcher._sync_directory(plugin_dir / "commands", claude_dir / "commands", "*.md", "command files")`
-  - `files = dispatcher._sync_directory(plugin_dir / "hooks", claude_dir / "hooks", "*.py", "hook files")`
 
 #### `SyncDispatcher.sync(mode, project_root, cleanup_orphans)`
 - **Purpose**: Main entry point for sync operations
@@ -476,8 +485,8 @@ See `docs/SECURITY.md` for comprehensive security guide
   - Error handling: Non-blocking - enhancements don't block core sync
   - Messaging: Shows upgrade/downgrade/up-to-date status and cleanup results
 
-#### main() (CLI wrapper - NEW Issue #127)
-- **Purpose**: Command-line interface wrapper for sync_dispatcher.py
+#### main() (CLI wrapper - NEW Issue #127, v3.7.1+)
+- **Purpose**: Command-line interface wrapper for sync_dispatcher package
 - **Returns**: int - Exit code (0 success, 1 failure, 2 invalid args)
 - **CLI Arguments**:
   - --github: Fetch latest files from GitHub (default if no flags)
@@ -493,19 +502,7 @@ See `docs/SECURITY.md` for comprehensive security guide
   - Helpful error messages and usage examples
   - Graceful handling of KeyboardInterrupt (user cancellation)
   - Exit code 0 for --help flag (standard argparse behavior)
-- **Stdin/Stdout Handling**:
-  - Success messages printed to stdout
-  - Error messages printed to stderr
-  - Preserves argparse exit behavior for --help and invalid args
-- **Examples**:
-  - python3 sync_dispatcher.py - Default GitHub mode
-  - python3 sync_dispatcher.py --github - Explicit GitHub mode
-  - python3 sync_dispatcher.py --env - Environment sync
-  - python3 sync_dispatcher.py --marketplace - Marketplace sync
-  - python3 sync_dispatcher.py --plugin-dev - Plugin development sync
-  - python3 sync_dispatcher.py --all - All modes in sequence
-  - python3 sync_dispatcher.py --help - Show usage information
-- **Implementation**: Replaces manual mode detection, now directly embedded as if __name__ == "__main__": block
+- **Implementation**: Embedded in cli.py module
 - **Used By**: /sync command (delegates to main() via subprocess)
 
 ### Security
@@ -514,13 +511,17 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Test Coverage
 - Comprehensive testing of all sync modes
+- Backward compatibility tests verify re-export shim
 
 ### Used By
 - /sync command
 - sync_marketplace() high-level API
+- plugin_updater.py (import utilities)
 
 ### Related
-- GitHub Issues #47, #50, #51
+- GitHub Issues #47, #50, #51, #164 (refactoring)
+- Issue #97 (Fixed sync directory silent failures)
+- Issue #127 (CLI wrapper added)
 
 ---
 
