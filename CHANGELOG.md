@@ -58,6 +58,52 @@
   - **Files Created**:
     - plugins/autonomous-dev/lib/feature_dependency_analyzer.py (509 lines, v1.0.0)
     - tests/unit/lib/test_feature_dependency_analyzer.py (comprehensive test suite)
+- **Issue #161: Enhanced test-master with Complete Test Coverage (Unit + Integration + UAT)**
+  - **Problem**: Test-master agent lacks support for complete 3-tier test coverage (unit, integration, UAT). Manual test organization and acceptance criteria parsing is error-prone. TDD workflow lacks validation gates.
+  - **Solution**: Add intelligent test tier classification, acceptance criteria parsing from GitHub issues, and comprehensive test validation gates with TDD red phase enforcement.
+  - **Features**:
+    - **Acceptance Criteria Parsing**: Extract and format criteria from GitHub issues via gh CLI with Gherkin-style scenarios
+    - **Intelligent Test Tier Classification**: Content-based tier detection (unit/integration/uat) with filename hints
+    - **Test Organization**: Automatic test file organization into tier directories (tests/{unit,integration,uat}/) with collision handling
+    - **Test Pyramid Validation**: Enforce test pyramid ratios (70% unit, 20% integration, 10% UAT) with statistics
+    - **TDD Red Phase Validation**: Enforce that tests fail before implementation begins
+    - **Validation Gate**: Pre-commit quality gate ensuring all tests pass, no syntax errors, coverage thresholds met
+    - **Minimal Verbosity**: pytest integration with --tb=line -q to prevent subprocess pipe deadlock (Issue #90)
+    - **Coverage Threshold Enforcement**: Validate code coverage meets minimum threshold
+  - **Files Created**:
+    - plugins/autonomous-dev/lib/acceptance_criteria_parser.py (269 lines, v3.45.0+)
+    - plugins/autonomous-dev/lib/test_tier_organizer.py (399 lines, v3.45.0+)
+    - plugins/autonomous-dev/lib/test_validator.py (388 lines, v3.45.0+)
+    - tests/unit/lib/test_acceptance_criteria_parser.py (530 lines, 16 tests)
+    - tests/unit/lib/test_test_tier_organizer.py (490 lines, 31 tests)
+    - tests/unit/lib/test_test_validator.py (668 lines, 33 tests)
+  - **Total Test Coverage**: 76 tests added for new libraries (16+31+33-4 shared tests)
+  - **Key Functions**:
+    - acceptance_criteria_parser: fetch_issue_body(), parse_acceptance_criteria(), format_for_uat()
+    - test_tier_organizer: determine_tier(), create_tier_directories(), organize_tests_by_tier(), validate_test_pyramid()
+    - test_validator: run_tests(), validate_red_phase(), run_validation_gate(), validate_coverage()
+  - **Integration Points**:
+    - test-master agent: Uses libraries during TDD phase (red/green/refactor)
+    - /auto-implement command: Validation gate before code review and commit
+    - test_master.md prompt: Enhanced with acceptance criteria parsing and test organization
+  - **Documentation Updated**:
+    - docs/LIBRARIES.md: Added sections 53, 54, 55 for new libraries (Core Libraries count: 22 → 25)
+    - CHANGELOG.md: Entry for v3.45.0 with test coverage enhancement
+  - **Security**:
+    - subprocess.run() with list args (no shell=True)
+    - gh CLI validation (positive integers, error handling)
+    - Path traversal prevention (CWE-22, CWE-59)
+    - Output sanitization prevents command injection
+  - **Performance**:
+    - Test tier classification: less than 100ms per file
+    - Test organization: less than 500ms for typical project
+    - Validation gate: 5-minute timeout for full test suite
+    - Acceptance criteria parsing: 30-second timeout per GitHub issue
+  - **Quality Metrics**:
+    - Library code coverage: 90% target (1,056 lines across 3 libraries)
+    - Test coverage: 80+ tests across 3 test files
+    - Integration tests: test_enhanced_test_coverage_workflow.py for end-to-end validation
+
   - **Files Modified**:
     - plugins/autonomous-dev/lib/batch_state_manager.py: Added 3 new fields for dependency tracking
       - feature_order: Optimized execution order from topological sort
