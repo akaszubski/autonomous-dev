@@ -161,6 +161,20 @@ class TechDebtDetector:
         ...     print("Fix CRITICAL issues before committing!")
     """
 
+    # Default directories to exclude from analysis
+    DEFAULT_EXCLUDE_DIRS = {
+        'venv', '.venv', 'env', '.env',  # Python virtual environments
+        'node_modules',                   # Node.js dependencies
+        '.git', '.svn', '.hg',           # Version control
+        '__pycache__', '.pytest_cache',  # Python cache
+        '.mypy_cache', '.ruff_cache',    # Linter caches
+        'build', 'dist', 'egg-info',     # Build artifacts
+        '.tox', '.nox',                  # Test runners
+        'site-packages',                 # Installed packages
+        '.idea', '.vscode',              # IDE configs
+        'coverage', 'htmlcov',           # Coverage reports
+    }
+
     def __init__(
         self,
         project_root: Path,
@@ -169,6 +183,7 @@ class TechDebtDetector:
         complexity_threshold: int = 10,
         config_threshold: int = 20,
         red_test_threshold: int = 5,
+        exclude_dirs: Set[str] = None,
     ):
         """Initialize tech debt detector.
 
@@ -179,6 +194,7 @@ class TechDebtDetector:
             complexity_threshold: McCabe complexity threshold (default: 10)
             config_threshold: Config file count threshold (default: 20)
             red_test_threshold: Failing test threshold (default: 5)
+            exclude_dirs: Directories to skip (default: venv, node_modules, .git, etc.)
         """
         # Security: Resolve path to prevent traversal
         self.project_root = Path(project_root).resolve()
@@ -187,6 +203,22 @@ class TechDebtDetector:
         self.complexity_threshold = complexity_threshold
         self.config_threshold = config_threshold
         self.red_test_threshold = red_test_threshold
+        self.exclude_dirs = exclude_dirs if exclude_dirs is not None else self.DEFAULT_EXCLUDE_DIRS
+
+    def _should_skip_path(self, path: Path) -> bool:
+        """Check if path should be skipped based on exclude_dirs.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if path should be skipped
+        """
+        # Check if any parent directory is in exclude list
+        for part in path.parts:
+            if part in self.exclude_dirs:
+                return True
+        return False
 
     def analyze(self) -> TechDebtReport:
         """Run all tech debt detectors and aggregate results.
@@ -248,6 +280,9 @@ class TechDebtDetector:
 
         # Find all Python files
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories (venv, node_modules, etc.)
+            if self._should_skip_path(py_file):
+                continue
             # Skip test files
             if py_file.name.startswith("test_") or py_file.name.endswith("_test.py"):
                 continue
@@ -304,6 +339,9 @@ class TechDebtDetector:
 
         # Parse all Python files
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories
+            if self._should_skip_path(py_file):
+                continue
             try:
                 with open(py_file, 'r', encoding='utf-8') as f:
                     tree = ast.parse(f.read(), filename=str(py_file))
@@ -410,6 +448,9 @@ class TechDebtDetector:
 
         # Find test files with RED markers
         for test_file in self.project_root.rglob("test_*.py"):
+            # Skip excluded directories
+            if self._should_skip_path(test_file):
+                continue
             try:
                 with open(test_file, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -458,6 +499,9 @@ class TechDebtDetector:
         config_files_by_dir: Dict[str, List[Path]] = defaultdict(list)
 
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories
+            if self._should_skip_path(py_file):
+                continue
             if 'config' in py_file.name.lower():
                 parent = str(py_file.parent)
                 config_files_by_dir[parent].append(py_file)
@@ -477,6 +521,9 @@ class TechDebtDetector:
 
         # Method 2: Count Config* classes in individual files
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories
+            if self._should_skip_path(py_file):
+                continue
             try:
                 with open(py_file, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -612,6 +659,9 @@ class TechDebtDetector:
 
         # Detect unused imports and functions
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories (venv, node_modules, etc.)
+            if self._should_skip_path(py_file):
+                continue
             # Skip test files (they may have intentional unused code)
             if py_file.name.startswith('test_') or py_file.name.endswith('_test.py'):
                 continue
@@ -716,6 +766,9 @@ class TechDebtDetector:
         issues = []
 
         for py_file in self.project_root.rglob("*.py"):
+            # Skip excluded directories (venv, node_modules, etc.)
+            if self._should_skip_path(py_file):
+                continue
             try:
                 with open(py_file, 'r', encoding='utf-8') as f:
                     content = f.read()
