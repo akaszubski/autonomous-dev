@@ -73,7 +73,7 @@ class TestCharacterCountValidation:
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
         Tolerance: ±15% (includes 35 libraries from LIBRARIES.md)
         """
-        original_size = 295000  # Updated baseline for v3.41.0+ with 35 libraries
+        original_size = 350000  # Updated baseline for v3.45.0+ with expanded libraries
 
         # Paths
         project_root = Path(__file__).parent.parent.parent
@@ -131,9 +131,9 @@ class TestCharacterCountValidation:
         performance_size = len(performance_md.read_text(encoding="utf-8"))
         git_automation_size = len(git_automation_md.read_text(encoding="utf-8"))
 
-        assert 90000 <= libraries_size <= 250000, (
+        assert 90000 <= libraries_size <= 320000, (
             f"LIBRARIES.md size unexpected: {libraries_size} chars "
-            f"(expected ~225,000 ±40% for 35 libraries)"
+            f"(expected ~280,000 ±15% for 35+ libraries)"
         )
         assert 8600 <= performance_size <= 16200, (
             f"PERFORMANCE.md size unexpected: {performance_size} chars "

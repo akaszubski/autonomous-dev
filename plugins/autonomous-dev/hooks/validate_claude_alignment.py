@@ -44,8 +44,8 @@ class ClaudeAlignmentValidator:
 
     def validate(self) -> Tuple[bool, List[AlignmentIssue]]:
         """Run all validation checks."""
-        # Read files
-        global_claude = self._read_file(Path.home() / ".claude" / "CLAUDE.md")
+        # Read files (global CLAUDE.md is optional - may not exist in dev environments)
+        global_claude = self._read_file(Path.home() / ".claude" / "CLAUDE.md", optional=True)
         project_claude = self._read_file(self.repo_root / "CLAUDE.md")
         project_md = self._read_file(self.repo_root / ".claude" / "PROJECT.md")
 
@@ -63,15 +63,21 @@ class ClaudeAlignmentValidator:
 
         return not has_errors, self.issues
 
-    def _read_file(self, path: Path) -> str:
-        """Read file safely."""
+    def _read_file(self, path: Path, optional: bool = False) -> str:
+        """Read file safely.
+
+        Args:
+            path: File path to read
+            optional: If True, don't warn if file is missing (e.g., global CLAUDE.md)
+        """
         if not path.exists():
-            self.issues.append(AlignmentIssue(
-                severity="warning",
-                category="version",
-                message=f"File not found: {path}",
-                location=str(path)
-            ))
+            if not optional:
+                self.issues.append(AlignmentIssue(
+                    severity="warning",
+                    category="version",
+                    message=f"File not found: {path}",
+                    location=str(path)
+                ))
             return ""
         return path.read_text()
 
