@@ -19,7 +19,7 @@ set -e
 echo "🔍 Validating repository structure..."
 
 # Run structure validation
-python scripts/validate_structure.py
+python3 scripts/validate_structure.py
 
 echo "🔍 Checking for accidentally staged .claude/ files..."
 
@@ -43,12 +43,12 @@ fi
 echo "🔍 Validating slash command implementations..."
 
 # Run command validation
-python plugins/autonomous-dev/hooks/validate_commands.py
+python3 plugins/autonomous-dev/hooks/validate_commands.py
 
 echo "🔍 Syncing install manifest with source files..."
 
 # Auto-sync install_manifest.json (bidirectional - adds AND removes)
-python plugins/autonomous-dev/hooks/validate_install_manifest.py
+python3 plugins/autonomous-dev/hooks/validate_install_manifest.py
 MANIFEST_EXIT=$?
 if [ $MANIFEST_EXIT -ne 0 ]; then
     echo ""
@@ -65,7 +65,7 @@ fi
 echo "🔍 Validating settings template hooks exist..."
 
 # Ensure hooks referenced in settings template actually exist
-python plugins/autonomous-dev/hooks/validate_settings_hooks.py
+python3 plugins/autonomous-dev/hooks/validate_settings_hooks.py
 SETTINGS_EXIT=$?
 if [ $SETTINGS_EXIT -ne 0 ]; then
     echo ""
@@ -76,7 +76,7 @@ fi
 echo "🔍 Validating library imports..."
 
 # Ensure all lib imports resolve (catches deleted/renamed libs)
-python plugins/autonomous-dev/hooks/validate_lib_imports.py
+python3 plugins/autonomous-dev/hooks/validate_lib_imports.py
 IMPORTS_EXIT=$?
 if [ $IMPORTS_EXIT -ne 0 ]; then
     echo ""
@@ -87,7 +87,7 @@ fi
 echo "🔍 Validating all hooks documented..."
 
 # Ensure all hooks have documentation in HOOKS.md
-python plugins/autonomous-dev/hooks/validate_hooks_documented.py
+python3 plugins/autonomous-dev/hooks/validate_hooks_documented.py
 DOCS_EXIT=$?
 if [ $DOCS_EXIT -ne 0 ]; then
     echo ""
@@ -116,7 +116,7 @@ elif command -v pytest &> /dev/null; then
     fi
 else
     echo "⚠️  pytest not installed, skipping documentation tests"
-    echo "   Install: python -m venv venv && source venv/bin/activate && pip install pytest pytest-cov"
+    echo "   Install: python3 -m venv venv && source venv/bin/activate && pip install pytest pytest-cov"
 fi
 
 # If all validations pass, allow commit
