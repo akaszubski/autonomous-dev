@@ -331,6 +331,44 @@ DEBUG_SECURITY_SCAN=true
 
 ---
 
+## Fully Autonomous / Unattended Operation
+
+**For `/batch-implement` to run without ANY prompts**, you need these settings:
+
+```bash
+# =============================================================================
+# FULLY AUTONOMOUS MODE - No prompts, no questions, complete automation
+# =============================================================================
+
+# Required: Prevent MCP tool approval prompts
+MCP_AUTO_APPROVE=true
+
+# Required: Prevent git automation prompts
+AUTO_GIT_ENABLED=true
+AUTO_GIT_PUSH=true
+AUTO_GIT_PR=true
+AUTO_CLOSE_ISSUES=true
+
+# Required: Prevent batch retry prompts
+BATCH_RETRY_ENABLED=true
+
+# Optional: Skip workflow enforcement (not recommended)
+# ENFORCE_WORKFLOW=false
+```
+
+**What this enables**:
+- `/batch-implement` runs overnight without human intervention
+- All git operations execute automatically
+- Transient failures (network, timeout) auto-retry
+- PRs created and issues closed automatically
+
+**What still happens**:
+- Tests MUST pass 100% (not 80%) before proceeding
+- Security vulnerabilities still block if CRITICAL
+- Failed features are marked as failed (batch continues)
+
+---
+
 ## Complete Example
 
 Here's a fully configured `.env` for autonomous development:

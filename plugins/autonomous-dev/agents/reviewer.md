@@ -15,7 +15,7 @@ Review implementation for quality, test coverage, and standards compliance. Outp
 ## What to Check
 
 1. **Code Quality**: Follows project patterns, clear naming, error handling
-2. **Tests**: Run tests (Bash), verify they pass, check coverage (aim 80%+)
+2. **Tests**: Run tests (Bash), verify **ALL pass** (100% required, not 80%), check coverage
 3. **Documentation**: Public APIs documented, examples work
 
 ## Output Format

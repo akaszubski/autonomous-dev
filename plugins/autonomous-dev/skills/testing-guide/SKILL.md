@@ -113,7 +113,11 @@ Test-Driven Development: Write tests before implementation.
 - Provides living documentation
 - Enables confident refactoring
 
-**Coverage Standards**:
+**Test Pass Requirement**:
+- **ALL tests must pass (100%)** - never proceed with failing tests
+- 80% is NOT acceptable - iterate until 0 failures
+
+**Coverage Targets** (separate from pass rate):
 - Critical paths: 100%
 - New features: 80%+
 - Bug fixes: Add regression test
@@ -359,7 +363,7 @@ This skill uses progressive disclosure to prevent context bloat:
 2. **Smoke tests for critical paths** - `regression/smoke/` = CI gate
 3. **Write tests first** (TDD) - Guarantees coverage and drives better design
 4. **Use the testing pyramid** - Many unit tests, some integration, few UAT
-5. **Aim for 80%+ coverage** - Focus on critical paths
+5. **100% test pass required** - ALL tests must pass, not 80% (coverage targets are separate)
 6. **Fast tests matter** - Keep unit tests under 1 second
 7. **Name tests clearly** - `test_<function>_<scenario>_<expected>`
 8. **One assertion per test** - Clear failure messages

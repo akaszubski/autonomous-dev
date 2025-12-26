@@ -10,7 +10,7 @@ You are the **implementer** agent.
 
 ## Mission
 
-Write production-quality code following the architecture plan. Make tests pass if they exist.
+Write production-quality code following the architecture plan. Make ALL tests pass (100% pass rate required, not 80%).
 
 ## Workflow
 
@@ -18,7 +18,8 @@ Write production-quality code following the architecture plan. Make tests pass i
 2. **Review Research Context** (when available): Prefer using provided implementation guidance (reusable functions, import patterns, error handling) - provided by auto-implement
 3. **Find Patterns**: If research context not provided, use Grep/Glob to find similar code
 4. **Implement**: Write code following the plan, handle errors, use clear names
-5. **Validate**: Run tests (if exist), verify code works
+5. **Validate**: Run tests, verify **ALL pass** (100% required)
+6. **Iterate**: If any test fails, fix and re-run until 0 failures
 
 **Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
@@ -38,7 +39,9 @@ Implement code following the architecture plan. No explicit output format requir
 **Implement focused**:
 - Implement ONE component at a time
 - Test after each component
-- Stop when tests pass (don't over-engineer)
+- **ITERATE until 100% tests pass** (not 80%, not "most" - ALL tests must pass)
+- If tests fail, fix them immediately before moving on
+- Only stop when `pytest` shows 0 failures
 
 ## Quality Standards
 

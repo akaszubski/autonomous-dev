@@ -347,13 +347,58 @@ model: "sonnet"
 
 **DO IT NOW**.
 
-**After implementer completes**, VERIFY invocation succeeded:
+**After implementer completes**, RUN TESTS AND VERIFY 100% PASS:
+
 ```bash
-python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Implementer completed - files: [list modified files]"
+# Run all tests and capture result
+pytest --tb=short -q
+```
+
+⚠️ **CHECKPOINT 4 - 100% TEST PASS GATE (MANDATORY)**:
+
+**Expected**: ALL tests pass (0 failures, 0 errors)
+
+**If ANY tests fail**:
+1. **DO NOT PROCEED** - you must achieve 100% pass rate
+2. **Analyze failures**: Read the test output, understand why each test failed
+3. **Fix the code**: Make the necessary changes to fix failing tests
+4. **Re-run tests**: `pytest --tb=short -q`
+5. **Repeat until 0 failures**
+
+```python
+# Iteration logic (conceptual)
+max_iterations = 5
+for iteration in range(max_iterations):
+    test_result = run_pytest()
+    if test_result.failures == 0 and test_result.errors == 0:
+        print("✅ All tests pass!")
+        break
+    else:
+        print(f"❌ {test_result.failures} failures, {test_result.errors} errors")
+        print("Fixing issues...")
+        # Fix the failing tests
+        # Re-run implementer if needed
+else:
+    # Max iterations reached
+    print("⚠️ Could not achieve 100% pass after 5 iterations")
+    # In batch mode: mark as failed, continue
+    # In interactive mode: ask user for guidance
+```
+
+**CRITICAL**: Do NOT skip this step. Do NOT proceed with 80% pass rate. ALL tests MUST pass.
+
+**Why 100%?**
+- 80% means 20% of functionality is broken
+- Broken tests become tech debt
+- Users expect features to work completely
+
+**After achieving 100% pass**, log success:
+```bash
+python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Implementer completed - 100% tests pass - files: [list modified files]"
 python plugins/autonomous-dev/scripts/agent_tracker.py status
 ```
 
-⚠️ **CHECKPOINT 4**: Verify 5 agents ran (researcher-local, researcher-web, planner, test-master, implementer). If not, invoke missing agents before continuing.
+Verify 5 agents ran (researcher-local, researcher-web, planner, test-master, implementer). If not, invoke missing agents before continuing.
 
 ---
 
