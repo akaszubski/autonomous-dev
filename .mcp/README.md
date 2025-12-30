@@ -143,11 +143,11 @@ Defines which MCP servers to run and their configuration:
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/akaszubski/Documents/GitHub/autonomous-dev"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR}"]
     },
     "git": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/Users/akaszubski/Documents/GitHub/autonomous-dev"]
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "${CLAUDE_PROJECT_DIR}"]
     },
     "github": {
       "command": "docker",
@@ -308,7 +308,7 @@ Defines permission rules for all MCP operations.
 **Configuration**:
 ```bash
 # Repository root (from config.json)
-"--repository /Users/akaszubski/Documents/GitHub/autonomous-dev"
+"--repository ${CLAUDE_PROJECT_DIR}"
 ```
 
 ### GitHub Server

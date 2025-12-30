@@ -10,7 +10,7 @@
 
 ```bash
 # 1. Check you're in the repo
-pwd  # Should show: /Users/akaszubski/Documents/GitHub/autonomous-dev
+pwd  # Should show: ${PROJECT_ROOT}
 
 # 2. After ANY file changes, resync
 ./scripts/resync-dogfood.sh  # Copies plugins/* → .claude/* (no restart needed!)
@@ -129,7 +129,7 @@ rm -f ~/.claude/plugins/known_marketplaces.json
 # 1. Restart Claude Code
 
 # 2. In your autonomous-dev repo:
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev
+cd ${PROJECT_ROOT}
 
 # 3. Run bootstrap (copies plugin files to project)
 bash install.sh
@@ -1054,7 +1054,7 @@ gh issue list --label "validate-need"
 I'm working on autonomous-dev plugin development (dogfooding mode).
 
 Context:
-- Repo: /Users/akaszubski/Documents/GitHub/autonomous-dev
+- Repo: ${PROJECT_ROOT}
 - Role: Plugin developer (not user)
 - Setup: Read docs/DEVELOPMENT.md for full context
 

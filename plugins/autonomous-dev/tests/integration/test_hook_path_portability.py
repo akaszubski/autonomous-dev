@@ -385,7 +385,7 @@ class TestEndToEndMigrationWorkflow:
                     "matcher": "*",
                     "hooks": [{
                         "type": "command",
-                        "command": "MCP_AUTO_APPROVE=true python3 /Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py"
+                        "command": "MCP_AUTO_APPROVE=true python3 ${PROJECT_ROOT}/plugins/autonomous-dev/hooks/pre_tool_use.py"
                     }]
                 }]
             }

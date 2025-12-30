@@ -34,7 +34,7 @@ Complete documentation package created for the real-time progress indicators fea
 
 ### 1. CHANGELOG.md Entry
 
-**Location**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md` (lines 12-26)
+**Location**: `${PROJECT_ROOT}/CHANGELOG.md` (lines 12-26)
 
 **Content**:
 - Feature title and GitHub issue reference (#42)
@@ -49,7 +49,7 @@ Complete documentation package created for the real-time progress indicators fea
 
 ### 2. Plugin README.md Update
 
-**Location**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/README.md` (lines 923-981)
+**Location**: `${PROJECT_ROOT}/plugins/autonomous-dev/README.md` (lines 923-981)
 
 **Content**:
 - Feature overview with "NEW" indicator
@@ -66,7 +66,7 @@ Complete documentation package created for the real-time progress indicators fea
 
 ### 3. Integration Guide (New Document)
 
-**Location**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/PROGRESS_DISPLAY_INTEGRATION.md` (15.9 KB)
+**Location**: `${PROJECT_ROOT}/docs/PROGRESS_DISPLAY_INTEGRATION.md` (15.9 KB)
 
 **Sections**:
 1. **Overview** - What the feature does and capabilities
@@ -94,7 +94,7 @@ Complete documentation package created for the real-time progress indicators fea
 
 ### 4. Implementation Guide (New Document)
 
-**Location**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/PROGRESS_DISPLAY_IMPLEMENTATION.md` (17.1 KB)
+**Location**: `${PROJECT_ROOT}/docs/PROGRESS_DISPLAY_IMPLEMENTATION.md` (17.1 KB)
 
 **Sections**:
 1. **Architecture Overview** - ASCII diagram of polling architecture

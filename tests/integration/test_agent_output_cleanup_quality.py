@@ -519,7 +519,7 @@ def test_dual_mode_guidance_preserved_in_agent():
     EXPECTED TO FAIL: Cleanup may remove mode-specific guidance.
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "project-progress-tracker.md"
     )
     content = agent_file.read_text()

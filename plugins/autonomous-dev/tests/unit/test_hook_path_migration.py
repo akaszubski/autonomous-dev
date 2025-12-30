@@ -26,7 +26,7 @@ class TestMigrateHookPaths:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "MCP_AUTO_APPROVE=true python3 /Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py"
+                                "command": "MCP_AUTO_APPROVE=true python3 ${PROJECT_ROOT}/plugins/autonomous-dev/hooks/pre_tool_use.py"
                             }
                         ]
                     }
@@ -64,7 +64,7 @@ class TestMigrateHookPaths:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "MCP_AUTO_APPROVE=true python3 /Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py"
+                                "command": "MCP_AUTO_APPROVE=true python3 ${PROJECT_ROOT}/plugins/autonomous-dev/hooks/pre_tool_use.py"
                             }
                         ]
                     }
@@ -251,7 +251,7 @@ class TestMigrateHookPaths:
         from autonomous_dev.scripts.migrate_hook_paths import migrate_hook_paths
 
         patterns = [
-            "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py",
+            "${PROJECT_ROOT}/plugins/autonomous-dev/hooks/pre_tool_use.py",
             "/home/user/projects/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py",
             "C:\\Users\\user\\autonomous-dev\\plugins\\autonomous-dev\\hooks\\pre_tool_use.py",
             "/opt/autonomous-dev/plugins/autonomous-dev/hooks/pre_tool_use.py"

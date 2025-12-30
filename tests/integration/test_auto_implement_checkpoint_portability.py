@@ -6,7 +6,7 @@ All tests should FAIL initially (hardcoded paths still in auto-implement.md).
 
 Problem:
 - Lines 112 and 344 in auto-implement.md have hardcoded paths:
-  cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+  cd ${PROJECT_ROOT} && python3 << 'EOF'
 - Breaks portability for other developers and CI/CD environments
 
 Solution:
