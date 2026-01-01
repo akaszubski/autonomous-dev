@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2025-12-16
+**Last Updated**: 2026-01-01
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for automation hooks in the autonomous-dev plugin.
@@ -237,6 +237,30 @@ Consolidated dispatcher hooks that combine multiple individual hooks for reduced
 **Consolidates**: auto_git_workflow.py
 **Lifecycle**: SubagentStop
 **Environment Variables**: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+
+### verify_completion.py
+
+**Purpose**: Pipeline completion verification with loop-back retry for incomplete work
+**Lifecycle**: SubagentStop
+**Trigger**: After doc-master agent completes (last agent in parallel validation)
+**Environment Variables**: VERIFY_COMPLETION_ENABLED (default: true)
+
+**Features**:
+- Verifies all 8 pipeline agents completed
+- Implements circuit breaker (opens after 3 consecutive failures)
+- Exponential backoff retry (100ms → 5000ms)
+- Max 5 retry attempts
+- Creates loop-back checkpoint for incomplete work
+- Graceful degradation (always exit 0, non-blocking)
+- Audit logging for all verification attempts
+
+**Flow**:
+1. Checks if all 8 expected agents present in session
+2. If missing agents detected: creates LoopBackState checkpoint
+3. If circuit breaker open: logs warning and continues
+4. Always exits 0 (hook never blocks pipeline)
+
+**Related**: Issue #170 (completion verification with loop-back)
 
 ### unified_code_quality.py
 

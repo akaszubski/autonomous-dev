@@ -118,7 +118,8 @@
         "plugins/autonomous-dev/hooks/validate_readme_with_genai.py",
         "plugins/autonomous-dev/hooks/validate_session_quality.py",
         "plugins/autonomous-dev/hooks/validate_settings_hooks.py",
-        "plugins/autonomous-dev/hooks/verify_agent_pipeline.py"
+        "plugins/autonomous-dev/hooks/verify_agent_pipeline.py",
+        "plugins/autonomous-dev/hooks/verify_completion.py"
       ]
     },
     "scripts": {
@@ -157,6 +158,7 @@
         "plugins/autonomous-dev/lib/brownfield_retrofit.py",
         "plugins/autonomous-dev/lib/checkpoint.py",
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
+        "plugins/autonomous-dev/lib/completion_verifier.py",
         "plugins/autonomous-dev/lib/context_skill_injector.py",
         "plugins/autonomous-dev/lib/copy_system.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",

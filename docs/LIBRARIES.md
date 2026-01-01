@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2025-12-25
+**Last Updated: 2026-01-01
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (27)
+### Core Libraries (28)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -38,6 +38,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 25. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
 26. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
 27. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
+28. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -8277,5 +8278,410 @@ Dependencies:
 - logging - Debug logging
 - dataclasses - Data structures
 - enum - Effort size enumeration
+
+---
+
+## 58. completion_verifier.py (415 lines, v1.0.0)
+
+**Purpose**: Pipeline completion verification with intelligent retry and circuit breaker
+
+**Problem**: Pipeline agents may fail to complete, but users have no way to detect and retry incomplete work
+
+**Solution**: Comprehensive completion verification system with exponential backoff and state persistence
+
+### Data Structures
+
+#### VerificationResult
+
+Immutable verification outcome.
+
+**Attributes**:
+- `complete` (bool): True if all 8 agents completed
+- `agents_found` (List[str]): Names of agents found in session
+- `missing_agents` (List[str]): Names of agents not found (empty if complete)
+- `verification_time_ms` (float): Time taken to verify (milliseconds)
+
+**Features**:
+- Immutable (frozen dataclass)
+- Preserves agent order from EXPECTED_AGENTS constant
+- Always includes verification timing for performance monitoring
+
+#### LoopBackState
+
+Mutable retry state with persistence.
+
+**Attributes**:
+- `session_id` (str): Session identifier for correlation
+- `attempt_count` (int): Current retry attempt number (0 = initial check)
+- `max_attempts` (int): Maximum allowed attempts (default: 5)
+- `consecutive_failures` (int): Count of consecutive failures (0 = success, increments on failure)
+- `circuit_breaker_open` (bool): True if circuit breaker triggered (after 3 consecutive failures)
+- `last_attempt_timestamp` (Optional[str]): ISO 8601 timestamp of last attempt
+- `missing_agents` (List[str]): Agents not found in last verification
+
+**Features**:
+- Serializable to JSON (for state persistence)
+- Tracks attempt history for audit logging
+- Circuit breaker integration (prevents infinite retries)
+- Supports graceful degradation with fallback defaults
+
+### Functions
+
+#### verify_pipeline_completion(session_id, session_data=None, state_dir=None)
+
+Verify that all 8 expected agents completed.
+
+**Signature**:
+```python
+def verify_pipeline_completion(
+    session_id: str,
+    session_data: Optional[Dict] = None,
+    state_dir: Optional[Path] = None
+) -> VerificationResult
+```
+
+**Parameters**:
+- `session_id` (str): Session identifier
+- `session_data` (Optional[Dict]): Pre-loaded session data for testing (bypasses file read)
+- `state_dir` (Optional[Path]): State directory (defaults to `./.claude`)
+
+**Returns**: `VerificationResult` with completion status and missing agents
+
+**Expected Agents** (in order):
+1. researcher-local
+2. researcher-web
+3. planner
+4. test-master
+5. implementer
+6. reviewer
+7. security-auditor
+8. doc-master
+
+**Features**:
+- Loads session file from `.claude/sessions/{session_id}.json`
+- Extracts agent names from session data
+- Compares against EXPECTED_AGENTS constant
+- Preserves agent order in results
+- Graceful degradation on file not found (returns incomplete)
+- Handles JSON parse errors gracefully
+
+**Security**:
+- Path validation for state_dir (CWE-22 prevention)
+- No execution of code in session data
+- Read-only access to session files
+
+**Performance**:
+- Typical: <10ms for average session file (500-1000 bytes)
+- Worst case: <50ms for large session files (10K+ bytes)
+
+#### should_retry(state: LoopBackState) -> bool
+
+Check if retry should proceed (under max attempts and circuit breaker not triggered).
+
+**Parameters**:
+- `state` (LoopBackState): Current loop-back state
+
+**Returns**: True if retry allowed, False otherwise
+
+**Logic**:
+1. Check circuit breaker first (if 3+ consecutive failures, return False)
+2. Check if circuit breaker open flag set (return False)
+3. Check if attempt_count >= max_attempts (return False)
+4. Otherwise return True
+
+**Features**:
+- Prevents infinite retry loops via circuit breaker
+- Prevents resource exhaustion via max attempt limit
+- Checks circuit breaker before max attempts check (fail-fast)
+
+#### get_next_retry_delay(attempt: int) -> float
+
+Calculate exponential backoff delay for next retry.
+
+**Parameters**:
+- `attempt` (int): Current attempt number (0-based)
+
+**Returns**: Delay in milliseconds as float
+
+**Backoff Schedule**:
+- Attempt 0: 100ms (BASE_RETRY_DELAY_MS)
+- Attempt 1: 200ms (100 * 2^1)
+- Attempt 2: 400ms (100 * 2^2)
+- Attempt 3: 800ms (100 * 2^3)
+- Attempt 4: 1600ms (100 * 2^4)
+- Max: 5000ms (BACKOFF_MAX_MS, capped)
+
+**Formula**:
+```
+delay = BASE_RETRY_DELAY_MS * (BACKOFF_MULTIPLIER ^ attempt)
+delay = min(delay, BACKOFF_MAX_MS)
+```
+
+**Features**:
+- Exponential backoff prevents server overload on transient failures
+- Capped at 5000ms to prevent excessive delays
+- Graceful degradation if attempt < 0 (returns BASE_RETRY_DELAY_MS)
+
+#### load_loop_back_state(state_file: Path) -> Optional[LoopBackState]
+
+Load retry state from JSON file.
+
+**Parameters**:
+- `state_file` (Path): Path to loop-back state JSON file
+
+**Returns**: `LoopBackState` if file exists and valid, None otherwise
+
+**Features**:
+- Handles file not found gracefully (returns None)
+- Handles JSON parse errors gracefully (logs error, returns None)
+- Deserializes LoopBackState from JSON
+- Validates required fields present
+
+**Security**:
+- Path validation for state_file
+- No code execution from loaded state
+
+#### save_loop_back_state(state: LoopBackState, state_file: Path) -> bool
+
+Save retry state to JSON file.
+
+**Parameters**:
+- `state` (LoopBackState): State to save
+- `state_file` (Path): Path to write state file
+
+**Returns**: True if save succeeded, False otherwise
+
+**Features**:
+- Atomic write via tempfile + rename pattern
+- Creates parent directories if needed
+- Handles permission errors gracefully
+- Updates timestamp on save
+
+**Security**:
+- Atomic write prevents corruption on interruption
+- No sensitive data in state file (session IDs only)
+
+#### clear_loop_back_state(state_file: Path) -> bool
+
+Delete retry state file after successful completion.
+
+**Parameters**:
+- `state_file` (Path): Path to state file to delete
+
+**Returns**: True if deleted or doesn't exist, False if error
+
+**Features**:
+- Idempotent (returns True if file doesn't exist)
+- Handles permission errors gracefully
+- Logs all operations for audit trail
+
+#### create_loop_back_checkpoint(session_id: str, missing_agents: List[str], state_dir: Path) -> bool
+
+Create a loop-back checkpoint for incomplete work.
+
+**Parameters**:
+- `session_id` (str): Session identifier
+- `missing_agents` (List[str]): List of agent names not found
+- `state_dir` (Path): Directory to save state
+
+**Returns**: True if checkpoint created, False otherwise
+
+**Features**:
+- Creates LoopBackState with initial values
+- Sets attempt_count = 0 (fresh retry attempt)
+- Initializes consecutive_failures = 0
+- Records timestamp of checkpoint creation
+- Saves state atomically
+
+### CompletionVerifier Class
+
+Main verification engine with session file handling.
+
+#### __init__(session_id: str, state_dir: Optional[Path] = None)
+
+Initialize verifier for a session.
+
+**Parameters**:
+- `session_id` (str): Session identifier
+- `state_dir` (Optional[Path]): State directory (defaults to `./.claude`)
+
+**Features**:
+- Stores session_id for later verification
+- Resolves state_dir with fallback to `./.claude`
+- Prepares state file path (`.claude/loop_back/{session_id}.json`)
+
+#### verify() -> VerificationResult
+
+Run verification check on the session.
+
+**Returns**: `VerificationResult` with completion status
+
+**Features**:
+- Calls `verify_pipeline_completion()` with stored session_id
+- Returns result for caller to handle retry logic
+- Non-blocking (always returns a result)
+
+#### get_retry_state() -> Optional[LoopBackState]
+
+Load current retry state if exists.
+
+**Returns**: `LoopBackState` if state file exists, None otherwise
+
+**Features**:
+- Loads from persistent state file
+- Returns None if first check or state cleared
+
+#### update_retry_state(state: LoopBackState) -> None
+
+Update retry state with current attempt.
+
+**Parameters**:
+- `state` (LoopBackState): State to persist
+
+**Features**:
+- Increments attempt_count
+- Updates timestamp
+- Saves to disk atomically
+
+#### clear_state_on_success() -> bool
+
+Delete state file after successful completion.
+
+**Returns**: True if cleared or doesn't exist, False if error
+
+**Features**:
+- Idempotent (safe to call multiple times)
+- Graceful degradation on permission errors
+
+#### get_state() -> Optional[LoopBackState]
+
+Alias for `get_retry_state()` for consistency with other APIs.
+
+**Returns**: `LoopBackState` if exists, None otherwise
+
+### Configuration Constants
+
+```python
+# Expected agents in pipeline order (8 total)
+EXPECTED_AGENTS = [
+    "researcher-local",
+    "researcher-web",
+    "planner",
+    "test-master",
+    "implementer",
+    "reviewer",
+    "security-auditor",
+    "doc-master"
+]
+
+# Retry configuration
+MAX_RETRY_ATTEMPTS = 5
+CIRCUIT_BREAKER_THRESHOLD = 3
+BASE_RETRY_DELAY_MS = 100
+BACKOFF_BASE_MS = 100
+BACKOFF_MULTIPLIER = 2
+BACKOFF_MAX_MS = 5000
+```
+
+### Usage Example
+
+Basic verification with retry logic:
+
+```python
+from pathlib import Path
+from completion_verifier import CompletionVerifier, should_retry
+import time
+
+# Initialize verifier
+verifier = CompletionVerifier(session_id="session_123")
+
+# Check if complete
+result = verifier.verify()
+if result.complete:
+    print(f"Pipeline complete: {len(result.agents_found)} agents")
+    verifier.clear_state_on_success()
+else:
+    print(f"Missing agents: {result.missing_agents}")
+
+    # Load or create retry state
+    state = verifier.get_retry_state()
+    if state is None:
+        # First check - create new state
+        from completion_verifier import create_loop_back_checkpoint
+        create_loop_back_checkpoint("session_123", result.missing_agents, Path(".claude"))
+        state = verifier.get_retry_state()
+
+    # Check if should retry
+    if should_retry(state):
+        # Wait with exponential backoff
+        from completion_verifier import get_next_retry_delay
+        delay_ms = get_next_retry_delay(state.attempt_count)
+        time.sleep(delay_ms / 1000)
+
+        # Update attempt counter
+        state.attempt_count += 1
+        state.last_attempt_timestamp = datetime.now().isoformat()
+        verifier.update_retry_state(state)
+
+        # Retry verification (would be called again by hook)
+        print(f"Retrying verification (attempt {state.attempt_count}/{state.max_attempts})")
+    else:
+        print(f"Max retries exceeded or circuit breaker open")
+        # Handle permanent failure
+```
+
+### Security Considerations
+
+**Path Traversal (CWE-22)**:
+- All file operations validated via `security_utils.validate_path()`
+- State files isolated to `.claude/loop_back/` directory
+- Session IDs must match `^[a-zA-Z0-9_-]+$` pattern
+
+**Denial of Service**:
+- Circuit breaker prevents infinite retry loops
+- Max attempt limit prevents resource exhaustion
+- Exponential backoff prevents server overload
+
+**Data Integrity**:
+- Atomic writes via tempfile + rename prevent corruption
+- State files contain only non-sensitive metadata
+
+### Test Coverage
+
+Test Files:
+- `tests/unit/lib/test_completion_verifier.py` (26 tests)
+- `tests/unit/hooks/test_verify_completion_hook.py` (25 tests)
+
+Coverage: 51 test cases covering:
+- Verification logic (all 8 agents, missing agents)
+- Circuit breaker (opening/closing, state persistence)
+- Exponential backoff (all retry attempts, max delay capping)
+- State persistence (load/save, file handling)
+- Error handling (invalid session, file not found, JSON errors)
+- Edge cases (empty session, duplicate agents, agent ordering)
+- Integration with hook lifecycle
+
+Target: 90+% coverage
+
+### Used By
+
+- verify_completion.py - SubagentStop hook for pipeline completion
+- /auto-implement pipeline - Verifies all agents completed
+- Batch processing - Validates pipeline completion per feature
+
+### Related Components
+
+Dependencies:
+- pathlib - Path handling
+- json - State serialization
+- time - Performance timing
+- logging - Audit logging
+- datetime - Timestamp recording
+- dataclasses - Data structures
+
+See Also:
+- `plugins/autonomous-dev/hooks/verify_completion.py` - Hook integration
+- `docs/HOOKS.md` - Hook documentation
+- GitHub Issue #170 - Feature tracking
 
 ---

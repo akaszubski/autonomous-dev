@@ -2,6 +2,38 @@
 
 **Added**
 
+- **New Library: completion_verifier.py (415 lines, v1.0.0)**
+  - **Purpose**: Pipeline completion verification with intelligent retry and circuit breaker
+  - **Problem**: Pipeline agents may fail to complete, but users have no way to detect and retry incomplete work
+  - **Solution**: Comprehensive completion verification system with exponential backoff and state persistence
+  - **Features**:
+    - Pipeline verification: Checks all 8 agents completed (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master)
+    - Loop-back retry: Exponential backoff with configurable max attempts (default: 5)
+    - Circuit breaker: Opens after 3 consecutive failures to prevent infinite loops
+    - State persistence: LoopBackState tracks retry attempts, missing agents, timestamps
+    - Graceful degradation: Always exits with 0 (non-blocking hook)
+    - Audit logging: All retry attempts logged with detailed error context
+  - **Main Components**:
+    - VerificationResult: Immutable verification outcome
+    - LoopBackState: Mutable retry state with persistence
+    - CompletionVerifier: Main verification engine with session file handling
+    - Standalone functions: Stateless verification utilities
+  - **Security**: Path validation (CWE-22), audit logging, circuit breaker prevents DoS
+  - **Performance**: Typical verification <10ms, max 5 retries with exponential backoff
+  - **Test Coverage**: 51 unit tests covering all retry scenarios, circuit breaker logic, and state persistence
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/completion_verifier.py (415 lines)
+    - plugins/autonomous-dev/hooks/verify_completion.py (259 lines)
+    - tests/unit/lib/test_completion_verifier.py (26 tests)
+    - tests/unit/hooks/test_verify_completion_hook.py (25 tests)
+  - **Documentation**:
+    - docs/LIBRARIES.md Section 28 with full API reference
+    - docs/HOOKS.md verify_completion hook entry in SubagentStop section
+  - **Integration**: SubagentStop lifecycle hook triggered after doc-master completes
+  - **Related**: GitHub Issue #170
+
+**Fixed**
+
 - **New Library: scope_detector.py (584 lines, v1.0.0)**
   - **Purpose**: Scope analysis and complexity detection for issue decomposition
   - **Problem**: Large feature requests should be decomposed into atomic sub-issues to improve success rates
