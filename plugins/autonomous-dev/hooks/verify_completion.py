@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 SubagentStop hook for completion verification with loop-back.
 
@@ -49,6 +53,10 @@ from pathlib import Path
 from typing import Optional, Dict
 
 # Configure logging
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -58,7 +66,8 @@ logger = logging.getLogger(__name__)
 # Add lib directory to path for imports
 lib_path = Path(__file__).parent.parent / "lib"
 if lib_path.exists():
-    sys.path.insert(0, str(lib_path))
+    if not is_running_under_uv():
+        sys.path.insert(0, str(lib_path))
 
 try:
     from hook_exit_codes import EXIT_SUCCESS

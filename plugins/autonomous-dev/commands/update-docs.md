@@ -1,6 +1,8 @@
 ---
+name: update-docs
 description: Documentation synchronization and updates
 argument-hint: Optional - specific documentation area to update
+allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 ---
 
 # Documentation Synchronization

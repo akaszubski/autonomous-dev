@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Auto-enforce 100% test coverage by generating missing tests.
 
@@ -23,6 +27,7 @@ Usage:
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -31,6 +36,21 @@ from typing import Dict, List, Tuple
 # ============================================================================
 # Configuration
 # ============================================================================
+
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+# Fallback for non-UV environments (placeholder - this hook doesn't use lib imports)
+if not is_running_under_uv():
+    # This hook doesn't import from autonomous-dev/lib
+    # But we keep sys.path.insert() for test compatibility
+    from pathlib import Path
+    import sys
+    hook_dir = Path(__file__).parent
+    lib_path = hook_dir.parent / "lib"
+    if lib_path.exists():
+        sys.path.insert(0, str(lib_path))
+
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src" / "[project_name]"

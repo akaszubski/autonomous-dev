@@ -1,5 +1,8 @@
 ---
+name: align-project
 description: Analyze and fix project alignment with PROJECT.md using GenAI
+argument-hint: (no arguments needed)
+allowed-tools: [Task, Read, Grep, Glob]
 ---
 
 ## Implementation

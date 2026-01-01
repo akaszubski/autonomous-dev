@@ -1,5 +1,8 @@
 ---
+name: pipeline-status
 description: Show agent pipeline execution status for current session
+argument-hint: (no arguments needed)
+allowed-tools: [Read, Bash]
 ---
 
 # Pipeline Status

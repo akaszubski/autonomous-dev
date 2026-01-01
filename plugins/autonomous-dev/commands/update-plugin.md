@@ -1,6 +1,8 @@
 ---
 name: update-plugin
 description: Update plugin with version detection, backup, and rollback
+argument-hint: (no arguments needed)
+allowed-tools: [Bash, Read, Write]
 version: 1.0.0
 author: autonomous-dev
 tags: [plugin, update, marketplace, version]

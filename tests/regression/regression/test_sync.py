@@ -376,7 +376,8 @@ class TestNonBlockingBehavior:
         """Test marketplace sync succeeds even when settings merge fails."""
         dispatcher = SyncDispatcher(temp_project_root)
 
-        with patch('autonomous_dev.lib.sync_dispatcher.SettingsMerger') as MockMerger:
+        # Patch SettingsMerger where it's actually imported (in dispatcher.py)
+        with patch('autonomous_dev.lib.sync_dispatcher.dispatcher.SettingsMerger') as MockMerger:
             mock_instance = MagicMock()
             mock_instance.merge_settings.return_value = MergeResult(
                 success=False, message="Mock merge failure", hooks_added=0, hooks_preserved=0

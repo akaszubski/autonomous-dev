@@ -13,7 +13,9 @@ Test Naming Convention:
 """
 
 import os
+import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -91,17 +93,17 @@ class TestTierClassification:
         )
 
         # Parse execution time from pytest output
-        # Format: "====== 5 passed in 3.21s ======"
-        for line in result.stdout.split('\n'):
-            if 'passed in' in line and 's' in line:
-                # Extract time (e.g., "3.21s")
-                time_str = line.split('in')[-1].strip().rstrip('=').strip()
-                elapsed = float(time_str.rstrip('s'))
-                assert elapsed < timing_validator.SMOKE_THRESHOLD, \
-                    f"Smoke tests took {elapsed}s, exceeds {timing_validator.SMOKE_THRESHOLD}s threshold"
-                break
+        # Format variations:
+        # - "====== 5 passed in 3.21s ======"
+        # - "=============== 298 passed, 1 skipped in 1.61s ==============="
+        time_pattern = r'in\s+([\d.]+)s\s*='
+        match = re.search(time_pattern, result.stdout)
+        if match:
+            elapsed = float(match.group(1))
+            assert elapsed < timing_validator.SMOKE_THRESHOLD, \
+                f"Smoke tests took {elapsed}s, exceeds {timing_validator.SMOKE_THRESHOLD}s threshold"
         else:
-            pytest.fail("Could not parse execution time from pytest output")
+            pytest.fail(f"Could not parse execution time from pytest output:\n{result.stdout[-500:]}")
 
 
 @pytest.mark.smoke
@@ -214,7 +216,7 @@ class TestHookIntegration:
 
         # Run hook to generate test
         result = subprocess.run(
-            ["python", str(hook), "--dry-run"],
+            [sys.executable, str(hook), "--dry-run"],
             cwd=isolated_project,
             capture_output=True,
             text=True,
@@ -238,7 +240,7 @@ class TestHookIntegration:
 
         # Run hook to generate test
         result = subprocess.run(
-            ["python", str(hook), "--dry-run", "--tier=smoke"],
+            [sys.executable, str(hook), "--dry-run", "--tier=smoke"],
             cwd=Path.cwd(),
             capture_output=True,
             text=True,

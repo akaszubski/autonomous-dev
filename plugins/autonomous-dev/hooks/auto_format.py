@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Multi-language code formatting hook.
 
@@ -12,11 +16,16 @@ Supported languages:
 """
 
 import subprocess
+import os
 import sys
 from pathlib import Path
 from typing import List, Tuple
 
 # Add lib to path for error_messages module
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from error_messages import formatter_not_found_error, print_warning
 

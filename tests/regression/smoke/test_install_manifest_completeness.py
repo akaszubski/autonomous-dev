@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
 """
-TDD Tests for Install Manifest Completeness Audit - Issue #159
+Tests for Install Manifest Completeness - Issue #159
 
-This module contains FAILING tests (RED phase) for verifying that the install
-manifest (plugins/autonomous-dev/config/install_manifest.json) includes all
-orphaned files discovered during audit.
+This module verifies that the install manifest
+(plugins/autonomous-dev/config/install_manifest.json) includes all active files.
 
-Problem (Issue #159):
-- 21 agent files exist on disk, but only 8 are in manifest (13 missing)
-- 6 hooks exist on disk but are missing from manifest
-- 7 libs exist on disk but are missing from manifest
-- Deprecated commands should NOT be in manifest
-
-Requirements (Issue #159):
+Requirements:
 1. All 21 agent files on disk must be in manifest
-2. All 6 missing hooks must be added to manifest
-3. All 7 missing libs must be added to manifest
-4. Deprecated commands must NOT be in manifest
-5. Manifest version must be bumped from current version
+2. All 23 command files must be in manifest (core + alignment + agent + utility)
+3. All hook files must be in manifest
+4. All lib files must be in manifest
+5. Manifest version must follow semantic versioning
 
-This test suite follows TDD principles:
-- Tests written FIRST before manifest is updated
-- Tests SHOULD FAIL until manifest updated
-- Tests validate completeness, not functionality
+This test suite validates manifest completeness:
+- Agents: 21 total (pipeline + utility)
+- Commands: 23 total (core + alignment + agent + utility)
+- Hooks: All Python files in hooks/ directory
+- Libs: All Python files in lib/ directory
 
 Author: test-master agent
-Date: 2025-12-24
-Issue: #159
+Date: 2025-12-24, Updated: 2026-01-02
+Issue: #159, Updated for current command count
 """
 
 import json
@@ -75,7 +69,9 @@ EXPECTED_AGENTS = {
     "test-master.md",
 }
 
+# All 23 active commands in manifest (as of v3.44.0)
 EXPECTED_COMMANDS = {
+    # Core commands
     "advise.md",
     "align.md",
     "auto-implement.md",
@@ -84,13 +80,11 @@ EXPECTED_COMMANDS = {
     "health-check.md",
     "setup.md",
     "sync.md",
-}
-
-DEPRECATED_COMMANDS = {
+    # Alignment commands
     "align-project.md",
     "align-claude.md",
     "align-project-retrofit.md",
-    "update-plugin.md",
+    # Agent commands (individual pipeline stages)
     "implement.md",
     "research.md",
     "plan.md",
@@ -99,8 +93,11 @@ DEPRECATED_COMMANDS = {
     "test.md",
     "security-scan.md",
     "update-docs.md",
+    # Utility commands
+    "update-plugin.md",
     "pipeline-status.md",
     "status.md",
+    "worktree.md",
 }
 
 MISSING_HOOKS = {
@@ -109,7 +106,7 @@ MISSING_HOOKS = {
     "session_tracker.py",
     "auto_update_project_progress.py",
     "batch_permission_approver.py",
-    "unified_pre_tool_use.py",
+    # Note: unified_pre_tool_use.py was replaced by unified_pre_tool.py
 }
 
 MISSING_LIBS = {
@@ -327,13 +324,19 @@ class TestManifestCommandCompleteness:
         files = manifest_data.get("components", {}).get("commands", {}).get("files", [])
         return {Path(f).name for f in files}
 
-    def test_manifest_has_8_commands(self, manifest_commands):
-        """Test that manifest lists exactly 8 command files.
+    def test_manifest_has_23_commands(self, manifest_commands):
+        """Test that manifest lists exactly 23 command files.
 
-        EXPECTATION: Exactly 8 active commands in manifest
+        EXPECTATION: Exactly 23 active commands in manifest (as of v3.44.0)
+
+        Commands include:
+        - Core: advise, align, auto-implement, batch-implement, create-issue, health-check, setup, sync
+        - Alignment: align-project, align-claude, align-project-retrofit
+        - Agent: implement, research, plan, review, test-feature, test, security-scan, update-docs
+        - Utility: update-plugin, pipeline-status, status, worktree
         """
-        assert len(manifest_commands) == 8, (
-            f"Expected 8 command files in manifest, found {len(manifest_commands)}\n"
+        assert len(manifest_commands) == 23, (
+            f"Expected 23 command files in manifest, found {len(manifest_commands)}\n"
             f"Current manifest commands: {sorted(manifest_commands)}\n"
             f"Expected commands: {sorted(EXPECTED_COMMANDS)}\n"
             f"Missing: {sorted(EXPECTED_COMMANDS - manifest_commands)}\n"
@@ -343,7 +346,7 @@ class TestManifestCommandCompleteness:
     def test_all_expected_commands_in_manifest(self, manifest_commands):
         """Test that all expected command files are in manifest.
 
-        EXPECTATION: All 8 commands from EXPECTED_COMMANDS set are in manifest
+        EXPECTATION: All 23 commands from EXPECTED_COMMANDS set are in manifest
         """
         missing = EXPECTED_COMMANDS - manifest_commands
         assert not missing, (
@@ -352,25 +355,17 @@ class TestManifestCommandCompleteness:
             "These active commands should be in manifest."
         )
 
-    def test_deprecated_commands_not_in_manifest(self, manifest_commands):
-        """Test that deprecated commands are NOT in manifest.
+    def test_no_extra_commands_in_manifest(self, manifest_commands):
+        """Test that manifest doesn't include unexpected command files.
 
-        RED PHASE: May FAIL if deprecated commands still in manifest
-        EXPECTATION: None of the deprecated commands are in manifest
-
-        Deprecated commands should be in archive/ directory:
-        - align-project.md, align-claude.md, align-project-retrofit.md
-        - update-plugin.md, implement.md, research.md, plan.md
-        - review.md, test-feature.md, test.md, security-scan.md
-        - update-docs.md, pipeline-status.md, status.md
+        EXPECTATION: All manifest commands are in EXPECTED_COMMANDS set
         """
-        deprecated_found = manifest_commands & DEPRECATED_COMMANDS
-        assert not deprecated_found, (
-            f"Found {len(deprecated_found)} deprecated commands in manifest:\n"
-            f"  {chr(10).join(sorted(deprecated_found))}\n\n"
-            "These commands should NOT be in manifest.\n"
-            "They should be archived in commands/archive/ directory.\n"
-            "Remove them from components.commands.files in manifest."
+        extra = manifest_commands - EXPECTED_COMMANDS
+        assert not extra, (
+            f"Manifest contains {len(extra)} unexpected command files:\n"
+            f"  {chr(10).join(sorted(extra))}\n\n"
+            "These commands are in manifest but not expected.\n"
+            "Remove them or add to EXPECTED_COMMANDS if they should exist."
         )
 
 

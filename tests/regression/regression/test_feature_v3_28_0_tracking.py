@@ -120,7 +120,7 @@ class TestAgentCheckpointClassMethod:
         assert params[0] == 'agent_name', \
             "First visible parameter should be agent_name (cls is implicit for classmethod)"
 
-    @patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root')
+    @patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root')
     def test_save_agent_checkpoint_uses_portable_paths(self, mock_get_root, temp_project_root):
         """Test that save_agent_checkpoint() uses portable path detection.
 
@@ -151,7 +151,7 @@ class TestAgentCheckpointClassMethod:
         monkeypatch.chdir(temp_project_root)
 
         # This will FAIL until implementation exists
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=temp_project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=temp_project_root):
             AgentTracker.save_agent_checkpoint(
                 agent_name="researcher",
                 message="Research complete"
@@ -182,7 +182,7 @@ class TestAgentCheckpointClassMethod:
         monkeypatch.chdir(nested_dir)
 
         # This will FAIL until implementation exists
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=temp_project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=temp_project_root):
             AgentTracker.save_agent_checkpoint(
                 agent_name="planner",
                 message="Plan created"
@@ -201,7 +201,7 @@ class TestAgentCheckpointClassMethod:
         Expected: Uses path_utils.get_project_root() instead of __file__
         """
         # Simulate heredoc context where __file__ is undefined
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=temp_project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=temp_project_root):
             # This will FAIL until implementation exists
             AgentTracker.save_agent_checkpoint(
                 agent_name="test-master",
@@ -229,7 +229,7 @@ class TestAgentCheckpointGracefulDegradation:
         Expected: No exception raised, clear informational message
         """
         # This will FAIL until graceful degradation is implemented
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root') as mock_get_root:
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root') as mock_get_root:
             mock_get_root.side_effect = FileNotFoundError("No .git or .claude found")
 
             # Should NOT raise exception
@@ -255,7 +255,7 @@ class TestAgentCheckpointGracefulDegradation:
         session_dir.mkdir(parents=True)
         session_dir.chmod(0o444)  # Read-only
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Should NOT raise exception
             try:
                 AgentTracker.save_agent_checkpoint(
@@ -275,7 +275,7 @@ class TestAgentCheckpointGracefulDegradation:
         project_root = tmp_path / "project"
         project_root.mkdir()
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Force failure (no docs/sessions directory)
             with patch('pathlib.Path.mkdir', side_effect=OSError("Disk full")):
                 AgentTracker.save_agent_checkpoint(
@@ -308,7 +308,7 @@ class TestAgentCheckpointSecurity:
         project_root.mkdir()
         (project_root / ".git").mkdir()
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Test path traversal attempts
             malicious_names = [
                 "../../../etc/passwd",
@@ -344,7 +344,7 @@ class TestAgentCheckpointSecurity:
         symlink = session_dir / "evil_link"
         symlink.symlink_to(evil_dir)
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Should NOT follow symlink outside project
             AgentTracker.save_agent_checkpoint(
                 agent_name="security-auditor",
@@ -365,7 +365,7 @@ class TestAgentCheckpointSecurity:
         project_root.mkdir()
         (project_root / ".git").mkdir()
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Test message size limit
             huge_message = "A" * 15000  # 15KB (over 10KB limit)
 
@@ -395,7 +395,7 @@ class TestAgentCheckpointIntegration:
         (project_root / ".git").mkdir()
         (project_root / "docs" / "sessions").mkdir(parents=True)
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             AgentTracker.save_agent_checkpoint(
                 agent_name="researcher",
                 message="Research complete",
@@ -433,7 +433,7 @@ class TestAgentCheckpointIntegration:
         session_dir = project_root / "docs" / "sessions"
         session_dir.mkdir(parents=True)
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             # Save first checkpoint
             AgentTracker.save_agent_checkpoint(
                 agent_name="researcher",
@@ -467,7 +467,7 @@ class TestAgentCheckpointIntegration:
         (project_root / ".git").mkdir()
         (project_root / "docs" / "sessions").mkdir(parents=True)
 
-        with patch('plugins.autonomous_dev.lib.agent_tracker.get_project_root', return_value=project_root):
+        with patch('plugins.autonomous_dev.lib.agent_tracker.tracker.get_project_root', return_value=project_root):
             AgentTracker.save_agent_checkpoint(
                 agent_name="implementer",
                 message="Implementation complete",

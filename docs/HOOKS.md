@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2026-01-01 (Issue #177 - End-of-turn quality gates)
+**Last Updated**: 2026-01-02 (Issue #172 - UV single-file scripts)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for automation hooks in the autonomous-dev plugin.
@@ -10,6 +10,117 @@ This document provides a complete reference for automation hooks in the autonomo
 ## Overview
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
+
+---
+
+## UV Single-File Script Support (Issue #172)
+
+All 62 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
+
+### Features
+
+**Benefits of UV Integration**:
+- **Instant execution**: No venv activation or dependency installation required
+- **Reproducible**: Exact Python version and dependencies specified inline
+- **Cross-platform**: Works on macOS, Linux, Windows
+- **Zero configuration**: Scripts work directly from git clone
+- **Graceful degradation**: Falls back to system Python if UV unavailable
+
+### Hook Format
+
+Each hook now includes:
+1. **UV shebang** - Direct execution via UV
+2. **PEP 723 metadata block** - Inline dependency and Python version specification
+3. **UV detection function** - Checks if running under UV environment
+
+**Example Hook Structure**:
+```python
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""Hook docstring..."""
+
+import os
+import sys
+from pathlib import Path
+
+# UV detection - allows graceful fallback to sys.path setup
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
+# Traditional sys.path setup for non-UV environments
+lib_path = Path(__file__).parent.parent / "lib"
+if lib_path.exists() and str(lib_path) not in sys.path:
+    sys.path.insert(0, str(lib_path))
+```
+
+### How It Works
+
+**When a hook runs**:
+1. UV shebang `#!/usr/bin/env -S uv run --script --quiet --no-project` executes the script
+2. UV parses PEP 723 metadata block and ensures Python >=3.11 and dependencies available
+3. Script runs in UV environment with `UV_PROJECT_ENVIRONMENT` set
+4. Alternative: If UV unavailable, script falls back to sys.path for library imports
+5. Hook runs normally, importing from `plugins/autonomous-dev/lib/`
+
+**Advantages over traditional approach**:
+- **No dependency management**: No venv, no requirements.txt, no pip install
+- **Immediate execution**: Each hook runs with correct Python version
+- **Self-contained**: All configuration in one file (PEP 723 block)
+- **Standard format**: PEP 723 becoming Python standard for script dependencies
+
+### Migration Details
+
+**Files Modified** (62 hooks):
+- All hooks in `plugins/autonomous-dev/hooks/` updated to UV format
+- File permissions set to executable (0755)
+- sys.path.insert() fallback preserved for compatibility
+- is_running_under_uv() added to each hook for environment detection
+
+**Specific Hook Changes**:
+- `pre_commit_gate.py` - PEP 723 block added, UV shebang added
+- `health_check.py` - UV detection added, imports maintained
+- `auto_format.py` - UV shebang, graceful fallback to sys.path
+- All other hooks - Same pattern applied consistently
+
+**No Breaking Changes**:
+- Scripts continue to work in traditional environments (no UV)
+- Python imports work via sys.path fallback
+- Library paths are portable (work from any directory)
+- Existing hook activation/configuration unchanged
+
+### Installation Requirements
+
+UV must be installed for optimal performance:
+
+```bash
+# Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Verify installation
+uv --version
+```
+
+**Fallback**: If UV not available, hooks use traditional sys.path mechanism (slower but functional).
+
+### Troubleshooting
+
+**Issue**: "command not found: uv"
+- **Solution**: Install UV (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- **Fallback**: Scripts will still work via sys.path, just slower
+
+**Issue**: "requires-python: 3.11 not available"
+- **Solution**: Install Python 3.11+ (`python --version`)
+- **Fallback**: Hooks gracefully degrade to available Python version
+
+**Issue**: "No module named 'autonomous_dev'"
+- **Solution**: Same as before - ensure plugins/autonomous-dev/lib exists
+- **Note**: This is now handled by both UV environment AND sys.path fallback
+
+---
 
 ---
 

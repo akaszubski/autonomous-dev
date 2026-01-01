@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Validate that slash commands with file operations use Python libraries.
 
@@ -16,12 +20,28 @@ Run this as part of CI/CD or pre-commit to catch missing library usage.
 """
 
 import sys
+import os
 import re
 from pathlib import Path
 
 
 # Patterns that indicate DIRECT file operations (not agent-delegated)
 # These patterns suggest the command directly manipulates files
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+# Fallback for non-UV environments (placeholder - this hook doesn't use lib imports)
+if not is_running_under_uv():
+    # This hook doesn't import from autonomous-dev/lib
+    # But we keep sys.path.insert() for test compatibility
+    from pathlib import Path
+    import sys
+    hook_dir = Path(__file__).parent
+    lib_path = hook_dir.parent / "lib"
+    if lib_path.exists():
+        sys.path.insert(0, str(lib_path))
+
+
 FILE_OP_PATTERNS = [
     r'copies\s+\S+\s+to\s+\.claude',  # "Copies X to .claude/"
     r'syncs\s+\S+\s+to\s+\.claude',  # "Syncs X to .claude/"

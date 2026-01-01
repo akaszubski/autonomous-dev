@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 PreToolUse Hook - Simple Standalone Script for Claude Code
 
@@ -28,6 +32,10 @@ import os
 from pathlib import Path
 
 # Add lib directory to path
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 LIB_DIR = Path(__file__).parent.parent / "lib"
 sys.path.insert(0, str(LIB_DIR))
 

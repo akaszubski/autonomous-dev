@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Plugin health check utility.
 
@@ -16,16 +20,34 @@ Usage:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
 
-# Add lib to path for error_messages module
-sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
+
+# Add lib to path for error_messages module (only if not running under UV)
+if not is_running_under_uv():
+    sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+
 from error_messages import ErrorMessage, ErrorCode
 
-# Import validate_marketplace_version - will be mocked in tests
-import plugins.autonomous_dev.lib.validate_marketplace_version as validate_marketplace_version_module
+# Import validate_marketplace_version - try package import first for test mockability
+try:
+    # Development environment with symlink (preferred for mockability)
+    import plugins.autonomous_dev.lib.validate_marketplace_version as validate_marketplace_version_module
+except ImportError:
+    try:
+        # Installed environment - direct import
+        import validate_marketplace_version as validate_marketplace_version_module
+    except ImportError:
+        # Fallback - create stub module
+        validate_marketplace_version_module = None
 
 
 class PluginHealthCheck:
@@ -268,6 +290,11 @@ class PluginHealthCheck:
             bool: Always True (non-blocking validation)
         """
         try:
+            # Check if validate_marketplace_version module is available
+            if validate_marketplace_version_module is None:
+                print("Marketplace Version: SKIP (validation module not available)")
+                return True
+
             # Find project root (parent of .claude/)
             project_root = self.plugin_dir.parent.parent
 

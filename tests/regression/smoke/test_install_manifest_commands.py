@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
 """
-TDD Tests for Install Manifest Command Configuration - Issue #121
+Tests for Install Manifest Command Configuration
 
-This module contains FAILING tests (RED phase) for verifying that the install
-manifest (plugins/autonomous-dev/config/install_manifest.json) reflects the
-simplified command structure (8 active commands).
+This module verifies that the install manifest
+(plugins/autonomous-dev/config/install_manifest.json) contains all active commands.
 
-Requirements (Issue #121):
-1. Manifest contains exactly 8 command files
-2. Manifest includes the new unified 'align' command
-3. Manifest excludes all archived commands (13 commands)
-4. All active commands are listed with correct paths
-
-This test suite follows TDD principles:
-- Tests written FIRST before manifest is updated
-- Tests SHOULD FAIL until manifest updated
-- Tests validate manifest structure, not command functionality
+Requirements:
+1. Manifest contains all active command files (23 as of v3.44.0)
+2. Manifest includes both unified commands and individual agent commands
+3. All active commands are listed with correct paths
+4. Manifest structure is valid JSON
 
 Author: test-master agent
-Date: 2025-12-13
-Issue: #121
+Date: 2025-12-13, Updated: 2026-01-02
+Issue: #121, Updated for current command count
 """
 
 import json
@@ -124,7 +118,7 @@ class TestInstallManifestStructure:
 
 
 class TestManifestCommandCount:
-    """Test that manifest lists exactly 8 active commands."""
+    """Test that manifest lists all active commands."""
 
     @pytest.fixture
     def manifest_data(self):
@@ -144,33 +138,20 @@ class TestManifestCommandCount:
         """Extract command file paths from manifest."""
         return manifest_data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_manifest_has_8_commands(self, command_files):
-        """Test that manifest lists exactly 8 command files.
+    def test_manifest_has_23_commands(self, command_files):
+        """Test that manifest lists all 23 active command files.
 
-        EXPECTATION: Exactly 8 command paths in manifest
+        EXPECTATION: Exactly 23 command paths in manifest
 
-        Active commands (current state):
-        * advise.md (critical analysis - GitHub #158)
-        * align.md (unified)
-        * auto-implement.md
-        * batch-implement.md
-        * create-issue.md
-        * health-check.md
-        * setup.md
-        * sync.md
+        Active commands include:
+        - Core: auto-implement, batch-implement, setup, sync, health-check
+        - Alignment: align, align-project, align-claude, align-project-retrofit
+        - Individual agents: research, plan, test-feature, implement, review, etc.
+        - Utility: advise, create-issue, status, worktree, etc.
         """
-        assert len(command_files) == 8, (
-            f"Expected 8 command files in manifest, found {len(command_files)}\n"
-            f"Actual files: {command_files}\n"
-            "Expected 8 active commands:\n"
-            "  1. advise.md (critical analysis - GitHub #158)\n"
-            "  2. align.md (unified)\n"
-            "  3. auto-implement.md\n"
-            "  4. batch-implement.md\n"
-            "  5. create-issue.md\n"
-            "  6. health-check.md\n"
-            "  7. setup.md\n"
-            "  8. sync.md\n"
+        assert len(command_files) == 23, (
+            f"Expected 23 command files in manifest, found {len(command_files)}\n"
+            f"Actual files: {sorted([Path(f).name for f in command_files])}\n"
         )
 
     def test_manifest_command_paths_format(self, command_files):
@@ -239,8 +220,8 @@ class TestManifestIncludesAlignCommand:
         )
 
 
-class TestManifestExcludesArchivedCommands:
-    """Test that manifest excludes all 13 archived commands."""
+class TestManifestIncludesAgentCommands:
+    """Test that manifest includes individual agent commands for convenience."""
 
     @pytest.fixture
     def command_files(self) -> List[str]:
@@ -256,16 +237,12 @@ class TestManifestExcludesArchivedCommands:
             data = json.load(f)
             return data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_excludes_individual_agent_commands(self, command_files):
-        """Test that individual agent commands excluded from manifest.
+    def test_includes_individual_agent_commands(self, command_files):
+        """Test that individual agent commands are in manifest.
 
-        RED PHASE: Should fail if individual agent commands still in manifest
-        EXPECTATION: research, plan, test-feature, implement, review,
-                     security-scan, update-docs NOT in files list
-
-        RATIONALE: These are consolidated into /auto-implement and /align.
+        These provide quick access to individual pipeline stages.
         """
-        archived_agents = {
+        agent_commands = {
             "research.md",
             "plan.md",
             "test-feature.md",
@@ -276,32 +253,27 @@ class TestManifestExcludesArchivedCommands:
         }
 
         manifest_commands = {Path(f).name for f in command_files}
-        found_archived = archived_agents & manifest_commands
+        found_agents = agent_commands & manifest_commands
 
-        assert not found_archived, (
-            f"Individual agent commands still in manifest: {found_archived}\n"
-            "These should be removed (functionality in /auto-implement):\n"
-            f"  {chr(10).join(sorted(found_archived))}\n"
-            "Rationale: Consolidated into /auto-implement pipeline"
+        assert found_agents == agent_commands, (
+            f"Missing individual agent commands: {agent_commands - found_agents}\n"
+            "These should be included for quick access to pipeline stages"
         )
 
-    def test_excludes_deprecated_commands(self, command_files):
-        """Test that deprecated commands excluded from manifest.
-
-        EXPECTATION: update-plugin NOT in files list
-        """
-        deprecated_commands = {
+    def test_includes_utility_commands(self, command_files):
+        """Test that utility commands are in manifest."""
+        utility_commands = {
             "update-plugin.md",
+            "status.md",
+            "pipeline-status.md",
+            "test.md",
         }
 
         manifest_commands = {Path(f).name for f in command_files}
-        found_deprecated = deprecated_commands & manifest_commands
+        found_utils = utility_commands & manifest_commands
 
-        assert not found_deprecated, (
-            f"Deprecated commands still in manifest: {found_deprecated}\n"
-            "These should be removed:\n"
-            f"  {chr(10).join(sorted(found_deprecated))}\n"
-            "Rationale: Superseded by /sync command"
+        assert found_utils == utility_commands, (
+            f"Missing utility commands: {utility_commands - found_utils}\n"
         )
 
     def test_includes_batch_implement(self, command_files):
@@ -316,26 +288,23 @@ class TestManifestExcludesArchivedCommands:
             "This should be included for multi-feature processing\n"
         )
 
-    def test_excludes_old_align_commands(self, command_files):
-        """Test that old align commands excluded from manifest.
+    def test_includes_align_commands(self, command_files):
+        """Test that all align commands are in manifest.
 
-        RED PHASE: Should fail if old align commands still in manifest
-        EXPECTATION: align-project, align-claude, align-project-retrofit NOT in files
+        Both unified and individual align commands are active.
         """
-        old_align_commands = {
+        align_commands = {
+            "align.md",
             "align-project.md",
             "align-claude.md",
             "align-project-retrofit.md",
         }
 
         manifest_commands = {Path(f).name for f in command_files}
-        found_archived = old_align_commands & manifest_commands
+        found_align = align_commands & manifest_commands
 
-        assert not found_archived, (
-            f"Old align commands still in manifest: {found_archived}\n"
-            "These should be removed and replaced with unified align.md:\n"
-            f"  {chr(10).join(sorted(found_archived))}\n"
-            "Use: /align --project | /align --claude | /align --retrofit instead"
+        assert found_align == align_commands, (
+            f"Missing align commands: {align_commands - found_align}\n"
         )
 
 

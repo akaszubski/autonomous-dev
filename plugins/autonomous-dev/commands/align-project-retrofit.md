@@ -1,6 +1,8 @@
 ---
 name: align-project-retrofit
 description: Retrofit brownfield projects for autonomous development
+argument-hint: (no arguments needed)
+allowed-tools: [Bash, Read, Write, Grep, Edit]
 version: 1.0.0
 category: core
 tools: [Bash, Read, Write, Grep, Edit]

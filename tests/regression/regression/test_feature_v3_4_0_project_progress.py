@@ -168,7 +168,7 @@ class TestProjectMdUpdater:
         lib = plugins_dir / "lib" / "project_md_updater.py"
         assert lib.exists(), f"Library missing: {lib}"
 
-    def test_update_goal_progress_method_exists(self):
+    def test_update_goal_progress_method_exists(self, tmp_path):
         """Test that update_goal_progress() method exists.
 
         Protects: Public API availability (v3.4.0 regression)
@@ -176,11 +176,14 @@ class TestProjectMdUpdater:
         # NOTE: This will FAIL if method not implemented
         import project_md_updater
 
-        updater = project_md_updater.ProjectMdUpdater(Path("/tmp/PROJECT.md"))
+        # Use tmp_path fixture for valid temp directory
+        project_md = tmp_path / "PROJECT.md"
+        project_md.write_text("# Test")
+        updater = project_md_updater.ProjectMdUpdater(project_md)
         assert hasattr(updater, 'update_goal_progress'), \
             "ProjectMdUpdater must have update_goal_progress() method"
 
-    def test_atomic_write_method_exists(self):
+    def test_atomic_write_method_exists(self, tmp_path):
         """Test that _atomic_write() method exists.
 
         Protects: Atomic write capability (v3.4.0 regression)
@@ -188,7 +191,10 @@ class TestProjectMdUpdater:
         # NOTE: This will FAIL if method not implemented
         import project_md_updater
 
-        updater = project_md_updater.ProjectMdUpdater(Path("/tmp/PROJECT.md"))
+        # Use tmp_path fixture for valid temp directory
+        project_md = tmp_path / "PROJECT.md"
+        project_md.write_text("# Test")
+        updater = project_md_updater.ProjectMdUpdater(project_md)
         assert hasattr(updater, '_atomic_write'), \
             "ProjectMdUpdater must have _atomic_write() method"
 

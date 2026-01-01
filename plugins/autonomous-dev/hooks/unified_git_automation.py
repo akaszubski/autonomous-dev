@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Unified Git Automation Hook - Dispatcher for SubagentStop Git Operations
 
@@ -38,6 +42,10 @@ from typing import Dict, Optional
 # Dynamic Library Discovery
 # ============================================================================
 
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 def find_lib_dir() -> Optional[Path]:
     """
     Find the lib directory dynamically.
@@ -66,7 +74,8 @@ def find_lib_dir() -> Optional[Path]:
 # Add lib to path
 LIB_DIR = find_lib_dir()
 if LIB_DIR:
-    sys.path.insert(0, str(LIB_DIR))
+    if not is_running_under_uv():
+        sys.path.insert(0, str(LIB_DIR))
 
 # ============================================================================
 # Logging Infrastructure (Issue #167)

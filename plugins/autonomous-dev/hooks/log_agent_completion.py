@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 SubagentStop Hook - Log Agent Completions to Structured Session File
 
@@ -37,6 +41,10 @@ import sys
 from pathlib import Path
 
 # Add project root to path for imports
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 project_root = Path(__file__).resolve().parents[3]  # Go up from plugins/autonomous-dev/hooks/
 sys.path.insert(0, str(project_root / "scripts"))
 

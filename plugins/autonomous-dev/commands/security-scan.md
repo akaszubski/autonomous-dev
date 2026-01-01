@@ -1,6 +1,8 @@
 ---
+name: security-scan
 description: Security vulnerability scan and OWASP compliance check
 argument-hint: Optional - specific file or component to scan
+allowed-tools: [Task, Read, Grep, Glob, Bash]
 ---
 
 # Security Vulnerability Scan

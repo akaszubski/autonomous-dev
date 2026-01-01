@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Automatic GitHub Issue Tracking Hook
 
@@ -33,6 +37,21 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # Configuration from .env
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+# Fallback for non-UV environments (placeholder - this hook doesn't use lib imports)
+if not is_running_under_uv():
+    # This hook doesn't import from autonomous-dev/lib
+    # But we keep sys.path.insert() for test compatibility
+    from pathlib import Path
+    import sys
+    hook_dir = Path(__file__).parent
+    lib_path = hook_dir.parent / "lib"
+    if lib_path.exists():
+        sys.path.insert(0, str(lib_path))
+
+
 AUTO_TRACK_ENABLED = os.getenv("GITHUB_AUTO_TRACK_ISSUES", "false").lower() == "true"
 TRACK_ON_PUSH = os.getenv("GITHUB_TRACK_ON_PUSH", "true").lower() == "true"
 TRACK_ON_COMMIT = os.getenv("GITHUB_TRACK_ON_COMMIT", "false").lower() == "true"

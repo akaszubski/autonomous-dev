@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Pre-Commit Gate - Enforces test passage before git commit.
 
@@ -50,6 +54,10 @@ from typing import Dict, Any, Tuple
 
 
 # Add lib directory to path for imports
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 lib_path = Path(__file__).parent.parent / "lib"
 if lib_path.exists() and str(lib_path) not in sys.path:
     sys.path.insert(0, str(lib_path))

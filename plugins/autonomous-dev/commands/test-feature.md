@@ -1,6 +1,8 @@
 ---
+name: test-feature
 description: TDD test generation for a feature
 argument-hint: Feature description (e.g., "rate limiting tests")
+allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob]
 ---
 
 # TDD Test Generation

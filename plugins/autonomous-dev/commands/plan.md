@@ -1,6 +1,8 @@
 ---
+name: plan
 description: Architecture and implementation planning for a feature
 argument-hint: Feature description (e.g., "user authentication with JWT")
+allowed-tools: [Task, Read, Grep, Glob]
 ---
 
 # Architecture and Implementation Planning

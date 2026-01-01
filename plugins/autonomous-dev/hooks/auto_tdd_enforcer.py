@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 TDD Enforcer - Ensures tests are written BEFORE implementation.
 
@@ -24,11 +28,16 @@ Exit Codes:
 """
 
 import subprocess
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
 # Add lib directory to path for exit code constants
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 lib_path = Path(__file__).parent.parent / "lib"
 if lib_path.exists():
     sys.path.insert(0, str(lib_path))

@@ -315,8 +315,8 @@ class TestCommandNameCompliance:
         return list(commands_dir.glob("*.md"))
 
     def test_all_commands_discovered(self, command_files):
-        """Should discover exactly 7 command files."""
-        assert len(command_files) == 7, f"Expected 7 commands, found {len(command_files)}"
+        """Should discover exactly 23 command files (as of v3.44.0)."""
+        assert len(command_files) == 23, f"Expected 23 commands, found {len(command_files)}"
 
     def test_all_commands_have_name_field(self, command_files):
         """All commands should have name: field in YAML frontmatter."""
@@ -376,9 +376,10 @@ class TestCommandNameCompliance:
 
     def test_command_argument_hint(self, command_files):
         """
-        Commands should have argument_hint field for user guidance (Issue #150).
+        Commands should have argument_hint or argument-hint field for user guidance (Issue #150).
 
         Provides inline help for command arguments in Claude Code UI.
+        Accepts both underscore (argument_hint) and hyphen (argument-hint) formats.
         """
         missing_hint = []
 
@@ -387,12 +388,13 @@ class TestCommandNameCompliance:
             if not frontmatter:
                 continue
 
-            if "argument_hint" not in frontmatter:
+            # Accept both underscore and hyphen formats
+            hint = frontmatter.get("argument_hint") or frontmatter.get("argument-hint")
+            if not hint:
                 missing_hint.append(f"{command_file.stem}: Missing argument_hint field")
                 continue
 
             # Validate format: should be non-empty string
-            hint = frontmatter["argument_hint"]
             if not isinstance(hint, str) or not hint.strip():
                 missing_hint.append(
                     f"{command_file.stem}: argument_hint should be non-empty string "

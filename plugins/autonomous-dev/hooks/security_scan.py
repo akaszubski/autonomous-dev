@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Language-agnostic security scanning hook with GenAI context analysis.
 
@@ -25,6 +29,21 @@ from genai_utils import GenAIAnalyzer, parse_binary_response
 from genai_prompts import SECRET_ANALYSIS_PROMPT
 
 # Secret patterns to detect
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+# Fallback for non-UV environments (placeholder - this hook doesn't use lib imports)
+if not is_running_under_uv():
+    # This hook doesn't import from autonomous-dev/lib
+    # But we keep sys.path.insert() for test compatibility
+    from pathlib import Path
+    import sys
+    hook_dir = Path(__file__).parent
+    lib_path = hook_dir.parent / "lib"
+    if lib_path.exists():
+        sys.path.insert(0, str(lib_path))
+
+
 SECRET_PATTERNS = [
     # API keys
     (r"sk-[a-zA-Z0-9]{20,}", "Anthropic API key"),

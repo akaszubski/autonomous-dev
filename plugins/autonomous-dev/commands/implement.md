@@ -1,6 +1,8 @@
 ---
+name: implement
 description: Code implementation to make tests pass
 argument-hint: Feature description (e.g., "implement rate limiting")
+allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob]
 ---
 
 # Code Implementation

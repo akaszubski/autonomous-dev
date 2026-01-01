@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Unified Structure Enforcer - Consolidated Enforcement Dispatcher
 
@@ -38,6 +42,10 @@ from datetime import datetime, timedelta
 from typing import Tuple, Optional
 
 
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 def find_lib_directory(hook_path: Path) -> Optional[Path]:
     """
     Find lib directory dynamically (Issue #113).
@@ -76,7 +84,8 @@ def find_lib_directory(hook_path: Path) -> Optional[Path]:
 # Add lib directory to path dynamically
 LIB_DIR = find_lib_directory(Path(__file__))
 if LIB_DIR:
-    sys.path.insert(0, str(LIB_DIR))
+    if not is_running_under_uv():
+        sys.path.insert(0, str(LIB_DIR))
 
 
 def load_env():

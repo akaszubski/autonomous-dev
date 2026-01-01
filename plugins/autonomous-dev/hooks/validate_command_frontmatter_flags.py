@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Validate that slash commands document their --flags in the frontmatter.
 
@@ -19,13 +23,28 @@ Issue: GitHub #133 - Add pre-commit hook for command frontmatter flag validation
 Related: Issue #131 - Fixed frontmatter for /align, /batch-implement, /create-issue, /sync
 """
 
+import os
 import re
 import sys
 from pathlib import Path
 from typing import Optional
 
 
-# False positive flags that should be ignored
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+# Fallback for non-UV environments (placeholder - this hook doesn't use lib imports)
+if not is_running_under_uv():
+    # This hook doesn't import from autonomous-dev/lib
+    # But we keep sys.path.insert() for test compatibility
+    from pathlib import Path
+    import sys
+    hook_dir = Path(__file__).parent
+    lib_path = hook_dir.parent / "lib"
+    if lib_path.exists():
+        sys.path.insert(0, str(lib_path))
+
+
 _FALSE_POSITIVE_FLAGS = frozenset([
     "--help",
     "--version",

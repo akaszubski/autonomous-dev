@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Unified Documentation Validator Hook
 
 Consolidates 12 validation hooks into a single dispatcher:
@@ -44,6 +48,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
 
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 def get_lib_directory() -> Path:
     """Dynamically discover lib directory (portable across environments)."""
     current = Path(__file__).resolve().parent
@@ -71,7 +79,8 @@ def setup_lib_path():
     """Add lib directory to Python path for imports."""
     lib_dir = get_lib_directory()
     if lib_dir.exists() and str(lib_dir) not in sys.path:
-        sys.path.insert(0, str(lib_dir))
+        if not is_running_under_uv():
+            sys.path.insert(0, str(lib_dir))
 
 
 def is_enabled(env_var: str, default: bool = True) -> bool:

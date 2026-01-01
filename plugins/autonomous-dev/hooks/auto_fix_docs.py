@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script --quiet --no-project
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Hybrid Auto-Fix + Block Documentation Hook with GenAI Smart Auto-Fixing
 
@@ -50,6 +54,10 @@ from genai_utils import GenAIAnalyzer
 from genai_prompts import DOC_GENERATION_PROMPT
 
 # Initialize GenAI analyzer (with feature flag support)
+def is_running_under_uv() -> bool:
+    """Detect if script is running under UV."""
+    return "UV_PROJECT_ENVIRONMENT" in os.environ
+
 analyzer = GenAIAnalyzer(
     use_genai=os.environ.get("GENAI_DOC_AUTOFIX", "true").lower() == "true",
     max_tokens=200  # More tokens for documentation generation
@@ -315,7 +323,8 @@ def run_detect_doc_changes() -> Tuple[bool, List[Dict]]:
 
     # Import the detection functions
     import sys
-    sys.path.insert(0, str(plugin_root / "hooks"))
+    if not is_running_under_uv():
+        sys.path.insert(0, str(plugin_root / "hooks"))
 
     try:
         from detect_doc_changes import (

@@ -66,9 +66,10 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, Optional
 from subprocess import CalledProcessError, TimeoutExpired
+from typing import Any, Dict, Optional
 
 # Import security utilities for audit logging
 sys.path.insert(0, str(Path(__file__).parent))
@@ -623,7 +624,7 @@ def _record_issue_close_result(
             'error': result.get('error'),
             'reason': result.get('reason'),
             'message': result.get('message'),
-            'timestamp': os.popen('date -u +"%Y-%m-%dT%H:%M:%SZ"').read().strip(),
+            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         }
 
         # Save updated state

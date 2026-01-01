@@ -1,6 +1,8 @@
 ---
+name: review
 description: Code quality review and feedback
 argument-hint: Optional - specific file or component to review
+allowed-tools: [Task, Read, Grep, Glob, Bash]
 ---
 
 # Code Quality Review

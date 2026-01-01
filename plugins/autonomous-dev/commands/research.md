@@ -1,6 +1,8 @@
 ---
+name: research
 description: Research patterns and best practices for a feature
 argument-hint: Feature description (e.g., "JWT authentication patterns")
+allowed-tools: [Task, Read, Grep, Glob, WebSearch, WebFetch]
 ---
 
 # Research Patterns and Best Practices

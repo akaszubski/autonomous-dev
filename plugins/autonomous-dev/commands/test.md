@@ -1,5 +1,8 @@
 ---
+name: test
 description: Run all automated tests (unit + integration + UAT) with pytest (< 60s)
+argument-hint: "[test path] (optional, e.g., tests/unit/)"
+allowed-tools: [Bash]
 ---
 
 ## Implementation

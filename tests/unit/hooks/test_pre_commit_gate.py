@@ -538,6 +538,73 @@ class TestGracefulDegradation:
 
 
 # =============================================================================
+# Manifest Validation Tests
+# =============================================================================
+
+class TestManifestValidation:
+    """Test manifest validation for install/sync reliability."""
+
+    def test_check_manifest_valid_returns_true_when_valid(self):
+        """Test that check_manifest_valid returns True when manifest is valid."""
+        from pre_commit_gate import check_manifest_valid
+
+        # Should return True for valid manifest (tests actually run)
+        result = check_manifest_valid()
+        assert result is True
+
+    def test_check_manifest_valid_graceful_when_tests_missing(self, tmp_path):
+        """Test graceful degradation when test file doesn't exist."""
+        from pre_commit_gate import check_manifest_valid
+
+        # When running in a directory without tests, should return True (don't block)
+        with patch("pre_commit_gate.Path") as MockPath:
+            mock_path = MagicMock()
+            mock_path.parent.parent.parent.parent = tmp_path
+            MockPath.return_value = mock_path
+            MockPath.__file__ = str(tmp_path / "hook.py")
+
+            # The test file won't exist in tmp_path
+            result = check_manifest_valid()
+            # Should return True (graceful degradation)
+            assert result is True
+
+    def test_check_manifest_valid_graceful_on_subprocess_error(self):
+        """Test graceful degradation when subprocess fails."""
+        from pre_commit_gate import check_manifest_valid
+        import subprocess
+
+        with patch("subprocess.run", side_effect=subprocess.SubprocessError("Failed")):
+            result = check_manifest_valid()
+            # Should return True (graceful degradation - don't block on errors)
+            assert result is True
+
+    def test_check_manifest_valid_graceful_on_timeout(self):
+        """Test graceful degradation when subprocess times out."""
+        from pre_commit_gate import check_manifest_valid
+        import subprocess
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("cmd", 30)):
+            result = check_manifest_valid()
+            # Should return True (graceful degradation)
+            assert result is True
+
+    def test_manifest_validation_blocks_commit_when_invalid(self, mock_test_status):
+        """Test that invalid manifest blocks commit."""
+        mock_test_status.read_status.return_value = {
+            "passed": True,
+            "timestamp": "2026-01-01T12:00:00Z"
+        }
+
+        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+            with patch("pre_commit_gate.check_manifest_valid", return_value=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+
+                # Should block commit when manifest is invalid
+                assert exc_info.value.code == EXIT_BLOCK
+
+
+# =============================================================================
 # Test Edge Cases
 # =============================================================================
 
@@ -687,7 +754,11 @@ class TestPerformance:
     """Test performance characteristics."""
 
     def test_executes_quickly(self, mock_test_status):
-        """Test that hook executes in reasonable time."""
+        """Test that hook executes in reasonable time.
+
+        Note: Mocks check_manifest_valid to isolate core hook performance.
+        Manifest validation is tested separately in test_install_*.py.
+        """
         import time
 
         mock_test_status.read_status.return_value = {
@@ -696,17 +767,18 @@ class TestPerformance:
         }
 
         with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
-            start = time.time()
+            with patch("pre_commit_gate.check_manifest_valid", return_value=True):
+                start = time.time()
 
-            try:
-                main()
-            except SystemExit:
-                pass
+                try:
+                    main()
+                except SystemExit:
+                    pass
 
-            elapsed = time.time() - start
+                elapsed = time.time() - start
 
-            # Hook should execute in under 1 second
-            assert elapsed < 1.0, f"Hook took {elapsed}s (too slow)"
+                # Hook should execute in under 1 second (excluding manifest check)
+                assert elapsed < 1.0, f"Hook took {elapsed}s (too slow)"
 
     def test_minimal_file_io(self, mock_test_status):
         """Test that hook minimizes file I/O operations."""

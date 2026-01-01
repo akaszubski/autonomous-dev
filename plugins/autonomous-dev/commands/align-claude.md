@@ -1,6 +1,8 @@
 ---
+name: align-claude
 description: Check and fix CLAUDE.md alignment with codebase
 argument-hint: Optional - skip argument to check current alignment
+allowed-tools: [Bash, Read, Write, Edit, Grep, Glob]
 ---
 
 ## Implementation
