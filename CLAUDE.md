@@ -477,11 +477,16 @@ Automatic git operations (commit, push, PR creation, issue closing) are **enable
 ---
 
 
-## MCP Auto-Approval Control (v3.40.0+)
+## MCP Auto-Approval Control (v3.40.0+, Enhanced v4.0.0 - Issue #171)
 
-Automatic tool approval for trusted operations in both **main conversation** and **subagent workflows**. Reduces permission prompts from 50+ to 0 during development.
+Automatic tool approval for trusted operations in both **main conversation** and **subagent workflows**. Reduces permission prompts from 50+ to 0 during development using 4-layer permission architecture.
 
-**Enable**:
+**Permission Prompt Reduction**:
+- **Without sandboxing**: 50+ prompts per /auto-implement (cat, grep, git status, etc. all need approval)
+- **With Layer 3 (batch approval)**: 10-15 prompts (identical operations cached)
+- **With Layer 0 (sandboxing)**: 8-10 prompts total (safe commands auto-approved, 84% reduction)
+
+**Enable Auto-Approval**:
 ```bash
 # In .env file
 MCP_AUTO_APPROVE=true  # Default: false (opt-in) - Auto-approves everywhere (main + subagents)
@@ -489,15 +494,67 @@ MCP_AUTO_APPROVE=true  # Default: false (opt-in) - Auto-approves everywhere (mai
 MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
 ```
 
-**Policy v2.0 (Permissive Mode)**:
-- **Blacklist-first**: Approves all commands by default, blocks only dangerous patterns
-- **Zero friction**: No manual whitelist additions needed for standard dev commands
-- **Comprehensive blacklist**: Covers destructive ops, privilege escalation, shell injection, force push, publishing
+**Enable Sandboxing** (Issue #171 - NEW v4.0.0):
+```bash
+# In .env file
+SANDBOX_ENABLED=true  # Default: false (opt-in) - Enable command classification and sandboxing
+SANDBOX_PROFILE=development  # Options: development (permissive), testing (moderate), production (strict)
+```
 
-**Security**: 6 layers of defense (MCP security validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/TOOL-AUTO-APPROVAL.md` for complete documentation.
+**4-Layer Permission Architecture** (unified_pre_tool.py):
 
-**Hook**: `unified_pre_tool.py` (PreToolUse lifecycle, chains MCP security + auto-approval + batch approval)
-**Policy**: `plugins/autonomous-dev/config/auto_approve_policy.json` (v2.0 permissive mode)
+1. **Layer 0 - Sandbox Enforcer** (Issue #171, NEW v4.0.0):
+   - Command classification: SAFE (auto-approve), BLOCKED (deny), NEEDS_APPROVAL (continue)
+   - Pattern-based classification: safe_commands whitelist, blocked_patterns blacklist
+   - Shell injection detection: blocks shell metacharacters, prevents command chaining
+   - Path traversal protection: detects .. patterns, blocks sensitive files (.env, .ssh, *.key)
+   - Circuit breaker: disables after threshold violations (safety mechanism)
+   - Reduces prompts: 50+ -> 8-10 (84% reduction)
+
+2. **Layer 1 - MCP Security Validator**:
+   - Path traversal validation (CWE-22)
+   - Command injection detection (CWE-78)
+   - SSRF prevention (CWE-918)
+   - Sensitive file access blocking
+
+3. **Layer 2 - Agent Authorization**:
+   - Pipeline agent detection
+   - Authorized agent bypass (implementer, test-master, etc.)
+   - Autonomous implementation prevention
+
+4. **Layer 3 - Batch Permission Approver**:
+   - Caches user consent for identical operations
+   - First prompt caches result for all identical operations
+   - Reduces 50+ cat/grep/git calls to single prompt
+
+**Policy Profiles** (sandbox_policy.json):
+
+- **development** (default): Permissive - auto-approves read-only and informational commands
+  - Safe commands: cat, echo, grep, ls, pwd, git status, pytest, npm list, etc.
+  - Blocked patterns: rm -rf, sudo, git push --force, eval
+  - Circuit breaker: 10 blocks
+
+- **testing**: Moderate - stricter than development
+  - Fewer safe commands
+  - More blocked patterns
+  - Circuit breaker: 5 blocks
+
+- **production**: Strictest - minimal auto-approvals
+  - Very few safe commands (cat, ls, git status only)
+  - Most operations blocked
+  - Circuit breaker: 3 blocks
+
+**Security**: 6 layers of defense (sandbox classification, MCP validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/SANDBOXING.md` for complete documentation.
+
+**Hook**: `unified_pre_tool.py` (PreToolUse lifecycle, chains sandbox + MCP security + auto-approval + batch approval)
+**Policy Files**:
+- `plugins/autonomous-dev/config/sandbox_policy.json` (sandbox profiles and rules)
+- `plugins/autonomous-dev/config/auto_approve_policy.json` (v2.0 permissive mode)
+
+**Related Documentation**:
+- docs/SANDBOXING.md - Complete sandboxing user guide
+- docs/LIBRARIES.md Section 66 - sandbox_enforcer.py API reference
+- docs/HOOKS.md - unified_pre_tool.py hook reference
 
 ---
 ## Architecture

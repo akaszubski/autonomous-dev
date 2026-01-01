@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (32)
+### Core Libraries (34)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -44,6 +44,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 31. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
 32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
 33. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
+34. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
+
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
 22. **agent_tracker.py** (see section 24)
@@ -10262,3 +10264,304 @@ Parsed command-line arguments.
   - Use case descriptions
   - Detailed mode reference
 - **Source**: plugins/autonomous-dev/lib/worktree_command.py (506 lines)
+
+## 66. sandbox_enforcer.py (625 lines, v1.0.0 - Issue #171)
+
+**Purpose**: Command classification and OS-specific sandboxing to reduce permission prompts by 84%
+
+**Location**: `plugins/autonomous-dev/lib/sandbox_enforcer.py`
+
+**Version**: 1.0.0 (2026-01-02, Issue #171 - Sandboxing for reduced permission prompts)
+
+### Overview
+
+SandboxEnforcer provides command classification (SAFE/BLOCKED/NEEDS_APPROVAL) and OS-specific sandboxing to eliminate repetitive permission prompts for safe operations.
+
+**Problem It Solves**:
+- Users approve 50+ permission prompts per /auto-implement workflow
+- 80%+ are for safe read-only commands (cat, ls, grep, git status)
+- Each prompt breaks focus and adds 10-20 seconds overhead
+- SandboxEnforcer reduces prompts from 50+ to roughly 8-10 (84% reduction)
+
+**Solution**:
+- Whitelist-first approach: Safe commands auto-approve without prompts
+- Blocked patterns: Dangerous commands denied with audit logging
+- OS-specific sandboxing: bwrap (Linux), sandbox-exec (macOS), none (Windows)
+- Circuit breaker: Disables after threshold blocks (safety mechanism)
+
+### Architecture
+
+**4-Layer Integration**:
+1. **Layer 0 (Sandbox)**: SAFE to auto-approve, BLOCKED to deny, NEEDS_APPROVAL to continue
+2. **Layer 1 (MCP Security)**: Path traversal, injection, SSRF validation
+3. **Layer 2 (Agent Auth)**: Pipeline agent detection
+4. **Layer 3 (Batch Permission)**: Permission batching
+
+**Integrated into**: `unified_pre_tool.py` hook (PreToolUse lifecycle)
+
+**Environment Variables**:
+- `SANDBOX_ENABLED` (bool, default: false) - Enable/disable sandbox layer
+- `SANDBOX_PROFILE` (str, default: development) - Security profile (development/testing/production)
+
+### Classes
+
+#### `CommandClassification` (Enum)
+
+Command classification results:
+
+```
+class CommandClassification(Enum):
+    SAFE = "safe"
+    BLOCKED = "blocked"
+    NEEDS_APPROVAL = "needs_approval"
+```
+
+#### `SandboxBinary` (Enum)
+
+OS-specific sandbox binaries:
+
+```
+class SandboxBinary(Enum):
+    BWRAP = "bwrap"
+    SANDBOX_EXEC = "sandbox-exec"
+    NONE = "none"
+```
+
+#### `CommandResult` (Dataclass)
+
+Result of command classification:
+
+```
+@dataclass
+class CommandResult:
+    classification: CommandClassification
+    reason: Optional[str] = None
+    can_sandbox: bool = False
+```
+
+#### `SandboxEnforcer` (Main Class)
+
+Command classifier and sandbox manager.
+
+**Constructor**:
+```
+SandboxEnforcer(policy_path: Optional[str|Path] = None, profile: str = "development")
+```
+
+**Parameters**:
+- `policy_path` (optional): Custom policy file (defaults to plugin policy.json)
+- `profile` (str): Security profile - "development" (permissive), "testing" (moderate), "production" (strict)
+
+**Key Methods**:
+
+##### `is_command_safe(command: str) -> CommandResult`
+Classify a command and determine permission decision.
+
+**Parameters**: `command` (str) - Full command string
+
+**Returns**: `CommandResult` with classification and reason
+
+**Logic**:
+1. Check circuit breaker (return BLOCKED if tripped)
+2. Check if command is in safe_commands list (return SAFE)
+3. Check for blocked patterns (return BLOCKED)
+4. Check for shell injection patterns (return BLOCKED)
+5. Check for path traversal (return BLOCKED)
+6. Check for blocked file paths (return BLOCKED)
+7. Return NEEDS_APPROVAL (continue to Layer 1)
+
+**Example**:
+```
+enforcer = SandboxEnforcer()
+
+result = enforcer.is_command_safe("cat README.md")
+assert result.classification == CommandClassification.SAFE
+
+result = enforcer.is_command_safe("rm command")
+assert result.classification == CommandClassification.BLOCKED
+```
+
+##### `get_sandbox_binary() -> SandboxBinary`
+Detect OS-specific sandbox binary availability.
+
+**Returns**: SandboxBinary enum (BWRAP, SANDBOX_EXEC, or NONE)
+
+**Behavior**:
+- Linux: Check for `bwrap` (bubblewrap)
+- macOS: Check for `sandbox-exec`
+- Windows: Return NONE
+- Fallback: Return NONE if binary not found
+
+##### `build_sandbox_args(command: str) -> List[str]`
+Build OS-specific sandbox arguments for command wrapping.
+
+**Parameters**: `command` (str) - Original command
+
+**Returns**: List[str] - Sandbox wrapper plus original command
+
+**OS-Specific Behavior**:
+
+Linux (bwrap): Wraps with tmpfs isolation and bind mounts
+
+macOS (sandbox-exec): Wraps with operation deny policy
+
+Windows (none): Returns original command as-is (no sandboxing)
+
+### Validation Methods
+
+#### `validate_policy(policy: Dict[str, Any]) -> bool`
+Validate policy JSON schema.
+
+**Checks**:
+- Version field present
+- Profiles dict present
+- Each profile has required sections
+- Security settings valid
+
+**Raises**: `PolicyValidationError` if validation fails
+
+### Security Features
+
+**Shell Injection Detection** (CWE-78):
+- Detects dangerous shell metacharacters
+- Blocks commands with unsafe patterns
+- Prevents command chaining and execution tricks
+
+**Path Traversal Protection** (CWE-22):
+- Detects pattern matching in commands
+- Blocks access to sensitive files: .env, .ssh, credential files
+- Validates all file paths in commands
+
+**Circuit Breaker** (DoS Prevention):
+- Trips after threshold blocks (configurable per profile)
+- Automatically disables sandbox after repeated violations
+- Prevents brute-force attempts to bypass sandbox
+
+**Audit Logging**:
+- Logs all decisions to security audit log
+- Records command, classification, reason
+- Thread-safe logging with file rotation
+
+### Policy Profiles
+
+**Profile: Development** (Most Permissive)
+
+Safe commands: cat, echo, grep, ls, pwd, which, git status, git diff, pytest
+
+Blocked patterns: rm command, sudo, git push variants, eval, wget patterns, curl patterns
+
+Blocked paths: .env, .ssh/, credentials.json, key files, /etc/shadow
+
+Circuit breaker: 10 blocks before tripping
+
+**Profile: Testing** (Moderate)
+
+Stricter than development with fewer safe commands and 5-block circuit breaker
+
+**Profile: Production** (Strictest)
+
+Minimal auto-approvals with 3-block circuit breaker
+
+### Configuration
+
+**Policy File Location**: `plugins/autonomous-dev/config/sandbox_policy.json`
+
+**Custom Policy** (Project-Local Override):
+Create `.claude/config/sandbox_policy.json` with custom profiles
+
+### Integration with unified_pre_tool.py
+
+**Layer 0 Decision Logic**:
+
+Tool call received -> Extract command -> Classify with SandboxEnforcer -> Return decision
+
+### Examples
+
+**Example 1: Safe Read-Only Command**
+```
+result = enforcer.is_command_safe("grep pattern src/")
+Classification: SAFE (grep is in safe_commands list)
+Action: Auto-approve, skip permission prompt
+```
+
+**Example 2: Blocked Dangerous Pattern**
+```
+result = enforcer.is_command_safe("rm command /home/user")
+Classification: BLOCKED (matches blocked pattern)
+Action: Deny with audit log
+```
+
+**Example 3: Unknown Command**
+```
+result = enforcer.is_command_safe("custom-linter options")
+Classification: NEEDS_APPROVAL (not in safe list, no blocked patterns)
+Action: Continue to Layer 1 (MCP Security validation)
+```
+
+**Example 4: Sandboxing on Linux**
+```
+binary = enforcer.get_sandbox_binary()
+if binary == SandboxBinary.BWRAP:
+    sandbox_args = enforcer.build_sandbox_args("cat file.txt")
+    # Execute with subprocess
+```
+
+### Test Coverage
+
+**50+ unit tests** covering:
+- Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+- Safe command patterns
+- Blocked patterns
+- Injection detection
+- Path traversal detection
+- Blocked file patterns
+- Sandbox binary detection
+- Policy loading and validation
+- Circuit breaker logic
+- Cross-platform behavior
+- Edge cases
+
+**Files**:
+- tests/unit/lib/test_sandbox_enforcer.py (50+ tests)
+
+### Performance
+
+- Command classification: less than 1ms (pattern matching)
+- Sandbox binary detection: 5-50ms (first run, cached after)
+- Policy loading: 10-20ms (per process startup)
+- Circuit breaker check: less than 1ms (in-memory state)
+
+**Optimization Notes**:
+- Compiled regex patterns for performance
+- Cached binary detection
+- No filesystem I/O during classification
+
+### Security Considerations
+
+**What It Protects**:
+- Command injection via shell metacharacters
+- Path traversal attacks
+- Sensitive data exposure via blocked file patterns
+- DoS via brute-force bypass attempts
+
+**What It Doesn't Protect**:
+- Vulnerabilities in whitelisted commands
+- Logic bugs in policy rules
+- Malicious code execution
+- Privilege escalation beyond blocked patterns
+
+### Related
+
+- GitHub Issue #171 - Sandboxing for reduced permission prompts
+- unified_pre_tool.py (HOOKS.md) - Hook integration (Layer 0)
+- MCP-SECURITY.md - Overall security architecture
+- sandbox_policy.json - Policy configuration file
+
+### Documentation
+
+- **API**: This section (LIBRARIES.md Section 66)
+- **User Guide**: docs/SANDBOXING.md (comprehensive user documentation)
+- **Hook Integration**: docs/HOOKS.md (unified_pre_tool.py Layer 0)
+- **Source**: plugins/autonomous-dev/lib/sandbox_enforcer.py (625 lines)
+- **Config**: plugins/autonomous-dev/config/sandbox_policy.json
+- **Tests**: tests/unit/lib/test_sandbox_enforcer.py

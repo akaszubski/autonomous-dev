@@ -2,7 +2,8 @@
 """
 Unified PreToolUse Hook - Consolidated Permission & Security Validation
 
-This hook consolidates three PreToolUse validators into a single dispatcher:
+This hook consolidates four PreToolUse validators into a single dispatcher:
+0. Sandbox Enforcer (sandbox_enforcer.py) - Command classification & sandboxing (Issue #171)
 1. MCP Security Validator (pre_tool_use.py) - Path traversal, injection, SSRF protection
 2. Agent Authorization (enforce_implementation_workflow.py) - Pipeline agent detection
 3. Batch Permission Approver (batch_permission_approver.py) - Permission batching
@@ -12,7 +13,15 @@ Decision Logic:
 - If ALL validators return "allow" → output "allow" (approve operation)
 - Otherwise → output "ask" (prompt user)
 
+Layer Execution Order (short-circuit on deny):
+0. Layer 0 (Sandbox): Command classification (SAFE → auto-approve, BLOCKED → deny, NEEDS_APPROVAL → continue)
+1. Layer 1 (MCP Security): Path traversal, injection, SSRF checks
+2. Layer 2 (Agent Auth): Pipeline agent detection
+3. Layer 3 (Batch Permission): Permission batching
+
 Environment Variables:
+- SANDBOX_ENABLED: Enable/disable sandbox layer (default: false for opt-in)
+- SANDBOX_PROFILE: Sandbox profile (default: development)
 - PRE_TOOL_MCP_SECURITY: Enable/disable MCP security (default: true)
 - PRE_TOOL_AGENT_AUTH: Enable/disable agent authorization (default: true)
 - PRE_TOOL_BATCH_PERMISSION: Enable/disable batch permission (default: false)
@@ -35,8 +44,8 @@ Output (stdout):
 
 Exit code: 0 (always - let Claude Code process the decision)
 
-Date: 2025-12-15
-Issue: GitHub #142 (Unified PreToolUse Hook)
+Date: 2026-01-02
+Issue: GitHub #171 (Sandboxing for reduced permission prompts)
 Agent: implementer
 """
 
@@ -114,6 +123,63 @@ PIPELINE_AGENTS = [
     'test-master',
     'doc-master',
 ]
+
+
+def validate_sandbox_layer(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
+    """
+    Validate sandbox layer (Layer 0) - command classification and sandboxing.
+
+    Args:
+        tool_name: Name of the tool being called
+        tool_input: Tool input parameters
+
+    Returns:
+        Tuple of (decision, reason)
+        - decision: "allow", "deny", or "ask"
+        - reason: Human-readable reason for decision
+    """
+    # Check if sandbox is enabled
+    enabled = os.getenv("SANDBOX_ENABLED", "false").lower() == "true"
+    if not enabled:
+        return ("ask", "Sandbox layer disabled")
+
+    # Only validate Bash commands
+    if tool_name != "Bash":
+        return ("ask", "Sandbox layer only validates Bash commands")
+
+    # Extract command from tool_input
+    command = tool_input.get("command", "")
+    if not command:
+        return ("ask", "No command to validate")
+
+    try:
+        # Try to import sandbox enforcer
+        try:
+            from sandbox_enforcer import SandboxEnforcer, CommandClassification
+
+            # Create enforcer
+            enforcer = SandboxEnforcer(policy_path=None, profile=None)
+
+            # Classify command
+            result = enforcer.is_command_safe(command)
+
+            if result.classification == CommandClassification.SAFE:
+                # Safe command - auto-approve
+                return ("allow", "Sandbox: SAFE command auto-approved")
+            elif result.classification == CommandClassification.BLOCKED:
+                # Blocked command - deny
+                return ("deny", f"Sandbox: BLOCKED - {result.reason}")
+            else:  # NEEDS_APPROVAL
+                # Unknown command - continue to next layer
+                return ("ask", "Sandbox: NEEDS_APPROVAL - unknown command")
+
+        except ImportError:
+            # Sandbox enforcer not available - continue to next layer
+            return ("ask", "Sandbox enforcer unavailable")
+
+    except Exception as e:
+        # Error in validation - continue to next layer (don't block on errors)
+        return ("ask", f"Sandbox error: {e}")
 
 
 def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
@@ -324,18 +390,22 @@ def main():
             output_decision("ask", "No tool name provided")
             sys.exit(0)
 
-        # Run all validators in sequence
+        # Run all validators in sequence (Layer 0 → Layer 1 → Layer 2 → Layer 3)
         validators_results = []
 
-        # 1. MCP Security Validator
+        # 0. Sandbox Layer (Layer 0) - Command classification & sandboxing
+        decision, reason = validate_sandbox_layer(tool_name, tool_input)
+        validators_results.append(("Sandbox", decision, reason))
+
+        # 1. MCP Security Validator (Layer 1)
         decision, reason = validate_mcp_security(tool_name, tool_input)
         validators_results.append(("MCP Security", decision, reason))
 
-        # 2. Agent Authorization
+        # 2. Agent Authorization (Layer 2)
         decision, reason = validate_agent_authorization(tool_name, tool_input)
         validators_results.append(("Agent Auth", decision, reason))
 
-        # 3. Batch Permission Approver
+        # 3. Batch Permission Approver (Layer 3)
         decision, reason = validate_batch_permission(tool_name, tool_input)
         validators_results.append(("Batch Permission", decision, reason))
 

@@ -207,6 +207,7 @@
         "plugins/autonomous-dev/lib/protected_file_detector.py",
         "plugins/autonomous-dev/lib/retrofit_executor.py",
         "plugins/autonomous-dev/lib/retrofit_verifier.py",
+        "plugins/autonomous-dev/lib/sandbox_enforcer.py",
         "plugins/autonomous-dev/lib/scope_detector.py",
         "plugins/autonomous-dev/lib/search_utils.py",
         "plugins/autonomous-dev/lib/security_utils.py",
@@ -239,6 +240,7 @@
       "target": ".claude/config",
       "files": [
         "plugins/autonomous-dev/config/auto_approve_policy.json",
+        "plugins/autonomous-dev/config/sandbox_policy.json",
         "plugins/autonomous-dev/config/doc_change_registry.json",
         "plugins/autonomous-dev/config/global_settings_template.json",
         "plugins/autonomous-dev/config/install_manifest.json",

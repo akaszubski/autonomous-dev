@@ -347,10 +347,55 @@ Consolidated dispatcher hooks that combine multiple individual hooks for reduced
 
 ### unified_pre_tool.py
 
-**Purpose**: MCP security validation, agent authorization, batch permission approval
-**Consolidates**: pre_tool_use.py, enforce_implementation_workflow.py, batch_permission_approver.py
+**Purpose**: Unified permission decision system with 4-layer validation (sandbox, MCP security, agent auth, batch approval)
+**Consolidates**: sandbox_enforcer.py, pre_tool_use.py, enforce_implementation_workflow.py, batch_permission_approver.py
 **Lifecycle**: PreToolUse
-**Environment Variables**: PRE_TOOL_MCP_SECURITY, PRE_TOOL_AGENT_AUTH, PRE_TOOL_BATCH_PERMISSION, MCP_AUTO_APPROVE
+**Environment Variables**: SANDBOX_ENABLED, SANDBOX_PROFILE, PRE_TOOL_MCP_SECURITY, PRE_TOOL_AGENT_AUTH, PRE_TOOL_BATCH_PERMISSION, MCP_AUTO_APPROVE
+
+**4-Layer Architecture** (Issue #171 - Sandboxing for reduced permission prompts):
+
+Layer 0 (Sandbox Enforcer):
+- Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+- Pattern matching against policy (safe_commands, blocked_patterns, shell_injection_patterns)
+- Path traversal detection
+- Circuit breaker (disables after threshold blocks)
+- Decision: SAFE -> auto-approve, BLOCKED -> deny, NEEDS_APPROVAL -> continue to Layer 1
+
+Layer 1 (MCP Security Validator):
+- Path traversal validation (CWE-22)
+- Command injection detection (CWE-78)
+- SSRF prevention (CWE-918)
+- Sensitive file access blocking (.env, .ssh, *.key, credentials)
+- Decision: Allow -> continue, Deny -> block, Ask -> continue to Layer 2
+
+Layer 2 (Agent Authorization):
+- Detects pipeline agents (implementer, test-master, etc.)
+- Permits significant code changes for authorized agents
+- Blocks autonomous implementation attempts
+- Decision: Authorized -> allow, Unauthorized -> continue to Layer 3
+
+Layer 3 (Batch Permission Approver):
+- Caches user consent for identical operations
+- Reduces prompts from 50+ to ~8-10 per /auto-implement
+- Audit logging for compliance
+- Decision: Approved -> allow, Denied -> block
+
+**Performance Impact**:
+- Layer 0 (Sandbox): Reduces prompts from 50+ to ~8-10 (84% reduction)
+- Combined with Layer 3 (Batch): Handles 50+ permission decisions with <10 prompts total
+
+**Environment Variables**:
+- SANDBOX_ENABLED (default: false) - Enable/disable sandbox layer
+- SANDBOX_PROFILE (default: development) - Security profile (development/testing/production)
+- PRE_TOOL_MCP_SECURITY (default: true) - Enable/disable MCP security validation
+- PRE_TOOL_AGENT_AUTH (default: true) - Enable/disable agent authorization
+- PRE_TOOL_BATCH_PERMISSION (default: false) - Enable/disable batch permission approval
+- MCP_AUTO_APPROVE (default: false) - Enable/disable overall auto-approval
+
+**Related Documentation**:
+- docs/SANDBOXING.md - User guide for sandbox configuration
+- docs/LIBRARIES.md Section 66 - sandbox_enforcer.py API documentation
+- plugins/autonomous-dev/config/sandbox_policy.json - Policy configuration file
 
 ### unified_post_tool.py
 

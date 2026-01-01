@@ -1,0 +1,157 @@
+{
+  "version": "1.0.0",
+  "description": "Sandbox security policy for command classification and permission reduction (Issue #171)",
+  "profiles": {
+    "development": {
+      "description": "Permissive profile for development - auto-approves read-only and informational commands",
+      "safe_commands": [
+        "cat",
+        "echo",
+        "grep",
+        "ls",
+        "pwd",
+        "which",
+        "git status",
+        "git diff",
+        "git log",
+        "git show",
+        "git branch",
+        "pytest",
+        "python -m pytest",
+        "pip list",
+        "pip show",
+        "python --version",
+        "node --version",
+        "npm --version"
+      ],
+      "blocked_patterns": [
+        "rm -rf",
+        "sudo",
+        "git push --force",
+        "eval",
+        "wget.*\\|.*sh",
+        "curl.*\\|.*sh",
+        "chmod 777",
+        "dd if=",
+        ">\\s*/dev/sd",
+        "mkfs\\.",
+        ":\\(\\)\\{.*\\};"
+      ],
+      "shell_injection_patterns": [
+        ";",
+        "&&",
+        "||",
+        "|",
+        "`",
+        "$(",
+        ")",
+        ">",
+        ">>",
+        "<",
+        "\u0000"
+      ],
+      "blocked_paths": [
+        ".env",
+        ".ssh/",
+        "credentials.json",
+        "*.pem",
+        "*.key",
+        "/etc/shadow",
+        "/root/",
+        "~/.ssh/"
+      ],
+      "path_traversal_patterns": [
+        ".."
+      ],
+      "sandbox_enabled": true,
+      "circuit_breaker": {
+        "enabled": true,
+        "threshold": 10
+      }
+    },
+    "testing": {
+      "description": "Moderate profile for testing - stricter than development",
+      "safe_commands": [
+        "cat",
+        "echo",
+        "grep",
+        "ls",
+        "pytest"
+      ],
+      "blocked_patterns": [
+        "rm -rf",
+        "sudo",
+        "git push --force"
+      ],
+      "shell_injection_patterns": [
+        ";",
+        "&&",
+        "||",
+        "|",
+        "`",
+        "$(",
+        ")",
+        ">",
+        ">>",
+        "<"
+      ],
+      "blocked_paths": [
+        ".env",
+        ".ssh/",
+        "credentials.json"
+      ],
+      "path_traversal_patterns": [
+        ".."
+      ],
+      "sandbox_enabled": true,
+      "circuit_breaker": {
+        "enabled": true,
+        "threshold": 5
+      }
+    },
+    "production": {
+      "description": "Strict profile for production - minimal auto-approvals",
+      "safe_commands": [
+        "cat",
+        "ls",
+        "git status"
+      ],
+      "blocked_patterns": [
+        "rm",
+        "sudo",
+        "git push",
+        "eval",
+        "wget",
+        "curl"
+      ],
+      "shell_injection_patterns": [
+        ";",
+        "&&",
+        "||",
+        "|",
+        "`",
+        "$(",
+        ")",
+        ">",
+        ">>",
+        "<"
+      ],
+      "blocked_paths": [
+        ".env",
+        ".ssh/",
+        "credentials.json",
+        "*.pem",
+        "*.key"
+      ],
+      "path_traversal_patterns": [
+        ".."
+      ],
+      "sandbox_enabled": true,
+      "circuit_breaker": {
+        "enabled": true,
+        "threshold": 3
+      }
+    }
+  },
+  "default_profile": "development"
+}
