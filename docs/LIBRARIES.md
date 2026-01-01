@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (31)
+### Core Libraries (32)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -42,6 +42,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 29. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
 30. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
 31. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
+32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
 22. **agent_tracker.py** (see section 24)
@@ -9825,3 +9826,158 @@ python complexity_assessor.py "Implement OAuth2" --verbose
 
 - docs/PERFORMANCE.md - Pipeline performance metrics
 - docs/LIBRARIES.md Section 1 (security_utils.py) - Input validation patterns
+
+---
+
+## 64. pause_controller.py (403 lines, v1.0.0 - Issue #182)
+
+**Purpose**: File-based pause controls and human input handling for autonomous workflows
+
+**Problem**: Long-running autonomous workflows need to pause at checkpoints to accept human feedback, approvals, or instructions without losing state.
+
+**Solution**: Comprehensive pause/resume system with file-based signaling, checkpoint persistence, and secure file operations.
+
+### Key Files
+
+- `.claude/PAUSE` - Touch file to signal pause request
+- `.claude/HUMAN_INPUT.md` - Optional file with human instructions/feedback
+- `.claude/pause_checkpoint.json` - Checkpoint state for resume
+
+### Functions
+
+#### `check_pause_requested()` -> bool
+
+**Purpose**: Check if pause is requested via .claude/PAUSE file
+
+**Returns**: True if PAUSE file exists and is valid, False otherwise
+
+**Security**:
+- Rejects symlinks (CWE-59)
+- Returns False if .claude dir doesn't exist
+- Path traversal prevention
+
+#### `read_human_input()` -> Optional[str]
+
+**Purpose**: Read content from .claude/HUMAN_INPUT.md file
+
+**Returns**: File content as string, or None if file doesn't exist
+
+**Security**:
+- Rejects symlinks (CWE-59)
+- 1MB file size limit (DoS prevention)
+- Handles unicode properly
+- Returns None on permission errors
+- Path traversal prevention
+
+**Features**:
+- Graceful handling of missing files
+- Automatic encoding detection
+- Safe error recovery
+
+#### `clear_pause_state()` -> None
+
+**Purpose**: Remove PAUSE and HUMAN_INPUT.md files to resume workflow
+
+**Behavior**:
+- Idempotent (no error if files don't exist)
+- Preserves checkpoint file (separate lifecycle)
+- Removes both signal files
+
+**Security**:
+- Validates paths before deletion
+- Only removes PAUSE and HUMAN_INPUT.md
+- Never follows symlinks
+
+#### `save_checkpoint(agent_name, state)` -> None
+
+**Purpose**: Save checkpoint state to .claude/pause_checkpoint.json for resume
+
+**Parameters**:
+- `agent_name` (str): Name of agent saving checkpoint
+- `state` (Dict[str, Any]): State dictionary to save
+
+**Security**:
+- Atomic write (write to temp file, then rename)
+- Input validation for agent_name
+- Path validation before write
+- Atomic rename prevents partial writes
+
+**Checkpoint Structure**:
+```json
+{
+  "agent": "agent_name",
+  "timestamp": "2026-01-02T12:34:56.123456+00:00",
+  "step": 3,
+  "data": "..."
+}
+```
+
+#### `load_checkpoint()` -> Optional[Dict[str, Any]]
+
+**Purpose**: Load checkpoint from .claude/pause_checkpoint.json
+
+**Returns**: Checkpoint data as dictionary, or None if:
+- File doesn't exist
+- JSON is invalid
+- File is empty
+- Permission denied
+
+**Security**:
+- Validates path before reading
+- Handles corrupted JSON gracefully
+- Rejects invalid file formats
+- Returns None for errors (graceful degradation)
+
+#### `validate_pause_path(path)` -> bool
+
+**Purpose**: Validate path for pause-related file operations
+
+**Parameters**: `path` (str): Path to validate
+
+**Returns**: True if path is valid and safe, False otherwise
+
+**Security Validations**:
+- CWE-22: Reject path traversal attempts (..)
+- CWE-59: Reject symlinks
+- Ensure path is within .claude/ directory
+- Block null bytes (CWE-158)
+
+### Workflow Integration
+
+**Typical Workflow**:
+1. User creates `.claude/PAUSE` file to pause at next checkpoint
+2. Optionally: User writes `.claude/HUMAN_INPUT.md` with instructions
+3. Workflow checks `check_pause_requested()` at checkpoints
+4. If paused: saves state with `save_checkpoint()`
+5. Workflow reads instructions with `read_human_input()`
+6. User provides feedback/approval
+7. User removes `.claude/PAUSE` to signal resume
+8. Workflow loads state with `load_checkpoint()` and continues
+
+### Security Features
+
+- **Path Traversal Prevention (CWE-22)**: Strict validation that all paths are within `.claude/` directory
+- **Symlink Attack Prevention (CWE-59)**: All file checks detect and reject symlinks
+- **Null Byte Injection (CWE-158)**: Blocks null bytes in paths
+- **DoS Prevention**: 1MB file size limit on human input
+- **Atomic Operations**: Checkpoint writes use temp file + rename for atomicity
+- **Graceful Degradation**: All errors return safe defaults (None/False) instead of exceptions
+
+### Test Coverage
+
+- 44 unit tests for all functions
+- 24 integration tests for workflow scenarios
+- Security tests for path traversal, symlinks, null bytes
+- Edge case tests for missing files, permissions, corrupted JSON
+
+### Related
+
+- GitHub Issue #182 - Pause controls with PAUSE file and HUMAN_INPUT.md
+- state-management-patterns skill - Checkpoint patterns
+- security_utils.py (Section 1) - Common path validation approach
+
+### Documentation
+
+- **API**: This section (LIBRARIES.md Section 64)
+- **Workflow**: See HUMAN_INPUT.md for user-facing pause workflow
+- **Source**: plugins/autonomous-dev/lib/pause_controller.py (403 lines)

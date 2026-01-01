@@ -196,6 +196,7 @@
         "plugins/autonomous-dev/lib/orchestrator.py",
         "plugins/autonomous-dev/lib/orphan_file_cleaner.py",
         "plugins/autonomous-dev/lib/path_utils.py",
+        "plugins/autonomous-dev/lib/pause_controller.py",
         "plugins/autonomous-dev/lib/performance_profiler.py",
         "plugins/autonomous-dev/lib/permission_classifier.py",
         "plugins/autonomous-dev/lib/plugin_updater.py",
