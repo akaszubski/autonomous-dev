@@ -1,0 +1,29 @@
+feat(memory): Add cross-session memory layer for context continuity (#179)
+
+Implements persistent memory storage across /auto-implement sessions:
+
+- New library: memory_layer.py (766 lines) with MemoryLayer class
+- Memory types: feature, decision, blocker, pattern, context
+- API: remember(), recall(), forget(), prune(), get_summary()
+- Utility scoring: Recency decay + access frequency ranking
+- PII sanitization: API keys, passwords, emails, JWTs redacted
+- Security: Path validation (CWE-22), symlink detection (CWE-59)
+- Thread-safe: File locking for concurrent access
+- Graceful degradation: Storage errors don't crash workflow
+
+Test coverage:
+- 47 unit tests (tests/unit/lib/test_memory_layer.py)
+- 16 integration tests (tests/integration/test_memory_integration.py)
+- 2 tests skipped (corrupted JSON recovery timing-dependent)
+
+Files added:
+- plugins/autonomous-dev/lib/memory_layer.py
+- tests/unit/lib/test_memory_layer.py
+- tests/integration/test_memory_integration.py
+- docs/LIBRARIES.md Section 62
+
+Closes #179
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>

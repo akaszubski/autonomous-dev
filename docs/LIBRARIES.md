@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2026-01-01
+**Last Updated: 2026-01-02
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (30)
+### Core Libraries (31)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -40,8 +40,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 27. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
 28. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
 29. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
-
 30. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
+31. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
 22. **agent_tracker.py** (see section 24)
@@ -9587,3 +9587,241 @@ frequency_score = min(1.0, access_count / 20)
 - docs/SECURITY.md - Security hardening guide
 - docs/LIBRARIES.md Section 6 (security_utils.py) - Path validation
 - docs/LIBRARIES.md Section 15 (path_utils.py) - Project root detection
+## 63. complexity_assessor.py (441 lines, v1.0.0 - Issue #181)
+
+**Purpose**: Automatic complexity assessment for pipeline scaling
+
+**Key Concepts**:
+- Keyword-based heuristics for fast complexity classification
+- Confidence scoring to indicate assessment certainty
+- Agent count and time recommendations based on complexity
+- Security-first approach: COMPLEX keywords override SIMPLE keywords
+
+### Classes
+
+#### `ComplexityLevel` (Enum)
+
+**Values**:
+- `SIMPLE` - Simple changes (typos, docs, formatting) - 3 agents, ~8 min
+- `STANDARD` - Standard features (bug fixes, small features) - 6 agents, ~15 min
+- `COMPLEX` - Complex features (auth, security, APIs) - 8 agents, ~25 min
+
+#### `ComplexityAssessment` (NamedTuple)
+
+**Attributes**:
+- `level` (ComplexityLevel): Assessed complexity level (SIMPLE/STANDARD/COMPLEX)
+- `confidence` (float): Confidence score for assessment (0.0-1.0)
+- `reasoning` (str): Human-readable explanation of classification
+- `agent_count` (int): Recommended number of agents (3/6/8)
+- `estimated_time` (int): Estimated time in minutes (8/15/25)
+
+#### `ComplexityAssessor` (Class)
+
+**Design**:
+- Stateless: No instance variables, all methods can be class methods
+- Keyword-based: Fast heuristics for common patterns
+- Conservative: Defaults to STANDARD when uncertain
+- Security-first: COMPLEX keywords override SIMPLE keywords
+
+**Keyword Sets**:
+- SIMPLE_KEYWORDS: typo, spelling, docs, documentation, readme, rename, format, formatting, comment, whitespace, indentation, style, lint, pep8, black
+- COMPLEX_KEYWORDS: auth, authentication, authorization, security, encrypt, encryption, jwt, oauth, oauth2, saml, ldap, password, credential, token, api, webhook, database, migration, schema
+
+### Methods
+
+#### `assess(feature_description, github_issue=None)` - Main entry point
+
+**Signature**: `@classmethod assess(feature_description: str, github_issue: Optional[Dict] = None) -> ComplexityAssessment`
+
+**Purpose**: Assess complexity of a feature request
+
+**Parameters**:
+- `feature_description` (str): Feature request text to analyze
+- `github_issue` (Optional[Dict]): GitHub issue dict with 'title' and 'body' keys (optional)
+
+**Returns**: ComplexityAssessment with level, confidence, reasoning, agent_count, time
+
+**Edge Cases**:
+- Handles None input (defaults to STANDARD with 0.4 confidence)
+- Handles empty/whitespace input (defaults to STANDARD with 0.4 confidence)
+- Truncates input >10000 chars with warning
+- Combines feature description with GitHub issue (body weighted higher)
+
+**Example**:
+```python
+assessor = ComplexityAssessor()
+result = assessor.assess("Fix typo in README")
+print(f"Level: {result.level}, Agents: {result.agent_count}")
+# Output: Level: ComplexityLevel.SIMPLE, Agents: 3
+```
+
+#### `_analyze_keywords(text)` - Keyword-based classification
+
+**Signature**: `@classmethod _analyze_keywords(text: str) -> Dict[str, Any]`
+
+**Purpose**: Analyze text for SIMPLE and COMPLEX keyword indicators
+
+**Parameters**: `text` (str): Text to analyze
+
+**Returns**: Dict with 'simple_count', 'complex_count', 'simple_keywords', 'complex_keywords'
+
+**Algorithm**:
+- Case-insensitive substring matching for each keyword set
+- Returns counts and matched keyword lists
+- Fast O(n) algorithm where n = text length
+
+#### `_analyze_scope(text)` - Scope detection analysis
+
+**Signature**: `@classmethod _analyze_scope(text: str) -> Dict[str, Any]`
+
+**Purpose**: Analyze text for scope indicators (file counts, conjunctions)
+
+**Parameters**: `text` (str): Text to analyze
+
+**Returns**: Dict with 'conjunction_count', 'file_type_count', 'word_count', 'alphabetic_count'
+
+**Algorithm**:
+- Count conjunctions: and, or, also, plus, additionally (regex-based)
+- Count unique file types: .py, .js, .md, etc. (regex-based)
+- Calculate word count and alphabetic word count
+- Used as secondary indicator for scope breadth
+
+#### `_analyze_security(text)` - Security indicator detection
+
+**Signature**: `@classmethod _analyze_security(text: str) -> Dict[str, Any]`
+
+**Purpose**: Analyze text for security-related indicators
+
+**Parameters**: `text` (str): Text to analyze
+
+**Returns**: Dict with 'has_security_keywords' and 'security_keyword_list'
+
+**Security Keywords**: auth, authentication, authorization, security, encrypt, encryption, jwt, oauth, oauth2, saml, password, credential, token
+
+#### `_determine_level(indicators)` - Complexity level determination
+
+**Signature**: `@classmethod _determine_level(indicators: Dict) -> ComplexityLevel`
+
+**Purpose**: Determine complexity level from indicators
+
+**Priority**:
+1. COMPLEX keywords override SIMPLE keywords (security-first approach)
+2. SIMPLE keywords with no conflicts
+3. STANDARD as default fallback
+
+**Algorithm**:
+- If complex_count > 0: return COMPLEX
+- Else if simple_count > 0: return SIMPLE
+- Else: return STANDARD
+
+#### `_calculate_confidence(indicators)` - Confidence scoring
+
+**Signature**: `@classmethod _calculate_confidence(indicators: Dict) -> float`
+
+**Purpose**: Calculate confidence score (0.0-1.0) for assessment
+
+**Confidence Factors**:
+- Single keyword match: 0.85 base
+- Multiple keyword matches: +0.05 per additional (max +0.10)
+- Conflicting signals: -0.30 penalty
+- No keywords but detailed: 0.6 (reasonable default to STANDARD)
+- No keywords and vague/garbage: 0.4-0.5 (very ambiguous)
+
+**Algorithm**:
+```
+If no keywords detected:
+  If alphabetic_count == 0: confidence = 0.4 (garbage input)
+  Elif word_count < 5: confidence = 0.5 (very ambiguous)
+  Else: confidence = 0.6 (detailed request)
+Else:
+  confidence = 0.85 (base for any keyword match)
+  If total_keywords >= 2: confidence += 0.05
+  If total_keywords >= 3: confidence += 0.05
+  If simple_count > 0 AND complex_count > 0: confidence -= 0.30
+  Clamp confidence to [0.0, 1.0]
+```
+
+#### `_generate_reasoning(level, indicators, confidence)` - Reasoning generation
+
+**Signature**: `@classmethod _generate_reasoning(level, indicators, confidence) -> str`
+
+**Purpose**: Generate human-readable reasoning for assessment
+
+**Output Format**: "Classified as LEVEL - [keyword details] - confidence level - [conflicts]"
+
+**Example**: "Classified as COMPLEX - detected COMPLEX keywords: auth, encryption, jwt - high confidence - (conflicting signals detected, COMPLEX takes priority)"
+
+### Test Coverage
+
+**Unit Tests** (52 tests in tests/unit/lib/test_complexity_assessor.py):
+- Simple typo/documentation classification
+- Standard feature/bug fix classification
+- Complex authentication/security/API classification
+- Conflicting signal handling (SIMPLE + COMPLEX)
+- Edge cases (empty input, None, whitespace-only)
+- GitHub issue integration (title + body weighting)
+- Confidence scoring accuracy
+- Agent count and time mapping
+- Low confidence scenarios
+- Very long input truncation
+
+**Coverage Target**: 95% of code paths, 100% of public API paths
+
+### Files Added
+
+- plugins/autonomous-dev/lib/complexity_assessor.py (441 lines)
+- plugins/autonomous-dev/scripts/complexity_assessor.py (CLI wrapper, ~180 lines)
+- tests/unit/lib/test_complexity_assessor.py (52 tests, ~500 lines)
+
+### CLI Usage
+
+```bash
+# Simple text input
+python complexity_assessor.py "Fix typo in README"
+
+# From stdin
+echo "Add OAuth2 support" | python complexity_assessor.py --stdin
+
+# From GitHub issue
+python complexity_assessor.py --issue 181
+
+# JSON output
+python complexity_assessor.py "Add JWT authentication" --json
+
+# Verbose output
+python complexity_assessor.py "Implement OAuth2" --verbose
+```
+
+### Integration Points
+
+**Used By**:
+- /auto-implement command (determine pipeline scaling)
+- planner agent (estimate time and agent requirements)
+- /create-issue command (estimate scope in issue creation)
+
+**Dependencies**:
+- None (standard library only: enum, typing, re, logging)
+
+### Security Features
+
+- Input validation for all user-provided text
+- Graceful degradation for invalid inputs
+- Max 10000 chars truncation with warning
+- No external dependencies on network resources
+- Thread-safe logging
+
+### Performance
+
+- Time complexity: O(n) where n = text length
+- Space complexity: O(m) where m = number of keywords found
+- Typical execution: < 5ms for standard feature descriptions
+
+### GitHub
+
+- Issue #181 - Automatic complexity assessment for pipeline scaling
+- Related: Issue #180 (Smart pipeline scaling based on complexity)
+
+### Related Documentation
+
+- docs/PERFORMANCE.md - Pipeline performance metrics
+- docs/LIBRARIES.md Section 1 (security_utils.py) - Input validation patterns

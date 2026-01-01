@@ -128,16 +128,17 @@
       "target": ".claude/scripts",
       "files": [
         "plugins/autonomous-dev/scripts/__init__.py",
-        "plugins/autonomous-dev/scripts/session_tracker.py",
-        "plugins/autonomous-dev/scripts/pipeline_controller.py",
-        "plugins/autonomous-dev/scripts/progress_display.py",
-        "plugins/autonomous-dev/scripts/install.py",
-        "plugins/autonomous-dev/scripts/configure_global_settings.py",
         "plugins/autonomous-dev/scripts/agent_tracker.py",
         "plugins/autonomous-dev/scripts/align_project_retrofit.py",
+        "plugins/autonomous-dev/scripts/complexity_assessor.py",
+        "plugins/autonomous-dev/scripts/configure_global_settings.py",
         "plugins/autonomous-dev/scripts/genai_install_wrapper.py",
+        "plugins/autonomous-dev/scripts/install.py",
         "plugins/autonomous-dev/scripts/invoke_agent.py",
-        "plugins/autonomous-dev/scripts/migrate_hook_paths.py"
+        "plugins/autonomous-dev/scripts/migrate_hook_paths.py",
+        "plugins/autonomous-dev/scripts/pipeline_controller.py",
+        "plugins/autonomous-dev/scripts/progress_display.py",
+        "plugins/autonomous-dev/scripts/session_tracker.py"
       ]
     },
     "lib": {
@@ -161,6 +162,7 @@
         "plugins/autonomous-dev/lib/checkpoint.py",
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
         "plugins/autonomous-dev/lib/completion_verifier.py",
+        "plugins/autonomous-dev/lib/complexity_assessor.py",
         "plugins/autonomous-dev/lib/context_skill_injector.py",
         "plugins/autonomous-dev/lib/copy_system.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",

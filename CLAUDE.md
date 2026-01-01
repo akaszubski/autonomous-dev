@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-01
+**Last Updated**: 2026-01-02
 **Last Validated**: 2026-01-01
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.44.0 (Issue #159 - Manifest completeness audit)
@@ -378,24 +378,30 @@ git commit -m "docs: Update project goals"
 ## Autonomous Development Workflow
 
 1. **Alignment Check**: Verify feature aligns with PROJECT.md
-2. **Research**: researcher agent finds patterns (Haiku model - optimized for speed)
-3. **Planning**: planner agent creates plan
-4. **TDD Tests**: test-master writes failing tests FIRST
-5. **Implementation**: implementer makes tests pass
-6. **Parallel Validation (3 agents simultaneously)**:
+2. **Complexity Assessment** (v1.0.0 - Issue #181): complexity_assessor library determines pipeline scaling
+   - Keyword-based analysis (SIMPLE/STANDARD/COMPLEX)
+   - Recommends agent count (3/6/8 agents) and time estimates (8/15/25 min)
+   - Security-first: COMPLEX keywords override SIMPLE keywords
+   - Confidence scoring indicates assessment certainty (0.0-1.0)
+   - Used by planner to optimize resource allocation
+3. **Research**: researcher agent finds patterns (Haiku model - optimized for speed)
+4. **Planning**: planner agent creates plan (uses complexity assessment for scaling)
+5. **TDD Tests**: test-master writes failing tests FIRST
+6. **Implementation**: implementer makes tests pass
+7. **Parallel Validation (3 agents simultaneously)**:
    - reviewer checks code quality
    - security-auditor scans for vulnerabilities
    - doc-master updates documentation
    - Execution: Three Task tool calls in single response enables parallel execution
    - Performance: 5 minutes → 2 minutes (60% faster)
-7. **Automated Git Operations (SubagentStop hook - consent-based)**:
+8. **Automated Git Operations (SubagentStop hook - consent-based)**:
    - Triggers when doc-master agent completes (last agent in parallel validation)
    - Check environment variables for consent: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
    - Invoke commit-message-generator agent (creates conventional commit)
    - Automatically stage changes, create commit, push, and optionally create PR
    - Graceful degradation: If prerequisites fail (git not available, config missing), feature is still successful
    - Hook file: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (SubagentStop lifecycle)
-8. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
+9. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
 **Performance Baseline**: 15-25 minutes per workflow (25-30% overall improvement from 28-44 min baseline)
 
