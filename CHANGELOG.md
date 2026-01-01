@@ -1,5 +1,48 @@
 ## [Unreleased]
 
+**Added**
+
+- **Issue #168: Auto-close GitHub issues after batch-implement push (v3.46.0)**
+  - **Problem**: When processing multiple features with /batch-implement, completed issues remain open, requiring manual closing
+  - **Solution**: Automatic GitHub issue closing integrated into batch workflow
+  - **Features**:
+    - **Automatic issue extraction**: Extracts issue numbers from feature descriptions or --issues list
+      - Pattern matching: #123, fixes #123, closes #123, issue 123, GH-123 (case-insensitive)
+      - Works with both file-based and --issues flag input modes
+    - **Smart consent**: Reuses AUTO_GIT_ENABLED environment variable (same as commit/push/PR)
+      - Enabled by default when AUTO_GIT_ENABLED=true
+      - Non-blocking: Disabled via AUTO_GIT_ENABLED=false
+    - **Safe execution**: Runs after successful push (ensures feature saved to remote)
+    - **Idempotent**: Already-closed issues don't cause errors (logged as success)
+    - **Circuit breaker**: Stops after 5 consecutive failures to prevent API abuse
+    - **Audit trail**: All issue close operations recorded in batch state and security logs
+  - **State tracking**: Results stored in batch_state.json git_operations[feature_index].issue_close
+    - Fields: success, issue_number, message, error, timestamp
+  - **Error handling**: All failures non-blocking (batch continues)
+    - Issue not found: Logged warning
+    - gh CLI unavailable: Logged warning
+    - Network timeout: Logged failure + circuit breaker increment
+    - No issue number: Logged skip
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/batch_issue_closer.py (641 lines) - Core implementation
+    - Exports: should_auto_close_issues(), get_issue_number_for_feature(), close_batch_feature_issue(), handle_close_failure()
+  - **Debugging support**: jq queries to inspect issue close results
+    - View successful closures via batch_state.json
+    - View failed closures via batch_state.json
+  - **Documentation**:
+    - docs/BATCH-PROCESSING.md: New Issue Auto-Close section with examples and configuration
+    - docs/GIT-AUTOMATION.md: New Batch Mode Issue Auto-Close section with API reference
+    - Both sections include debugging guides and troubleshooting
+  - **Testing**: Comprehensive test coverage with 35+ test cases covering:
+    - Issue extraction (patterns, edge cases)
+    - Consent checking (enabled/disabled)
+    - Error handling (not found, already closed, timeout, no CLI)
+    - Circuit breaker logic (failure tracking, threshold)
+    - State recording (batch state updates)
+    - Integration with batch workflow
+  - **Integration**: Automatically invoked after git push in /batch-implement workflow
+  - **Related**: Issue #93 (auto-commit), Issue #91 (issue close for /auto-implement)
+
 **Fixed**
 
 - **fix(hooks): Fix silent git automation failures in user projects (Issue #167, v3.45.0+)**

@@ -113,7 +113,7 @@ class TestCharacterCountValidation:
         Expected sizes (comprehensive documentation, v3.37.0):
         - docs/LIBRARIES.md: ~149,857 characters (28 library API references)
         - docs/PERFORMANCE.md: ~12,397 characters (complete optimization tracking)
-        - docs/GIT-AUTOMATION.md: ~26,729 characters (includes batch git automation, Issues #93, #96)
+        - docs/GIT-AUTOMATION.md: ~41,098 characters (includes batch git automation, Issues #93, #96, #167, #168)
         """
         project_root = Path(__file__).parent.parent.parent
 
@@ -139,9 +139,9 @@ class TestCharacterCountValidation:
             f"PERFORMANCE.md size unexpected: {performance_size} chars "
             f"(expected ~12,397 ±30%)"
         )
-        assert 18700 <= git_automation_size <= 34700, (
+        assert 28768 <= git_automation_size <= 53427, (
             f"GIT-AUTOMATION.md size unexpected: {git_automation_size} chars "
-            f"(expected ~26,729 ±30% with batch git automation)"
+            f"(expected ~41,098 ±30% with batch git automation, Issues #167, #168)"
         )
 
 

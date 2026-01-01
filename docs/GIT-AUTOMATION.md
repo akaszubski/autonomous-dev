@@ -1,7 +1,7 @@
 # Git Automation Control
 
 **Last Updated**: 2026-01-01
-**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167)
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
 
@@ -152,9 +152,9 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 - Creates GitHub PR with comprehensive description
 - Includes summary, test plan, and related issues
 
-**Step 8.5: Auto-Close GitHub Issue (Optional - v3.22.0, Issue #91)**
+**Step 8.5: Auto-Close GitHub Issue (Optional - v3.22.0 Issue #91 for /auto-implement, v3.46.0 Issue #168 for batch mode)**
 - Runs after git push succeeds (Step 7)
-- Only if issue number found in feature request
+- Only if issue number found in feature request or batch state
 - Features:
   - **Issue Number Extraction**: Flexible pattern matching
     - Patterns: `"issue #8"`, `"#8"`, `"Issue 8"` (case-insensitive)
@@ -388,6 +388,293 @@ Enable `GIT_AUTOMATION_VERBOSE=true` when:
 - `plugins/autonomous-dev/hooks/unified_git_automation.py` - Implementation (Issue #167)
 - `plugins/autonomous-dev/lib/auto_implement_git_integration.py` - Git integration library
 - [GitHub Issue #167](https://github.com/akaszubski/autonomous-dev/issues/167) - Silent failures in user projects
+
+## Batch Mode Issue Auto-Close (NEW in v3.46.0 - Issue #168)
+
+**Automatic GitHub issue closing after batch feature completion** - When processing multiple features with `/batch-implement`, each completed feature's associated GitHub issue is automatically closed after push succeeds.
+
+### Overview
+
+Issue auto-close in batch mode provides:
+- **Automatic issue extraction**: From feature descriptions or `--issues` list
+- **Batch-mode operation**: No interactive prompts (non-blocking)
+- **Smart consent**: Reuses `AUTO_GIT_ENABLED` (same as commit/push/PR)
+- **Safety features**: Circuit breaker after 5 consecutive failures
+- **Idempotent**: Already-closed issues don't cause errors
+- **Non-blocking**: Failures don't stop batch processing
+
+### How It Works
+
+For each feature in a batch:
+
+1. **Feature completes** - All tests pass, docs updated, quality checks done
+2. **Git commit**: Conventional commit created (Issue #93)
+3. **Git push**: Commit pushed to remote (if enabled)
+4. **Issue extraction** (NEW): Extract issue number from feature or batch state
+5. **Issue close** (NEW): Close GitHub issue with summary comment (if enabled and number found)
+6. **State update**: Record result in `batch_state.json` for audit trail
+
+### Configuration
+
+Issue auto-close in batch mode uses the same consent mechanism as commit/push/PR:
+
+```bash
+# .env file (project root)
+AUTO_GIT_ENABLED=true   # Master switch - enables all git ops including issue close
+AUTO_GIT_PUSH=true      # Enable push (required before issue close)
+```
+
+**Note**: Issue close only runs after successful push (STEP 7 above). If `AUTO_GIT_PUSH=false`, issue close is skipped.
+
+### Batch State Structure
+
+Issue close results are stored in batch state:
+
+```json
+{
+  "batch_id": "batch-20251206-001",
+  "git_operations": {
+    "0": {
+      "commit": {"success": true, "sha": "abc123..."},
+      "push": {"success": true},
+      "issue_close": {
+        "success": true,
+        "issue_number": 72,
+        "message": "Issue #72 closed successfully",
+        "timestamp": "2025-12-06T10:00:45Z"
+      }
+    },
+    "1": {
+      "commit": {"success": true, "sha": "def456..."},
+      "push": {"success": true},
+      "issue_close": {
+        "success": false,
+        "issue_number": 73,
+        "error": "Issue already closed",
+        "reason": null,
+        "timestamp": "2025-12-06T10:15:30Z"
+      }
+    },
+    "2": {
+      "commit": {"success": true, "sha": "ghi789..."},
+      "push": {"success": true},
+      "issue_close": {
+        "success": false,
+        "skipped": true,
+        "issue_number": null,
+        "reason": "No issue number found for feature",
+        "timestamp": "2025-12-06T10:30:15Z"
+      }
+    }
+  }
+}
+```
+
+### Issue Number Extraction
+
+The system extracts issue numbers from multiple sources in order:
+
+1. **Issue numbers list** (for `--issues` flag): Direct mapping from command line
+   ```bash
+   /batch-implement --issues 72 73 74
+   # Feature 0 → Issue #72
+   # Feature 1 → Issue #73
+   # Feature 2 → Issue #74
+   ```
+
+2. **Feature text** (for file or fallback): Pattern matching
+   ```
+   Add JWT validation (fixes #72)      # Extracts: 72
+   Implement password reset closes #73 # Extracts: 73
+   Related issue #74                   # Extracts: 74
+   Create new feature GH-75            # Extracts: 75
+   ```
+
+   **Patterns matched** (case-insensitive):
+   - `closes #123`, `close #123`
+   - `fixes #123`, `fix #123`
+   - `resolves #123`, `resolve #123`
+   - `GH-123`
+   - `issue #123`
+   - `issue 123`
+   - `#123` (last resort)
+
+### Error Handling
+
+Issue close failures are **non-blocking** - batch continues:
+
+| Error | Behavior | Impact |
+|-------|----------|--------|
+| Issue not found | Logged warning | Batch continues |
+| Issue already closed | Idempotent (success) | Batch continues |
+| gh CLI unavailable | Logged warning | Batch continues |
+| Network timeout | Logged failure | Circuit breaker +1 |
+| No issue number | Logged skip | Batch continues |
+| Invalid issue number | Logged error | Batch continues |
+
+**Circuit Breaker**: After 5 consecutive failures across all features, issue close is disabled with warning:
+
+```
+[WARNING] Issue close circuit breaker triggered after 5 consecutive failures
+[INFO] Skipping issue close for remaining features
+[ACTION] Fix the issue and manually close issues: gh issue close 73 74 75
+```
+
+### Debugging
+
+Query issue close results in batch state:
+
+```bash
+# View successful closures
+cat .claude/batch_state.json | jq '.git_operations[] | select(.issue_close.success == true)'
+
+# View failed closures
+cat .claude/batch_state.json | jq '.git_operations[] | select(.issue_close.success == false)'
+
+# View skipped closures (no issue number found)
+cat .claude/batch_state.json | jq '.git_operations[] | select(.issue_close.skipped == true)'
+
+# View all issue close results
+cat .claude/batch_state.json | jq '.git_operations[].issue_close'
+```
+
+Check audit log for detailed issue close operations:
+
+```bash
+# View issue close audit entries
+grep "batch_issue_close" logs/security_audit.log
+```
+
+### Examples
+
+**Example 1: Batch with --issues flag**
+
+```bash
+/batch-implement --issues 72 73 74
+```
+
+Workflow:
+```
+Feature 0 (Issue #72): "Add JWT token validation"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Closed #72
+
+Feature 1 (Issue #73): "Implement password reset"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Closed #73
+
+Feature 2 (Issue #74): "Add email notifications"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Closed #74
+```
+
+**Example 2: Batch with inline references**
+
+```text
+# features.txt
+Add JWT validation (fixes #72)
+Implement password reset (closes #73)
+Add rate limiting
+```
+
+```bash
+/batch-implement features.txt
+```
+
+Workflow:
+```
+Feature 0: "Add JWT validation (fixes #72)"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Extracted #72, closed
+
+Feature 1: "Implement password reset (closes #73)"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Extracted #73, closed
+
+Feature 2: "Add rate limiting"
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ⊘ No issue number found, skipped
+```
+
+**Example 3: Mixed success/failure**
+
+```bash
+/batch-implement --issues 72 73 74
+```
+
+Workflow:
+```
+Feature 0: Issue #72
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✓ Closed successfully
+
+Feature 1: Issue #73
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✗ Already closed (idempotent → success)
+
+Feature 2: Issue #74
+  ├─ Commit: ✓
+  ├─ Push: ✓
+  └─ Issue close: ✗ gh CLI not found
+     [Batch continues - non-blocking]
+```
+
+### API Usage
+
+For custom batch workflows using the library:
+
+```python
+from batch_issue_closer import (
+    should_auto_close_issues,
+    get_issue_number_for_feature,
+    close_batch_feature_issue,
+    handle_close_failure,
+)
+
+# Check if auto-close enabled
+if should_auto_close_issues():
+    # For each completed feature
+    for feature_index in completed_features:
+        # Extract issue number
+        issue_number = get_issue_number_for_feature(state, feature_index)
+
+        if issue_number:
+            # Close issue
+            result = close_batch_feature_issue(
+                state=state,
+                feature_index=feature_index,
+                commit_sha=commit_sha,
+                branch=branch,
+                state_file=batch_state_file,
+            )
+
+            if result['success']:
+                print(f"Issue #{issue_number} closed")
+            elif result['skipped']:
+                print(f"Skipped: {result['reason']}")
+            else:
+                # Handle non-blocking failure
+                should_stop = handle_close_failure(consecutive_failures)
+                if should_stop:
+                    print("Circuit breaker triggered")
+                    break
+```
+
+### See Also
+
+- [docs/BATCH-PROCESSING.md](BATCH-PROCESSING.md) - Batch processing documentation with Issue Auto-Close section
+- `plugins/autonomous-dev/lib/batch_issue_closer.py` - Implementation (Issue #168)
+- [GitHub Issue #168](https://github.com/akaszubski/autonomous-dev/issues/168) - Auto-close GitHub issues after batch-implement push
+
+---
 
 ## Batch Workflow Integration (NEW in v3.36.0 - Issue #93)
 

@@ -1398,6 +1398,32 @@ def get_feature_git_status(
     return state.git_operations.get(feature_index)
 
 
+def get_feature_git_operations(
+    state: BatchState,
+    feature_index: int
+) -> Optional[Dict[str, Any]]:
+    """
+    Get git operations for a feature (alias for get_feature_git_status).
+
+    This is an alias for backward compatibility and clarity in tests.
+
+    Args:
+        state: Current batch state
+        feature_index: Index of feature
+
+    Returns:
+        Dict of git operations for feature, or None if no operations
+
+    Examples:
+        >>> state = load_batch_state(state_file)
+        >>> ops = get_feature_git_operations(state, 0)
+        >>> if ops and 'issue_close' in ops:
+        ...     close = ops['issue_close']
+        ...     print(f"Issue closed: {close.get('success')}")
+    """
+    return get_feature_git_status(state, feature_index)
+
+
 # =============================================================================
 # BatchStateManager Class (Backward Compatibility Wrapper)
 # =============================================================================
