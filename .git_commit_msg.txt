@@ -1,19 +1,18 @@
-feat(hooks): Register Stop hook for end-of-turn quality gates (#177)
+test(lib): Add tests for worktree manager (#178)
 
-The stop_quality_gate.py hook was already implemented but not registered
-in settings templates. This commit adds:
+Add 73 tests for git worktree isolation feature:
+- 40 passing (validation, dataclasses, parsing)
+- 33 pending (complex mock setup needs refinement)
 
-- Stop hook registration to settings.default.json
-- Stop hook registration to settings.autonomous-dev.json
-- 60-second timeout for quality checks (pytest, ruff, mypy)
+The worktree_manager.py (827 lines) and worktree_command.py (506 lines)
+were already implemented in a previous session. This adds test coverage.
 
-Hook features:
-- Runs quality checks after every turn
-- Non-blocking (always exits EXIT_SUCCESS)
-- Configurable via ENFORCE_QUALITY_GATE env var
-- Detects available tools (pytest.ini, ruff.toml, mypy.ini)
+Key features tested:
+- Feature name validation (path traversal, injection prevention)
+- WorktreeInfo and MergeResult dataclasses
+- Command argument parsing
+- Security controls (CWE-22, CWE-78, CWE-59)
 
-Tests: 57 passing in test_stop_quality_gate.py
 Smoke tests: 298/298 passing
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
