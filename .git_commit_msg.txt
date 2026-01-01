@@ -1,22 +1,20 @@
-feat(lib): Add headless mode for CI/CD integration (#176)
+feat(hooks): Register Stop hook for end-of-turn quality gates (#177)
 
-Implement headless mode library for non-interactive CI/CD environments:
+The stop_quality_gate.py hook was already implemented but not registered
+in settings templates. This commit adds:
 
-- detect_headless_flag(): Parse --headless from sys.argv
-- detect_ci_environment(): Detect CI env vars (GitHub Actions, GitLab, etc.)
-- is_headless_mode(): Combine flag, CI detection, and TTY checks
-- should_skip_prompts(): Skip interactive prompts in headless mode
-- format_json_output(): Machine-readable JSON output format
-- get_exit_code(): Map status to POSIX exit codes (0-5)
-- configure_auto_git_for_headless(): Auto-configure git automation
+- Stop hook registration to settings.default.json
+- Stop hook registration to settings.autonomous-dev.json
+- 60-second timeout for quality checks (pytest, ruff, mypy)
 
-Exit codes: 0=success, 1=error, 2=alignment, 3=tests, 4=security, 5=timeout
+Hook features:
+- Runs quality checks after every turn
+- Non-blocking (always exits EXIT_SUCCESS)
+- Configurable via ENFORCE_QUALITY_GATE env var
+- Detects available tools (pytest.ini, ruff.toml, mypy.ini)
 
-Also renamed test_status_tracker.py to status_tracker.py to avoid
-validate_install_manifest.py skipping it (test_ prefix filter).
-
-Tests: 46 new tests, 298/298 smoke tests pass
-Security: OWASP compliant, no vulnerabilities
+Tests: 57 passing in test_stop_quality_gate.py
+Smoke tests: 298/298 passing
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 

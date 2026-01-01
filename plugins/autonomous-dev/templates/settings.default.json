@@ -109,6 +109,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/stop_quality_gate.py",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   },
   "generated_by": "autonomous-dev",
