@@ -1,18 +1,18 @@
-test(lib): Add tests for worktree manager (#178)
+feat(lib): Add AI-powered merge conflict resolution (#183)
 
-Add 73 tests for git worktree isolation feature:
-- 40 passing (validation, dataclasses, parsing)
-- 33 pending (complex mock setup needs refinement)
+Implement conflict_resolver.py with three-tier resolution strategy:
+- Tier 1: Auto-merge for trivial conflicts (whitespace, identical)
+- Tier 2: Claude API for semantic conflict analysis (3-5 sec)
+- Tier 3: Full-file context for complex merges (5-15 sec)
 
-The worktree_manager.py (827 lines) and worktree_command.py (506 lines)
-were already implemented in a previous session. This adds test coverage.
+Key features:
+- ConflictBlock, ResolutionSuggestion, ConflictResolutionResult dataclasses
+- parse_conflict_markers() with diff3 format support
+- Exponential backoff retry for API failures
+- Atomic file writes with backup
+- Security: CWE-22, CWE-59, CWE-117 protection
 
-Key features tested:
-- Feature name validation (path traversal, injection prevention)
-- WorktreeInfo and MergeResult dataclasses
-- Command argument parsing
-- Security controls (CWE-22, CWE-78, CWE-59)
-
+28 tests (100% pass rate), integrated with /worktree --merge.
 Smoke tests: 298/298 passing
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

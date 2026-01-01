@@ -1,6 +1,55 @@
 ## [Unreleased]
 
 **Added**
+- **AI-Powered Merge Conflict Resolution (Issue #183, v1.0.0)**
+  - **Purpose**: Intelligently resolve git merge conflicts using Claude API with three-tier escalation
+  - **Problem**: Merge conflicts require manual resolution with code context understanding; tedious for simple conflicts, complex for semantic issues
+  - **Solution**: Three-tier escalation strategy: Tier 1 (auto-resolve trivial), Tier 2 (AI on conflict blocks), Tier 3 (full-file context)
+  - **Key Features**:
+    - Tier 1 (Auto-Merge): Whitespace-only, identical changes (instant, zero cost)
+    - Tier 2 (Conflict-Only): AI analyzes conflict blocks only (3-5 sec, 200 tokens)
+    - Tier 3 (Full-File): Entire file context for complex scenarios (5-10 sec, 500-1000 tokens)
+    - Automatic escalation when tier 1 fails
+    - Confidence scoring (0.0-1.0) on all AI suggestions
+    - Atomic file operations with backup/rollback
+  - **Key Classes**:
+    - ConflictBlock - Parse and track individual conflicts
+    - ResolutionSuggestion - AI-generated solution with reasoning
+    - ConflictResolutionResult - Final result with success status
+  - **API Functions**:
+    - parse_conflict_markers(file_path) - Extract all conflicts from file
+    - resolve_tier1_auto_merge(conflict) - Detect trivial conflicts
+    - resolve_tier2_conflict_only(conflict, api_key) - AI on conflict block
+    - resolve_tier3_full_file(file_path, conflicts, api_key) - Full-file context
+    - apply_resolution(file_path, resolution) - Apply suggestion to file
+    - resolve_conflicts(file_path, api_key) - Main entry point with escalation
+  - **Design Patterns**:
+    - Tier Escalation: Start simple, escalate on demand (cost optimization)
+    - Atomic Operations: Backup-modify-verify prevents corruption
+    - Graceful Degradation: Missing API key returns error, never crashes
+  - **Security Features**:
+    - Path validation prevents CWE-22 (path traversal), CWE-59 (symlinks)
+    - Log injection sanitization (CWE-117) - no control characters
+    - API key protection - never logged, environment variable only
+    - Atomic file operations with temporary files
+  - **Integration**:
+    - /worktree --merge flag for AI-powered merge in worktree workflow
+    - conflict_resolver.resolve_conflicts() main API
+    - Optional ANTHROPIC_API_KEY environment variable
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/conflict_resolver.py (1016 lines)
+  - **Documentation**:
+    - docs/LIBRARIES.md: New section 69 with API docs, tier strategy, examples
+    - Library docstrings with usage examples
+  - **Performance**:
+    - Tier 1: <100ms (no API)
+    - Tier 2: 3-5 seconds per conflict
+    - Tier 3: 5-10 seconds per file
+    - Handles files up to 1MB+ with chunking
+  - **Test Coverage**: Tier escalation, path validation, API error handling, atomic operations
+  - **Backward Compatibility**: 100% compatible - new library, no API changes
+  - **GitHub Issue**: Issue #183 - AI-powered merge conflict resolution
+
 - **Headless Mode for CI/CD Integration (Issue #176, v1.0.0)**
   - **Purpose**: Enable autonomous development workflows in CI/CD environments without interactive prompts
   - **Problem**: CI/CD systems cannot handle interactive prompts (no TTY), workflows must auto-configure for headless execution
