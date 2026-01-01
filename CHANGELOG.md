@@ -71,6 +71,45 @@
   - **Integration**: Future integration with /auto-implement for feature branch isolation
   - **Related**: git_operations.py helpers (is_worktree, get_worktree_parent)
   - **GitHub Issue**: #178 - Git worktree isolation feature
+
+- **New Command: /worktree (Issue #180)**
+  - **Purpose**: Interactive git worktree management with review, merge, and discard workflow
+  - **Problem**: After features are developed in worktrees, users need a way to review, merge, or discard them safely
+  - **Solution**: Complete CLI interface for worktree lifecycle management with approval gates
+  - **Modes**:
+    - `--list` (default) - Show all active worktrees with status indicators
+    - `--status FEATURE` - Detailed info (path, branch, commits ahead/behind, uncommitted files)
+    - `--review FEATURE` - Interactive diff review with approve/reject workflow
+    - `--merge FEATURE` - Merge worktree to target branch
+    - `--discard FEATURE` - Delete worktree with confirmation
+  - **Features**:
+    - Safe operations: All destructive operations require explicit approval
+    - Formatted output: Status indicators (clean, dirty, active, stale, detached)
+    - Interactive flow: Diff display and merge approval for review mode
+    - Multiple features: Can manage 5+ worktrees simultaneously
+    - Error handling: Clear error messages for failed operations
+    - Exit codes: 0=success, 1=warning, 2=user reject/cancel
+  - **Workflow Integration**:
+    - Output from /auto-implement can be directed to /worktree for review
+    - Supports review-approve-merge pattern for quality gates
+    - Enables cleanup via --discard for rejected features
+  - **Implementation**:
+    - Python CLI: worktree_command.py (506 lines) with argparse and user prompts
+    - Library backend: Uses worktree_manager.py for operations
+    - Uses Task tool for interactive prompts
+    - Graceful degradation for non-git directories
+  - **Test Coverage**: 40 unit tests covering all modes and edge cases
+  - **Files Added**:
+    - plugins/autonomous-dev/commands/worktree.md (590 lines)
+    - plugins/autonomous-dev/lib/worktree_command.py (506 lines)
+    - tests/unit/test_worktree_command.py (40 tests)
+  - **Documentation**:
+    - docs/LIBRARIES.md Section 62 with worktree_command.py API reference
+    - docs/COMMANDS.md /worktree entry with complete mode reference
+    - Inline examples in command file (quick start, use cases, mode details)
+  - **Security**: Path validation (CWE-22), command injection prevention (CWE-78)
+  - **GitHub Issue**: #180 - /worktree command for git worktree management
+
 - **New Library: completion_verifier.py (415 lines, v1.0.0)**
   - **Purpose**: Pipeline completion verification with intelligent retry and circuit breaker
   - **Problem**: Pipeline agents may fail to complete, but users have no way to detect and retry incomplete work

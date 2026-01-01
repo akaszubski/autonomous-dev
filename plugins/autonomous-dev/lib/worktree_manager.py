@@ -682,3 +682,146 @@ def get_worktree_path(feature_name: str) -> Optional[Path]:
         return None
     except Exception:
         return None
+
+
+def get_worktree_status(feature_name: str) -> dict:
+    """Get detailed status for a worktree.
+
+    Args:
+        feature_name: Name of feature worktree
+
+    Returns:
+        Dictionary with status information containing:
+        - feature: Feature name
+        - path: Worktree path
+        - branch: Branch name
+        - status: 'clean' or 'dirty'
+        - uncommitted_files: List of modified files
+        - commits_ahead: Number of commits ahead of target
+        - commits_behind: Number of commits behind target
+        - target_branch: Target branch (default: 'master')
+
+    Raises:
+        FileNotFoundError: If worktree not found
+
+    Examples:
+        >>> status = get_worktree_status('feature-auth')
+        >>> print(f"Status: {status['status']}")
+        >>> print(f"Commits ahead: {status['commits_ahead']}")
+    """
+    # Get worktree path
+    worktree_path = get_worktree_path(feature_name)
+    if not worktree_path:
+        raise FileNotFoundError(f"Worktree '{feature_name}' not found")
+
+    # Get branch name
+    worktrees = list_worktrees()
+    worktree_info = next((wt for wt in worktrees if wt.name == feature_name), None)
+    if not worktree_info:
+        raise FileNotFoundError(f"Worktree '{feature_name}' not found")
+
+    branch_name = worktree_info.branch or 'HEAD'
+
+    # Check for uncommitted changes
+    try:
+        result = subprocess.run(
+            ['git', '-C', str(worktree_path), 'status', '--porcelain'],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10
+        )
+        has_changes = bool(result.stdout.strip())
+        uncommitted_files = [line[3:].strip() for line in result.stdout.strip().split('\n') if line]
+    except Exception:
+        has_changes = False
+        uncommitted_files = []
+
+    # Get commits ahead/behind
+    try:
+        result = subprocess.run(
+            ['git', '-C', str(worktree_path), 'rev-list', '--left-right', '--count', 'master...HEAD'],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10
+        )
+        parts = result.stdout.strip().split()
+        commits_behind = int(parts[0]) if len(parts) > 0 else 0
+        commits_ahead = int(parts[1]) if len(parts) > 1 else 0
+    except Exception:
+        commits_ahead = 0
+        commits_behind = 0
+
+    return {
+        'feature': feature_name,
+        'path': str(worktree_path),
+        'branch': branch_name,
+        'status': 'dirty' if has_changes else 'clean',
+        'uncommitted_files': uncommitted_files,
+        'commits_ahead': commits_ahead,
+        'commits_behind': commits_behind,
+        'target_branch': 'master'
+    }
+
+
+def get_worktree_diff(feature_name: str) -> str:
+    """Get git diff for a worktree against target branch.
+
+    Args:
+        feature_name: Name of feature worktree
+
+    Returns:
+        Git diff output as string
+
+    Raises:
+        FileNotFoundError: If worktree not found
+        RuntimeError: If git diff command fails
+
+    Examples:
+        >>> diff = get_worktree_diff('feature-auth')
+        >>> if diff:
+        ...     print("Changes detected")
+    """
+    # Get worktree path
+    worktree_path = get_worktree_path(feature_name)
+    if not worktree_path:
+        raise FileNotFoundError(f"Worktree '{feature_name}' not found")
+
+    # Get diff against master
+    try:
+        result = subprocess.run(
+            ['git', '-C', str(worktree_path), 'diff', 'master...HEAD'],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30
+        )
+        return result.stdout
+    except Exception as e:
+        raise RuntimeError(f"Failed to get diff: {str(e)}")
+
+
+def discard_worktree(feature_name: str) -> dict:
+    """Discard a worktree (delete it with force).
+
+    This is a convenience wrapper around delete_worktree with force=True.
+
+    Args:
+        feature_name: Name of feature worktree
+
+    Returns:
+        Dictionary with success status: {'success': True}
+
+    Raises:
+        RuntimeError: If deletion fails
+
+    Examples:
+        >>> result = discard_worktree('feature-auth')
+        >>> if result['success']:
+        ...     print("Worktree discarded")
+    """
+    success, message = delete_worktree(feature_name, force=True)
+    if not success:
+        raise RuntimeError(message)
+    return {'success': True}

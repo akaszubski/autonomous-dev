@@ -43,6 +43,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 30. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
 31. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
 32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
+33. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
 22. **agent_tracker.py** (see section 24)
@@ -9981,3 +9982,283 @@ python complexity_assessor.py "Implement OAuth2" --verbose
 - **API**: This section (LIBRARIES.md Section 64)
 - **Workflow**: See HUMAN_INPUT.md for user-facing pause workflow
 - **Source**: plugins/autonomous-dev/lib/pause_controller.py (403 lines)
+
+
+## 65. worktree_command.py (506 lines, v1.0.0 - Issue #180)
+
+**Purpose**: Interactive CLI interface for git worktree management
+
+**Problem**: After features are developed in isolated worktrees, users need a way to review changes, merge to target branch, or discard work safely - all from the command line
+
+**Solution**: Complete CLI with 5 modes (list, status, review, merge, discard) providing full worktree lifecycle management
+
+### Key Features
+
+- **Multi-mode interface**: List, status, review, merge, discard modes
+- **Safe operations**: Destructive operations require explicit user approval
+- **Formatted output**: Status indicators (clean, dirty, active, stale, detached)
+- **Interactive review**: Shows diff and prompts for merge approval
+- **Exit codes**: Standard codes (0=success, 1=warning, 2=user reject)
+
+### Modes
+
+#### List Mode (`--list` - DEFAULT)
+
+Shows all active worktrees with status indicators.
+
+**Usage**:
+```bash
+/worktree                # Default list mode
+/worktree --list         # Explicit list mode
+```
+
+**Output**:
+```
+Feature              Branch                         Status
+------------------------------------------------------------
+feature-auth         feature/feature-auth           clean
+feature-logging      feature/feature-logging        dirty
+```
+
+**Status Indicators**:
+- `clean` - No uncommitted changes
+- `dirty` - Has uncommitted changes
+- `active` - Currently checked out
+- `stale` - Directory missing (orphaned)
+- `detached` - Detached HEAD state
+
+#### Status Mode (`--status FEATURE`)
+
+Detailed information for a specific worktree.
+
+**Usage**:
+```bash
+/worktree --status feature-auth
+```
+
+**Output**:
+```
+Worktree Status: feature-auth
+Path:            /project/.worktrees/feature-auth
+Branch:          feature/feature-auth
+Status:          dirty
+Target Branch:   master
+Commits Ahead:   5
+Commits Behind:  2
+
+Uncommitted Changes (3 files):
+  - auth/models.py
+  - auth/tests.py
+  - README.md
+```
+
+**Fields**:
+- Path: Full path to worktree directory
+- Branch: Current branch name
+- Status: clean/dirty/active/stale/detached
+- Target Branch: Where commits will be merged
+- Commits Ahead/Behind: Against target branch
+- Uncommitted Changes: List of modified files
+
+#### Review Mode (`--review FEATURE`)
+
+Interactive diff review with approve/reject workflow.
+
+**Usage**:
+```bash
+/worktree --review feature-auth
+```
+
+**Workflow**:
+1. Shows full git diff against target branch
+2. Prompts: "Approve or reject changes? [approve/reject]:"
+3. If approve: Automatically merges to target branch
+4. If reject: Exits without merging
+
+**Output**:
+```
+Diff for worktree: feature-auth
+============================================================
+diff --git a/auth/models.py b/auth/models.py
+[... full diff output ...]
+============================================================
+
+Approve or reject changes? [approve/reject]: approve
+
+Successfully merged 12 files
+```
+
+#### Merge Mode (`--merge FEATURE`)
+
+Directly merge worktree to target branch without review.
+
+**Usage**:
+```bash
+/worktree --merge feature-auth
+```
+
+**Behavior**:
+- Merges worktree branch to target branch
+- Handles merge conflicts (reports and exits with code 1)
+- Non-interactive (no approval prompt)
+
+#### Discard Mode (`--discard FEATURE`)
+
+Delete worktree with confirmation.
+
+**Usage**:
+```bash
+/worktree --discard feature-auth
+```
+
+**Behavior**:
+- Prompts for confirmation: "Delete worktree feature-auth? [y/N]:"
+- If yes: Deletes worktree directory and git worktree entry
+- If no: Exits without deleting
+- Prevents accidental deletion of uncommitted work
+
+### Implementation Details
+
+**Design Pattern**: Wrapper CLI around worktree_manager.py library
+
+**Architecture**:
+- Parse arguments using argparse
+- Delegate operations to worktree_manager.py functions
+- Handle user interactions (prompts, confirmation)
+- Format and display results
+- Return appropriate exit codes
+
+**User Prompts**:
+- Review mode: Shows diff, prompts approve/reject
+- Discard mode: Prompts for confirmation
+- Review/merge prompts use Task tool for interactive input
+
+**Error Handling**:
+- Clear error messages for failed operations
+- Non-blocking graceful degradation (non-git directories)
+- Exit codes signal success/warning/user rejection
+
+**Integration**:
+- Designed to work with /auto-implement worktree output
+- Part of feature review and merge workflow
+- Can be used standalone for worktree management
+
+### API Functions
+
+#### `main(args: List[str]) -> int`
+
+**Purpose**: Main entry point for CLI
+
+**Parameters**:
+- `args` (List[str]): Command-line arguments (excluding program name)
+
+**Returns**: Exit code (0=success, 1=warning, 2=user reject)
+
+**Modes Dispatched**:
+- Empty or `--list` -> list_mode()
+- `--status NAME` -> status_mode(NAME)
+- `--review NAME` -> review_mode(NAME)
+- `--merge NAME` -> merge_mode(NAME)
+- `--discard NAME` -> discard_mode(NAME)
+
+#### `list_mode() -> int`
+
+Lists all active worktrees with formatted output.
+
+**Returns**: 0 (always succeeds, even if no worktrees)
+
+#### `status_mode(feature: str) -> int`
+
+Shows detailed status for a worktree.
+
+**Parameters**: `feature` (str): Worktree/feature name
+
+**Returns**: 0=success, 1=worktree not found
+
+#### `review_mode(feature: str) -> int`
+
+Interactive diff review and merge.
+
+**Parameters**: `feature` (str): Worktree/feature name
+
+**Returns**: 0=merged, 1=merge failed, 2=user rejected
+
+#### `merge_mode(feature: str) -> int`
+
+Direct merge without review.
+
+**Parameters**: `feature` (str): Worktree/feature name
+
+**Returns**: 0=success, 1=merge failed
+
+#### `discard_mode(feature: str) -> int`
+
+Delete worktree with confirmation.
+
+**Parameters**: `feature` (str): Worktree/feature name
+
+**Returns**: 0=deleted, 1=error, 2=user cancelled
+
+### Data Structures
+
+#### `ParsedArgs` (dataclass)
+
+Parsed command-line arguments.
+
+**Fields**:
+- `mode` (str): Operation mode (list, status, review, merge, discard)
+- `feature` (Optional[str]): Feature name (None for list mode)
+
+### Security
+
+**Path Validation**:
+- Validates worktree paths (CWE-22 path traversal prevention)
+- Prevents directory traversal via feature names
+- Rejects symlinks and suspicious paths
+
+**Command Injection Prevention** (CWE-78):
+- Feature names sanitized before shell commands
+- Uses subprocess with list arguments (not shell=True)
+- No user input passed directly to shell
+
+**No File Writes**:
+- Only reads git state and worktree metadata
+- All modifications delegated to worktree_manager.py
+- No file creation in user directories
+
+### Test Coverage
+
+**40 unit tests** covering:
+- All 5 modes (list, status, review, merge, discard)
+- Argument parsing (valid/invalid args)
+- Output formatting
+- User prompt handling
+- Error conditions (missing worktrees, permission errors)
+- Edge cases (empty list, special characters in names)
+
+**Files**:
+- tests/unit/test_worktree_command.py (40 tests)
+
+### Performance
+
+- List: 50-100ms (git worktree list)
+- Status: 100-500ms (git log, git status for one worktree)
+- Review: 0.5-5s (git diff, merge operations)
+- Merge: 0.5-5s (git merge operation)
+- Discard: 1-2s (worktree cleanup)
+
+### Related
+
+- GitHub Issue #180 - /worktree command for git worktree management
+- worktree_manager.py (Section 61) - Core library for operations
+- git-operations skill - Git integration patterns
+- cli-design-patterns skill - CLI argument handling patterns
+
+### Documentation
+
+- **API**: This section (LIBRARIES.md Section 65)
+- **Command**: plugins/autonomous-dev/commands/worktree.md (590 lines)
+  - Quick start examples
+  - Use case descriptions
+  - Detailed mode reference
+- **Source**: plugins/autonomous-dev/lib/worktree_command.py (506 lines)

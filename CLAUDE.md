@@ -1,7 +1,7 @@
 # Claude Code Bootstrap - Project Instructions
 
 **Last Updated**: 2026-01-02
-**Last Validated**: 2026-01-01
+**Last Validated**: 2026-01-02
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.44.0 (Issue #159 - Manifest completeness audit)
 
@@ -14,12 +14,12 @@
 | Component | Version | Count | Status |
 |-----------|---------|-------|--------|
 | Skills | 1.0.0 | 28 | ✅ Compliant |
-| Commands | 1.0.0 | 8 | ✅ Compliant |
+| Commands | 1.0.0 | 9 | ✅ Compliant |
 | Agents | 1.0.0 | 21 | ✅ Compliant |
 | Hooks | 1.0.0 | 62 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-01 (Issue #177 - Stop hook for end-of-turn quality gates)
+**Last Compliance Check**: 2026-01-02 (Issue #180 - /worktree command for git worktree management)
 
 ---
 
@@ -70,6 +70,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
   - `--all` - Execute all modes in sequence
   - `--uninstall` - Uninstall plugin (preview by default, use --force to execute) - GitHub #131
 - `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
+- `/worktree` - Manage git worktrees (list, status, review, merge, discard) for isolated feature development and safe review/merge workflow - GitHub #180
 
 **Command Security (Issue #145)**: All commands use `allowed-tools:` frontmatter for principle of least privilege. Claude Code 2.0 enforces tool restrictions at runtime.
 

@@ -54,7 +54,8 @@
         "plugins/autonomous-dev/commands/test-feature.md",
         "plugins/autonomous-dev/commands/test.md",
         "plugins/autonomous-dev/commands/update-docs.md",
-        "plugins/autonomous-dev/commands/update-plugin.md"
+        "plugins/autonomous-dev/commands/update-plugin.md",
+        "plugins/autonomous-dev/commands/worktree.md"
       ]
     },
     "hooks": {
@@ -230,6 +231,7 @@
         "plugins/autonomous-dev/lib/version_detector.py",
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
         "plugins/autonomous-dev/lib/workflow_tracker.py",
+        "plugins/autonomous-dev/lib/worktree_command.py",
         "plugins/autonomous-dev/lib/worktree_manager.py"
       ]
     },
