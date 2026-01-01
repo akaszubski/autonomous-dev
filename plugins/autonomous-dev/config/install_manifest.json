@@ -225,7 +225,8 @@
         "plugins/autonomous-dev/lib/validation.py",
         "plugins/autonomous-dev/lib/version_detector.py",
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
-        "plugins/autonomous-dev/lib/workflow_tracker.py"
+        "plugins/autonomous-dev/lib/workflow_tracker.py",
+        "plugins/autonomous-dev/lib/worktree_manager.py"
       ]
     },
     "config": {

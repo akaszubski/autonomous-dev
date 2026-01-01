@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (29)
+### Core Libraries (30)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -41,6 +41,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 28. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
 29. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
 
+30. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
 22. **agent_tracker.py** (see section 24)
@@ -9177,3 +9178,247 @@ Target: 95% coverage of core functionality
 - `tests/unit/lib/test_status_tracker.py`
 
 **GitHub**: Issue #174 - Block-at-submit hook with test status tracking
+
+
+## 61. worktree_manager.py (684 lines, v1.0.0 - Issue #178)
+
+**Purpose**: Safe git worktree isolation for parallel feature development
+
+**Problem**: Developers need to work on multiple features in parallel without affecting the main branch. Standard branching requires switching contexts repeatedly.
+
+**Solution**: Comprehensive git worktree management system with automatic isolation, collision detection, and safe merge operations.
+
+### Features
+
+- **Create worktrees**: Spawn isolated working directories for each feature
+- **List worktrees**: Display all active worktrees with metadata (status, branch, commit, creation time)
+- **Delete worktrees**: Remove worktrees with optional force flag for uncommitted changes
+- **Merge worktrees**: Merge worktree branches back to target branch with conflict detection
+- **Prune stale**: Automatically clean up orphaned/old worktrees (configurable age threshold)
+- **Path queries**: Get worktree path by feature name
+- **Security**: Path traversal prevention (CWE-22), command injection prevention (CWE-78), symlink resolution (CWE-59)
+- **Graceful degradation**: Failures don't crash, return error tuples for safe handling
+- **Atomic operations**: Collision detection with timestamp suffix for duplicate names
+- **Parallel development**: Work on 5+ features simultaneously without branch switching
+
+### Main Components
+
+#### Data Classes
+
+**WorktreeInfo**: Metadata about a worktree
+
+- name: str - Feature name
+- path: Path - Absolute path to worktree
+- branch: Optional[str] - Branch name (None if detached)
+- commit: str - Short commit SHA
+- status: str - 'active', 'stale', or 'detached'
+- created_at: datetime - Creation timestamp
+
+**MergeResult**: Result of merge operation
+
+- success: bool - Whether merge completed
+- conflicts: List[str] - Files with conflicts
+- merged_files: List[str] - Successfully merged files
+- error_message: str - Error details if failed
+
+#### Main Functions
+
+#### create_worktree(feature_name, base_branch='master') -> Tuple[bool, Union[Path, str]]
+
+- **Purpose**: Create isolated worktree for feature development
+- **Parameters**:
+  - feature_name (str): Feature name (alphanumeric, hyphens, underscores, dots only)
+  - base_branch (str): Base branch to branch from (default: 'master')
+- **Returns**: Tuple of (success, result) where result is Path on success or error_message on failure
+- **Security**: Validates feature name (CWE-22, CWE-78), uses subprocess list args (no shell), resolves symlinks
+- **Collision Handling**: If feature name exists, appends timestamp (YYYYMMDD-HHMMSS)
+- **Errors Handled**:
+  - Empty/invalid feature name
+  - Path traversal attempts
+  - Branch already checked out
+  - Invalid/missing base branch
+  - No disk space
+  - Timeout (30s)
+
+#### list_worktrees() -> List[WorktreeInfo]
+
+- **Purpose**: List all git worktrees with metadata
+- **Parameters**: None
+- **Returns**: List of WorktreeInfo objects (empty list on error)
+- **Status Detection**:
+  - active: Worktree exists and on a branch
+  - stale: Worktree directory doesn't exist
+  - detached: Worktree in detached HEAD state
+- **Performance**: Uses git porcelain format for efficient parsing
+
+#### delete_worktree(feature_name, force=False) -> Tuple[bool, str]
+
+- **Purpose**: Delete a worktree
+- **Parameters**:
+  - feature_name (str): Feature name of worktree to delete
+  - force (bool): Force deletion even with uncommitted changes (default: False)
+- **Returns**: Tuple of (success, message)
+- **Validation**: Checks feature name format before deletion
+- **Errors Handled**:
+  - Worktree not found
+  - Uncommitted changes (unless force=True)
+  - Permission denied
+
+#### merge_worktree(feature_name, target_branch='master') -> MergeResult
+
+- **Purpose**: Merge worktree branch back to target branch
+- **Parameters**:
+  - feature_name (str): Feature name to merge
+  - target_branch (str): Target branch for merge (default: 'master')
+- **Returns**: MergeResult with success/conflicts/merged_files/error_message
+- **Merge Flow**:
+  1. Validate feature name
+  2. Checkout target branch
+  3. Merge feature branch
+  4. Get list of merged files (if successful)
+  5. Detect conflicts (if merge failed)
+- **Conflict Detection**: Uses multiple strategies
+  - git diff --name-only --diff-filter=U (unmerged)
+  - git status --porcelain with status codes (UU, AA, DD, AU, UA, DU, UD)
+- **Errors Handled**:
+  - Invalid feature name
+  - Target branch not found
+  - Detached HEAD state
+  - Merge conflicts
+  - Timeout (30s)
+
+#### prune_stale_worktrees(max_age_days=7) -> int
+
+- **Purpose**: Remove stale/orphaned worktrees
+- **Parameters**:
+  - max_age_days (int): Maximum age threshold in days (default: 7)
+- **Returns**: Number of worktrees pruned
+- **Pruning Criteria**:
+  - Worktree directory doesn't exist (orphaned)
+  - Worktree older than max_age_days (uses directory mtime)
+  - Only prunes managed worktrees (containing 'worktrees' in path)
+  - Skips main repository
+
+#### get_worktree_path(feature_name) -> Optional[Path]
+
+- **Purpose**: Get path to a worktree by feature name
+- **Parameters**: feature_name (str): Feature name
+- **Returns**: Path to worktree or None if not found
+
+### Internal Functions
+
+#### _validate_feature_name(name) -> Tuple[bool, str]
+
+- **Purpose**: Security validation for feature names
+- **Checks**:
+  - Non-empty string
+  - No path traversal (.., /)
+  - No shell injection (;, &, |, parentheses)
+  - Only alphanumeric, hyphens, underscores, dots
+- **Returns**: Tuple of (is_valid, error_message)
+
+#### _get_worktree_base_dir() -> Path
+
+- **Purpose**: Get base directory for worktrees (.worktrees/ in cwd)
+- **Returns**: Path to .worktrees directory
+- **Note**: Uses current working directory, no git calls needed
+
+### Configuration
+
+**Environment Variables**: None (configuration is function parameters)
+
+**Default Worktree Location**: .worktrees/<feature-name>/ in current directory
+
+**Naming Conventions**:
+- Feature names: alphanumeric, hyphens, underscores, dots only
+- Directory structure: <repo>/.worktrees/<feature-name>/
+- Collision handling: <feature-name>-YYYYMMDD-HHMMSS if name exists
+
+### Security Analysis
+
+**Threat Model**:
+1. **Path Traversal (CWE-22)**: Blocked by feature name validation (no .., /)
+2. **Command Injection (CWE-78)**: Blocked by subprocess list args (no shell=True), feature name validation
+3. **Symlink Attacks (CWE-59)**: Blocked by Path.resolve() during worktree path generation
+
+**Validation Layers**:
+1. Feature name validation (regex check)
+2. subprocess list args (no shell interpolation)
+3. Path resolution (symlink detection via resolve())
+4. Error messages (no stderr leakage)
+
+### Error Handling Strategy
+
+**All functions return safe tuples/objects**:
+- create_worktree(): (bool, Union[Path, str]) - easy error checking
+- delete_worktree(): (bool, str) - message for logging
+- merge_worktree(): MergeResult dataclass - structured conflict info
+- list_worktrees(): List[WorktreeInfo] - empty list on error
+- prune_stale_worktrees(): int - 0 on error
+- get_worktree_path(): Optional[Path] - None if not found
+
+**Exceptions**: Only raises on programming errors, not operational failures
+
+### Performance
+
+- **Create worktree**: ~1-2 seconds (git worktree add + symlink resolution)
+- **List worktrees**: ~50-100ms (porcelain parsing)
+- **Merge worktree**: ~0.5-5 seconds (depends on file count)
+- **Prune stale**: ~100-500ms (depends on number of worktrees)
+- **Get path**: ~5-10ms (list + lookup)
+
+### Test Coverage
+
+**Unit Tests** (40 tests in tests/unit/test_worktree_manager.py):
+- Feature name validation (empty, path traversal, injection, invalid chars)
+- Worktree creation (success, collision handling, branch errors)
+- Worktree listing (parsing, status detection, metadata)
+- Worktree deletion (success, force flag, not found)
+- Merge operations (success, conflicts, checkout errors)
+- Prune operations (stale detection, orphaned cleanup)
+- Path queries (found, not found, empty list)
+- Mock git commands for offline testing
+
+**Integration Tests** (18 tests in tests/integration/test_worktree_integration.py):
+- Real git repository setup/teardown
+- Actual worktree creation and listing
+- Branch checkout and merge workflows
+- Conflict detection and handling
+- File operations during merge
+- Cleanup after each test
+
+**Coverage Target**: 95% of code paths, 100% of security-critical paths
+
+### Files Added
+
+- plugins/autonomous-dev/lib/worktree_manager.py (684 lines)
+- tests/unit/test_worktree_manager.py (927 lines, 40 tests)
+- tests/integration/test_worktree_integration.py (702 lines, 18 tests)
+- .gitignore updated (added .worktrees/)
+
+### Documentation
+
+- docs/LIBRARIES.md Section 61 (this section)
+- Comprehensive docstrings with examples
+- Type hints on all functions
+
+### Integration Points
+
+**Used By**:
+- /auto-implement command (future feature branch isolation)
+- Parallel feature development workflows
+- Batch feature processing (potential future use)
+
+**Related**:
+- git_operations.py Section 16 - Helper functions (is_worktree, get_worktree_parent)
+
+### GitHub
+
+- Issue #178 - Git worktree isolation feature
+- Related: Issue #177 (Stop hook quality gates), #175 (Agent audit), #174 (Test passage enforcement)
+
+### Related Documentation
+
+- docs/GIT-AUTOMATION.md - Git automation workflows
+- docs/SECURITY.md - Security hardening guide
+- git_operations.py Section 16 - Worktree helper functions

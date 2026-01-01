@@ -38,7 +38,8 @@ Design Patterns:
 """
 
 import subprocess
-from typing import Tuple, Dict, Any, List
+from pathlib import Path
+from typing import Tuple, Dict, Any, List, Optional
 
 
 def validate_git_repo() -> Tuple[bool, str]:
@@ -638,3 +639,73 @@ class GitOperations:
     ) -> Dict[str, Any]:
         """Automated commit and push workflow."""
         return auto_commit_and_push(commit_message, branch, push)
+
+
+def is_worktree() -> bool:
+    """
+    Check if current directory is a git worktree.
+
+    Returns:
+        True if current directory is a worktree (not main repository)
+        False if main repository or not a git repository
+
+    Example:
+        >>> if is_worktree():
+        ...     print("Running in worktree")
+    """
+    try:
+        # Check if .git is a file (worktrees have .git file, main repo has .git directory)
+        # Use Path.cwd() to ensure we get absolute path
+        git_path = Path.cwd() / '.git'
+        if git_path.exists() and git_path.is_file():
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def get_worktree_parent() -> Optional[Path]:
+    """
+    Get the parent repository path if running in a worktree.
+
+    Returns:
+        Path to parent repository if in a worktree
+        None if in main repository or error
+
+    Example:
+        >>> parent = get_worktree_parent()
+        >>> if parent:
+        ...     print(f"Parent repo: {parent}")
+    """
+    try:
+        # Only works if we're in a worktree
+        if not is_worktree():
+            return None
+
+        # Read .git file to get gitdir path
+        # Use Path.cwd() to ensure we get absolute path
+        git_file = Path.cwd() / '.git'
+        with git_file.open('r') as f:
+            gitdir_line = f.read().strip()
+
+        # Format: "gitdir: /path/to/main-repo/.git/worktrees/feature-name"
+        if not gitdir_line.startswith('gitdir: '):
+            return None
+
+        gitdir = gitdir_line.replace('gitdir: ', '')
+
+        # Parse path to get main repo
+        # /path/to/main-repo/.git/worktrees/feature-name -> /path/to/main-repo
+        gitdir_path = Path(gitdir)
+
+        # Navigate up: worktrees -> .git -> main-repo
+        if gitdir_path.name != '':
+            parent_git_dir = gitdir_path.parent.parent
+            if parent_git_dir.name == '.git':
+                main_repo = parent_git_dir.parent
+                return main_repo.resolve()
+
+        return None
+
+    except Exception:
+        return None

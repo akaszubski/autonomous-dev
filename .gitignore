@@ -128,3 +128,6 @@ DOCUMENTATION_*.md
 
 # Disabled hooks (kept for reference but not active)
 *.disabled
+
+# Git worktrees (isolated build directories)
+.worktrees/
