@@ -1,7 +1,7 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2025-12-24
-**Last Validated**: 2025-12-24
+**Last Updated**: 2026-01-01
+**Last Validated**: 2026-01-01
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.44.0 (Issue #159 - Manifest completeness audit)
 
@@ -16,10 +16,10 @@
 | Skills | 1.0.0 | 28 | ✅ Compliant |
 | Commands | 1.0.0 | 8 | ✅ Compliant |
 | Agents | 1.0.0 | 21 | ✅ Compliant |
-| Hooks | 1.0.0 | 60 | ✅ Compliant |
+| Hooks | 1.0.0 | 62 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2025-12-24 (Issue #159)
+**Last Compliance Check**: 2026-01-01 (Issue #177 - Stop hook for end-of-turn quality gates)
 
 ---
 

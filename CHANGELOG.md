@@ -178,6 +178,25 @@
   - **Documentation Updated**: docs/LIBRARIES.md section 24 (agent_tracker package overview, module architecture, delegation pattern)
   - **Related**: Issue #79 (Dogfooding bug - portable path tracking), Issue #164 (sync_dispatcher.py refactoring pattern)
 
+- docs: Document stop_quality_gate.py hook (Issue #177)
+  - **Files Updated**: docs/HOOKS.md, CLAUDE.md
+  - **Changes**:
+    - Added Stop lifecycle constraints to Exit Code Semantics section
+    - Updated Quick Reference table to include Stop hooks (count: 1)
+    - Created "Stop Hooks (1)" section with comprehensive documentation
+    - Documented stop_quality_gate.py: purpose, lifecycle, features, tools, configuration, workflow, output format, exit codes, error handling
+    - Updated Lifecycle Hooks section count from (2) to (3)
+    - Updated CLAUDE.md hook count: 60 -> 62 (completion_verifier + stop_quality_gate)
+  - **Documentation Includes**:
+    - Hook lifecycle: Stop (non-blocking, informational only)
+    - Supported tools: pytest, ruff, mypy with auto-detection
+    - Configuration: ENFORCE_QUALITY_GATE environment variable
+    - Error handling: FileNotFoundError, TimeoutExpired, PermissionError with graceful degradation
+    - Output format: Emoji indicators (passed, failed, skipped) with truncated output
+    - Exit codes: Always EXIT_SUCCESS (0) - Stop hooks cannot block
+  - **Related**: Issue #177 (End-of-turn quality gates), tests/unit/hooks/test_stop_quality_gate.py (54 tests)
+
+
 **Added**
 
 - **Issue #162: Tech Debt Detection Agent**

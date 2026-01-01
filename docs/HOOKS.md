@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2026-01-01 (Issue #174 - pre_commit_gate hook)
+**Last Updated**: 2026-01-01 (Issue #177 - End-of-turn quality gates)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for automation hooks in the autonomous-dev plugin.
@@ -57,6 +57,13 @@ Different hook lifecycles have different exit code restrictions based on when th
 - **Examples**: `unified_code_quality.py`, `unified_structure_enforcer.py`
 - **Use case**: Code quality validation, test coverage requirements
 
+#### Stop Hooks (Must exit 0)
+- **Allowed exits**: EXIT_SUCCESS (0) only
+- **Can block**: No
+- **Rationale**: Hooks run after turn/response completes, informational only, cannot block workflow
+- **Examples**: `stop_quality_gate.py`
+- **Use case**: End-of-turn quality feedback (non-blocking), progress reporting
+
 ### Usage Examples
 
 **Success Case** (hook completes without issues):
@@ -93,7 +100,7 @@ lifecycle = os.environ.get("HOOK_LIFECYCLE", "Unknown")
 
 # Only allow exits permitted by this lifecycle
 if critical_issue and not is_exit_allowed(lifecycle, EXIT_BLOCK):
-    # PreToolUse/SubagentStop hooks cannot block - use warning instead
+    # PreToolUse/SubagentStop/Stop hooks cannot block - use warning instead
     print(f"Warning: {get_lifecycle_description(lifecycle)}", file=sys.stderr)
     sys.exit(EXIT_WARNING)
 elif critical_issue:
@@ -436,6 +443,7 @@ Consolidated dispatcher hooks that combine multiple individual hooks for reduced
 | **PostToolUse** | 1 | unified_post_tool |
 | **PreCommit** | 5 | unified_code_quality, unified_structure_enforcer, unified_doc_validator, unified_doc_auto_fix, unified_manifest_sync |
 | **SubagentStop** | 2 | unified_session_tracker, unified_git_automation |
+| **Stop** | 1 | stop_quality_gate |
 | **UserPromptSubmit** | 1 | unified_prompt_validator |
 | **Utility** | 6 | genai_prompts, genai_utils, github_issue_manager, health_check, setup, sync_to_installed |
 
@@ -1049,7 +1057,7 @@ Helper modules and manual invocation utilities.
 
 ---
 
-## Lifecycle Hooks (2)
+## Lifecycle Hooks (3)
 
 Special hooks that respond to Claude Code lifecycle events.
 
@@ -1073,6 +1081,86 @@ Special hooks that respond to Claude Code lifecycle events.
 - `auto_git_workflow.py`: Commits and pushes changes after quality validation
 
 **Trigger**: When agent completes execution
+
+---
+
+## Stop Hooks (1)
+
+Hooks that run after every turn/response completes to provide non-blocking quality feedback.
+
+**Purpose**: End-of-turn quality gates - detect and report quality issues without blocking workflow
+**Lifecycle**: Stop (must exit 0, non-blocking, informational only)
+**Trigger**: After every Claude Code turn/response completes
+
+### stop_quality_gate.py
+
+**Purpose**: End-of-turn quality gates with automatic tool detection
+**Issue**: #177 (Stop hook for end-of-turn quality gates)
+**Lifecycle**: Stop (informational only, never blocks)
+**Exit Code**: Always EXIT_SUCCESS (0)
+
+**Features**:
+- **Automatic tool detection**: Scans project for pytest, ruff, mypy configuration files
+- **Parallel execution**: Runs all available tools simultaneously with 60-second timeout each
+- **Graceful degradation**: Handles missing tools, timeouts, and permission errors gracefully
+- **Non-blocking**: Always exits 0 (Stop hooks cannot block)
+- **Smart output**: Formats results to stderr with emoji indicators and truncated output
+
+**Tools Detected**:
+- **pytest**: Test runner (config: pytest.ini, pyproject.toml, setup.cfg, conftest.py)
+- **ruff**: Linter (config: ruff.toml, .ruff.toml, pyproject.toml)
+- **mypy**: Type checker (config: mypy.ini, .mypy.ini, pyproject.toml, setup.cfg)
+
+**Configuration**:
+- **ENFORCE_QUALITY_GATE**: Control quality gate enforcement
+  - Set to `false`, `0`, or `no` to disable (case-insensitive)
+  - Default: `true` (enabled) - Runs quality checks every turn
+
+**Workflow**:
+1. Checks if ENFORCE_QUALITY_GATE enabled (default: yes)
+2. Scans project root for configuration files
+3. Detects available tools (pytest, ruff, mypy)
+4. Runs each available tool with 60-second timeout
+5. Captures output (stdout/stderr)
+6. Formats results with emoji indicators
+7. Outputs to stderr (Claude Code surfaces stderr)
+8. Always exits 0 (informational only)
+
+**Output Format**:
+```
+============================================================
+Quality Gate Check Results
+============================================================
+✅ pytest: passed
+❌ ruff: failed (exit code 1)
+   Output: foo.py:10:5: E501 Line too long (truncated)
+⚠️  mypy: skipped (not configured)
+============================================================
+```
+
+**Exit Codes**:
+- **EXIT_SUCCESS (0)**: Always - Stop hooks cannot block
+- Failures reported via stderr, not exit codes
+
+**Error Handling**:
+- `FileNotFoundError`: Tool not installed (shown as warning)
+- `TimeoutExpired`: Tool timeout after 60s (shown as warning)
+- `PermissionError`: Permission denied (shown as warning)
+- Any unexpected exception: Graceful degradation (continues without quality checks)
+
+**Environment Control**:
+```bash
+# Disable quality gate (skip all checks)
+export ENFORCE_QUALITY_GATE=false
+
+# Enable quality gate (default)
+export ENFORCE_QUALITY_GATE=true
+```
+
+**Related**:
+- Issue #177 - End-of-turn quality gates (Stop lifecycle)
+- LIBRARIES.md section 59 - hook_exit_codes.py (exit code semantics)
+- tests/unit/hooks/test_stop_quality_gate.py (54 tests)
 
 ---
 

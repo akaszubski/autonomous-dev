@@ -93,6 +93,7 @@
         "plugins/autonomous-dev/hooks/security_scan.py",
         "plugins/autonomous-dev/hooks/session_tracker.py",
         "plugins/autonomous-dev/hooks/setup.py",
+        "plugins/autonomous-dev/hooks/stop_quality_gate.py",
         "plugins/autonomous-dev/hooks/sync_to_installed.py",
         "plugins/autonomous-dev/hooks/unified_code_quality.py",
         "plugins/autonomous-dev/hooks/unified_doc_auto_fix.py",
