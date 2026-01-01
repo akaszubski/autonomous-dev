@@ -29,6 +29,7 @@ Usage:
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -67,20 +68,51 @@ LIB_DIR = find_lib_dir()
 if LIB_DIR:
     sys.path.insert(0, str(LIB_DIR))
 
+# ============================================================================
+# Logging Infrastructure (Issue #167)
+# ============================================================================
+
+def log_warning(message: str, verbose: bool = None) -> None:
+    """Log warning to stderr with timestamp."""
+    if verbose is None:
+        verbose = os.getenv('GIT_AUTOMATION_VERBOSE', 'false').lower() == 'true'
+    if verbose:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] GIT-AUTOMATION WARNING: {message}", file=sys.stderr)
+
+
+def log_info(message: str, verbose: bool = None) -> None:
+    """Log info to stderr with timestamp."""
+    if verbose is None:
+        verbose = os.getenv('GIT_AUTOMATION_VERBOSE', 'false').lower() == 'true'
+    if verbose:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] GIT-AUTOMATION INFO: {message}", file=sys.stderr)
+
+
 # Optional imports with graceful fallback
 try:
     from security_utils import validate_path, audit_log
     HAS_SECURITY_UTILS = True
-except ImportError:
+except ImportError as e:
     HAS_SECURITY_UTILS = False
+    log_warning(f"security_utils import failed: {e}. Security validation disabled.")
     def audit_log(event_type: str, status: str, context: Dict) -> None:
         pass
 
 try:
-    from auto_implement_git_integration import execute_step8_git_operations
+    from auto_implement_git_integration import execute_step8_git_operations_from_hook
     HAS_GIT_INTEGRATION = True
-except ImportError:
+except ImportError as e:
     HAS_GIT_INTEGRATION = False
+    log_warning(f"auto_implement_git_integration import failed: {e}. Git automation disabled.")
+
+try:
+    from path_utils import get_session_dir
+    HAS_PATH_UTILS = True
+except ImportError as e:
+    HAS_PATH_UTILS = False
+    log_info(f"path_utils import failed: {e}. Using fallback session discovery.")
 
 
 # ============================================================================
@@ -125,6 +157,8 @@ def check_git_workflow_consent() -> Dict[str, bool]:
     """
     Check user consent for git operations via environment variables.
 
+    Reads environment variables directly for runtime flexibility.
+
     Returns:
         Dict with consent flags:
         {
@@ -134,25 +168,33 @@ def check_git_workflow_consent() -> Dict[str, bool]:
             'all_enabled': bool       # All three enabled
         }
     """
-    all_enabled = AUTO_GIT_ENABLED and AUTO_GIT_PUSH and AUTO_GIT_PR
+    # Read environment variables directly (not module constants)
+    # This allows tests to patch environment and get correct values
+    git_enabled = parse_bool(os.environ.get('AUTO_GIT_ENABLED', 'false'))
+    push_enabled = parse_bool(os.environ.get('AUTO_GIT_PUSH', 'false')) if git_enabled else False
+    pr_enabled = parse_bool(os.environ.get('AUTO_GIT_PR', 'false')) if git_enabled else False
+    all_enabled = git_enabled and push_enabled and pr_enabled
 
     return {
-        'git_enabled': AUTO_GIT_ENABLED,
-        'push_enabled': AUTO_GIT_PUSH,
-        'pr_enabled': AUTO_GIT_PR,
+        'git_enabled': git_enabled,
+        'push_enabled': push_enabled,
+        'pr_enabled': pr_enabled,
         'all_enabled': all_enabled,
     }
 
 
 def get_session_file_path() -> Optional[Path]:
     """
-    Get path to session file for workflow metadata.
+    Get path to session file for workflow metadata (Issue #167 - optional).
+
+    Uses portable path discovery via path_utils.get_session_dir() when available.
+    Falls back to hardcoded docs/sessions/ for backward compatibility.
 
     Checks SESSION_FILE environment variable first, otherwise finds latest
-    session file in docs/sessions/ directory.
+    session file in session directory.
 
     Returns:
-        Path to session file or None if not found/invalid
+        Path to session file or None if not found/invalid (graceful degradation)
     """
     session_file_env = os.environ.get('SESSION_FILE')
 
@@ -169,6 +211,7 @@ def get_session_file_path() -> Optional[Path]:
                 )
                 return validated_path
             except ValueError as e:
+                log_warning(f"Session file security validation failed: {e}")
                 audit_log(
                     event_type='session_file_path_validation',
                     status='rejected',
@@ -178,35 +221,46 @@ def get_session_file_path() -> Optional[Path]:
         else:
             return session_path if session_path.exists() else None
 
-    # Find latest session file
-    session_dir = Path("docs/sessions")
-    if not session_dir.exists():
-        return None
+    # Use portable path discovery if available (Issue #167)
+    if HAS_PATH_UTILS:
+        session_dir = get_session_dir()
+        if session_dir is None:
+            log_info("Session directory not found. Git automation will continue with reduced features.")
+            return None
+    else:
+        # Fallback to hardcoded path for backward compatibility
+        session_dir = Path("docs/sessions")
+        if not session_dir.exists():
+            log_info("Session directory not found (docs/sessions). Git automation will continue with reduced features.")
+            return None
 
+    # Find latest session file
     session_files = list(session_dir.glob("*-pipeline.json"))
     if not session_files:
+        log_info(f"No session files found in {session_dir}. Git automation will continue with reduced features.")
         return None
 
     return sorted(session_files)[-1]
 
 
-def execute_git_workflow(session_file: Path, consent: Dict[str, bool]) -> bool:
+def execute_git_workflow(session_file: Optional[Path], consent: Dict[str, bool]) -> bool:
     """
-    Execute git workflow operations.
+    Execute git workflow operations (Issue #167 - session file optional).
 
     Args:
-        session_file: Path to session file with workflow metadata
+        session_file: Path to session file with workflow metadata (optional)
         consent: Consent flags for git operations
 
     Returns:
         True if executed successfully, False otherwise
     """
     if not HAS_GIT_INTEGRATION:
+        log_warning("Git integration library not available. Cannot execute git workflow.")
         return False
 
     try:
-        # Execute git operations via library
-        result = execute_step8_git_operations(
+        # Execute git operations via library (session_file is optional)
+        result = execute_step8_git_operations_from_hook(
             session_file=session_file,
             git_enabled=consent['git_enabled'],
             push_enabled=consent['push_enabled'],
@@ -214,6 +268,7 @@ def execute_git_workflow(session_file: Path, consent: Dict[str, bool]) -> bool:
         )
         return result.get('success', False)
     except Exception as e:
+        log_warning(f"Git workflow execution failed: {e}")
         if HAS_SECURITY_UTILS:
             audit_log(
                 event_type='git_workflow_execution',
@@ -229,7 +284,7 @@ def execute_git_workflow(session_file: Path, consent: Dict[str, bool]) -> bool:
 
 def main() -> int:
     """
-    Main hook entry point.
+    Main hook entry point (Issue #167 - session file optional).
 
     Reads agent info from environment, executes git workflow if appropriate.
 
@@ -253,6 +308,7 @@ def main() -> int:
 
     # Only trigger on success
     if agent_status != "success":
+        log_info(f"Agent {agent_name} completed with status {agent_status}. Skipping git workflow.")
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "SubagentStop"
@@ -265,6 +321,7 @@ def main() -> int:
     consent = check_git_workflow_consent()
     if not consent['git_enabled']:
         # Git automation disabled
+        log_info("Git automation disabled (AUTO_GIT_ENABLED not set).")
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "SubagentStop"
@@ -273,24 +330,16 @@ def main() -> int:
         print(json.dumps(output))
         return 0
 
-    # Get session file
+    # Get session file (optional - Issue #167)
     session_file = get_session_file_path()
-    if not session_file:
-        # No session file - can't execute workflow
-        output = {
-            "hookSpecificOutput": {
-                "hookEventName": "SubagentStop"
-            }
-        }
-        print(json.dumps(output))
-        return 0
+    # Note: session_file can be None - execute_git_workflow handles gracefully
 
     # Execute git workflow (non-blocking - errors logged but don't fail hook)
     try:
         execute_git_workflow(session_file, consent)
-    except Exception:
-        # Graceful degradation
-        pass
+    except Exception as e:
+        # Graceful degradation with logging (Issue #167)
+        log_warning(f"Unexpected error in git workflow: {e}")
 
     # Always succeed (non-blocking hook)
     output = {

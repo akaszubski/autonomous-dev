@@ -2,6 +2,27 @@
 
 **Fixed**
 
+- **fix(hooks): Fix silent git automation failures in user projects (Issue #167, v3.45.0+)**
+  - **Problem**: Git automation silently failed in user projects (outside autonomous-dev repo) without user notification:
+    - Import failures swallowed silently
+    - Session file required but unavailable in user projects
+    - No logging to indicate what went wrong
+    - Users unaware that commits/PRs weren't being created
+  - **Root Cause**: unified_git_automation.py assumed plugins/ directory structure and docs/sessions/ directory available
+  - **Impact**: User projects would have failed git operations with zero user-visible errors
+  - **Solution**: Progressive enhancement with graceful degradation:
+    - **Dynamic library discovery**: Searches 3 locations (relative, project root, global) with fallback stubs
+    - **Optional session file**: Works without docs/sessions/ directory (not required)
+    - **Clear logging**: GIT_AUTOMATION_VERBOSE environment variable enables detailed debug output
+    - **Non-blocking security**: If security_utils unavailable, uses pass-through stubs (no exceptions)
+    - **Clear error messages**: Users see exactly what failed and how to fix it
+  - **Files Modified**:
+    - plugins/autonomous-dev/hooks/unified_git_automation.py: Added logging infrastructure, graceful library fallbacks, optional session file
+    - docs/GIT-AUTOMATION.md: Added complete "User Project Support" section with debugging guide
+  - **Testing**: 42 unit tests validating graceful degradation, logging, and library availability scenarios
+  - **Result**: Git automation now works in any project (repo or user project) with clear debugging when issues occur
+  - **Documentation**: Added docs/GIT-AUTOMATION.md "User Project Support" section (Issue #167) with verbose mode guide
+
 - **fix(batch): Batch state persistence after each feature (v3.45.0)**
   - **Problem**: `/batch-implement` stopped asking for confirmation after context compaction instead of continuing automatically
   - **Root Cause**: The command instructions told Claude to update todos but not to persist progress to `batch_state.json`

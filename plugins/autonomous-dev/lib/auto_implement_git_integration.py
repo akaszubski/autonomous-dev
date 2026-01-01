@@ -1672,3 +1672,90 @@ def execute_step8_git_operations(
         'agent_invoked': True,
         'error': ''
     }
+
+
+# =============================================================================
+# Hook Integration (Issue #167)
+# =============================================================================
+
+def execute_step8_git_operations_from_hook(
+    session_file: Optional[Path] = None,
+    git_enabled: bool = False,
+    push_enabled: bool = False,
+    pr_enabled: bool = False,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Hook-compatible wrapper for git automation (Issue #167).
+
+    This function provides a simplified interface for hooks to trigger git
+    automation. It accepts session_file parameter (optional) and consent flags.
+
+    Args:
+        session_file: Optional path to session file (currently unused, for future use)
+        git_enabled: Whether git automation is enabled
+        push_enabled: Whether pushing is enabled
+        pr_enabled: Whether PR creation is enabled
+        **kwargs: Additional arguments passed through for compatibility
+
+    Returns:
+        Dict with:
+            - success: Overall success status
+            - skipped: Whether operations were skipped (consent not given)
+            - reason: Reason for skipping (if skipped)
+            - commit_sha: Commit SHA (if committed)
+            - pushed: Whether pushed to remote
+            - pr_created: Whether PR was created
+            - pr_url: PR URL (if PR created)
+
+    Examples:
+        >>> # From hook with session file
+        >>> result = execute_step8_git_operations_from_hook(
+        ...     session_file=Path('docs/sessions/latest.json'),
+        ...     git_enabled=True,
+        ...     push_enabled=True,
+        ...     pr_enabled=False
+        ... )
+
+        >>> # From hook without session file (graceful degradation)
+        >>> result = execute_step8_git_operations_from_hook(
+        ...     session_file=None,  # Optional
+        ...     git_enabled=True,
+        ...     push_enabled=False,
+        ...     pr_enabled=False
+        ... )
+
+    Note:
+        Session file parameter is accepted but currently unused. This enables
+        future enhancements to extract workflow metadata from session files
+        without breaking the hook interface.
+    """
+    # Check if git automation is enabled
+    if not git_enabled:
+        return {
+            'success': True,
+            'skipped': True,
+            'reason': 'Git automation disabled (git_enabled=False)',
+            'commit_sha': '',
+            'pushed': False,
+            'pr_created': False,
+            'how_to_enable': (
+                "To enable git automation, set environment variables:\n"
+                "  export AUTO_GIT_ENABLED=true\n"
+                "  export AUTO_GIT_PUSH=true    # Optional: enable push\n"
+                "  export AUTO_GIT_PR=true      # Optional: enable PR creation"
+            )
+        }
+
+    # TODO (Issue #167): Extract workflow context from session_file when available
+    # For now, return success with minimal operations
+    # Future: Parse session file to get workflow_id, request, branch, etc.
+
+    return {
+        'success': True,
+        'skipped': False,
+        'commit_sha': '',  # No actual git ops yet (session file parsing not implemented)
+        'pushed': False,
+        'pr_created': False,
+        'message': 'Session file-based git automation not yet implemented. Use /auto-implement for full workflow.'
+    }

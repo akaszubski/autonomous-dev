@@ -1,7 +1,7 @@
 # Git Automation Control
 
-**Last Updated**: 2025-12-06
-**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93)
+**Last Updated**: 2026-01-01
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
 
@@ -200,6 +200,194 @@ To commit manually:
 ```
 
 **Key point**: Feature implementation is still successful even if git operations fail.
+
+## User Project Support (NEW in v3.45.0+ - Issue #167)
+
+Git automation now works seamlessly in **user projects** (projects outside the autonomous-dev repository) without requiring the plugin directory structure.
+
+### Problem Fixed (Issue #167)
+
+**Before**: Git automation silently failed in user projects because:
+- Required `plugins/autonomous-dev/lib/` for path discovery
+- Required `docs/sessions/` for session file tracking
+- Required active `path_utils` and security library imports
+- Errors were silently swallowed with no user-visible logging
+
+**Result**: Users saw no indication that git automation failed, leaving them confused about why commits/PRs weren't created.
+
+### Solution: Graceful Degradation with Verbose Logging
+
+Git automation now:
+1. **Detects library availability** - Gracefully falls back if libraries unavailable
+2. **Makes session file optional** - Works without `docs/sessions/` directory
+3. **Provides verbose logging** - `GIT_AUTOMATION_VERBOSE=true` shows detailed errors
+4. **Validates prerequisites** - Checks git config, remote, credentials before operations
+5. **Non-blocking failures** - All errors are informational, never block feature completion
+
+### How It Works in User Projects
+
+When git automation runs in a user project:
+
+```
+1. Hook starts → tries to find lib directory
+   ├─ Found: Use security_utils and path_utils
+   ├─ Not found: Use built-in stubs (graceful degradation)
+
+2. Try to get session file path
+   ├─ Found: Use for workflow metadata
+   ├─ Not found: Continue anyway (session file optional)
+
+3. Validate git prerequisites
+   ├─ Git configured: Continue with operations
+   ├─ Git not configured: Show manual instructions
+
+4. Execute git operations (commit/push/PR)
+   ├─ Success: Feature complete
+   ├─ Failure: Show error + manual fallback instructions
+```
+
+### Configuration for User Projects
+
+For verbose debugging in user projects, set:
+
+```bash
+# Enable detailed logging for git automation
+export GIT_AUTOMATION_VERBOSE=true
+
+# Then run feature implementation
+/auto-implement "add feature to my project"
+```
+
+**Output** (with verbose mode):
+
+```
+[2026-01-01 10:15:32] GIT-AUTOMATION INFO: Git automation starting for feature implementation
+[2026-01-01 10:15:32] GIT-AUTOMATION INFO: Checking git prerequisites...
+[2026-01-01 10:15:32] GIT-AUTOMATION INFO: Git configured: user.name = John Doe
+[2026-01-01 10:15:32] GIT-AUTOMATION INFO: Remote origin available
+[2026-01-01 10:15:33] GIT-AUTOMATION INFO: Creating commit...
+[2026-01-01 10:15:34] GIT-AUTOMATION INFO: Commit created: abc123def456
+[2026-01-01 10:15:35] GIT-AUTOMATION INFO: Pushing to origin...
+[2026-01-01 10:15:40] GIT-AUTOMATION INFO: Push successful
+[2026-01-01 10:15:41] GIT-AUTOMATION INFO: Creating pull request...
+[2026-01-01 10:15:50] GIT-AUTOMATION INFO: PR created: https://github.com/user/repo/pull/42
+```
+
+**Without verbose mode**: Silent operation (no output unless error occurs)
+
+### Error Handling in User Projects
+
+Common scenarios and handling:
+
+#### Scenario 1: Git Not Configured
+
+**Symptom**: No commit created, no error shown
+
+**Solution**: Enable verbose logging to see the issue
+
+```bash
+export GIT_AUTOMATION_VERBOSE=true
+/auto-implement "add feature"
+
+# Output shows:
+# [2026-01-01 10:15:32] GIT-AUTOMATION WARNING: Git user not configured
+# To fix:
+git config user.name "Your Name"
+git config user.email "your@email.com"
+```
+
+#### Scenario 2: No Remote Repository
+
+**Symptom**: Commit created, but no push/PR
+
+**Solution**: Verbose logging shows the issue
+
+```bash
+export GIT_AUTOMATION_VERBOSE=true
+/auto-implement "add feature"
+
+# Output shows:
+# [2026-01-01 10:15:35] GIT-AUTOMATION WARNING: No remote repository found
+# To fix:
+git remote add origin https://github.com/user/repo.git
+```
+
+#### Scenario 3: Libraries Not Available
+
+**Symptom**: Feature completes normally, but no git operations
+
+**Solution**: This is **expected** in user projects outside the autonomous-dev repo
+
+```bash
+export GIT_AUTOMATION_VERBOSE=true
+/auto-implement "add feature"
+
+# Output shows:
+# [2026-01-01 10:15:32] GIT-AUTOMATION INFO: path_utils not available
+# [2026-01-01 10:15:32] GIT-AUTOMATION INFO: Using fallback session discovery
+# (continued processing with graceful degradation)
+```
+
+**Note**: Lack of libraries does NOT prevent git operations. Session file is optional.
+
+### Technical Implementation
+
+The unified_git_automation.py hook uses **progressive enhancement**:
+
+```python
+# 1. Try to find library path
+lib_dir = find_lib_dir()  # Looks in 3 locations
+if lib_dir:
+    # Use real security_utils and path_utils
+    from security_utils import validate_path, audit_log
+    from path_utils import get_session_dir
+    HAS_SECURITY_UTILS = True
+else:
+    # Use stubs with logging
+    HAS_SECURITY_UTILS = False
+    def validate_path(...): return True  # Accept all (non-blocking)
+
+# 2. Try to get session file (optional)
+session_file = get_session_file_path()  # Returns None if not found
+if session_file:
+    # Use session metadata
+else:
+    # Continue anyway (session file is optional)
+    pass
+
+# 3. Execute git operations (works with or without session file)
+result = execute_git_workflow(
+    session_file=session_file,  # Can be None
+    consent=consent
+)
+```
+
+**Key Points**:
+- **Library discovery**: Searches in 3 locations (relative, project root, global)
+- **Security stubs**: If libraries unavailable, security validation becomes pass-through (no exception)
+- **Session file optional**: Hook works with or without session file
+- **Clear logging**: `GIT_AUTOMATION_VERBOSE` environment variable enables detailed output
+- **Non-blocking**: All errors logged but never abort the workflow
+
+### When to Use Verbose Mode
+
+Enable `GIT_AUTOMATION_VERBOSE=true` when:
+- Setting up autonomous-dev in a new user project
+- Debugging why git operations aren't happening
+- Troubleshooting git configuration issues
+- Reporting bugs related to git automation
+
+**Disable verbose mode** (default):
+- Normal operation - too verbose for daily use
+- CI/CD pipelines - keep logs clean
+- Batch processing - one log per feature
+
+### See Also
+
+- [docs/GIT-AUTOMATION.md](GIT-AUTOMATION.md) - This file
+- `plugins/autonomous-dev/hooks/unified_git_automation.py` - Implementation (Issue #167)
+- `plugins/autonomous-dev/lib/auto_implement_git_integration.py` - Git integration library
+- [GitHub Issue #167](https://github.com/akaszubski/autonomous-dev/issues/167) - Silent failures in user projects
 
 ## Batch Workflow Integration (NEW in v3.36.0 - Issue #93)
 
