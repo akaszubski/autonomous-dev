@@ -13,6 +13,134 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ---
 
+## Exit Code Semantics
+
+All hooks use standardized exit codes to communicate status to Claude Code and indicate how the workflow should proceed. Exit code semantics are defined in the `hook_exit_codes` library (see [LIBRARIES.md](#59-hook_exit_codes)).
+
+### Exit Codes
+
+| Code | Constant | Meaning | Workflow Effect |
+|------|----------|---------|-----------------|
+| **0** | EXIT_SUCCESS | Operation succeeded | Continue normally |
+| **1** | EXIT_WARNING | Non-critical issue detected | Continue with warning logged to stderr |
+| **2** | EXIT_BLOCK | Critical issue detected | Block workflow (hook must support blocking) |
+
+### Lifecycle Constraints
+
+Different hook lifecycles have different exit code restrictions based on when they run:
+
+#### PreToolUse Hooks (Must exit 0)
+- **Allowed exits**: EXIT_SUCCESS (0) only
+- **Can block**: No
+- **Rationale**: Hooks run after user already approved tool execution, cannot retroactively prevent it
+- **Examples**: `unified_pre_tool.py`, `mcp_security_enforcer.py`
+- **Use case**: Logging, security validation, permission approval (non-blocking)
+
+#### SubagentStop Hooks (Must exit 0)
+- **Allowed exits**: EXIT_SUCCESS (0) only
+- **Can block**: No
+- **Rationale**: Hooks run after agent completes, work already done, cannot block
+- **Examples**: `auto_git_workflow.py`, `log_agent_workflow.py`, `verify_completion.py`
+- **Use case**: Post-processing (git automation, logging), completeness verification
+
+#### PreSubagent Hooks (Can block)
+- **Allowed exits**: EXIT_SUCCESS (0), EXIT_WARNING (1), EXIT_BLOCK (2)
+- **Can block**: Yes
+- **Rationale**: Hooks run before agent spawns, can prevent invalid work from starting
+- **Examples**: `auto_tdd_enforcer.py`, `enforce_bloat_prevention.py`
+- **Use case**: Quality gates, validation before expensive operations
+
+#### PreCommit Hooks (Can block)
+- **Allowed exits**: EXIT_SUCCESS (0), EXIT_WARNING (1), EXIT_BLOCK (2)
+- **Can block**: Yes
+- **Rationale**: Hooks run before commit, can prevent commits that violate requirements
+- **Examples**: `unified_code_quality.py`, `unified_structure_enforcer.py`
+- **Use case**: Code quality validation, test coverage requirements
+
+### Usage Examples
+
+**Success Case** (hook completes without issues):
+```python
+from hook_exit_codes import EXIT_SUCCESS
+if all_checks_pass:
+    sys.exit(EXIT_SUCCESS)  # 0 - Workflow continues
+```
+
+**Warning Case** (minor issue detected, non-blocking):
+```python
+from hook_exit_codes import EXIT_WARNING
+if minor_issue_detected:
+    print("Warning: Minor issue detected", file=sys.stderr)
+    sys.exit(EXIT_WARNING)  # 1 - Workflow continues with warning
+```
+
+**Block Case** (critical issue, must be fixed):
+```python
+from hook_exit_codes import EXIT_BLOCK
+if critical_issue_detected:
+    print("Error: Critical issue detected", file=sys.stderr)
+    sys.exit(EXIT_BLOCK)  # 2 - Workflow blocked (only in PreSubagent/PreCommit)
+```
+
+**Lifecycle-aware Exit Code** (respect hook lifecycle constraints):
+```python
+from hook_exit_codes import (
+    EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK,
+    is_exit_allowed, get_lifecycle_description
+)
+
+lifecycle = os.environ.get("HOOK_LIFECYCLE", "Unknown")
+
+# Only allow exits permitted by this lifecycle
+if critical_issue and not is_exit_allowed(lifecycle, EXIT_BLOCK):
+    # PreToolUse/SubagentStop hooks cannot block - use warning instead
+    print(f"Warning: {get_lifecycle_description(lifecycle)}", file=sys.stderr)
+    sys.exit(EXIT_WARNING)
+elif critical_issue:
+    sys.exit(EXIT_BLOCK)
+else:
+    sys.exit(EXIT_SUCCESS)
+```
+
+### Validation
+
+Hooks should validate they're used in the correct lifecycle:
+
+```python
+from hook_exit_codes import LIFECYCLE_CONSTRAINTS, can_lifecycle_block
+
+# Check if this lifecycle supports blocking
+lifecycle = "PreToolUse"
+if not can_lifecycle_block(lifecycle):
+    # This hook cannot block - don't try to exit 2
+    if should_block_workflow:
+        # Log warning instead
+        print("Warning: blocking condition detected but cannot block in PreToolUse", file=sys.stderr)
+        sys.exit(EXIT_WARNING)
+
+# View all constraints
+for lifecycle, constraint in LIFECYCLE_CONSTRAINTS.items():
+    print(f"{lifecycle}: can_block={constraint['can_block']}, allowed_exits={constraint['allowed_exits']}")
+```
+
+### Benefits
+
+Using standardized exit codes provides:
+1. **Semantic clarity**: EXIT_BLOCK is clearer than hardcoded `sys.exit(2)`
+2. **Self-documenting code**: Code explains intent through constant names
+3. **Prevents inversion bugs**: Harder to accidentally swap exit codes
+4. **Centralized definition**: Single source of truth for all hooks
+5. **Type safety**: Import errors caught at startup vs runtime bugs
+6. **Lifecycle validation**: Prevents invalid exit codes for hook type
+
+### Related
+
+- Library: `hook_exit_codes.py` (see [LIBRARIES.md section 59](#59-hook_exit_codes))
+- Module: `plugins/autonomous-dev/lib/hook_exit_codes.py`
+- Tests: `tests/unit/lib/test_hook_exit_codes.py` (23 tests)
+
+---
+
 ## Claude Code 2.0 Hook Format (Issue #112)
 
 The autonomous-dev plugin supports Claude Code 2.0 structured hook format with automatic migration from legacy format.

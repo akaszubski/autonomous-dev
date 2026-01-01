@@ -8,6 +8,7 @@ Creates loop-back checkpoint if agents are missing (for retry).
 Hook Type: SubagentStop
 Trigger: After doc-master agent completes (last parallel validation agent)
 Condition: Verify all 8 agents completed, create loop-back checkpoint if incomplete
+Lifecycle: SubagentStop (cannot block - always exits with EXIT_SUCCESS)
 
 Expected 8 agents:
 1. researcher-local
@@ -23,13 +24,16 @@ Features:
 - Circuit breaker (opens after 3 consecutive failures)
 - Exponential backoff (100ms → 200ms → 400ms → 800ms → 1600ms)
 - Max 5 retry attempts
-- Graceful degradation (always exit 0)
+- Graceful degradation (always exit EXIT_SUCCESS)
 - Audit logging for all verification attempts
 
 Security:
 - Path validation (CWE-22: path traversal)
 - Audit logging for all retry attempts
-- Always exit 0 (non-blocking hook)
+- Always exit EXIT_SUCCESS (non-blocking hook)
+
+Exit Codes:
+- EXIT_SUCCESS (0): Always (SubagentStop hooks cannot block)
 
 Date: 2026-01-01
 Feature: Completion verification hook with loop-back for incomplete work
@@ -57,6 +61,12 @@ if lib_path.exists():
     sys.path.insert(0, str(lib_path))
 
 try:
+    from hook_exit_codes import EXIT_SUCCESS
+except ImportError:
+    # Fallback if module not available
+    EXIT_SUCCESS = 0
+
+try:
     from completion_verifier import (
         CompletionVerifier,
         LoopBackState,
@@ -67,7 +77,7 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import completion_verifier: {e}")
     # Graceful degradation - exit without blocking
-    sys.exit(0)
+    sys.exit(EXIT_SUCCESS)
 
 
 # =============================================================================
@@ -216,16 +226,16 @@ def run_hook(session_id: str, state_dir: Optional[Path] = None) -> int:
         state_dir: Optional state directory
 
     Returns:
-        Exit code (always 0 for graceful degradation)
+        EXIT_SUCCESS (always - SubagentStop hooks cannot block)
     """
     try:
         verify_and_create_checkpoint(session_id, state_dir=state_dir)
-        return 0
+        return EXIT_SUCCESS
 
     except Exception as e:
         logger.error(f"Hook execution failed: {e}")
-        # Always exit 0 for graceful degradation
-        return 0
+        # Always exit EXIT_SUCCESS for graceful degradation
+        return EXIT_SUCCESS
 
 
 def main():
@@ -237,13 +247,13 @@ def main():
         # Only trigger on doc-master completion
         if not should_trigger_verification(agent_name):
             logger.debug(f"Skipping verification for agent: {agent_name}")
-            sys.exit(0)
+            sys.exit(EXIT_SUCCESS)
 
         # Get session ID from environment
         session_id = os.environ.get("CLAUDE_SESSION_ID", "")
         if not session_id:
             logger.warning("No session ID found in environment")
-            sys.exit(0)
+            sys.exit(EXIT_SUCCESS)
 
         # Run verification
         exit_code = run_hook(session_id)
@@ -251,8 +261,8 @@ def main():
 
     except Exception as e:
         logger.error(f"Hook failed: {e}")
-        # Always exit 0 for graceful degradation
-        sys.exit(0)
+        # Always exit EXIT_SUCCESS for graceful degradation
+        sys.exit(EXIT_SUCCESS)
 
 
 if __name__ == "__main__":

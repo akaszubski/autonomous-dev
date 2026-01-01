@@ -13,15 +13,32 @@ Allows implementation if:
 Auto-invokes tester subagent to write failing tests first.
 
 Hook Integration:
-- Event: PreToolUse (before Write/Edit on src/ files)
+- Event: PreSubagent (before agent spawn)
 - Trigger: Writing to src/**/*.py
 - Action: Check if tests exist and are failing
+- Lifecycle: PreSubagent (can block with EXIT_BLOCK)
+
+Exit Codes:
+- EXIT_SUCCESS (0): Tests failing (proper TDD), allow implementation
+- EXIT_BLOCK (2): No tests or tests passing, block implementation
 """
 
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
+
+# Add lib directory to path for exit code constants
+lib_path = Path(__file__).parent.parent / "lib"
+if lib_path.exists():
+    sys.path.insert(0, str(lib_path))
+
+try:
+    from hook_exit_codes import EXIT_SUCCESS, EXIT_BLOCK
+except ImportError:
+    # Fallback if module not available
+    EXIT_SUCCESS = 0
+    EXIT_BLOCK = 2
 
 # ============================================================================
 # Configuration
@@ -245,35 +262,40 @@ def enforce_tdd(user_prompt: str, file_path: str) -> int:
         file_path: File being written to
 
     Returns:
-        0 = Allow implementation (tests exist and failing)
-        1 = Block implementation (no tests or tests passing)
-        2 = Suggest tester subagent (no tests, can auto-create)
+        EXIT_SUCCESS (0): Tests failing (proper TDD), allow implementation
+        EXIT_BLOCK (2): No tests or tests passing, block implementation
+
+    Exit Code Semantics:
+        - Missing tests → EXIT_BLOCK (critical issue, must write tests first)
+        - Tests passing → EXIT_BLOCK (critical issue, not proper TDD)
+        - Tests failing → EXIT_SUCCESS (proper TDD workflow, proceed)
+        - Not implementation → EXIT_SUCCESS (skip TDD enforcement)
     """
 
     # Detect target module
     target_module = detect_target_module(file_path)
     if target_module is None:
         # Not a source file, allow
-        return 0
+        return EXIT_SUCCESS
 
     # Check if we should skip TDD enforcement
     if should_skip_tdd(user_prompt):
         print(f"⏭️  Skipping TDD enforcement (refactoring/docs/bug fix)")
-        return 0
+        return EXIT_SUCCESS
 
     # Check if this is new implementation
     if not is_implementation(user_prompt):
         # Not implementing new features, allow
-        return 0
+        return EXIT_SUCCESS
 
     # Get corresponding test file
     test_file = get_test_file_for_module(target_module)
 
     # Check if tests exist
     if not tests_exist(test_file):
-        # No tests - suggest tester subagent
+        # No tests - BLOCK implementation (critical TDD violation)
         print(suggest_tester_invocation(user_prompt, target_module))
-        return 2
+        return EXIT_BLOCK
 
     # Tests exist - check if they're failing (proper TDD)
     passing, output = run_tests(test_file)
@@ -283,9 +305,9 @@ def enforce_tdd(user_prompt: str, file_path: str) -> int:
         print(f"✅ TDD Compliant: Tests exist and failing")
         print(f"   Test file: {test_file.relative_to(PROJECT_ROOT)}")
         print(f"   → Proceed with implementation to make tests pass")
-        return 0
+        return EXIT_SUCCESS
 
-    # Tests passing = NOT proper TDD ❌
+    # Tests passing = NOT proper TDD ❌ - BLOCK implementation
     print(f"⚠️  TDD Violation: Tests exist but all passing")
     print(f"   Test file: {test_file.relative_to(PROJECT_ROOT)}")
     print()
@@ -301,7 +323,7 @@ def enforce_tdd(user_prompt: str, file_path: str) -> int:
     print("If this is refactoring, ignore this warning.")
     print("If this is NEW functionality, add FAILING tests first.")
 
-    return 1
+    return EXIT_BLOCK
 
 
 def main():
@@ -310,7 +332,7 @@ def main():
     # Parse arguments
     if len(sys.argv) < 3:
         # Not enough arguments - allow (might be manual invocation)
-        return 0
+        return EXIT_SUCCESS
 
     user_prompt = sys.argv[1]
     file_path = sys.argv[2]

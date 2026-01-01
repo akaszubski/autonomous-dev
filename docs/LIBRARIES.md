@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (28)
+### Core Libraries (29)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -39,6 +39,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 26. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
 27. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
 28. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
+29. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -8685,3 +8686,262 @@ See Also:
 - GitHub Issue #170 - Feature tracking
 
 ---
+
+
+## 59. hook_exit_codes.py (139 lines, v4.0.0+)
+
+**Purpose**: Standardized exit code constants and lifecycle constraints for all hooks
+
+**Location**: `plugins/autonomous-dev/lib/hook_exit_codes.py`
+
+### Overview
+
+Defines symbolic constants for hook exit codes and lifecycle constraints that determine which exit codes are valid for different hook types. Prevents hardcoded exit codes scattered throughout hook implementations.
+
+### Constants
+
+#### Exit Code Constants
+
+```python
+EXIT_SUCCESS = 0  # Operation succeeded, continue workflow normally
+EXIT_WARNING = 1  # Non-critical issue detected, continue workflow with warning
+EXIT_BLOCK = 2    # Critical issue detected, block workflow (if lifecycle supports it)
+```
+
+### Lifecycle Constraints
+
+Defines allowed exit codes for each hook lifecycle:
+
+```python
+LIFECYCLE_CONSTRAINTS = {
+    "PreToolUse": {
+        "allowed_exits": [EXIT_SUCCESS],
+        "can_block": False,
+        "description": "PreToolUse hooks run AFTER user approved tool execution..."
+    },
+    "SubagentStop": {
+        "allowed_exits": [EXIT_SUCCESS],
+        "can_block": False,
+        "description": "SubagentStop hooks run AFTER agent completes..."
+    },
+    "PreSubagent": {
+        "allowed_exits": [EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK],
+        "can_block": True,
+        "description": "PreSubagent hooks run BEFORE agent spawn..."
+    },
+}
+```
+
+### Functions
+
+#### `can_lifecycle_block(lifecycle: str) -> bool`
+
+**Purpose**: Check if a lifecycle can block workflow
+
+**Parameters**:
+- `lifecycle` (str): Hook lifecycle name (PreToolUse, SubagentStop, PreSubagent, etc.)
+
+**Returns**: `bool` - True if lifecycle can exit with EXIT_BLOCK (2)
+
+**Raises**: `KeyError` if lifecycle not defined
+
+**Examples**:
+```python
+>>> can_lifecycle_block("PreToolUse")
+False
+
+>>> can_lifecycle_block("PreSubagent")
+True
+```
+
+#### `is_exit_allowed(lifecycle: str, exit_code: int) -> bool`
+
+**Purpose**: Check if an exit code is allowed for a given lifecycle
+
+**Parameters**:
+- `lifecycle` (str): Hook lifecycle name
+- `exit_code` (int): Exit code to check (0, 1, or 2)
+
+**Returns**: `bool` - True if exit code is allowed for lifecycle
+
+**Raises**: `KeyError` if lifecycle not defined
+
+**Examples**:
+```python
+>>> is_exit_allowed("PreToolUse", EXIT_BLOCK)
+False
+
+>>> is_exit_allowed("PreSubagent", EXIT_BLOCK)
+True
+
+>>> is_exit_allowed("SubagentStop", EXIT_SUCCESS)
+True
+```
+
+#### `get_lifecycle_description(lifecycle: str) -> str`
+
+**Purpose**: Get description of lifecycle constraints
+
+**Parameters**:
+- `lifecycle` (str): Hook lifecycle name
+
+**Returns**: `str` - Description explaining lifecycle constraints and valid exit codes
+
+**Raises**: `KeyError` if lifecycle not defined
+
+**Examples**:
+```python
+>>> desc = get_lifecycle_description("PreToolUse")
+>>> print(desc)
+PreToolUse hooks run before tool execution. They MUST always exit 0...
+```
+
+### Lifecycle Breakdown
+
+#### PreToolUse
+- **When**: Runs before tool execution
+- **Allowed exits**: EXIT_SUCCESS (0) only
+- **Can block**: No
+- **Why**: User already approved tool, cannot retroactively prevent execution
+- **Use**: Logging, permission checks, security validation (all non-blocking)
+
+#### SubagentStop
+- **When**: Runs after agent completes
+- **Allowed exits**: EXIT_SUCCESS (0) only
+- **Can block**: No
+- **Why**: Agent work already done, cannot block after completion
+- **Use**: Post-processing (git commits), logging, completion verification
+
+#### PreSubagent
+- **When**: Runs before agent spawns
+- **Allowed exits**: EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK
+- **Can block**: Yes
+- **Why**: Agent hasn't run yet, can prevent invalid work from starting
+- **Use**: Quality gates, validation before expensive operations
+
+#### PreCommit
+- **When**: Runs before commit
+- **Allowed exits**: EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK
+- **Can block**: Yes
+- **Why**: Commit hasn't happened yet, can enforce requirements
+- **Use**: Code quality validation, test coverage checks, lint rules
+
+#### PostCommit
+- **When**: Runs after commit
+- **Allowed exits**: EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK
+- **Can block**: Yes (won't affect already-committed changes)
+- **Use**: Notifications, statistics updates
+
+#### UserPromptSubmit
+- **When**: Runs when user submits prompt
+- **Allowed exits**: EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK
+- **Can block**: Yes
+- **Why**: Submission not yet processed, can prevent invalid submissions
+- **Use**: Input validation, alignment checks
+
+### Usage Examples
+
+**Basic Success Pattern**:
+```python
+from hook_exit_codes import EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK
+import sys
+
+if validation_passes:
+    sys.exit(EXIT_SUCCESS)  # Exit 0 - Workflow continues
+```
+
+**Lifecycle-Aware Exit Code**:
+```python
+from hook_exit_codes import (
+    EXIT_SUCCESS, EXIT_WARNING, EXIT_BLOCK,
+    can_lifecycle_block, get_lifecycle_description
+)
+import os
+import sys
+
+lifecycle = os.environ.get("HOOK_LIFECYCLE", "PreCommit")
+
+if critical_issue_detected:
+    if can_lifecycle_block(lifecycle):
+        sys.exit(EXIT_BLOCK)  # Exit 2 - Block workflow
+    else:
+        # This lifecycle cannot block - use warning instead
+        print(f"WARNING: {get_lifecycle_description(lifecycle)}")
+        sys.exit(EXIT_WARNING)  # Exit 1 - Continue with warning
+else:
+    sys.exit(EXIT_SUCCESS)
+```
+
+**Validation Check Pattern**:
+```python
+from hook_exit_codes import is_exit_allowed, LIFECYCLE_CONSTRAINTS
+import sys
+
+lifecycle = "PreToolUse"
+proposed_exit = 2  # EXIT_BLOCK
+
+if not is_exit_allowed(lifecycle, proposed_exit):
+    print(f"ERROR: {lifecycle} cannot exit {proposed_exit}")
+    print(f"Allowed exits: {LIFECYCLE_CONSTRAINTS[lifecycle]['allowed_exits']}")
+    sys.exit(1)
+```
+
+### Design Benefits
+
+1. **Semantic Clarity**: `EXIT_BLOCK` clearer than hardcoded `sys.exit(2)`
+2. **Self-Documenting**: Constant names explain intent
+3. **Prevents Inversion Bugs**: Harder to accidentally swap exit codes
+4. **Centralized Definition**: Single source of truth (not scattered across hooks)
+5. **Type Safety**: Import errors caught at startup, not runtime
+6. **Lifecycle Validation**: Prevents invalid exit codes for hook type
+7. **Discoverability**: Easy to view all constraints via LIFECYCLE_CONSTRAINTS dict
+
+### Constraints
+
+**Important Restrictions**:
+- PreToolUse hooks: Must always exit 0 (cannot block)
+- SubagentStop hooks: Must always exit 0 (cannot block)
+- All other hooks: Can exit 0, 1, or 2
+
+**Why**: PreToolUse and SubagentStop run at moments when blocking is impossible (tool already approved, agent already complete).
+
+### Test Coverage
+
+Test File: `tests/unit/lib/test_hook_exit_codes.py` (23 tests)
+
+Coverage includes:
+- **Constants**: Exit code values (0, 1, 2), distinctness, type validation, range validation
+- **Lifecycle constraints**: All 3 lifecycles exist, constraints complete, required keys present
+- **Allowed exits**: Each lifecycle has proper allowed exits list
+- **Can block**: Correctly identifies which lifecycles support blocking
+- **Documentation**: Module and constraint descriptions exist
+- **Helper functions**: All 3 helper functions work correctly
+- **Error cases**: Invalid lifecycles raise KeyError, invalid exits detected
+- **Usage patterns**: Common patterns (success, warning, block, lifecycle checks) work
+
+Target: 100% coverage of exit code semantics
+
+### Used By
+
+Hooks throughout autonomous-dev:
+- All PreCommit hooks
+- All PreSubagent hooks
+- All PostCommit hooks
+- All UserPromptSubmit hooks
+
+Examples:
+- `unified_code_quality.py` - PreCommit, can block on test failures
+- `verify_completion.py` - SubagentStop, must exit 0
+- `auto_tdd_enforcer.py` - PreSubagent, can block on missing tests
+
+### Related
+
+**Documentation**:
+- [HOOKS.md - Exit Code Semantics section](HOOKS.md#exit-code-semantics)
+- [HOOKS.md - Lifecycle Constraints](HOOKS.md#lifecycle-constraints)
+
+**Implementation**:
+- `plugins/autonomous-dev/lib/hook_exit_codes.py` (139 lines)
+- `tests/unit/lib/test_hook_exit_codes.py` (23 tests)
+
+**GitHub**: Feature tracking (Issue TBD)
