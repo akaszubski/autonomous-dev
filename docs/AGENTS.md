@@ -52,6 +52,48 @@ Maximum depth for security:
 
 ---
 
+## Token Budget Audit (Issue #175)
+
+**Target**: Under 3,000 tokens per agent
+**Last Audit**: 2026-01-01
+**Total Agents**: 21
+**Total Tokens**: 27,274
+**Average**: 1,298 tokens/agent
+
+### Agents by Token Count
+
+| Status | Agent | Tokens | Notes |
+|--------|-------|--------|-------|
+| ❌ | setup-wizard | 6,520 | 2.17x over target - needs optimization |
+| ⚠️ | project-status-analyzer | 2,341 | Under target but large |
+| ⚠️ | sync-validator | 2,314 | Under target but large |
+| ✅ | brownfield-analyzer | 1,792 | OK |
+| ✅ | project-progress-tracker | 1,728 | OK |
+| ✅ | doc-master | 1,634 | OK |
+| ✅ | security-auditor | 1,231 | OK |
+| ✅ | issue-creator | 1,113 | OK |
+| ✅ | researcher-local | 1,104 | OK |
+| ✅ | planner | 1,025 | OK |
+| ✅ | researcher | 898 | OK |
+| ✅ | implementer | 830 | OK |
+| ✅ | test-master | 677 | OK |
+| ✅ | reviewer | 623 | OK |
+| ✅ | project-bootstrapper | 581 | OK |
+| ✅ | advisor | 561 | OK |
+| ✅ | pr-description-generator | 549 | OK |
+| ✅ | alignment-analyzer | 470 | OK |
+| ✅ | commit-message-generator | 444 | OK |
+| ✅ | alignment-validator | 421 | OK |
+| ✅ | quality-validator | 418 | OK |
+
+### Summary
+
+- **20/21 agents** (95%) are under the 3K token target ✅
+- **1 agent** (setup-wizard) exceeds target and needs optimization
+- **Run audit**: `python3 scripts/measure_agent_tokens.py --baseline`
+
+---
+
 ## Core Workflow Agents (7 active + 1 utility)
 
 These agents execute the main autonomous development workflow.
