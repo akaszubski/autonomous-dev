@@ -1,7 +1,7 @@
 # Batch Feature Processing
 
-**Last Updated**: 2025-12-23
-**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157)
+**Last Updated**: 2026-01-01
+**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0
 **Command**: `/batch-implement`
 
 This document describes the batch feature processing system for sequential multi-feature development with intelligent state management, automatic context management, and per-feature git automation.
@@ -599,6 +599,23 @@ Each feature implementation reads from external state:
 - **Codebase state**: Read from filesystem (not memory)
 - **Progress**: Tracked in batch_state.json (not memory)
 - **Completed work**: Committed to git (permanent)
+
+**Critical: State Must Be Updated** (v3.45.0 fix):
+
+After EVERY feature completes (success or failure), the batch state MUST be updated:
+
+```python
+from plugins.autonomous_dev.lib.batch_state_manager import update_batch_progress
+from plugins.autonomous_dev.lib.path_utils import get_batch_state_file
+
+update_batch_progress(
+    state_file=get_batch_state_file(),
+    feature_index=feature_index,
+    status="completed",  # or "failed"
+)
+```
+
+Without this update, context compaction causes the batch to "forget" which features were completed, resulting in prompts like "Would you like me to continue?" instead of automatic continuation.
 
 **Benefits**:
 - **Fully unattended**: No manual `/clear` cycles needed

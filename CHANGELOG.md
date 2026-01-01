@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+**Fixed**
+
+- **fix(batch): Batch state persistence after each feature (v3.45.0)**
+  - **Problem**: `/batch-implement` stopped asking for confirmation after context compaction instead of continuing automatically
+  - **Root Cause**: The command instructions told Claude to update todos but not to persist progress to `batch_state.json`
+  - **Impact**: After compaction, `batch_state.json` still showed `current_index: 0` even after completing features
+  - **Fix**: Added explicit STEP 6 in `/batch-implement` to call `update_batch_progress()` after EVERY feature (success or failure)
+  - **Result**: Batches now survive context compaction and continue automatically without user intervention
+  - **Documentation**: Updated BATCH-PROCESSING.md with critical note about state persistence requirement
 
 **Changed**
 

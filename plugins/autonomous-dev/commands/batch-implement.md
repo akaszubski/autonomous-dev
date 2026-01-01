@@ -3,8 +3,8 @@ name: batch-implement
 description: "Execute multiple features sequentially (--issues <nums> or --resume <id>)"
 argument_hint: "<features-file> or --issues <issue-numbers> or --resume <batch-id>"
 author: Claude
-version: 3.34.0
-date: 2025-12-13
+version: 3.45.0
+date: 2026-01-01
 allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 
@@ -359,7 +359,15 @@ Get the feature: `feature = features[feature_index]`
       - Loop back to step 4 (check for failure again)
 
    e. **If should NOT retry**:
-      - Record failure in batch state
+      - **Update batch state with failure**:
+        ```python
+        update_batch_progress(
+            state_file=get_batch_state_file(),
+            feature_index=feature_index,
+            status="failed",
+            error_message=sanitized_error_message,
+        )
+        ```
       - Log to audit file (.claude/audit/{batch_id}_retry_audit.jsonl)
       - Display failure message with reason
       - Continue to next feature
@@ -381,7 +389,23 @@ Get the feature: `feature = features[feature_index]`
 
 5. **Mark todo as completed** using TodoWrite (if feature succeeded)
 
-6. **Continue to next feature**
+6. **Update batch state** (CRITICAL for compaction-resilience):
+   ```python
+   # After EVERY feature (success or failure), update the persistent state
+   from plugins.autonomous_dev.lib.batch_state_manager import update_batch_progress
+   from plugins.autonomous_dev.lib.path_utils import get_batch_state_file
+
+   update_batch_progress(
+       state_file=get_batch_state_file(),
+       feature_index=feature_index,
+       status="completed",  # or "failed" if feature failed
+       context_token_delta=0,  # optional token tracking
+   )
+   ```
+
+   **Why this is critical**: If Claude Code auto-compacts context, the SessionStart hook reads `batch_state.json` to determine progress. Without this update, the batch restarts from the beginning after compaction.
+
+7. **Continue to next feature**
 
 ---
 
