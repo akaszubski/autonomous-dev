@@ -9422,3 +9422,168 @@ Target: 95% coverage of core functionality
 - docs/GIT-AUTOMATION.md - Git automation workflows
 - docs/SECURITY.md - Security hardening guide
 - git_operations.py Section 16 - Worktree helper functions
+
+---
+
+## 62. memory_layer.py (766 lines, v1.0.0 - Issue #179)
+
+**Purpose**: Cross-session memory layer for context continuity - persistent memory storage across /auto-implement sessions enabling agents to remember architectural decisions, blockers, patterns, and context without re-research.
+
+**Location**: `plugins/autonomous-dev/lib/memory_layer.py`
+
+### Problem Statement
+
+Issue #179 identified that context resets between /auto-implement sessions force expensive re-research:
+- No persistent memory between sessions
+- Architectural decisions must be rediscovered
+- Blocker knowledge is lost
+- Pattern findings don't carry over
+
+### Solution
+
+A JSON-based memory layer stored in `.claude/memory.json` with:
+- **Memory types**: feature, decision, blocker, pattern, context
+- **Utility scoring**: Recency decay + access frequency ranking
+- **PII sanitization**: API keys, passwords, emails, JWT tokens redacted
+- **Atomic writes**: Temp file + rename pattern prevents corruption
+- **Thread-safe operations**: File locking for concurrent access
+- **Graceful degradation**: Storage errors don't crash workflow
+
+### Key Functions
+
+```python
+from memory_layer import MemoryLayer, sanitize_pii, calculate_utility_score
+
+# Initialize layer
+layer = MemoryLayer()  # Uses .claude/memory.json
+layer = MemoryLayer(memory_file=Path("/custom/path.json"))
+
+# Store a memory
+memory_id = layer.remember(
+    memory_type="decision",
+    content={"title": "Database Choice", "summary": "Chose PostgreSQL for ACID compliance"},
+    metadata={"tags": ["database", "architecture"]}
+)
+
+# Retrieve memories
+all_memories = layer.recall()  # All memories, sorted by utility score
+decisions = layer.recall(memory_type="decision")  # Filter by type
+tagged = layer.recall(filters={"tags": ["database"]})  # Filter by tags
+recent = layer.recall(filters={"after": "2026-01-01T00:00:00Z"})  # Date filter
+
+# Forget memories
+count = layer.forget(memory_id="mem_123")  # By ID
+count = layer.forget(filters={"tags": ["deprecated"]})  # By filter
+
+# Prune old/low-utility memories
+removed = layer.prune(max_entries=1000, max_age_days=90)
+
+# Get statistics
+summary = layer.get_summary()  # Returns dict with counts, scores, etc.
+
+# PII sanitization (automatic in remember, available standalone)
+safe_text = sanitize_pii("API key: sk-1234abcd for user@example.com")
+# Returns: "API key: [REDACTED_API_KEY] for [REDACTED_EMAIL]"
+
+# Utility scoring
+score = calculate_utility_score(created_at=datetime.now(), access_count=5)
+```
+
+### Memory Structure
+
+```json
+{
+    "version": "1.0.0",
+    "memories": [
+        {
+            "id": "mem_20260102_153042_abc123",
+            "type": "decision",
+            "content": {
+                "title": "Database Choice",
+                "summary": "Chose PostgreSQL for ACID compliance"
+            },
+            "metadata": {
+                "created_at": "2026-01-02T15:30:42Z",
+                "updated_at": "2026-01-02T15:30:42Z",
+                "access_count": 3,
+                "tags": ["database", "architecture"],
+                "utility_score": 0.85
+            }
+        }
+    ]
+}
+```
+
+### Security Features
+
+- **CWE-22 Prevention**: Path traversal validation via validate_path()
+- **CWE-59 Prevention**: Symlink detection and rejection
+- **CWE-359 Prevention**: PII sanitization (API keys, passwords, emails, JWTs)
+- **Atomic writes**: Prevents corruption from interrupted writes
+- **File locking**: Thread-safe concurrent access
+- **Audit logging**: All operations logged (with safe wrapper for test env)
+
+### Utility Scoring Algorithm
+
+```python
+utility_score = recency_score * (1 - weight) + frequency_score * weight
+
+# Recency: Exponential decay with 30-day half-life
+recency_score = 2 ** (-age_days / 30)
+
+# Frequency: Normalized by max access count (20)
+frequency_score = min(1.0, access_count / 20)
+
+# Weight: 0.3 (30% frequency, 70% recency)
+```
+
+### Test Coverage
+
+**Unit Tests** (47 tests in tests/unit/lib/test_memory_layer.py):
+- Initialization with default and custom paths
+- Remember operations (storage, ID generation, PII sanitization)
+- Recall operations (filtering, sorting, access tracking)
+- Forget operations (by ID, by filter)
+- Prune operations (age limit, entry limit)
+- PII sanitization (API keys, passwords, emails, JWTs)
+- Utility scoring (recency decay, access frequency)
+- Security validation (path traversal, symlinks)
+- Concurrent access safety
+
+**Integration Tests** (16 tests in tests/integration/test_memory_integration.py):
+- Cross-session persistence
+- Auto-implement pipeline integration
+- Multi-agent memory sharing
+- Batch processing cleanup
+- Memory migration and versioning
+
+**Coverage Target**: 95% of code paths, 100% of security-critical paths
+
+### Files Added
+
+- plugins/autonomous-dev/lib/memory_layer.py (766 lines)
+- tests/unit/lib/test_memory_layer.py (63 tests, ~1000 lines)
+- tests/integration/test_memory_integration.py (16 tests, ~600 lines)
+
+### Integration Points
+
+**Used By**:
+- /auto-implement command (agent memory persistence)
+- Planner agent (recall previous decisions)
+- Researcher agent (cache pattern findings)
+- Implementer agent (recall blockers)
+
+**Dependencies**:
+- security_utils.py - validate_path(), audit_log()
+- path_utils.py - get_project_root()
+
+### GitHub
+
+- Issue #179 - Cross-session memory layer for context continuity
+- Related: Issue #178 (Git worktree isolation), #180 (Review/merge/discard)
+
+### Related Documentation
+
+- docs/SECURITY.md - Security hardening guide
+- docs/LIBRARIES.md Section 6 (security_utils.py) - Path validation
+- docs/LIBRARIES.md Section 15 (path_utils.py) - Project root detection

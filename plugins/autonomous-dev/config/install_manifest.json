@@ -189,6 +189,7 @@
         "plugins/autonomous-dev/lib/mcp_permission_validator.py",
         "plugins/autonomous-dev/lib/mcp_profile_manager.py",
         "plugins/autonomous-dev/lib/mcp_server_detector.py",
+        "plugins/autonomous-dev/lib/memory_layer.py",
         "plugins/autonomous-dev/lib/migration_planner.py",
         "plugins/autonomous-dev/lib/orchestrator.py",
         "plugins/autonomous-dev/lib/orphan_file_cleaner.py",
