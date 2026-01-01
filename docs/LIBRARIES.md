@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (34)
+### Core Libraries (35)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -45,6 +45,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
 33. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
 34. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
+35. **test_status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -10565,3 +10566,176 @@ if binary == SandboxBinary.BWRAP:
 - **Source**: plugins/autonomous-dev/lib/sandbox_enforcer.py (625 lines)
 - **Config**: plugins/autonomous-dev/config/sandbox_policy.json
 - **Tests**: tests/unit/lib/test_sandbox_enforcer.py
+
+
+## 67. test_status_tracker.py (335 lines, v3.48.0+ - Issue #174)
+
+**Purpose**: Test status tracking for pre-commit gate hook enforcement
+
+**Module**: plugins/autonomous-dev/lib/test_status_tracker.py
+
+**Problem**: Pre-commit hooks need to know if tests passed before allowing commits. A simple, reliable mechanism is needed for test runners to communicate test status to the commit hook.
+
+**Solution**: Atomic file-based test status tracking with secure permissions and graceful degradation.
+
+**Key Features**:
+- **Atomic writes**: Write to temp file, then rename (prevents corruption if process crashes)
+- **Secure storage**: /tmp/.autonomous-dev/test-status.json with 0600 file permissions and 0700 directory permissions
+- **Graceful degradation**: All I/O errors return safe defaults (assume tests failed)
+- **Safe defaults**: read_status() returns {"passed": False} if file missing/corrupted
+- **Temporary storage**: Ephemeral in /tmp (cleared on system reboot)
+- **Comprehensive validation**: JSON structure validation, type checking, timestamp validation
+
+**API Reference**:
+
+```python
+from test_status_tracker import write_status, read_status, clear_status, get_status_file_path
+
+# After test run completes
+write_status(passed=True, details={"total": 100, "failed": 0})
+# Returns: bool (True if write succeeded, False if failed)
+
+# In pre-commit hook
+status = read_status()
+# Returns: Dict with at least {"passed": bool, "timestamp": str or None}
+# Safe default on any error: {"passed": False, "timestamp": None}
+
+if status.get("passed"):
+    # Allow commit
+    pass
+else:
+    # Block commit
+    pass
+
+# Clear status (optional)
+clear_status()  # Returns: bool
+
+# Get status file path
+path = get_status_file_path()
+# Returns: Path object (PosixPath on Unix, WindowsPath on Windows)
+```
+
+**Security Features**:
+- **CWE-22 Prevention**: Hardcoded /tmp path (no user input, no traversal risk)
+- **Atomic operations**: Rename is atomic at filesystem level (prevents race conditions)
+- **Restricted permissions**: 0600 on files, 0700 on directory (owner read/write only)
+- **Safe defaults**: Any I/O error returns safe "tests failed" default
+- **JSON validation**: Validates parsed JSON structure before returning
+
+**Main Functions**:
+
+1. **write_status(passed, details=None) -> bool**
+   - Write test status to /tmp/.autonomous-dev/test-status.json
+   - Args: passed (bool), details (optional dict with additional data)
+   - Returns: True if write succeeded, False if failed
+   - Creates directory with 0700 permissions if missing
+   - Sets file permissions to 0600 after write
+   - Graceful degradation: Returns False on any error (doesn't raise)
+
+2. **read_status() -> Dict[str, Any]**
+   - Read test status from file
+   - Returns: Dictionary with at least {"passed": bool, "timestamp": str or None}
+   - Safe default: {"passed": False, "timestamp": None} on any error
+   - Validates JSON structure and field types before returning
+   - Graceful degradation: Returns safe default on missing file, parse errors, etc.
+
+3. **clear_status() -> bool**
+   - Delete the status file
+   - Returns: True if deleted or didn't exist, False if deletion failed
+   - Graceful degradation: Returns False on permission errors
+
+4. **get_status_file_path() -> Path**
+   - Get path to status file
+   - Returns: pathlib.Path object
+   - No I/O operations (just returns constant path)
+
+5. **_ensure_status_dir() -> bool** (internal)
+   - Ensure /tmp/.autonomous-dev/ exists with 0700 permissions
+   - Returns: True if directory exists/was created, False if failed
+   - Validates and fixes permissions if directory already existed
+
+**Design Patterns**:
+- **Graceful degradation**: All functions return safe defaults on errors, never raise
+- **Atomic writes**: Uses temp file + rename pattern for data integrity
+- **Safe defaults**: Assume tests failed if anything goes wrong
+- **No user input**: Hardcoded paths prevent all traversal attacks
+
+**Error Handling**:
+- OSError, PermissionError: Caught and return False (graceful degradation)
+- IOError, json.JSONDecodeError: Caught and return safe defaults
+- Missing file: Treated as {"passed": False} (safe default)
+- Corrupted JSON: Treated as {"passed": False} (safe default)
+- Invalid field types: Cleaned up and returned with safe values
+
+**Performance**:
+- write_status(): ~2-5ms (file I/O)
+- read_status(): ~1-3ms (file I/O + JSON parsing)
+- clear_status(): ~1-2ms (file deletion)
+- get_status_file_path(): <0.1ms (no I/O)
+
+**Usage Examples**:
+
+```python
+# Test runner integration
+import subprocess
+from test_status_tracker import write_status
+
+result = subprocess.run(['pytest', 'tests/'], capture_output=True)
+write_status(
+    passed=(result.returncode == 0),
+    details={
+        "total": 100,
+        "failed": 0 if result.returncode == 0 else 5,
+        "duration": 12.3
+    }
+)
+
+# Pre-commit hook integration
+from test_status_tracker import read_status
+
+status = read_status()
+if not status.get("passed"):
+    print("Tests failed - commit blocked")
+    print(f"Details: {status}")
+    exit(1)  # Block commit
+```
+
+**Integration**:
+- Used by: pre_commit_gate.py hook (blocks commits if tests failed)
+- Called by: Test runners after test execution (write status)
+- Non-blocking: Library itself has no side effects, hook decides action
+
+**Security Audit**:
+- Path validation: Hardcoded path only, no user input
+- File permissions: 0600 (owner RW), 0700 (directory owner RWX)
+- No symlink following: Verified no symlink traversal
+- No subprocess calls: Pure Python file I/O
+- No network access: File-local only
+- No credential exposure: No passwords or tokens in status file
+
+**Test Coverage**:
+- Write operations: File creation, permission setting, temp file cleanup
+- Read operations: Missing file, corrupted JSON, invalid field types
+- Edge cases: Race conditions (atomic rename), permission errors, disk full
+- Security: Path traversal attempts, symlink attacks, permission escalation
+- Integration: Hook usage patterns, test runner integration
+
+**Related Documentation**:
+- docs/LIBRARIES.md - This section (67)
+- docs/HOOKS.md - pre_commit_gate section (uses test_status_tracker)
+- plugins/autonomous-dev/hooks/pre_commit_gate.py - Hook implementation
+- Issue #174 - Block-at-submit hook for test passage enforcement
+
+**Testing**:
+```bash
+# Self-test (included in module)
+python plugins/autonomous-dev/lib/test_status_tracker.py
+
+# Integrated tests
+pytest tests/unit/lib/test_test_status_tracker.py
+```
+
+**Backward Compatibility**: N/A (new library)
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release with atomic writes, secure permissions, graceful degradation
