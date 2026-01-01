@@ -197,6 +197,7 @@
         "plugins/autonomous-dev/lib/protected_file_detector.py",
         "plugins/autonomous-dev/lib/retrofit_executor.py",
         "plugins/autonomous-dev/lib/retrofit_verifier.py",
+        "plugins/autonomous-dev/lib/scope_detector.py",
         "plugins/autonomous-dev/lib/search_utils.py",
         "plugins/autonomous-dev/lib/security_utils.py",
         "plugins/autonomous-dev/lib/session_tracker.py",

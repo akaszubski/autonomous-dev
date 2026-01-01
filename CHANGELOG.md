@@ -2,6 +2,35 @@
 
 **Added**
 
+- **New Library: scope_detector.py (584 lines, v1.0.0)**
+  - **Purpose**: Scope analysis and complexity detection for issue decomposition
+  - **Problem**: Large feature requests should be decomposed into atomic sub-issues to improve success rates
+  - **Solution**: Library analyzes request scope via keyword detection and anti-pattern identification
+  - **Features**:
+    - Scope Analysis: Detects complexity through keyword detection
+    - Anti-pattern Detection: Identifies scope creep markers
+    - Effort Estimation: Maps indicators to t-shirt sizes (XS/S/M/L/XL)
+    - Decomposition Determination: Automatically flags requests needing breakdown
+    - Atomic Count Estimation: Estimates optimal number of sub-issues (2-5)
+    - Prompt Generation: Creates structured decomposition prompts
+    - Configuration Support: Load from JSON with fallback defaults
+  - **Main Functions**:
+    - analyze_complexity(request, config) - Returns ComplexityAnalysis
+    - estimate_atomic_count(request, complexity, config) - Returns 1-5 estimate
+    - generate_decomposition_prompt(request, count) - Returns structured prompt
+    - load_config(config_path) - Load configuration with fallback
+  - **Data Structures**:
+    - EffortSize enum: XS/S/M/L/XL
+    - ComplexityAnalysis dataclass: effort, indicators, needs_decomposition, confidence
+  - **Security**: Input validation, graceful degradation, no network access
+  - **Performance**: O(n) time complexity, typical <10ms, worst case <100ms
+  - **Test Coverage**: 49 unit tests (90+% coverage)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/scope_detector.py (584 lines)
+    - tests/unit/lib/test_scope_detector.py (746 lines, 49 tests)
+  - **Documentation**: docs/LIBRARIES.md Section 27 with full API reference
+  - **Integration**: issue-creator agent, /create-issue command, issue decomposition workflows
+
 - **Issue #168: Auto-close GitHub issues after batch-implement push (v3.46.0)**
   - **Problem**: When processing multiple features with /batch-implement, completed issues remain open, requiring manual closing
   - **Solution**: Automatic GitHub issue closing integrated into batch workflow

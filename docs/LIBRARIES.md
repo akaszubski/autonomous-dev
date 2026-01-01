@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (26)
+### Core Libraries (27)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -37,6 +37,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 24. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
 25. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
 26. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
+27. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -8103,5 +8104,178 @@ if report.blocked:
 **Used By**:
 - reviewer.md agent - Code review checklist integration
 - health_check.py hook - Optional tech debt analysis
+
+
+## 57. scope_detector.py (584 lines, v1.0.0)
+
+**Purpose**: Scope analysis and complexity detection for issue decomposition
+
+**Module**: plugins/autonomous-dev/lib/scope_detector.py
+
+**Exports**:
+- EffortSize (enum): T-shirt sizing for effort estimation (XS/S/M/L/XL)
+- ComplexityAnalysis (dataclass): Results of complexity analysis
+- analyze_complexity() - Main analysis function
+- estimate_atomic_count() - Estimate number of sub-issues
+- generate_decomposition_prompt() - Generate decomposition prompt
+- load_config() - Load configuration with fallback
+
+### Key Data Structures
+
+#### EffortSize (Enum)
+
+T-shirt sizing for effort estimation:
+- XS: Less than 1 hour
+- S: 1-4 hours
+- M: 4-8 hours
+- L: 1-2 days
+- XL: More than 2 days
+
+#### ComplexityAnalysis (Dataclass)
+
+Results of complexity analysis with attributes:
+- effort: Estimated effort size (EffortSize enum)
+- indicators: Dictionary of detected indicators (keywords, anti-patterns)
+- needs_decomposition: Whether request should be broken into sub-issues
+- confidence: Confidence score for analysis (0.0-1.0)
+
+### Main Functions
+
+#### analyze_complexity(request, config=None) - Main analysis
+
+Signature: analyze_complexity(request: str, config: Optional[Dict] = None) -> ComplexityAnalysis
+
+- Purpose: Analyze complexity of a feature request
+- Parameters:
+  - request (str): Feature request text to analyze
+  - config (dict|None): Optional configuration (uses defaults if None)
+- Returns: ComplexityAnalysis with effort, indicators, decomposition flag, confidence
+- Features:
+  - Keyword detection: Identifies high/medium complexity indicators
+  - Anti-pattern detection: Finds conjunctions, multiple file types, vague terms
+  - Effort estimation: Maps indicators to t-shirt sizes
+  - Confidence calculation: Scores analysis reliability (0.0-1.0)
+  - Decomposition determination: Flags if request needs breaking into sub-issues
+- Algorithm:
+  1. Detect keywords (complexity_high, complexity_medium, vague, domain, breadth)
+  2. Detect anti-patterns (conjunctions, file types, vague keywords)
+  3. Estimate effort size based on indicators
+  4. Calculate confidence score
+  5. Determine if decomposition needed (effort >= threshold OR excessive conjunctions)
+- Edge Cases:
+  - Empty/None/whitespace input: Returns M effort with low confidence
+  - Very long input (>10K chars): Truncated with warning
+  - Invalid threshold: Defaults to M
+
+#### estimate_atomic_count(request, complexity, config=None) - Sub-issue count
+
+Signature: estimate_atomic_count(request: str, complexity: ComplexityAnalysis, config: Optional[Dict] = None) -> int
+
+- Purpose: Estimate number of atomic sub-issues needed
+- Parameters:
+  - request (str): Original feature request
+  - complexity (ComplexityAnalysis): Result from analyze_complexity()
+  - config (dict|None): Optional configuration
+- Returns: int - Number of sub-issues (1-5 default)
+- Mapping:
+  - XS/S effort: 1 (no decomposition needed)
+  - M effort: 3 sub-issues
+  - L effort: 4 sub-issues
+  - XL effort: 5 sub-issues
+
+#### generate_decomposition_prompt(request, count) - Decomposition prompt
+
+Signature: generate_decomposition_prompt(request: str, count: int) -> str
+
+- Purpose: Generate prompt for decomposing request into atomic sub-issues
+- Parameters:
+  - request (str): Original feature request
+  - count (int): Target number of sub-issues
+- Returns: str - Formatted prompt with decomposition instructions
+- Features:
+  - Preserves original request context
+  - Specifies size constraints (1-4 hours per sub-issue)
+  - Minimizes inter-issue dependencies
+  - Includes testability requirement
+
+#### load_config(config_path=None) - Configuration loading
+
+Signature: load_config(config_path: Optional[Path] = None) -> Dict[str, Any]
+
+- Purpose: Load configuration from file with fallback to defaults
+- Parameters: config_path (Path|None): Path to JSON config file
+- Returns: Configuration dictionary with all required fields
+- Features:
+  - Fallback to DEFAULT_CONFIG if file not found
+  - Deep merging of keyword_sets and anti_patterns with defaults
+  - Graceful error handling (logs errors, uses defaults)
+
+### Configuration
+
+Default Configuration:
+- decomposition_threshold: "M" - Minimum effort to trigger decomposition
+- max_atomic_issues: 5 - Maximum number of sub-issues
+- keyword_sets: Categorized keywords for detection
+  - complexity_high: refactor, redesign, migrate, overhaul, rewrite, architect
+  - complexity_medium: add, implement, create, build, integrate
+  - vague_indicators: improve, enhance, optimize, better, faster, cleaner
+  - domain_terms: authentication, oauth, saml, ldap, jwt, api, database, security
+  - breadth_indicators: complete, entire, full, comprehensive, system, platform
+- anti_patterns:
+  - conjunction_limit: 3 - Max "and" conjunctions before flagging
+  - file_type_limit: 3 - Max file types before flagging breadth
+
+### Detection Functions
+
+#### detect_keywords(text, keyword_sets)
+
+- Purpose: Detect and count keyword occurrences
+- Returns: dict - Mapping of category to match count
+- Features: Case-insensitive matching, word boundaries, domain term partial matches
+
+#### detect_anti_patterns(text, anti_patterns)
+
+- Purpose: Detect anti-patterns in feature requests
+- Returns: dict with conjunction_count, file_types, vague_keywords
+- Features: Identifies scope creep, breadth complexity, unclear requirements
+
+### Performance
+
+- Time Complexity: O(n) where n = request length
+- Typical: <10ms for average request (100-500 chars)
+- Worst case: <100ms for 10K+ char requests
+
+### Test Coverage
+
+Test File: tests/unit/lib/test_scope_detector.py
+
+Coverage: 49 test cases covering:
+- Keyword detection (case insensitivity, word boundaries, partial matches)
+- Anti-pattern detection (conjunctions, file types, vague keywords)
+- Effort estimation (all effort sizes, edge cases, complexity boosters)
+- Confidence calculation (high/low confidence cases)
+- Main analysis function (complex features, simple features)
+- Atomic count estimation (all effort sizes, respecting limits)
+- Decomposition prompt generation (prompt structure, clarity)
+- Configuration loading (defaults, file loading, error handling)
+- Security (input validation, graceful degradation)
+
+Target: 90+ percent coverage
+
+### Used By
+
+- issue-creator agent - Scope detection and decomposition
+- Feature request analysis workflows
+- Issue decomposition planning
+
+### Related Components
+
+Dependencies:
+- pathlib - Path handling
+- json - Configuration loading
+- re - Regular expression matching
+- logging - Debug logging
+- dataclasses - Data structures
+- enum - Effort size enumeration
 
 ---
