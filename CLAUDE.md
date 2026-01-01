@@ -3,7 +3,7 @@
 **Last Updated**: 2026-01-02
 **Last Validated**: 2026-01-02
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.44.0 (Issue #159 - Manifest completeness audit)
+**Version**: v3.45.0 (Issue #187 - Auto-Claude library integration)
 
 > **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -19,7 +19,7 @@
 | Hooks | 1.0.0 | 62 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-02 (Issue #180 - /worktree command for git worktree management)
+**Last Compliance Check**: 2026-01-02 (Issue #187 - Auto-Claude library integration into workflows)
 
 ---
 

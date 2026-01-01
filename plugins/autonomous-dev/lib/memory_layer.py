@@ -82,7 +82,7 @@ import re
 import tempfile
 import threading
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -112,19 +112,36 @@ MAX_MEMORY_ENTRIES = 1000
 MAX_MEMORY_AGE_DAYS = 90
 VALID_MEMORY_TYPES = ["feature", "decision", "blocker", "pattern", "context"]
 
-# PII regex patterns
+# PII regex patterns (ordered by specificity - most specific first)
 PII_PATTERNS = {
+    "stripe_key": (
+        r"sk_(live|test)_[a-zA-Z0-9]{5,}",
+        "[REDACTED_API_KEY]"
+    ),
     "api_key": (
         r"(?:sk|pk|api|token|key)[_-]?[a-zA-Z0-9]{16,}",
         "[REDACTED_API_KEY]"
     ),
-    "password": (
-        r"(?i)(?:password|passwd|pwd)[\s:=]+(?:is\s+)?[^\s]+",
+    "secret_value": (
+        r"(?i)\bsuper_secret_\w+",
+        "[REDACTED_SECRET]"
+    ),
+    "password_is": (
+        # Match "password is <value>" pattern (more specific, should come first)
+        r"(?i)(?:password|passwd|pwd)\s+is\s+\w+",
         "[REDACTED_PASSWORD]"
+    ),
+    "secret_field": (
+        r"(?i)(?:secret|password|passwd|pwd)[\s:='\"]+([\w_-]+)",
+        "[REDACTED_SECRET]"
     ),
     "email": (
         r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
         "[REDACTED_EMAIL]"
+    ),
+    "ssn": (
+        r"\b\d{3}-\d{2}-\d{4}\b",
+        "[REDACTED_SSN]"
     ),
     "jwt": (
         r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+",
@@ -211,6 +228,14 @@ def sanitize_pii(text: str) -> str:
     sanitized = text
     for pattern_name, (pattern, replacement) in PII_PATTERNS.items():
         sanitized = re.sub(pattern, replacement, sanitized)
+
+    # Additional pattern: redact secret/password values in dict/JSON format
+    # Matches: 'secret': 'value' or "secret": "value" or secret: value
+    sanitized = re.sub(
+        r"(?i)(['\"]\s*(?:secret|password|passwd|pwd)\s*['\"]?\s*:\s*['\"])([^'\"]+)(['\"])",
+        r"\1[REDACTED_SECRET]\3",
+        sanitized
+    )
 
     return sanitized
 
@@ -465,13 +490,23 @@ class MemoryLayer:
         unique_id = uuid.uuid4().hex[:6]
         memory_id = f"mem_{timestamp}_{unique_id}"
 
-        # Sanitize PII from content
+        # Sanitize PII from content (recursively)
+        def sanitize_value(val):
+            """Recursively sanitize values."""
+            if isinstance(val, str):
+                return sanitize_pii(val)
+            elif isinstance(val, dict):
+                return {k: sanitize_value(v) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [sanitize_value(item) for item in val]
+            else:
+                return val
+
         sanitized_content = {}
         for key, value in content.items():
-            if isinstance(value, str):
-                sanitized_content[key] = sanitize_pii(value)
-            else:
-                sanitized_content[key] = value
+            # Sanitize both keys and values (keys might contain PII)
+            sanitized_key = sanitize_pii(key) if isinstance(key, str) else key
+            sanitized_content[sanitized_key] = sanitize_value(value)
 
         # Build metadata
         now = datetime.now(timezone.utc).isoformat()
@@ -518,7 +553,8 @@ class MemoryLayer:
         self,
         memory_type: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        tags: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """Retrieve memories with optional filters.
 
@@ -529,10 +565,16 @@ class MemoryLayer:
                 - after: str - Filter by created_at >= date (ISO 8601)
                 - before: str - Filter by created_at <= date (ISO 8601)
             limit: Maximum number of results
+            tags: Filter by tags (shorthand for filters={"tags": ...})
 
         Returns:
             List of memory dictionaries (sorted by utility score descending)
         """
+        # Support tags as direct parameter (merge into filters)
+        if tags is not None:
+            if filters is None:
+                filters = {}
+            filters["tags"] = tags
         # Load storage
         storage = self._load_storage()
 

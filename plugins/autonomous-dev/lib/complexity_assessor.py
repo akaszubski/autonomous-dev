@@ -118,7 +118,8 @@ class ComplexityAssessor:
     def assess(
         cls,
         feature_description: str,
-        github_issue: Optional[Dict[str, Any]] = None
+        github_issue: Optional[Dict[str, Any]] = None,
+        issue: Optional[Dict[str, Any]] = None
     ) -> ComplexityAssessment:
         """Assess complexity of a feature request.
 
@@ -129,6 +130,7 @@ class ComplexityAssessor:
         Args:
             feature_description: Feature request text to analyze
             github_issue: Optional GitHub issue dict with 'title' and 'body' keys
+            issue: Alias for github_issue parameter (for backward compatibility)
 
         Returns:
             ComplexityAssessment with level, confidence, reasoning, agent_count, time
@@ -139,6 +141,9 @@ class ComplexityAssessor:
             >>> print(result.level)
             ComplexityLevel.SIMPLE
         """
+        # Support both github_issue and issue parameter names (issue is alias)
+        if issue is not None and github_issue is None:
+            github_issue = issue
         # Handle edge cases
         if feature_description is None:
             return cls._create_assessment(

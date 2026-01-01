@@ -2,6 +2,46 @@
 
 **Added**
 
+- **Auto-Claude Library Integration Checkpoints (Issue #187, v3.45.0)**
+  - **Purpose**: Integrate Auto-Claude libraries (complexity_assessor, pause_controller, memory_layer) into /auto-implement and /batch-implement workflows
+  - **Problem**: Auto-Claude libraries exist as standalone components but are not integrated into main development pipelines
+  - **Solution**: Add checkpoint integration for adaptive scaling, human-in-the-loop control, and cross-session memory
+  - **API Enhancements**:
+    - **complexity_assessor.py (446 lines)**: Added issue parameter as alias for github_issue for API flexibility
+      - Support both parameter names: assess(feature_description, issue=123) or assess(feature_description, github_issue=123)
+      - Enables GitHub issue integration without breaking backward compatibility
+    - **pause_controller.py (422 lines)**: Added clear_pause_state() function for resume workflow
+      - Idempotent function: Removes PAUSE, HUMAN_INPUT.md, and pause_checkpoint.json files
+      - Improved path validation for all operations (prevents CWE-22 traversal attacks)
+    - **memory_layer.py (808 lines)**: Added tags filtering support in recall operations
+      - recall(memory_type="decision", tags=["database"]) - Filter memories by tags
+      - Enhanced PII sanitization: API keys (Stripe, AWS), SSN, credit cards, auth tokens
+  - **Checkpoint Integration Points**:
+    - CHECKPOINT 0.5: Complexity assessment for adaptive pipeline scaling (before planner)
+    - CHECKPOINT 1.35: Pause controls for human-in-the-loop intervention (after planning)
+    - CHECKPOINT 4.35: Memory recording for cross-session context (after doc-master)
+  - **Graceful Degradation**:
+    - Feature flags: ENABLE_COMPLEXITY_SCALING, ENABLE_PAUSE_CONTROLLER, ENABLE_MEMORY_LAYER
+    - When disabled or unavailable: Baseline workflow continues without these features
+    - Library unavailability: Non-blocking, informational logging only
+  - **Test Coverage**: 47 new integration tests in test_auto_claude_integration.py (912 lines)
+    - Unit tests for complexity assessment, pause controls, memory operations
+    - Integration tests for checkpoint execution and feature flag control
+    - Security tests for path validation and PII sanitization
+  - **Files Modified**:
+    - plugins/autonomous-dev/lib/complexity_assessor.py: Added issue parameter alias (Issue #181 enhancement)
+    - plugins/autonomous-dev/lib/pause_controller.py: Added clear_pause_state(), improved validation (Issue #182 enhancement)
+    - plugins/autonomous-dev/lib/memory_layer.py: Added tags filtering, enhanced PII sanitization (Issue #179 enhancement)
+    - tests/integration/test_auto_claude_integration.py: 47 new integration tests (912 lines)
+  - **Documentation**:
+    - docs/LIBRARIES.md: Updated API sections for complexity_assessor (num 63), pause_controller (num 64), memory_layer (num 62)
+    - CLAUDE.md: Updated Autonomous Development Workflow section with CHECKPOINT references
+    - API examples in library docstrings updated with new parameters
+  - **Performance**: No performance impact (feature flags allow opt-out, graceful degradation)
+  - **Security**: Enhanced PII sanitization, path validation improvements, no credential exposure
+  - **Backward Compatibility**: All changes are additions; existing API unchanged
+  - **GitHub Issue**: Issue 187 - Auto-Claude library integration into workflows
+
 - **New Library: pause_controller.py (403 lines, v1.0.0 - Issue #182)**
   - **Purpose**: File-based pause controls and human input handling for autonomous workflows
   - **Problem**: Long-running autonomous workflows need to pause at checkpoints to accept human feedback

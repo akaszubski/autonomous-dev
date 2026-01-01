@@ -117,30 +117,37 @@ def validate_pause_path(path: str) -> bool:
         path: Path to validate
 
     Returns:
-        True if path is valid and safe, False otherwise
+        True if path is valid and safe
+
+    Raises:
+        ValueError: If path validation fails (path traversal, symlink, etc.)
     """
     try:
         # Block null bytes (CWE-158)
         if "\x00" in path:
-            return False
+            raise ValueError("Null byte detected in path")
 
         # Convert to Path object
         path_obj = Path(path)
 
+        # Check for path traversal in string (defense in depth)
+        if ".." in str(path):
+            raise ValueError("Path traversal detected")
+
         # Resolve to absolute path (CWE-22 prevention)
         try:
             resolved_path = path_obj.resolve(strict=False)
-        except (OSError, RuntimeError):
-            return False
+        except (OSError, RuntimeError) as e:
+            raise ValueError(f"Cannot resolve path: {e}")
 
         # Check for symlink (CWE-59 prevention)
         if path_obj.exists() and path_obj.is_symlink():
-            return False
+            raise ValueError("Symlink detected")
 
         # Ensure path is within .claude directory
         claude_dir = _get_claude_dir()
         if claude_dir is None:
-            return False
+            raise ValueError("No .claude directory found")
 
         resolved_claude = claude_dir.resolve()
 
@@ -148,17 +155,16 @@ def validate_pause_path(path: str) -> bool:
         try:
             resolved_path.relative_to(resolved_claude)
         except ValueError:
-            # Path is outside .claude directory
-            return False
-
-        # Check for path traversal in string (defense in depth)
-        if ".." in str(path):
-            return False
+            # Path is outside .claude directory (path traversal attempt)
+            raise ValueError("Path traversal detected")
 
         return True
 
-    except Exception:
-        return False
+    except ValueError:
+        # Re-raise ValueError as-is
+        raise
+    except Exception as e:
+        raise ValueError(f"Path validation failed: {e}")
 
 
 def check_pause_requested() -> bool:
@@ -187,7 +193,9 @@ def check_pause_requested() -> bool:
             return False
 
         # Validate path (defense in depth)
-        if not validate_pause_path(str(pause_file)):
+        try:
+            validate_pause_path(str(pause_file))
+        except ValueError:
             return False
 
         return True
@@ -225,7 +233,9 @@ def read_human_input() -> Optional[str]:
             return None
 
         # Validate path (defense in depth)
-        if not validate_pause_path(str(human_input_file)):
+        try:
+            validate_pause_path(str(human_input_file))
+        except ValueError:
             return None
 
         # Check file size (DoS prevention)
@@ -250,14 +260,13 @@ def read_human_input() -> Optional[str]:
 
 
 def clear_pause_state() -> None:
-    """Remove PAUSE and HUMAN_INPUT.md files.
+    """Remove PAUSE, HUMAN_INPUT.md, and pause_checkpoint.json files.
 
-    Preserves checkpoint file (separate concern).
     Idempotent - no error if files don't exist.
 
     Security:
         - Validates paths before deletion
-        - Only removes PAUSE and HUMAN_INPUT.md
+        - Only removes PAUSE, HUMAN_INPUT.md, and pause_checkpoint.json
         - Never follows symlinks
     """
     try:
@@ -268,20 +277,29 @@ def clear_pause_state() -> None:
         # Remove PAUSE file
         pause_file = claude_dir / "PAUSE"
         if pause_file.exists() and not pause_file.is_symlink():
-            if validate_pause_path(str(pause_file)):
-                try:
-                    pause_file.unlink()
-                except (OSError, PermissionError):
-                    pass  # Ignore errors, idempotent
+            try:
+                validate_pause_path(str(pause_file))
+                pause_file.unlink()
+            except (ValueError, OSError, PermissionError):
+                pass  # Ignore errors, idempotent
 
         # Remove HUMAN_INPUT.md file
         human_input_file = claude_dir / "HUMAN_INPUT.md"
         if human_input_file.exists() and not human_input_file.is_symlink():
-            if validate_pause_path(str(human_input_file)):
-                try:
-                    human_input_file.unlink()
-                except (OSError, PermissionError):
-                    pass  # Ignore errors, idempotent
+            try:
+                validate_pause_path(str(human_input_file))
+                human_input_file.unlink()
+            except (ValueError, OSError, PermissionError):
+                pass  # Ignore errors, idempotent
+
+        # Remove pause_checkpoint.json file
+        checkpoint_file = claude_dir / "pause_checkpoint.json"
+        if checkpoint_file.exists() and not checkpoint_file.is_symlink():
+            try:
+                validate_pause_path(str(checkpoint_file))
+                checkpoint_file.unlink()
+            except (ValueError, OSError, PermissionError):
+                pass  # Ignore errors, idempotent
 
     except Exception:
         pass  # Idempotent - always succeeds
@@ -313,9 +331,8 @@ def save_checkpoint(agent_name: str, state: Dict[str, Any]) -> None:
 
         checkpoint_file = claude_dir / "pause_checkpoint.json"
 
-        # Validate path
-        if not validate_pause_path(str(checkpoint_file)):
-            raise ValueError("Invalid checkpoint path")
+        # Validate path (raises ValueError if invalid)
+        validate_pause_path(str(checkpoint_file))
 
         # Build checkpoint data
         checkpoint_data = {
@@ -378,7 +395,9 @@ def load_checkpoint() -> Optional[Dict[str, Any]]:
             return None
 
         # Validate path
-        if not validate_pause_path(str(checkpoint_file)):
+        try:
+            validate_pause_path(str(checkpoint_file))
+        except ValueError:
             return None
 
         # Read and parse JSON
