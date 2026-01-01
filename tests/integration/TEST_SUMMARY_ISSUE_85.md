@@ -11,7 +11,7 @@
 
 **Lines 112 and 344** in `auto-implement.md` contain hardcoded paths:
 ```bash
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+cd ${PROJECT_ROOT} && python3 << 'EOF'
 ```
 
 This breaks portability for:
@@ -188,7 +188,7 @@ After these tests, the **implementer** agent will:
 
 2. **Expected Changes**:
    ```diff
-   - cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+   - cd ${PROJECT_ROOT} && python3 << 'EOF'
    + python3 << 'EOF'
    + import sys
    + from pathlib import Path

@@ -64,7 +64,7 @@ def test_count_output_format_lines_in_agent():
     from scripts.measure_output_format_sections import count_output_format_lines
 
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "project-progress-tracker.md"
     )
 
@@ -84,7 +84,7 @@ def test_output_format_section_extraction():
     from scripts.measure_output_format_sections import extract_output_format_section
 
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "project-progress-tracker.md"
     )
 
@@ -187,7 +187,7 @@ def test_no_agent_exceeds_30_line_threshold():
     """
     from scripts.measure_output_format_sections import count_output_format_lines
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -211,7 +211,7 @@ def test_agents_with_output_format_section_are_within_limits():
     from scripts.measure_output_format_sections import extract_output_format_section, \
         count_output_format_lines
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -244,7 +244,7 @@ def test_30_line_threshold_allows_agent_specific_guidance():
         "commit-message-generator",  # Conventional commits format
     ]
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
 
     for agent_name in special_agents:
         agent_file = agents_dir / f"{agent_name}.md"
@@ -412,7 +412,7 @@ def test_agent_specific_guidance_preserved_after_cleanup():
 
     # 1. project-progress-tracker: Should keep dual-mode guidance
     tracker_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "project-progress-tracker.md"
     )
     tracker_content = tracker_file.read_text()
@@ -423,7 +423,7 @@ def test_agent_specific_guidance_preserved_after_cleanup():
 
     # 2. quality-validator: Should keep scoring guidance
     validator_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "quality-validator.md"
     )
     validator_content = validator_file.read_text()
@@ -433,7 +433,7 @@ def test_agent_specific_guidance_preserved_after_cleanup():
 
     # 3. commit-message-generator: Should keep conventional commits format
     commit_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "commit-message-generator.md"
     )
     commit_content = commit_file.read_text()
@@ -451,7 +451,7 @@ def test_output_format_cleanup_preserves_examples():
     """
     from scripts.measure_output_format_sections import extract_output_format_section
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
 
     # Check agents that have examples in Output Format
     agents_with_examples = ["quality-validator", "project-progress-tracker"]
@@ -475,7 +475,7 @@ def test_output_format_cleanup_removes_verbose_templates():
     """
     from scripts.measure_output_format_sections import extract_output_format_section
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -515,7 +515,7 @@ def test_output_format_references_agent_output_formats_skill():
 
     EXPECTED TO FAIL: References may not be added yet.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -555,7 +555,7 @@ def test_project_progress_tracker_output_format_cleaned():
     from scripts.measure_output_format_sections import count_output_format_lines
 
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "project-progress-tracker.md"
     )
 
@@ -574,7 +574,7 @@ def test_quality_validator_output_format_cleaned():
     from scripts.measure_output_format_sections import count_output_format_lines
 
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/"
         "quality-validator.md"
     )
 
@@ -594,7 +594,7 @@ def test_agents_without_output_format_section_have_zero_lines():
 
     # test-master doesn't have Output Format section
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/test-master.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/test-master.md"
     )
 
     line_count = count_output_format_lines(agent_file)
@@ -615,7 +615,7 @@ def test_cleanup_script_exists():
     EXPECTED TO FAIL: Script doesn't exist yet.
     """
     script_path = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/cleanup_output_formats.py"
+        "${PROJECT_ROOT}/scripts/cleanup_output_formats.py"
     )
     assert script_path.exists(), f"Cleanup script not found: {script_path}"
 
@@ -630,7 +630,7 @@ def test_cleanup_script_dry_run_mode():
 
     result = subprocess.run(
         ["python", "scripts/cleanup_output_formats.py", "--dry-run"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -650,7 +650,7 @@ def test_cleanup_script_reports_changes():
 
     result = subprocess.run(
         ["python", "scripts/cleanup_output_formats.py", "--dry-run"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -672,7 +672,7 @@ def test_cleanup_script_validates_output():
     # Run with validation flag
     result = subprocess.run(
         ["python", "scripts/cleanup_output_formats.py", "--validate"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )

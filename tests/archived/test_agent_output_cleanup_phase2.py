@@ -28,7 +28,7 @@ from typing import Dict, List, Optional
 
 
 # Constants
-AGENTS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+AGENTS_DIR = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
 
 # Phase 1 agents (already cleaned up)
 PHASE_1_AGENTS = [

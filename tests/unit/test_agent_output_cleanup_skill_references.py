@@ -62,7 +62,7 @@ def test_all_agents_have_relevant_skills_section():
 
     EXPECTED TO FAIL: Some agents may not have the section yet.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
 
     # Exclude archived agents
@@ -86,7 +86,7 @@ def test_relevant_skills_section_is_properly_formatted():
 
     EXPECTED TO FAIL: Some agents may have incorrect format.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -120,7 +120,7 @@ def test_relevant_skills_section_placement():
 
     EXPECTED TO FAIL: Some agents may have incorrect placement.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -157,7 +157,7 @@ def test_all_agents_reference_agent_output_formats_skill():
 
     EXPECTED TO FAIL: Phase 1 target agents don't have reference yet.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -190,7 +190,7 @@ def test_phase1_target_agents_have_skill_reference():
         "project-progress-tracker"
     ]
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
 
     missing = []
     for agent_name in phase1_targets:
@@ -211,7 +211,7 @@ def test_agent_output_formats_reference_is_in_relevant_skills_section():
 
     EXPECTED TO FAIL: Some agents may reference it elsewhere.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -250,7 +250,7 @@ def test_skill_reference_follows_standard_format():
 
     EXPECTED TO FAIL: Some agents may have incorrect format.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -278,7 +278,7 @@ def test_skill_reference_has_description():
 
     EXPECTED TO FAIL: Some agents may have empty or missing description.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -308,7 +308,7 @@ def test_skill_reference_description_is_relevant():
 
     EXPECTED TO FAIL: Some agents may have generic description.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -346,7 +346,7 @@ def test_test_master_has_agent_output_formats_reference():
     EXPECTED TO FAIL: test-master doesn't have reference yet (Phase 1).
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/test-master.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/test-master.md"
     )
     content = agent_file.read_text()
 
@@ -366,7 +366,7 @@ def test_quality_validator_has_agent_output_formats_reference():
     EXPECTED TO FAIL: quality-validator doesn't have reference yet (Phase 1).
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/quality-validator.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/quality-validator.md"
     )
     content = agent_file.read_text()
 
@@ -381,7 +381,7 @@ def test_advisor_has_agent_output_formats_reference():
     EXPECTED TO FAIL: advisor doesn't have reference yet (Phase 1).
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/advisor.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/advisor.md"
     )
     content = agent_file.read_text()
 
@@ -396,7 +396,7 @@ def test_alignment_validator_has_agent_output_formats_reference():
     EXPECTED TO FAIL: alignment-validator doesn't have reference yet (Phase 1).
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/agents/alignment-validator.md"
+        "${PROJECT_ROOT}/agents/alignment-validator.md"
     )
     content = agent_file.read_text()
 
@@ -411,7 +411,7 @@ def test_project_progress_tracker_has_agent_output_formats_reference():
     EXPECTED TO FAIL: project-progress-tracker doesn't have reference yet (Phase 1).
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/project-progress-tracker.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/project-progress-tracker.md"
     )
     content = agent_file.read_text()
 
@@ -432,7 +432,7 @@ def test_existing_skill_references_are_preserved():
     """
     # Example: test-master should keep existing skills
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/test-master.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/test-master.md"
     )
     content = agent_file.read_text()
 
@@ -462,7 +462,7 @@ def test_quality_validator_preserves_existing_skills():
     EXPECTED TO FAIL: Implementation may remove existing skills.
     """
     agent_file = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/quality-validator.md"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/agents/quality-validator.md"
     )
     content = agent_file.read_text()
 
@@ -489,7 +489,7 @@ def test_skill_list_maintains_alphabetical_order():
 
     EXPECTED TO FAIL: Implementation may not maintain proper ordering.
     """
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 
@@ -533,7 +533,7 @@ def test_validation_script_exists():
     EXPECTED TO FAIL: Script doesn't exist yet.
     """
     script_path = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/validate_agent_skill_references.py"
+        "${PROJECT_ROOT}/scripts/validate_agent_skill_references.py"
     )
     assert script_path.exists(), f"Validation script not found: {script_path}"
 
@@ -548,7 +548,7 @@ def test_validation_script_checks_all_agents():
 
     result = subprocess.run(
         ["python", "scripts/validate_agent_skill_references.py"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -567,7 +567,7 @@ def test_validation_script_reports_missing_references():
 
     result = subprocess.run(
         ["python", "scripts/validate_agent_skill_references.py", "--check-agent-output-formats"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -589,7 +589,7 @@ def test_validation_script_supports_json_output():
 
     result = subprocess.run(
         ["python", "scripts/validate_agent_skill_references.py", "--json"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -614,7 +614,7 @@ def test_agent_output_formats_skill_exists():
     EXPECTED TO FAIL: Should pass (skill already exists from Issues #63, #64).
     """
     skill_path = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/skills/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/skills/"
         "agent-output-formats/SKILL.md"
     )
     assert skill_path.exists(), f"agent-output-formats skill not found: {skill_path}"
@@ -627,7 +627,7 @@ def test_agent_output_formats_skill_has_metadata():
     EXPECTED TO FAIL: Should pass (skill already exists).
     """
     skill_path = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/skills/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/skills/"
         "agent-output-formats/SKILL.md"
     )
     content = skill_path.read_text()
@@ -646,7 +646,7 @@ def test_agent_references_match_skill_content():
     EXPECTED TO FAIL: Descriptions may not match yet.
     """
     skill_path = Path(
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/skills/"
+        "${PROJECT_ROOT}/plugins/autonomous-dev/skills/"
         "agent-output-formats/SKILL.md"
     )
     skill_content = skill_path.read_text()
@@ -658,7 +658,7 @@ def test_agent_references_match_skill_content():
             skill_desc = line.split("description:")[1].strip()
             break
 
-    agents_dir = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+    agents_dir = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
     agent_files = list(agents_dir.glob("*.md"))
     agent_files = [f for f in agent_files if "archived" not in str(f)]
 

@@ -343,11 +343,11 @@ def validate_web_request(url: str, policy: Policy) -> ValidationResult:
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/akaszubski/Documents/GitHub/autonomous-dev"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PROJECT_ROOT}"]
     },
     "git": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/Users/akaszubski/Documents/GitHub/autonomous-dev"]
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "${PROJECT_ROOT}"]
     },
     "github": {
       "command": "docker",
@@ -426,7 +426,7 @@ def validate_web_request(url: str, policy: Policy) -> ValidationResult:
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${PROJECT_ROOT}"
       ]
     },
     "git": {
@@ -435,7 +435,7 @@ def validate_web_request(url: str, policy: Policy) -> ValidationResult:
         "-y",
         "@modelcontextprotocol/server-git",
         "--repository",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${PROJECT_ROOT}"
       ]
     },
     "github": {

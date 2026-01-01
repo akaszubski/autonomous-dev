@@ -945,7 +945,7 @@ class TestMigrationIntegration:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "python /Users/akaszubski/Documents/GitHub/autonomous-dev/.claude/hooks/pre_tool_use.py"
+                                "command": "python ${PROJECT_ROOT}/.claude/hooks/pre_tool_use.py"
                                 # Missing timeout!
                             }
                         ]

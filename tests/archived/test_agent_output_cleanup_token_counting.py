@@ -30,7 +30,7 @@ def test_token_counting_script_exists():
 
     EXPECTED TO FAIL: Script doesn't exist yet (TDD red phase).
     """
-    script_path = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/measure_agent_tokens.py")
+    script_path = Path("${PROJECT_ROOT}/scripts/measure_agent_tokens.py")
     assert script_path.exists(), f"Token counting script not found at {script_path}"
     assert script_path.is_file(), f"Path exists but is not a file: {script_path}"
 
@@ -41,7 +41,7 @@ def test_token_counting_script_is_executable():
 
     EXPECTED TO FAIL: Script doesn't exist yet.
     """
-    script_path = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/measure_agent_tokens.py")
+    script_path = Path("${PROJECT_ROOT}/scripts/measure_agent_tokens.py")
     assert script_path.exists(), "Script doesn't exist"
 
     content = script_path.read_text()
@@ -55,7 +55,7 @@ def test_token_counting_script_has_main_function():
 
     EXPECTED TO FAIL: Script doesn't exist yet.
     """
-    script_path = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/measure_agent_tokens.py")
+    script_path = Path("${PROJECT_ROOT}/scripts/measure_agent_tokens.py")
     assert script_path.exists(), "Script doesn't exist"
 
     content = script_path.read_text()
@@ -496,7 +496,7 @@ def test_cli_supports_baseline_measurement():
 
     result = subprocess.run(
         ["python", "scripts/measure_agent_tokens.py", "--baseline"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -515,7 +515,7 @@ def test_cli_supports_post_cleanup_measurement():
 
     result = subprocess.run(
         ["python", "scripts/measure_agent_tokens.py", "--post-cleanup"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -534,7 +534,7 @@ def test_cli_supports_savings_report():
 
     result = subprocess.run(
         ["python", "scripts/measure_agent_tokens.py", "--report"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -554,7 +554,7 @@ def test_cli_supports_json_output():
 
     result = subprocess.run(
         ["python", "scripts/measure_agent_tokens.py", "--report", "--json"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )

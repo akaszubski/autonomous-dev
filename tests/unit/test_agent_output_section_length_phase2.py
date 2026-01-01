@@ -25,7 +25,7 @@ import re
 
 
 # Constants
-AGENTS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
+AGENTS_DIR = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
 MAX_OUTPUT_FORMAT_LINES = 30
 
 # Phase 1 agents (already cleaned up)
