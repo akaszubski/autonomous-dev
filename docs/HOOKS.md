@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2026-01-01
+**Last Updated**: 2026-01-01 (Issue #174 - pre_commit_gate hook)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for automation hooks in the autonomous-dev plugin.
@@ -780,9 +780,9 @@ Note: session_tracker.py moved to Core Hooks as essential for context management
 
 ---
 
-## Validation Hooks (11)
+## Validation Hooks (12)
 
-Hooks for ensuring documentation, commands, and codebase stay in sync.
+Hooks for ensuring documentation, commands, codebase stay in sync, and tests pass before commit.
 
 ### validate_command_file_ops.py
 
@@ -897,6 +897,90 @@ Hooks for ensuring documentation, commands, and codebase stay in sync.
 **Lifecycle**: PreCommit
 **Non-blocking**: Exit 1 (warning), never blocking (exit 2)
 **Related**: Issue #131 - Fixed frontmatter for /align, /batch-implement, /create-issue, /sync
+
+### pre_commit_gate.py
+
+**Purpose**: Block commits when tests are failing or haven't been run (Issue #174)
+**Actions**:
+- Reads test execution status from `test_status_tracker` library
+- Exits with EXIT_SUCCESS (0) if tests passed
+- Exits with EXIT_BLOCK (2) if tests failed or status missing
+- Can be disabled via ENFORCE_TEST_GATE=false environment variable
+- Provides clear error messages with remediation steps
+**Lifecycle**: PreCommit (blocks commits with EXIT_BLOCK)
+**Library**: Uses `test_status_tracker.py` from `plugins/autonomous-dev/lib/`
+
+**Problem solved**:
+- Prevents broken code from entering version control
+- Catches bugs before they reach CI/CD
+- Saves team time on debugging broken builds
+- Maintains code quality standards
+
+**Configuration**:
+
+Disable the gate in emergency situations (NOT RECOMMENDED):
+```bash
+ENFORCE_TEST_GATE=false git commit
+```
+
+Valid disable values:
+- "false" or "False" or "FALSE"
+- "0"
+- "" (empty string)
+
+All other values enable the gate (default: enabled).
+
+**Exit Codes**:
+- EXIT_SUCCESS (0): Tests passed, allow commit
+- EXIT_BLOCK (2): Tests failed or not run, block commit
+
+**Error Messages**:
+
+When tests haven't been run:
+```
+╔════════════════════════════════════════════════════════════════════════╗
+║                         COMMIT BLOCKED                                  ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Tests have not been run yet.
+
+Before committing, you must run the test suite:
+
+    pytest
+
+Once tests pass, you can commit:
+
+    git commit
+```
+
+When tests are failing:
+```
+╔════════════════════════════════════════════════════════════════════════╗
+║                         COMMIT BLOCKED                                  ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Tests are failing.
+
+Fix failing tests before committing:
+
+    pytest  # Run tests and fix failures
+
+Once all tests pass, you can commit:
+
+    git commit
+```
+
+**Integration**:
+- Triggered automatically by `git commit`
+- No manual invocation required
+- Graceful degradation: Returns safe default (blocked) if tracker unavailable
+- Non-breaking: Missing status file treated as "tests not run" (requires running tests)
+
+**Testing**:
+Works seamlessly with `/auto-implement` pipeline:
+- test-master writes status via `write_status(passed=True/False)`
+- Commits automatically trigger gate check
+- Users can run `pytest` manually and gate checks after
 
 ---
 

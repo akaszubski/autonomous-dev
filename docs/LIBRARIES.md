@@ -8945,3 +8945,235 @@ Examples:
 - `tests/unit/lib/test_hook_exit_codes.py` (23 tests)
 
 **GitHub**: Feature tracking (Issue TBD)
+
+
+---
+
+## 60. test_status_tracker.py (363 lines, v1.0.0 - Issue #174)
+
+**Purpose**: Manages test execution status for pre-commit gate hook (block-at-submit validation).
+
+**Problem**: Need reliable test status tracking across different processes so pre-commit hook can check if tests passed before allowing commit.
+
+**Solution**: Provides JSON-based status persistence with cross-process communication between test runners and pre-commit gate hook.
+
+### API
+
+#### `get_status_file_path() -> Path`
+
+**Purpose**: Get path to test status JSON file
+
+**Returns**: Path object pointing to test-status.json in temp directory
+
+**Location**: /tmp/.autonomous-dev/test-status.json (Linux/macOS) or system temp (Windows)
+
+**Security**:
+- Returns absolute path (prevents relative path attacks)
+- No user input in path construction
+- Path is deterministic and not user-controllable
+
+**Examples**:
+```python
+from test_status_tracker import get_status_file_path
+path = get_status_file_path()
+assert path.is_absolute()
+assert ".autonomous-dev" in str(path)
+```
+
+#### `write_status(passed: bool, timestamp: Optional[str] = None) -> None`
+
+**Purpose**: Write test execution status to JSON file
+
+**Parameters**:
+- `passed` (bool): True if tests passed, False if failed
+- `timestamp` (str, optional): ISO 8601 timestamp (defaults to current time)
+
+**Raises**:
+- `ValueError`: If timestamp format is invalid
+- `OSError`: If file cannot be written (permissions, disk full, etc.)
+
+**Security**:
+- Atomic writes: Write to temp file, then rename
+- Secure permissions: 0600 (user-only read/write)
+- Path validation: Prevents traversal and symlink attacks (CWE-22, CWE-59)
+- Input validation: Validates timestamp format
+
+**Status File Format**:
+```json
+{
+  "passed": true,
+  "timestamp": "2026-01-01T12:00:00Z",
+  "last_run": "2026-01-01T12:00:00.123456Z"
+}
+```
+
+**Usage Examples**:
+```python
+from test_status_tracker import write_status
+
+# After successful test run (auto-timestamp)
+write_status(passed=True)
+
+# After failed test run (auto-timestamp)
+write_status(passed=False)
+
+# With explicit timestamp
+write_status(passed=True, timestamp="2026-01-01T12:00:00Z")
+```
+
+#### `read_status() -> Dict[str, Any]`
+
+**Purpose**: Read test execution status from JSON file
+
+**Returns**: Dictionary with keys:
+- `passed` (bool): True if tests passed, False otherwise
+- `timestamp` (str | None): ISO 8601 timestamp of test run
+- `last_run` (str | None): ISO 8601 timestamp of status update
+
+**Graceful Degradation**:
+- Missing file: Returns safe default (passed=False)
+- Corrupted JSON: Returns safe default (passed=False)
+- Missing fields: Adds default values
+- Invalid types: Returns safe default (passed=False)
+- Permission errors: Returns safe default (passed=False)
+- Symlinks detected: Returns safe default (passed=False)
+
+**Security**:
+- Validates path before reading (prevents traversal - CWE-22)
+- Checks for symlinks (prevents attack - CWE-59)
+- Handles permission errors gracefully
+- Never exposes sensitive data from corrupted files
+
+**Usage Examples**:
+```python
+from test_status_tracker import read_status
+
+status = read_status()
+if status["passed"]:
+    print("Tests passed!")
+else:
+    print("Tests failed or not run")
+
+# Check timestamp
+if status["timestamp"]:
+    print(f"Last run: {status['timestamp']}")
+```
+
+### Integration
+
+**With pre_commit_gate hook**:
+```python
+# pre_commit_gate.py reads status to decide whether to block
+from test_status_tracker import read_status
+
+status = read_status()
+if status["passed"]:
+    sys.exit(EXIT_SUCCESS)  # Allow commit
+else:
+    sys.exit(EXIT_BLOCK)    # Block commit
+```
+
+**With test-master agent in /auto-implement**:
+```python
+# test-master writes status after running tests
+from test_status_tracker import write_status
+
+# After all tests pass
+write_status(passed=True)
+
+# Or if tests fail
+write_status(passed=False)
+```
+
+### Configuration
+
+**Environment Variables**: None (file path is deterministic)
+
+**Status File Permissions**: 0600 (user-only read/write)
+
+**ISO 8601 Timestamps**: All timestamps use UTC timezone for cross-platform compatibility
+
+### Error Handling
+
+**Atomic Write Strategy**:
+- Write to temporary file first
+- Rename temp file to target atomically (prevents corruption)
+- Clean up temp file on error
+- Raises OSError with context if write fails
+
+**Safe Defaults on Read Errors**:
+- Any read error returns {"passed": False, ...} (fail-safe)
+- Prevents false positives (incorrect "tests passed" claims)
+- Never blocks on missing/corrupted status
+- Clear error messages in logs for debugging
+
+### Examples
+
+**Basic workflow**:
+```python
+# 1. Test runner writes status after execution
+from test_status_tracker import write_status
+import subprocess
+
+result = subprocess.run(["pytest"], capture_output=True)
+if result.returncode == 0:
+    write_status(passed=True)
+else:
+    write_status(passed=False)
+
+# 2. Pre-commit hook reads status
+from test_status_tracker import read_status
+
+status = read_status()
+if status["passed"]:
+    # Allow commit
+    sys.exit(0)
+else:
+    # Block commit
+    sys.exit(2)
+```
+
+**With /auto-implement pipeline**:
+```python
+# test-master agent runs tests and writes status
+write_status(passed=all_tests_pass)
+
+# When user commits, pre_commit_gate checks status
+# Status is already written by test-master
+# Gate blocks or allows based on status
+```
+
+### Test Coverage
+
+Test File: tests/unit/lib/test_status_tracker.py
+
+Coverage includes:
+- **Get path**: Path is absolute, contains expected directory
+- **Write status**: File created, permissions set, JSON valid
+- **Read status**: Returns correct structure, handles missing file
+- **Atomic writes**: Temp file cleanup on error
+- **Security**: Symlink detection, path validation, permission checks
+- **Graceful degradation**: Corrupted JSON handled, missing fields defaulted
+- **Timestamp validation**: Valid ISO 8601 accepted, invalid rejected
+- **Cross-process**: Multiple writes/reads work correctly
+
+Target: 95% coverage of core functionality
+
+### Used By
+
+- `pre_commit_gate.py` hook - Reads status to determine commit permission
+- `test-master` agent in `/auto-implement` - Writes status after test execution
+- Manual pytest runs - Users can write status via CLI
+
+### Related
+
+**Documentation**:
+- [HOOKS.md - pre_commit_gate.py section](HOOKS.md#pre_commit_gatepy)
+- [docs/DEVELOPMENT.md - TDD workflow](docs/DEVELOPMENT.md)
+
+**Implementation**:
+- `plugins/autonomous-dev/lib/test_status_tracker.py` (363 lines)
+- `plugins/autonomous-dev/hooks/pre_commit_gate.py` (299 lines)
+- `tests/unit/lib/test_status_tracker.py`
+
+**GitHub**: Issue #174 - Block-at-submit hook with test status tracking
