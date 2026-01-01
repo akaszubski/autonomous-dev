@@ -2,7 +2,7 @@
 """
 TDD Tests for Test Status Tracker Library - RED PHASE
 
-This test suite validates the test_status_tracker library which manages test
+This test suite validates the status_tracker library which manages test
 execution status for the pre-commit gate hook.
 
 Feature:
@@ -17,7 +17,7 @@ Need a reliable way to track test execution status across different processes:
 - Must handle missing/corrupted files gracefully
 
 Solution:
-test_status_tracker.py library with two main functions:
+status_tracker.py library with two main functions:
 1. write_status(passed: bool, timestamp: str) - Write test results
 2. read_status() -> dict - Read current status
 Status stored in: /tmp/.autonomous-dev/test-status.json
@@ -94,7 +94,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"))
 
 # Import will fail initially (RED phase) - implementation doesn't exist yet
 try:
-    from test_status_tracker import write_status, read_status, get_status_file_path
+    from status_tracker import write_status, read_status, get_status_file_path
     TRACKER_AVAILABLE = True
 except ImportError:
     TRACKER_AVAILABLE = False
@@ -106,7 +106,7 @@ if not PYTEST_AVAILABLE:
     pytest.skip("pytest not available - use pytest to run these tests", allow_module_level=True)
 
 if not TRACKER_AVAILABLE:
-    pytest.skip("test_status_tracker not implemented yet (RED phase)", allow_module_level=True)
+    pytest.skip("status_tracker not implemented yet (RED phase)", allow_module_level=True)
 
 
 # =============================================================================
@@ -128,7 +128,7 @@ def mock_status_file_path(status_file, monkeypatch):
         return status_file
 
     if get_status_file_path is not None:
-        monkeypatch.setattr("test_status_tracker.get_status_file_path", mock_get_path)
+        monkeypatch.setattr("status_tracker.get_status_file_path", mock_get_path)
 
     return status_file
 
@@ -196,7 +196,7 @@ class TestWriteStatus:
         def mock_get_path():
             return new_status_file
 
-        monkeypatch.setattr("test_status_tracker.get_status_file_path", mock_get_path)
+        monkeypatch.setattr("status_tracker.get_status_file_path", mock_get_path)
 
         # Write status - should create directory
         write_status(passed=True, timestamp="2026-01-01T12:00:00Z")
@@ -382,7 +382,7 @@ class TestReadStatus:
         def mock_get_path():
             return symlink_path
 
-        monkeypatch.setattr("test_status_tracker.get_status_file_path", mock_get_path)
+        monkeypatch.setattr("status_tracker.get_status_file_path", mock_get_path)
 
         # Reading should either fail or follow symlink safely
         status = read_status()
@@ -554,7 +554,7 @@ class TestEdgeCases:
         def mock_get_path():
             return readonly_path
 
-        monkeypatch.setattr("test_status_tracker.get_status_file_path", mock_get_path)
+        monkeypatch.setattr("status_tracker.get_status_file_path", mock_get_path)
 
         try:
             write_status(passed=True, timestamp="2026-01-01T12:00:00Z")

@@ -7,7 +7,7 @@ passage before allowing git commits.
 
 Feature:
 Block-at-submit hook that prevents commits when tests have failed. Reads test
-status from test_status_tracker and blocks commit if tests haven't passed.
+status from status_tracker and blocks commit if tests haven't passed.
 
 Problem:
 Need to prevent developers from committing code that breaks tests:
@@ -18,7 +18,7 @@ Need to prevent developers from committing code that breaks tests:
 
 Solution:
 PreCommit hook that:
-1. Reads test status from test_status_tracker
+1. Reads test status from status_tracker
 2. Exits with EXIT_SUCCESS (0) if tests passed
 3. Exits with EXIT_BLOCK (2) if tests failed or status missing
 4. Can be disabled via ENFORCE_TEST_GATE=false environment variable
@@ -144,7 +144,7 @@ def mock_env():
 
 @pytest.fixture
 def mock_test_status():
-    """Mock test_status_tracker module."""
+    """Mock status_tracker module."""
     mock_tracker = MagicMock()
     mock_tracker.read_status = MagicMock()
     return mock_tracker
@@ -165,7 +165,7 @@ class TestExitCodes:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -179,7 +179,7 @@ class TestExitCodes:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -193,7 +193,7 @@ class TestExitCodes:
             "timestamp": None
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -210,7 +210,7 @@ class TestExitCodes:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -223,7 +223,7 @@ class TestExitCodes:
 # =============================================================================
 
 class TestStatusIntegration:
-    """Test integration with test_status_tracker."""
+    """Test integration with status_tracker."""
 
     def test_reads_status_from_tracker(self, mock_test_status):
         """Test that hook reads status from tracker."""
@@ -232,7 +232,7 @@ class TestStatusIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
 
             # Should have called read_status()
@@ -246,7 +246,7 @@ class TestStatusIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             assert result is True
 
@@ -257,7 +257,7 @@ class TestStatusIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             assert result is False
 
@@ -267,7 +267,7 @@ class TestStatusIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             # Missing 'passed' should be treated as failure
             assert result is False
@@ -275,7 +275,7 @@ class TestStatusIntegration:
     def test_handles_tracker_import_error(self):
         """Test graceful handling when tracker module unavailable."""
         # Mock import to fail
-        with patch.dict("sys.modules", {"test_status_tracker": None}):
+        with patch.dict("sys.modules", {"status_tracker": None}):
             # Should either return False or handle gracefully
             try:
                 result = check_test_status()
@@ -288,7 +288,7 @@ class TestStatusIntegration:
         """Test handling when tracker raises exception."""
         mock_test_status.read_status.side_effect = Exception("Tracker error")
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             # Exception should be treated as test failure (safe default)
             assert result is False
@@ -433,7 +433,7 @@ class TestLifecycleCompliance:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -447,7 +447,7 @@ class TestLifecycleCompliance:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -465,7 +465,7 @@ class TestLifecycleCompliance:
         for status in test_cases:
             mock_test_status.read_status.return_value = status
 
-            with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+            with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
 
@@ -487,7 +487,7 @@ class TestGracefulDegradation:
             "passed": "not-a-boolean",  # Invalid type
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             # Should treat corrupted data as failure
             assert result is False
@@ -496,7 +496,7 @@ class TestGracefulDegradation:
         """Test handling when status is empty dict."""
         mock_test_status.read_status.return_value = {}
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             assert result is False
 
@@ -504,7 +504,7 @@ class TestGracefulDegradation:
         """Test handling when tracker returns None."""
         mock_test_status.read_status.return_value = None
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             assert result is False
 
@@ -512,7 +512,7 @@ class TestGracefulDegradation:
         """Test handling when status file cannot be read."""
         mock_test_status.read_status.side_effect = PermissionError("Access denied")
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             # Permission error should be treated as failure (safe default)
             assert result is False
@@ -528,7 +528,7 @@ class TestGracefulDegradation:
         def mock_print_error(*args, **kwargs):
             raise IOError("Cannot write to stdout")
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with patch("builtins.print", side_effect=mock_print_error):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
@@ -595,7 +595,7 @@ class TestManifestValidation:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with patch("pre_commit_gate.check_manifest_valid", return_value=False):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
@@ -618,7 +618,7 @@ class TestEdgeCases:
             "timestamp": "2020-01-01T00:00:00Z"  # Old timestamp
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             # Hook might warn about old results but should still check passed status
             result = check_test_status()
             # Could either accept old results or reject them
@@ -631,7 +631,7 @@ class TestEdgeCases:
             "timestamp": "2099-12-31T23:59:59Z"  # Future timestamp
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             result = check_test_status()
             # Should handle future timestamps gracefully
             assert isinstance(result, bool)
@@ -643,7 +643,7 @@ class TestEdgeCases:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             # Call multiple times rapidly
             results = [check_test_status() for _ in range(10)]
 
@@ -657,7 +657,7 @@ class TestEdgeCases:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             message = get_error_message(passed=False, has_status=True)
 
             # Should be valid string (no encoding errors)
@@ -698,7 +698,7 @@ class TestIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -714,7 +714,7 @@ class TestIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -738,7 +738,7 @@ class TestIntegration:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with pytest.raises(SystemExit) as exc_info:
                 main()
 
@@ -766,7 +766,7 @@ class TestPerformance:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             with patch("pre_commit_gate.check_manifest_valid", return_value=True):
                 start = time.time()
 
@@ -787,7 +787,7 @@ class TestPerformance:
             "timestamp": "2026-01-01T12:00:00Z"
         }
 
-        with patch.dict("sys.modules", {"test_status_tracker": mock_test_status}):
+        with patch.dict("sys.modules", {"status_tracker": mock_test_status}):
             try:
                 main()
             except SystemExit:

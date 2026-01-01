@@ -1066,13 +1066,13 @@ Hooks for ensuring documentation, commands, codebase stay in sync, and tests pas
 
 **Purpose**: Block commits when tests are failing or haven't been run (Issue #174)
 **Actions**:
-- Reads test execution status from `test_status_tracker` library
+- Reads test execution status from `status_tracker` library
 - Exits with EXIT_SUCCESS (0) if tests passed
 - Exits with EXIT_BLOCK (2) if tests failed or status missing
 - Can be disabled via ENFORCE_TEST_GATE=false environment variable
 - Provides clear error messages with remediation steps
 **Lifecycle**: PreCommit (blocks commits with EXIT_BLOCK)
-**Library**: Uses `test_status_tracker.py` from `plugins/autonomous-dev/lib/`
+**Library**: Uses `status_tracker.py` from `plugins/autonomous-dev/lib/`
 
 **Problem solved**:
 - Prevents broken code from entering version control

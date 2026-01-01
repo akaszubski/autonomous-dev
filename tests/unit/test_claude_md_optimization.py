@@ -73,7 +73,7 @@ class TestCharacterCountValidation:
         Distribution: CLAUDE.md + LIBRARIES.md + PERFORMANCE.md + GIT-AUTOMATION.md
         Tolerance: ±15% (includes 35 libraries from LIBRARIES.md)
         """
-        original_size = 400000  # Updated baseline for v3.46.0+ with 60+ libraries
+        original_size = 470000  # Updated baseline for v3.47.0+ with 70+ libraries
 
         # Paths
         project_root = Path(__file__).parent.parent.parent

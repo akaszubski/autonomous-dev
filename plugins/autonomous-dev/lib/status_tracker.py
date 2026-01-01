@@ -20,7 +20,7 @@ Security Features:
 - Graceful degradation on all errors (returns safe defaults)
 
 Usage:
-    from test_status_tracker import write_status, read_status, clear_status
+    from status_tracker import write_status, read_status, clear_status
 
     # After test run completes
     write_status(passed=True, details={"total": 100, "failed": 0})

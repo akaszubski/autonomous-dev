@@ -18,7 +18,7 @@ Developers may skip tests in rush to commit:
 
 Solution:
 PreCommit hook that:
-1. Reads test status from test_status_tracker
+1. Reads test status from status_tracker
 2. Exits with EXIT_SUCCESS (0) if tests passed
 3. Exits with EXIT_BLOCK (2) if tests failed or status missing
 4. Can be disabled via ENFORCE_TEST_GATE=false environment variable
@@ -142,7 +142,7 @@ def check_test_status() -> bool:
     """
     try:
         # Dynamic import for testability (allows mocking via sys.modules)
-        from test_status_tracker import read_status
+        from status_tracker import read_status
 
         # Read status from tracker
         status = read_status()
@@ -263,7 +263,7 @@ def main() -> None:
 
     # Read test status (single read for both check and error message)
     try:
-        from test_status_tracker import read_status
+        from status_tracker import read_status
         status = read_status()
     except (ImportError, Exception):
         # Tracker unavailable - treat as tests not run

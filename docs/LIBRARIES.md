@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (35)
+### Core Libraries (36)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -45,7 +45,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
 33. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
 34. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
-35. **test_status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
+35. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
+36. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -8955,7 +8956,7 @@ Examples:
 
 ---
 
-## 60. test_status_tracker.py (363 lines, v1.0.0 - Issue #174)
+## 60. status_tracker.py (363 lines, v1.0.0 - Issue #174)
 
 **Purpose**: Manages test execution status for pre-commit gate hook (block-at-submit validation).
 
@@ -8980,7 +8981,7 @@ Examples:
 
 **Examples**:
 ```python
-from test_status_tracker import get_status_file_path
+from status_tracker import get_status_file_path
 path = get_status_file_path()
 assert path.is_absolute()
 assert ".autonomous-dev" in str(path)
@@ -9015,7 +9016,7 @@ assert ".autonomous-dev" in str(path)
 
 **Usage Examples**:
 ```python
-from test_status_tracker import write_status
+from status_tracker import write_status
 
 # After successful test run (auto-timestamp)
 write_status(passed=True)
@@ -9052,7 +9053,7 @@ write_status(passed=True, timestamp="2026-01-01T12:00:00Z")
 
 **Usage Examples**:
 ```python
-from test_status_tracker import read_status
+from status_tracker import read_status
 
 status = read_status()
 if status["passed"]:
@@ -9070,7 +9071,7 @@ if status["timestamp"]:
 **With pre_commit_gate hook**:
 ```python
 # pre_commit_gate.py reads status to decide whether to block
-from test_status_tracker import read_status
+from status_tracker import read_status
 
 status = read_status()
 if status["passed"]:
@@ -9082,7 +9083,7 @@ else:
 **With test-master agent in /auto-implement**:
 ```python
 # test-master writes status after running tests
-from test_status_tracker import write_status
+from status_tracker import write_status
 
 # After all tests pass
 write_status(passed=True)
@@ -9118,7 +9119,7 @@ write_status(passed=False)
 **Basic workflow**:
 ```python
 # 1. Test runner writes status after execution
-from test_status_tracker import write_status
+from status_tracker import write_status
 import subprocess
 
 result = subprocess.run(["pytest"], capture_output=True)
@@ -9128,7 +9129,7 @@ else:
     write_status(passed=False)
 
 # 2. Pre-commit hook reads status
-from test_status_tracker import read_status
+from status_tracker import read_status
 
 status = read_status()
 if status["passed"]:
@@ -9151,7 +9152,7 @@ write_status(passed=all_tests_pass)
 
 ### Test Coverage
 
-Test File: tests/unit/lib/test_status_tracker.py
+Test File: tests/unit/lib/status_tracker.py
 
 Coverage includes:
 - **Get path**: Path is absolute, contains expected directory
@@ -9178,9 +9179,9 @@ Target: 95% coverage of core functionality
 - [docs/DEVELOPMENT.md - TDD workflow](docs/DEVELOPMENT.md)
 
 **Implementation**:
-- `plugins/autonomous-dev/lib/test_status_tracker.py` (363 lines)
+- `plugins/autonomous-dev/lib/status_tracker.py` (363 lines)
 - `plugins/autonomous-dev/hooks/pre_commit_gate.py` (299 lines)
-- `tests/unit/lib/test_status_tracker.py`
+- `tests/unit/lib/status_tracker.py`
 
 **GitHub**: Issue #174 - Block-at-submit hook with test status tracking
 
@@ -10568,11 +10569,11 @@ if binary == SandboxBinary.BWRAP:
 - **Tests**: tests/unit/lib/test_sandbox_enforcer.py
 
 
-## 67. test_status_tracker.py (335 lines, v3.48.0+ - Issue #174)
+## 67. status_tracker.py (335 lines, v3.48.0+ - Issue #174)
 
 **Purpose**: Test status tracking for pre-commit gate hook enforcement
 
-**Module**: plugins/autonomous-dev/lib/test_status_tracker.py
+**Module**: plugins/autonomous-dev/lib/status_tracker.py
 
 **Problem**: Pre-commit hooks need to know if tests passed before allowing commits. A simple, reliable mechanism is needed for test runners to communicate test status to the commit hook.
 
@@ -10589,7 +10590,7 @@ if binary == SandboxBinary.BWRAP:
 **API Reference**:
 
 ```python
-from test_status_tracker import write_status, read_status, clear_status, get_status_file_path
+from status_tracker import write_status, read_status, clear_status, get_status_file_path
 
 # After test run completes
 write_status(passed=True, details={"total": 100, "failed": 0})
@@ -10678,7 +10679,7 @@ path = get_status_file_path()
 ```python
 # Test runner integration
 import subprocess
-from test_status_tracker import write_status
+from status_tracker import write_status
 
 result = subprocess.run(['pytest', 'tests/'], capture_output=True)
 write_status(
@@ -10691,7 +10692,7 @@ write_status(
 )
 
 # Pre-commit hook integration
-from test_status_tracker import read_status
+from status_tracker import read_status
 
 status = read_status()
 if not status.get("passed"):
@@ -10722,20 +10723,243 @@ if not status.get("passed"):
 
 **Related Documentation**:
 - docs/LIBRARIES.md - This section (67)
-- docs/HOOKS.md - pre_commit_gate section (uses test_status_tracker)
+- docs/HOOKS.md - pre_commit_gate section (uses status_tracker)
 - plugins/autonomous-dev/hooks/pre_commit_gate.py - Hook implementation
 - Issue #174 - Block-at-submit hook for test passage enforcement
 
 **Testing**:
 ```bash
 # Self-test (included in module)
-python plugins/autonomous-dev/lib/test_status_tracker.py
+python plugins/autonomous-dev/lib/status_tracker.py
 
 # Integrated tests
-pytest tests/unit/lib/test_test_status_tracker.py
+pytest tests/unit/lib/test_status_tracker.py
 ```
 
 **Backward Compatibility**: N/A (new library)
 
 **Version History**:
 - v1.0.0 (2026-01-02) - Initial release with atomic writes, secure permissions, graceful degradation
+
+
+---
+
+## 68. headless_mode.py (263 lines, v1.0.0 - Issue #176)
+
+**Purpose**: CI/CD integration support for headless/non-interactive environments
+
+**GitHub Issue**: #176 - Headless mode for CI/CD integration
+
+### Functions
+
+#### `detect_headless_flag() -> bool`
+- **Purpose**: Detect if --headless flag is present in sys.argv
+- **Parameters**: None
+- **Returns**: bool - True if --headless flag is present (case-sensitive, exact match)
+- **Features**:
+  - Case-sensitive matching (--Headless returns False)
+  - Exact match only (--headless-verbose would not match)
+  - No argument parsing required (simple membership check)
+
+#### `detect_ci_environment() -> bool`
+- **Purpose**: Detect if running in a CI/CD environment
+- **Parameters**: None
+- **Returns**: bool - True if any CI environment variable is detected
+- **Features**:
+  - Checks common CI environment variables (case-insensitive values):
+    - CI=true, CI=1
+    - GITHUB_ACTIONS=true, GITHUB_ACTIONS=1
+    - GITLAB_CI=true, GITLAB_CI=1
+    - CIRCLECI=true, CIRCLECI=1
+    - TRAVIS=true, TRAVIS=1
+  - JENKINS_HOME: Any non-empty value (typically /var/jenkins_home)
+- **Supported CI Systems**:
+  - GitHub Actions
+  - GitLab CI/CD
+  - CircleCI
+  - Travis CI
+  - Jenkins
+  - Any CI that sets CI=true standard
+
+#### `is_headless_mode() -> bool`
+- **Purpose**: Determine if running in headless mode (combined detection)
+- **Parameters**: None
+- **Returns**: bool - True if headless mode is active
+- **Detection Logic** (in priority order):
+  1. Explicit --headless flag present -> Return True
+  2. CI environment AND not TTY -> Return True
+  3. Not TTY (stdin not a terminal) -> Return True
+  4. Otherwise -> Return False
+- **Features**:
+  - TTY detection via sys.stdin.isatty()
+  - Combines flag-based and environment-based detection
+  - Detects CI environments without explicit flag
+  - Detects piped input (not TTY)
+
+#### `should_skip_prompts() -> bool`
+- **Purpose**: Determine if interactive prompts should be skipped
+- **Parameters**: None
+- **Returns**: bool - True if prompts should be skipped (alias for is_headless_mode())
+- **Usage**: Call this in interactive workflows to decide whether to prompt
+
+#### `format_json_output(status, data, error) -> str`
+- **Purpose**: Format output as JSON for machine parsing
+- **Parameters**:
+  - status (str): Status string ("success" or "error")
+  - data (Optional[Dict[str, Any]]): Optional data dictionary to include
+  - error (Optional[str]): Optional error message (only for error status)
+- **Returns**: str - JSON-formatted string with no trailing newline
+- **Output Format**:
+  - Success: {"status": "success", ... additional data fields ...}
+  - Error: {"status": "error", "error": "error message"}
+- **Features**:
+  - Merges data fields directly into output dict (flattens structure)
+  - Includes error message when present
+  - Compact JSON output (no pretty-printing)
+  - Machine-readable for CI/CD pipelines
+
+#### `get_exit_code(status, error_type) -> int`
+- **Purpose**: Map status/error_type to exit code for CI/CD pipelines
+- **Parameters**:
+  - status (str): Status string ("success" or "error")
+  - error_type (Optional[str]): Optional error type for specific exit codes
+- **Returns**: int - Exit code (0-5)
+- **Exit Code Mapping**:
+  - 0: success (status == "success")
+  - 1: generic error (status == "error", no error_type or unknown type)
+  - 2: alignment_failed (error_type == "alignment_failed")
+  - 3: tests_failed (error_type == "tests_failed")
+  - 4: security_failed (error_type == "security_failed")
+  - 5: timeout (error_type == "timeout")
+- **Features**:
+  - Semantic exit codes for CI/CD integration
+  - Graceful fallback to 1 for unknown error types
+  - Type-safe mapping (uses dict.get with default)
+
+#### `configure_auto_git_for_headless() -> Dict[str, str]`
+- **Purpose**: Configure AUTO_GIT environment variables for headless mode
+- **Parameters**: None
+- **Returns**: dict - Dictionary of configured values with keys: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+- **Features**:
+  - Sets environment variables if not already set (respects existing configuration)
+  - AUTO_GIT_ENABLED: "true" (enables git automation)
+  - AUTO_GIT_PUSH: "true" (automatically pushes commits)
+  - AUTO_GIT_PR: "false" (no auto-PR in CI, requires manual review)
+  - Non-destructive: Does NOT override existing values
+  - Returns dict of actual values (configured or existing)
+
+### Design Patterns
+
+- **Progressive Detection**: Flag -> CI environment -> TTY checks (most to least specific)
+- **Non-blocking Enhancement**: Headless mode detection never fails, always returns safe defaults
+- **Environment-aware**: Respects existing configuration, doesn't override user choices
+- **Machine-friendly Output**: JSON format for CI/CD integration, standardized exit codes
+
+### Security Considerations
+
+- No external dependencies (uses only stdlib: os, sys, json)
+- No file I/O operations (stateless detection)
+- No subprocess calls (pure Python detection)
+- No credential exposure (no environment variable logging)
+- Case-insensitive CI environment detection (handles variations)
+- Exit codes match POSIX conventions (0 = success, 1+ = error variants)
+
+### Error Handling
+
+- All functions return safe defaults (bool or dict) on any error
+- No exceptions raised (graceful degradation)
+- Missing environment variables treated as False
+- Invalid status/error_type strings handled safely (default to generic error code 1)
+
+### Performance
+
+- detect_headless_flag(): less than 0.1ms (list membership check)
+- detect_ci_environment(): less than 0.5ms (environment variable lookups)
+- is_headless_mode(): less than 1ms (combined detection with TTY check)
+- should_skip_prompts(): less than 1ms (calls is_headless_mode())
+- format_json_output(): less than 1ms (JSON serialization)
+- get_exit_code(): less than 0.1ms (dict lookup)
+- configure_auto_git_for_headless(): less than 1ms (environment variable writes)
+
+### Integration Patterns
+
+**Pattern 1: Skip Interactive Prompts in Headless**
+```python
+from headless_mode import should_skip_prompts
+
+if should_skip_prompts():
+    response = "yes"
+else:
+    response = input("Continue? (yes/no): ")
+```
+
+**Pattern 2: JSON Output for CI/CD**
+```python
+from headless_mode import is_headless_mode, format_json_output
+
+try:
+    result = perform_workflow()
+    output = format_json_output("success", {"feature": result})
+except Exception as e:
+    output = format_json_output("error", error=str(e))
+
+if is_headless_mode():
+    print(output)
+else:
+    print("Workflow completed successfully")
+```
+
+**Pattern 3: Exit Codes for CI/CD Integration**
+```python
+from headless_mode import get_exit_code, format_json_output
+
+try:
+    result = run_tests()
+    if result.passed:
+        output = format_json_output("success", {"tests": result.count})
+        exit(get_exit_code("success"))
+    else:
+        output = format_json_output("error", error="Tests failed")
+        exit(get_exit_code("error", "tests_failed"))
+except TimeoutError:
+    output = format_json_output("error", error="Timeout")
+    exit(get_exit_code("error", "timeout"))
+```
+
+**Pattern 4: Auto-configure Git for Headless**
+```python
+from headless_mode import is_headless_mode, configure_auto_git_for_headless
+
+if is_headless_mode():
+    config = configure_auto_git_for_headless()
+```
+
+### Related Libraries
+
+- auto_implement_git_integration.py - Uses AUTO_GIT env vars configured by headless_mode
+- status_tracker.py - Provides test status for exit code determination
+- hook_exit_codes.py - Standardized exit code constants
+
+### Used By
+
+- /auto-implement command (respects headless mode, skips prompts)
+- /batch-implement command (uses headless detection for mode selection)
+- GitHub Actions and other CI/CD systems
+- Docker containers (non-TTY environments)
+- Headless servers and API backends
+
+### Test Coverage
+
+- Environment detection tests (CI vars, TTY checks, flag parsing)
+- Exit code mapping tests (all status/error_type combinations)
+- JSON output formatting tests (success, error, merged data)
+- Integration tests (headless workflows with auto-git configuration)
+- Edge cases: Missing env vars, invalid JSON data, type mismatches
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with CI/CD detection, JSON output, exit codes, and auto-git configuration
+
+### Backward Compatibility
+
+N/A (new library - Issue #176)
