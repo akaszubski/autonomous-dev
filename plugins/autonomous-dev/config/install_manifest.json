@@ -210,6 +210,7 @@
         "plugins/autonomous-dev/lib/permission_classifier.py",
         "plugins/autonomous-dev/lib/plugin_updater.py",
         "plugins/autonomous-dev/lib/pool_config.py",
+        "plugins/autonomous-dev/lib/parallel_validation.py",
         "plugins/autonomous-dev/lib/pr_automation.py",
         "plugins/autonomous-dev/lib/project_md_parser.py",
         "plugins/autonomous-dev/lib/project_md_updater.py",
