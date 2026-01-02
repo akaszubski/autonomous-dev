@@ -113,6 +113,10 @@ def _get_default_policy_file():
 # Format: (pattern, reason_name)
 # NOTE: Patterns are targeted to dangerous combinations, not broad operators
 # This allows legitimate shell usage like "cmd1 && cmd2" while blocking "cmd; rm -rf"
+# IMPORTANT: Patterns should NOT block legitimate development workflows (Issue #194):
+# - HEREDOC syntax: $(cat <<'EOF'...) is safe for git commits
+# - Multi-line commands: newlines in commit messages are expected
+# - Command substitution for safe operations (git, cat, echo)
 INJECTION_PATTERNS = [
     (r'\r', 'carriage_return'),                   # Carriage return injection (CWE-117)
     (r'\x00', 'null_byte'),                       # Null byte injection (CWE-158)
@@ -130,9 +134,9 @@ INJECTION_PATTERNS = [
     (r'\|\s*bash\b', 'pipe_to_bash'),             # Pipe to bash (dangerous)
     (r'\|\s*sh\b', 'pipe_to_sh'),                 # Pipe to sh (dangerous)
     (r'\|\s*zsh\b', 'pipe_to_zsh'),               # Pipe to zsh (dangerous)
-    (r'`[^`]+`', 'backticks'),                    # Command substitution (backticks)
-    (r'\$\([^)]+\)', 'command_substitution'),     # Command substitution $(...)
-    (r'\n', 'newline'),                           # Newline command injection (any newline)
+    (r'`[^`]+`', 'backticks'),                    # Command substitution (backticks) - legacy syntax
+    # NOTE: $(cat <<'EOF') HEREDOC pattern is intentionally NOT blocked - it's safe for git commits
+    # NOTE: Newlines are intentionally NOT blocked - multi-line commands are legitimate
     (r'>\s*/etc/', 'output_redirection_etc'),     # Output redirection to /etc
     (r'>\s*/var/', 'output_redirection_var'),     # Output redirection to /var
     (r'>\s*/root/', 'output_redirection_root'),   # Output redirection to /root

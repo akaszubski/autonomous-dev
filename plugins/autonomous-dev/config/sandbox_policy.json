@@ -38,18 +38,10 @@
         ":\\(\\)\\{.*\\};"
       ],
       "shell_injection_patterns": [
-        ";",
-        "&&",
-        "||",
-        "|",
-        "`",
-        "$(",
-        ")",
-        ">",
-        ">>",
-        "<",
-        "\u0000"
+        "\u0000",
+        "\r"
       ],
+      "_shell_injection_note": "Minimal patterns - only block null bytes and carriage returns. Legitimate shell operators (;, &&, ||, |, $(), etc.) are allowed for normal development workflows like git commits with HEREDOC.",
       "blocked_paths": [
         ".env",
         ".ssh/",
@@ -84,17 +76,10 @@
         "git push --force"
       ],
       "shell_injection_patterns": [
-        ";",
-        "&&",
-        "||",
-        "|",
-        "`",
-        "$(",
-        ")",
-        ">",
-        ">>",
-        "<"
+        "\u0000",
+        "\r"
       ],
+      "_shell_injection_note": "Minimal patterns - only block null bytes and carriage returns.",
       "blocked_paths": [
         ".env",
         ".ssh/",
@@ -125,17 +110,10 @@
         "curl"
       ],
       "shell_injection_patterns": [
-        ";",
-        "&&",
-        "||",
-        "|",
-        "`",
-        "$(",
-        ")",
-        ">",
-        ">>",
-        "<"
+        "\u0000",
+        "\r"
       ],
+      "_shell_injection_note": "Minimal patterns - only block null bytes and carriage returns.",
       "blocked_paths": [
         ".env",
         ".ssh/",
