@@ -137,6 +137,7 @@
         "plugins/autonomous-dev/scripts/install.py",
         "plugins/autonomous-dev/scripts/invoke_agent.py",
         "plugins/autonomous-dev/scripts/migrate_hook_paths.py",
+        "plugins/autonomous-dev/scripts/parallel_validation.py",
         "plugins/autonomous-dev/scripts/pipeline_controller.py",
         "plugins/autonomous-dev/scripts/progress_display.py",
         "plugins/autonomous-dev/scripts/session_tracker.py"

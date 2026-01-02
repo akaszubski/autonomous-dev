@@ -150,16 +150,16 @@ def validate_sandbox_layer(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     # Check if sandbox is enabled
     enabled = os.getenv("SANDBOX_ENABLED", "false").lower() == "true"
     if not enabled:
-        return ("ask", "Sandbox layer disabled")
+        return ("allow", "Sandbox layer disabled - pass through")
 
     # Only validate Bash commands
     if tool_name != "Bash":
-        return ("ask", "Sandbox layer only validates Bash commands")
+        return ("allow", "Sandbox layer only validates Bash commands - pass through")
 
     # Extract command from tool_input
     command = tool_input.get("command", "")
     if not command:
-        return ("ask", "No command to validate")
+        return ("allow", "No command to validate - pass through")
 
     try:
         # Try to import sandbox enforcer
@@ -246,11 +246,14 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
                     return ("ask", f"Not whitelisted: {reason}")
 
             except ImportError:
-                # Neither validator available - ask user (safe default)
-                return ("ask", "MCP security validators unavailable")
+                # Neither validator available but MCP_AUTO_APPROVE=true - allow
+                return ("allow", "MCP security validators unavailable, MCP_AUTO_APPROVE=true - pass through")
 
     except Exception as e:
-        # Error in validation - ask user (don't block on errors)
+        # Error in validation - allow if MCP_AUTO_APPROVE=true, otherwise ask
+        auto_approve = os.getenv("MCP_AUTO_APPROVE", "false").lower() == "true"
+        if auto_approve:
+            return ("allow", f"MCP security error but MCP_AUTO_APPROVE=true - pass through: {e}")
         return ("ask", f"MCP security error: {e}")
 
 
