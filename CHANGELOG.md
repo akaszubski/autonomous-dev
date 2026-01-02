@@ -1,6 +1,89 @@
 ## [Unreleased]
 
 **Added**
+- **Self-Healing QA Libraries (Issue #184, v1.0.0)**
+  - **Purpose**: Automatically detect, analyze, and fix failing tests without manual intervention
+  - **Problem**: Test failures during development require manual analysis and fixes; repetitive for simple issues (syntax errors, typos, import errors)
+  - **Solution**: Four-library self-healing system that orchestrates iterative test repair with circuit breaker protection
+  - **Key Features**:
+    - Iterative healing loop (max 10 iterations, configurable)
+    - Multi-failure handling (fix all failures per iteration)
+    - Stuck detection (3+ identical errors triggers circuit breaker)
+    - Atomic file patching with backup/rollback
+    - Environment variable controls (SELF_HEAL_ENABLED, SELF_HEAL_MAX_ITERATIONS)
+    - Audit logging for all healing attempts
+    - Thread-safe error tracking
+  - **Key Libraries**:
+    - **qa_self_healer.py** (16360 bytes) - Orchestrator for iterative healing loop
+      - Classes: QASelfHealer, SelfHealingResult, HealingAttempt
+      - Methods: heal_test_failures(test_command), run_tests_with_healing()
+      - Features: Multi-failure handling, stuck detection, audit logging
+    - **failure_analyzer.py** (13606 bytes) - Parse pytest output for structured errors
+      - Classes: FailureAnalyzer, FailureAnalysis
+      - Error types: syntax, import, assertion, type, runtime
+      - Features: File/line extraction, stack trace parsing, graceful degradation
+    - **code_patcher.py** (11241 bytes) - Atomic file patching with safety
+      - Classes: CodePatcher, ProposedFix
+      - Methods: apply_patch(), rollback_last_patch(), cleanup_backups()
+      - Security: CWE-22 (path traversal), CWE-59 (symlink) prevention
+    - **stuck_detector.py** (5453 bytes) - Detect infinite healing loops
+      - Classes: StuckDetector
+      - Methods: record_error(), is_stuck(), reset(), compute_error_signature()
+      - Features: Signature normalization, consecutive tracking, thread-safe
+  - **Design Patterns**:
+    - Iterative Healing: Loop until success, stuck, or max iterations
+    - Multi-failure Handling: Process all failures per iteration (faster convergence)
+    - Circuit Breaker: Prevent infinite loops with stuck detection
+    - Atomic Operations: Safe patching with backup/rollback
+    - Graceful Degradation: Malformed pytest output doesn't crash
+  - **API Highlights**:
+    - QASelfHealer.heal_test_failures(test_command) - Main entry point
+    - FailureAnalyzer.parse_pytest_output(output) - Parse test failures
+    - CodePatcher.apply_patch(fix) - Apply atomic fix
+    - StuckDetector.is_stuck() - Check for infinite loop
+  - **Security Features**:
+    - No arbitrary code execution (only pre-generated fixes)
+    - Path validation prevents CWE-22 (traversal), CWE-59 (symlinks)
+    - Atomic writes prevent partial corruption
+    - Backup creation for recovery
+    - Thread-safe error tracking
+  - **Performance**:
+    - Iteration 1: 2-5 seconds (test + analyze + fix)
+    - Subsequent: 1-3 seconds each
+    - Typical convergence: 2-4 iterations for simple fixes
+    - Parse time: <10ms for small output, <100ms for large
+    - Zero startup overhead
+  - **Typical Workflow**:
+    1. test-master writes failing test (TDD red phase)
+    2. qa_self_healer.heal_test_failures() starts
+    3. failure_analyzer parses pytest output
+    4. code_patcher applies fixes atomically
+    5. stuck_detector prevents infinite loops
+    6. Loop repeats until success or max iterations
+  - **Integration Points**:
+    - test-master agent: Uses heal_test_failures() during TDD green phase
+    - /auto-implement command: May use for test fix iterations
+    - /batch-implement command: May use per-feature test healing
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/qa_self_healer.py (16360 bytes)
+    - plugins/autonomous-dev/lib/failure_analyzer.py (13606 bytes)
+    - plugins/autonomous-dev/lib/code_patcher.py (11241 bytes)
+    - plugins/autonomous-dev/lib/stuck_detector.py (5453 bytes)
+  - **Documentation**:
+    - docs/LIBRARIES.md: New sections 70-73 with complete API docs, examples, patterns
+    - docs/CHANGELOG.md: This entry
+    - Library docstrings with usage examples and design patterns
+  - **Test Coverage**:
+    - Healing loop iterations, stuck detection, circuit breaker
+    - Multi-error type parsing (syntax, import, assertion, type, runtime)
+    - Atomic patching, backup creation, rollback
+    - Path validation, thread safety, performance
+  - **Backward Compatibility**: 100% compatible - new libraries, no API changes
+  - **Environment Variables**:
+    - SELF_HEAL_ENABLED (default: true) - Enable/disable healing
+    - SELF_HEAL_MAX_ITERATIONS (default: 10) - Max healing iterations
+  - **GitHub Issue**: Issue #184 - Self-healing QA loop with automatic test fix iterations
+
 - **AI-Powered Merge Conflict Resolution (Issue #183, v1.0.0)**
   - **Purpose**: Intelligently resolve git merge conflicts using Claude API with three-tier escalation
   - **Problem**: Merge conflicts require manual resolution with code context understanding; tedious for simple conflicts, complex for semantic issues

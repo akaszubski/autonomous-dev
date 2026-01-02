@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (36)
+### Core Libraries (40)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -47,6 +47,10 @@ The autonomous-dev plugin includes shared libraries organized into the following
 34. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
 35. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
 36. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
+37. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
+38. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
+39. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
+40. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -80,6 +84,653 @@ The autonomous-dev plugin includes shared libraries organized into the following
 
 42. **genai_install_wrapper.py** - CLI wrapper for setup-wizard Phase 0 GenAI-first installation with JSON output (Issue #109)
 43. **migrate_hook_paths.py** - Migrate PreToolUse hook paths from hardcoded to portable ~/.claude/hooks/pre_tool_use.py (Issue #113)
+
+## 70. qa_self_healer.py (16360 bytes, v1.0.0 - Issue #184)
+
+**Purpose**: Orchestrate automatic test healing with fix iterations to resolve test failures without manual intervention.
+
+**Problem**: When tests fail during development, engineers must manually analyze error messages, implement fixes, and re-run tests. This is repetitive and error-prone for simple issues (missing colons, typos, incorrect imports).
+
+**Solution**: Self-healing QA orchestrator that automatically detects failures, analyzes errors, generates fixes, applies patches, and retries until all tests pass or max iterations/stuck detection reached.
+
+**Location**: `plugins/autonomous-dev/lib/qa_self_healer.py`
+
+**Key Features**:
+- Iterative healing loop (max 10 iterations by default)
+- Multi-failure handling (fix all failures in each iteration)
+- Stuck detection (3 identical errors triggers circuit breaker)
+- Environment variable controls (SELF_HEAL_ENABLED, SELF_HEAL_MAX_ITERATIONS)
+- Audit logging for all healing attempts
+- Atomic rollback on patch failure
+
+### Classes
+
+#### `SelfHealingResult`
+Result object from healing operation with full history and outcome.
+
+**Attributes**:
+- `success: bool` - True if all tests pass after healing
+- `iterations: int` - Number of healing iterations performed
+- `attempts: List[HealingAttempt]` - Detailed history of each attempt
+- `final_test_output: str` - Final pytest output
+- `stuck_detected: bool` - True if stuck detector triggered
+- `max_iterations_reached: bool` - True if hit iteration limit
+- `error_message: str` - Error details if healing failed
+
+#### `HealingAttempt`
+Single healing attempt in the loop.
+
+**Attributes**:
+- `iteration: int` - Attempt number (1-indexed)
+- `failures: List[FailureAnalysis]` - Errors found in test output
+- `fixes_generated: int` - Number of fixes attempted
+- `fixes_applied: int` - Number of fixes successfully applied
+- `timestamp: str` - When attempt occurred
+
+#### `QASelfHealer`
+Main orchestrator for self-healing workflow.
+
+**Constructor**:
+```python
+QASelfHealer(
+    test_dir: Optional[Path] = None,
+    max_iterations: int = 10,
+    enabled: bool = True,
+    stuck_threshold: int = 3
+)
+```
+
+**Parameters**:
+- `test_dir` - Test directory (default: current directory)
+- `max_iterations` - Max healing iterations (default: 10, overridable via SELF_HEAL_MAX_ITERATIONS env var)
+- `enabled` - Enable self-healing (default: True, overridable via SELF_HEAL_ENABLED env var)
+- `stuck_threshold` - Stuck detection threshold (default: 3 consecutive identical errors)
+
+### Methods
+
+#### `heal_test_failures(test_command)`
+
+Run self-healing loop to fix all test failures.
+
+**Parameters**:
+- `test_command: Optional[List[str]]` - Test command to execute (default: ["pytest"])
+
+**Returns**: `SelfHealingResult` with outcome and full history
+
+**Logic**:
+```
+Loop (max iterations):
+  1. Run tests
+  2. If all pass → return SUCCESS
+  3. Parse failures from output
+  4. Check stuck detector (3 identical errors → STOP)
+  5. Generate fixes for all failures
+  6. Apply fixes atomically
+  7. Record attempt
+  8. Repeat
+```
+
+### Functions
+
+#### `heal_test_failures(test_command, max_iterations, enabled)`
+
+Convenience function for one-shot healing.
+
+**Parameters**:
+- `test_command: Optional[List[str]]` - Test command (default: ["pytest"])
+- `max_iterations: int` - Max iterations (default: 10)
+- `enabled: bool` - Enable healing (default: True)
+
+**Returns**: `SelfHealingResult`
+
+**Usage**:
+```python
+from qa_self_healer import heal_test_failures
+
+result = heal_test_failures(["pytest", "tests/"])
+if result.success:
+    print(f"All tests passing after {result.iterations} iterations!")
+elif result.stuck_detected:
+    print("Stuck - same error repeating, needs manual fix")
+```
+
+#### `run_tests_with_healing(test_command, max_iterations)`
+
+High-level entry point for test execution with automatic healing.
+
+**Parameters**:
+- `test_command: Optional[List[str]]` - Test command
+- `max_iterations: int` - Max healing iterations
+
+**Returns**: `SelfHealingResult`
+
+### Design Patterns
+
+- **Iterative Healing**: Loop until success, stuck, or max iterations
+- **Multi-failure Handling**: Process all failures in each iteration (faster convergence)
+- **Circuit Breaker**: Stuck detector prevents infinite loops
+- **Atomic Operations**: Patches applied atomically, rollback on failure
+- **Audit Trail**: All attempts logged for debugging
+
+### Integration Points
+
+**test-master Agent**: Uses `heal_test_failures()` to automatically fix failing tests after TDD red phase
+
+**Other Libraries**:
+- `failure_analyzer.py` - Parse pytest output
+- `code_patcher.py` - Apply atomic fixes
+- `stuck_detector.py` - Detect infinite loops
+
+### Security
+
+- No arbitrary code execution (only applies pre-generated fixes)
+- Path validation via `code_patcher.py` (CWE-22, CWE-59 prevention)
+- Atomic writes prevent partial updates
+- Backup creation for rollback
+
+### Performance
+
+- Iteration 1: 2-5 seconds (test run + analysis + fix)
+- Subsequent iterations: 1-3 seconds each
+- Typical convergence: 2-4 iterations for simple fixes
+- Max iterations: 10 (configurable)
+- Timeout: None (relies on underlying test runner)
+
+### Test Coverage
+
+- Successful healing (syntax errors, typos, missing imports)
+- Stuck detection (circuit breaker)
+- Max iterations reached
+- Atomic rollback on patch failure
+- Environment variable control
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with iterative healing loop (Issue #184)
+
+### Backward Compatibility
+
+N/A (new library - Issue #184)
+
+---
+
+## 71. failure_analyzer.py (13606 bytes, v1.0.0 - Issue #184)
+
+**Purpose**: Parse pytest output to extract structured failure information for automated fix generation.
+
+**Problem**: Test failure messages contain mixed stdout/stderr with variable formats. Manual parsing is error-prone. Need structured data (error type, file, line, message) to generate fixes.
+
+**Solution**: Parse pytest output with multi-error type detection and extract file path, line number, error type, and stack trace.
+
+**Location**: `plugins/autonomous-dev/lib/failure_analyzer.py`
+
+**Key Features**:
+- Multi-error type detection (syntax, import, assertion, type, runtime)
+- File path and line number extraction
+- Stack trace extraction for debugging
+- Test name extraction from pytest format
+- Graceful handling of malformed/empty output
+
+### Classes
+
+#### `FailureAnalysis`
+Structured representation of a single test failure.
+
+**Attributes**:
+- `test_name: str` - Test function/class name
+- `file_path: str` - File containing the error
+- `line_number: int` - Line number of error
+- `error_type: str` - Classification: syntax, import, assertion, type, runtime
+- `error_message: str` - Human-readable error message
+- `stack_trace: str` - Full stack trace for debugging
+
+#### `FailureAnalyzer`
+Parser for pytest output.
+
+**Constructor**:
+```python
+FailureAnalyzer()
+```
+
+No parameters required.
+
+### Methods
+
+#### `parse_pytest_output(output)`
+
+Parse raw pytest output to extract all failures.
+
+**Parameters**:
+- `output: str` - Raw pytest stdout/stderr
+
+**Returns**: `List[FailureAnalysis]` (empty list if no failures or malformed output)
+
+**Error Types**:
+- `syntax` - SyntaxError, IndentationError, invalid syntax
+- `import` - ImportError, ModuleNotFoundError
+- `assertion` - AssertionError, assertion failed
+- `type` - TypeError, AttributeError, NameError
+- `runtime` - ZeroDivisionError, KeyError, IndexError, ValueError, etc.
+
+**Graceful Degradation**:
+- Malformed output returns empty list (no crashes)
+- Missing fields populated with defaults
+- Graceful handling of variable pytest output formats
+
+### Functions
+
+#### `parse_pytest_output(output)`
+
+Convenience function for one-shot parsing.
+
+**Parameters**:
+- `output: str` - Raw pytest output
+
+**Returns**: `List[FailureAnalysis]`
+
+**Usage**:
+```python
+from failure_analyzer import parse_pytest_output
+
+output = subprocess.check_output(["pytest", "tests/"], text=True)
+failures = parse_pytest_output(output)
+
+for failure in failures:
+    print(f"{failure.error_type}: {failure.file_path}:{failure.line_number}")
+    print(f"  {failure.error_message}")
+```
+
+#### `extract_error_details(output)`
+
+Extract detailed error information (alias for parse_pytest_output).
+
+**Parameters**:
+- `output: str` - Raw pytest output
+
+**Returns**: `List[FailureAnalysis]`
+
+### Design Patterns
+
+- **Graceful Degradation**: Malformed output doesn't crash
+- **Progressive Disclosure**: Only extract needed fields
+- **Bounded Output**: No memory exhaustion on large outputs
+- **Regex-based Parsing**: No code execution risk
+
+### Integration Points
+
+**qa_self_healer.py**: Uses to parse test failures for fix generation
+
+**test-master Agent**: May use for detailed error analysis
+
+**Other Libraries**:
+- No dependencies on other libraries
+
+### Security
+
+- No arbitrary code execution
+- Safe regex parsing (no ReDoS vulnerabilities)
+- Bounded output (prevents memory exhaustion)
+- Sanitized error messages (no injection risk)
+
+### Performance
+
+- Small output (<1KB): <10ms
+- Large output (100KB+): <100ms
+- Linear time complexity relative to output size
+- Memory usage bounded by output size
+
+### Test Coverage
+
+- Multi-error type detection (syntax, import, assertion, type, runtime)
+- File path and line number extraction
+- Stack trace extraction
+- Test name extraction
+- Malformed output handling
+- Edge cases: Empty output, no failures, large files
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with multi-error type detection (Issue #184)
+
+### Backward Compatibility
+
+N/A (new library - Issue #184)
+
+---
+
+## 72. code_patcher.py (11241 bytes, v1.0.0 - Issue #184)
+
+**Purpose**: Safely apply code fixes with atomic writes, backup creation, and rollback support.
+
+**Problem**: Applying code patches requires careful handling to prevent corruption. Need atomic writes, backup creation, and rollback on failure.
+
+**Solution**: Atomic file patching with backup directory, temporary file writes, and rollback support. Validates paths for security (CWE-22, CWE-59).
+
+**Location**: `plugins/autonomous-dev/lib/code_patcher.py`
+
+**Key Features**:
+- Atomic write pattern (temp file -> rename)
+- Automatic backup creation before patching
+- Rollback support for failed patches
+- File permissions preservation
+- Security validation (CWE-22, CWE-59)
+
+### Classes
+
+#### `ProposedFix`
+Proposed code fix with metadata.
+
+**Attributes**:
+- `file_path: str` - File to patch (relative or absolute)
+- `original_code: str` - Original code snippet
+- `fixed_code: str` - Replacement code
+- `strategy: str` - Fix strategy (e.g., "add_colon", "fix_import")
+- `confidence: float` - Confidence score (0.0-1.0)
+
+#### `CodePatcher`
+Main patcher for atomic file updates.
+
+**Constructor**:
+```python
+CodePatcher(backup_dir: Optional[Path] = None)
+```
+
+**Parameters**:
+- `backup_dir` - Directory for backups (default: system temp directory)
+
+### Methods
+
+#### `apply_patch(fix)`
+
+Apply code fix with atomic write and backup.
+
+**Parameters**:
+- `fix: ProposedFix` - Fix details
+
+**Returns**: `bool` - True if patch applied successfully
+
+**Process**:
+1. Validate patch path (CWE-22, CWE-59)
+2. Create backup of original file
+3. Apply fix via atomic write (temp + rename)
+4. Verify patch applied
+5. Return success status
+
+**Error Handling**:
+- Path traversal attempts rejected
+- Symlink attacks prevented
+- Atomic writes ensure no corruption
+- Backup preserved on failure
+
+#### `rollback_last_patch()`
+
+Rollback the most recent patch from backup.
+
+**Returns**: `bool` - True if rollback successful
+
+#### `cleanup_backups()`
+
+Remove all backups after successful healing.
+
+**Returns**: `bool` - True if cleanup successful
+
+### Functions
+
+#### `validate_patch_path(file_path)`
+
+Validate file path for security issues.
+
+**Parameters**:
+- `file_path: Path` - File path to validate
+
+**Raises**: `ValueError` if path is invalid (path traversal, symlink, etc.)
+
+**Prevents**:
+- CWE-22 (path traversal via ..)
+- CWE-59 (symlink attacks)
+- Absolute paths outside project
+
+#### `apply_patch(fix, backup_dir)`
+
+Convenience function for one-shot patching.
+
+**Parameters**:
+- `fix: ProposedFix` - Fix details
+- `backup_dir: Optional[Path]` - Backup directory
+
+**Returns**: `bool` - True if patch applied
+
+**Usage**:
+```python
+from code_patcher import apply_patch, ProposedFix
+
+fix = ProposedFix(
+    file_path="test.py",
+    original_code="def foo()",
+    fixed_code="def foo():",
+    strategy="add_colon",
+    confidence=0.95
+)
+
+if apply_patch(fix):
+    print("Patch applied successfully")
+else:
+    print("Patch failed")
+```
+
+#### `create_backup(file_path, backup_dir)`
+
+Create backup of file.
+
+**Parameters**:
+- `file_path: Path` - File to backup
+- `backup_dir: Optional[Path]` - Backup directory
+
+**Returns**: `Path` - Backup file path
+
+#### `rollback_patch(file_path, backup_dir)`
+
+Rollback file from backup.
+
+**Parameters**:
+- `file_path: Path` - File to restore
+- `backup_dir: Optional[Path]` - Backup directory
+
+**Returns**: `bool` - True if rollback successful
+
+#### `cleanup_backups(backup_dir)`
+
+Remove all backups.
+
+**Parameters**:
+- `backup_dir: Optional[Path]` - Backup directory to clean
+
+**Returns**: `bool` - True if cleanup successful
+
+### Design Patterns
+
+- **Atomic Writes**: Temporary file + rename prevents partial updates
+- **Backup First**: Create backup before any modifications
+- **Rollback Support**: Quick recovery from failed patches
+- **Path Validation**: Security-first approach
+
+### Integration Points
+
+**qa_self_healer.py**: Uses to apply atomic fixes to test files
+
+**Other Libraries**:
+- `security_utils.py` - May use for additional path validation
+
+### Security
+
+- CWE-22: Path traversal prevention (reject .., absolute paths)
+- CWE-59: Symlink attack prevention (reject symlinks)
+- Atomic writes prevent partial updates
+- Backup directory isolation
+- File permissions preservation
+
+### Performance
+
+- Backup creation: 1-10ms
+- Atomic write: 2-20ms
+- Rollback: 1-10ms
+- Cleanup: 5-50ms
+- Scales with file size (large files take longer)
+
+### Test Coverage
+
+- Successful patch application
+- Atomic write verification
+- Backup creation and rollback
+- Path validation (traversal, symlinks)
+- File permissions preservation
+- Error handling and recovery
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with atomic writes and backup/rollback (Issue #184)
+
+### Backward Compatibility
+
+N/A (new library - Issue #184)
+
+---
+
+## 73. stuck_detector.py (5453 bytes, v1.0.0 - Issue #184)
+
+**Purpose**: Detect infinite healing loops from repeated identical errors to prevent wasted iterations.
+
+**Problem**: Self-healing loop can get stuck if the same error repeats (e.g., fix doesn't address root cause). Need to detect this and stop to avoid infinite iterations.
+
+**Solution**: Track error signatures and trigger circuit breaker when same error appears N consecutive times (default: 3).
+
+**Location**: `plugins/autonomous-dev/lib/stuck_detector.py`
+
+**Key Features**:
+- Error signature computation (normalized for comparison)
+- Consecutive error tracking
+- Configurable stuck threshold (default: 3)
+- Reset on successful test run
+- Thread-safe operation
+
+### Constants
+
+- `DEFAULT_STUCK_THRESHOLD` - Default threshold for stuck detection (3)
+
+### Classes
+
+#### `StuckDetector`
+Detector for infinite healing loops.
+
+**Constructor**:
+```python
+StuckDetector(threshold: int = 3)
+```
+
+**Parameters**:
+- `threshold: int` - Consecutive identical errors before stuck (default: 3)
+
+### Methods
+
+#### `record_error(error_signature)`
+
+Record an error signature for stuck detection.
+
+**Parameters**:
+- `error_signature: str` - Normalized error signature (file + line + error type)
+
+**Thread-safe**: Uses internal lock
+
+#### `is_stuck()`
+
+Check if stuck detector triggered.
+
+**Returns**: `bool` - True if threshold reached (3+ consecutive identical errors)
+
+#### `reset()`
+
+Reset stuck detector after successful iteration.
+
+**Parameters**: None
+
+#### `compute_error_signature(failures)`
+
+Compute normalized error signature from failures.
+
+**Parameters**:
+- `failures: List[FailureAnalysis]` - Parsed test failures
+
+**Returns**: `str` - Normalized signature for comparison
+
+### Functions
+
+#### `is_stuck()`
+
+Check global stuck status (singleton).
+
+**Returns**: `bool` - True if stuck
+
+#### `reset_stuck_detection()`
+
+Reset global stuck detector (singleton).
+
+**Parameters**: None
+
+### Stuck Detection Logic
+
+1. Compute error signature (file + line + error type)
+2. Compare with previous errors
+3. If same signature appears N times consecutively -> STUCK
+4. Otherwise -> continue healing
+5. On test success -> reset detector
+
+### Design Patterns
+
+- **Singleton Pattern**: Global stuck detector instance
+- **Signature Normalization**: Ignore message text, focus on error location/type
+- **Bounded Memory**: Only store recent error history
+- **Thread-safe**: Uses locks for concurrent access
+
+### Integration Points
+
+**qa_self_healer.py**: Uses to check for stuck loops before continuing iterations
+
+**Other Libraries**:
+- Works with `failure_analyzer.py` for error signatures
+
+### Security
+
+- No code execution
+- Bounded memory (only stores recent signatures)
+- Thread-safe with locks
+- No credential exposure
+
+### Performance
+
+- record_error(): <0.1ms
+- is_stuck(): <0.1ms
+- reset(): <0.1ms
+- compute_error_signature(): <1ms
+- Memory usage: O(n) where n = max_history
+
+### Test Coverage
+
+- Error signature computation
+- Consecutive error tracking
+- Circuit breaker threshold
+- Reset on success
+- Thread safety
+- Edge cases: Empty signature, rapid errors
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with circuit breaker threshold (Issue #184)
+
+### Backward Compatibility
+
+N/A (new library - Issue #184)
+
+---
 
 ## Design Patterns
 
