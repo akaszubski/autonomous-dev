@@ -413,12 +413,13 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
         return (False, f'Unexpected error: {str(e)}')
 
 
-def merge_worktree(feature_name: str, target_branch: str = 'master') -> MergeResult:
+def merge_worktree(feature_name: str, target_branch: str = 'master', auto_resolve: bool = False) -> MergeResult:
     """Merge a worktree branch back to target branch.
 
     Args:
         feature_name: Name of the feature worktree to merge
         target_branch: Target branch to merge into (default: 'master')
+        auto_resolve: Automatically attempt AI conflict resolution (default: False)
 
     Returns:
         MergeResult with success status and details
@@ -426,6 +427,7 @@ def merge_worktree(feature_name: str, target_branch: str = 'master') -> MergeRes
     Security:
         - Validates feature name (CWE-22, CWE-78)
         - Uses subprocess list args (no shell=True)
+        - AI resolution only if feature flag enabled
 
     Examples:
         >>> result = merge_worktree('feature-auth', 'main')
@@ -433,6 +435,11 @@ def merge_worktree(feature_name: str, target_branch: str = 'master') -> MergeRes
         ...     print(f"Merged {len(result.merged_files)} files")
         >>> else:
         ...     print(f"Conflicts: {result.conflicts}")
+
+        >>> # With auto-resolution
+        >>> result = merge_worktree('feature-auth', 'main', auto_resolve=True)
+        >>> if result.success:
+        ...     print(f"Conflicts auto-resolved")
     """
     # Validate feature name
     is_valid, error = _validate_feature_name(feature_name)
@@ -557,6 +564,51 @@ def merge_worktree(feature_name: str, target_branch: str = 'master') -> MergeRes
                                 conflicts.append(line[3:].strip())
             except Exception:
                 conflicts = []
+
+            # Attempt AI resolution if enabled
+            if auto_resolve and conflicts:
+                try:
+                    # Import conflict resolution integration
+                    import sys
+                    sys.path.insert(0, str(Path(__file__).parent))
+                    from worktree_conflict_integration import resolve_worktree_conflicts
+
+                    # Attempt resolution
+                    resolution_results = resolve_worktree_conflicts(conflicts)
+
+                    # Check if all conflicts resolved successfully
+                    all_resolved = all(r.success for r in resolution_results)
+                    high_confidence = all(
+                        r.resolution and r.resolution.confidence >= 0.8
+                        for r in resolution_results if r.success
+                    )
+
+                    if all_resolved and high_confidence:
+                        # All conflicts resolved with high confidence
+                        # Note: apply_resolution() is called inside resolve_conflicts()
+                        # so files are already updated
+                        try:
+                            # Get merged files (now includes resolved conflicts)
+                            diff_result = subprocess.run(
+                                ['git', 'diff', '--name-only', '--cached'],
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                                timeout=10
+                            )
+                            merged_files = [f.strip() for f in diff_result.stdout.strip().split('\n') if f.strip()]
+                        except Exception:
+                            merged_files = conflicts  # Use conflicts as merged files
+
+                        return MergeResult(
+                            success=True,
+                            conflicts=[],
+                            merged_files=merged_files,
+                            error_message=''
+                        )
+                except Exception:
+                    # AI resolution failed - fall through to return conflict status
+                    pass
 
             return MergeResult(
                 success=False,

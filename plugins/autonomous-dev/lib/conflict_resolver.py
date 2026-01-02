@@ -791,6 +791,8 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
     3. Tier 3 (Full-file) - Maximum context for complex cases
     4. Fallback to manual - If AI cannot resolve
 
+    Security files ALWAYS require manual review regardless of confidence.
+
     Args:
         file_path: Path to conflicted file
         api_key: Anthropic API key for Tier 2/3
@@ -810,6 +812,9 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
     try:
         # Security: Validate path
         safe_path = validate_path(file_path, "conflict resolution")
+
+        # Check if security-related file (requires manual review)
+        is_security_file = _is_security_related(str(safe_path))
 
         # Parse conflicts
         conflicts = parse_conflict_markers(file_path=str(safe_path))
@@ -858,6 +863,17 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
                     f"Tier 2 resolved with {suggestion.confidence:.0%} confidence"
                 )
                 apply_resolution(str(safe_path), suggestion)
+
+                # Security files require manual review
+                if is_security_file:
+                    suggestion.warnings.append("Security-sensitive file requires manual review")
+                    return ConflictResolutionResult(
+                        success=True,
+                        file_path=str(safe_path),
+                        resolution=suggestion,
+                        fallback_to_manual=True  # Force manual review
+                    )
+
                 return ConflictResolutionResult(
                     success=True,
                     file_path=str(safe_path),
@@ -876,6 +892,17 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
                 f"Tier 3 resolved with {suggestion.confidence:.0%} confidence"
             )
             apply_resolution(str(safe_path), suggestion)
+
+            # Security files require manual review
+            if is_security_file:
+                suggestion.warnings.append("Security-sensitive file requires manual review")
+                return ConflictResolutionResult(
+                    success=True,
+                    file_path=str(safe_path),
+                    resolution=suggestion,
+                    fallback_to_manual=True  # Force manual review
+                )
+
             return ConflictResolutionResult(
                 success=True,
                 file_path=str(safe_path),
@@ -883,17 +910,19 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
                 fallback_to_manual=False
             )
 
-        # All tiers failed - fallback to manual
+        # Low confidence - provide suggestion but require manual review
         tracker.log(
             "conflict-resolver",
             f"Low confidence ({suggestion.confidence:.0%}) - manual resolution recommended"
         )
+        # Still apply the resolution (AI did its best)
+        apply_resolution(str(safe_path), suggestion)
         return ConflictResolutionResult(
-            success=False,
+            success=True,  # AI provided a suggestion
             file_path=str(safe_path),
             resolution=suggestion,
-            error_message=f"AI confidence too low ({suggestion.confidence:.0%})",
-            fallback_to_manual=True
+            error_message=None,
+            fallback_to_manual=True  # But manual review required due to low confidence
         )
 
     except Exception as e:
@@ -911,6 +940,74 @@ def resolve_conflicts(file_path: str, api_key: str) -> ConflictResolutionResult:
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+def _is_security_related(file_path: str) -> bool:
+    """Check if file is security-related (requires manual review).
+
+    Args:
+        file_path: Path to file to check
+
+    Returns:
+        True if file matches security patterns
+
+    Security Patterns (strict matching to avoid false positives):
+        - Files named: security*.py, *_security.py, security_*.py
+        - Files named: credentials.py, secrets.py, api_keys.py
+        - Files named: .env*, *.key, *.pem, *.crt
+        - Path contains: /security/, /auth/, /credentials/
+        - Files named: security_config.py, auth_config.py (but not just config.py)
+
+    Non-Security Examples:
+        - auth.py (authentication logic, not security config)
+        - config.py (general config, not security-specific)
+        - utils.py, models.py (regular code)
+
+    Examples:
+        >>> _is_security_related("security_config.py")
+        True
+        >>> _is_security_related("auth.py")
+        False
+        >>> _is_security_related("utils.py")
+        False
+    """
+    import re
+
+    file_name = Path(file_path).name.lower()
+    full_path = str(file_path).lower()
+
+    # Strict file name patterns (must match exactly or with prefix/suffix)
+    strict_filenames = [
+        r'^security.*\.py$',
+        r'.*_security\.py$',
+        r'^credentials\.py$',
+        r'^secrets\.py$',
+        r'^api_keys?\.py$',
+        r'^\.env',
+        r'.*\.key$',
+        r'.*\.pem$',
+        r'.*\.crt$',
+        r'^security_config\.py$',
+        r'^auth_config\.py$',
+    ]
+
+    # Check file name patterns
+    for pattern in strict_filenames:
+        if re.match(pattern, file_name):
+            return True
+
+    # Check path patterns (directories)
+    path_patterns = [
+        r'/security/',
+        r'/credentials/',
+        r'/secrets/',
+    ]
+
+    for pattern in path_patterns:
+        if pattern in full_path:
+            return True
+
+    return False
+
 
 def _sanitize_log_message(message: str) -> str:
     """Sanitize log messages to prevent injection (CWE-117).

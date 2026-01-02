@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (42)
+### Core Libraries (44)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -53,6 +53,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 40. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
 41. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
 42. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
+43. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
+44. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
 
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
@@ -13618,3 +13620,245 @@ Files Added:
 
 ---
 100 percent compatible - new SessionStart hook for optional memory injection without affecting existing workflows.
+
+
+---
+
+## 91. feature_flags.py (230 lines, v1.0.0 - Issue #193)
+
+**Purpose**: Configuration management for optional features with graceful degradation enabling selective feature control without code changes.
+
+**Problem**: Features like conflict_resolver and auto_git_workflow should be configurable. Users need ability to opt-out of features without modifying code. Configuration should have sensible defaults and graceful failure modes.
+
+**Solution**: Feature flag system that:
+1. Loads configuration from .claude/feature_flags.json (optional)
+2. Defaults all features to ENABLED (opt-out model)
+3. Provides graceful degradation for missing/invalid configs
+4. Prevents path traversal attacks via validate_path()
+5. Has built-in defaults for all known features
+
+**Key Features**:
+
+1. Feature Flag Loading:
+   - Loads from .claude/feature_flags.json
+   - Opt-out model (all features enabled by default)
+   - Missing file returns empty dict (all features enabled)
+   - Invalid JSON returns empty dict (graceful degradation)
+
+2. Default Behaviors:
+   - conflict_resolver: enabled=true, confidence_threshold=0.8, security_requires_manual=true
+   - auto_git_workflow: enabled=true, auto_push=false, auto_pr=false
+
+3. Security:
+   - Path validation via validate_path() (CWE-22)
+   - No arbitrary code execution
+   - JSON parsing with error handling
+   - Graceful fallback on errors
+
+4. Configuration File Format:
+   - Location: .claude/feature_flags.json
+   - Format: JSON with feature names as keys
+   - Structure: {"feature_name": {"enabled": true, "key": "value"}}
+
+**Public API**:
+
+Key functions:
+- is_feature_enabled(feature_name: str) -> bool - Check if feature is enabled
+- get_feature_config(feature_name: str) -> Dict - Get complete feature configuration
+- get_default_flags() -> Dict - Get all default flags
+- _load_feature_flags() -> Dict - Load flags from configuration file (internal)
+- _get_feature_flags_path() -> Optional[Path] - Get path to flags file (internal)
+- _find_project_root() -> Optional[Path] - Find project root (internal)
+
+**Configuration**:
+
+Feature Flags File (.claude/feature_flags.json):
+```json
+{
+  "conflict_resolver": {
+    "enabled": true,
+    "confidence_threshold": 0.8,
+    "security_requires_manual": true
+  },
+  "auto_git_workflow": {
+    "enabled": true,
+    "auto_push": false,
+    "auto_pr": false
+  }
+}
+```
+
+Default Behavior:
+- Missing file = all features enabled
+- Missing feature = enabled
+- Invalid JSON = all features enabled
+- Read errors = all features enabled
+
+**Integration Points**:
+
+1. Conflict Resolver: worktree_conflict_integration.py checks conflict_resolver flag
+2. Git Automation: auto_git_workflow hook checks auto_git_workflow flag
+3. Worktree Manager: merge_worktree() honors conflict_resolver configuration
+4. Feature Control: Any system can check is_feature_enabled() before executing
+
+**Test Coverage**:
+
+Unit Tests:
+- is_feature_enabled() with file present/missing/corrupted
+- get_feature_config() with various configurations
+- Default flag loading
+- Path validation (CWE-22 prevention)
+- Graceful degradation for missing/invalid files
+- Edge cases: Empty flags, wrong JSON structure
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release for conflict resolver integration (Issue #193)
+
+**Dependencies**:
+- security_utils.py - Path validation
+- Standard library: json, pathlib, typing
+
+**Files Added**:
+- plugins/autonomous-dev/lib/feature_flags.py (230 lines)
+- tests/unit/lib/test_feature_flags.py (test suite)
+
+---
+100 percent compatible - new optional configuration system without affecting existing features.
+
+---
+
+## 92. worktree_conflict_integration.py (387 lines, v1.0.0 - Issue #193)
+
+**Purpose**: Glue layer integrating AI-powered conflict resolution into worktree workflow with security detection and confidence thresholds enabling automatic merge conflict handling.
+
+**Problem**: /worktree --merge conflicts are 100% manual. Users must edit files, understand conflict markers, resolve manually. This blocks automated workflows and requires human intervention. No way to automatically suggest resolutions or enforce security reviews.
+
+**Solution**: Integration system that:
+1. Detects merge conflicts from git output
+2. Triggers AI resolution via conflict_resolver.py
+3. Enforces confidence thresholds (0.8 default)
+4. Requires manual review for security files
+5. Provides three-tier escalation strategy
+6. Integrates with worktree_manager.merge_worktree()
+
+**Key Features**:
+
+1. Conflict Detection:
+   - Parses git merge output for conflict markers
+   - Detects files with <<<<<<< or ======= or >>>>>>>
+   - Returns list of conflicted file paths
+
+2. Security Detection:
+   - Detects security-related files by pattern
+   - Patterns: security_*.py, credentials.py, secrets.py, *.key, *.pem, *.crt
+   - Path patterns: /security/, /credentials/, /secrets/
+   - Forces manual review regardless of confidence
+
+3. Confidence Thresholds:
+   - AUTO_COMMIT_THRESHOLD = 0.8 (80%)
+   - High confidence (>=0.8) + not security = auto-commit
+   - Medium confidence (0.6-0.8) = suggest but manual review
+   - Low confidence (<0.6) = fallback to manual
+   - Security files always require manual review
+
+4. Three-Tier Escalation:
+   - Tier 1: Auto-resolve and auto-commit (high confidence, not security)
+   - Tier 2: Suggest resolution, require manual approval (medium confidence or security file)
+   - Tier 3: Fallback to manual merge (low confidence or AI error)
+
+5. Feature Flag Integration:
+   - Checks conflict_resolver feature flag
+   - Returns empty results if feature disabled
+   - Graceful degradation if API key missing
+
+**Public API**:
+
+Key functions:
+- resolve_worktree_conflicts(conflict_files: List[str], api_key: Optional[str]) -> List[ConflictResolutionResult] - Resolve multiple files
+- should_auto_commit(result: ConflictResolutionResult) -> bool - Check if should auto-commit
+- get_resolution_confidence(result: ConflictResolutionResult) -> float - Extract confidence score
+- detect_conflicts_in_output(git_output: str) -> List[str] - Parse git output for conflicts
+- has_conflict_markers(file_path: str) -> bool - Check if file has conflict markers
+- is_security_related(file_path: str) -> bool - Detect security files
+
+**Configuration**:
+
+Feature Flags:
+- conflict_resolver feature flag (must be enabled)
+
+Environment Variables:
+- ANTHROPIC_API_KEY - Required for AI resolution
+
+Constants:
+- AUTO_COMMIT_THRESHOLD = 0.8 - Confidence threshold for auto-commit
+
+**Security**:
+
+1. Path Validation:
+   - All file paths validated via validate_path() (CWE-22)
+   - Rejects relative paths with ..
+   - Rejects symlinks
+
+2. Security File Detection:
+   - Strict pattern matching (avoids false positives)
+   - Requires manual review for security files
+   - Always requires manual review regardless of confidence
+
+3. API Key Handling:
+   - Read from environment only (never logged)
+   - Graceful failure if missing
+   - Returns empty results if missing
+
+4. Audit Logging:
+   - All resolutions logged via audit_log()
+   - All errors logged with context
+   - Non-sensitive information only
+
+5. Error Handling:
+   - Path validation errors handled gracefully
+   - Missing API key returns empty results
+   - Resolution failures fallback to manual
+   - Missing dependencies handled safely
+
+**Integration Points**:
+
+1. Worktree Manager: Called by merge_worktree(auto_resolve=True)
+2. Conflict Resolver: Calls resolve_conflicts() for each file
+3. Feature Flags: Checks is_feature_enabled('conflict_resolver')
+4. Git Automation: Results feed into auto-commit decision
+
+**Test Coverage**:
+
+Unit Tests:
+- is_security_related() with various patterns
+- detect_conflicts_in_output() with git merge output
+- has_conflict_markers() with conflict marker detection
+- resolve_worktree_conflicts() with single/multiple files
+- should_auto_commit() with confidence thresholds
+- get_resolution_confidence() with valid/missing resolutions
+- Path validation and error handling
+- Graceful degradation scenarios
+
+Integration Tests:
+- End-to-end merge with conflict resolution
+- Security file detection and manual review enforcement
+- Feature flag integration
+- Error scenarios (missing API key, disabled feature)
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release integrating conflict resolver into worktree (Issue #193)
+
+**Dependencies**:
+- conflict_resolver.py (Issue #183) - AI resolution logic
+- feature_flags.py - Feature configuration
+- security_utils.py - Path validation and audit logging
+- path_utils.py - Dynamic path detection
+- Standard library: json, re, subprocess, pathlib, typing
+
+**Files Added**:
+- plugins/autonomous-dev/lib/worktree_conflict_integration.py (387 lines)
+- tests/unit/lib/test_worktree_conflict_integration.py (test suite)
+- tests/integration/test_worktree_merge_with_conflicts.py (integration tests)
+
+---
+100 percent compatible - optional integration layer that preserves existing /worktree --merge behavior when disabled or on errors.

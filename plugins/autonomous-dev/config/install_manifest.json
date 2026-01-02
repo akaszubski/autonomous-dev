@@ -254,6 +254,8 @@
         "plugins/autonomous-dev/lib/workflow_tracker.py",
         "plugins/autonomous-dev/lib/worktree_command.py",
         "plugins/autonomous-dev/lib/worktree_manager.py",
+        "plugins/autonomous-dev/lib/worktree_conflict_integration.py",
+        "plugins/autonomous-dev/lib/feature_flags.py",
         "plugins/autonomous-dev/lib/ralph_loop_manager.py",
         "plugins/autonomous-dev/lib/success_criteria_validator.py"
       ]

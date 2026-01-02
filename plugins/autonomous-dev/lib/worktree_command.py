@@ -360,8 +360,16 @@ def execute_merge(feature_name: str) -> int:
         # Check AUTO_GIT_ENABLED environment variable
         auto_git_enabled = os.getenv('AUTO_GIT_ENABLED', 'true').lower()
 
-        # Perform merge
-        result = worktree_manager.merge_worktree(feature_name)
+        # Check if conflict resolver feature is enabled
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            from feature_flags import is_feature_enabled
+            auto_resolve = is_feature_enabled('conflict_resolver')
+        except ImportError:
+            auto_resolve = False
+
+        # Perform merge with auto-resolve if enabled
+        result = worktree_manager.merge_worktree(feature_name, auto_resolve=auto_resolve)
 
         # Handle both MergeResult objects and dict (for testing)
         if isinstance(result, dict):

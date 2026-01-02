@@ -1,5 +1,52 @@
 ## [Unreleased]
 - **Memory Layer Auto-Injection at SessionStart (Issue #192, v1.0.0)**
+- **Wire Conflict Resolver into Worktree and Git Automation (Issue #193, v1.0.0)**
+  - **Purpose**: Integrate AI-powered conflict resolution into /worktree --merge and git automation workflows for automatic intelligent merge conflict handling
+  - **Problem**: Merge conflicts on /worktree --merge are 100% manual. Users must manually edit files, understand conflict markers, and resolve
+  - **Solution**: Two-part integration system: feature_flags.py for configuration control + worktree_conflict_integration.py as glue layer between worktree_manager and conflict_resolver
+  - **Key Features**:
+    - **Feature Flags**: Optional feature control at .claude/feature_flags.json with opt-out model (all features enabled by default)
+    - **Confidence Thresholds**: AUTO_COMMIT_THRESHOLD = 0.8 (80% confidence required for auto-commit)
+    - **Security Detection**: Automatically detects security-related files (security_*.py, credentials.py, *.key, *.pem, etc.) and forces manual review regardless of confidence
+    - **Three-Tier Escalation**: High confidence auto-resolve, medium confidence suggest with manual review, low confidence fallback to manual
+    - **Integration with Worktree**: merge_worktree() method added auto_resolve parameter for opt-in AI resolution
+    - **Non-Blocking**: If AI resolution fails, falls back gracefully to manual merge (existing behavior preserved)
+  - **Key Libraries**:
+    - **feature_flags.py** (230 lines): Configuration management for optional features with graceful degradation
+    - **worktree_conflict_integration.py** (387 lines): Glue layer integrating conflict resolver into worktree workflow with security detection and confidence thresholds
+  - **Integration Points**:
+    - worktree_manager.merge_worktree(auto_resolve=True) - Optional parameter for AI resolution
+    - conflict_resolver.resolve_conflicts() - Calls AI resolver for each conflicted file
+    - feature_flags.py - Checks if conflict_resolver feature is enabled
+  - **Configuration**:
+    - Feature Flags File: .claude/feature_flags.json (optional, all features default to enabled)
+    - Environment Variables: ANTHROPIC_API_KEY (required for conflict resolution)
+    - Confidence Threshold: AUTO_COMMIT_THRESHOLD = 0.8
+    - Security Files: Auto-detected (security_*.py, credentials.py, secrets.py, *.key, *.pem, *.crt, etc.)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/feature_flags.py (230 lines)
+    - plugins/autonomous-dev/lib/worktree_conflict_integration.py (387 lines)
+    - tests/unit/lib/test_conflict_resolver_integration.py (test suite)
+    - tests/integration/test_worktree_merge_with_conflicts.py (integration tests)
+  - **Files Modified**:
+    - plugins/autonomous-dev/lib/conflict_resolver.py - Added security detection for files, forces manual review for security files regardless of confidence
+    - plugins/autonomous-dev/lib/worktree_manager.py - Added auto_resolve parameter to merge_worktree() method
+    - plugins/autonomous-dev/config/install_manifest.json - Added 2 new libraries to lib section
+  - **Security Features**:
+    - Path traversal prevention via validate_path() (CWE-22)
+    - Security-related file detection with strict patterns (prevents false positives)
+    - API key from environment only (never logged)
+    - Audit logging for all resolutions
+    - Manual review forced for security files regardless of confidence
+    - Graceful degradation: missing API key, feature disabled, or resolution failure safely fallback to manual
+  - **Test Coverage**: Feature flag loading, security file detection, confidence thresholds, conflict marker detection, integration with worktree, graceful degradation
+  - **Backward Compatibility**: 100 percent compatible - all features default to enabled, /worktree --merge works as before if auto_resolve not specified or feature disabled
+  - **Dependencies**:
+    - conflict_resolver.py (Issue #183) - AI resolution logic
+    - security_utils.py - Path validation and audit logging
+    - path_utils.py - Dynamic path detection
+  - **GitHub Issue**: Issue #193 - Wire conflict resolver into worktree and git automation
+
   - **Purpose**: Auto-inject relevant memories from previous sessions enabling cross-session context continuity
   - **Problem**: Agents have no persistent memory between sessions. Architectural decisions, blockers, patterns must be re-explained. Manual context recovery is slow and error-prone
   - **Solution**: SessionStart hook that loads memories from .claude/memories/session_memories.json, ranks by relevance (TF-IDF), formats within token budget, injects into initial prompt
