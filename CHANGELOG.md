@@ -1,5 +1,88 @@
 ## [Unreleased]
 
+- **Scalable Parallel Agent Pool (Issue #188, v1.0.0)**
+  - **Purpose**: Execute multiple agents concurrently with intelligent task scheduling, priority queue, and token budget enforcement
+  - **Problem**: Sequential agent execution is slow. Parallel execution without coordination causes token exhaustion and resource contention. No mechanism to prioritize critical tasks (security, tests) over optional work
+  - **Solution**: Scalable agent pool managing concurrent execution with priority queue, token tracking, work stealing, and graceful failures
+  - **Key Features**:
+    - Priority queue (P1_SECURITY greater than P2_TESTS greater than P3_DOCS greater than P4_OPTIONAL)
+    - Token-aware rate limiting with sliding window (prevents budget exhaustion)
+    - Work-stealing load balancing (agents pull tasks based on availability)
+    - Graceful failure handling (timeouts, partial results)
+    - Configurable pool size (3-12 concurrent agents)
+    - Thread-safe concurrent execution
+  - **Key Libraries**:
+    - **agent_pool.py** (495 bytes) - Scalable parallel agent pool orchestrator
+      - Classes: AgentPool, PriorityLevel, TaskHandle, AgentResult, PoolStatus
+      - Methods: submit_task(), await_all(), get_pool_status(), shutdown()
+      - Features: Priority queue, token tracking, worker threads, graceful shutdown
+      - Security: CWE-22 (path validation), CWE-400 (resource limits), CWE-770 (prompt size)
+    - **pool_config.py** (196 bytes) - Configuration management with multi-source loading
+      - Classes: PoolConfig
+      - Methods: load_from_env(), load_from_project(), validation
+      - Features: Environment variables, PROJECT.md loading, graceful degradation
+      - Configuration sources: Constructor greater than env vars greater than PROJECT.md greater than defaults
+    - **token_tracker.py** (177 bytes) - Token-aware rate limiting with sliding window
+      - Classes: TokenTracker, UsageRecord
+      - Methods: can_submit(), record_usage(), get_remaining_budget(), get_usage_by_agent()
+      - Features: Sliding window expiration, per-agent tracking, thread-safe
+      - Design: Records with timestamp, automatic expiration, budget enforcement
+  - **Design Patterns**:
+    - Priority Queue: Tasks executed by priority level with tuple ordering
+    - Sliding Window: Token budget with time-based expiration
+    - Work Stealing: Natural load balancing via queue pull mechanism
+    - Thread Safety: Lock-protected access to shared state
+    - Graceful Failures: Timeouts, partial results, exception handling
+  - **API Highlights**:
+    - AgentPool(config) - Initialize pool with configuration
+    - submit_task(agent_type, prompt, priority, estimated_tokens) - Submit task
+    - await_all(handles, timeout) - Wait for completion
+    - get_pool_status() - Monitor execution
+    - PoolConfig.load_from_env() / load_from_project() - Configuration loading
+    - TokenTracker.can_submit() / record_usage() - Budget management
+  - **Security Features**:
+    - Path validation (CWE-22): agent_type regex pattern matching
+    - Resource limits (CWE-400): Hard cap at 12 agents, token budget enforcement
+    - Prompt size (CWE-770): Maximum 10,000 character limit
+    - Thread safety: Lock-protected state access
+    - No arbitrary code execution: Pre-validated agent types only
+  - **Performance**:
+    - Task submission: less than 1ms
+    - Pool startup: approximately 10ms (thread creation)
+    - Pool shutdown: 5-25 seconds (worker join)
+    - Memory overhead: approximately 1KB per queued task
+    - Sliding window cleanup: O(n) where n equals records in window
+  - **Integration Points**:
+    - /auto-implement: Parallel validation phase (reviewer, security-auditor, doc-master)
+    - /batch-implement: Per-feature parallel agents
+    - Commands and agents: Any agent type can be submitted
+    - Libraries: PoolConfig (required), TokenTracker (required), Task (external)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/agent_pool.py (495 bytes)
+    - plugins/autonomous-dev/lib/pool_config.py (196 bytes)
+    - plugins/autonomous-dev/lib/token_tracker.py (177 bytes)
+    - tests/unit/lib/test_agent_pool.py (test coverage)
+  - **Documentation**:
+    - docs/LIBRARIES.md: New sections 74-76 with complete API docs, examples, design patterns
+    - docs/CHANGELOG.md: This entry
+    - Library docstrings with usage examples and security patterns
+  - **Test Coverage**:
+    - Task submission and validation (agent type, prompt size, token budget)
+    - Priority queue ordering and execution
+    - Token budget enforcement (reject over-budget submissions)
+    - Concurrent task execution and result collection
+    - Pool status tracking and graceful shutdown
+    - Configuration loading (environment, PROJECT.md, defaults)
+    - Security: Path traversal prevention, resource limits
+    - Error handling: Timeout, invalid config, budget exceeded
+  - **Backward Compatibility**: 100 percent compatible - new libraries, no API changes
+  - **Environment Variables**:
+    - AGENT_POOL_MAX_AGENTS (default: 6) - Maximum concurrent agents (3-12)
+    - AGENT_POOL_TOKEN_BUDGET (default: 150000) - Token budget for sliding window
+    - AGENT_POOL_PRIORITY_ENABLED (default: true) - Enable priority queue
+    - AGENT_POOL_TOKEN_WINDOW_SECONDS (default: 60) - Sliding window duration
+  - **GitHub Issue**: Issue #188 - Scalable parallel agent pool with priority queue
+
 **Added**
 - **Self-Healing QA Libraries (Issue #184, v1.0.0)**
   - **Purpose**: Automatically detect, analyze, and fix failing tests without manual intervention

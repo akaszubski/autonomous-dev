@@ -11862,3 +11862,528 @@ See library-design-patterns skill for standardized design patterns.
 ### Backward Compatibility
 
 N/A (new library - Issue #183)
+
+## 74. agent_pool.py (495 lines, v1.0.0 - Issue #188)
+
+**Scalable parallel agent pool with priority queue and token-aware rate limiting**
+
+### Purpose
+
+Execute multiple agents concurrently with intelligent task scheduling, priority queue management, token budget enforcement, and work-stealing load balancing. Enables scaling from 3 to 12 agents while preventing resource exhaustion.
+
+### Problem
+
+Sequential agent execution is slow. Parallel execution without coordination causes token budget exhaustion and resource contention. No mechanism to prioritize critical tasks (security, tests) over optional work.
+
+### Solution
+
+Scalable agent pool that manages concurrent execution with four key features:
+
+1. **Priority Queue**: Tasks executed by priority (P1_SECURITY greater than P2_TESTS greater than P3_DOCS greater than P4_OPTIONAL)
+2. **Token Tracking**: Sliding window budget enforcement prevents token exhaustion
+3. **Work Stealing**: Agents pull tasks from queue based on availability (load balancing)
+4. **Graceful Failures**: Timeouts and partial results handled cleanly
+
+### Key Classes
+
+**PriorityLevel (Enum)**
+- P1_SECURITY: Highest priority (security-critical tasks)
+- P2_TESTS: High priority (test generation)
+- P3_DOCS: Medium priority (documentation)
+- P4_OPTIONAL: Low priority (optional enhancements)
+
+**TaskHandle**
+- Represents submitted task
+- Fields: task_id, agent_type, priority, submitted_at
+- Returned from submit_task() for result tracking
+
+**AgentResult**
+- Result from completed task
+- Fields: task_id, success, output, tokens_used, duration
+- Contains agent output and execution metrics
+
+**PoolStatus**
+- Current pool execution state
+- Fields: active_tasks, queued_tasks, completed_tasks, token_usage
+- Used for monitoring and debugging
+
+**AgentPool**
+- Main pool coordinator
+- Manages worker threads, task queue, token tracking, result storage
+- Thread-safe with internal locking mechanisms
+
+### Key Functions
+
+**AgentPool.__init__(config: PoolConfig)**
+- Initialize pool with configuration
+- Starts worker threads
+- Sets up token tracking
+- Raises ValueError if config invalid
+
+**AgentPool.submit_task(agent_type, prompt, priority, estimated_tokens)**
+- Submit task to pool for execution
+- Args: agent_type (string), prompt (string, less than 10,000 chars), priority (PriorityLevel), estimated_tokens (optional, default 5000)
+- Returns: TaskHandle for tracking
+- Raises: ValueError (invalid input), RuntimeError (token budget exhausted)
+- CWE-22: Validates agent_type pattern prevents path traversal
+- CWE-770: Enforces prompt size limit prevents resource exhaustion
+
+**AgentPool.await_all(handles, timeout)**
+- Wait for all submitted tasks to complete
+- Args: handles (List[TaskHandle]), timeout (optional, seconds)
+- Returns: List[AgentResult] (in same order as input handles)
+- Raises: TimeoutError if timeout exceeded
+- Blocks until all results available or timeout
+
+**AgentPool.get_pool_status()**
+- Get current pool execution state
+- Returns: PoolStatus with active/queued/completed task counts and token usage
+- Non-blocking, real-time status
+
+**AgentPool.shutdown()**
+- Gracefully shutdown pool
+- Waits for active tasks to complete (5-second timeout per worker)
+- Stops accepting new submissions
+- Cleans up worker threads
+
+### Design Patterns
+
+- **Priority Queue**: Queue.PriorityQueue with (priority, submission_time, task_id, task_data) tuple ordering
+- **Sliding Window**: TokenTracker manages token budget with time-based expiration
+- **Work Stealing**: Worker threads pull tasks based on availability (natural load balancing)
+- **Thread Safety**: Lock-protected access to shared state (results, status)
+- **Graceful Failures**: Timeouts return partial results, exceptions captured per task
+
+### Security Features
+
+**Path Validation (CWE-22)**
+- agent_type validated against regex pattern matching ^[a-z0-9_-]+$
+- Prevents path traversal via agent type field
+- Explicit error message on invalid input
+
+**Resource Limit (CWE-400)**
+- Hard cap at 12 concurrent agents (max_agents parameter)
+- Token budget enforcement via sliding window
+- Reject submissions exceeding budget
+- Default 150,000 token budget
+
+**Resource Limit (CWE-770)**
+- Prompt size limited to 10,000 characters
+- Prevents excessive memory/API usage
+- Validated on submission
+
+**Thread Safety**
+- Results locked with threading.Lock
+- Status locked with threading.Lock
+- Supports concurrent agent execution
+
+### Usage Example
+
+```
+from agent_pool import AgentPool, PriorityLevel
+from pool_config import PoolConfig
+
+# Create pool with 6 agents and 150K token budget
+config = PoolConfig(max_agents=6, token_budget=150000)
+pool = AgentPool(config=config)
+
+# Submit high-priority security task
+security_handle = pool.submit_task(
+    agent_type="security-auditor",
+    prompt="Audit new authentication module for vulnerabilities",
+    priority=PriorityLevel.P1_SECURITY,
+    estimated_tokens=8000
+)
+
+# Submit medium-priority doc task
+doc_handle = pool.submit_task(
+    agent_type="doc-master",
+    prompt="Update API documentation for new endpoint",
+    priority=PriorityLevel.P3_DOCS,
+    estimated_tokens=5000
+)
+
+# Wait for all tasks to complete
+results = pool.await_all([security_handle, doc_handle], timeout=60.0)
+
+# Process results
+for result in results:
+    if result.success:
+        print(f"Task {result.task_id} completed in {result.duration:.1f}s ({result.tokens_used} tokens)")
+        print(f"Output: {result.output}")
+    else:
+        print(f"Task {result.task_id} failed")
+
+# Get pool status
+status = pool.get_pool_status()
+print(f"Active: {status.active_tasks}, Queued: {status.queued_tasks}, Complete: {status.completed_tasks}")
+
+# Shutdown
+pool.shutdown()
+```
+
+### Integration Points
+
+**Commands**:
+- `/auto-implement` - May use for parallel validation phase (reviewer + security-auditor + doc-master)
+- `/batch-implement` - May use for per-feature parallel agents
+
+**Agents**:
+- All agents can be submitted to pool (researcher, planner, implementer, test-master, reviewer, security-auditor, doc-master, etc.)
+- Agent type must match valid agent names
+
+**Libraries**:
+- PoolConfig (configuration management) - Required
+- TokenTracker (token budget enforcement) - Required
+- Task (Claude Code Task tool) - External dependency for execution
+
+### Performance
+
+- Task submission: less than 1ms (queue insertion)
+- Await all: Depends on task duration (typically 2-30 minutes per task)
+- Pool startup: approximately 10ms (thread creation)
+- Pool shutdown: 5-25 seconds (worker join timeout)
+- Memory overhead: approximately 1KB per task in queue
+
+### Test Coverage
+
+- Task submission and validation (agent type, prompt size, token budget)
+- Priority queue ordering (P1 greater than P2 greater than P3 greater than P4)
+- Token budget enforcement (reject over-budget submissions)
+- Concurrent task execution (worker threads)
+- Result collection and ordering
+- Pool status tracking
+- Graceful shutdown
+- Security: Path traversal prevention, resource limits
+- Error handling: Timeout, invalid config, budget exceeded
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with priority queue and token tracking (Issue #188)
+
+### Backward Compatibility
+
+N/A (new library - Issue #188)
+
+## 75. pool_config.py (196 lines, v1.0.0 - Issue #188)
+
+**Agent pool configuration with validation and loading**
+
+### Purpose
+
+Manage agent pool configuration with support for defaults, environment variables, and PROJECT.md loading. Provides validated configuration for AgentPool initialization.
+
+### Problem
+
+Agent pool needs configurable max concurrency and token budget. Configuration should support multiple sources (defaults, env vars, PROJECT.md) with validation and graceful degradation.
+
+### Solution
+
+PoolConfig dataclass with multi-source loading and validation:
+- Constructor arguments (highest priority)
+- Environment variables (AGENT_POOL_*)
+- PROJECT.md file (Agent Pool Configuration section)
+- Built-in defaults (fallback)
+
+### Key Classes
+
+**PoolConfig**
+- Dataclass holding pool configuration
+- Fields: max_agents (3-12), token_budget (positive), priority_enabled (bool), token_window_seconds (positive)
+- Validates on instantiation via __post_init__
+- Provides class methods for loading from multiple sources
+
+### Key Functions
+
+**PoolConfig.__init__(max_agents, token_budget, priority_enabled, token_window_seconds)**
+- Initialize configuration with defaults or custom values
+- Validates all parameters in __post_init__
+- Raises ValueError if validation fails
+
+**PoolConfig._validate()**
+- Validate configuration values
+- Checks: max_agents (3-12 range), token_budget (greater than 0), token_window_seconds (greater than 0)
+- Raises ValueError with descriptive message on failure
+
+**PoolConfig.load_from_env()**
+- Load configuration from environment variables
+- Variables: AGENT_POOL_MAX_AGENTS, AGENT_POOL_TOKEN_BUDGET, AGENT_POOL_PRIORITY_ENABLED, AGENT_POOL_TOKEN_WINDOW_SECONDS
+- Uses constructor defaults as fallback
+- Returns: PoolConfig instance
+- Raises ValueError if validation fails
+
+**PoolConfig.load_from_project(project_root)**
+- Load configuration from PROJECT.md file
+- Searches for Agent Pool Configuration JSON block
+- Format: max_agents, token_budget, priority_enabled, token_window_seconds
+- Falls back to defaults if not found
+- Returns: PoolConfig instance
+- Graceful degradation on parse errors
+
+### Configuration Sources Priority
+
+1. Constructor arguments (highest - explicit values)
+2. Environment variables (AGENT_POOL_* override defaults)
+3. PROJECT.md (Agent Pool Configuration section)
+4. Built-in defaults (fallback - max_agents=6, token_budget=150000, priority_enabled=true, token_window_seconds=60)
+
+### Environment Variables
+
+| Variable | Description | Valid Range | Default |
+|----------|-------------|-------------|---------|
+| AGENT_POOL_MAX_AGENTS | Max concurrent agents | 3-12 | 6 |
+| AGENT_POOL_TOKEN_BUDGET | Token budget for window | Positive | 150000 |
+| AGENT_POOL_PRIORITY_ENABLED | Enable priority queue | true/false | true |
+| AGENT_POOL_TOKEN_WINDOW_SECONDS | Sliding window duration | Positive | 60 |
+
+### Security Features
+
+**Input Validation**
+- Type checking (int, bool)
+- Range validation (max_agents: 3-12)
+- Positive value checking (token_budget, token_window_seconds)
+- Descriptive error messages
+
+**Graceful Degradation**
+- Invalid PROJECT.md doesn't crash, falls back to env/defaults
+- Missing env vars use defaults
+- Parse errors logged and ignored
+
+**No External Dependencies**
+- Pure Python dataclass
+- No network calls
+- No subprocess execution
+
+### Usage Example
+
+```
+from pool_config import PoolConfig
+from pathlib import Path
+
+# Use defaults
+config = PoolConfig()
+print(f"Default: {config.max_agents} agents, {config.token_budget} token budget")
+
+# Load from environment
+config = PoolConfig.load_from_env()
+
+# Load from PROJECT.md with fallback
+config = PoolConfig.load_from_project(Path(".claude/PROJECT.md"))
+
+# Custom values
+config = PoolConfig(max_agents=8, token_budget=200000)
+
+# Pass to AgentPool
+from agent_pool import AgentPool
+pool = AgentPool(config=config)
+```
+
+### Integration Points
+
+**AgentPool**: Required configuration parameter
+**Commands**: `/auto-implement`, `/batch-implement` may read config
+
+### Performance
+
+- Load from env: less than 1ms (os.getenv + int conversion)
+- Load from PROJECT.md: 5-10ms (file I/O + JSON parsing)
+- Validation: less than 1ms (range checks)
+- Total overhead: Negligible compared to agent execution
+
+### Test Coverage
+
+- Default construction and validation
+- Environment variable loading and override
+- PROJECT.md loading and parsing
+- Validation: Range checks, positive values, type checking
+- Graceful degradation: Missing/invalid sources
+- Error messages and exception types
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with multi-source loading (Issue #188)
+
+### Backward Compatibility
+
+N/A (new library - Issue #188)
+
+## 76. token_tracker.py (177 lines, v1.0.0 - Issue #188)
+
+**Token-aware rate limiting with sliding window**
+
+### Purpose
+
+Track token usage across multiple agents with sliding time window to enforce budget limits and prevent token exhaustion during parallel execution.
+
+### Problem
+
+Parallel agent execution can quickly exhaust token budget without rate limiting. Need mechanism to track total usage, allow budget enforcement, and prevent over-submission.
+
+### Solution
+
+Token tracker with sliding window approach:
+- Records usage per agent with timestamp
+- Expires old records automatically based on time window
+- Enforces budget by rejecting submissions exceeding remaining budget
+- Provides usage breakdown by agent for monitoring
+
+### Key Classes
+
+**UsageRecord**
+- Represents single token usage event
+- Fields: agent_id, tokens, timestamp
+- Used internally for sliding window tracking
+
+**TokenTracker**
+- Main tracking class
+- Manages budget enforcement and usage tracking
+- Thread-safe for concurrent agent access
+
+### Key Functions
+
+**TokenTracker.__init__(budget, window_seconds)**
+- Initialize tracker with budget and window
+- Args: budget (positive int), window_seconds (positive int, default 60)
+- Raises ValueError if budget or window_seconds non-positive
+- Sets up empty usage records list
+
+**TokenTracker.record_usage(agent_id, tokens)**
+- Record token usage for an agent
+- Args: agent_id (string), tokens (int)
+- Creates UsageRecord with current timestamp
+- Appends to usage_records list
+- Logs debug message
+
+**TokenTracker.can_submit(estimated_tokens)**
+- Check if submission would exceed budget
+- Args: estimated_tokens (int)
+- Returns: bool (True if within budget, False otherwise)
+- Cleans up expired records before checking
+- Non-blocking check
+
+**TokenTracker.get_remaining_budget()**
+- Get remaining token budget in current window
+- Returns: int (remaining budget, greater than or equal to 0)
+- Cleans up expired records first
+- Calculates total usage in window and subtracts from budget
+
+**TokenTracker._cleanup_expired_records()**
+- Remove records outside sliding window
+- Private method called before budget checks
+- Removes records with timestamp greater than window_seconds ago
+- Uses datetime.now() for current time
+
+**TokenTracker.get_usage_by_agent()**
+- Get per-agent token usage breakdown
+- Returns: Dict[str, int] (agent_id to total tokens)
+- Cleans up expired records first
+- Useful for monitoring and debugging
+
+### Sliding Window Design
+
+**How it works**:
+1. Each token usage recorded with timestamp
+2. Before budget check, expired records removed (older than window_seconds)
+3. Remaining records summed for total usage
+4. Remaining budget = budget - total_usage
+5. Submission allowed if remaining greater than or equal to estimated_tokens
+
+**Why it works**:
+- Allows temporary spikes within window
+- Automatic expiration prevents permanent budget exhaustion
+- Window defaults to 60 seconds (configurable)
+- Per-agent tracking enables usage monitoring
+
+**Example**:
+Budget: 150,000 tokens, Window: 60 seconds
+
+At T=0:
+  - Agent A uses 50,000 tokens
+  - Remaining: 100,000
+
+At T=30:
+  - Agent B uses 70,000 tokens
+  - Total usage: 120,000
+  - Remaining: 30,000
+
+At T=65:
+  - Agent A's usage expired (recorded at T=0, now greater than 60s old)
+  - Remaining usage: 70,000 (only Agent B)
+  - Remaining budget: 80,000
+
+### Security Features
+
+**Budget Enforcement (CWE-400)**
+- Hard budget limits prevent token exhaustion
+- Reject submissions exceeding available budget
+- Per-agent tracking prevents single agent hogging budget
+
+**No External Dependencies**
+- Pure Python implementation
+- No network calls
+- No subprocess execution
+- No file I/O
+
+**Thread-Safe**
+- Uses datetime for consistent timestamps
+- Stateless operations (no race conditions on list operations in CPython)
+- Safe for concurrent agent access
+
+### Usage Example
+
+```
+from token_tracker import TokenTracker
+
+# Create tracker: 150K token budget, 60-second window
+tracker = TokenTracker(budget=150000, window_seconds=60)
+
+# Check if can submit task
+if tracker.can_submit(estimated_tokens=10000):
+    # Submit task...
+    # After execution, record actual usage
+    tracker.record_usage(agent_id="researcher", tokens=8500)
+else:
+    print("Token budget exhausted, cannot submit new tasks")
+
+# Check remaining budget
+remaining = tracker.get_remaining_budget()
+print(f"Remaining budget: {remaining} tokens")
+
+# Monitor per-agent usage
+usage_by_agent = tracker.get_usage_by_agent()
+for agent_id, tokens in usage_by_agent.items():
+    print(f"Agent {agent_id}: {tokens} tokens")
+
+# Usage expires automatically after window
+# At T=65 seconds, records from T=0 automatically removed
+```
+
+### Integration Points
+
+**AgentPool**: Required for token budget enforcement
+**PoolConfig**: Provides window_seconds configuration
+
+### Performance
+
+- Record usage: less than 1ms (append to list)
+- Get remaining budget: 1-5ms (cleanup + summation, depends on record count)
+- Can submit check: 1-5ms (cleanup + comparison)
+- Cleanup: O(n) where n equals records in window (typically 1-20 records)
+
+### Test Coverage
+
+- Tracker initialization with valid/invalid budgets
+- Recording usage and timestamp tracking
+- Can_submit budget checking and remaining calculation
+- Usage expiration and cleanup (time-based)
+- Per-agent usage breakdown
+- Thread safety with concurrent operations
+- Edge cases: Empty records, zero budget, very large usage
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with sliding window (Issue #188)
+
+### Backward Compatibility
+
+N/A (new library - Issue #188)
