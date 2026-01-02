@@ -594,7 +594,7 @@ Layer 3 (Batch Permission Approver):
 
 | Lifecycle | Count | Hooks |
 |-----------|-------|-------|
-| **SessionStart** | 1 | auto_bootstrap |
+| **SessionStart** | 2 | auto_bootstrap, auto_inject_memory |
 | **PreToolUse** | 1 | unified_pre_tool |
 | **PostToolUse** | 1 | unified_post_tool |
 | **PreCommit** | 5 | unified_code_quality, unified_structure_enforcer, unified_doc_validator, unified_doc_auto_fix, unified_manifest_sync |
@@ -615,6 +615,39 @@ Layer 3 (Batch Permission Approver):
 - Copies all plugin commands from plugin directory if missing
 - Creates marker file (`.autonomous-dev-bootstrapped`) to track completion
 **Lifecycle**: SessionStart
+
+---
+
+
+### auto_inject_memory.py
+
+**Purpose**: Auto-inject relevant memories from previous sessions at SessionStart
+**Actions**:
+- Loads memories from `.claude/memories/session_memories.json`
+- Ranks memories by relevance using TF-IDF scoring
+- Formats memories within token budget (500 tokens default)
+- Injects formatted memories into initial prompt as markdown context
+- Environment variable control (MEMORY_INJECTION_ENABLED default: false)
+**Lifecycle**: SessionStart
+
+**Key Features**:
+- Memory loading with graceful degradation (continues if file missing)
+- Relevance ranking with recency boost (favors recent memories 1-30 days old)
+- Token budget enforcement with priority sorting
+- Prompt injection at top of prompt for visibility
+- Configurable via environment variables
+
+**Environment Variables**:
+- MEMORY_INJECTION_ENABLED (default: false) - Enable/disable injection
+- MEMORY_INJECTION_TOKEN_BUDGET (default: 500) - Max tokens for memories
+- MEMORY_RELEVANCE_THRESHOLD (default: 0.7) - Min relevance score
+
+**Dependencies**:
+- memory_layer.py - Memory persistence storage
+- memory_relevance.py - TF-IDF relevance scoring
+- memory_formatter.py - Token-aware formatting
+- path_utils.py - Path detection
+- validation.py - Input validation
 
 ---
 

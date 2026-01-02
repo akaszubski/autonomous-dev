@@ -131,8 +131,13 @@ PII_PATTERNS = {
         r"(?i)(?:password|passwd|pwd)\s+is\s+\w+",
         "[REDACTED_PASSWORD]"
     ),
+    "password_field": (
+        # Match "password: value" pattern with special chars
+        r"(?i)(?:password|passwd|pwd)[\s:='\"]+([\w!@#$%^&*()_+-]+)",
+        "[REDACTED_PASSWORD]"
+    ),
     "secret_field": (
-        r"(?i)(?:secret|password|passwd|pwd)[\s:='\"]+([\w_-]+)",
+        r"(?i)(?:secret)[\s:='\"]+([\w!@#$%^&*()_+-]+)",
         "[REDACTED_SECRET]"
     ),
     "email": (

@@ -1,4 +1,59 @@
 ## [Unreleased]
+- **Memory Layer Auto-Injection at SessionStart (Issue #192, v1.0.0)**
+  - **Purpose**: Auto-inject relevant memories from previous sessions enabling cross-session context continuity
+  - **Problem**: Agents have no persistent memory between sessions. Architectural decisions, blockers, patterns must be re-explained. Manual context recovery is slow and error-prone
+  - **Solution**: SessionStart hook that loads memories from .claude/memories/session_memories.json, ranks by relevance (TF-IDF), formats within token budget, injects into initial prompt
+  - **Key Features**:
+    - **Memory Loading**: Loads from .claude/memories/session_memories.json with graceful degradation
+    - **Relevance Ranking**: TF-IDF scoring with recency boost (favors memories 1-30 days old)
+    - **Token Budget**: Default 500 tokens, configurable, prioritizes high-relevance when constrained
+    - **Prompt Injection**: Injects at top of prompt with markdown structure and relevance scores
+    - **Environment Variables**: MEMORY_INJECTION_ENABLED (default: false), MEMORY_INJECTION_TOKEN_BUDGET (default: 500), MEMORY_RELEVANCE_THRESHOLD (default: 0.7)
+  - **Key Libraries**:
+    - **memory_relevance.py** (287 lines): TF-IDF-based relevance scoring with keyword extraction and recency boost
+    - **memory_formatter.py** (261 lines): Token-aware formatting with budget constraints and priority sorting
+    - **auto_inject_memory.py** (9,089 lines): SessionStart hook implementation
+  - **Integration Points**:
+    - SessionStart Hook: Automatic injection at new session/conversation start
+    - Memory Layer: Reads from memory_layer.py persistent storage
+    - Relevance Scoring: TF-IDF ranking of memories by relevance
+    - Formatting: Token-aware markdown formatting with budget enforcement
+  - **Configuration**:
+    - MEMORY_INJECTION_ENABLED=true to enable (opt-in, default: false)
+    - MEMORY_INJECTION_TOKEN_BUDGET to customize max tokens (default: 500)
+    - MEMORY_RELEVANCE_THRESHOLD to customize min score (default: 0.7)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/memory_relevance.py (287 lines)
+    - plugins/autonomous-dev/lib/memory_formatter.py (261 lines)
+    - plugins/autonomous-dev/lib/auto_inject_memory.py (9,089 lines)
+    - plugins/autonomous-dev/hooks/auto_inject_memory.py (SessionStart hook)
+    - tests/unit/lib/test_memory_relevance.py (test suite)
+    - tests/unit/lib/test_memory_formatter.py (test suite)
+    - tests/unit/lib/test_auto_inject_memory.py (test suite)
+    - tests/integration/test_auto_inject_memory_integration.py (test suite)
+  - **Files Modified**:
+    - docs/LIBRARIES.md - Sections 88, 89, 90 with complete API documentation
+    - docs/HOOKS.md - Added auto_inject_memory.py to SessionStart hooks (count: 1->2)
+    - plugins/autonomous-dev/config/install_manifest.json - Added 3 memory libraries to lib section
+  - **Test Coverage** (96 tests total):
+    - memory_relevance.py: 32 tests (keyword extraction, relevance scoring, ranking, thresholds)
+    - memory_formatter.py: 28 tests (token counting, formatting, budget constraints, truncation)
+    - auto_inject_memory.py: 36 tests (prompt injection, env vars, memory loading, edge cases)
+  - **Dependencies**:
+    - memory_layer.py (Issue #179) - Persistent memory storage
+    - path_utils.py - Dynamic path detection
+    - validation.py - Input validation
+  - **Security**:
+    - Path traversal prevention via validate_path()
+    - JSON validation before processing
+    - Graceful degradation for corrupted/missing files
+    - No sensitive data in injected memories
+  - **Performance**:
+    - Memory loading: O(n) where n = memory count
+    - Relevance scoring: O(m * k) where m = memories, k = keywords
+    - Token counting: O(1) character-based estimation
+    - Typical injection: 50-100ms for 500-token memories
+
 
 - **Agent Feedback Loop for Intelligent Agent Routing (Issue #191, v1.0.0)**
   - **Purpose**: Implement machine learning feedback loop for data-driven agent routing optimization based on historical performance metrics

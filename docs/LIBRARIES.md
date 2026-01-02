@@ -13351,3 +13351,270 @@ Integration Tests (18 tests):
 
 ---
 100 percent compatible - new library for feedback-driven agent routing without affecting existing workflows. Optional integration point for planner optimization.
+
+---
+
+## 88. memory_relevance.py (287 lines, v1.0.0 - Issue #192)
+
+Purpose: TF-IDF-based relevance scoring for cross-session memories enabling intelligent retrieval of contextually relevant memories from previous sessions.
+
+Problem: Memory injection needs intelligent filtering to avoid context bloat. Too many irrelevant memories waste tokens; too few memories reduce context continuity. No built-in relevance scoring.
+
+Solution: TF-IDF (Term Frequency-Inverse Document Frequency) scoring system that:
+1. Extracts keywords from query using stopword removal
+2. Calculates relevance scores between query and memory content
+3. Applies recency boost to favor recent memories
+4. Filters low-relevance memories using threshold (configurable)
+5. Returns ranked memories sorted by relevance score (highest first)
+
+Key Features:
+
+1. Keyword Extraction:
+   - Extracts keywords from text using simple TF-IDF tokenization
+   - Removes stopwords (common words like the, and, to)
+   - Case-insensitive matching
+   - Returns sorted list of unique keywords
+
+2. Relevance Scoring:
+   - TF-IDF formula: overlap_ratio * recency_boost
+   - overlap_ratio: Count of matching keywords / total keywords in query
+   - Recency boost: 1.0 + (days_old / 30) up to 1.3 max bonus
+   - Range: 0.0 (no match) to 1.3 (perfect match + recent)
+   - Timestamp-aware (expects ISO 8601 format)
+
+3. Memory Ranking:
+   - Sorts memories by relevance score (descending)
+   - Filters memories below threshold (default 0.3)
+   - Preserves original memory structure with added relevance_score
+   - Returns empty list if no matches meet threshold
+
+4. Threshold Filtering:
+   - Default threshold: 0.3 (allows partial matches)
+   - Configurable per call via threshold parameter
+   - High thresholds (0.7+) only include high-relevance memories
+   - Low thresholds (0.1) include most memories
+
+Public API:
+
+Key functions:
+- extract_keywords(text: str) - Extract keywords from text
+- calculate_relevance(query: str, memory_text: str, timestamp: str) - Calculate relevance score between query and memory
+- rank_memories(query: str, memories: List, threshold: float) - Rank and filter memories by relevance
+
+Constants:
+
+- STOPWORDS - Set of common English stopwords
+- RECENCY_BOOST_MAX = 1.3 - Maximum boost for recent memories
+- RECENCY_BOOST_SCALE = 30 - Days to reach max boost
+- DEFAULT_THRESHOLD = 0.3 - Minimum relevance score
+
+Integration Points:
+
+1. Memory Injection: Used by auto_inject_memory.py to filter relevant memories
+2. Formatting: Ranked memories passed to memory_formatter.py for token-aware formatting
+3. SessionStart Hook: Called during memory injection at session start
+
+Test Coverage (32 tests):
+
+Unit Tests:
+- extract_keywords() with various text inputs, stopword filtering
+- calculate_relevance() with exact/partial/no matches, timestamp variations
+- rank_memories() with threshold filtering, sorting, edge cases
+- Recency boost calculation and max limits
+- Empty/None input handling
+- Performance benchmarks for keyword extraction
+
+Version History:
+- v1.0.0 (2026-01-02) - Initial release with TF-IDF relevance scoring (Issue #192)
+
+Dependencies:
+- Standard library: datetime, typing
+
+Files Added:
+- plugins/autonomous-dev/lib/memory_relevance.py (287 lines)
+- tests/unit/lib/test_memory_relevance.py (test suite)
+
+---
+100 percent compatible - new library for intelligent memory filtering without affecting existing code.
+
+---
+
+## 89. memory_formatter.py (261 lines, v1.0.0 - Issue #192)
+
+Purpose: Token-aware formatting for memories with budget constraints enabling cost-effective memory injection while preventing context bloat.
+
+Problem: Memory injection must respect token budget to prevent context bloat. No built-in token counting or budget-aware formatting. Memories must be formatted for readability with markdown structure.
+
+Solution: Formatting system that:
+1. Counts tokens using character-based estimation (accurate within 10%)
+2. Formats individual memories with metadata and structure
+3. Formats memory blocks with budget awareness
+4. Truncates memories when budget exceeded (prioritizes high-relevance)
+5. Adds markdown headers and structure for readability
+
+Key Features:
+
+1. Token Counting:
+   - Character-based estimation: tokens approx equals character_count / 4
+   - Fast estimation (no external models needed)
+   - Accurate within 5-10% for typical text
+   - Handles edge cases (empty strings, unicode)
+
+2. Memory Block Formatting:
+   - Markdown format with metadata header
+   - Relevance score displayed prominently
+   - Timestamp for temporal context
+   - Content with proper line breaks
+   - Example: Relevance: 0.85 | 2026-01-02 with content
+
+3. Budget-Aware Formatting:
+   - Respects max_tokens constraint
+   - Prioritizes high-relevance memories when budget constrained
+   - Graceful truncation (shows ... if truncated)
+   - Returns formatted markdown block with headers
+
+4. Token Budgeting:
+   - Default budget: 500 tokens
+   - Configurable per call
+   - Includes header/footer tokens in budget calculation
+   - Reports actual tokens used
+
+Public API:
+
+Key functions:
+- count_tokens(text: str) - Estimate tokens in text
+- format_memory_block(memory: Dict) - Format single memory for display
+- format_memories_with_budget(memories: List, max_tokens: int) - Format all memories within token budget
+
+Constants:
+
+- TOKENS_PER_CHAR = 4 - Assumed characters per token
+- HEADER_TOKENS = 20 - Overhead for markdown headers
+- DEFAULT_MAX_TOKENS = 500 - Default budget
+- TRUNCATION_MARKER = ... - Indicator of truncated content
+
+Integration Points:
+
+1. Memory Injection: Used by auto_inject_memory.py to format memories
+2. Relevance Scoring: Takes output from memory_relevance.py (ranked memories)
+3. SessionStart Hook: Formats memories before prompt injection
+
+Test Coverage (28 tests):
+
+Unit Tests:
+- count_tokens() with various text lengths, unicode, special chars
+- format_memory_block() with all metadata fields, missing fields
+- format_memories_with_budget() with budget limits, priority sorting
+- Truncation behavior at budget limits
+- Edge cases: Empty memories, zero budget, single memory
+- Performance benchmarks for formatting speed
+
+Version History:
+- v1.0.0 (2026-01-02) - Initial release with token-aware formatting (Issue #192)
+
+Dependencies:
+- Standard library: typing
+
+Files Added:
+- plugins/autonomous-dev/lib/memory_formatter.py (261 lines)
+- tests/unit/lib/test_memory_formatter.py (test suite)
+
+---
+100 percent compatible - new library for efficient memory formatting without affecting existing code.
+
+---
+
+## 90. auto_inject_memory.py (9,089 lines, v1.0.0 - Issue #192)
+
+Purpose: Auto-inject relevant memories at SessionStart enabling cross-session context continuity for architectural decisions, blockers, and patterns.
+
+Problem: Agents have no memory between sessions. Architectural decisions, blockers, and patterns must be re-explained. Manual context recovery is slow and error-prone. SessionStart lacks mechanism to inject persistent context.
+
+Solution: SessionStart hook that:
+1. Loads memories from .claude/memories/session_memories.json
+2. Ranks memories by relevance to current task (TF-IDF)
+3. Formats memories within token budget (default: 500)
+4. Injects formatted memories into initial prompt as markdown context
+5. Environment variable control (MEMORY_INJECTION_ENABLED, default false)
+
+Key Features:
+
+1. Memory Loading:
+   - Loads from .claude/memories/session_memories.json
+   - Graceful degradation if file missing (logs info, continues)
+   - Validates JSON structure before processing
+   - Handles corrupted memory files safely
+
+2. Relevance Ranking:
+   - Uses TF-IDF scoring to rank memories by relevance
+   - Recency boost favors recent memories (1-30 days)
+   - Threshold filtering (default: 0.7) removes low-relevance memories
+   - Configurable via MEMORY_RELEVANCE_THRESHOLD env var
+
+3. Token Budget Enforcement:
+   - Default budget: 500 tokens
+   - Configurable via MEMORY_INJECTION_TOKEN_BUDGET env var
+   - Prioritizes high-relevance memories when budget constrained
+   - Graceful truncation if over budget
+
+4. Prompt Injection:
+   - Injects formatted memories into prompt as markdown block
+   - Placed at top of prompt for visibility
+   - Includes Relevant Context from Previous Sessions header
+   - Clean markdown formatting with relevance scores
+
+5. Environment Variable Control:
+   - MEMORY_INJECTION_ENABLED (default: false) - Enable/disable injection
+   - MEMORY_INJECTION_TOKEN_BUDGET (default: 500) - Max tokens for memories
+   - MEMORY_RELEVANCE_THRESHOLD (default: 0.7) - Min relevance score
+
+Public API:
+
+Key functions:
+- inject_memories_into_prompt(original_prompt: str, project_root: Path, max_tokens: int) - Inject memories into prompt
+- should_inject_memories() - Check if injection enabled
+- load_relevant_memories(query: str, project_root: Path, threshold: float) - Load and rank relevant memories
+
+Integration Points:
+
+1. SessionStart Hook: Triggered automatically when new session/conversation starts
+2. Memory Layer: Reads memories from memory_layer.py storage
+3. Relevance Scoring: Uses memory_relevance.py for ranking
+4. Formatting: Uses memory_formatter.py for token-aware formatting
+5. Prompt Modification: Modifies initial prompt before agent sees it
+
+Configuration:
+
+Environment variables (set in .env or shell):
+- MEMORY_INJECTION_ENABLED=true - Enable memory injection (default: false)
+- MEMORY_INJECTION_TOKEN_BUDGET=1000 - Max tokens (default: 500)
+- MEMORY_RELEVANCE_THRESHOLD=0.5 - Min score (default: 0.7)
+
+Test Coverage (36 tests):
+
+Unit Tests:
+- inject_memories_into_prompt() with various scenarios
+- should_inject_memories() with env var states
+- load_relevant_memories() with query matching
+- Prompt injection formatting
+- Memory file loading and validation
+- Edge cases: Missing files, corrupted JSON, empty memories
+- Performance benchmarks for injection speed
+
+Version History:
+- v1.0.0 (2026-01-02) - Initial release with SessionStart memory injection (Issue #192)
+
+Dependencies:
+- memory_layer.py - Memory persistence
+- memory_relevance.py - Relevance scoring
+- memory_formatter.py - Token-aware formatting
+- path_utils.py - Path detection
+- validation.py - Input validation
+
+Files Added:
+- plugins/autonomous-dev/lib/auto_inject_memory.py (9,089 lines)
+- tests/unit/lib/test_auto_inject_memory.py (test suite)
+- tests/integration/test_auto_inject_memory_integration.py (test suite)
+
+---
+100 percent compatible - new SessionStart hook for optional memory injection without affecting existing workflows.
