@@ -691,9 +691,42 @@ Essential hooks for autonomous development workflow and security enforcement.
 
 ### validate_project_alignment.py
 
-**Purpose**: PROJECT.md validation
-**Checks**: Feature alignment with goals, scope, constraints
+**Purpose**: PROJECT.md validation (Issue #194 - Forbidden sections detection)
+**Checks**:
+- Feature alignment with goals, scope, constraints
+- Forbidden sections detection (TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned)
 **Lifecycle**: PreCommit
+
+**Forbidden Sections Feature (Issue #194)**:
+Prevents strategic documents from becoming task lists. PROJECT.md defines strategic direction (GOALS/SCOPE/CONSTRAINTS); tactical work belongs in GitHub Issues.
+
+**Forbidden Sections**:
+- TODO - Indicates incomplete work
+- Roadmap - Indicates future planning
+- Future - Indicates planned features
+- Backlog - Indicates queued work
+- Next Steps - Indicates sequential tasks
+- Coming Soon - Indicates upcoming work
+- Planned - Indicates intentional future work
+
+**Validation Logic**:
+- Detects forbidden sections using case-insensitive regex matching
+- Provides remediation guidance pointing to `/create-issue`
+- Blocks commit until sections are removed or extracted to GitHub Issues
+- Works with `/align --project` command for automatic fixing
+
+**Error Message Example**:
+```
+❌ ERROR: Found forbidden section "TODO" in PROJECT.md
+Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned
+→ Use /create-issue for feature requests and tactical tasks instead
+```
+
+**Integration Points**:
+- `/align --project` - Can automatically remove forbidden sections and guide user to `/create-issue`
+- `/setup` - Validates new PROJECT.md doesn't contain forbidden sections
+- Git PreCommit - Blocks commits with forbidden sections
+- Alignment fixer (`alignment_fixer.py`) - Provides section extraction methods for remediation
 
 ### validate_claude_alignment.py
 

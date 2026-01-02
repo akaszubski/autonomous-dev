@@ -374,7 +374,7 @@ git add .claude/PROJECT.md
 git commit -m "docs: Update project goals"
 ```
 
-**PROJECT.md vs GitHub Issues**: PROJECT.md = strategic (GOALS/SCOPE/CONSTRAINTS). GitHub Issues = tactical (tasks/bugs). Forbidden in PROJECT.md: TODO, Roadmap, Future → use `/create-issue` (#194)
+**PROJECT.md vs GitHub Issues**: Strategic vs tactical. Forbidden: TODO, Roadmap, Future → `/create-issue` (#194)
 
 ---
 

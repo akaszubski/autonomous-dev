@@ -642,6 +642,134 @@ class AlignmentFixer:
 
         return count
 
+    def extract_forbidden_section(self, content: str, section: str) -> str:
+        """
+        Extract content of a single forbidden section from PROJECT.md.
+
+        Args:
+            content: PROJECT.md content
+            section: Section name to extract (e.g., "TODO", "Roadmap")
+
+        Returns:
+            Extracted section content (without section header)
+            Empty string if section not found
+        """
+        if not content or not content.strip():
+            return ""
+
+        # Build regex pattern for the specific section (case-insensitive)
+        # Matches: ## TODO (any level heading)
+        # Captures content until next section or end of file
+        section_pattern = rf'^(#+)\s*{re.escape(section)}\s*$'
+
+        lines = content.split('\n')
+        section_lines = []
+        in_section = False
+        section_level = 0
+
+        for line in lines:
+            if in_section:
+                # Check if we hit another section header at same or higher level
+                header_match = re.match(r'^(#+)\s+\S', line)
+                if header_match:
+                    header_level = len(header_match.group(1))
+                    if header_level <= section_level:
+                        # End of this section
+                        break
+                section_lines.append(line)
+            else:
+                # Look for section start
+                match = re.match(section_pattern, line, re.IGNORECASE)
+                if match:
+                    in_section = True
+                    section_level = len(match.group(1))
+
+        return '\n'.join(section_lines).strip()
+
+    def extract_all_forbidden_sections(self, content: str) -> Dict[str, str]:
+        """
+        Extract all forbidden sections from PROJECT.md.
+
+        Args:
+            content: PROJECT.md content
+
+        Returns:
+            Dictionary mapping section names to their content
+            Empty dict if no forbidden sections found
+        """
+        from validate_project_alignment import FORBIDDEN_SECTIONS
+
+        if not content or not content.strip():
+            return {}
+
+        extracted = {}
+
+        for section in FORBIDDEN_SECTIONS:
+            section_content = self.extract_forbidden_section(content, section)
+            if section_content:
+                extracted[section] = section_content
+
+        return extracted
+
+    def remove_forbidden_sections(self, content: str) -> str:
+        """
+        Remove all forbidden sections from PROJECT.md.
+
+        Preserves all other content and structure.
+
+        Args:
+            content: PROJECT.md content
+
+        Returns:
+            Content with forbidden sections removed
+        """
+        from validate_project_alignment import FORBIDDEN_SECTIONS
+
+        if not content or not content.strip():
+            return content
+
+        # Build regex pattern for all forbidden sections (case-insensitive)
+        forbidden_pattern = '|'.join(re.escape(section) for section in FORBIDDEN_SECTIONS)
+        section_pattern = rf'^(#+)\s*({forbidden_pattern})\s*$'
+
+        lines = content.split('\n')
+        result_lines = []
+        skip_until_next_section = False
+        current_section_level = 0
+
+        for line in lines:
+            # Check if this is a forbidden section header
+            match = re.match(section_pattern, line, re.IGNORECASE)
+            if match:
+                skip_until_next_section = True
+                current_section_level = len(match.group(1))
+                continue
+
+            if skip_until_next_section:
+                # Check if we hit another section header at same or higher level
+                header_match = re.match(r'^(#+)\s+\S', line)
+                if header_match:
+                    header_level = len(header_match.group(1))
+                    if header_level <= current_section_level:
+                        # New section at same or higher level - stop skipping
+                        skip_until_next_section = False
+                        result_lines.append(line)
+                # Otherwise skip this line (part of forbidden section)
+            else:
+                result_lines.append(line)
+
+        # Clean up multiple consecutive blank lines
+        cleaned = []
+        prev_blank = False
+        for line in result_lines:
+            is_blank = not line.strip()
+            if is_blank and prev_blank:
+                continue
+            cleaned.append(line)
+            prev_blank = is_blank
+
+        return '\n'.join(cleaned).rstrip() + '\n' if cleaned else ''
+
 
 # Module-level convenience functions
 

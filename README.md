@@ -149,6 +149,11 @@ Why blocked: Explicitly OUT of scope
 
 This prevents the "while I'm here, let me also refactor..." drift.
 
+**Forbidden Sections** (Issue #194): Keep PROJECT.md strategic, not tactical. These sections don't belong in PROJECT.md:
+- ❌ TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned
+
+Use `/create-issue` for tactical work instead. PROJECT.md defines strategic goals and boundaries, not task lists.
+
 ---
 
 ## Honest Benchmarks

@@ -45,6 +45,13 @@ from pathlib import Path
 from typing import Tuple
 
 
+# Forbidden sections in PROJECT.md (tactical content belongs in GitHub Issues)
+FORBIDDEN_SECTIONS = [
+    'TODO', 'Roadmap', 'Future', 'Backlog',
+    'Next Steps', 'Coming Soon', 'Planned'
+]
+
+
 def is_running_under_uv() -> bool:
     """Detect if script is running under UV."""
     return "UV_PROJECT_ENVIRONMENT" in os.environ
@@ -180,6 +187,105 @@ def check_scope_alignment(project_root: Path) -> Tuple[bool, str]:
         )
 
     return True, "✅ PROJECT.md SCOPE defined (alignment enforced by orchestrator)"
+
+
+def check_forbidden_sections(content: str) -> Tuple[bool, str]:
+    """
+    Check PROJECT.md for forbidden sections.
+
+    Forbidden sections (TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned)
+    represent tactical task tracking and should be in GitHub Issues, not PROJECT.md.
+
+    Args:
+        content: PROJECT.md content to validate
+
+    Returns:
+        Tuple of (is_valid, message)
+        - is_valid: True if no forbidden sections found
+        - message: Success message or detailed error with line numbers
+    """
+    if not content or not content.strip():
+        return True, "✅ No forbidden sections (empty content)"
+
+    # Build regex pattern for all forbidden sections (case-insensitive)
+    # Pattern: ^#+\s*(TODO|Roadmap|Future|...)
+    # Simple alternation pattern (ReDoS-safe, no nested quantifiers)
+    forbidden_pattern = '|'.join(re.escape(section) for section in FORBIDDEN_SECTIONS)
+    section_regex = rf'^(#+)\s*({forbidden_pattern})\s*$'
+
+    violations = []
+    lines = content.split('\n')
+
+    for line_num, line in enumerate(lines, start=1):
+        match = re.match(section_regex, line, re.IGNORECASE)
+        if match:
+            section_name = match.group(2)
+            violations.append((line_num, section_name, line.strip()))
+
+    if not violations:
+        return True, "✅ No forbidden sections detected"
+
+    # Build detailed error message with all violations
+    error_lines = ["❌ Forbidden section(s) detected in PROJECT.md\n"]
+
+    # Group violations by normalized section name for summary
+    from collections import defaultdict
+    by_section = defaultdict(list)
+    for line_num, section_name, line_content in violations:
+        # Normalize section name for grouping
+        normalized = section_name.upper()
+        # Find matching forbidden section (case-insensitive)
+        for forbidden in FORBIDDEN_SECTIONS:
+            if normalized == forbidden.upper():
+                normalized = forbidden
+                break
+        by_section[normalized].append((line_num, line_content))
+
+    # Report each violation with normalized section name
+    for section, occurrences in sorted(by_section.items()):
+        for line_num, line_content in occurrences:
+            error_lines.append(f"Line {line_num}: {line_content} (normalized: {section})\n")
+
+    error_lines.append(
+        "\nWhy: PROJECT.md should contain only strategic content (GOALS, SCOPE, \n"
+        "CONSTRAINTS, ARCHITECTURE). Tactical items belong in GitHub Issues.\n"
+        "\n"
+        "Remediation:\n"
+        "  Create GitHub issues using: /create-issue\n"
+        "  Or run: /align --project (automated fix)"
+    )
+
+    return False, "".join(error_lines)
+
+
+def validate_project_md(project_md_path: Path) -> list:
+    """
+    Validate PROJECT.md file and return list of issues.
+
+    This is a convenience function for integration with alignment workflows.
+
+    Args:
+        project_md_path: Path to PROJECT.md file
+
+    Returns:
+        List of validation issue messages (empty if valid)
+    """
+    issues = []
+
+    # Check if file exists
+    if not project_md_path.exists():
+        issues.append("PROJECT.md not found")
+        return issues
+
+    # Read content
+    content = project_md_path.read_text()
+
+    # Check for forbidden sections
+    is_valid, message = check_forbidden_sections(content)
+    if not is_valid:
+        issues.append(message)
+
+    return issues
 
 
 def main() -> int:

@@ -1,4 +1,33 @@
 ## [Unreleased]
+- **PROJECT.md Forbidden Sections Validation (Issue #194, v1.0.0)**
+  - **Purpose**: Enforce clear separation between strategic (PROJECT.md) and tactical (GitHub Issues) work by detecting and blocking forbidden sections
+  - **Problem**: PROJECT.md often becomes a task list with TODO, Roadmap, Future, Backlog sections. This conflates strategic goals with tactical tasks, causing alignment drift and scope creep
+  - **Solution**: Add validation hook that detects 7 forbidden sections and provides remediation guidance pointing to /create-issue
+  - **Key Features**:
+    - **Forbidden Sections Detection**: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned (case-insensitive)
+    - **Case-Insensitive Matching**: Detects variations like "TODO", "Todo", "todo"
+    - **Remediation Guidance**: Shows list of forbidden sections and recommends /create-issue for tactical work
+    - **Integration Points**: PreCommit hook blocks commits, /align --project can auto-fix, /setup validates new PROJECT.md
+    - **Section Extraction**: alignment_fixer.py provides extraction methods for moving content to GitHub Issues
+  - **Validation Function**: check_forbidden_sections() in validate_project_alignment.py
+    - Returns tuple: (is_valid: bool, message: str)
+    - Supports empty content gracefully
+    - Provides line numbers for violations
+  - **Error Message Example**:
+    ❌ ERROR: Found forbidden section "TODO" in PROJECT.md
+    Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned
+    → Use /create-issue for feature requests and tactical tasks instead
+  - **Files Modified**:
+    - plugins/autonomous-dev/hooks/validate_project_alignment.py - Added check_forbidden_sections() function with FORBIDDEN_SECTIONS constant
+    - plugins/autonomous-dev/lib/alignment_fixer.py - Added extract_section() and remove_section() methods for remediation
+    - docs/HOOKS.md - Documented forbidden sections feature (Issue #194)
+  - **Files Added**:
+    - tests/unit/test_forbidden_sections.py (22 test cases, 825 lines)
+  - **Test Coverage**: 22 tests covering detection, case variations, multiple violations, empty content, remediation methods
+  - **Dependencies**: Regex pattern matching, markdown section parsing
+  - **Backward Compatibility**: 100% compatible - existing PROJECT.md files without forbidden sections unaffected
+  - **GitHub Issue**: Issue #194 - Prevent strategic docs from becoming task lists
+
 - **Memory Layer Auto-Injection at SessionStart (Issue #192, v1.0.0)**
 - **Wire Conflict Resolver into Worktree and Git Automation (Issue #193, v1.0.0)**
   - **Purpose**: Integrate AI-powered conflict resolution into /worktree --merge and git automation workflows for automatic intelligent merge conflict handling
