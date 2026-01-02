@@ -13184,3 +13184,170 @@ else:
 
 ---
 100 percent compatible - new library, no API changes to existing code. Replaces internal /auto-implement Step 4.1 orchestration without affecting external interfaces.
+
+
+---
+
+## 87. agent_feedback.py (946 lines, v1.0.0 - Issue #191)
+
+**Purpose**: Machine learning feedback loop for intelligent agent routing optimization based on historical performance metrics.
+
+**Problem**: Agent selection is static. Planner assigns agents without data about their performance on similar tasks. This leads to suboptimal routing and missed optimization opportunities.
+
+**Solution**: Feedback loop system that:
+1. Records agent performance after each feature (duration, success, feature type, complexity)
+2. Queries historical data to recommend optimal agents for new features
+3. Maintains aggregated statistics by agent/feature-type/complexity combination
+4. Provides fallback agent suggestions when primary recommendation has low confidence
+5. Automatically prunes old data (90-day retention) with monthly aggregation
+
+**Key Features**:
+
+1. **Feature Type Classification**: 7 categories (security, api, ui, refactor, docs, tests, general)
+   - Keyword-based classification (e.g., "auth", "oauth" → security)
+   - Fallback to "general" for unmatched features
+   - Configurable keyword patterns per category
+
+2. **Confidence Scoring**: Statistical confidence metric
+   - Formula: confidence = success_rate * sqrt(min(executions, 50) / 50)
+   - Low confidence (less than 10 executions): 0.0-0.5
+   - Medium confidence (30 executions): 0.77 with 100% success
+   - High confidence plateau (50+ executions): success_rate as limiting factor
+   - Ensures recommendations backed by sufficient data
+
+3. **Smart Routing**: Query optimal agents per feature
+   - Top N recommendations (sorted by confidence)
+   - Fallback agents for redundancy
+   - Reasoning explanation for each recommendation
+   - Success rates and execution counts included
+
+4. **Data Aggregation**: Monthly aggregation of old feedback
+   - Preserves daily feedback for recent data (90-day window)
+   - Aggregates older data by month for retention
+   - Automatically runs during cleanup operations
+   - Maintains queryability across all time ranges
+
+5. **Atomic Writes**: Crash-proof state persistence
+   - Tempfile + atomic rename (prevents corruption on crash)
+   - Lock-based coordination for concurrent access
+   - Graceful error handling for corrupted state files
+   - Audit logging for all state changes
+
+6. **Security Hardening**:
+   - CWE-22 (path traversal): Path validation and exists() checks
+   - Input validation: agent_name, complexity, duration, feature types
+   - Sanitization: Feature descriptions and metadata
+   - No code execution from user input
+   - Audit trail logging for all operations
+
+**Dataclasses**:
+
+Single feedback entry (AgentFeedback):
+- agent_name: Name of executing agent
+- feature_type: Type of feature (security, api, ui, refactor, docs, tests, general)
+- complexity: Feature complexity (SIMPLE, STANDARD, COMPLEX)
+- duration: Execution time in minutes
+- success: Whether agent completed successfully
+- timestamp: ISO 8601 timestamp (auto-added)
+- metadata: Additional context (owasp_checks, coverage, etc.)
+
+Aggregated statistics (FeedbackStats):
+- success_rate: Percentage of successful executions (0.0-1.0)
+- avg_duration: Average execution time in minutes
+- executions: Total execution count
+- last_execution: ISO 8601 timestamp of most recent execution
+- confidence: Confidence score (0.0-1.0) based on data volume
+
+Recommendation with fallbacks (RoutingRecommendation):
+- agent_name: Primary recommended agent
+- confidence: Confidence score (0.0-1.0)
+- reasoning: Explanation of recommendation
+- fallback_agents: Backup agents if primary unavailable
+- stats: Performance metrics for this agent
+
+**State File Structure** (.claude/agent_feedback.json):
+
+JSON structure with version, feedback array, and aggregated monthly statistics:
+- version: "1.0"
+- feedback: Array of AgentFeedback entries with agent_name, feature_type, complexity, duration, success, timestamp, metadata
+- aggregated: Nested object by month/agent/feature_type/complexity with total_executions, success_count, total_duration
+
+**Public API**:
+
+Key functions:
+- record_feedback(agent_name, feature_type, complexity, duration, success, metadata=None) - Record agent performance after task completion
+- query_recommendations(feature_type, complexity, top_n=3) - Get recommended agents for a feature
+- get_agent_stats(agent_name) - Get statistics for specific agent
+- classify_feature_type(description) - Classify feature type from description
+- cleanup_old_data() - Prune expired data and aggregate old feedback
+
+Usage:
+- Record performance after agent completes
+- Query recommendations when planning next features
+- Classify features automatically from descriptions
+- Run periodic cleanup for maintenance
+
+**Usage Example** (Integration in /auto-implement):
+
+After security-auditor completes:
+1. Record the execution with agent_name, feature_type, complexity, duration, success flag
+2. For future features, planner queries recommendations for security/STANDARD
+3. Suggests agents to use based on historical performance
+
+**Constants**:
+
+- DATA_RETENTION_DAYS = 90: Keep daily feedback for 90 days
+- CONFIDENCE_SCALE_FACTOR = 50: Executions needed to reach high confidence
+- DEFAULT_TOP_N = 3: Default number of recommendations to return
+- FEEDBACK_FILE = ".claude/agent_feedback.json"
+
+**Integration Points**:
+
+1. Planner Agent: Query recommendations when assigning agents
+2. Agent Exit: Record feedback after agent completion (SubagentStop hook)
+3. Maintenance: Periodic cleanup via /health-check command
+4. Reporting: Session reports include feedback statistics
+
+**Test Coverage** (73 tests total):
+
+Unit Tests (55 tests):
+- Dataclass validation and serialization
+- Feature type classification (7 categories, precedence rules)
+- record_feedback() with validation, atomicity, timestamp handling
+- query_recommendations() with confidence sorting, fallback logic
+- get_agent_stats() with filtered results and edge cases
+- classify_feature_type() with keyword matching and fallback
+- aggregate_feedback() with month bucketing and data preservation
+- cleanup_old_data() with expiration and aggregation
+- Error handling: Invalid inputs, corrupted state files, missing data
+- Atomic writes and crash recovery
+- Concurrent access and lock management
+
+Integration Tests (18 tests):
+- End-to-end feedback workflow (record to query to recommend)
+- Data persistence across restarts
+- Feature type classification in real scenarios
+- Confidence score accuracy across data volumes
+- Aggregation correctness (90-day retention, month bucketing)
+- Concurrent record_feedback calls
+- Cleanup effectiveness (pruning + aggregation)
+- Performance benchmarks (query speed, data size management)
+- Fallback routing when primary recommendation unavailable
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release with intelligent agent routing (Issue #191)
+
+**Dependencies**:
+- Standard library: json, pathlib, typing, datetime, threading, tempfile, os
+- Internal: path_utils, validation, audit_logging
+
+**Files Added**:
+- plugins/autonomous-dev/lib/agent_feedback.py (946 lines)
+- tests/unit/lib/test_agent_feedback.py (1,241 lines, 55 tests)
+- tests/integration/test_agent_feedback_integration.py (617 lines, 18 tests)
+
+**Files Modified**:
+- plugins/autonomous-dev/config/install_manifest.json - Added agent_feedback.py to lib section
+
+---
+100 percent compatible - new library for feedback-driven agent routing without affecting existing workflows. Optional integration point for planner optimization.

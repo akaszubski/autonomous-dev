@@ -1,5 +1,60 @@
 ## [Unreleased]
 
+- **Agent Feedback Loop for Intelligent Agent Routing (Issue #191, v1.0.0)**
+  - **Purpose**: Implement machine learning feedback loop for data-driven agent routing optimization based on historical performance metrics
+  - **Problem**: Agent selection is static. Planner assigns agents without performance data about similar task execution. This leads to suboptimal routing and missed optimization opportunities
+  - **Solution**: Feedback system that records agent performance per feature type/complexity, queries historical data to recommend optimal agents, maintains aggregated statistics, provides fallback routing, and automatically prunes old data (90-day retention)
+  - **Key Features**:
+    - **Feature Type Classification**: 7 categories (security, api, ui, refactor, docs, tests, general) via keyword matching
+    - **Confidence Scoring**: Formula combines success rate with execution count sqrt(min(executions, 50) / 50) to ensure recommendations backed by sufficient data
+    - **Smart Routing**: Top N recommendations sorted by confidence with fallback agents and reasoning
+    - **Data Aggregation**: Monthly aggregation of old feedback (90-day daily retention window)
+    - **Atomic Writes**: Tempfile + rename prevents corruption on crash, lock-based coordination for concurrent access
+    - **Security Hardening**: CWE-22 path traversal prevention, input validation, sanitization, audit logging
+  - **Key Libraries**:
+    - **agent_feedback.py** (946 lines): Main feedback system with record_feedback(), query_recommendations(), get_agent_stats(), classify_feature_type(), cleanup_old_data()
+  - **Dataclasses**:
+    - AgentFeedback: Single feedback entry (agent_name, feature_type, complexity, duration, success, timestamp, metadata)
+    - FeedbackStats: Aggregated statistics (success_rate, avg_duration, executions, last_execution, confidence)
+    - RoutingRecommendation: Recommendation with confidence, reasoning, fallback_agents, stats
+  - **State File**:
+    - .claude/agent_feedback.json: Version 1.0 with daily feedback array and monthly aggregated statistics
+    - Survives crashes via atomic writes (temp + rename)
+    - Concurrent access safe with file locking
+  - **Integration Points**:
+    - Planner Agent: Query recommendations when assigning agents to features
+    - Agent Exit: Record feedback after agent completion (future SubagentStop hook)
+    - Maintenance: Periodic cleanup via /health-check command
+    - Reporting: Session reports include feedback statistics
+  - **Configuration**:
+    - DATA_RETENTION_DAYS = 90: Keep daily feedback for 90 days
+    - CONFIDENCE_SCALE_FACTOR = 50: Executions needed to reach high confidence
+    - DEFAULT_TOP_N = 3: Default number of recommendations to return
+    - FEEDBACK_FILE = ".claude/agent_feedback.json"
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/agent_feedback.py (946 lines)
+    - tests/unit/lib/test_agent_feedback.py (1,241 lines, 55 tests)
+    - tests/integration/test_agent_feedback_integration.py (617 lines, 18 tests)
+  - **Files Modified**:
+    - plugins/autonomous-dev/config/install_manifest.json - Added agent_feedback.py to lib section
+  - **Documentation Updates**:
+    - docs/LIBRARIES.md: New section 87 with complete API documentation, examples, and integration patterns
+  - **Test Coverage** (73 tests total):
+    - Unit Tests (55): Dataclass validation/serialization, feature type classification (7 categories), record_feedback validation/atomicity, query_recommendations with sorting/fallback logic, get_agent_stats filtered results, classify_feature_type keyword matching, aggregate_feedback month bucketing, cleanup_old_data expiration, error handling, atomic writes, concurrent access
+    - Integration Tests (18): End-to-end workflow (record-to-query-to-recommend), data persistence, feature classification scenarios, confidence accuracy, aggregation correctness (90-day retention), concurrent operations, cleanup effectiveness, performance benchmarks, fallback routing
+  - **Security Features**:
+    - CWE-22: Path traversal prevention via validate_path() and exists() checks
+    - Input validation: agent_name, complexity, duration, feature types
+    - Sanitization: Feature descriptions and metadata
+    - Atomic writes: Tempfile + rename prevents corruption
+    - Audit logging: All state changes recorded
+  - **Version History**:
+    - v1.0.0 (2026-01-02) - Initial release with intelligent agent routing (Issue #191)
+  - **Dependencies**:
+    - Standard library: json, pathlib, typing, datetime, threading, tempfile, os
+    - Internal: path_utils, validation, audit_logging
+  - **Backward Compatibility**: 100 percent compatible - new library for feedback-driven routing without affecting existing workflows. Optional integration point for planner optimization
+  - **GitHub Issue**: Issue #191 - Agent Feedback Loop for Intelligent Agent Routing
 - **Ralph Loop Pattern for Self-Correcting Agent Execution (Issue #189, v1.0.0)**
   - **Purpose**: Implement self-correcting agent execution with automated validation and retry loop pattern to ensure task completion before agent exit
   - **Problem**: Agents sometimes complete tasks incompletely or fail silently. Manual retry coordination is error-prone, and cost overruns from infinite loops are possible
