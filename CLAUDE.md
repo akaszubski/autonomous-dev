@@ -379,30 +379,29 @@ git commit -m "docs: Update project goals"
 ## Autonomous Development Workflow
 
 1. **Alignment Check**: Verify feature aligns with PROJECT.md
-2. **Complexity Assessment** (v1.0.0 - Issue #181): complexity_assessor library determines pipeline scaling
-   - Keyword-based analysis (SIMPLE/STANDARD/COMPLEX)
-   - Recommends agent count (3/6/8 agents) and time estimates (8/15/25 min)
-   - Security-first: COMPLEX keywords override SIMPLE keywords
-   - Confidence scoring indicates assessment certainty (0.0-1.0)
-   - Used by planner to optimize resource allocation
+2. **Complexity Assessment** (v3.45.0 - Issue #190): complexity_assessor determines pipeline scaling
+   - Recommends agent count (3/6/8) and time (8/15/25 min) based on SIMPLE/STANDARD/COMPLEX
+   - Security-first: COMPLEX keywords override SIMPLE, confidence scoring (0.0-1.0)
 3. **Research**: researcher agent finds patterns (Haiku model - optimized for speed)
 4. **Planning**: planner agent creates plan (uses complexity assessment for scaling)
-5. **TDD Tests**: test-master writes failing tests FIRST
-6. **Implementation**: implementer makes tests pass
-7. **Parallel Validation (3 agents simultaneously)**:
+5. **Pause Control** (v3.45.0 - Issue #190): Optional human-in-the-loop after planning
+   - Feature flag: `ENABLE_PAUSE_CONTROLLER` (default: false)
+   - Checks .claude/PAUSE file, reads HUMAN_INPUT.md for feedback
+6. **TDD Tests**: test-master writes failing tests FIRST
+7. **Implementation**: implementer makes tests pass
+8. **Parallel Validation (3 agents simultaneously)**:
    - reviewer checks code quality
    - security-auditor scans for vulnerabilities
    - doc-master updates documentation
    - Execution: Three Task tool calls in single response enables parallel execution
    - Performance: 5 minutes → 2 minutes (60% faster)
-8. **Automated Git Operations (SubagentStop hook - consent-based)**:
-   - Triggers when doc-master agent completes (last agent in parallel validation)
-   - Check environment variables for consent: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
-   - Invoke commit-message-generator agent (creates conventional commit)
-   - Automatically stage changes, create commit, push, and optionally create PR
-   - Graceful degradation: If prerequisites fail (git not available, config missing), feature is still successful
-   - Hook file: `plugins/autonomous-dev/hooks/auto_git_workflow.py` (SubagentStop lifecycle)
-9. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
+9. **Memory Recording** (v3.45.0 - Issue #190): Cross-session context after validation
+   - Feature flag: `ENABLE_MEMORY_LAYER` (default: false)
+   - Records feature completion, decisions, patterns for batch recall
+10. **Automated Git Operations (SubagentStop hook - consent-based)**:
+   - Triggers on doc-master completion, checks `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
+   - Stages, commits, pushes, optionally creates PR with graceful degradation
+11. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
 
 **Performance Baseline**: 15-25 minutes per workflow (25-30% overall improvement from 28-44 min baseline)
 

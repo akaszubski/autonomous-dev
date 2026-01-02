@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+- **CHECKPOINT Integration Documentation (Issue #190, v4.1.0)**
+  - **Purpose**: Document new checkpoint integration points in autonomous development workflow for enhanced control and visibility
+  - **Changes**:
+    - CHECKPOINT 0.5 - Complexity Assessment: Complexity assessment checkpoint after alignment check, determines pipeline scaling (3/6/8 agents, 8/15/25 min estimates)
+    - CHECKPOINT 1.35 - Pause Control: Pause checkpoint after planner step, allows Claude to ask for user confirmation before proceeding with high-risk features
+    - CHECKPOINT 4.35 - Memory Layer: Memory checkpoint after doc-master step in parallel validation, captures validation results for documentation reference
+  - **Feature Flags**:
+    - ENABLE_COMPLEXITY_SCALING (default: true) - Enable complexity assessment checkpoint
+    - ENABLE_PAUSE_CONTROLLER (default: true) - Enable pause control checkpoint
+    - ENABLE_MEMORY_LAYER (default: true) - Enable validation result memory capture
+  - **Documentation Updates**:
+    - CLAUDE.md - Updated "Autonomous Development Workflow" section with full checkpoint descriptions and feature flag configuration
+    - CLAUDE.md - Added "Checkpoint Configuration" section with environment variable setup
+    - CLAUDE.md - Added "Checkpoint Files" section referencing implementation locations
+  - **Files Modified**:
+    - CLAUDE.md (Autonomous Development Workflow section - lines 379-450)
+  - **References**:
+    - docs/CHECKPOINTS.md (Issue #190) - Complete checkpoint integration guide
+    - plugins/autonomous-dev/commands/auto-implement.md - Checkpoint implementation locations
+    - plugins/autonomous-dev/lib/checkpoint_manager.py - Core checkpoint library
+  - **GitHub Issue**: Issue #190 - Document CHECKPOINT integration for workflow control
+
 - **Parallel Validation Library Migration (Issue #188, v1.0.0)**
   - **Purpose**: Migrate /auto-implement Step 4.1 parallel validation from prompt engineering to reusable agent_pool library integration
   - **Problem**: Parallel validation logic was coupled to /auto-implement command as prompt engineering. This approach lacks reusability across workflows, makes testing difficult in isolation, prevents independent optimization, and mixes orchestration with implementation

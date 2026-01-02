@@ -790,6 +790,221 @@ class TestGracefulDegradation:
 
 
 # ============================================================================
+# AUTO-IMPLEMENT.MD INTEGRATION TESTS (RED PHASE - WILL FAIL)
+# ============================================================================
+
+
+class TestAutoImplementCheckpointIntegration:
+    """Tests that verify auto-implement.md has checkpoint integration code.
+
+    These tests will FAIL until auto-implement.md is updated with the checkpoint calls.
+    They verify the IMPLEMENTATION, not just the library APIs.
+    """
+
+    def test_checkpoint05_exists_in_auto_implement(self):
+        """Test CHECKPOINT 0.5 code exists in auto-implement.md (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Should contain complexity assessment code
+        assert "CHECKPOINT 0.5" in content, "CHECKPOINT 0.5 marker not found in auto-implement.md"
+        assert "complexity_assessor" in content, "complexity_assessor import/usage not found"
+        assert "ComplexityAssessor" in content, "ComplexityAssessor class not found"
+        assert "ENABLE_COMPLEXITY_SCALING" in content, "Feature flag ENABLE_COMPLEXITY_SCALING not found"
+
+    def test_checkpoint05_calls_assess_before_planner(self):
+        """Test CHECKPOINT 0.5 calls assess() before planner agent (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Find the position of planner step
+        planner_pos = content.find("STEP 2")  # Or wherever planner is invoked
+        assert planner_pos > 0, "Could not find planner step in auto-implement.md"
+
+        # Complexity assessment should come BEFORE planner
+        checkpoint05_pos = content.find("CHECKPOINT 0.5")
+        assert checkpoint05_pos > 0, "CHECKPOINT 0.5 not found"
+        assert checkpoint05_pos < planner_pos, "CHECKPOINT 0.5 should be before planner step"
+
+        # Should call assess() method
+        assess_call_pos = content.find(".assess(")
+        assert assess_call_pos > 0, "assess() method call not found"
+        assert assess_call_pos < planner_pos, "assess() call should be before planner"
+
+    def test_checkpoint05_adapts_agent_count(self):
+        """Test CHECKPOINT 0.5 adapts agent count based on complexity (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Should have logic to scale agent count
+        checkpoint_section = content[content.find("CHECKPOINT 0.5"):content.find("CHECKPOINT 0.5") + 2000] if "CHECKPOINT 0.5" in content else ""
+
+        assert "agent_count" in checkpoint_section, "agent_count scaling not found in CHECKPOINT 0.5"
+        assert "SIMPLE" in checkpoint_section or "STANDARD" in checkpoint_section or "COMPLEX" in checkpoint_section, \
+            "Complexity level handling not found"
+
+    def test_checkpoint135_exists_in_auto_implement(self):
+        """Test CHECKPOINT 1.35 code exists in auto-implement.md (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Should contain pause controller code
+        assert "CHECKPOINT 1.35" in content, "CHECKPOINT 1.35 marker not found in auto-implement.md"
+        assert "pause_controller" in content, "pause_controller import/usage not found"
+        assert "check_pause_requested" in content, "check_pause_requested() function not found"
+        assert "ENABLE_PAUSE_CONTROLLER" in content, "Feature flag ENABLE_PAUSE_CONTROLLER not found"
+
+    def test_checkpoint135_calls_check_pause_after_planning(self):
+        """Test CHECKPOINT 1.35 calls check_pause_requested() after planning (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Find planner and test-master steps
+        planner_pos = content.find("STEP 2")  # Planner step
+        test_master_pos = content.find("STEP 3")  # Test-master step
+
+        assert planner_pos > 0, "Could not find planner step"
+        assert test_master_pos > 0, "Could not find test-master step"
+
+        # Pause check should be AFTER planner, BEFORE test-master
+        checkpoint135_pos = content.find("CHECKPOINT 1.35")
+        assert checkpoint135_pos > 0, "CHECKPOINT 1.35 not found"
+        assert checkpoint135_pos > planner_pos, "CHECKPOINT 1.35 should be after planner"
+        assert checkpoint135_pos < test_master_pos, "CHECKPOINT 1.35 should be before test-master"
+
+    def test_checkpoint135_saves_state_on_pause(self):
+        """Test CHECKPOINT 1.35 saves checkpoint state when paused (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        checkpoint_section = content[content.find("CHECKPOINT 1.35"):content.find("CHECKPOINT 1.35") + 2000] if "CHECKPOINT 1.35" in content else ""
+
+        assert "save_checkpoint" in checkpoint_section, "save_checkpoint() call not found in CHECKPOINT 1.35"
+        assert "PAUSE" in checkpoint_section, "PAUSE file handling not found"
+
+    def test_checkpoint135_reads_human_input(self):
+        """Test CHECKPOINT 1.35 reads HUMAN_INPUT.md when resuming (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        checkpoint_section = content[content.find("CHECKPOINT 1.35"):content.find("CHECKPOINT 1.35") + 2000] if "CHECKPOINT 1.35" in content else ""
+
+        assert "read_human_input" in checkpoint_section or "HUMAN_INPUT.md" in checkpoint_section, \
+            "Human input reading not found in CHECKPOINT 1.35"
+
+    def test_checkpoint435_exists_in_auto_implement(self):
+        """Test CHECKPOINT 4.35 code exists in auto-implement.md (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Should contain memory layer code
+        assert "CHECKPOINT 4.35" in content, "CHECKPOINT 4.35 marker not found in auto-implement.md"
+        assert "memory_layer" in content, "memory_layer import/usage not found"
+        assert "MemoryLayer" in content, "MemoryLayer class not found"
+        assert "ENABLE_MEMORY_LAYER" in content, "Feature flag ENABLE_MEMORY_LAYER not found"
+
+    def test_checkpoint435_calls_remember_after_doc_master(self):
+        """Test CHECKPOINT 4.35 calls remember() after doc-master completes (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Find doc-master completion
+        doc_master_pos = content.find("doc-master")
+        assert doc_master_pos > 0, "Could not find doc-master reference"
+
+        # Memory recording should be after doc-master
+        checkpoint435_pos = content.find("CHECKPOINT 4.35")
+        assert checkpoint435_pos > 0, "CHECKPOINT 4.35 not found"
+        assert checkpoint435_pos > doc_master_pos, "CHECKPOINT 4.35 should be after doc-master"
+
+        # Should call remember() method
+        remember_call_pos = content.find(".remember(")
+        assert remember_call_pos > 0, "remember() method call not found"
+
+    def test_checkpoint435_records_feature_summary(self):
+        """Test CHECKPOINT 4.35 records feature summary in memory (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        checkpoint_section = content[content.find("CHECKPOINT 4.35"):content.find("CHECKPOINT 4.35") + 2000] if "CHECKPOINT 4.35" in content else ""
+
+        # Should record various memory types
+        memory_types = ["feature", "decision", "pattern", "blocker"]
+        assert any(mtype in checkpoint_section for mtype in memory_types), \
+            "No memory types found in CHECKPOINT 4.35"
+
+    def test_all_checkpoints_have_graceful_degradation(self):
+        """Test all checkpoints have graceful degradation when disabled (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Each checkpoint should check feature flags
+        for checkpoint_num, flag in [
+            ("0.5", "ENABLE_COMPLEXITY_SCALING"),
+            ("1.35", "ENABLE_PAUSE_CONTROLLER"),
+            ("4.35", "ENABLE_MEMORY_LAYER")
+        ]:
+            checkpoint_marker = f"CHECKPOINT {checkpoint_num}"
+            if checkpoint_marker in content:
+                checkpoint_start = content.find(checkpoint_marker)
+                checkpoint_section = content[checkpoint_start:checkpoint_start + 2000]
+
+                # Should check the flag
+                assert flag in checkpoint_section, \
+                    f"{checkpoint_marker} should check {flag} feature flag"
+
+                # Should have conditional logic (if/else, try/except, or equivalent)
+                has_conditional = any(keyword in checkpoint_section for keyword in ["if ", "try:", "enabled"])
+                assert has_conditional, \
+                    f"{checkpoint_marker} should have conditional logic for graceful degradation"
+
+    def test_checkpoint_error_handling(self):
+        """Test checkpoints have error handling for library import failures (WILL FAIL)."""
+        auto_implement_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "auto-implement.md"
+
+        with open(auto_implement_path) as f:
+            content = f.read()
+
+        # Should have try/except for imports or library calls
+        checkpoint_sections = []
+        for checkpoint_num in ["0.5", "1.35", "4.35"]:
+            marker = f"CHECKPOINT {checkpoint_num}"
+            if marker in content:
+                start = content.find(marker)
+                checkpoint_sections.append(content[start:start + 2000])
+
+        # At least one checkpoint should have error handling
+        has_error_handling = any(
+            "try:" in section or "except" in section or "ImportError" in section
+            for section in checkpoint_sections
+        )
+        assert has_error_handling, \
+            "Checkpoints should have error handling for library import failures"
+
+
+# ============================================================================
 # SECURITY TESTS
 # ============================================================================
 

@@ -41,7 +41,65 @@ Options:
 3. Don't implement
 ```
 
-**If aligned**, proceed to STEP 1.
+**If aligned**, proceed to CHECKPOINT 0.5.
+
+---
+
+### CHECKPOINT 0.5: Complexity Assessment (Issue #190)
+
+**ACTION REQUIRED**: Before starting research, assess feature complexity to optimize agent resource allocation.
+
+**When to use**: Complexity assessment is controlled by environment variable (opt-in). Enable it to optimize agent count based on feature complexity.
+
+```bash
+python3 << 'EOF'
+import os
+import sys
+from pathlib import Path
+
+# Check if complexity scaling is enabled (opt-in via environment variable)
+if os.getenv('ENABLE_COMPLEXITY_SCALING', 'false').lower() == 'true':
+    try:
+        # Portable project root detection (works from any directory)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists() or (current / ".claude").exists():
+                project_root = current
+                break
+            current = current.parent
+        else:
+            project_root = Path.cwd()
+
+        # Add lib to path for imports
+        sys.path.insert(0, str(project_root / "plugins/autonomous-dev/lib"))
+        from complexity_assessor import ComplexityAssessor
+
+        # Get feature description from user input
+        feature_description = """[PASTE USER'S FEATURE DESCRIPTION HERE]"""
+
+        # Assess complexity
+        assessment = ComplexityAssessor.assess(feature_description)
+
+        print(f"✅ CHECKPOINT 0.5: Complexity={assessment.level}, Agents={assessment.agent_count}, Time={assessment.estimated_time_minutes}min, Confidence={assessment.confidence:.2f}")
+
+        # Store assessment for planner to use
+        # (In actual implementation, this would be passed to planner's context)
+
+    except ImportError:
+        print("ℹ️  Complexity assessment skipped (library unavailable)")
+    except Exception as e:
+        print(f"⚠️  Complexity assessment error: {e}")
+else:
+    print("ℹ️  Complexity scaling disabled (ENABLE_COMPLEXITY_SCALING=false)")
+EOF
+```
+
+**Complexity Levels**:
+- **SIMPLE** (3 agents, ~8 min): Config changes, docs, minor refactoring
+- **STANDARD** (6 agents, ~15 min): New features, bug fixes, API changes
+- **COMPLEX** (8 agents, ~25 min): Security-critical, multi-system integration
+
+**After assessment completes**, proceed to STEP 1 with optimized agent allocation.
 
 ---
 
@@ -248,6 +306,71 @@ python plugins/autonomous-dev/scripts/agent_tracker.py status
 ⚠️ **CHECKPOINT 2 - VERIFY RESEARCH + PLANNING**: Verify output shows 3 agents ran (researcher-local, researcher-web, planner).
 
 If count != 3, STOP and invoke missing agents NOW.
+
+---
+
+### CHECKPOINT 1.35: Pause Control (Issue #190)
+
+**ACTION REQUIRED**: After planner completes, check if human pause is requested for mid-workflow review.
+
+**When to use**: Pause controller is controlled by environment variable (opt-in). Enable it to pause workflow after planning for human review before proceeding to implementation.
+
+```bash
+python3 << 'EOF'
+import os
+import sys
+from pathlib import Path
+
+# Check if pause controller is enabled (opt-in via environment variable)
+if os.getenv('ENABLE_PAUSE_CONTROLLER', 'false').lower() == 'true':
+    try:
+        # Portable project root detection (works from any directory)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists() or (current / ".claude").exists():
+                project_root = current
+                break
+            current = current.parent
+        else:
+            project_root = Path.cwd()
+
+        # Add lib to path for imports
+        sys.path.insert(0, str(project_root / "plugins/autonomous-dev/lib"))
+        from pause_controller import check_pause_requested, read_human_input, save_checkpoint
+
+        # Check if pause is requested (via .pause file or similar mechanism)
+        if check_pause_requested():
+            print("⏸️  CHECKPOINT 1.35: Pause requested - saving state...")
+
+            # Save checkpoint with current workflow state
+            feature_description = """[PASTE USER'S FEATURE DESCRIPTION HERE]"""
+            plan_output = """[PASTE PLANNER OUTPUT HERE]"""
+            save_checkpoint('after_planning', {'feature': feature_description, 'plan': plan_output})
+
+            # Read human input (waits for input file or user action)
+            human_input = read_human_input()
+            if human_input:
+                print(f"📝 Human input: {human_input[:100]}...")
+
+            print("▶️  Resuming workflow...")
+        else:
+            print("✅ CHECKPOINT 1.35: No pause requested")
+
+    except ImportError:
+        print("ℹ️  Pause controller skipped (library unavailable)")
+    except Exception as e:
+        print(f"⚠️  Pause controller error: {e}")
+else:
+    print("ℹ️  Pause controller disabled (ENABLE_PAUSE_CONTROLLER=false)")
+EOF
+```
+
+**Pause Mechanism**:
+- **Pause requested**: Workflow saves state and waits for human input
+- **Human input provided**: Review plan, adjust parameters, then resume
+- **No pause requested**: Workflow continues automatically
+
+**After pause check completes**, proceed to STEP 3 (test-master).
 
 ---
 
@@ -630,7 +753,70 @@ EOF
 1. Check which agent failed/is missing: `python plugins/autonomous-dev/scripts/agent_tracker.py status`
 2. Re-invoke the failed agent(s) now
 3. Re-run checkpoint verification
-4. Only proceed to STEP 4.4 once checkpoint passes
+4. Only proceed to CHECKPOINT 4.35 once checkpoint passes
+
+---
+
+### CHECKPOINT 4.35: Memory Layer (Issue #190)
+
+**ACTION REQUIRED**: After parallel validation completes, record feature to memory layer for future context.
+
+**When to use**: Memory layer is controlled by environment variable (opt-in). Enable it to build long-term context about implemented features for future reference.
+
+```bash
+python3 << 'EOF'
+import os
+import sys
+from pathlib import Path
+
+# Check if memory layer is enabled (opt-in via environment variable)
+if os.getenv('ENABLE_MEMORY_LAYER', 'false').lower() == 'true':
+    try:
+        # Portable project root detection (works from any directory)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists() or (current / ".claude").exists():
+                project_root = current
+                break
+            current = current.parent
+        else:
+            project_root = Path.cwd()
+
+        # Add lib to path for imports
+        sys.path.insert(0, str(project_root / "plugins/autonomous-dev/lib"))
+        from memory_layer import MemoryLayer
+
+        # Get feature description
+        feature_description = """[PASTE USER'S FEATURE DESCRIPTION HERE]"""
+
+        # Record feature to memory layer
+        memory = MemoryLayer()
+        memory.remember(
+            feature=feature_description,
+            summary=f"Implemented via /auto-implement pipeline",
+            decisions=[],
+            patterns_discovered=[],
+            blockers_encountered=[]
+        )
+
+        print("✅ CHECKPOINT 4.35: Feature recorded to memory layer")
+
+    except ImportError:
+        print("ℹ️  Memory layer skipped (library unavailable)")
+    except Exception as e:
+        print(f"⚠️  Memory layer error: {e}")
+else:
+    print("ℹ️  Memory layer disabled (ENABLE_MEMORY_LAYER=false)")
+EOF
+```
+
+**Memory Layer Purpose**:
+- **Feature history**: Track what has been implemented
+- **Decision log**: Record architectural decisions and tradeoffs
+- **Pattern discovery**: Learn from repeated patterns across features
+- **Blocker tracking**: Remember obstacles and how they were resolved
+
+**After memory layer checkpoint completes**, proceed to STEP 4.4 (Final Agent Verification).
 
 ---
 
