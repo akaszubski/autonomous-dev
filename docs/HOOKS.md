@@ -1240,6 +1240,97 @@ Special hooks that respond to Claude Code lifecycle events.
 
 ---
 
+## SubagentStop Hooks (2)
+
+Hooks that run when a subagent attempts to exit to enforce completion criteria and enable self-correcting execution.
+
+**Purpose**: Validate agent task completion before allowing exit, enable retry loops when validation fails
+**Lifecycle**: SubagentStop (can exit 0 or with blocking response JSON)
+**Trigger**: When subagent attempts to exit (SubagentStop lifecycle)
+
+### ralph_loop_enforcer.py
+
+**Purpose**: Enforce self-correcting agent execution with validation strategies and retry loop orchestration
+**Issue**: #189 (Ralph Loop Pattern for Self-Correcting Agent Execution)
+**Lifecycle**: SubagentStop (blocking - can prevent exit)
+**Exit Code**: Always EXIT_SUCCESS (0), response sent via JSON
+
+**Features**:
+- **Multiple validation strategies**: pytest, safe_word, file_existence, regex, json
+- **Retry orchestration**: Respects max iterations, circuit breaker, token limits
+- **Security hardening**: Path traversal prevention, ReDoS prevention, no code execution
+- **Graceful degradation**: Errors during validation don't crash the hook
+- **Opt-in**: RALPH_LOOP_ENABLED environment variable (default: false)
+
+**Validation Strategies**:
+1. **pytest** - Run tests and verify pass/fail
+2. **safe_word** - Search for completion marker in agent output
+3. **file_existence** - Verify expected output files exist
+4. **regex** - Extract and validate data via regex pattern
+5. **json** - Extract and validate data via JSONPath
+
+**Configuration**:
+- **RALPH_LOOP_ENABLED**: Set to "true" to enable (default: false, opt-in)
+- **RALPH_LOOP_SESSION_ID**: Session identifier for state tracking (auto-generated if not provided)
+- **RALPH_LOOP_TOKEN_LIMIT**: Token limit for entire loop (default: 50000)
+
+**Workflow**:
+1. Check if Ralph Loop enabled (RALPH_LOOP_ENABLED=true)
+2. If disabled, allow exit (return {"allow": true})
+3. If enabled, load validation criteria from environment
+4. Call success_criteria_validator library to validate task completion
+5. Check if retry allowed (via ralph_loop_manager library):
+   - Check max iterations (5 -> block)
+   - Check circuit breaker (3 consecutive failures -> block)
+   - Check token limit (exceeded -> block)
+6. If validation passes, record success and allow exit
+7. If validation fails and retry allowed, block exit (return {"allow": false})
+8. If validation fails and retry blocked, allow exit with error
+
+**Response Format**:
+```json
+{
+  "allow": true,
+  "message": "Task completed successfully",
+  "validation_strategy": "pytest",
+  "iteration": 1
+}
+```
+
+Or if blocked:
+```json
+{
+  "allow": false,
+  "message": "Validation failed: Tests did not pass. Attempt 1/5",
+  "validation_strategy": "pytest",
+  "iteration": 1,
+  "retry_allowed": true
+}
+```
+
+**Exit Codes**:
+- **EXIT_SUCCESS (0)**: Always - SubagentStop hooks always exit 0
+- Allow/block decision communicated via JSON response ({"allow": true/false})
+
+**Error Handling**:
+- Validation errors don't crash hook (graceful degradation)
+- Malformed criteria logged, validation skipped (default: allow exit)
+- Missing validation strategies handled gracefully
+- State file corruption handled with fallback to fresh state
+
+**Integration with Libraries**:
+- **ralph_loop_manager.py**: Tracks iterations, manages circuit breaker, enforces token limits
+- **success_criteria_validator.py**: Validates task completion using specified strategy
+- **hook_exit_codes.py**: Exit code constants and lifecycle semantics
+
+**Related**:
+- Issue #189 - Ralph Loop Pattern for Self-Correcting Agent Execution
+- LIBRARIES.md section 85 - ralph_loop_manager.py (retry orchestration)
+- LIBRARIES.md section 86 - success_criteria_validator.py (validation strategies)
+- tests/unit/hooks/test_ralph_loop_enforcer.py (test suite)
+
+---
+
 ## Stop Hooks (1)
 
 Hooks that run after every turn/response completes to provide non-blocking quality feedback.

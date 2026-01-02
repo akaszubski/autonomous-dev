@@ -122,7 +122,8 @@
         "plugins/autonomous-dev/hooks/validate_session_quality.py",
         "plugins/autonomous-dev/hooks/validate_settings_hooks.py",
         "plugins/autonomous-dev/hooks/verify_agent_pipeline.py",
-        "plugins/autonomous-dev/hooks/verify_completion.py"
+        "plugins/autonomous-dev/hooks/verify_completion.py",
+        "plugins/autonomous-dev/hooks/ralph_loop_enforcer.py"
       ]
     },
     "scripts": {
@@ -247,7 +248,9 @@
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
         "plugins/autonomous-dev/lib/workflow_tracker.py",
         "plugins/autonomous-dev/lib/worktree_command.py",
-        "plugins/autonomous-dev/lib/worktree_manager.py"
+        "plugins/autonomous-dev/lib/worktree_manager.py",
+        "plugins/autonomous-dev/lib/ralph_loop_manager.py",
+        "plugins/autonomous-dev/lib/success_criteria_validator.py"
       ]
     },
     "config": {

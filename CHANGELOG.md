@@ -1,5 +1,65 @@
 ## [Unreleased]
 
+- **Ralph Loop Pattern for Self-Correcting Agent Execution (Issue #189, v1.0.0)**
+  - **Purpose**: Implement self-correcting agent execution with automated validation and retry loop pattern to ensure task completion before agent exit
+  - **Problem**: Agents sometimes complete tasks incompletely or fail silently. Manual retry coordination is error-prone, and cost overruns from infinite loops are possible
+  - **Solution**: Ralph Loop implementation combining validation strategies with intelligent retry management, circuit breaker pattern, and token usage tracking
+  - **Key Features**:
+    - **ralph_loop_manager.py** (305 lines): Orchestrates retry loops with iteration tracking (max 5), circuit breaker (3 consecutive failures), and token limits (50k default)
+    - **success_criteria_validator.py** (432 lines): Five validation strategies (pytest, safe_word, file_existence, regex, json) with security hardening
+    - **ralph_loop_enforcer.py** (213 lines): SubagentStop hook that blocks agent exit if validation fails and retry allowed
+  - **Validation Strategies**:
+    - pytest: Run tests and verify pass/fail with 30-second timeout
+    - safe_word: Search for completion marker in agent output (case-insensitive)
+    - file_existence: Verify expected output files exist (symlinks rejected)
+    - regex: Extract and validate data via regex pattern (1-second timeout for ReDoS prevention)
+    - json: Extract and validate data via JSONPath expression
+  - **Retry Logic**:
+    - MAX_ITERATIONS = 5 (maximum retry attempts per session)
+    - CIRCUIT_BREAKER_THRESHOLD = 3 (consecutive failures to trigger breaker)
+    - DEFAULT_TOKEN_LIMIT = 50000 (token budget for entire loop)
+  - **Configuration**:
+    - RALPH_LOOP_ENABLED: Set to "true" to enable (default: false, opt-in)
+    - RALPH_LOOP_SESSION_ID: Session identifier for state tracking (auto-generated)
+    - RALPH_LOOP_TOKEN_LIMIT: Token limit for loop (default: 50000)
+  - **Security Features**:
+    - Path traversal prevention (CWE-22): Path validation and exists() checks
+    - Symlink rejection (CWE-59): Prevents TOCTOU attacks on file validation
+    - Command injection prevention (CWE-78): Uses subprocess.run with list args
+    - ReDoS prevention: Regex timeout at 1 second
+    - State file security: Atomic writes (temp + rename) prevent corruption
+    - Thread-safe: Atomic operations with locks for concurrent access
+  - **State Management**:
+    - Portable state storage at ~/.autonomous-dev/ralph_loop_sessions/[session-id].json
+    - Graceful degradation for corrupted state files
+    - Atomic writes prevent corruption on crash
+  - **Integration Points**:
+    - SubagentStop hook lifecycle for blocking agent exit
+    - ralph_loop_manager library: State tracking and retry decision logic
+    - success_criteria_validator library: Task completion validation
+    - hook_exit_codes library: Exit code semantics and lifecycle constraints
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/ralph_loop_manager.py (305 lines)
+    - plugins/autonomous-dev/lib/success_criteria_validator.py (432 lines)
+    - plugins/autonomous-dev/hooks/ralph_loop_enforcer.py (213 lines)
+    - tests/unit/lib/test_ralph_loop_manager.py (test suite)
+    - tests/unit/lib/test_success_criteria_validator.py (test suite)
+    - tests/unit/hooks/test_ralph_loop_enforcer.py (test suite)
+  - **Documentation Updates**:
+    - docs/LIBRARIES.md: New sections 85-86 with complete API docs and examples
+    - docs/HOOKS.md: New SubagentStop Hooks section with ralph_loop_enforcer details
+  - **Test Coverage**:
+    - RalphLoopState serialization and persistence
+    - RalphLoopManager retry decision logic and state transitions
+    - Circuit breaker triggering on consecutive failures
+    - Token limit enforcement for cost control
+    - All five validation strategies (pytest, safe_word, file_existence, regex, json)
+    - Security: Path traversal rejection, symlink detection, injection prevention
+    - Thread safety with concurrent operations
+    - Graceful degradation for corrupted state and validation errors
+  - **Backward Compatibility**: 100 percent compatible - opt-in feature via environment variable
+  - **GitHub Issue**: Issue #189 - Ralph Loop Pattern for Self-Correcting Agent Execution
+
 - **CHECKPOINT Integration Documentation (Issue #190, v4.1.0)**
   - **Purpose**: Document new checkpoint integration points in autonomous development workflow for enhanced control and visibility
   - **Changes**:

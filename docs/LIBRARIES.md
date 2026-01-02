@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (40)
+### Core Libraries (42)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -51,6 +51,9 @@ The autonomous-dev plugin includes shared libraries organized into the following
 38. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
 39. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
 40. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
+41. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
+42. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
+
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 
@@ -12946,4 +12949,238 @@ python -m autonomous_dev.lib.parallel_validation \
 
 ### Backward Compatibility
 
+
+## 85. ralph_loop_manager.py (305 lines, v1.0.0 - Issue #189)
+
+**Purpose**: Orchestrate self-correcting agent execution with retry loops, circuit breaker pattern, and token usage tracking.
+
+**Problem**: Agents sometimes complete tasks incompletely or fail silently. Manual retry coordination is error-prone, and cost overruns from infinite loops are possible.
+
+**Solution**: Ralph Loop Manager that tracks iterations, enforces circuit breaker on consecutive failures, limits token usage, and determines when to allow retry vs. blocking further attempts.
+
+**Location**: `plugins/autonomous-dev/lib/ralph_loop_manager.py`
+
+**Key Features**:
+- Iteration tracking (max 5 iterations per session)
+- Circuit breaker pattern (3 consecutive failures blocks retry)
+- Token usage tracking (prevents cost overruns)
+- Thread-safe state operations with atomic writes
+- Graceful degradation for corrupted state files
+
+**Constants**:
+- `MAX_ITERATIONS = 5` - Maximum retry attempts per session
+- `CIRCUIT_BREAKER_THRESHOLD = 3` - Consecutive failures to trigger circuit breaker
+- `DEFAULT_TOKEN_LIMIT = 50000` - Token limit for entire loop
+
+**Key Classes**:
+- `RalphLoopState` (dataclass) - Tracks session state (current iteration, tokens used, consecutive failures, circuit breaker status)
+- `RalphLoopManager` - Main orchestrator with methods:
+  - `record_attempt(tokens_used)` - Record token consumption for attempt
+  - `should_retry()` - Check if retry allowed (respects max iterations, circuit breaker, token limit)
+  - `record_success()` - Record successful completion
+  - `record_failure(error_msg)` - Record failure and check circuit breaker
+  - `get_state()` - Get current state for inspection
+  - `reset_state()` - Reset for new session
+
+**Retry Decision Logic**:
+1. Check max iterations (5 iterations -> block)
+2. Check circuit breaker (3 consecutive failures -> block)
+3. Check token limit (exceeded -> block)
+4. If all checks pass -> allow retry
+
+**Security Features**:
+- Atomic state file writes (temp + rename to prevent corruption)
+- Thread-safe operations with locks
+- Path validation to prevent directory traversal
+- Graceful degradation for corrupted state files (logs warning, continues)
+- No code execution from user input
+
+**API Highlights**:
+```python
+from ralph_loop_manager import RalphLoopManager, MAX_ITERATIONS, CIRCUIT_BREAKER_THRESHOLD
+
+# Create manager for session
+manager = RalphLoopManager("session-123", token_limit=50000)
+
+# Record attempt with tokens
+manager.record_attempt(tokens_used=5000)
+
+# Check if should retry
+if manager.should_retry():
+    # Retry execution
+    try:
+        # Run agent task
+        pass
+    except Exception as e:
+        manager.record_failure(str(e))
+else:
+    # Stop (max iterations, circuit breaker, or token limit)
+    print("Retry blocked: " + manager.get_state().stop_reason)
+
+# Record success
+manager.record_success()
+```
+
+**State Persistence**:
+- State stored in `~/.autonomous-dev/ralph_loop_sessions/[session-id].json`
+- Portable path detection works from any directory
+- Atomic writes prevent corruption on crash
+
+**Test Coverage**:
+- RalphLoopState creation and serialization
+- RalphLoopManager initialization and state management
+- should_retry() with various state conditions
+- record_attempt() token tracking
+- record_failure() circuit breaker triggering
+- Thread safety with concurrent operations
+- State file corruption handling
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release for self-correcting agent execution (Issue #189)
+
+**Dependencies**:
+- Standard library: json, threading, tempfile, pathlib, dataclasses, datetime
+
+**Files Added**:
+- plugins/autonomous-dev/lib/ralph_loop_manager.py (305 lines)
+- tests/unit/lib/test_ralph_loop_manager.py (test suite)
+
+---
+
+## 86. success_criteria_validator.py (432 lines, v1.0.0 - Issue #189)
+
+**Purpose**: Provide multiple validation strategies to determine if agent task completed successfully.
+
+**Problem**: Different tasks need different validation approaches. Some need test verification (pytest), others need file existence checks, and still others need output parsing. Each agent implements validation differently, leading to inconsistency and bugs.
+
+**Solution**: Unified validator library supporting five validation strategies with security hardening, timeout enforcement, and clear success/failure messages.
+
+**Location**: `plugins/autonomous-dev/lib/success_criteria_validator.py`
+
+**Key Features**:
+- Multiple validation strategies (pytest, safe_word, file_existence, regex, json)
+- Security validations (path traversal, ReDoS, command injection)
+- Timeout enforcement for long-running operations
+- Thread-safe operation
+- Clear success/failure messages with context
+
+**Validation Strategies**:
+
+1. **Pytest Strategy**
+   - Runs pytest and checks pass/fail
+   - Timeout: 30 seconds (configurable)
+   - Returns test output and status
+   - Use case: Unit/integration test verification
+
+2. **Safe Word Strategy**
+   - Searches for completion marker in agent output
+   - Case-insensitive matching
+   - Returns match position and context
+   - Use case: Agent output verification (e.g., "TASK_COMPLETE")
+
+3. **File Existence Strategy**
+   - Verifies all expected files exist
+   - Checks file paths, rejects symlinks (CWE-59)
+   - Returns list of missing files
+   - Use case: Output file verification
+
+4. **Regex Strategy**
+   - Extracts data via regex pattern
+   - ReDoS prevention (1 second timeout)
+   - Validates extracted value against expected
+   - Use case: Structured output validation
+
+5. **JSON Strategy**
+   - Extracts data via JSONPath expression
+   - Validates extracted value against expected
+   - Provides detailed error context
+   - Use case: JSON response validation
+
+**Constants**:
+- `DEFAULT_PYTEST_TIMEOUT = 30` - Timeout for pytest runs
+- `REGEX_TIMEOUT = 1` - Timeout for regex operations (prevent ReDoS)
+
+**Key Functions**:
+```python
+# Pytest validation
+success, message = validate_pytest("tests/test_feature.py", timeout=10)
+
+# Safe word validation
+success, message = validate_safe_word(agent_output, safe_word="SAFE_WORD_COMPLETE")
+
+# File existence validation
+success, message = validate_file_existence(["output.txt", "data.json"])
+
+# Output parsing validation
+success, message = validate_output_parsing(
+    agent_output,
+    strategy="regex",
+    pattern=r"Result: (\d+)",
+    expected="42"
+)
+```
+
+**Security Features**:
+- Path traversal prevention (CWE-22): Validates paths exist and are files/directories
+- Symlink rejection (CWE-59): Rejects symlinks to prevent TOCTOU attacks
+- Command injection prevention (CWE-78): Uses subprocess.run with list arguments (no shell=True)
+- ReDoS prevention: Regex operations timeout after 1 second
+- Input validation: Validates patterns, paths, JSONPath expressions
+- No code execution from user input
+
+**Validation Result**:
+```python
+class ValidationResult:
+    # Result of validation attempt.
+    success: bool          # True if validation passed
+    message: str           # Human-readable result message
+    strategy: str          # Which strategy was used
+    details: Dict          # Additional context (matches, file list, etc.)
+    duration_seconds: float # How long validation took
+```
+
+**API Highlights**:
+```python
+from success_criteria_validator import validate_success, validate_pytest
+
+# Generic validator (auto-selects strategy based on criteria type)
+result = validate_success(
+    criteria={
+        "strategy": "pytest",
+        "test_file": "tests/test_auth.py"
+    }
+)
+
+# Specific validator
+result = validate_pytest("tests/test_auth.py", timeout=30)
+
+# Check result
+if result.success:
+    print(f"PASS: {result.message}")
+else:
+    print(f"FAIL: {result.message}")
+    print(f"Details: {result.details}")
+```
+
+**Test Coverage**:
+- validate_pytest() with passing/failing tests
+- validate_safe_word() with various outputs
+- validate_file_existence() with existing/missing files
+- validate_output_parsing() with regex/json strategies
+- Security: Path traversal rejection, symlink detection, injection prevention
+- Timeout enforcement for long operations
+- Edge cases: Empty patterns, missing files, malformed JSON
+- Performance: Validation speed benchmarks
+
+**Version History**:
+- v1.0.0 (2026-01-02) - Initial release with five validation strategies (Issue #189)
+
+**Dependencies**:
+- Standard library: json, subprocess, re, pathlib, typing, signal, os
+
+**Files Added**:
+- plugins/autonomous-dev/lib/success_criteria_validator.py (432 lines)
+- tests/unit/lib/test_success_criteria_validator.py (test suite)
+
+---
 100 percent compatible - new library, no API changes to existing code. Replaces internal /auto-implement Step 4.1 orchestration without affecting external interfaces.
