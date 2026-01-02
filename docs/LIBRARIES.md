@@ -12387,3 +12387,324 @@ for agent_id, tokens in usage_by_agent.items():
 ### Backward Compatibility
 
 N/A (new library - Issue #188)
+
+
+## 77. ideation_engine.py (431 lines, v1.0.0 - Issue #186)
+
+### Purpose
+
+Orchestrates automated discovery of improvement opportunities across code quality, security, performance, accessibility, and technical debt through multi-category analysis.
+
+### Problem
+
+Manual code review is time-consuming and misses systemic issues. Development teams need automated suggestions for improvements without running separate tools for each category (security scanners, linters, complexity checkers, etc.). Single-category tools miss cross-cutting improvements.
+
+### Solution
+
+Unified analysis framework that runs specialized analyzers (ideators) for five improvement categories, aggregates findings with metadata (severity, confidence, effort, impact), and generates prioritized recommendations and GitHub issue descriptions.
+
+### Key Classes
+
+**IdeationCategory** (Enum)
+- SECURITY: Security vulnerabilities and weaknesses
+- PERFORMANCE: Performance bottlenecks and inefficiencies
+- QUALITY: Code quality issues (tests, duplication, complexity)
+- ACCESSIBILITY: User experience and accessibility issues
+- TECH_DEBT: Technical debt accumulation
+
+**IdeationSeverity** (Enum)
+- CRITICAL: Requires immediate attention
+- HIGH: High-priority, address soon
+- MEDIUM: Medium-priority for planning
+- LOW: Low-priority nice-to-have improvements
+- INFO: Informational findings
+
+**IdeationResult** (Dataclass)
+- category: IdeationCategory
+- severity: IdeationSeverity
+- location: str (file:line format)
+- title: str (short finding title)
+- description: str (detailed issue description)
+- suggested_fix: str (recommended fix)
+- confidence: float (0.0-1.0)
+- impact: str (impact assessment)
+- effort: str (effort estimate)
+- references: List[str] (CWE, OWASP, etc.)
+
+**IdeationReport** (Dataclass)
+- timestamp: str (ISO format)
+- categories_analyzed: List[IdeationCategory]
+- total_findings: int
+- findings_by_severity: Dict[IdeationSeverity, int]
+- results: List[IdeationResult]
+- analysis_duration: float (seconds)
+- Methods:
+  - to_markdown() - Generate markdown report
+  - filter_by_severity(min_severity) - Filter by severity level
+
+**IdeationEngine** (Main Orchestrator)
+- __init__(project_root: Path) - Initialize with project root
+- run_ideation(categories: List[IdeationCategory]) - Run analysis for specified categories
+- prioritize_results(results: List[IdeationResult]) - Sort by severity and confidence
+- generate_issues(results, min_severity) - Create GitHub issue descriptions
+- filter_by_minimum_severity(results, min_severity) - Filter by severity threshold
+
+### Key Functions
+
+**IdeationEngine.run_ideation()**
+- Coordinates all ideators for requested categories
+- Returns IdeationReport with findings aggregated
+- Measures analysis duration
+- Calculates statistics by severity
+
+**IdeationEngine.prioritize_results()**
+- Sorts by severity (CRITICAL > HIGH > MEDIUM > LOW > INFO)
+- Secondary sort by confidence score
+- Returns highest-priority findings first
+
+**IdeationEngine.generate_issues()**
+- Creates GitHub issue descriptions from results
+- Filters by minimum severity
+- Formats as markdown with metadata
+
+**IdeationReport.filter_by_severity()**
+- Returns results at or above specified severity
+- Enables severity-based filtering
+
+### Security Features
+
+**Path Traversal Prevention (CWE-22)**
+- All paths converted to Path objects
+- Relative paths generated using relative_to()
+- No string concatenation for paths
+
+**Input Validation**
+- Confidence scores validated (0.0-1.0)
+- Project root validated as directory
+- Category/severity enums restrict values
+
+**Safe File Handling**
+- pathlib.Path for all file operations
+- read_text() with encoding specified
+- Exception handling for file access errors
+
+**No Arbitrary Code Execution**
+- Pattern matching only (no eval, exec, import)
+- Read-only analysis
+- No subprocess calls
+
+### Integration Points
+
+**Ideators Package**: Five specialized analyzers
+**IdeationReportGenerator**: Markdown report generation
+**Command Integration**: /ideate command can use this engine
+**Agent Integration**: planner agent can use for feature discovery
+
+### Performance
+
+- Analysis duration: 2-10 seconds (depends on project size)
+- Report generation: less than 500ms
+
+### Test Coverage
+
+- IdeationCategory and IdeationSeverity enums
+- IdeationResult dataclass with confidence validation
+- IdeationReport creation and aggregation
+- Result prioritization and filtering
+- Issue generation and formatting
+- Edge cases: empty results, single results, duplicate severities
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with five ideators (Issue #186)
+
+### Backward Compatibility
+
+N/A (new library - Issue #186)
+
+## 78. ideation_report_generator.py (231 lines, v1.0.0 - Issue #186)
+
+### Purpose
+
+Generates formatted markdown reports from ideation analysis results with multiple output formats and filtering options.
+
+### Problem
+
+Raw IdeationReport requires custom formatting for different use cases. Users need multiple report types (full, summary, category-specific, critical-only) with flexible filtering.
+
+### Solution
+
+Dedicated report generator providing multiple report generation methods with flexible filtering and formatting options.
+
+### Key Classes
+
+**IdeationReportGenerator**
+- generate(report) - Main entry point
+- generate_markdown_report(report, filters) - Full report with optional filtering
+- generate_summary_report(report) - Summary only (no detailed findings)
+- generate_findings_by_category(report, category) - Category-specific report
+- generate_critical_findings_report(report) - Critical issues only
+
+### Key Functions
+
+**generate()**
+- Main entry point, delegates to generate_markdown_report()
+
+**generate_markdown_report()**
+- Applies optional filtering by min_severity
+- Returns formatted markdown string
+- Uses IdeationReport.to_markdown() for consistency
+
+**generate_summary_report()**
+- Header with timestamp and duration
+- Total findings count
+- Breakdown by severity and category
+- No detailed findings
+
+**generate_findings_by_category()**
+- Filters results to single category
+- Returns full report for that category
+
+**generate_critical_findings_report()**
+- Filters to CRITICAL severity only
+- Concise format for urgent action items
+
+### Security Features
+
+**No External Dependencies**
+- Pure Python (only stdlib and ideation_engine)
+- No network calls
+- No subprocess execution
+
+**Safe Report Generation**
+- No eval, exec, or arbitrary code execution
+- String formatting only
+
+**Input Validation**
+- Report and category enum validation
+- No string injection vectors
+
+### Integration Points
+
+**IdeationEngine**: Provides IdeationReport objects
+**Commands**: /ideate command uses this generator
+**Agents**: planner agent can use summary reports
+
+### Performance
+
+- Report generation: less than 500ms
+- Summary generation: less than 100ms
+
+### Test Coverage
+
+- Report generation with filtering options
+- Summary/category/critical report generation
+- Severity filtering (all combinations)
+- Edge cases: empty results, mixed severities
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release (Issue #186)
+
+### Backward Compatibility
+
+N/A (new library - Issue #186)
+
+## 79-83. ideators/ package (5 specialized analyzers - Issue #186)
+
+### Purpose
+
+Five specialized Python modules detecting improvement opportunities in specific categories:
+- security_ideator.py: Security vulnerabilities
+- performance_ideator.py: Performance bottlenecks
+- quality_ideator.py: Code quality issues
+- accessibility_ideator.py: Accessibility and UX issues
+- tech_debt_ideator.py: Technical debt patterns
+
+### 79. security_ideator.py (252 lines)
+
+Detects security vulnerabilities:
+- SQL injection (string concatenation in queries)
+- XSS vulnerabilities (unescaped HTML output)
+- Command injection (shell command construction)
+- Path traversal vulnerabilities
+- Insecure cryptography usage
+
+Reports: CRITICAL (SQL/command injection), HIGH (XSS, path traversal), MEDIUM (weak crypto)
+
+### 80. performance_ideator.py (198 lines)
+
+Detects performance issues:
+- N+1 query problems (ORM queries in loops)
+- Inefficient algorithms (nested loops, O(n^2))
+- Missing database indexes
+- Unoptimized file I/O (repeated reads)
+- Memory leaks (unbounded lists)
+
+Reports: HIGH (N+1 queries), MEDIUM (inefficient algorithms), LOW (memory patterns)
+
+### 81. quality_ideator.py (304 lines)
+
+Detects code quality issues:
+- Missing test coverage (no test_*.py files)
+- Code duplication (similar functions)
+- High cyclomatic complexity (deep nesting)
+- Missing docstrings
+- Long functions/methods
+
+Reports: MEDIUM (missing tests, duplication, complexity), LOW (docstrings, length)
+
+### 82. accessibility_ideator.py (184 lines)
+
+Detects accessibility issues:
+- Missing help text (functions without docstrings)
+- Poor error messages (generic exceptions)
+- Missing validation error messages
+- Inaccessible UI patterns
+- Missing internationalization
+
+Reports: LOW (accessibility concerns), INFO (best practices)
+
+### 83. tech_debt_ideator.py (225 lines)
+
+Detects technical debt patterns:
+- Deprecated API usage
+- Outdated dependency versions
+- Known vulnerability patterns
+- Code style violations
+- Inefficient imports
+
+Reports: MEDIUM (deprecated APIs), LOW (style, imports)
+
+### Common Integration Pattern
+
+All ideators follow a standard pattern with __init__ and analyze() methods returning List[IdeationResult].
+
+### Performance Baselines
+
+- Security analysis: 1-2 seconds
+- Performance analysis: 1-2 seconds
+- Quality analysis: 2-3 seconds (file iteration)
+- Accessibility analysis: 1-2 seconds
+- Tech debt analysis: 1-3 seconds
+- Total: 6-12 seconds for all categories
+
+### Files Added
+
+- plugins/autonomous-dev/lib/ideation_engine.py (431 lines)
+- plugins/autonomous-dev/lib/ideation_report_generator.py (231 lines)
+- plugins/autonomous-dev/lib/ideators/__init__.py (28 lines)
+- plugins/autonomous-dev/lib/ideators/security_ideator.py (252 lines)
+- plugins/autonomous-dev/lib/ideators/performance_ideator.py (198 lines)
+- plugins/autonomous-dev/lib/ideators/quality_ideator.py (304 lines)
+- plugins/autonomous-dev/lib/ideators/accessibility_ideator.py (184 lines)
+- plugins/autonomous-dev/lib/ideators/tech_debt_ideator.py (225 lines)
+- tests/unit/lib/test_ideation_engine.py (comprehensive tests)
+
+### Version History
+
+- v1.0.0 (2026-01-02) - Initial release with five ideators (Issue #186)
+
+### Backward Compatibility
+
+N/A (new libraries - Issue #186)

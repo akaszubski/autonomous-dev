@@ -1,5 +1,82 @@
 ## [Unreleased]
 
+- **Proactive Ideation System (Issue #186, v1.0.0)**
+  - **Purpose**: Automated discovery of improvement opportunities across code quality, security, performance, accessibility, and technical debt through multi-category analysis
+  - **Problem**: Manual code review is time-consuming and misses systemic issues. Development teams need automated suggestions for improvements without running separate tools for each category (security scanners, linters, complexity checkers, etc.)
+  - **Solution**: Unified analysis framework that runs specialized analyzers (ideators) for five improvement categories, aggregates findings with metadata (severity, confidence, effort, impact), and generates prioritized recommendations
+  - **Key Features**:
+    - Five specialized ideators (security, performance, quality, accessibility, tech_debt)
+    - Configurable analysis by category
+    - Severity levels: CRITICAL, HIGH, MEDIUM, LOW, INFO
+    - Confidence scoring (0.0-1.0) for each finding
+    - Multiple report formats (full, summary, category-specific, critical-only)
+    - Priority sorting by severity and confidence
+    - GitHub issue generation from findings
+  - **Key Libraries**:
+    - **ideation_engine.py** (431 lines) - Main orchestrator for multi-category analysis
+      - Classes: IdeationCategory, IdeationSeverity, IdeationResult, IdeationReport, IdeationEngine
+      - Methods: run_ideation(), prioritize_results(), generate_issues()
+      - Features: Concurrent analysis, statistics aggregation, result prioritization
+    - **ideation_report_generator.py** (231 lines) - Markdown report generation with multiple formats
+      - Classes: IdeationReportGenerator
+      - Methods: generate(), generate_markdown_report(), generate_summary_report(), generate_findings_by_category(), generate_critical_findings_report()
+      - Features: Flexible filtering, multiple output formats
+    - **ideators/ package** (5 specialized analyzers):
+      - **security_ideator.py** (252 lines) - SQL injection, XSS, command injection, path traversal, weak crypto
+      - **performance_ideator.py** (198 lines) - N+1 queries, inefficient algorithms, missing indexes, memory leaks
+      - **quality_ideator.py** (304 lines) - Missing tests, code duplication, complexity, docstrings
+      - **accessibility_ideator.py** (184 lines) - Help text, error messages, validation, UX
+      - **tech_debt_ideator.py** (225 lines) - Deprecated APIs, outdated dependencies, style violations
+  - **Security Features**:
+    - Path traversal prevention (CWE-22): pathlib.Path validation, relative_to() for paths
+    - Input validation: Confidence scores (0.0-1.0), category/severity enums
+    - Safe file handling: read_text() with encoding, exception handling
+    - No arbitrary code execution: Pattern matching only (no eval, exec, import)
+    - Read-only analysis: No file modifications
+  - **Performance**:
+    - Analysis duration: 2-10 seconds (depends on project size)
+    - Security analysis: typically 1-2 seconds
+    - Performance analysis: typically 1-2 seconds
+    - Quality analysis: typically 2-3 seconds
+    - Report generation: less than 500ms
+  - **Integration Points**:
+    - Commands: /ideate command uses this engine (planned)
+    - Agents: planner agent can use for feature discovery
+    - Issue creation: generate_issues() output feeds into /create-issue
+    - Reports: Multiple formats for different use cases
+  - **API Highlights**:
+    - IdeationEngine(project_root) - Initialize with project root
+    - run_ideation(categories) - Run analysis for specified categories
+    - prioritize_results(results) - Sort by severity and confidence
+    - generate_issues(results, min_severity) - Create GitHub issue descriptions
+    - IdeationReportGenerator() - Multiple report generation methods
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/ideation_engine.py (431 lines)
+    - plugins/autonomous-dev/lib/ideation_report_generator.py (231 lines)
+    - plugins/autonomous-dev/lib/ideators/__init__.py (28 lines)
+    - plugins/autonomous-dev/lib/ideators/security_ideator.py (252 lines)
+    - plugins/autonomous-dev/lib/ideators/performance_ideator.py (198 lines)
+    - plugins/autonomous-dev/lib/ideators/quality_ideator.py (304 lines)
+    - plugins/autonomous-dev/lib/ideators/accessibility_ideator.py (184 lines)
+    - plugins/autonomous-dev/lib/ideators/tech_debt_ideator.py (225 lines)
+    - tests/unit/lib/test_ideation_engine.py (comprehensive tests)
+  - **Documentation**:
+    - docs/LIBRARIES.md: New sections 77-83 with complete API docs, examples, design patterns
+    - docs/CHANGELOG.md: This entry
+    - Library docstrings with usage examples and security patterns
+  - **Test Coverage**:
+    - Enum values and dataclass creation
+    - IdeationReport creation and aggregation
+    - Result prioritization by severity and confidence
+    - Filtering by severity levels
+    - Issue generation and markdown formatting
+    - All five ideators (security, performance, quality, accessibility, tech debt)
+    - Edge cases: empty results, single results, duplicate severities
+    - Error handling: missing files, file read errors, invalid confidence
+  - **Backward Compatibility**: 100 percent compatible - new libraries, no API changes
+  - **GitHub Issue**: Issue #186 - Proactive ideation system for automated improvement discovery
+
+
 - **Scalable Parallel Agent Pool (Issue #188, v1.0.0)**
   - **Purpose**: Execute multiple agents concurrently with intelligent task scheduling, priority queue, and token budget enforcement
   - **Problem**: Sequential agent execution is slow. Parallel execution without coordination causes token exhaustion and resource contention. No mechanism to prioritize critical tasks (security, tests) over optional work

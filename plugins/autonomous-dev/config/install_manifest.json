@@ -188,6 +188,8 @@
         "plugins/autonomous-dev/lib/hook_activator.py",
         "plugins/autonomous-dev/lib/hook_exit_codes.py",
         "plugins/autonomous-dev/lib/hybrid_validator.py",
+        "plugins/autonomous-dev/lib/ideation_engine.py",
+        "plugins/autonomous-dev/lib/ideation_report_generator.py",
         "plugins/autonomous-dev/lib/install_audit.py",
         "plugins/autonomous-dev/lib/install_orchestrator.py",
         "plugins/autonomous-dev/lib/installation_analyzer.py",
