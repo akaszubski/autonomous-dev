@@ -173,6 +173,7 @@
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
         "plugins/autonomous-dev/lib/completion_verifier.py",
         "plugins/autonomous-dev/lib/complexity_assessor.py",
+        "plugins/autonomous-dev/lib/comprehensive_doc_validator.py",
         "plugins/autonomous-dev/lib/conflict_resolver.py",
         "plugins/autonomous-dev/lib/context_skill_injector.py",
         "plugins/autonomous-dev/lib/copy_system.py",

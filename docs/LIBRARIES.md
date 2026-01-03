@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2026-01-02
+**Last Updated: 2026-01-03
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -55,6 +55,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 42. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
 43. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
 44. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
+45. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
 
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
@@ -14027,3 +14028,150 @@ Typical Performance:
 
 ---
 100 percent compatible - new optional library for research caching without affecting existing workflows.
+
+## 93. comprehensive_doc_validator.py (708 lines, v1.0.0 - Issue #198)
+
+**Purpose**: Validate cross-references between documentation files to prevent documentation drift and ensure accuracy.
+
+**Problem**: Documentation gets out of sync with code during development. Commands listed in README may not exist in code. Features listed in PROJECT.md may not be implemented. Code examples may have wrong API signatures. No systematic validation catches drift until manual reviews, causing user confusion.
+
+**Solution**: Comprehensive documentation validator with four validation categories (command exports, project features, code examples, counts) plus auto-fix engine for safe patterns. Integrates into /auto-implement pipeline via doc-master agent.
+
+**Key APIs**:
+
+**DataClasses**:
+- ValidationIssue: Represents single validation issue
+  - category: str - Issue category (command, feature, example, count)
+  - severity: str - Issue severity (error, warning, info)
+  - message: str - Human-readable description
+  - file_path: str - Path to file with issue
+  - line_number: int - Line number (0 if unknown)
+  - auto_fixable: bool - Whether issue can be auto-fixed safely
+  - suggested_fix: str - Suggested fix description
+
+- ValidationReport: Comprehensive validation report
+  - issues: List[ValidationIssue] - All issues found
+  - has_issues: bool (property) - Whether any issues found
+  - has_auto_fixable: bool (property) - Whether any can be auto-fixed
+  - has_manual_review: bool (property) - Whether any require manual review
+  - auto_fixable_issues: List[ValidationIssue] (property) - Filtered auto-fixable list
+  - manual_review_issues: List[ValidationIssue] (property) - Filtered manual review list
+
+**Main Class**:
+- ComprehensiveDocValidator:
+  - __init__(repo_root: Path, batch_mode: bool = False) - Initialize validator
+  - validate_all() -> ValidationReport - Run all validation checks
+  - validate_command_exports() -> List[ValidationIssue] - Validate README vs commands/
+  - validate_project_features() -> List[ValidationIssue] - Validate PROJECT.md SCOPE vs code
+  - validate_code_examples() -> List[ValidationIssue] - Validate API signatures in docs
+  - auto_fix_safe_patterns(issues: List[ValidationIssue]) -> int - Auto-fix safe patterns
+
+**Validation Categories**:
+
+1. **Command Export Validation** (validate_command_exports):
+   - Scans plugins/autonomous-dev/commands/ for all command files
+   - Extracts command names from filenames and docstrings
+   - Checks each command has entry in plugins/autonomous-dev/README.md
+   - Detects missing command entries (error severity)
+   - Detects orphaned command files with no README entries (warning severity)
+   - Auto-fix: Generates markdown snippet for missing entries
+
+2. **Project Feature Validation** (validate_project_features):
+   - Parses PROJECT.md SCOPE (In Scope) section
+   - Extracts implemented features from code files and agents
+   - Detects features in PROJECT.md but not implemented (warning severity)
+   - Detects implemented features not in PROJECT.md (error severity)
+   - Auto-fix: Adds missing features to PROJECT.md SCOPE with descriptions
+
+3. **Code Example Validation** (validate_code_examples):
+   - Extracts docstring examples from agent and skill files
+   - Parses function signatures from actual code
+   - Validates example signatures match implementation
+   - Reports line numbers for manual review (warning severity, not auto-fixable)
+   - Handles parse errors gracefully (reports as issues, doesn't crash)
+
+4. **Count Validation** (implicit in validate_project_features):
+   - Validates agent counts in CLAUDE.md (Agents: X)
+   - Validates command counts (Commands: X)
+   - Validates skill counts (Skills: X)
+   - Detects count mismatches with actual implementation
+   - Auto-fix: Updates numbers to match actual counts
+
+**Auto-Fix Engine** (auto_fix_safe_patterns):
+- Safely patches documentation with suggested fixes
+- Only fixes safe patterns:
+  - Missing command entries (appends to README)
+  - Count mismatches (updates numbers in-place)
+  - Not auto-fixed: feature descriptions, example signatures, complex logic
+- Non-blocking: Never raises exceptions
+- Logs all fixes to audit trail
+- Returns count of successfully fixed issues
+
+**Integration Points**:
+
+- /auto-implement pipeline: Runs after doc-master agent completes
+- doc-master agent: Calls ComprehensiveDocValidator before finalizing docs
+- /sync command: Includes validation in sync workflow
+- PreCommit hook: Optional validation gate before commit (VALIDATE_COMPREHENSIVE_DOCS=true)
+
+**Configuration**:
+
+Environment Variables:
+- VALIDATE_COMPREHENSIVE_DOCS: Enable/disable validation (default: false)
+  - Set to true in batch mode to enable validation
+  - Set to false to disable validation checks
+
+**Security Features**:
+
+- Path validation via security_utils (CWE-22, CWE-59 prevention)
+  - Validates all file paths before opening
+  - Prevents path traversal attacks
+  - Rejects symlinks via validate_path()
+- Non-blocking design: Never raises exceptions
+  - Logs issues safely
+  - Continues validation on errors
+  - Graceful error handling for corrupted files
+- Input sanitization
+  - Topic validation
+  - Filename sanitization
+  - Content encoding checks
+- Audit logging
+  - Logs all validation operations
+  - Records fixes applied
+  - Timestamps all events
+
+**Performance**:
+
+Time Complexity:
+- validate_command_exports(): O(m) where m = number of command files
+- validate_project_features(): O(n) where n = number of code files
+- validate_code_examples(): O(n*k) where n = files, k = avg examples per file
+- auto_fix_safe_patterns(): O(p) where p = issues to fix
+
+Typical Performance:
+- Small project (10 commands, 50 code files): 100-200ms total
+- Medium project (50 commands, 500 code files): 500-1000ms total
+- Large project (100+ commands): 1-3 seconds total
+
+Scales linearly with codebase size.
+
+**Files Added**:
+- plugins/autonomous-dev/lib/comprehensive_doc_validator.py (708 lines)
+- tests/unit/lib/test_comprehensive_doc_validator.py (1082 lines)
+
+**Test Coverage**: 44 tests covering:
+- Command export validation (8 tests): Missing entries, orphaned files, cross-reference checks
+- Feature validation (10 tests): PROJECT.md SCOPE vs code, missing features, extra features
+- Code example validation (12 tests): Docstring parsing, signature extraction, mismatch detection
+- Count validation (6 tests): Agent/command/skill counts, detection of mismatches
+- Auto-fix engine (5 tests): Safe pattern fixing, count updates, entry generation
+- Report generation (3 tests): Filtering, property access, sorting
+
+**Dependencies**:
+- security_utils.py - Path validation and audit logging
+- pathlib, ast, re, dataclasses - Standard library
+
+**Backward Compatibility**: 100% compatible - new optional validator, does not affect existing validation or commands
+
+**Version History**:
+- v1.0.0 (2026-01-03) - Initial release for comprehensive documentation validation (Issue #198)

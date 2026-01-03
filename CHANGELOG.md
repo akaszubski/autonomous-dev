@@ -1,4 +1,80 @@
 ## [Unreleased]
+- **Comprehensive Documentation Validation in /auto-implement (Issue #198, v1.0.0)**
+  - **Purpose**: Validate cross-references between documentation files to prevent documentation drift and ensure accuracy throughout /auto-implement pipeline
+  - **Problem**: Documentation gets out of sync with code. Commands listed in README may not exist in code. Features listed in PROJECT.md may not be implemented. Code examples may have wrong API signatures. No systematic validation catches drift until manual reviews
+  - **Solution**: Create ComprehensiveDocValidator library with four validation categories (commands, features, examples, counts) plus auto-fix engine for safe patterns
+  - **Key Features**:
+    - **Command Export Validation**: Cross-reference README vs actual commands in plugins/autonomous-dev/commands/
+      - Detects missing command entries in README
+      - Detects orphaned command files with no README entries
+      - Auto-fix: Add missing command entries to README
+    - **Project Feature Validation**: Cross-reference PROJECT.md SCOPE vs implementation
+      - Detects features listed in PROJECT.md but not implemented
+      - Detects implemented features not in PROJECT.md
+      - Auto-fix: Add implemented features to PROJECT.md SCOPE
+    - **Code Example Validation**: Validate API signatures in documentation
+      - Parses docstrings for code examples
+      - Extracts function signatures from source code
+      - Detects signature mismatches between docs and implementation
+      - Reports line numbers for manual review
+    - **Count Validation**: Verify component counts in CLAUDE.md and PROJECT.md
+      - Validates agent counts (actual vs documented)
+      - Validates command counts
+      - Validates skill counts
+      - Auto-fix: Update counts to match actual implementation
+    - **Auto-Fix Engine**: Safely patch documentation with suggested fixes
+      - For missing command entries: Generate markdown snippet
+      - For count mismatches: Update numbers in-place
+      - Only fixes safe patterns (formatting, counts, missing entries)
+      - Non-blocking: Never raises exceptions, logs all issues
+    - **Batch Mode Compatible**: No interactive prompts in batch mode (VALIDATE_COMPREHENSIVE_DOCS=true)
+    - **Environment Variable Control**: VALIDATE_COMPREHENSIVE_DOCS enables/disables validation
+  - **API Classes**:
+    - **ValidationIssue**: Represents single issue with category, severity, message, file, line, auto_fixable flag
+    - **ValidationReport**: Comprehensive report with issue lists, has_auto_fixable property, auto_fixable_issues filter
+    - **ComprehensiveDocValidator**: Main validator class
+      - __init__(repo_root, batch_mode=False)
+      - validate_all() -> ValidationReport
+      - validate_command_exports() -> List[ValidationIssue]
+      - validate_project_features() -> List[ValidationIssue]
+      - validate_code_examples() -> List[ValidationIssue]
+      - auto_fix_safe_patterns(issues) -> int (returns count of fixed issues)
+  - **Integration Points**:
+    - /auto-implement pipeline: Runs after doc-master validation completes
+    - doc-master agent: Calls ComprehensiveDocValidator before finalizing docs
+    - /sync command: Includes validation in sync workflow
+    - PreCommit hook: Optional validation gate before commit (VALIDATE_COMPREHENSIVE_DOCS)
+  - **Validation Output Format**:
+    - Category: "command", "feature", "example", "count"
+    - Severity: "error", "warning", "info"
+    - Auto-fixable flag indicates whether fix is safe to apply automatically
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/comprehensive_doc_validator.py (708 lines, v1.0.0, Issue #198)
+    - tests/unit/lib/test_comprehensive_doc_validator.py (1082 lines, 44 test cases)
+  - **Test Coverage**: 44 tests covering:
+    - Command export validation (8 tests): Missing entries, orphaned files, cross-reference checks
+    - Feature validation (10 tests): PROJECT.md SCOPE vs code, missing features, extra features
+    - Code example validation (12 tests): Docstring parsing, signature extraction, mismatch detection
+    - Count validation (6 tests): Agent/command/skill counts, detection of mismatches
+    - Auto-fix engine (5 tests): Safe pattern fixing, count updates, entry generation
+    - Report generation (3 tests): Filtering, property access, sorting
+  - **Dependencies**:
+    - security_utils.py - Path validation and audit logging (CWE-22, CWE-59 prevention)
+    - pathlib, ast, re, dataclasses - Standard library for parsing and validation
+  - **Environment Variables**:
+    - VALIDATE_COMPREHENSIVE_DOCS: Enable/disable validation (default: false, enable for batch mode)
+  - **Security Features**:
+    - Path validation via security_utils (CWE-22, CWE-59 prevention)
+    - Non-blocking design (never raises exceptions, logs issues safely)
+    - Input sanitization for file operations
+    - Audit logging for all validation operations
+  - **Performance**:
+    - O(n) where n = number of files/entries to validate
+    - Typical validation: 50-200ms for small projects
+    - Scales linearly with codebase size
+  - **Backward Compatibility**: 100% compatible - new optional validator, no changes to existing validation or commands
+  - **GitHub Issue**: Issue #198 - Comprehensive documentation validation in /auto-implement
+
 - **CLAUDE.md Validation Enforcement with Phased Limits (Issue #197, v1.0.0)**
   - **Purpose**: Enforce 300-line limit on CLAUDE.md with phased character limits to prevent documentation bloat and keep the file as a quick-reference guide
   - **Problem**: CLAUDE.md tends to grow as new features are added. Without enforcement, it can exceed optimal size (300 lines), reducing its effectiveness as a quick-reference and increasing context burden
