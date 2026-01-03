@@ -121,7 +121,10 @@
     "whitelist": [
       "Fetch",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "mcp__searxng__web_search",
+      "mcp__*__search",
+      "mcp__*__web_search"
     ],
     "allow_all_domains": true,
     "blocked_domains": [

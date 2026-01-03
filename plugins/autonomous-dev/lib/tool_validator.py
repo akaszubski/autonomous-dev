@@ -742,8 +742,16 @@ class ToolValidator:
         allow_all_domains = web_tools.get("allow_all_domains", False)
         blocked_domains = web_tools.get("blocked_domains", [])
 
-        # Check if tool is whitelisted
-        if tool not in whitelist:
+        # Check if tool is whitelisted (supports wildcards via fnmatch)
+        tool_whitelisted = False
+        matched_whitelist_pattern = None
+        for pattern in whitelist:
+            if fnmatch.fnmatch(tool, pattern):
+                tool_whitelisted = True
+                matched_whitelist_pattern = pattern
+                break
+
+        if not tool_whitelisted:
             return ValidationResult(
                 approved=False,
                 reason=f"Web tool '{tool}' not in whitelist",
@@ -782,7 +790,7 @@ class ToolValidator:
                 approved=True,
                 reason=f"{tool} allowed (all domains enabled, blocklist checked)",
                 security_risk=False,
-                matched_pattern=None,
+                matched_pattern=matched_whitelist_pattern,
             )
 
         # Fallback: deny if not explicitly allowed
@@ -822,7 +830,8 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        elif tool in ("Fetch", "WebFetch", "WebSearch"):
+        elif tool in ("Fetch", "WebFetch", "WebSearch") or (tool.startswith("mcp__") and "search" in tool.lower()):
+            # Handle both standard web tools and MCP search tools (e.g., mcp__searxng__web_search)
             url = parameters.get("url") or parameters.get("query", "")
             result = self.validate_web_tool(tool, url)
             result.tool = tool

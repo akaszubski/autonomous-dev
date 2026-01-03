@@ -283,7 +283,6 @@
       "target": ".claude/templates",
       "files": [
         "plugins/autonomous-dev/templates/PROJECT.md.template",
-        "plugins/autonomous-dev/templates/claude_md_section.md",
         "plugins/autonomous-dev/templates/project-structure.json",
         "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
         "plugins/autonomous-dev/templates/settings.default.json",
