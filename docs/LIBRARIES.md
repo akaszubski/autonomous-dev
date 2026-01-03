@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2026-01-03
+**Last Updated: 2026-01-03 (Issue #200 - Debug-first enforcement)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (44)
+### Core Libraries (46)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -56,6 +56,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 43. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
 44. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
 45. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
+46. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
+47. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
 
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
@@ -14175,3 +14177,188 @@ Scales linearly with codebase size.
 
 **Version History**:
 - v1.0.0 (2026-01-03) - Initial release for comprehensive documentation validation (Issue #198)
+
+
+## 94. test_runner.py (396 lines, v1.0.0 - Issue #200)
+
+**Purpose**: Autonomous test execution with structured results for debug-first enforcement.
+
+**Problem**: Test execution during autonomous development requires structured results (pass/fail counts, duration) rather than just exit codes. Developers need quick verification without manual parsing.
+
+**Solution**: test_runner library that executes pytest and returns TestResult dataclass with pass/fail counts, output, and duration.
+
+### Features
+
+- Execute pytest and return structured TestResult
+- Run single test file or function
+- Verify all tests pass (boolean check)
+- Handle pytest not found gracefully
+- Handle timeout gracefully
+- Handle test failures gracefully
+- Parse pytest output for counts and duration
+
+### API Classes
+
+#### TestResult
+
+Structured test execution result with:
+- passed: bool - All tests passed (no failures/errors)
+- pass_count: int - Number of passing tests
+- fail_count: int - Number of failing tests
+- error_count: int - Number of errored tests
+- output: str - Raw pytest output
+- duration_seconds: float - Test execution time
+
+### Functions
+
+#### run_tests()
+
+Execute pytest and return structured results.
+
+Signature: run_tests(test_dir=None, pattern=None, verbose=False, coverage=False, timeout=300) -> TestResult
+
+Parameters:
+- test_dir: str - Directory to run tests in (default: current directory)
+- pattern: str - Test file pattern to match
+- verbose: bool - Use verbose output (-v)
+- coverage: bool - Run with coverage
+- timeout: int - Timeout in seconds (default: 300)
+
+Returns: TestResult with test execution results
+
+Example:
+    from test_runner import run_tests
+    result = run_tests()
+    if result.passed:
+        print(f'All {result.pass_count} tests passed!')
+
+#### run_single_test()
+
+Run a single test file or function.
+
+Signature: run_single_test(test_path: str, timeout: int = 300) -> TestResult
+
+Parameters:
+- test_path: str - Path to test file or function
+- timeout: int - Timeout in seconds
+
+Returns: TestResult with test execution results
+
+#### verify_all_tests_pass()
+
+Quick boolean check if all tests pass.
+
+Signature: verify_all_tests_pass(test_dir=None, timeout=300) -> bool
+
+Parameters:
+- test_dir: str - Directory to run tests in (default: current directory)
+- timeout: int - Timeout in seconds
+
+Returns: True if all tests passed, False otherwise
+
+#### TestRunner class
+
+Stateful test runner for repeated test execution.
+
+Constructor: TestRunner(timeout=300, verbose=False)
+
+Methods:
+- run(test_dir=None, pattern=None, coverage=False) -> TestResult
+- run_single(test_path: str) -> TestResult
+- verify(test_dir=None) -> bool
+
+### Error Handling
+
+- pytest not found: Returns TestResult with passed=False, error_count=1
+- Timeout: Returns TestResult with passed=False, error_count=1
+- KeyboardInterrupt: Returns TestResult with passed=False, error_count=1
+- Other errors: Returns TestResult with passed=False, error_count=1
+
+**Performance**: O(1) - Delegates to pytest (scales with test count), Typical 10 test run: 100-500ms
+
+**Dependencies**: subprocess, pathlib, dataclasses, re - Standard library
+
+**Version History**: v1.0.0 (2026-01-03) - Initial release for debug-first enforcement (Issue #200)
+
+---
+
+## 95. code_path_analyzer.py (291 lines, v1.0.0 - Issue #200)
+
+**Purpose**: Discover all code paths matching a pattern for debug-first enforcement and code discovery.
+
+**Problem**: Developers need to find all locations matching a pattern (e.g., debug statements, TODOs, specific patterns). ripgrep/grep require external tools; need pure Python solution for portability.
+
+**Solution**: code_path_analyzer library that searches project for regex patterns and returns CodePath objects with file location, line number, context.
+
+### Features
+
+- Find all locations matching a regex pattern
+- Return CodePath objects with file_path, line_number, context, match_text
+- Handle empty results gracefully
+- Handle invalid patterns gracefully
+- Search recursively in project directory
+- Filter by file types (e.g., ["*.py", "*.md"])
+- Exclude common directories (.git, __pycache__, node_modules, venv, build, dist)
+- Support multiline context (N lines before/after match)
+
+### API Classes
+
+#### CodePath
+
+A code path matching a search pattern with:
+- file_path: str - Path to file containing match
+- line_number: int - Line number of match (1-indexed)
+- context: str - Surrounding lines for context
+- match_text: str - The matched text
+
+#### CodePathAnalyzer
+
+Stateful code path analyzer for repeated searches.
+
+Constructor: CodePathAnalyzer(project_root: str, exclude_patterns=None)
+
+Methods:
+- find(pattern, file_types=None, context_lines=3, case_sensitive=True) -> List[CodePath]
+
+### Functions
+
+#### find_all_code_paths()
+
+Find all code paths matching a pattern.
+
+Signature: find_all_code_paths(pattern, project_root=None, file_types=None, context_lines=3, case_sensitive=True, exclude_patterns=None) -> List[CodePath]
+
+Parameters:
+- pattern: str - Regex pattern to search for
+- project_root: str - Root directory to search (default: current directory)
+- file_types: List[str] - File type patterns like ["*.py", "*.md"] (None = all)
+- context_lines: int - Number of lines before/after match to include
+- case_sensitive: bool - Case-sensitive search (default: True)
+- exclude_patterns: List[str] - Additional directories to exclude (beyond defaults)
+
+Returns: List of CodePath objects for each match
+
+Raises: ValueError if pattern is invalid regex, FileNotFoundError if project_root does not exist
+
+### Default Exclude Patterns
+
+- .git
+- __pycache__
+- node_modules
+- venv
+- .venv
+- build
+- dist
+- .pytest_cache
+- .mypy_cache
+
+### Performance
+
+- O(n) where n = number of files in project
+- Excludes __pycache__, .git, node_modules by default
+- Typical small project (100 files): 100-500ms
+- Binary files and permission errors handled gracefully
+
+**Dependencies**: pathlib, dataclasses, re - Standard library
+
+**Version History**: v1.0.0 (2026-01-03) - Initial release for debug-first enforcement (Issue #200)

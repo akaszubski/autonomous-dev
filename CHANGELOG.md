@@ -1,4 +1,64 @@
 ## [Unreleased]
+- **Debug-First Enforcement and Self-Test Requirements (Issue #200, v1.0.0)**
+  - **Purpose**: Enforce debug-first development by requiring self-tests alongside implementation and preventing commits of uncommitted changes exceeding threshold
+  - **Problem**: Code quality issues discovered late in review or production. Developers write code first, tests second. Uncommitted changes accumulate, risking work loss
+  - **Solution**: (1) test_runner library for autonomous test execution, (2) code_path_analyzer library for pattern discovery, (3) alert_uncommitted_feature hook for threshold warnings
+  - **Key Features**:
+    - **test_runner.py** (396 lines): Execute pytest autonomously with structured TestResult
+      - run_tests() - Execute all tests with optional directory, pattern, coverage, timeout
+      - run_single_test() - Execute single test file or function
+      - verify_all_tests_pass() - Quick boolean check
+      - TestRunner class - Stateful test runner for repeated execution
+      - Parses pytest output for counts (passed, failed, errors) and duration
+      - Graceful handling of pytest not found, timeouts, interrupts
+    - **code_path_analyzer.py** (291 lines): Discover code paths matching patterns
+      - find_all_code_paths() - Search project for regex pattern matches
+      - CodePath dataclass with file_path, line_number, context, match_text
+      - CodePathAnalyzer class - Stateful analyzer for repeated searches
+      - Excludes default directories (.git, __pycache__, node_modules, venv, build, dist)
+      - Context lines support (configurable surrounding lines)
+      - File type filtering (["*.py", "*.md"] patterns)
+      - Case-sensitive/insensitive search
+      - Handles binary files and permission errors gracefully
+    - **alert_uncommitted_feature.py** (180 lines, PreSubagent hook): Warn on high uncommitted line counts
+      - Hook Type: PreSubagent (non-blocking warning)
+      - Counts uncommitted lines using git diff --stat
+      - Default threshold: 100 lines (customizable via UNCOMMITTED_THRESHOLD env var)
+      - Disableable via DISABLE_UNCOMMITTED_ALERT=true
+      - Exit codes: EXIT_SUCCESS (0) or EXIT_WARNING (2)
+      - Graceful degradation on git errors
+  - **Integration Points**:
+    - /auto-implement pipeline: Uses test_runner to validate TDD workflow
+    - debug-first enforcement: code_path_analyzer finds debugging patterns
+    - PreSubagent hooks: alert_uncommitted_feature warns developers before work starts
+    - Self-test requirements: test_runner enables autonomous test verification
+  - **API Classes**:
+    - **test_runner.TestResult**: Structured test execution result
+      - passed: bool - All tests passed (no failures/errors)
+      - pass_count: int - Number of passing tests
+      - fail_count: int - Number of failing tests
+      - error_count: int - Number of errored tests
+      - output: str - Raw pytest output
+      - duration_seconds: float - Execution time
+    - **code_path_analyzer.CodePath**: A code path matching search pattern
+      - file_path: str - Path to file containing match
+      - line_number: int - Line number (1-indexed)
+      - context: str - Surrounding lines for context (configurable)
+      - match_text: str - The matched text
+  - **Environment Variables**:
+    - **alert_uncommitted_feature**: UNCOMMITTED_THRESHOLD (default: 100), DISABLE_UNCOMMITTED_ALERT (set to "true" to disable)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/test_runner.py (396 lines, v1.0.0)
+    - plugins/autonomous-dev/lib/code_path_analyzer.py (291 lines, v1.0.0)
+    - plugins/autonomous-dev/hooks/alert_uncommitted_feature.py (180 lines, v1.0.0)
+  - **Dependencies**: subprocess, pathlib, dataclasses, re (standard library), hook_exit_codes.py
+  - **Performance**:
+    - test_runner.run_tests(): O(1) delegates to pytest
+    - code_path_analyzer.find_all_code_paths(): O(n) where n = number of files
+    - alert_uncommitted_feature: O(1) single git diff --stat call
+  - **Backward Compatibility**: 100% compatible - new optional libraries
+  - **GitHub Issue**: Issue #200 - Add debug-first enforcement and self-test requirements
+
 - **Comprehensive Documentation Validation in /auto-implement (Issue #198, v1.0.0)**
   - **Purpose**: Validate cross-references between documentation files to prevent documentation drift and ensure accuracy throughout /auto-implement pipeline
   - **Problem**: Documentation gets out of sync with code. Commands listed in README may not exist in code. Features listed in PROJECT.md may not be implemented. Code examples may have wrong API signatures. No systematic validation catches drift until manual reviews

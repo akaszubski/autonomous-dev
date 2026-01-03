@@ -959,6 +959,40 @@ Note: session_tracker.py moved to Core Hooks as essential for context management
 **Checks**: Red-green-refactor cycle compliance
 **Lifecycle**: PreCommit
 
+
+
+### alert_uncommitted_feature.py
+
+**Purpose**: Warn when uncommitted changes exceed threshold
+**Hook Type**: PreSubagent (non-blocking warning)
+**Lifecycle**: PreSubagent
+**Exit Codes**: EXIT_SUCCESS (0) or EXIT_WARNING (2)
+**Issue**: #200 - Debug-first enforcement and self-test requirements
+
+**Features**:
+- Counts uncommitted lines using git diff --stat
+- Default threshold: 100 lines (customizable)
+- Disableable via DISABLE_UNCOMMITTED_ALERT=true
+- Non-blocking warning (does not prevent agent execution)
+- Graceful degradation on git errors
+
+**Environment Variables**:
+- UNCOMMITTED_THRESHOLD: Custom threshold (default: 100 lines)
+- DISABLE_UNCOMMITTED_ALERT: Set to "true" to disable alert
+
+**Behavior**:
+1. Check if alert is disabled (DISABLE_UNCOMMITTED_ALERT=true)
+2. Get threshold from environment or use default (100)
+3. Count uncommitted changes via git diff --stat
+4. If uncommitted lines exceed threshold, warn user
+5. Always allow workflow to continue (EXIT_WARNING or EXIT_SUCCESS)
+
+**Exit Code Behavior**:
+- EXIT_SUCCESS (0): Uncommitted changes below threshold, no alert needed
+- EXIT_WARNING (2): Uncommitted changes exceed threshold, warning shown but workflow continues
+
+**Example Output**: Warning: 150 uncommitted lines detected (threshold: 100). Consider committing your changes.
+
 ### auto_update_docs.py
 
 **Purpose**: Auto-update documentation

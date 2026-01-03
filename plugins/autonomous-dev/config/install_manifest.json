@@ -63,6 +63,7 @@
     "hooks": {
       "target": ".claude/hooks",
       "files": [
+        "plugins/autonomous-dev/hooks/alert_uncommitted_feature.py",
         "plugins/autonomous-dev/hooks/auto_add_to_regression.py",
         "plugins/autonomous-dev/hooks/auto_bootstrap.py",
         "plugins/autonomous-dev/hooks/auto_enforce_coverage.py",
@@ -170,6 +171,7 @@
         "plugins/autonomous-dev/lib/brownfield_retrofit.py",
         "plugins/autonomous-dev/lib/checkpoint.py",
         "plugins/autonomous-dev/lib/code_patcher.py",
+        "plugins/autonomous-dev/lib/code_path_analyzer.py",
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
         "plugins/autonomous-dev/lib/completion_verifier.py",
         "plugins/autonomous-dev/lib/complexity_assessor.py",
