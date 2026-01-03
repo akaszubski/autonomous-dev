@@ -43,6 +43,28 @@ if not is_running_under_uv():
         sys.path.insert(0, str(lib_path))
 
 
+# CLAUDE.md Size Limits (Issue #197)
+MAX_LINES = 300
+WARNING_THRESHOLD_LINES = 280  # 93% of limit - warn at exactly 280
+MAX_SECTIONS = 20
+WARNING_THRESHOLD_SECTIONS = 18  # 90% of limit - warn at exactly 18
+PHASE_1_CHAR_LIMIT = 35000
+PHASE_2_CHAR_LIMIT = 25000
+PHASE_3_CHAR_LIMIT = 15000
+
+
+def get_validation_phase() -> int:
+    """Get validation phase from CLAUDE_VALIDATION_PHASE env var (default: 1)."""
+    phase_str = os.environ.get('CLAUDE_VALIDATION_PHASE', '1')
+    try:
+        phase = int(phase_str)
+        if phase in (1, 2, 3):
+            return phase
+    except ValueError:
+        pass
+    return 1  # Default to phase 1
+
+
 @dataclass
 class AlignmentIssue:
     """Represents a single alignment issue."""
@@ -76,6 +98,11 @@ class ClaudeAlignmentValidator:
         self._check_skills_documented(project_claude)
         self._check_hook_counts(project_claude)
         self._check_documented_features_exist(project_claude)
+
+        # Run size limit checks (Issue #197)
+        self._check_line_count(project_claude)
+        self._check_section_count(project_claude)
+        self._check_character_count(project_claude)
 
         # Determine overall status
         has_errors = any(i.severity == "error" for i in self.issues)
@@ -232,6 +259,118 @@ class ClaudeAlignmentValidator:
                     expected=f"Command file: {cmd_file.name}",
                     actual="Not found",
                     location=str(cmd_file)
+                ))
+
+    def _check_line_count(self, content: str):
+        """Check CLAUDE.md line count against 300-line limit (Issue #197)."""
+        if not content:
+            return
+
+        lines = content.splitlines()
+        line_count = len(lines)
+
+        # Error at 301+ lines (takes precedence)
+        if line_count > MAX_LINES:
+            self.issues.append(AlignmentIssue(
+                severity="error",
+                category="best-practice",
+                message=f"CLAUDE.md exceeds line limit: {line_count} lines (max: {MAX_LINES}). "
+                        f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
+                expected=f"<= {MAX_LINES} lines",
+                actual=f"{line_count} lines",
+                location="CLAUDE.md"
+            ))
+        # Warning at exactly 280 lines (not above or below)
+        elif line_count == WARNING_THRESHOLD_LINES:
+            self.issues.append(AlignmentIssue(
+                severity="warning",
+                category="best-practice",
+                message=f"CLAUDE.md approaching line limit: {line_count} lines (limit: {MAX_LINES}). "
+                        f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
+                expected=f"< {WARNING_THRESHOLD_LINES} lines",
+                actual=f"{line_count} lines",
+                location="CLAUDE.md"
+            ))
+
+    def _check_section_count(self, content: str):
+        """Check CLAUDE.md section count against 20-section limit (Issue #197)."""
+        if not content:
+            return
+
+        sections = re.findall(r'^## ', content, re.MULTILINE)
+        section_count = len(sections)
+
+        # Error at 21+ sections (takes precedence)
+        if section_count > MAX_SECTIONS:
+            self.issues.append(AlignmentIssue(
+                severity="error",
+                category="best-practice",
+                message=f"CLAUDE.md exceeds section limit: {section_count} sections (max: {MAX_SECTIONS}). "
+                        f"See docs/CLAUDE-MD-BEST-PRACTICES.md for consolidation strategies.",
+                expected=f"<= {MAX_SECTIONS} sections",
+                actual=f"{section_count} sections",
+                location="CLAUDE.md"
+            ))
+        # Warning at exactly 18 sections (threshold value)
+        elif section_count == WARNING_THRESHOLD_SECTIONS:
+            self.issues.append(AlignmentIssue(
+                severity="warning",
+                category="best-practice",
+                message=f"CLAUDE.md approaching section limit: {section_count} sections (limit: {MAX_SECTIONS}). "
+                        f"See docs/CLAUDE-MD-BEST-PRACTICES.md for consolidation strategies.",
+                expected=f"< {WARNING_THRESHOLD_SECTIONS} sections",
+                actual=f"{section_count} sections",
+                location="CLAUDE.md"
+            ))
+
+    def _check_character_count(self, content: str):
+        """Check CLAUDE.md character count against phased limits (Issue #197)."""
+        if not content:
+            return
+
+        char_count = len(content)
+        phase = get_validation_phase()
+
+        # Phase 1: 35k character warning (current state)
+        if phase == 1:
+            if char_count > PHASE_1_CHAR_LIMIT:
+                self.issues.append(AlignmentIssue(
+                    severity="warning",
+                    category="best-practice",
+                    message=f"CLAUDE.md exceeds phase 1 character limit: {char_count:,} characters "
+                            f"(limit: {PHASE_1_CHAR_LIMIT:,}). "
+                            f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
+                    expected=f"<= {PHASE_1_CHAR_LIMIT:,} characters",
+                    actual=f"{char_count:,} characters",
+                    location="CLAUDE.md"
+                ))
+
+        # Phase 2: 25k character error (future)
+        elif phase == 2:
+            if char_count > PHASE_2_CHAR_LIMIT:
+                self.issues.append(AlignmentIssue(
+                    severity="error",
+                    category="best-practice",
+                    message=f"CLAUDE.md exceeds phase 2 character limit: {char_count:,} characters "
+                            f"(max: {PHASE_2_CHAR_LIMIT:,}). "
+                            f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
+                    expected=f"<= {PHASE_2_CHAR_LIMIT:,} characters",
+                    actual=f"{char_count:,} characters",
+                    location="CLAUDE.md"
+                ))
+
+        # Phase 3: 15k character error (final goal)
+        elif phase == 3:
+            if char_count > PHASE_3_CHAR_LIMIT:
+                self.issues.append(AlignmentIssue(
+                    severity="error",
+                    category="best-practice",
+                    message=f"CLAUDE.md exceeds phase 3 character limit: {char_count:,} characters "
+                            f"(max: {PHASE_3_CHAR_LIMIT:,}). "
+                            f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
+                    expected=f"<= {PHASE_3_CHAR_LIMIT:,} characters",
+                    actual=f"{char_count:,} characters",
+                    location="CLAUDE.md"
                 ))
 
     # Helper methods

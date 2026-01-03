@@ -730,9 +730,18 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 
 ### validate_claude_alignment.py
 
-**Purpose**: CLAUDE.md alignment checking (v3.0.2+)
-**Checks**: Version consistency, agent counts, command availability, feature documentation
+**Purpose**: CLAUDE.md alignment checking with size enforcement (v3.0.2+, enhanced v1.0.0 Issue #197)
+**Checks**:
+- Version consistency (project version matches documented version)
+- Agent counts (22 agents documented, actual count matches)
+- Command availability (10 commands documented, files exist)
+- Feature documentation (documented features exist as files)
+- **NEW (Issue #197)**: Line count enforcement (MAX 300 lines, warning at 280)
+- **NEW (Issue #197)**: Section count enforcement (MAX 20 sections, warning at 18)
+- **NEW (Issue #197)**: Phased character limits (Phase 1: 35k warn, Phase 2: 25k error, Phase 3: 15k error)
+**Configuration**: CLAUDE_VALIDATION_PHASE environment variable (1, 2, or 3) controls character limit strictness
 **Lifecycle**: PreCommit
+**Reference**: docs/CLAUDE-MD-BEST-PRACTICES.md for best practices guide
 
 ### enforce_file_organization.py
 

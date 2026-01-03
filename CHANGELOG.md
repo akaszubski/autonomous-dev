@@ -1,4 +1,62 @@
 ## [Unreleased]
+- **CLAUDE.md Validation Enforcement with Phased Limits (Issue #197, v1.0.0)**
+  - **Purpose**: Enforce 300-line limit on CLAUDE.md with phased character limits to prevent documentation bloat and keep the file as a quick-reference guide
+  - **Problem**: CLAUDE.md tends to grow as new features are added. Without enforcement, it can exceed optimal size (300 lines), reducing its effectiveness as a quick-reference and increasing context burden
+  - **Solution**: Add validation hooks with phased character limits controlled by CLAUDE_VALIDATION_PHASE environment variable, plus automated error messages linking to CLAUDE-MD-BEST-PRACTICES.md
+  - **Key Features**:
+    - **Line Count Validation**: MAX_LINES = 300, warning at 280 lines (93% of limit)
+    - **Section Count Validation**: MAX_SECTIONS = 20, warning at 18 sections
+    - **Phased Character Limits**: CLAUDE_VALIDATION_PHASE environment variable controls strictness:
+      - Phase 1 (default): 35,000 character warning (current state)
+      - Phase 2: 25,000 character error (future transition)
+      - Phase 3: 15,000 character error (final goal - maximum brevity)
+    - **Error Messages**: All validation errors and warnings include link to docs/CLAUDE-MD-BEST-PRACTICES.md
+    - **Validation Methods**:
+      - get_validation_phase() - Reads CLAUDE_VALIDATION_PHASE env var, returns 1-3, defaults to phase 1
+      - _check_line_count(content: str) - Validates line count against MAX_LINES, warns at 280
+      - _check_section_count(content: str) - Validates section count against MAX_SECTIONS, warns at 18
+      - _check_character_limits(content: str) - Enforces phased character limits based on phase
+  - **Validation Stages**:
+    1. Line count check (300 max, 280 warning threshold)
+    2. Section count check (20 max, 18 warning threshold)
+    3. Character limit check (phase-dependent: 35k warning, 25k error, 15k error)
+  - **Integration Points**:
+    - PreCommit hook: Runs validation before commit, blocks if errors detected
+    - /align --project command: Can auto-fix or propose changes
+    - /health-check command: Reports validation status
+    - CLAUDE.md Best Practices guide: Error messages link to docs/CLAUDE-MD-BEST-PRACTICES.md
+  - **Files Modified**:
+    - plugins/autonomous-dev/hooks/validate_claude_alignment.py - Added validation methods for line count, section count, and character limits (Issue #197)
+    - docs/CLAUDE-MD-BEST-PRACTICES.md - Updated with validation thresholds and phase explanation
+    - CLAUDE.md - Currently 288 lines (within 300-line limit, warning threshold at 280)
+  - **Files Added**:
+    - tests/unit/test_claude_md_validation_issue197.py (749 lines, 34 test cases covering all phases and validation methods)
+  - **Test Coverage**: 34 tests covering:
+    - Phase detection (6 tests): Default phase 1, explicit phases 1-3, invalid values, out-of-range
+    - Line count validation (4 tests): Under limit, at warning threshold (280), at error threshold (301), exactly at limit (300)
+    - Section count validation (4 tests): Under limit, at warning threshold (18), at error threshold (21), exactly at limit (20)
+    - Character limit validation (8 tests): Phase 1-3 with warning/error thresholds
+    - Error messages (2 tests): Verify all errors include link to CLAUDE-MD-BEST-PRACTICES.md
+    - Current state validation (4 tests): Verify current CLAUDE.md passes all checks (288 lines, 16 sections)
+    - Integration (2 tests): Verify validate() method calls new checks, exit codes correct
+  - **Example Error Messages**:
+    - Line count error: "CLAUDE.md exceeds 300-line limit (301 lines). See docs/CLAUDE-MD-BEST-PRACTICES.md for best practices."
+    - Section count warning: "CLAUDE.md has 18 sections (warning threshold). Target: 15-20 sections. See docs/CLAUDE-MD-BEST-PRACTICES.md"
+    - Phase 3 character error: "CLAUDE.md exceeds 15k character limit (16000 chars). CLAUDE_VALIDATION_PHASE=3. See docs/CLAUDE-MD-BEST-PRACTICES.md"
+  - **Environment Variables**:
+    - CLAUDE_VALIDATION_PHASE: Controls character limit strictness (1, 2, or 3)
+      - 1 (default): 35k warning
+      - 2: 25k error
+      - 3: 15k error
+  - **Best Practices Reference**:
+    - Link: docs/CLAUDE-MD-BEST-PRACTICES.md
+    - Covers: Progressive disclosure pattern, what to include/exclude, recommended structure
+    - Target structure: ~250 lines, essential sections only, links to detailed docs
+  - **Backward Compatibility**: 100% compatible - validation is advisory, does not block existing workflows
+  - **GitHub Issue**: Issue #197 - CLAUDE.md Validation Enforcement
+
+
+
 - **Test Coverage Auditor Agent and Command (Issue #199)**
   - **Added**: test-coverage-auditor agent for analyzing test coverage and identifying gaps
   - **Added**: /audit-tests command to invoke test coverage analysis

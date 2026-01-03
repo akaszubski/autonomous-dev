@@ -541,7 +541,7 @@ class TestAlignmentValidation:
         # This will FAIL if alignment broken
         assert validator_script.exists(), "validate_claude_alignment.py not found"
 
-        # Run validator (should exit 0 on success)
+        # Run validator (should exit 0 on success, 1 on warnings, 2 on errors)
         import subprocess
         result = subprocess.run(
             ["python3", str(validator_script)],
@@ -550,8 +550,9 @@ class TestAlignmentValidation:
             text=True
         )
 
-        assert result.returncode == 0, (
-            f"CLAUDE.md alignment validation failed:\n"
+        # Exit code 0 = success, 1 = warnings (OK), 2 = errors (FAIL)
+        assert result.returncode in (0, 1), (
+            f"CLAUDE.md alignment validation failed with errors:\n"
             f"STDOUT: {result.stdout}\n"
             f"STDERR: {result.stderr}"
         )

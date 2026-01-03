@@ -101,6 +101,50 @@ See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 ---
 
+## Validation Enforcement (Issue #197)
+
+CLAUDE.md now has automated validation checks enforced at commit time via `validate_claude_alignment.py` hook:
+
+### Line Count Limits
+- **Hard limit**: 300 lines
+- **Warning threshold**: 280 lines (93% of limit)
+- **Current state**: 288 lines (safe, but approaching warning)
+
+### Section Count Limits
+- **Hard limit**: 20 sections
+- **Warning threshold**: 18 sections (90% of limit)
+- **Target**: 15-20 sections
+
+### Character Limits (Phased Enforcement)
+
+Strictness controlled by `CLAUDE_VALIDATION_PHASE` environment variable:
+
+| Phase | Limit | Behavior | Target |
+|-------|-------|----------|--------|
+| 1 (default) | 35,000 chars | Warning only | Current state |
+| 2 | 25,000 chars | Error (blocks commit) | Near future |
+| 3 | 15,000 chars | Error (blocks commit) | Final goal |
+
+**Usage**:
+```bash
+# Check current phase (default phase 1)
+echo $CLAUDE_VALIDATION_PHASE
+
+# Enforce stricter validation during refactoring
+CLAUDE_VALIDATION_PHASE=2 git commit  # Blocks if >25k chars
+```
+
+### Error Messages
+
+All validation errors and warnings reference this guide for remediation:
+
+```
+CLAUDE.md exceeds 300-line limit (301 lines).
+See docs/CLAUDE-MD-BEST-PRACTICES.md for guidance.
+```
+
+---
+
 ## Measurement Metrics
 
 After optimization, validate:

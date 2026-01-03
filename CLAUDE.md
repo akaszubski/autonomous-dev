@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-03 (Issue #196 - Auto-save research findings)
+**Last Updated**: 2026-01-03 (Issue #197 - CLAUDE.md validation enforcement)
 **Last Validated**: 2026-01-03
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.45.0 (Issue #187 - Auto-Claude library integration)
@@ -19,7 +19,7 @@ ___
 | Hooks | 1.0.0 | 64 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-03 (Issue #199 - Add test-coverage-auditor agent and audit-tests command)
+**Last Compliance Check**: 2026-01-03 (Issue #199 - test-coverage-auditor agent; Issue #197 - CLAUDE.md validation)
 
 ___
 
