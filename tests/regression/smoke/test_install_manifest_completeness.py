@@ -66,14 +66,16 @@ EXPECTED_AGENTS = {
     "security-auditor.md",
     "setup-wizard.md",
     "sync-validator.md",
+    "test-coverage-auditor.md",
     "test-master.md",
 }
 
-# All 23 active commands in manifest (as of v3.44.0)
+# All 24 active commands in manifest (as of v3.45.0)
 EXPECTED_COMMANDS = {
     # Core commands
     "advise.md",
     "align.md",
+    "audit-tests.md",
     "auto-implement.md",
     "batch-implement.md",
     "create-issue.md",
@@ -211,13 +213,13 @@ class TestManifestAgentCompleteness:
         files = manifest_data.get("components", {}).get("agents", {}).get("files", [])
         return {Path(f).name for f in files}
 
-    def test_manifest_has_21_agents(self, manifest_agents):
-        """Test that manifest lists exactly 21 agent files.
+    def test_manifest_has_22_agents(self, manifest_agents):
+        """Test that manifest lists exactly 22 agent files.
 
-        RED PHASE: Should FAIL until all 21 agents added to manifest
-        EXPECTATION: Exactly 21 agent paths in manifest
+        RED PHASE: Should FAIL until all 22 agents added to manifest
+        EXPECTATION: Exactly 22 agent paths in manifest
 
-        Active agents (21 total):
+        Active agents (22 total):
         - advisor.md, alignment-analyzer.md, alignment-validator.md
         - brownfield-analyzer.md, commit-message-generator.md
         - doc-master.md, implementer.md, issue-creator.md
@@ -228,8 +230,8 @@ class TestManifestAgentCompleteness:
         - security-auditor.md, setup-wizard.md
         - sync-validator.md, test-master.md
         """
-        assert len(manifest_agents) == 21, (
-            f"Expected 21 agent files in manifest, found {len(manifest_agents)}\n"
+        assert len(manifest_agents) == 22, (
+            f"Expected 22 agent files in manifest, found {len(manifest_agents)}\n"
             f"Current manifest agents: {sorted(manifest_agents)}\n"
             f"Expected agents: {sorted(EXPECTED_AGENTS)}\n"
             f"Missing: {sorted(EXPECTED_AGENTS - manifest_agents)}\n"
@@ -240,7 +242,7 @@ class TestManifestAgentCompleteness:
         """Test that all expected agent files are in manifest.
 
         RED PHASE: Should FAIL until all agents added
-        EXPECTATION: All 21 agents from EXPECTED_AGENTS set are in manifest
+        EXPECTATION: All 22 agents from EXPECTED_AGENTS set are in manifest
         """
         missing = EXPECTED_AGENTS - manifest_agents
         assert not missing, (
@@ -324,10 +326,10 @@ class TestManifestCommandCompleteness:
         files = manifest_data.get("components", {}).get("commands", {}).get("files", [])
         return {Path(f).name for f in files}
 
-    def test_manifest_has_23_commands(self, manifest_commands):
-        """Test that manifest lists exactly 23 command files.
+    def test_manifest_has_24_commands(self, manifest_commands):
+        """Test that manifest lists exactly 24 command files.
 
-        EXPECTATION: Exactly 23 active commands in manifest (as of v3.44.0)
+        EXPECTATION: Exactly 24 active commands in manifest (as of v3.45.0)
 
         Commands include:
         - Core: advise, align, auto-implement, batch-implement, create-issue, health-check, setup, sync
@@ -335,8 +337,8 @@ class TestManifestCommandCompleteness:
         - Agent: implement, research, plan, review, test-feature, test, security-scan, update-docs
         - Utility: update-plugin, pipeline-status, status, worktree
         """
-        assert len(manifest_commands) == 23, (
-            f"Expected 23 command files in manifest, found {len(manifest_commands)}\n"
+        assert len(manifest_commands) == 24, (
+            f"Expected 24 command files in manifest, found {len(manifest_commands)}\n"
             f"Current manifest commands: {sorted(manifest_commands)}\n"
             f"Expected commands: {sorted(EXPECTED_COMMANDS)}\n"
             f"Missing: {sorted(EXPECTED_COMMANDS - manifest_commands)}\n"
@@ -346,7 +348,7 @@ class TestManifestCommandCompleteness:
     def test_all_expected_commands_in_manifest(self, manifest_commands):
         """Test that all expected command files are in manifest.
 
-        EXPECTATION: All 23 commands from EXPECTED_COMMANDS set are in manifest
+        EXPECTATION: All 24 commands from EXPECTED_COMMANDS set are in manifest
         """
         missing = EXPECTED_COMMANDS - manifest_commands
         assert not missing, (

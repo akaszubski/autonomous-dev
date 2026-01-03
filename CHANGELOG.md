@@ -1,4 +1,11 @@
 ## [Unreleased]
+- **Test Coverage Auditor Agent and Command (Issue #199)**
+  - **Added**: test-coverage-auditor agent for analyzing test coverage and identifying gaps
+  - **Added**: /audit-tests command to invoke test coverage analysis
+  - **Added**: test_coverage_analyzer.py library for test coverage analysis
+  - **Added**: Unit and integration tests for test coverage functionality
+  - **Updated**: CLAUDE.md component counts - Agents: 21 → 22, Commands: 9 → 10
+
 - **Research Persistence Library for Cross-Session Caching (Issue #196, v1.0.0)**
   - **Purpose**: Auto-save research findings to docs/research/ with frontmatter metadata enabling research reuse across sessions and features
   - **Problem**: Research findings are lost when conversation clears. No caching mechanism for repeated research topics. No centralized research knowledge base. Manual research duplication across features wastes time and introduces inconsistency

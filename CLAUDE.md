@@ -14,12 +14,12 @@ ___
 | Component | Version | Count | Status |
 |-----------|---------|-------|--------|
 | Skills | 1.0.0 | 28 | ✅ Compliant |
-| Commands | 1.0.0 | 9 | ✅ Compliant |
-| Agents | 1.0.0 | 21 | ✅ Compliant |
+| Commands | 1.0.0 | 10 | ✅ Compliant |
+| Agents | 1.0.0 | 22 | ✅ Compliant |
 | Hooks | 1.0.0 | 64 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-03 (Issue #196 - Research persistence library added)
+**Last Compliance Check**: 2026-01-03 (Issue #199 - Add test-coverage-auditor agent and audit-tests command)
 
 ___
 
@@ -43,6 +43,7 @@ ___
 ## Commands
 
 - /advise: Critical thinking analysis (validates alignment, challenges assumptions, identifies risks). See `/advise` command.
+- /audit-tests: Analyze test coverage and identify gaps. See `/audit-tests` command.
 - /auto-implement: Autonomous feature development (research → plan → test → implement → review → security → docs). See `/auto-implement` command.
 - /batch-implement: Process multiple features sequentially with state management, crash recovery, per-feature git automation. See `/batch-implement` command.
 - /create-issue: Create GitHub issue with research and blocking duplicate check. See `/create-issue` command.
@@ -190,7 +191,7 @@ ___
 
 ### Agents
 
-**21 Agents** (8 pipeline, 13 utility):
+**22 Agents** (8 pipeline, 14 utility):
 - Pipeline: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
 - Native skill integration via `skills:` frontmatter
 

@@ -185,6 +185,7 @@ We document **typical performance**, not marketing claims.
 | Command | Purpose |
 |---------|---------|
 | `/auto-implement "..."` | Full pipeline for one feature |
+| `/audit-tests` | Analyze test coverage and identify gaps |
 | `/batch-implement --issues 1 2 3` | Process multiple features |
 | `/setup` | Create PROJECT.md interactively |
 | `/sync` | Update plugin from GitHub |
