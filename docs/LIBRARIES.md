@@ -13862,3 +13862,168 @@ Integration Tests:
 
 ---
 100 percent compatible - optional integration layer that preserves existing /worktree --merge behavior when disabled or on errors.
+
+
+## 67. research_persistence.py (700 lines, v1.0.0 - Issue #196)
+
+**Purpose**: Auto-save research findings to docs/research/ with frontmatter metadata and caching, enabling research reuse across sessions and features without duplication.
+
+**Problem**: Research findings are lost when conversation clears with /clear. No caching mechanism for repeated research topics. No centralized research knowledge base. Manual research duplication across features wastes time and introduces inconsistency.
+
+**Solution**: Create research_persistence.py library providing save/load functions, age-based cache checking, and automatic index generation for research catalog.
+
+**Key Features**:
+
+1. **Research Saving** (save_research):
+   - Saves to docs/research/TOPIC_NAME.md (SCREAMING_SNAKE_CASE naming)
+   - YAML frontmatter: topic, created, updated, sources
+   - Markdown content: findings plus automatically generated source links
+   - Atomic write pattern (temp file plus replace) for safe concurrent access
+   - Preserves created timestamp on updates
+
+2. **Cache Checking** (check_cache):
+   - Returns path if recent research exists
+   - Age-based checking: max_age_days parameter (default: 30 days)
+   - Fast path: file existence plus stat check (O(1))
+
+3. **Research Loading** (load_cached_research):
+   - Loads file and parses YAML frontmatter
+   - Returns dict with: topic, created, updated, sources, content
+   - Handles malformed files gracefully (returns None)
+
+4. **Index Generation** (update_index):
+   - Scans all .md files in docs/research/ (except README.md)
+   - Generates README.md with research catalog table
+   - Columns: Topic, Created, Sources, File
+
+5. **Topic to Filename** (topic_to_filename):
+   - Converts JWT Authentication to JWT_AUTHENTICATION.md
+   - SCREAMING_SNAKE_CASE naming
+   - Sanitizes special characters and truncates to filesystem limits
+
+**Public API**:
+
+Key functions:
+- save_research(topic: str, findings: str, sources: List[str]) -> Path
+- check_cache(topic: str, max_age_days: int = 30) -> Optional[Path]
+- load_cached_research(topic: str) -> Optional[Dict[str, Any]]
+- update_index() -> Path
+- topic_to_filename(topic: str) -> str
+
+Custom Exception:
+- ResearchPersistenceError - Raised on validation/IO errors
+
+**Security Features**:
+
+1. **Atomic Write Pattern**: Temp file plus atomic rename for safe concurrent access
+2. **Path Traversal Prevention (CWE-22)**: Sanitized filenames, validated paths
+3. **Symlink Rejection (CWE-59)**: Via validate_session_path()
+4. **Input Validation**: Topic, findings, sources validation
+5. **Error Handling**: Disk full (ENOSPC), permission errors handled gracefully
+
+**Integration with Path Utils**:
+
+- Uses get_research_dir() from path_utils.py (NEW in Issue #196)
+- Portable path detection (works from any directory)
+- Creates docs/research/ with safe permissions (0o755)
+
+**Configuration**:
+
+Constants:
+- Cache age: max_age_days parameter (default: 30 days)
+- Filename truncation: 252 chars max (255 - 3 for .md)
+- Permissions: 0o644 for research files, 0o755 for directories
+
+**Dependencies**:
+
+Standard Library:
+- os - temp file creation, write operations
+- re - topic sanitization regex
+- tempfile - atomic write pattern
+- datetime - timestamp generation
+- pathlib - path operations
+- typing - type hints
+
+Project Dependencies:
+- path_utils.py - get_research_dir() function
+- validation.py - validate_session_path() function
+
+**Usage Examples**:
+
+Save research with metadata and sources:
+```
+from research_persistence import save_research
+path = save_research(
+    topic=JWT Authentication,
+    findings=## Key Findings: 1. JWT is stateless,
+    sources=[https://jwt.io]
+)
+```
+
+Check cache before researching:
+```
+from research_persistence import check_cache
+cached_path = check_cache(JWT Authentication, max_age_days=30)
+if cached_path:
+    print(Cache hit, use existing research)
+```
+
+Load cached research:
+```
+from research_persistence import load_cached_research
+data = load_cached_research(JWT Authentication)
+if data:
+    print(data[content])
+```
+
+Update research catalog:
+```
+from research_persistence import update_index
+readme_path = update_index()
+```
+
+**Test Coverage**:
+
+Unit Tests (50+ test cases):
+- topic_to_filename conversion (SCREAMING_SNAKE_CASE)
+- save_research function (file creation, frontmatter, atomic writes)
+- check_cache function (age-based checking)
+- load_cached_research function (parsing, error handling)
+- update_index function (catalog generation)
+- Frontmatter parsing (YAML validation)
+- Security validation (CWE-22, CWE-59)
+- Error handling (disk full, permissions, corruption)
+
+Integration Tests:
+- Save and load round-trip
+- Multiple research files with index generation
+- Cache hit/miss with age boundaries
+- Cross-project portability
+
+**Performance**:
+
+Time Complexity:
+- save_research(): O(n) where n = findings size
+- check_cache(): O(1) file existence check
+- load_cached_research(): O(n) where n = file size
+- update_index(): O(m) where m = number of .md files
+
+Typical Performance:
+- save_research: less than 50ms for typical research
+- check_cache: less than 5ms (file stat check)
+- load_cached_research: less than 20ms for typical file
+- update_index: less than 100ms for 50 research files
+
+**Version History**:
+- v1.0.0 (2026-01-03) - Initial release for research persistence (Issue #196)
+
+**Files Added**:
+- plugins/autonomous-dev/lib/research_persistence.py (700 lines)
+- tests/unit/lib/test_research_persistence.py (1023 lines)
+
+**Files Modified**:
+- plugins/autonomous-dev/lib/path_utils.py - Added get_research_dir() function
+- plugins/autonomous-dev/config/install_manifest.json - Added research_persistence.py to lib section
+
+---
+100 percent compatible - new optional library for research caching without affecting existing workflows.

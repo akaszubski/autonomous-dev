@@ -225,6 +225,42 @@ def get_batch_state_file() -> Path:
     return claude_dir / "batch_state.json"
 
 
+def get_research_dir(create: bool = True, use_cache: bool = True) -> Path:
+    """Get research directory path (PROJECT_ROOT/docs/research).
+
+    Args:
+        create: If True, create directory if it doesn't exist (default: True)
+        use_cache: If True, use cached project root (default). Set False in tests.
+
+    Returns:
+        Path to research directory
+
+    Raises:
+        FileNotFoundError: If project root not found
+        OSError: If directory creation fails
+
+    Examples:
+        >>> research_dir = get_research_dir()
+        >>> research_file = research_dir / "JWT_AUTHENTICATION.md"
+
+        # In tests that change cwd
+        >>> research_dir = get_research_dir(use_cache=False)
+
+    Security:
+        - Creates with standard permissions (0o755 = rwxr-xr-x)
+        - No path traversal risk (uses get_project_root())
+    """
+    project_root = get_project_root(use_cache=use_cache)
+    research_dir = project_root / "docs" / "research"
+
+    if create and not research_dir.exists():
+        research_dir.mkdir(parents=True, exist_ok=True)
+        # Set standard permissions (owner read/write/execute, group/others read/execute)
+        research_dir.chmod(0o755)  # rwxr-xr-x
+
+    return research_dir
+
+
 def reset_project_root_cache() -> None:
     """Reset cached project root (for testing only).
 

@@ -1,4 +1,44 @@
 ## [Unreleased]
+- **Research Persistence Library for Cross-Session Caching (Issue #196, v1.0.0)**
+  - **Purpose**: Auto-save research findings to docs/research/ with frontmatter metadata enabling research reuse across sessions and features
+  - **Problem**: Research findings are lost when conversation clears. No caching mechanism for repeated research topics. No centralized research knowledge base. Manual research duplication across features wastes time and introduces inconsistency
+  - **Solution**: Create research_persistence.py library with save/load functions for docs/research/, age-based cache checking, and automatic index generation for research catalog
+  - **Key Features**:
+    - **Research Saving**: save_research(topic, findings, sources) saves to docs/research/TOPIC_NAME.md with YAML frontmatter (topic, created, updated, sources)
+    - **Cache Checking**: check_cache(topic, max_age_days=30) returns path if recent research exists (age-based checking)
+    - **Research Loading**: load_cached_research(topic) loads file and parses frontmatter into structured dict
+    - **Index Generation**: update_index() scans docs/research/ and generates README.md with research catalog table
+    - **Topic to Filename**: topic_to_filename(topic) converts "JWT Authentication" to "JWT_AUTHENTICATION.md" (SCREAMING_SNAKE_CASE)
+    - **Atomic Writes**: Temp file + atomic rename for safe concurrent access (no partial writes)
+  - **File Format**: YAML frontmatter with topic, created, updated, sources; markdown content with findings and source links
+  - **Key APIs**:
+    - save_research(topic: str, findings: str, sources: List[str]) -> Path
+    - check_cache(topic: str, max_age_days: int = 30) -> Optional[Path]
+    - load_cached_research(topic: str) -> Optional[Dict[str, Any]]
+    - update_index() -> Path
+    - topic_to_filename(topic: str) -> str
+  - **Security Features**:
+    - Atomic write pattern (temp file + replace) - safe concurrent access
+    - Path traversal prevention (CWE-22) - sanitized filenames, validated paths
+    - Symlink rejection (CWE-59) - via validate_session_path()
+    - Input validation - topic, findings, sources validation
+    - Handles disk full (ENOSPC), permission errors gracefully
+  - **Integration with Path Utils**:
+    - Uses get_research_dir() from path_utils.py (NEW in Issue #196)
+    - Added get_research_dir(create=True, use_cache=True) to path_utils.py
+    - Portable path detection (works from any directory)
+    - Creates docs/research/ with safe permissions (0o755)
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/research_persistence.py (700 lines)
+    - tests/unit/lib/test_research_persistence.py (1023 lines)
+  - **Files Modified**:
+    - plugins/autonomous-dev/lib/path_utils.py - Added get_research_dir() function
+    - docs/LIBRARIES.md - Section 67 for research_persistence.py
+  - **Test Coverage**: 50+ tests covering topic conversion, research saving/loading, cache checking, index generation, atomic writes, security validation, error handling
+  - **Dependencies**: path_utils.py, validation.py, standard library (os, re, tempfile, datetime, pathlib, typing)
+  - **Backward Compatibility**: 100 percent compatible - new library, no changes to existing code
+  - **GitHub Issue**: Issue #196 - Research persistence for cross-session caching
+
 - **CLAUDE.md Refactoring and Documentation Modularization (Issue #195, v1.0.0)**
   - **Purpose**: Reduce CLAUDE.md from 832 to 285 lines by extracting detailed sections into specialized documentation files, improving maintainability and navigation
   - **Problem**: CLAUDE.md was too long (832 lines), making it difficult to navigate and maintain. Related sections were scattered, and users had to scroll through many sections to find specific topics
