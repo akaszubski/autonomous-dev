@@ -5,9 +5,9 @@
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.45.0 (Issue #187 - Auto-Claude library integration)
 
-> **📘 Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
+> **Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
----
+___
 
 ## Component Versions
 
@@ -16,12 +16,12 @@
 | Skills | 1.0.0 | 28 | ✅ Compliant |
 | Commands | 1.0.0 | 9 | ✅ Compliant |
 | Agents | 1.0.0 | 21 | ✅ Compliant |
-| Hooks | 1.0.0 | 62 | ✅ Compliant |
+| Hooks | 1.0.0 | 64 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
 **Last Compliance Check**: 2026-01-02 (Issue #187 - Auto-Claude library integration into workflows)
 
----
+___
 
 ## Installation (Bootstrap-First)
 
@@ -30,796 +30,251 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 # Restart Claude Code (Cmd+Q / Ctrl+Q)
 ```
 
-**What install.sh does** (Issue #132 - Complete auto-install):
-- Downloads all plugin components to `~/.autonomous-dev-staging/`
-- Installs global infrastructure: `~/.claude/hooks/`, `~/.claude/lib/`, `~/.claude/settings.json`
-- Installs to `.claude/`:
-  - Commands → `.claude/commands/`
-  - Agents → `.claude/agents/`
-  - Scripts → `.claude/scripts/`
-  - Config → `.claude/config/`
-  - Templates → `.claude/templates/`
-- Non-blocking installation: Missing components don't block workflow
+**What install.sh does**: Downloads components, installs global infrastructure (`~/.claude/hooks/`, `~/.claude/lib/`, `~/.claude/settings.json`), installs to `.claude/`
 
-**Optional**: Run `/setup` in your project for guided PROJECT.md creation (only needed for FRESH installs).
+**Optional**: Run `/setup` for guided PROJECT.md creation. See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md).
 
-**Why not marketplace alone?** autonomous-dev requires global infrastructure that the marketplace cannot configure: `~/.claude/hooks/`, `~/.claude/lib/`, and `~/.claude/settings.json`. See [docs/BOOTSTRAP_PARADOX_SOLUTION.md](docs/BOOTSTRAP_PARADOX_SOLUTION.md) for complete explanation.
+___
 
 ## Project Overview
 
-**autonomous-dev** - Plugin repository for autonomous development in Claude Code.
+**autonomous-dev** - Plugin for autonomous development in Claude Code. AI agents, skills, automation hooks, slash commands.
 
-**Core Plugin**: `autonomous-dev` - AI agents, skills, automation hooks, and slash commands for autonomous feature development
+## Commands
 
-**Commands**:
+- /advise: Critical thinking analysis (validates alignment, challenges assumptions, identifies risks). See `/advise` command.
+- /auto-implement: Autonomous feature development (research → plan → test → implement → review → security → docs). See `/auto-implement` command.
+- /batch-implement: Process multiple features sequentially with state management, crash recovery, per-feature git automation. See `/batch-implement` command.
+- /create-issue: Create GitHub issue with research and blocking duplicate check. See `/create-issue` command.
+- /align: Alignment command with three modes (project, claude, retrofit). See `/align` command.
+- /setup: Interactive setup wizard for PROJECT.md creation. See `/setup` command.
+- /sync: Sync command with six modes (github, env, marketplace, plugin-dev, all, uninstall). See `/sync` command.
+- /health-check: Validate plugin integrity and marketplace version. See `/health-check` command.
+- /worktree: Manage git worktrees for isolated feature development. See `/worktree` command.
 
-- `/advise` - Critical thinking analysis (validates alignment, challenges assumptions, identifies risks) - GitHub #158
-- `/auto-implement` - Autonomous feature development (full pipeline: research → plan → test → implement → review → security → docs)
-- `/batch-implement` - Process multiple features sequentially with state management, crash recovery, and per-feature git automation
-- `/create-issue` - Create GitHub issue with research + blocking duplicate check + all sections (8-12 min default, 3-5 min --quick) - GitHub #122
-- `/align` - Unified alignment command with three modes:
-  - `--project` - Fix PROJECT.md conflicts - formerly align-project
-  - `--claude` - Fix documentation drift (validation script) - formerly align-claude
-  - `--retrofit` - Retrofit brownfield projects for autonomous development (5-phase process) - formerly align-project-retrofit - GitHub #59
-- `/setup` - Interactive setup wizard for PROJECT.md creation
-- `/sync` - Unified sync command with six modes:
-  - `--github` - Fetch latest from GitHub (default) - GitHub #124
-  - `--env` - Environment sync (dependencies, config, migrations)
-  - `--marketplace` - Marketplace update (version detection, orphan cleanup)
-  - `--plugin-dev` - Plugin development sync (local testing)
-  - `--all` - Execute all modes in sequence
-  - `--uninstall` - Uninstall plugin (preview by default, use --force to execute) - GitHub #131
-- `/health-check` - Validate plugin integrity and marketplace version (Python validation) - GitHub #50
-- `/worktree` - Manage git worktrees (list, status, review, merge, discard) for isolated feature development and safe review/merge workflow - GitHub #180
+**Security**: All commands use `allowed-tools:` frontmatter for least privilege.
 
-**Command Security (Issue #145)**: All commands use `allowed-tools:` frontmatter for principle of least privilege. Claude Code 2.0 enforces tool restrictions at runtime.
+___
 
----
-
-## Workflow Discipline (Issue #137, Updated #141)
+## Workflow Discipline
 
 **Philosophy**: Prefer pipelines. Choose quality over speed.
 
-Claude SHOULD use the proper commands for feature implementation because they produce better results, not because hooks enforce it.
+**Key Metrics**: /auto-implement catches 85% of issues before commit (4% bug rate vs 23%, 0.3% security issues vs 12%, 94% test coverage vs 43%)
 
-### Why /auto-implement Produces Better Results (Data-Driven)
+**When to Use**:
+- **Direct Implementation**: Documentation updates, config changes, typo fixes
+- **/auto-implement**: New code, bug fixes, features, API changes, anything requiring tests
 
-**The Data** (from autonomous-dev production metrics):
+**See**: [docs/WORKFLOW-DISCIPLINE.md](docs/WORKFLOW-DISCIPLINE.md) for complete data, enforcement philosophy, and 4-layer consistency architecture.
 
-| Metric | Direct Implementation | /auto-implement |
-|--------|----------------------|-----------------|
-| Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
-| Security issues | 12% (need audit) | 0.3% (caught by auditor) |
-| Documentation drift | 67% (manual sync) | 2% (auto-synced) |
-| Test coverage | 43% (optional) | 94% (required) |
-
-**Benefits**: Research catches duplicates, TDD catches bugs, security blocks vulns, docs stay synced.
-
-### When to Use Each Approach
-
-**Use Direct Implementation** (quick changes):
-- Documentation updates (.md files)
-- Configuration changes (.json, .yaml)
-- Minor refactoring (renaming, moving)
-- Typo fixes (1-2 lines)
-
-**Use /auto-implement** (quality matters):
-- New functions, classes, methods
-- Bug fixes requiring logic changes
-- Feature additions
-- API changes
-- Anything that should have tests
-
-### Time Comparison
-
-| Step | Direct Implementation | /auto-implement |
-|------|----------------------|-----------------|
-| Research | Manual (you do it) | Automatic (2-3 min) |
-| Tests | Manual (you write them) | Automatic (TDD enforced) |
-| Security | Manual (you audit) | Automatic (security-auditor) |
-| Docs | Manual (you update) | Automatic (doc-master) |
-| Git | Manual (you commit/push) | Automatic (auto-git) |
-| **Total effort** | High (all manual) | Low (orchestrated) |
-| **Total time** | Variable | 15-25 min |
-
-### Enforcement: Deterministic Only (Issue #141)
-
-**What IS enforced** (deterministic rules):
-- `gh issue create` blocked → Use `/create-issue` instead
-- `.env` edits blocked → Protects secrets
-- `git push --force` blocked → Protects history
-- Quality gates → Tests must pass before commit
-
-**What is NOT enforced** (intent detection removed):
-- "implement X" patterns → Not detected (Claude rephrases)
-- Line count thresholds → Not detected (Claude makes small edits)
-- "Significant change" detection → Not detected (easily bypassed)
-
-**Why intent detection was removed** (Issue #141):
-- Hooks see tool calls, not Claude's reasoning
-- Claude bypasses via: Bash heredocs, small edits, rephrasing
-- False positives frustrate users (doc updates blocked)
-- False negatives miss violations (small cumulative edits)
-
-**The new approach**: Persuasion + Convenience + Skills
-1. CLAUDE.md explains WHY /auto-implement is better (this section)
-2. /auto-implement is faster than manual implementation
-3. Skills inject knowledge into agents (Issue #140)
-4. Deterministic hooks block only verifiable violations
-
-### Bypass Detection (Still Active)
-
-**Explicit bypasses are still blocked**:
-```bash
-gh issue create ...  # BLOCKED - Use /create-issue
-skip /create-issue   # BLOCKED - No skipping allowed
-bypass /auto-implement  # BLOCKED - No bypassing
-```
-
-**To Disable** (not recommended):
-```bash
-# Add to .env file
-ENFORCE_WORKFLOW=false  # Disables bypass detection
-```
-
-### The Choice is Yours
-
-Hooks no longer block direct implementation for new code. But the data shows /auto-implement catches 85% of issues before commit.
-
-**When you implement directly, you accept**:
-- Higher bug rate (23% vs 4%)
-- No security audit (12% vulnerability rate)
-- Documentation drift (67% of changes)
-- Lower test coverage (43% vs 94%)
-
-**The pipeline exists because it works, not because it's forced.**
-
-**Example Scenario**:
-
-```bash
-# ❌ WRONG: Vibe coding (bypass)
-User: "implement JWT authentication"
-Claude: Implements directly (no PROJECT.md check, no TDD, no research)
-
-# ✅ CORRECT: Use pipeline
-User: "/create-issue Add JWT authentication"
-Claude: Creates issue with research + duplicate check + cache
-User: "/auto-implement #123"
-Claude: Validates alignment → TDD → implements → reviews → documents
-```
-
-### 4-Layer Consistency Architecture (Epic #142)
-
-| Layer | % | Purpose | Implementation |
-|-------|---|---------|----------------|
-| **HOOKS** | 10 | Deterministic blocking | `unified_pre_tool.py`, `unified_prompt_validator.py` |
-| **CLAUDE.md** | 30 | Persuasion via data | Workflow Discipline section (above) |
-| **CONVENIENCE** | 40 | Quality path easiest | `/auto-implement` pipeline |
-| **SKILLS** | 20 | Agent expertise | Native `skills:` frontmatter |
-
-**Completed**: #140-146. **Details**: `docs/epic-142-closeout.md`
-
----
-
-## Quality Reflexes (Constitutional Self-Critique)
-
-Before implementing any feature directly, ask yourself these questions. This is guidance, not enforcement — you decide whether to follow the pipeline or proceed directly.
-
-**Self-Validation Questions**:
-
-1. **Alignment**: Does this feature align with PROJECT.md goals? (If unsure → `cat .claude/PROJECT.md`)
-2. **Research**: Have I researched existing patterns in the codebase? (If not → `grep`/`glob` first)
-3. **Duplicates**: Am I duplicating work that's already implemented or exists as an open issue? (If unsure → `gh issue list --search`)
-4. **Tests First**: Should I write tests first for this change? (If yes → TDD approach)
-5. **Documentation**: Will this require documentation updates? (If yes → plan doc changes now)
-
-**Why This Works** (Constitutional AI Pattern):
-
-Constitutional AI uses natural language principles for self-critique rather than rigid enforcement. By asking questions, Claude can reflect on the best approach before committing to implementation. This respects your agency while surfacing quality considerations.
-
-The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion (this section) — guidance through data and reasoning, not blocking.
-
-**The Data Shows** (from Workflow Discipline section above):
-
-| Metric | Direct Implementation | /auto-implement Pipeline |
-|--------|----------------------|--------------------------|
-| Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
-| Security issues | 12% (need audit) | 0.3% (caught by auditor) |
-| Documentation drift | 67% (manual sync) | 2% (auto-synced) |
-| Test coverage | 43% (optional) | 94% (required) |
-
-**Your Choice**:
-
-Consider using `/auto-implement` for features where quality matters. For quick fixes, documentation updates, or trivial changes, direct implementation may be appropriate. The data above helps you decide — the choice is yours.
-
----
+___
 
 ## Context Management (CRITICAL!)
 
-### Why This Matters
+**Why This Matters**:
+- Without clearing: Context bloats to 50K+ tokens after 3-4 features → System fails
+- With clearing: Context stays under 8K tokens → Works for 100+ features
 
-- ❌ Without clearing: Context bloats to 50K+ tokens after 3-4 features → System fails
-- ✅ With clearing: Context stays under 8K tokens → Works for 100+ features
-
-### After Each Feature: Clear Context
-
+**After Each Feature**:
 ```bash
 /clear
 ```
 
-**What this does**: Clears conversation (not files!), resets context budget, maintains performance
+**When to clear**: After each feature completes (recommended for optimal performance), before starting unrelated feature, if responses feel slow
 
-**When to clear**:
-- ✅ After each feature completes (recommended for optimal performance)
-- ✅ Before starting unrelated feature
-- ✅ If responses feel slow
+**Session Files**: Agents log to `docs/sessions/` instead of context (200 tokens vs 5,000+ tokens)
 
-### Session Files Strategy
+**See**: [docs/CONTEXT-MANAGEMENT.md](docs/CONTEXT-MANAGEMENT.md) for complete context management strategy, session files, and portable library design.
 
-Agents log to `docs/sessions/` instead of context:
-
-```bash
-# Log action (works from any directory, including user projects)
-python plugins/autonomous-dev/scripts/session_tracker.py agent_name "message"
-
-# View latest session
-cat docs/sessions/$(ls -t docs/sessions/ | head -1)
-```
-
-**Result**: Context stays small (200 tokens vs 5,000+ tokens)
-
-**Note**: Issue #79 (v3.28.0+) moved session tracking to portable library-based design:
-- `plugins/autonomous-dev/lib/path_utils.py` (section 15) - Dynamic project root detection
-- `plugins/autonomous-dev/lib/validation.py` (section 16) - Security validation for paths
-- `plugins/autonomous-dev/lib/session_tracker.py` (section 25) - Core logging library
-- `plugins/autonomous-dev/lib/agent_tracker.py` (section 24) - Agent checkpoint tracking with `save_agent_checkpoint()` class method (NEW v3.36.0)
-- `plugins/autonomous-dev/scripts/session_tracker.py` - CLI wrapper (current location)
-- `scripts/session_tracker.py` - DEPRECATED (removed v4.0.0), delegates to lib version
-- Works from any directory (user projects, subdirectories) via `path_utils.get_session_dir()` and `AgentTracker.save_agent_checkpoint()`
-- See `docs/LIBRARIES.md` (sections 15, 16, 24, 25) and GitHub Issue #79 for complete details
-
-**Enhanced** (v3.36.0): Added `AgentTracker.save_agent_checkpoint()` class method:
-- Convenience method for agents to save checkpoints without managing instances
-- Solves dogfooding bug where hardcoded paths caused 7+ hour stalls
-- Portable path detection works from any directory
-- Graceful degradation in user projects (returns False, doesn't block workflow)
-- No subprocess calls (uses Python imports instead)
-- See `docs/DEVELOPMENT.md` Scenario 2.5 for integration pattern
-
-**Related**: Issue #85 (v3.30.0+) fixed `/auto-implement` checkpoints to use portable path detection:
-- CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390) replaced hardcoded paths with dynamic detection
-- Same portable path detection strategy as tracking infrastructure (path_utils and fallback)
-- Works from any directory on any machine (not just developer's path)
-- See `plugins/autonomous-dev/commands/auto-implement.md` for checkpoint implementation details
-
-**Enhanced**: Issue #82 (v3.33.0+, Unreleased) made checkpoint verification optional with graceful degradation:
-- Checkpoints work in both user projects (skips verification) and autonomous-dev repo (full verification)
-- **User projects**: AgentTracker unavailable → silent skip with informational message (ℹ️)
-- **Dev repo**: AgentTracker available → full verification with efficiency metrics (✅/❌)
-- **Broken scripts**: Never blocks workflow, always shows clear warning (⚠️) and continues
-- Enables `/auto-implement` to work anywhere without requiring plugins/ directory structure
-- See `plugins/autonomous-dev/commands/auto-implement.md` for graceful degradation pattern
-
----
+___
 
 ## Documentation Principles
 
-### Honesty Over Marketing
+**Principle**: Documentation must reflect reality, not aspirations.
 
-**Principle**: Documentation must reflect reality, not aspirations. Users who follow docs exactly should experience what's written.
+**Standards**: State real-world limits, include failure modes, use hedging language, avoid marketing speak.
 
-**Standards**:
+**Test**: "If a new user follows the docs exactly, will their experience match what's written?"
 
-1. **State real-world limits, not aspirational targets**
-   - ✅ Good: "4-5 features per session (context limit)"
-   - ❌ Bad: "50+ features" (without mentioning resume workflow is required)
+**Philosophy**: Under-promise, over-deliver.
 
-2. **Include failure modes and workarounds**
-   - ✅ Good: "Context typically fills at 4-5 features. Use `--resume` to continue."
-   - ❌ Bad: "Supports unlimited features" (hiding the context limit)
-
-3. **Use hedging language for variable outcomes**
-   - Use: "typically", "expect", "usually", "often", "may"
-   - Avoid: "always", "guaranteed", "never fails", "unlimited"
-
-4. **Prohibited practices**:
-   - Unvalidated claims (no "up to X" without typical case)
-   - Hiding known limitations
-   - Marketing speak without disclaimers
-   - Best-case scenarios without typical-case context
-
-**Test**: "If a new user follows the docs exactly, will their experience match what's written? If not, fix the docs."
-
-**Metrics That Matter**:
-- Lead with typical case, not best case
-- State conditions (hardware, context size, feature complexity)
-- Include what happens at limits and recovery path
-
-**Examples**:
-
-```markdown
-# Good
-**Typical batch**: 4-5 features (~2 hours) before context reset needed
-Context limits (be realistic): Each feature consumes ~25-35K tokens.
-
-# Bad
-**50+ feature support** (proven with state management)
-Process unlimited features with automatic context management
-```
-
-**Philosophy**: Under-promise, over-deliver. We're not selling — we're documenting reality. The value proposition is strong enough without inflating claims.
-
----
+___
 
 ## PROJECT.MD - Goal Alignment
 
 [`.claude/PROJECT.md`](.claude/PROJECT.md) defines GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE
 
-**Before starting work**:
+**Check alignment**: `cat .claude/PROJECT.md | grep -A 5 "## GOALS"`
 
-```bash
-# Check alignment
-cat .claude/PROJECT.md | grep -A 5 "## GOALS"
+**Update**: Edit PROJECT.md when strategic direction changes
 
-# Verify:
-# - Does feature serve GOALS?
-# - Is feature IN SCOPE?
-# - Does feature respect CONSTRAINTS?
-```
+**Strategic vs tactical**: PROJECT.md (strategy) vs GitHub Issues (tasks). Forbidden in PROJECT.md: TODO, Roadmap, Future
 
-**Update when strategic direction changes**:
-```bash
-vim .claude/PROJECT.md
-git add .claude/PROJECT.md
-git commit -m "docs: Update project goals"
-```
-
-**PROJECT.md vs GitHub Issues**: Strategic vs tactical. Forbidden: TODO, Roadmap, Future → `/create-issue` (#194)
-
----
+___
 
 ## Autonomous Development Workflow
 
-1. **Alignment Check**: Verify feature aligns with PROJECT.md
-2. **Complexity Assessment** (v3.45.0 - Issue #190): complexity_assessor determines pipeline scaling
-   - Recommends agent count (3/6/8) and time (8/15/25 min) based on SIMPLE/STANDARD/COMPLEX
-   - Security-first: COMPLEX keywords override SIMPLE, confidence scoring (0.0-1.0)
-3. **Research**: researcher agent finds patterns (Haiku model - optimized for speed)
-4. **Planning**: planner agent creates plan (uses complexity assessment for scaling)
-5. **Pause Control** (v3.45.0 - Issue #190): Optional human-in-the-loop after planning
-   - Feature flag: `ENABLE_PAUSE_CONTROLLER` (default: false)
-   - Checks .claude/PAUSE file, reads HUMAN_INPUT.md for feedback
-6. **TDD Tests**: test-master writes failing tests FIRST
-7. **Implementation**: implementer makes tests pass
-8. **Parallel Validation (3 agents simultaneously)**:
-   - reviewer checks code quality
-   - security-auditor scans for vulnerabilities
-   - doc-master updates documentation
-   - Execution: Three Task tool calls in single response enables parallel execution
-   - Performance: 5 minutes → 2 minutes (60% faster)
-9. **Memory Recording** (v3.45.0 - Issue #190): Cross-session context after validation
-   - Feature flag: `ENABLE_MEMORY_LAYER` (default: false)
-   - Records feature completion, decisions, patterns for batch recall
-10. **Automated Git Operations (SubagentStop hook - consent-based)**:
-   - Triggers on doc-master completion, checks `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
-   - Stages, commits, pushes, optionally creates PR with graceful degradation
-11. **Context Clear (Optional)**: `/clear` for next feature (recommended for performance)
+**11-Step Pipeline** (15-25 minutes per workflow):
 
-**Performance Baseline**: 15-25 minutes per workflow (25-30% overall improvement from 28-44 min baseline)
+1. Alignment Check
+2. Complexity Assessment (v3.45.0)
+3. Research (Haiku model)
+4. Planning
+5. Pause Control (optional, v3.45.0)
+6. TDD Tests (failing tests FIRST)
+7. Implementation
+8. Parallel Validation (reviewer + security-auditor + doc-master)
+9. Memory Recording (optional, v3.45.0)
+10. Automated Git Operations (consent-based)
+11. Context Clear (optional)
 
-**Optimization History** (10 phases complete - see [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for details):
-- **Phase 4**: Haiku model for researcher (3-5 min saved)
-- **Phase 5**: Prompt simplification (2-4 min saved)
-- **Phase 6**: Profiling infrastructure (PerformanceTimer, JSON logging)
-- **Phase 7**: Parallel validation (60% faster - 5 min → 2 min)
-- **Phase 8**: Agent output cleanup (~2,900 tokens saved)
-- **Phase 8.5**: Real-time performance analysis API
-- **Phase 9**: Model downgrade strategy (investigative)
-- **Phase 10**: Smart agent selection (Issue #120 - 95% faster for typos/docs, TDD red phase complete)
-- **Cumulative**: ~11,980 tokens saved, 50-100+ skills supported
+**Performance**: 25-30% improvement from 28-44 min baseline. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks and [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md) for complete phase details.
+___
 
----
+## Batch Feature Processing
 
-## Batch Feature Processing (Enhanced in v3.24.0, Simplified in v3.32.0 - Issue #88, Automatic retry v3.33.0 - Issue #89, Git automation v3.36.0 - Issue #93)
-
-Process multiple features sequentially with intelligent state management, automatic context management, and per-feature git automation. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
+Process multiple features sequentially with state management. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
 
 **Command**: `/batch-implement <features-file>` or `/batch-implement --issues <issue-numbers>` or `/batch-implement --resume <batch-id>`
 
 **Key Features**:
-- **File-based input**: Plain text file, one feature per line
-- **GitHub Issues**: Fetch titles via `--issues` flag (requires gh CLI v2.0+)
-- **State management**: `.claude/batch_state.json` tracks progress across crashes
-- **Git automation** (v3.36.0, Issue #93): Per-feature commits with conventional messages, optional push/PR
-  - **Automatic commits**: Each feature gets individual commit with agent-generated message
-  - **Optional push**: Use `AUTO_GIT_PUSH=false` for local commits only
-  - **Optional PR**: Use `AUTO_GIT_PR=false` to skip pull request creation
-  - **No prompts**: Batch mode skips interactive consent prompts (uses `.env` configuration)
-  - **Audit trail**: All git operations recorded in batch_state.json for debugging
-  - **Non-blocking failures**: Git errors don't stop batch processing
-- **Compaction-resilient** (v3.34.0): Survives auto-compaction via externalized state - no manual `/clear` needed
-- **Resume support**: `--resume <batch-id>` for crash recovery only (not context limits)
-- **Automatic retry** (v3.33.0, Issue #89): Intelligent classification and retry for transient failures
-  - **Transient**: Network errors, timeouts, API rate limits (automatically retried up to 3x)
-  - **Permanent**: Syntax errors, import errors, type errors (never retried)
-  - **Safety limits**: Max 3 retries per feature, circuit breaker after 5 consecutive failures
-  - **Consent-based**: First-run prompt (can be overridden via `BATCH_RETRY_ENABLED` env var)
-- **Fully unattended**: All features run without manual intervention
+- File-based input or GitHub Issues
+- State management (`.claude/batch_state.json`)
+- Git automation (per-feature commits, optional push/PR)
+- Compaction-resilient (survives auto-compaction)
+- Automatic retry (transient failures only)
+- Fully unattended
 
 **Performance**: ~20-30 min per feature
 
-**Why compaction-resilient works**:
-- Each `/auto-implement` bootstraps fresh from external state (GitHub issues, codebase, batch_state.json)
-- Git commits preserve completed work permanently
-- Conversation context is just a working buffer - real state is externalized
-- If Claude Code auto-compacts mid-batch, processing continues seamlessly
-
----
+___
 
 ## Git Automation Control
 
-Automatic git operations (commit, push, PR creation, issue closing) are **enabled by default** after `/auto-implement` completes (v3.12.0+, issue closing added v3.22.0). See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
+Automatic git operations enabled by default after `/auto-implement` completes. See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
 **Control**:
-- **First-run consent**: Interactive prompt on first use (default: enabled)
-- **Environment variables**: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR` (opt-out via `.env`)
-- **State persistence**: Choice stored in `~/.autonomous-dev/user_state.json`
+- First-run consent (interactive prompt)
+- Environment variables: `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR`
+- State persistence: `~/.autonomous-dev/user_state.json`
 
-**Workflow**:
-1. doc-master completes → triggers `auto_git_workflow.py` hook
-2. commit-message-generator creates conventional commit
-3. Stages, commits, optionally pushes and creates PR
-4. Graceful degradation if prerequisites fail
+**Workflow**: doc-master completes → auto_git_workflow.py hook → commit-message-generator → stage/commit/push/PR
 
-**Security**: Path validation (CWE-22, CWE-59), audit logging, no credential exposure, injection prevention
+___
 
----
+## MCP Auto-Approval Control
 
+Automatic tool approval for trusted operations. Reduces permission prompts from 50+ to 8-10 (84% reduction). See [docs/SANDBOXING.md](docs/SANDBOXING.md) for complete documentation.
 
-## MCP Auto-Approval Control (v3.40.0+, Enhanced v4.0.0 - Issue #171)
-
-Automatic tool approval for trusted operations in both **main conversation** and **subagent workflows**. Reduces permission prompts from 50+ to 0 during development using 4-layer permission architecture.
-
-**Permission Prompt Reduction**:
-- **Without sandboxing**: 50+ prompts per /auto-implement (cat, grep, git status, etc. all need approval)
-- **With Layer 3 (batch approval)**: 10-15 prompts (identical operations cached)
-- **With Layer 0 (sandboxing)**: 8-10 prompts total (safe commands auto-approved, 84% reduction)
-
-**Enable Auto-Approval**:
+**Enable**:
 ```bash
 # In .env file
-MCP_AUTO_APPROVE=true  # Default: false (opt-in) - Auto-approves everywhere (main + subagents)
-# OR
-MCP_AUTO_APPROVE=subagent_only  # Legacy mode - Only auto-approve in subagents
+MCP_AUTO_APPROVE=true  # Auto-approves everywhere (main + subagents)
+SANDBOX_ENABLED=true   # Command classification and sandboxing
+SANDBOX_PROFILE=development  # Options: development, testing, production
 ```
 
-**Enable Sandboxing** (Issue #171 - NEW v4.0.0):
-```bash
-# In .env file
-SANDBOX_ENABLED=true  # Default: false (opt-in) - Enable command classification and sandboxing
-SANDBOX_PROFILE=development  # Options: development (permissive), testing (moderate), production (strict)
-```
+**4-Layer Permission Architecture**:
+1. **Sandbox Enforcer**: Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+2. **MCP Security Validator**: Path traversal, injection, SSRF prevention
+3. **Agent Authorization**: Pipeline agent detection
+4. **Batch Permission Approver**: Caches user consent for identical operations
 
-**4-Layer Permission Architecture** (unified_pre_tool.py):
+**See**: [docs/SANDBOXING.md](docs/SANDBOXING.md), [docs/MCP-SECURITY.md](docs/MCP-SECURITY.md), [docs/LIBRARIES.md](docs/LIBRARIES.md) Section 66
 
-1. **Layer 0 - Sandbox Enforcer** (Issue #171, NEW v4.0.0):
-   - Command classification: SAFE (auto-approve), BLOCKED (deny), NEEDS_APPROVAL (continue)
-   - Pattern-based classification: safe_commands whitelist, blocked_patterns blacklist
-   - Shell injection detection: blocks shell metacharacters, prevents command chaining
-   - Path traversal protection: detects .. patterns, blocks sensitive files (.env, .ssh, *.key)
-   - Circuit breaker: disables after threshold violations (safety mechanism)
-   - Reduces prompts: 50+ -> 8-10 (84% reduction)
+___
 
-2. **Layer 1 - MCP Security Validator**:
-   - Path traversal validation (CWE-22)
-   - Command injection detection (CWE-78)
-   - SSRF prevention (CWE-918)
-   - Sensitive file access blocking
-
-3. **Layer 2 - Agent Authorization**:
-   - Pipeline agent detection
-   - Authorized agent bypass (implementer, test-master, etc.)
-   - Autonomous implementation prevention
-
-4. **Layer 3 - Batch Permission Approver**:
-   - Caches user consent for identical operations
-   - First prompt caches result for all identical operations
-   - Reduces 50+ cat/grep/git calls to single prompt
-
-**Policy Profiles** (sandbox_policy.json):
-
-- **development** (default): Permissive - auto-approves read-only and informational commands
-  - Safe commands: cat, echo, grep, ls, pwd, git status, pytest, npm list, etc.
-  - Blocked patterns: rm -rf, sudo, git push --force, eval
-  - Circuit breaker: 10 blocks
-
-- **testing**: Moderate - stricter than development
-  - Fewer safe commands
-  - More blocked patterns
-  - Circuit breaker: 5 blocks
-
-- **production**: Strictest - minimal auto-approvals
-  - Very few safe commands (cat, ls, git status only)
-  - Most operations blocked
-  - Circuit breaker: 3 blocks
-
-**Security**: 6 layers of defense (sandbox classification, MCP validation, user consent, tool whitelist, command/path validation, audit logging, circuit breaker). See `docs/SANDBOXING.md` for complete documentation.
-
-**Hook**: `unified_pre_tool.py` (PreToolUse lifecycle, chains sandbox + MCP security + auto-approval + batch approval)
-**Policy Files**:
-- `plugins/autonomous-dev/config/sandbox_policy.json` (sandbox profiles and rules)
-- `plugins/autonomous-dev/config/auto_approve_policy.json` (v2.0 permissive mode)
-
-**Related Documentation**:
-- docs/SANDBOXING.md - Complete sandboxing user guide
-- docs/LIBRARIES.md Section 66 - sandbox_enforcer.py API reference
-- docs/HOOKS.md - unified_pre_tool.py hook reference
-
----
 ## Architecture
 
 ### Agents
 
-21 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+**21 Agents** (8 pipeline, 13 utility):
+- Pipeline: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
+- Native skill integration via `skills:` frontmatter
 
-**Active Agents** (21 total):
-- **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (13): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator
+**28 Skills**: Progressive disclosure pattern, `allowed-tools:` for least privilege
 
-**Key Features**:
-- Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
-- Parallel validation: reviewer + security-auditor + doc-master (60% faster)
-- 8 pipeline agents used in `/auto-implement`, 13 utility agents for specialized tasks
+**66 Libraries**: Security, validation, automation, infrastructure
 
-### Model Tier Strategy
+**64 Hooks**: Dispatcher pattern, graceful degradation, env var control
 
-Agent model assignments optimized for cost-performance balance (8 active agents):
+**Model Tiers**: Haiku (pattern matching), Sonnet (implementation), Opus (security)
 
-**Tier 1 (Haiku)** - Fast, cost-effective for pattern matching
-- researcher-local - Search codebase patterns
-- reviewer - Code quality checks
-- doc-master - Documentation sync
+**See**: [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) for complete architecture, [docs/AGENTS.md](docs/AGENTS.md), [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md), [docs/LIBRARIES.md](docs/LIBRARIES.md), [docs/HOOKS.md](docs/HOOKS.md)
 
-**Tier 2 (Sonnet)** - Balanced reasoning for implementation
-- implementer - Code implementation
-- test-master - TDD test generation
-- planner - Architecture planning
-- issue-creator - GitHub issue creation
+___
 
-**Tier 3 (Opus)** - Deep reasoning for security
-- security-auditor - OWASP security scanning
+## CLAUDE.md Alignment
 
-**Performance Impact**: Optimized tier assignments reduce costs by 40-60% while maintaining quality.
+System to detect drift between documented standards and actual codebase.
 
-### Skills
+**Check**: `git commit` (automatic via hook) or `python .claude/hooks/validate_claude_alignment.py` (manual)
 
-Specialized skill packages using progressive disclosure to prevent context bloat. See [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for complete list.
+**Validates**: Version consistency, feature existence, security requirements, best practices
 
-**How It Works**:
-- Agents declare skills in `skills:` frontmatter field, auto-loaded when spawned
-- Each skill declares `allowed-tools:` for least privilege
-- Compact SKILL.md files with detailed content in docs/ subdirectories 
+**Fix drift**: Run validation → Update CLAUDE.md → Commit
 
-### Libraries
-
-Reusable Python libraries for security, validation, automation, and more. See [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API documentation.
-
-**Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
-
-### Hooks
-
-Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.md](docs/HOOKS.md) for complete reference.
-
-**Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
-
-
----
-
-## CLAUDE.md Alignment (New in v3.0.2)
-
-**What it is**: System to detect and prevent drift between documented standards and actual codebase
-
-**Why it matters**: CLAUDE.md defines development practices. If it drifts from reality, new developers follow outdated practices.
-
-**Check alignment**:
-```bash
-# Automatic (via hook)
-git commit -m "feature"  # Hook validates CLAUDE.md is in sync
-
-# Manual check
-python .claude/hooks/validate_claude_alignment.py
-```
-
-**What it validates**:
-- Version consistency (global vs project CLAUDE.md vs PROJECT.md)
-- Documented features actually exist
-- Security requirements documented
-- Best practices are up-to-date
-
-**If drift detected**:
-1. Run validation to see specific issues
-2. Update CLAUDE.md with actual current state
-3. Commit the alignment fix
-4. Hooks ensure all features stay in sync
+___
 
 ## Troubleshooting
 
-### "ModuleNotFoundError: No module named 'autonomous_dev'"
+**Common Issues**:
+- **ModuleNotFoundError**: Create symlink `cd plugins && ln -s autonomous-dev autonomous_dev`
+- **Context budget exceeded**: Run `/clear` and retry
+- **Alignment issues**: Check `cat .claude/PROJECT.md | grep GOALS`
+- **Commands not updating**: Fully quit (`Cmd+Q`/`Ctrl+Q`), wait 5s, restart (not `/exit`)
 
-**Symptom**: When running tests or importing from the plugin:
-```python
-ModuleNotFoundError: No module named 'autonomous_dev'
-```
+**See**: [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) for complete guide.
 
-**Solution**: Create a development symlink for Python imports.
-
-See [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) for complete instructions:
-- macOS/Linux: `cd plugins && ln -s autonomous-dev autonomous_dev`
-- Windows: `cd plugins && mklink /D autonomous_dev autonomous-dev` (Command Prompt as Admin)
-- Then test: `python -c "from autonomous_dev.lib import security_utils; print('OK')"`
-
-This is a one-time setup issue specific to Python import requirements.
-
-### "Context budget exceeded"
-
-```bash
-/clear  # Then retry
-```
-
-### "Feature doesn't align with PROJECT.md"
-
-1. Check goals: `cat .claude/PROJECT.md | grep GOALS`
-2. Either: Modify feature to align
-3. Or: Update PROJECT.md if direction changed
-
-### "CLAUDE.md alignment drift detected"
-
-This means CLAUDE.md is outdated. Fix it:
-```bash
-# See what's drifted
-python .claude/hooks/validate_claude_alignment.py
-
-# Update CLAUDE.md based on findings
-vim CLAUDE.md  # Update version, counts, descriptions
-
-# Commit the fix
-git add CLAUDE.md
-git commit -m "docs: update CLAUDE.md alignment"
-```
-
-### "Agent can't use tool X"
-
-Tool restrictions are intentional (security). If genuinely needed:
-```bash
-vim plugins/autonomous-dev/agents/[agent].md
-# Add to tools: [...] list in frontmatter
-```
-
-### "Commands not updating after plugin changes"
-
-**CRITICAL**: `/exit` does NOT reload commands! You need a full restart.
-
-**The Problem**:
-- `/exit` - Only ends the current conversation, process keeps running
-- Closing window - Process may still run in background
-- `/clear` - Only clears conversation history
-
-**The Solution**:
-1. **Fully quit Claude Code** - Press `Cmd+Q` (Mac) or `Ctrl+Q` (Linux/Windows)
-2. **Verify it's dead**: `ps aux | grep claude | grep -v grep` should return nothing
-3. **Wait 5 seconds** for process to fully exit
-4. **Restart Claude Code**
-5. **Verify**: Commands should now be updated
-
-**Why**: Claude Code caches command definitions in memory at startup. The only way to reload commands is to completely restart the application process.
-
-**When you need a full restart**:
-- After installing/updating plugins
-- After modifying command files
-- After syncing plugin changes
-- When new commands don't appear in autocomplete
-
----
+___
 
 ## MCP Server (Optional)
 
-For enhanced Claude Desktop integration, configure the MCP server with optional security policy.
+Enhanced Claude Desktop integration via `.mcp/config.json`
 
-**Location**: `.mcp/config.json`
+**Provides**: Filesystem, shell, git, Python interpreter
 
-**Provides**:
-- Filesystem access (read/write repository files)
-- Shell commands (git, python, npm, etc.)
-- Git operations (status, diff, commit)
-- Python interpreter (with virtualenv)
+**Security**: Permission-based with whitelist/blacklist. See [docs/MCP-SECURITY.md](docs/MCP-SECURITY.md) and `.mcp/README.md`
 
-### MCP Security (v3.37.0+, Issue #95)
-
-Permission-based security system for MCP server operations (prevents path traversal, command injection, SSRF).
-
-**Security Features**:
-- Whitelist-based permission system (allowlist + denylist)
-- Glob pattern matching for flexible permissions
-- Prevents CWE-22 (path traversal), CWE-59 (symlinks), CWE-78 (injection), SSRF
-- Blocks sensitive files (.env, .git, .ssh, secrets)
-- Audit logging for all operations
-
-**Configuration**:
-- Policy file: `.mcp/security_policy.json`
-- Profiles: development (permissive), testing (moderate), production (strict)
-- Fallback: Development profile if policy file not found
-
-**Validation Hooks**:
-- `pre_tool_use.py` - PreToolUse hook standalone script that intercepts and validates all MCP operations (replaced `unified_pre_tool_use.py`, `auto_approve_tool.py`, `mcp_security_enforcer.py`)
-
-**Documentation**: See [MCP-SECURITY.md](docs/MCP-SECURITY.md) for comprehensive guide
-
-**Setup**:
-```bash
-# See .mcp/README.md for full MCP setup instructions
-```
-
----
+___
 
 ## Quick Reference
 
-### Updating
-```bash
-# Use sync with marketplace detection
-/sync
+Common commands and workflows for daily use.
 
-# The sync command auto-detects context:
-# - In autonomous-dev repo: syncs plugin development changes
-# - In user projects: checks marketplace for updates
-# - Restart Claude Code after updates (REQUIRED!)
-```
+### Updating
+
+`/sync` (auto-detects context), then restart Claude Code
 
 ### Daily Workflow
-```bash
-# Start feature
-# (describe feature to Claude)
 
-# After feature completes (optional - for optimal performance)
-/clear
-```
+Describe feature to Claude, implement, then `/clear` (optional, recommended for performance)
 
 ### Check Session Logs
+
 ```bash
 cat docs/sessions/$(ls -t docs/sessions/ | head -1)
 ```
 
 ### Update Goals
+
 ```bash
 vim .claude/PROJECT.md
 ```
 
----
+___
 
 ## Philosophy
 
-**Automation > Reminders > Hope**
+**Automation > Reminders > Hope**: Automate quality (formatting, testing, security, docs). Use agents, skills, hooks. Focus on creative work.
 
-- Automate repetitive tasks (formatting, testing, security, docs)
-- Use agents, skills, hooks to enforce quality automatically
-- Focus on creative work, not manual checks
+**Research First, Test Coverage Required**: Research before implementing, write tests first (TDD), document changes. Make quality automatic.
 
-**Research First, Test Coverage Required**
+**Context is Precious**: Clear after features (`/clear`), use session files, stay under 8K tokens, scale to 100+ features.
 
-- Always research before implementing
-- Always write tests first (TDD)
-- Always document changes
-- Make quality automatic, not optional
-
-**Context is Precious**
-
-- Clear context after features (`/clear` - recommended for optimal performance)
-- Use session files for communication
-- Stay under 8K tokens per feature
-- Scale to 100+ features
-
----
+___
 
 **For detailed guides**:
 - **Users**: See `plugins/autonomous-dev/README.md` for installation and usage
@@ -829,4 +284,4 @@ vim .claude/PROJECT.md
 
 **For security**: See `docs/SECURITY.md` for security audit and hardening guidance
 
-**Last Updated**: 2025-12-15 (Added allowed-tools frontmatter to all 28 skills for least privilege enforcement - GitHub Issue #146, with 58 tests validating tool assignments)
+**Last Updated**: 2026-01-03 (Reduced from 832 to under 300 lines, extracted to docs/WORKFLOW-DISCIPLINE.md, docs/CONTEXT-MANAGEMENT.md, docs/ARCHITECTURE-OVERVIEW.md)
