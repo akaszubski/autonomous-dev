@@ -22,14 +22,31 @@ Security Features:
 - Input validation (topic, findings)
 
 Usage:
-    from research_persistence import save_research, check_cache, load_cached_research
+    from research_persistence import (
+        save_research,
+        save_merged_research,
+        check_cache,
+        load_cached_research,
+        update_index
+    )
 
-    # Save research
+    # Save research (manual)
     path = save_research(
         topic="JWT Authentication",
         findings="## Key Findings\n\n1. JWT is stateless\n2. Uses cryptographic signatures",
         sources=["https://jwt.io", "https://example.com/jwt-guide"]
     )
+
+    # Save merged research (from researcher agents)
+    local_json = {
+        "findings": ["Local pattern found in codebase"],
+        "sources": ["/project/docs/guide.md"]
+    }
+    web_json = {
+        "findings": ["Best practice from external docs"],
+        "sources": ["https://example.com/guide"]
+    }
+    path = save_merged_research("JWT Authentication", local_json, web_json)
 
     # Check cache (within 30 days)
     cached_path = check_cache("JWT Authentication", max_age_days=30)
@@ -583,6 +600,101 @@ def _parse_frontmatter(file_path: Path) -> Dict[str, Any]:
     frontmatter["content"] = content_body
 
     return frontmatter
+
+
+def save_merged_research(topic: str, local_json: Dict, web_json: Dict) -> Path:
+    """
+    Save merged research from researcher-local and researcher-web JSON outputs.
+
+    Merges findings and sources from both local and web research, deduplicates
+    sources, formats as markdown, and saves to docs/research/. Automatically
+    updates the research index (README.md).
+
+    Args:
+        topic: Research topic (e.g., "JWT Authentication")
+        local_json: JSON from researcher-local with keys:
+            - findings: List[str] - Local findings from codebase
+            - sources: List[str] - Local file paths
+            - topic: str (optional) - Topic name
+        web_json: JSON from researcher-web with keys:
+            - findings: List[str] - Web findings from external sources
+            - sources: List[str] - External URLs
+            - topic: str (optional) - Topic name
+
+    Returns:
+        Path to saved research file
+
+    Raises:
+        ResearchPersistenceError: If both local and web have no findings
+
+    Examples:
+        >>> local = {
+        ...     "findings": ["Local pattern found"],
+        ...     "sources": ["/project/docs/guide.md"]
+        ... }
+        >>> web = {
+        ...     "findings": ["Best practice from docs"],
+        ...     "sources": ["https://example.com/guide"]
+        ... }
+        >>> path = save_merged_research("JWT Auth", local, web)
+        >>> path.name
+        'JWT_AUTH.md'
+
+    Security:
+        - Uses save_research() for atomic write and path validation
+        - Deduplicates sources to prevent bloat
+        - Normalizes topic to prevent path traversal
+    """
+    # Extract findings from both sources
+    local_findings = local_json.get("findings", [])
+    web_findings = web_json.get("findings", [])
+
+    # Extract sources from both sources
+    local_sources = local_json.get("sources", [])
+    web_sources = web_json.get("sources", [])
+
+    # Check if both have no findings (error condition)
+    if not local_findings and not web_findings:
+        raise ResearchPersistenceError(
+            "Findings cannot be empty. "
+            "Both local and web research returned no findings."
+        )
+
+    # Merge findings into markdown sections
+    findings_sections = []
+
+    if local_findings:
+        findings_sections.append("## Local Research (Codebase)\n")
+        for i, finding in enumerate(local_findings, 1):
+            findings_sections.append(f"{i}. {finding}")
+        findings_sections.append("")  # Blank line
+
+    if web_findings:
+        findings_sections.append("## Web Research (External Sources)\n")
+        for i, finding in enumerate(web_findings, 1):
+            findings_sections.append(f"{i}. {finding}")
+        findings_sections.append("")  # Blank line
+
+    # Combine findings
+    findings_markdown = "\n".join(findings_sections).strip()
+
+    # Merge and deduplicate sources
+    all_sources = []
+    seen_sources = set()
+
+    for source in local_sources + web_sources:
+        if source not in seen_sources:
+            all_sources.append(source)
+            seen_sources.add(source)
+
+    # Save using existing save_research function
+    # This handles frontmatter, atomic write, path validation, etc.
+    result = save_research(topic, findings_markdown, all_sources)
+
+    # Update index (README.md)
+    update_index()
+
+    return result
 
 
 def update_index() -> Path:

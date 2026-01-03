@@ -103,6 +103,51 @@ EOF
 
 ---
 
+### STEP 1.0.5: Check Research Cache (Issue #196)
+
+**Before conducting research**, check if recent findings exist in `docs/research/`:
+
+```python
+from pathlib import Path
+import sys
+
+# Portable project root detection
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        project_root = current
+        break
+    current = current.parent
+else:
+    project_root = Path.cwd()
+
+# Add lib to path
+lib_path = project_root / "plugins/autonomous-dev/lib"
+if lib_path.exists():
+    sys.path.insert(0, str(lib_path))
+
+    try:
+        from research_persistence import check_cache, load_cached_research
+
+        topic = "[Feature name from user request]"
+        cached = check_cache(topic, max_age_days=30)
+
+        if cached:
+            print(f"✅ Cache hit: {cached}")
+            research_data = load_cached_research(topic)
+            # Skip to STEP 2 (Planning) with cached research
+        else:
+            print("ℹ️  Cache miss - proceeding with research")
+            # Continue to STEP 1 (Parallel Research)
+    except ImportError:
+        print("ℹ️  Research cache check skipped (library unavailable)")
+```
+
+**Cache Hit**: Skip STEP 1-1.3, proceed directly to STEP 2 with loaded research
+**Cache Miss**: Continue to STEP 1 (Parallel Research)
+
+---
+
 ### STEP 1: Parallel Research (researcher-local + researcher-web Simultaneously)
 
 ⚠️ **ACTION REQUIRED NOW**: Invoke TWO research agents in PARALLEL (single response).
@@ -170,6 +215,53 @@ Create synthesized recommendations by:
 4. **Library recommendations**: Match recommended libraries to project needs
 
 This merged context will be passed to the planner step (next).
+
+---
+
+### STEP 1.2.5: Save Research Findings (Issue #196)
+
+**After merging research**, automatically save to cache for future reuse:
+
+```python
+from pathlib import Path
+import sys
+
+# Portable project root detection
+current = Path.cwd()
+while current != current.parent:
+    if (current / ".git").exists() or (current / ".claude").exists():
+        project_root = current
+        break
+    current = current.parent
+else:
+    project_root = Path.cwd()
+
+# Add lib to path
+lib_path = project_root / "plugins/autonomous-dev/lib"
+if lib_path.exists():
+    sys.path.insert(0, str(lib_path))
+
+    try:
+        from research_persistence import save_merged_research
+
+        research_file = save_merged_research(
+            topic="[Feature name]",
+            local_json={...},  # researcher-local JSON output
+            web_json={...}     # researcher-web JSON output
+        )
+
+        print(f"✅ Research saved: {research_file}")
+        print("✅ Index updated: docs/research/README.md")
+    except ImportError:
+        print("ℹ️  Research persistence skipped (library unavailable)")
+    except Exception as e:
+        print(f"⚠️  Research save failed (non-blocking): {e}")
+```
+
+**Benefits**:
+- Future features with similar topics get cache hits (saves 2-5 min)
+- Research findings persist across context clears
+- Offline reference for decision rationale
 
 ---
 

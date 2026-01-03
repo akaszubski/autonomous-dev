@@ -70,6 +70,7 @@ try:
         update_index,
         topic_to_filename,
         get_research_dir,
+        save_merged_research,
         ResearchPersistenceError,
     )
     LIB_RESEARCH_PERSISTENCE_EXISTS = True
@@ -81,6 +82,7 @@ except ImportError:
     update_index = None
     topic_to_filename = None
     get_research_dir = None
+    save_merged_research = None
     ResearchPersistenceError = None
 
 
@@ -971,6 +973,518 @@ class TestErrorHandling:
 
 
 # ============================================================================
+# TEST: Save Merged Research (NEW - Issue #196)
+# ============================================================================
+
+
+@pytest.mark.skipif(not LIB_RESEARCH_PERSISTENCE_EXISTS, reason="Library not implemented yet (TDD red phase)")
+class TestSaveMergedResearch:
+    """Test save_merged_research() function for auto-implement integration.
+
+    This function merges research from researcher-local and researcher-web agents,
+    then saves to docs/research/ and updates the index.
+    """
+
+    def test_save_merged_research_with_both_sources(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Both local and web research JSON outputs
+        WHEN: Calling save_merged_research()
+        THEN: Merges findings and sources, saves to file, updates index
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "JWT Authentication",
+            "findings": [
+                "Local finding 1: JWT uses cryptographic signatures",
+                "Local finding 2: Stateless authentication"
+            ],
+            "sources": [
+                "/Users/andrewkaszubski/Dev/autonomous-dev/docs/security.md",
+                "/Users/andrewkaszubski/Dev/autonomous-dev/README.md"
+            ]
+        }
+
+        web_json = {
+            "topic": "JWT Authentication",
+            "findings": [
+                "Web finding 1: JWT.io provides comprehensive guide",
+                "Web finding 2: RFC 7519 defines JWT standard"
+            ],
+            "sources": [
+                "https://jwt.io/introduction",
+                "https://datatracker.ietf.org/doc/html/rfc7519"
+            ]
+        }
+
+        result = save_merged_research("JWT Authentication", local_json, web_json)
+
+        # Check file was created
+        expected_file = temp_project / "docs" / "research" / "JWT_AUTHENTICATION.md"
+        assert result == expected_file
+        assert expected_file.exists()
+
+        # Check content includes both local and web findings
+        content = expected_file.read_text()
+        assert "Local finding 1" in content
+        assert "Local finding 2" in content
+        assert "Web finding 1" in content
+        assert "Web finding 2" in content
+
+        # Check sources include both local and web (with proper formatting)
+        assert "security.md" in content or "/docs/security.md" in content
+        assert "jwt.io" in content or "JWT.io" in content
+        assert "rfc7519" in content or "RFC 7519" in content
+
+    def test_save_merged_research_web_only(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Web research only (local research is empty)
+        WHEN: Calling save_merged_research()
+        THEN: Saves web findings without error
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "Web Only Topic",
+            "findings": [],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "Web Only Topic",
+            "findings": [
+                "Web finding 1: External resource found",
+                "Web finding 2: Online documentation available"
+            ],
+            "sources": [
+                "https://example.com/docs",
+                "https://example.com/guide"
+            ]
+        }
+
+        result = save_merged_research("Web Only Topic", local_json, web_json)
+
+        # Check file was created
+        assert result.exists()
+
+        # Check only web findings present
+        content = result.read_text()
+        assert "Web finding 1" in content
+        assert "Web finding 2" in content
+        assert "example.com" in content
+
+    def test_save_merged_research_local_only(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Local research only (web research failed)
+        WHEN: Calling save_merged_research()
+        THEN: Saves local findings without error
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "Local Only Topic",
+            "findings": [
+                "Local finding 1: Found in codebase",
+                "Local finding 2: Found in project docs"
+            ],
+            "sources": [
+                "/Users/andrewkaszubski/Dev/autonomous-dev/docs/ARCHITECTURE.md",
+                "/Users/andrewkaszubski/Dev/autonomous-dev/.claude/PROJECT.md"
+            ]
+        }
+
+        web_json = {
+            "topic": "Local Only Topic",
+            "findings": [],
+            "sources": []
+        }
+
+        result = save_merged_research("Local Only Topic", local_json, web_json)
+
+        # Check file was created
+        assert result.exists()
+
+        # Check only local findings present
+        content = result.read_text()
+        assert "Local finding 1" in content
+        assert "Local finding 2" in content
+        assert "ARCHITECTURE.md" in content or "docs/ARCHITECTURE.md" in content
+
+    def test_save_merged_research_updates_index(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Merged research saved
+        WHEN: save_merged_research() completes
+        THEN: README.md index is automatically updated
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "New Research Topic",
+            "findings": ["Finding 1"],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "New Research Topic",
+            "findings": ["Finding 2"],
+            "sources": ["https://example.com"]
+        }
+
+        save_merged_research("New Research Topic", local_json, web_json)
+
+        # Check README.md was updated
+        readme_file = temp_project / "docs" / "research" / "README.md"
+        assert readme_file.exists()
+
+        readme_content = readme_file.read_text()
+        assert "New Research Topic" in readme_content or "NEW_RESEARCH_TOPIC" in readme_content
+
+    def test_save_merged_research_source_deduplication(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Same URL appears in both local and web sources
+        WHEN: Merging research
+        THEN: Duplicate sources are deduplicated
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "Duplicate Sources",
+            "findings": ["Local finding"],
+            "sources": ["https://example.com/guide", "https://example.com/docs"]
+        }
+
+        web_json = {
+            "topic": "Duplicate Sources",
+            "findings": ["Web finding"],
+            "sources": ["https://example.com/guide", "https://different.com/page"]
+        }
+
+        result = save_merged_research("Duplicate Sources", local_json, web_json)
+
+        # Check sources are deduplicated
+        content = result.read_text()
+
+        # Count occurrences of the duplicate URL (should appear once)
+        # Note: URL might appear in frontmatter AND sources section
+        # So we check it doesn't appear 3+ times
+        frontmatter_section = content.split("---")[1]
+        sources_section = content.split("## Sources")[1] if "## Sources" in content else ""
+
+        # In frontmatter, should appear exactly once
+        assert frontmatter_section.count("https://example.com/guide") == 1
+
+        # In sources section, should appear exactly once
+        assert sources_section.count("https://example.com/guide") == 1
+
+    def test_save_merged_research_topic_normalization(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Topic name with special characters
+        WHEN: Saving merged research
+        THEN: Topic normalized to SCREAMING_SNAKE_CASE filename
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "JWT Auth: Best Practices!",
+            "findings": ["Finding 1"],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "JWT Auth: Best Practices!",
+            "findings": ["Finding 2"],
+            "sources": []
+        }
+
+        result = save_merged_research("JWT Auth: Best Practices!", local_json, web_json)
+
+        # Check filename is normalized
+        assert result.name == "JWT_AUTH_BEST_PRACTICES.md"
+
+    def test_save_merged_research_empty_findings_handled(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Both local and web research have empty findings
+        WHEN: Calling save_merged_research()
+        THEN: Raises ResearchPersistenceError (no content to save)
+        """
+        from research_persistence import save_merged_research, ResearchPersistenceError
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "Empty Research",
+            "findings": [],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "Empty Research",
+            "findings": [],
+            "sources": []
+        }
+
+        with pytest.raises(ResearchPersistenceError, match="Findings cannot be empty"):
+            save_merged_research("Empty Research", local_json, web_json)
+
+    def test_save_merged_research_formats_findings_as_markdown(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Findings as list of strings
+        WHEN: Saving merged research
+        THEN: Findings formatted as markdown (numbered list or sections)
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        local_json = {
+            "topic": "Markdown Formatting",
+            "findings": [
+                "Finding 1: First local finding",
+                "Finding 2: Second local finding"
+            ],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "Markdown Formatting",
+            "findings": [
+                "Finding 3: First web finding",
+                "Finding 4: Second web finding"
+            ],
+            "sources": []
+        }
+
+        result = save_merged_research("Markdown Formatting", local_json, web_json)
+
+        content = result.read_text()
+
+        # Check findings are formatted (either as list items or with line breaks)
+        assert "Finding 1" in content
+        assert "Finding 2" in content
+        assert "Finding 3" in content
+        assert "Finding 4" in content
+
+        # Check basic markdown structure present
+        assert "#" in content  # Headers present
+
+    def test_save_merged_research_preserves_created_timestamp(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Existing research file
+        WHEN: Saving merged research with same topic
+        THEN: Preserves original 'created' timestamp, updates 'updated'
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        # Create existing research file with old created timestamp
+        existing_file = temp_project / "docs" / "research" / "PRESERVE_TIMESTAMP.md"
+        existing_content = """---
+topic: Preserve Timestamp
+created: 2025-12-01
+updated: 2025-12-15
+sources: []
+---
+
+# Preserve Timestamp
+
+Old content here.
+"""
+        existing_file.write_text(existing_content)
+
+        local_json = {
+            "topic": "Preserve Timestamp",
+            "findings": ["New finding"],
+            "sources": []
+        }
+
+        web_json = {
+            "topic": "Preserve Timestamp",
+            "findings": [],
+            "sources": []
+        }
+
+        with patch("research_persistence.datetime") as mock_datetime:
+            mock_datetime.now.return_value = datetime(2026, 1, 3, 12, 0, 0)
+            mock_datetime.strftime = datetime.strftime
+
+            save_merged_research("Preserve Timestamp", local_json, web_json)
+
+        # Check timestamps
+        content = existing_file.read_text()
+        assert "created: 2025-12-01" in content  # Original preserved
+        assert "updated: 2026-01-03" in content  # Updated to now
+
+    def test_save_merged_research_handles_missing_fields(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: JSON with missing optional fields (sources, etc.)
+        WHEN: Saving merged research
+        THEN: Handles missing fields gracefully with defaults
+        """
+        from research_persistence import save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        # Minimal JSON with only required fields
+        local_json = {
+            "topic": "Minimal JSON",
+            "findings": ["Finding 1"]
+            # No 'sources' field
+        }
+
+        web_json = {
+            "topic": "Minimal JSON",
+            "findings": ["Finding 2"]
+            # No 'sources' field
+        }
+
+        result = save_merged_research("Minimal JSON", local_json, web_json)
+
+        # Check file created successfully
+        assert result.exists()
+
+        content = result.read_text()
+        assert "Finding 1" in content
+        assert "Finding 2" in content
+
+
+# ============================================================================
+# TEST: Cache Integration Workflow (Issue #196)
+# ============================================================================
+
+
+@pytest.mark.skipif(not LIB_RESEARCH_PERSISTENCE_EXISTS, reason="Library not implemented yet (TDD red phase)")
+class TestCacheIntegrationWorkflow:
+    """Test cache check → research → save → cache hit workflow.
+
+    This simulates the /auto-implement integration:
+    1. Check cache before research (STEP 1.0.5)
+    2. Save merged research after research (STEP 1.2.5)
+    3. Next run hits cache instead of researching again
+    """
+
+    def test_cache_miss_then_save_then_cache_hit(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: No cached research for topic
+        WHEN: check_cache() → save_merged_research() → check_cache()
+        THEN: First check misses, save succeeds, second check hits
+        """
+        from research_persistence import check_cache, save_merged_research
+
+        mock_path_utils.return_value = temp_project
+
+        topic = "Cache Workflow Test"
+
+        # STEP 1: Cache miss (no research exists)
+        cache_result_1 = check_cache(topic, max_age_days=30)
+        assert cache_result_1 is None  # Cache miss
+
+        # STEP 2: Perform research and save
+        local_json = {
+            "topic": topic,
+            "findings": ["Finding from cache workflow test"],
+            "sources": []
+        }
+        web_json = {
+            "topic": topic,
+            "findings": [],
+            "sources": []
+        }
+
+        saved_path = save_merged_research(topic, local_json, web_json)
+        assert saved_path.exists()
+
+        # STEP 3: Cache hit (research now exists)
+        cache_result_2 = check_cache(topic, max_age_days=30)
+        assert cache_result_2 is not None  # Cache hit
+        assert cache_result_2 == saved_path
+
+    def test_cache_hit_skips_research(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Recent cached research (within 30 days)
+        WHEN: check_cache() returns path
+        THEN: load_cached_research() returns existing data (no need to research)
+        """
+        from research_persistence import check_cache, load_cached_research
+
+        mock_path_utils.return_value = temp_project
+
+        topic = "Existing Research"
+
+        # Check cache
+        cache_path = check_cache(topic, max_age_days=30)
+        assert cache_path is not None  # Cache hit
+
+        # Load cached data
+        cached_data = load_cached_research(topic)
+        assert cached_data is not None
+        assert cached_data["topic"] == topic
+        assert len(cached_data["content"]) > 0
+
+    def test_stale_cache_triggers_new_research(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Stale cached research (older than 30 days)
+        WHEN: check_cache() with max_age_days=30
+        THEN: Returns None (cache miss, triggers new research)
+        """
+        from research_persistence import check_cache
+
+        mock_path_utils.return_value = temp_project
+
+        # Create stale research file
+        stale_file = temp_project / "docs" / "research" / "STALE_CACHE.md"
+        stale_file.write_text("---\ntopic: Stale Cache\ncreated: 2025-11-01\n---\n\nOld content")
+
+        # Mock file modification time to 60 days ago
+        old_date = datetime.now() - timedelta(days=60)
+        with patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mtime = old_date.timestamp()
+
+            cache_result = check_cache("Stale Cache", max_age_days=30)
+
+        assert cache_result is None  # Cache miss due to age
+
+    def test_cache_respects_max_age_parameter(self, temp_project, mock_path_utils, mock_validation):
+        """
+        GIVEN: Research file from 15 days ago
+        WHEN: Checking cache with different max_age values
+        THEN: max_age_days=10 misses, max_age_days=20 hits
+        """
+        from research_persistence import check_cache
+
+        mock_path_utils.return_value = temp_project
+
+        research_file = temp_project / "docs" / "research" / "AGE_TEST.md"
+        research_file.write_text("---\ntopic: Age Test\ncreated: 2025-12-19\n---\n\nContent")
+
+        # Mock file modification time to 15 days ago
+        medium_age = datetime.now() - timedelta(days=15)
+        with patch("pathlib.Path.stat") as mock_stat:
+            mock_stat.return_value.st_mtime = medium_age.timestamp()
+
+            # With max_age=10, cache miss (file too old)
+            result_1 = check_cache("Age Test", max_age_days=10)
+            assert result_1 is None
+
+            # With max_age=20, cache hit (file recent enough)
+            result_2 = check_cache("Age Test", max_age_days=20)
+            assert result_2 is not None
+            assert result_2 == research_file
+
+
+# ============================================================================
 # CHECKPOINT: Save Test Creation Checkpoint
 # ============================================================================
 
@@ -1001,7 +1515,7 @@ if __name__ == "__main__":
             from agent_tracker import AgentTracker
             AgentTracker.save_agent_checkpoint(
                 'test-master',
-                'Tests complete - 42 tests created for research_persistence.py (TDD red phase)'
+                'Tests complete - 56 tests created (42 existing + 14 new for save_merged_research and cache workflow) (TDD red phase)'
             )
             print("✅ Checkpoint saved")
         except ImportError:

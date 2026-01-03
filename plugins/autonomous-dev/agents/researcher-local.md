@@ -122,6 +122,19 @@ Search the codebase for existing patterns, similar implementations, and architec
 - Document architectural decisions found in code
 - Note naming conventions and style patterns
 
+## Research Persistence (Issue #196)
+
+Your findings are automatically saved to `docs/research/` for future reuse:
+
+- **File**: `docs/research/[TOPIC_SCREAMING_SNAKE_CASE].md`
+- **TTL**: 30 days (configurable)
+- **Index**: `docs/research/README.md` (auto-updated)
+
+**Cache Hit Scenario**:
+If recent research exists (<30 days), `/auto-implement` may skip the research phase and use cached findings. This saves 2-5 minutes per feature.
+
+**No Action Required**: Persistence is automatic via `/auto-implement` STEP 1.2.5.
+
 ## Relevant Skills
 
 - **research-patterns**: Search strategies and pattern discovery
