@@ -1,4 +1,96 @@
 ## [Unreleased]
+- **Auto-Add autonomous-dev Section to CLAUDE.md During Install and Setup (Issue #201, v1.0.0)**
+  - **Purpose**: Auto-inject autonomous-dev documentation into user's CLAUDE.md during install.sh and /setup command, enabling users to understand plugin is installed and how to use it
+  - **Problem**: Users don't know plugin is installed without manual CLAUDE.md updates. No idempotent documentation injection mechanism. Install process doesn't educate users about plugin features (commands, workflow, context management)
+  - **Solution**: Create ClaudeMdUpdater library for safe, idempotent section injection with security validation, atomic writes, backups, and rollback capabilities. Integrate into install.sh and setup wizard
+  - **Key Features**:
+    - **ClaudeMdUpdater Library** (591 lines): Safe CLAUDE.md section injection
+      - section_exists(marker="autonomous-dev") - Check for BEGIN/END markers idempotently
+      - inject_section(content, marker="autonomous-dev") - Add section without duplicates
+      - update_section(new_content, marker="autonomous-dev") - Replace existing section
+      - remove_section(marker="autonomous-dev") - Remove section cleanly
+      - Atomic write pattern using mkstemp + rename (crash-safe)
+      - Symlink attack prevention (CWE-59) - reject symlinks
+      - Path traversal prevention (CWE-22) - validate all paths
+      - Timestamped backups in ~/.autonomous-dev/backups/
+      - Graceful error handling with clear exceptions
+    - **Section Template** (claude_md_section.md): Markdown template with:
+      - Plugin overview and quick reference
+      - Key commands (/clear, /auto-implement, /batch-implement, /align, /worktree)
+      - Context management best practices
+      - Link to full documentation
+    - **install.sh Integration**:
+      - add_autonomous_dev_section() function - Injects section into CLAUDE.md if exists in current directory
+      - Non-blocking - Logs warning if injection fails (not critical)
+      - Idempotent - Skips if section already exists
+      - Uses Python library for safe injection with error handling
+    - **Setup Wizard Integration** (Phase 4.5):
+      - Auto-runs after Phase 4 (creating CLAUDE.md if needed)
+      - Uses ClaudeMdUpdater to inject section
+      - Non-interactive (no user prompts)
+      - Creates backup before modification
+  - **Markers**:
+    - BEGIN/END comments: <!-- BEGIN autonomous-dev -->...<!-- END autonomous-dev -->
+    - Custom marker support for future sections
+  - **Security Features**:
+    - Symlink rejection (CWE-59) - validate_path() prevents symlink attacks
+    - Path traversal prevention (CWE-22) - sanitized paths
+    - Atomic write pattern - temp file + rename, no partial writes
+    - Backup before modification - timestamped backups in ~/.autonomous-dev/backups/
+    - Input validation - all parameters validated before use
+    - Audit logging - security_utils.audit_log() logs all operations
+  - **API Classes**:
+    - **ClaudeMdUpdater**: Main updater class
+      - __init__(file_path: Path) - Init with CLAUDE.md path
+      - section_exists(marker: str = "autonomous-dev") -> bool
+      - inject_section(content: str, marker: str = "autonomous-dev") -> bool
+      - update_section(new_content: str, marker: str = "autonomous-dev") -> bool
+      - remove_section(marker: str = "autonomous-dev") -> bool
+      - _create_backup() -> Path
+      - _atomic_write(content: str) - Safe write with temp file + rename
+    - **ClaudeMdUpdaterError**: Base exception for all updater errors
+    - **SecurityValidationError**: Raised when path validation fails
+    - **BackupError**: Raised when backup creation fails
+    - **FileOperationError**: Raised when file operations fail
+  - **Integration Points**:
+    - install.sh: Calls add_autonomous_dev_section() at end of installation
+    - setup-wizard.md: Phase 4.5 auto-injects section during /setup
+    - Bootstrap workflow: Users see documentation immediately after install
+  - **Files Added**:
+    - plugins/autonomous-dev/lib/claude_md_updater.py (591 lines, v1.0.0)
+      - Security validation, atomic writes, backup/rollback, exception hierarchy
+      - 18 public/private methods for full CRUD operations on sections
+      - Comprehensive docstrings following Google style
+    - plugins/autonomous-dev/templates/claude_md_section.md (70 lines)
+      - Markdown template with plugin overview
+      - Quick reference for key commands and context management
+      - Links to full documentation
+    - tests/unit/lib/test_claude_md_updater.py (1092 lines, 52 test cases)
+  - **Files Modified**:
+    - install.sh - Added add_autonomous_dev_section() function and call at end of main()
+    - plugins/autonomous-dev/agents/setup-wizard.md - Added Phase 4.5 for auto-injecting section
+    - plugins/autonomous-dev/config/install_manifest.json - Added new files to install manifest
+  - **Test Coverage**: 52 tests covering:
+    - Initialization (6 tests): Valid path, missing file creation, symlink rejection, path traversal rejection, path validation, relative paths
+    - Section detection (5 tests): Exists/not exists, custom markers, empty files, marker validation
+    - Section injection (6 tests): Empty file, append to existing, idempotent, custom markers, backup creation, newline preservation
+    - Section updates (4 tests): Update content, preserve rest of file, handle missing section, idempotent updates
+    - Section removal (4 tests): Remove content, preserve rest of file, handle missing section, multiple sections
+    - Backup/Rollback (5 tests): Backup creation, backup location, backup naming, rollback on error, cleanup
+    - Atomic writes (4 tests): Atomic writes, permissions, crash safety, temp file cleanup
+    - Security (6 tests): Symlink rejection, path traversal rejection, input validation, audit logging, exception handling, recovery
+    - Edge cases (2 tests): Large files, special characters in content
+  - **Dependencies**:
+    - security_utils.py (path validation, audit logging)
+    - Standard library: os, re, sys, tempfile, datetime, pathlib, typing
+  - **Environment Variables**: None (no env var configuration needed)
+  - **Performance**:
+    - section_exists(): O(n) where n = file size (reads entire file)
+    - inject_section(): O(n) - atomic write reads + writes entire file
+    - Typical operations: <100ms for CLAUDE.md files
+  - **Backward Compatibility**: 100% compatible - new library, non-blocking in install.sh
+  - **GitHub Issue**: Issue #201 - Auto-add autonomous-dev section to CLAUDE.md during install and setup
+
 - **Debug-First Enforcement and Self-Test Requirements (Issue #200, v1.0.0)**
   - **Purpose**: Enforce debug-first development by requiring self-tests alongside implementation and preventing commits of uncommitted changes exceeding threshold
   - **Problem**: Code quality issues discovered late in review or production. Developers write code first, tests second. Uncommitted changes accumulate, risking work loss

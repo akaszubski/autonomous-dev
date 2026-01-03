@@ -170,6 +170,7 @@
         "plugins/autonomous-dev/lib/batch_state_manager.py",
         "plugins/autonomous-dev/lib/brownfield_retrofit.py",
         "plugins/autonomous-dev/lib/checkpoint.py",
+        "plugins/autonomous-dev/lib/claude_md_updater.py",
         "plugins/autonomous-dev/lib/code_patcher.py",
         "plugins/autonomous-dev/lib/code_path_analyzer.py",
         "plugins/autonomous-dev/lib/codebase_analyzer.py",
@@ -282,6 +283,7 @@
       "target": ".claude/templates",
       "files": [
         "plugins/autonomous-dev/templates/PROJECT.md.template",
+        "plugins/autonomous-dev/templates/claude_md_section.md",
         "plugins/autonomous-dev/templates/project-structure.json",
         "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
         "plugins/autonomous-dev/templates/settings.default.json",

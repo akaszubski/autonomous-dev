@@ -1146,6 +1146,76 @@ bootstrap_skills() {
     return 0
 }
 
+# Add autonomous-dev section to project CLAUDE.md (if exists)
+add_autonomous_dev_section() {
+    local project_claude_md="$1"
+
+    # Only add if CLAUDE.md exists in current directory
+    if [[ ! -f "$project_claude_md" ]]; then
+        if $VERBOSE; then
+            log_info "No CLAUDE.md found in current directory - skipping section injection"
+        fi
+        return 0
+    fi
+
+    log_step "Adding autonomous-dev section to CLAUDE.md..."
+
+    # Use Python library for safe injection
+    python3 - "$project_claude_md" "$STAGING_DIR" <<'INJECT_SCRIPT'
+import sys
+from pathlib import Path
+
+claude_md_path = Path(sys.argv[1])
+staging_dir = Path(sys.argv[2])
+
+# Add lib to path
+lib_dir = staging_dir / "plugins/autonomous-dev/lib"
+sys.path.insert(0, str(lib_dir))
+
+try:
+    from claude_md_updater import ClaudeMdUpdater
+
+    updater = ClaudeMdUpdater(claude_md_path)
+
+    # Check if section already exists
+    if updater.section_exists("autonomous-dev"):
+        print("Section already exists - skipping")
+        sys.exit(0)
+
+    # Get template content
+    template_file = staging_dir / "plugins/autonomous-dev/templates/claude_md_section.md"
+    if not template_file.exists():
+        print(f"Template not found: {template_file}", file=sys.stderr)
+        sys.exit(1)
+
+    section_content = template_file.read_text()
+
+    # Inject section
+    if updater.inject_section(section_content, "autonomous-dev"):
+        print("Added autonomous-dev section to CLAUDE.md")
+        sys.exit(0)
+    else:
+        print("No changes needed")
+        sys.exit(0)
+
+except ImportError as e:
+    print(f"Library import failed: {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"Failed to update CLAUDE.md: {e}", file=sys.stderr)
+    sys.exit(1)
+INJECT_SCRIPT
+
+    local result=$?
+    if [[ $result -eq 0 ]]; then
+        log_success "CLAUDE.md updated with autonomous-dev section"
+        return 0
+    else
+        log_warning "CLAUDE.md update failed (non-critical)"
+        return 1
+    fi
+}
+
 main() {
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
@@ -1348,6 +1418,12 @@ main() {
         log_success "Global settings configured in ~/.claude/settings.json"
     else
         log_warning "Global settings not configured (will use Claude Code defaults)"
+    fi
+    echo ""
+
+    # Add autonomous-dev section to CLAUDE.md (if exists in current directory)
+    if [[ -f "$(pwd)/CLAUDE.md" ]]; then
+        add_autonomous_dev_section "$(pwd)/CLAUDE.md"
     fi
     echo ""
 

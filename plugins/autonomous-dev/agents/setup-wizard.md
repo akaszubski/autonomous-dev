@@ -986,6 +986,66 @@ If Yes: Guide token creation and setup .env
 
 ---
 
+## Phase 4.5: CLAUDE.md Enhancement (Auto)
+
+**Action**: Add autonomous-dev workflow section to project CLAUDE.md (if exists)
+
+This step runs automatically without user prompts:
+
+```python
+from pathlib import Path
+import sys
+
+# Add lib to path
+lib_dir = Path(".claude/lib")
+if not lib_dir.exists():
+    lib_dir = Path("plugins/autonomous-dev/lib")
+sys.path.insert(0, str(lib_dir))
+
+try:
+    from claude_md_updater import ClaudeMdUpdater
+
+    claude_md = Path("CLAUDE.md")
+
+    if claude_md.exists():
+        updater = ClaudeMdUpdater(claude_md)
+
+        # Check if section already exists
+        if not updater.section_exists("autonomous-dev"):
+            # Load template
+            template_paths = [
+                Path(".claude/templates/claude_md_section.md"),
+                Path("plugins/autonomous-dev/templates/claude_md_section.md"),
+            ]
+
+            template_content = None
+            for path in template_paths:
+                if path.exists():
+                    template_content = path.read_text()
+                    break
+
+            if template_content:
+                if updater.inject_section(template_content, "autonomous-dev"):
+                    print("✅ Added autonomous-dev section to CLAUDE.md")
+                else:
+                    print("ℹ️  CLAUDE.md unchanged")
+            else:
+                print("ℹ️  Template not found - skipping CLAUDE.md enhancement")
+        else:
+            print("ℹ️  CLAUDE.md already has autonomous-dev section")
+    else:
+        print("ℹ️  No CLAUDE.md found - skipping enhancement")
+
+except ImportError:
+    print("ℹ️  ClaudeMdUpdater not available - skipping CLAUDE.md enhancement")
+except Exception as e:
+    print(f"⚠️  CLAUDE.md enhancement failed (non-critical): {e}")
+```
+
+**Result**: Adds essential workflow commands to CLAUDE.md for easy reference.
+
+---
+
 ## Phase 5: Validation & Summary
 
 ```
@@ -999,6 +1059,10 @@ Configuration Summary:
   ✓ Location: PROJECT.md (project root)
   ✓ Status: Generated from codebase analysis
   ✓ Completion: 95% (2 TODO sections remaining)
+
+📝 CLAUDE.md:
+  ✓ Enhanced with autonomous-dev workflow section
+  ✓ Backup: ~/.autonomous-dev/backups/CLAUDE.md.backup.*
 
 ⚙️  Workflow:
   ✓ Mode: [Slash Commands OR Automatic Hooks]

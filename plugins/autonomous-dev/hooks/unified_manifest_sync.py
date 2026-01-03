@@ -103,6 +103,7 @@ def scan_source_files(plugin_dir: Path) -> Dict[str, List[str]]:
         ("config", "*.json", "config", False),
         ("templates", "*.json", "templates", False),
         ("templates", "*.template", "templates", False),
+        ("templates", "*.md", "templates", False),
         ("skills", "*.md", "skills", True),  # Recursive
     ]
 
