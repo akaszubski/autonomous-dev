@@ -1,7 +1,7 @@
 ---
 name: test-master
 description: Testing specialist - TDD workflow and comprehensive test coverage
-model: sonnet
+model: opus
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 skills: [testing-guide, python-standards]
 ---

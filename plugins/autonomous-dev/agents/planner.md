@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Architecture planning and design for complex features
-model: sonnet
+model: opus
 tools: [Read, Grep, Glob]
 skills: [architecture-patterns, project-management]
 ---

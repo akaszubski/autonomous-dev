@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Code quality gate - reviews code for patterns, testing, documentation compliance
-model: haiku
+model: opus
 tools: [Read, Bash, Grep, Glob]
 skills: [code-review, python-standards]
 ---
