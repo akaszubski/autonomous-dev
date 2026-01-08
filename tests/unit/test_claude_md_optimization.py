@@ -592,7 +592,8 @@ class TestAlignmentValidation:
         assert "**Commands**:" in content or "## Commands" in content, (
             "CLAUDE.md missing Commands section"
         )
-        assert "/auto-implement" in content, "CLAUDE.md should document /auto-implement"
+        # Issue #203: /auto-implement consolidated into /implement
+        assert "/implement" in content, "CLAUDE.md should document /implement"
         assert "/sync" in content, "CLAUDE.md should document /sync"
 
 
@@ -792,8 +793,9 @@ class TestOptimizationRegressionPrevention:
         content = claude_md.read_text(encoding="utf-8")
 
         # Check for workflow keywords
+        # Issue #203: /auto-implement consolidated into /implement
         workflow_keywords = [
-            "/auto-implement",
+            "/implement",  # Changed from /auto-implement (Issue #203)
             "Workflow",
             "researcher",
             "planner",

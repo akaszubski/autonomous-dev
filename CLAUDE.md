@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-03 (Issue #197 - CLAUDE.md validation enforcement)
+**Last Updated**: 2026-01-09 (Issue #203 - Consolidate /implement commands)
 **Last Validated**: 2026-01-03
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: v3.45.0 (Issue #187 - Auto-Claude library integration)
@@ -14,12 +14,12 @@ ___
 | Component | Version | Count | Status |
 |-----------|---------|-------|--------|
 | Skills | 1.0.0 | 28 | ✅ Compliant |
-| Commands | 1.0.0 | 10 | ✅ Compliant |
+| Commands | 1.0.0 | 9 | ✅ Compliant |
 | Agents | 1.0.0 | 22 | ✅ Compliant |
 | Hooks | 1.0.0 | 64 | ✅ Compliant |
 | Settings | 1.0.0 | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-03 (Issue #199 - test-coverage-auditor agent; Issue #197 - CLAUDE.md validation)
+**Last Compliance Check**: 2026-01-09 (Issue #203 - Consolidate /implement commands)
 
 ___
 
@@ -42,10 +42,12 @@ ___
 
 ## Commands
 
+- /implement: Smart code implementation with three modes (full pipeline, quick, batch). See `/implement` command.
+  - Full pipeline (default): `research → plan → test → implement → review → security → docs`
+  - Quick mode: `--quick` flag for implementer agent only
+  - Batch mode: `--batch`, `--issues`, `--resume` for multiple features
 - /advise: Critical thinking analysis (validates alignment, challenges assumptions, identifies risks). See `/advise` command.
 - /audit-tests: Analyze test coverage and identify gaps. See `/audit-tests` command.
-- /auto-implement: Autonomous feature development (research → plan → test → implement → review → security → docs). See `/auto-implement` command.
-- /batch-implement: Process multiple features sequentially with state management, crash recovery, per-feature git automation. See `/batch-implement` command.
 - /create-issue: Create GitHub issue with research and blocking duplicate check. See `/create-issue` command.
 - /align: Alignment command with three modes (project, claude, retrofit). See `/align` command.
 - /setup: Interactive setup wizard for PROJECT.md creation. See `/setup` command.
@@ -61,11 +63,11 @@ ___
 
 **Philosophy**: Prefer pipelines. Choose quality over speed.
 
-**Key Metrics**: /auto-implement catches 85% of issues before commit (4% bug rate vs 23%, 0.3% security issues vs 12%, 94% test coverage vs 43%)
+**Key Metrics**: /implement (full pipeline) catches 85% of issues before commit (4% bug rate vs 23%, 0.3% security issues vs 12%, 94% test coverage vs 43%)
 
 **When to Use**:
 - **Direct Implementation**: Documentation updates, config changes, typo fixes
-- **/auto-implement**: New code, bug fixes, features, API changes, anything requiring tests
+- **/implement**: New code, bug fixes, features, API changes (choose mode: full pipeline for tests, quick for docs, batch for bulk)
 
 **See**: [docs/WORKFLOW-DISCIPLINE.md](docs/WORKFLOW-DISCIPLINE.md) for complete data, enforcement philosophy, and 4-layer consistency architecture.
 
@@ -116,8 +118,9 @@ ___
 
 ## Autonomous Development Workflow
 
-**11-Step Pipeline** (15-25 minutes per workflow):
+Three modes via `/implement` command:
 
+**Full Pipeline Mode** (15-25 minutes per feature):
 1. Alignment Check
 2. Complexity Assessment (v3.45.0)
 3. Research (Haiku model)
@@ -130,31 +133,19 @@ ___
 10. Automated Git Operations (consent-based)
 11. Context Clear (optional)
 
+**Quick Mode** (2-5 minutes): Direct implementer agent invocation, no pipeline overhead
+
+**Batch Mode** (20-30 min per feature): Process multiple features sequentially with state management, crash recovery, per-feature git automation
+
 **Performance**: 25-30% improvement from 28-44 min baseline. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
 
-___
-
-## Batch Feature Processing
-
-Process multiple features sequentially with state management. See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for complete documentation.
-
-**Command**: `/batch-implement <features-file>` or `/batch-implement --issues <issue-numbers>` or `/batch-implement --resume <batch-id>`
-
-**Key Features**:
-- File-based input or GitHub Issues
-- State management (`.claude/batch_state.json`)
-- Git automation (per-feature commits, optional push/PR)
-- Compaction-resilient (survives auto-compaction)
-- Automatic retry (transient failures only)
-- Fully unattended
-
-**Performance**: ~20-30 min per feature
+See [docs/BATCH-PROCESSING.md](docs/BATCH-PROCESSING.md) for batch mode documentation (file-based input, GitHub Issues, resume capability, automatic retry).
 
 ___
 
 ## Git Automation Control
 
-Automatic git operations enabled by default after `/auto-implement` completes. See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
+Automatic git operations enabled by default after `/implement` (full pipeline) completes. See [docs/GIT-AUTOMATION.md](docs/GIT-AUTOMATION.md) for complete documentation.
 
 **Control**:
 - First-run consent (interactive prompt)

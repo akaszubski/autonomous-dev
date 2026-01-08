@@ -21,7 +21,7 @@ research → plan → test → implement → review → security → docs → co
 Every step. Every feature. Documentation, tests, and code stay in sync automatically.
 
 ```bash
-/auto-implement "issue #72"
+/implement "issue #72"
 ```
 
 ---
@@ -36,7 +36,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 # Press Cmd+Q, then reopen
 
 # 3. Use
-/auto-implement "your feature description"
+/implement "your feature description"
 ```
 
 **Requirements:**
@@ -72,7 +72,7 @@ Claude working alone drifts. Claude working within a framework stays consistent.
 
 ## What Actually Happens
 
-When you run `/auto-implement "add user authentication"`:
+When you run `/implement "add user authentication"` (full pipeline mode):
 
 | Step | What Happens | Time |
 |------|--------------|------|
@@ -176,7 +176,7 @@ We document **typical performance**, not marketing claims.
 | Features per batch | 50+ | Fully automatic, survives context resets |
 | Tokens per feature | 20-40K | Depends on complexity |
 
-**Fully unattended**: `/batch-implement` handles context limits automatically. State persists externally, so when Claude auto-compacts, the next feature bootstraps fresh and continues. No manual intervention needed.
+**Fully unattended**: `/implement --batch` handles context limits automatically. State persists externally, so when Claude auto-compacts, the next feature bootstraps fresh and continues. No manual intervention needed.
 
 ---
 
@@ -184,9 +184,12 @@ We document **typical performance**, not marketing claims.
 
 | Command | Purpose |
 |---------|---------|
-| `/auto-implement "..."` | Full pipeline for one feature |
+| `/implement "..."` | Full pipeline for one feature (default) |
+| `/implement --quick "..."` | Quick mode: implementer only (skip pipeline) |
+| `/implement --batch file.txt` | Batch process from file |
+| `/implement --issues 1 2 3` | Batch process GitHub issues |
+| `/implement --resume batch-id` | Resume previous batch |
 | `/audit-tests` | Analyze test coverage and identify gaps |
-| `/batch-implement --issues 1 2 3` | Process multiple features |
 | `/setup` | Create PROJECT.md interactively |
 | `/sync` | Update plugin from GitHub |
 | `/health-check` | Verify installation |
@@ -296,7 +299,7 @@ cd /path/to/your/other/project
 
 Issues and PRs welcome at [github.com/akaszubski/autonomous-dev](https://github.com/akaszubski/autonomous-dev).
 
-This project uses itself for development (dogfooding). Every feature was built using `/auto-implement`.
+This project uses itself for development (dogfooding). Every feature was built using `/implement` (full pipeline mode).
 
 ---
 
@@ -322,5 +325,5 @@ autonomous-dev is **traditional software engineering discipline for AI-assisted 
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 # Restart Claude Code (Cmd+Q)
-/auto-implement "your feature"
+/implement "your feature"
 ```
