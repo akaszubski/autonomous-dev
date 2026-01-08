@@ -307,6 +307,13 @@ class ToolValidator:
                 "Invalid policy schema: agents section must have 'trusted' list"
             )
 
+        # Validate tools section (optional for backward compatibility)
+        if "tools" in policy:
+            if "always_allowed" not in policy["tools"]:
+                raise ToolValidationError(
+                    "Invalid policy schema: tools section must have 'always_allowed' list"
+                )
+
     def _create_default_policy(self) -> Dict[str, Any]:
         """Create conservative default policy.
 
@@ -361,6 +368,23 @@ class ToolValidator:
                     "reviewer",
                     "security-auditor",
                     "doc-master",
+                ],
+            },
+            "tools": {
+                "always_allowed": [
+                    "AskUserQuestion",
+                    "Task",
+                    "TaskOutput",
+                    "Skill",
+                    "SlashCommand",
+                    "BashOutput",
+                    "NotebookEdit",
+                    "TodoWrite",
+                    "EnterPlanMode",
+                    "ExitPlanMode",
+                    "AgentOutputTool",
+                    "KillShell",
+                    "LSP",
                 ],
             },
         }
@@ -853,9 +877,14 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        elif tool in ("AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
-                      "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell"):
-            # Always allow these tools - they're either interactive, delegating, or workflow management
+        # Check tools.always_allowed from config (with fallback for backward compatibility)
+        always_allowed = self.policy.get("tools", {}).get("always_allowed", [
+            "AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand",
+            "BashOutput", "NotebookEdit", "TodoWrite", "EnterPlanMode",
+            "ExitPlanMode", "AgentOutputTool", "KillShell", "LSP",
+        ])
+        if tool in always_allowed:
+            # Always allow these tools - they're interactive, delegating, workflow management, or read-only
             return ValidationResult(
                 approved=True,
                 reason=f"{tool} allowed (interactive/delegating tool)",

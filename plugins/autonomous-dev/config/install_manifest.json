@@ -84,6 +84,7 @@
         "plugins/autonomous-dev/hooks/enforce_bloat_prevention.py",
         "plugins/autonomous-dev/hooks/enforce_command_limit.py",
         "plugins/autonomous-dev/hooks/enforce_file_organization.py",
+        "plugins/autonomous-dev/hooks/enforce_implementation_workflow.py",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
         "plugins/autonomous-dev/hooks/enforce_pipeline_complete.py",
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
@@ -95,6 +96,7 @@
         "plugins/autonomous-dev/hooks/post_file_move.py",
         "plugins/autonomous-dev/hooks/pre_commit_gate.py",
         "plugins/autonomous-dev/hooks/pre_tool_use.py",
+        "plugins/autonomous-dev/hooks/ralph_loop_enforcer.py",
         "plugins/autonomous-dev/hooks/security_scan.py",
         "plugins/autonomous-dev/hooks/session_tracker.py",
         "plugins/autonomous-dev/hooks/setup.py",
@@ -126,8 +128,7 @@
         "plugins/autonomous-dev/hooks/validate_session_quality.py",
         "plugins/autonomous-dev/hooks/validate_settings_hooks.py",
         "plugins/autonomous-dev/hooks/verify_agent_pipeline.py",
-        "plugins/autonomous-dev/hooks/verify_completion.py",
-        "plugins/autonomous-dev/hooks/ralph_loop_enforcer.py"
+        "plugins/autonomous-dev/hooks/verify_completion.py"
       ]
     },
     "scripts": {
@@ -209,6 +210,7 @@
         "plugins/autonomous-dev/lib/install_orchestrator.py",
         "plugins/autonomous-dev/lib/installation_analyzer.py",
         "plugins/autonomous-dev/lib/installation_validator.py",
+        "plugins/autonomous-dev/lib/issue_scope_detector.py",
         "plugins/autonomous-dev/lib/logging_utils.py",
         "plugins/autonomous-dev/lib/math_utils.py",
         "plugins/autonomous-dev/lib/mcp_permission_validator.py",

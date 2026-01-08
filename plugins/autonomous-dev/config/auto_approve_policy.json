@@ -138,5 +138,22 @@
       "172.16.*",
       "192.168.*"
     ]
+  },
+  "tools": {
+    "always_allowed": [
+      "AskUserQuestion",
+      "Task",
+      "TaskOutput",
+      "Skill",
+      "SlashCommand",
+      "BashOutput",
+      "NotebookEdit",
+      "TodoWrite",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "AgentOutputTool",
+      "KillShell",
+      "LSP"
+    ]
   }
 }
