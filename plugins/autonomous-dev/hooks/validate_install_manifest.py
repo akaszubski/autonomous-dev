@@ -92,10 +92,11 @@ def scan_source_files(plugin_dir: Path) -> dict:
         for f in glob_method(pattern):
             if not f.is_file():
                 continue
-            # Skip pycache, test files
+            # Skip pycache, test files (but not in lib/ - those are production)
             if "__pycache__" in str(f):
                 continue
-            if f.name.startswith("test_"):
+            # Only skip test_ files outside lib/ (lib/ may have test_*.py utilities)
+            if f.name.startswith("test_") and dir_name != "lib":
                 continue
 
             # Build manifest path (supports recursive subdirectories)

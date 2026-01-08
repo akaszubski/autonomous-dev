@@ -249,6 +249,8 @@
         "plugins/autonomous-dev/lib/sync_mode_detector.py",
         "plugins/autonomous-dev/lib/sync_validator.py",
         "plugins/autonomous-dev/lib/tech_debt_detector.py",
+        "plugins/autonomous-dev/lib/test_coverage_analyzer.py",
+        "plugins/autonomous-dev/lib/test_runner.py",
         "plugins/autonomous-dev/lib/token_tracker.py",
         "plugins/autonomous-dev/lib/tool_approval_audit.py",
         "plugins/autonomous-dev/lib/tool_validator.py",
