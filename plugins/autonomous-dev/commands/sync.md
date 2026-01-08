@@ -5,10 +5,10 @@ argument_hint: "--github | --env | --marketplace | --plugin-dev | --all | --unin
 allowed-tools: [Bash]
 ---
 
+Do NOT fetch any URLs or documentation. Execute the script below directly.
+
 ## Implementation
 
-Run the sync dispatcher with user arguments:
-
+```bash
 python3 ~/.claude/lib/sync_dispatcher.py $ARGUMENTS
-
-Do NOT fetch any URLs or documentation. Just execute the script above.
+```

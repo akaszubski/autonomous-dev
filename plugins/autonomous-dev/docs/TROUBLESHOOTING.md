@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2025-12-14
+**Last Updated**: 2026-01-08
 **For**: Users and developers encountering common issues
 
 ---
@@ -242,6 +242,34 @@ cat .claude/batch_state.json
 # For GitHub sync, ensure git remote is configured
 git remote -v
 ```
+
+### "/sync tries to fetch URL instead of executing script"
+
+**Symptom**: When you run `/sync`, Claude attempts to fetch content from a URL (e.g., GitHub) instead of executing the script locally.
+
+**Cause**: The sync.md command file should have a strong "Do NOT fetch" directive to prevent Claude from web requests. If missing or incorrectly placed, Claude may interpret the script as needing external resources.
+
+**Solution**:
+```bash
+# 1. Verify the directive is in place
+grep "Do NOT fetch" .claude/commands/sync.md
+# Should output: Do NOT fetch any URLs or documentation. Execute the script below directly.
+
+# 2. If directive is missing or incorrect, re-sync
+/sync --plugin-dev
+
+# 3. Restart Claude Code to ensure command is reloaded
+# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux), wait 5 seconds, reopen
+
+# 4. Test the command again
+/sync --github
+
+# 5. If still failing, check installed version
+cat ~/.claude/commands/sync.md | head -15
+# Should see "Do NOT fetch" in lines 1-10
+```
+
+**Note**: The "Do NOT fetch" directive must appear BEFORE the bash code block to ensure Claude reads and respects it immediately.
 
 ---
 

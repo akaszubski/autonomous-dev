@@ -1,4 +1,32 @@
 ## [Unreleased]
+- **Fix /sync Command URL Fetching Behavior (Issue #202, v1.0.0)**
+  - **Purpose**: Prevent Claude from fetching URLs or documentation when user runs /sync command, ensuring script is executed directly without web requests
+  - **Problem**: Directive in sync.md was placed after markdown structure, making it easy to overlook when Claude parses the command file. Users reported /sync attempting to fetch URLs from GitHub instead of executing the script locally
+  - **Solution**: Strengthen "Do NOT fetch" directive by placing it before bash block with explicit "Execute the script below directly" instruction. Add regression tests to prevent future issues
+  - **Key Changes**:
+    - **Directive Strengthening**: Moved "Do NOT fetch any URLs or documentation" to frontmatter section (before bash block) in both sync.md files
+    - **Explicit Instruction**: Added clear "Execute the script below directly" directive immediately before bash script block
+    - **Regression Tests** (51 tests):
+      - test_sync_command_format.py (20 tests): Verify directive placement, exact text, positioning before bash block
+      - test_sync_command_sync.py (14 tests): Ensure /sync executes locally without attempting URL fetches
+      - test_sync_command_loading.py (17 tests): Validate command parsing and directive integrity during load time
+  - **Files Modified**:
+    - plugins/autonomous-dev/commands/sync.md - Moved directive before bash block, added explicit execution instruction
+    - .claude/commands/sync.md - Synchronized with plugins version
+  - **Files Added**:
+    - tests/unit/test_sync_command_format.py (20 tests)
+    - tests/unit/test_sync_command_sync.py (14 tests)
+    - tests/regression/test_sync_command_loading.py (17 tests)
+  - **Test Coverage**: 51 tests covering:
+    - Directive presence and exact text matching
+    - Directive placement (must be before bash block)
+    - Execution instruction clarity
+    - Command file structure validation
+    - Runtime behavior (local execution vs URL fetching)
+    - Parsing robustness against various markdown structures
+  - **Backward Compatibility**: 100% compatible - directive-only change, no behavioral change for correct usage
+  - **GitHub Issue**: Issue #202 - Fix /sync command URL fetching behavior
+
 - **Auto-Add autonomous-dev Section to CLAUDE.md During Install and Setup (Issue #201, v1.0.0)**
   - **Purpose**: Auto-inject autonomous-dev documentation into user's CLAUDE.md during install.sh and /setup command, enabling users to understand plugin is installed and how to use it
   - **Problem**: Users don't know plugin is installed without manual CLAUDE.md updates. No idempotent documentation injection mechanism. Install process doesn't educate users about plugin features (commands, workflow, context management)
