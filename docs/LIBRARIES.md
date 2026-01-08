@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2026-01-03 (Issue #200 - Debug-first enforcement)
+**Last Updated: 2026-01-09 (Issue #204 - Fix doc-master auto-apply and integrate progress tracker)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (46)
+### Core Libraries (49)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -58,6 +58,10 @@ The autonomous-dev plugin includes shared libraries organized into the following
 45. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
 46. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
 47. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
+48. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
+49. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
+50. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+
 
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
@@ -14362,3 +14366,358 @@ Raises: ValueError if pattern is invalid regex, FileNotFoundError if project_roo
 **Dependencies**: pathlib, dataclasses, re - Standard library
 
 **Version History**: v1.0.0 (2026-01-03) - Initial release for debug-first enforcement (Issue #200)
+
+---
+
+## 96. doc_update_risk_classifier.py (168 lines, v1.0.0 - Issue #204)
+
+**Purpose**: Risk classification for documentation updates to support auto-apply workflow in doc-master agent.
+
+**Problem**: Documentation updates should be auto-applied when they're safe (low-risk) but require user approval when they're strategic changes (high-risk). The doc-master agent needs to classify updates and make intelligent decisions about application.
+
+**Solution**: doc_update_risk_classifier library that classifies documentation changes as LOW_RISK (auto-apply) or HIGH_RISK (requires approval).
+
+### Features
+
+- Classify documentation files by risk level
+- LOW_RISK files: CHANGELOG.md, README.md, and PROJECT.md metadata
+- HIGH_RISK sections: PROJECT.md GOALS, CONSTRAINTS, SCOPE, ARCHITECTURE
+- Confidence scoring for classification (0.0 to 1.0)
+- Pattern-based metadata detection (timestamps, component counts, compliance dates)
+- Conservative defaults (unknown files classified as HIGH_RISK)
+
+### API Classes
+
+#### RiskLevel
+
+Enumeration of risk levels:
+- LOW_RISK: "low_risk" - Auto-apply without prompt
+- HIGH_RISK: "high_risk" - Requires user approval
+
+#### RiskClassification
+
+Named tuple with classification result:
+- risk_level: RiskLevel - Classified risk level
+- confidence: float - Confidence score (0.0 to 1.0)
+- reason: str - Human-readable reason for classification
+- requires_approval: bool - Whether user approval is required
+
+#### DocUpdateRiskClassifier
+
+Stateless risk classifier for documentation updates.
+
+Class attributes:
+- LOW_RISK_FILES: Set[str] = {"CHANGELOG.md", "README.md"}
+- HIGH_RISK_SECTIONS: Set[str] = {"GOALS", "CONSTRAINTS", "SCOPE", "ARCHITECTURE"}
+- LOW_RISK_PATTERNS: List[str] - Regex patterns for metadata detection
+
+Class methods:
+- classify(file_path: str, changes: List[str]) -> RiskClassification - Classify a documentation update
+- _classify_project_md(changes: List[str]) -> RiskClassification - Specialized PROJECT.md classification
+
+### Functions
+
+#### classify_doc_update()
+
+Convenience function to classify a documentation update.
+
+Signature: classify_doc_update(file_path: str, changes: List[str]) -> RiskClassification
+
+Parameters:
+- file_path: str - Path to the documentation file
+- changes: List[str] - List of changed lines or content
+
+Returns: RiskClassification with risk level, confidence, and reason
+
+### Classification Rules
+
+1. CHANGELOG.md: Always LOW_RISK (confidence 0.95)
+2. README.md: Always LOW_RISK (confidence 0.95)
+3. PROJECT.md with GOALS/CONSTRAINTS/SCOPE/ARCHITECTURE headers: HIGH_RISK (confidence 0.9)
+4. PROJECT.md with metadata patterns (timestamps, counts): LOW_RISK (confidence 0.7-0.95)
+5. PROJECT.md other content: HIGH_RISK conservative default (confidence 0.6)
+6. Unknown files: HIGH_RISK conservative default (confidence 0.5)
+7. Empty/None inputs: LOW_RISK with low confidence (0.3) for known files
+
+### Metadata Patterns
+
+Patterns matched for LOW_RISK classification in PROJECT.md:
+- **Last Updated**: timestamp
+- **Last Compliance Check**: timestamp
+- **Last Validated**: timestamp
+- Component version table rows (Skills, Commands, Agents, Hooks, Settings)
+
+**Performance**: O(n) where n = number of changes (regex pattern matching)
+
+**Dependencies**: enum, typing, pathlib, re - Standard library
+
+**Version History**: v1.0.0 (2026-01-09) - Initial release for doc-master auto-apply (Issue #204)
+
+---
+
+## 97. doc_master_auto_apply.py (249 lines, v1.0.0 - Issue #204)
+
+**Purpose**: Auto-apply documentation updates with intelligent approval workflow for doc-master agent.
+
+**Problem**: The doc-master agent updates documentation but needs different handling for safe vs strategic changes. Interactive prompts for every change disrupt autonomous workflows; batch mode must skip high-risk changes.
+
+**Solution**: doc_master_auto_apply library that applies LOW_RISK updates automatically and prompts for HIGH_RISK updates in interactive mode (or skips in batch mode).
+
+### Features
+
+- Auto-apply LOW_RISK documentation updates without user interaction
+- Interactive approval workflow for HIGH_RISK updates
+- Batch mode support (skip HIGH_RISK updates automatically)
+- Comprehensive error handling and logging
+- Applied/skipped update tracking
+- Support for both object-based and parameter-based API calls
+
+### API Classes
+
+#### DocUpdate
+
+Data class representing a documentation update:
+- file_path: str - Path to the documentation file
+- content: str - New content to write
+- risk_classification: RiskClassification - Risk classification result
+
+#### DocUpdateResult
+
+Named tuple with update application result:
+- applied: bool - Whether update was applied
+- required_approval: bool - Whether update required approval
+- user_approved: Optional[bool] - User approval decision (interactive mode only)
+- message: str - Human-readable status message
+- file_path: str - Path to the documentation file
+- error: Optional[str] - Error message if application failed
+
+#### DocUpdateApplier
+
+Stateful applier for documentation updates.
+
+Constructor: DocUpdateApplier(batch_mode: bool = False, auto_approve: bool = False)
+
+Parameters:
+- batch_mode: If True, skip HIGH_RISK updates instead of prompting
+- auto_approve: If True, auto-approve all updates (testing only)
+
+Methods:
+- apply(update: DocUpdate) -> DocUpdateResult - Apply a single documentation update
+- _write_update(update: DocUpdate) -> DocUpdateResult - Write update to disk
+- skipped_updates: List[DocUpdate] - Property for skipped HIGH_RISK updates
+- applied_updates: List[DocUpdateResult] - Property for successfully applied updates
+
+### Functions
+
+#### auto_apply_doc_update()
+
+Convenience function to classify and apply a documentation update.
+
+Signature: auto_apply_doc_update(
+    update: Optional[DocUpdate] = None,
+    file_path: Optional[str] = None,
+    content: Optional[str] = None,
+    changes: Optional[List[str]] = None,
+    batch_mode: bool = False
+) -> DocUpdateResult
+
+Supports two call patterns:
+
+1. Object-based: auto_apply_doc_update(update=DocUpdate(...), batch_mode=False)
+2. Parameter-based: auto_apply_doc_update(file_path="...", content="...", changes=[...], batch_mode=False)
+
+Parameters:
+- update: Pre-built DocUpdate object
+- file_path: Path to the documentation file
+- content: New content to write
+- changes: List of changed lines (for risk classification)
+- batch_mode: If True, skip HIGH_RISK updates
+
+Returns: DocUpdateResult with success status and action taken
+
+#### apply_doc_updates_batch()
+
+Apply multiple documentation updates in batch mode.
+
+Signature: apply_doc_updates_batch(updates: List[DocUpdate], batch_mode: bool = True) -> List[DocUpdateResult]
+
+Parameters:
+- updates: List of DocUpdate objects to apply
+- batch_mode: If True, skip HIGH_RISK updates (default: True)
+
+Returns: List of DocUpdateResult for each update
+
+### Workflow
+
+1. **Classify**: Risk classifier determines risk level and confidence
+2. **LOW_RISK**: Write immediately, return success
+3. **HIGH_RISK in batch mode**: Log and skip, return skipped status
+4. **HIGH_RISK in interactive mode**: Display warning, prompt user, apply if approved
+5. **File system**: Create parent directories, write content, handle errors
+
+### Error Handling
+
+- File write failures: Returns DocUpdateResult with error details
+- Invalid inputs: Returns error result with message
+- Missing file paths: Creates parent directories automatically
+- Permission errors: Returns error result
+
+**Performance**: O(n) where n = size of content being written (file I/O dominated)
+
+**Dependencies**: os, json, logging, pathlib, typing, dataclasses, datetime, doc_update_risk_classifier
+
+**Version History**: v1.0.0 (2026-01-09) - Initial release for doc-master auto-apply (Issue #204)
+
+---
+
+## 98. auto_implement_pipeline.py (257 lines, v1.0.0 - Issue #204)
+
+**Purpose**: Integration of project-progress-tracker into /auto-implement pipeline (Step 4.3).
+
+**Problem**: The /auto-implement pipeline completes doc-master updates (Step 4.1) but doesn't update PROJECT.md with completion status, issue references, and timestamps. Users manually update progress tracking.
+
+**Solution**: auto_implement_pipeline library that invokes project-progress-tracker after doc-master to update PROJECT.md automatically.
+
+### Features
+
+- Invoke project-progress-tracker after doc-master (Step 4.3)
+- Update stage completion status in PROJECT.md
+- Update issue references from GitHub issue number
+- Update Last Updated timestamp with issue reference
+- Graceful degradation if PROJECT.md not found
+- Support for both legacy context dict and direct parameters
+- Comprehensive error handling and result tracking
+
+### API Classes
+
+#### ProgressTrackerResult
+
+Named tuple with progress tracker invocation result:
+- success: bool - Whether invocation succeeded
+- project_md_updated: bool - Whether PROJECT.md was modified
+- error: Optional[str] - Error message if invocation failed
+- updates_made: List[str] - List of updates applied (e.g., ["Stage status", "Issue #204 reference", "Last Updated timestamp"])
+
+### Functions
+
+#### invoke_progress_tracker()
+
+Invoke project-progress-tracker after doc-master in the pipeline.
+
+Signature: invoke_progress_tracker(
+    issue_number: Optional[int] = None,
+    stage: Optional[str] = None,
+    workflow_id: Optional[str] = None,
+    context: Optional[Dict[str, Any]] = None,
+    doc_master_output: Optional[Dict[str, Any]] = None
+) -> ProgressTrackerResult
+
+Parameters:
+- issue_number: GitHub issue number for reference
+- stage: Current pipeline stage (e.g., "implementation_complete")
+- workflow_id: Workflow identifier for tracking
+- context: Legacy context dict with workflow_id, issue_number, changed_files
+- doc_master_output: Output from doc-master step (optional, for context)
+
+Returns: ProgressTrackerResult with success status and updates made
+
+Supports both call patterns:
+1. Direct args: invoke_progress_tracker(issue_number=204, stage="implementation_complete")
+2. Legacy context: invoke_progress_tracker(context={"issue_number": 204, "stage": "implementation_complete"})
+
+#### execute_step8_parallel_validation()
+
+Execute Step 4.1 (parallel validation) with progress tracker integration.
+
+Signature: execute_step8_parallel_validation(context: Dict[str, Any]) -> Dict[str, Any]
+
+Parameters:
+- context: Pipeline context with issue_number, stage, workflow_id
+
+Returns: Dict with validation results including progress_tracker result
+
+### PROJECT.md Updates
+
+#### 1. Stage Status Update
+
+Pattern: **Stage**: <value> or Current stage: <value>
+
+Updates stage field to reflect current pipeline stage:
+- alignment_check
+- complexity_assessment
+- research
+- planning
+- implementation
+- implementation_complete
+- parallel_validation
+- git_automation
+- context_clear
+
+#### 2. Issue Reference Update
+
+Pattern: **Last Updated**: YYYY-MM-DD (optional issue reference)
+
+Adds or updates issue reference on Last Updated line:
+- **Last Updated**: 2026-01-09 (Issue #204)
+
+Checks for existing reference to avoid duplicates.
+
+#### 3. Timestamp Update
+
+Updates Last Updated timestamp to current date with optional issue reference:
+- Pattern: **Last Updated**: YYYY-MM-DD
+- Replacement: **Last Updated**: <today> (Issue #NNN) if issue_number provided
+
+### Helper Functions
+
+#### _find_project_md()
+
+Find PROJECT.md in current project.
+
+Checks locations:
+- .claude/PROJECT.md
+- PROJECT.md
+- $CWD/.claude/PROJECT.md
+- $CWD/PROJECT.md
+
+Returns: Optional[Path] - Path to PROJECT.md or None if not found
+
+#### _update_stage_status(content: str, stage: str) -> tuple[str, bool]
+
+Update stage status in PROJECT.md.
+
+Returns: (new_content, was_updated) tuple
+
+#### _update_issue_reference(content: str, issue_number: int) -> tuple[str, bool]
+
+Add or update issue reference in PROJECT.md.
+
+Returns: (new_content, was_updated) tuple
+
+#### _update_timestamp(content: str, issue_number: Optional[int] = None) -> tuple[str, bool]
+
+Update Last Updated timestamp in PROJECT.md.
+
+Returns: (new_content, was_updated) tuple
+
+### Error Handling
+
+- PROJECT.md not found: Returns success=False with error message
+- File write failures: Returns success=False with error details
+- Regex pattern not found: Gracefully skips update with no error
+- Invalid date: Uses current date from datetime.now()
+
+### Pipeline Integration
+
+Step 4.3 of /auto-implement pipeline:
+1. doc-master completes (Step 4.1)
+2. invoke_progress_tracker() called with issue_number and stage
+3. PROJECT.md updated with completion status
+4. Results returned to pipeline
+5. Pipeline continues to Step 4.4 (auto_git_workflow)
+
+**Performance**: O(n) where n = size of PROJECT.md file (regex pattern matching)
+
+**Dependencies**: logging, typing, pathlib, datetime, re - Standard library
+
+**Version History**: v1.0.0 (2026-01-09) - Initial release for progress tracker integration (Issue #204)
