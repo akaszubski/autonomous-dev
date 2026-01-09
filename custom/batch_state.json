@@ -1,5 +1,5 @@
 {
-  "batch_id": "batch-20251225-052414-633213",
+  "batch_id": "batch-20260108-134515-534957",
   "features_file": "",
   "total_features": 1,
   "features": [
@@ -11,8 +11,8 @@
   "context_token_estimate": 0,
   "auto_clear_count": 0,
   "auto_clear_events": [],
-  "created_at": "2025-12-25T05:24:14.633236Z",
-  "updated_at": "2025-12-25T05:24:14.633501Z",
+  "created_at": "2026-01-08T13:45:15.534962Z",
+  "updated_at": "2026-01-08T13:45:15.535096Z",
   "status": "in_progress",
   "issue_numbers": null,
   "source_type": "file",

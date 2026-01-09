@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+### Changed
+- Audit and consolidate validation hooks (#215)
+  - Unified 12 documentation validators into unified_doc_validator.py dispatcher:
+    - Consolidated: validate_project_alignment, validate_claude_alignment, validate_documentation_alignment, validate_docs_consistency, validate_readme_accuracy, validate_readme_sync, validate_readme_with_genai, validate_command_file_ops, validate_commands, validate_hooks_documented, validate_command_frontmatter_flags, validate_manifest_doc_alignment
+    - Documented environment variable defaults: VALIDATE_PROJECT_ALIGNMENT=true, VALIDATE_CLAUDE_ALIGNMENT=true, VALIDATE_DOC_ALIGNMENT=true, etc.
+  - Unified 2 manifest validators into unified_manifest_sync.py dispatcher:
+    - Consolidated: validate_install_manifest, validate_settings_hooks
+    - Documented environment variable defaults: VALIDATE_MANIFEST=true, VALIDATE_SETTINGS=true, AUTO_UPDATE_MANIFEST=true
+  - Updated HOOK-REGISTRY.md to mark validate_project_alignment and validate_claude_alignment as deprecated (consolidated)
+  - Updated global_settings_template.json with documented PreCommit hooks section referencing unified validators
+  - Improved maintainability: Single dispatcher pattern for validation hooks with clear env var control
+
 ### Added
 - Document evaluation decision for setup-wizard.md split (#214)
   - Created docs/evaluations/ directory with evaluation documentation

@@ -46,7 +46,7 @@ These are the backbone of the system. Update these first:
 
 **Why critical:**
 - orchestrator agent reads this FIRST before validating any feature
-- `validate_project_alignment.py` hook checks all commits against this
+- `unified_doc_validator.py` hook (consolidates validate_project_alignment) checks all commits against this
 - All 19 agents reference this for context
 - This IS the alignment mechanism
 
@@ -175,9 +175,9 @@ vim plugins/autonomous-dev/agents/orchestrator.md
       {
         "description": "Quality gates",
         "hooks": [
-          {"command": "python .claude/hooks/validate_project_alignment.py || exit 1"},
-          {"command": "python .claude/hooks/enforce_orchestrator.py || exit 1"},
-          {"command": "python .claude/hooks/security_scan.py || exit 1"}
+          {"command": "python .claude/hooks/unified_doc_validator.py || exit 1"},
+          {"command": "python .claude/hooks/unified_structure_enforcer.py || exit 1"},
+          {"command": "python .claude/hooks/unified_code_quality.py || exit 1"}
         ]
       }
     ]
@@ -367,18 +367,16 @@ Check these regularly to ensure alignment:
 - `CHANGELOG.md` - Version history
 
 **Auto-validation hooks:**
-- `validate_docs_consistency.py` - Checks counts match reality
-- `auto_fix_docs.py` - Auto-generates missing documentation
-- `auto_update_docs.py` - Syncs code changes to docs
-- `validate_claude_alignment.py` - Detects documentation drift
+- `unified_doc_validator.py` - Consolidated: validates docs consistency, checks counts match reality, detects documentation drift
+- `unified_doc_auto_fix.py` - Consolidated: auto-generates missing documentation, syncs code changes to docs
 
 **Alignment pattern:**
 ```bash
 # After adding new agent:
 # 1. Agent count in PROJECT.md → updates automatically (hook)
 # 2. Agent count in README.md → updates automatically (hook)
-# 3. Agent count in CLAUDE.md → must check manually
-python .claude/hooks/validate_claude_alignment.py
+# 3. Agent count in CLAUDE.md → validation via unified_doc_validator
+python .claude/hooks/unified_doc_validator.py
 
 # If drift detected:
 vim CLAUDE.md  # Update counts, versions, descriptions
@@ -389,11 +387,10 @@ git commit -m "docs: fix CLAUDE.md alignment (19 agents, 8 commands)"
 **Review schedule:**
 ```bash
 # Weekly: Check for drift
-python .claude/hooks/validate_docs_consistency.py
-python .claude/hooks/validate_claude_alignment.py
+python .claude/hooks/unified_doc_validator.py  # Consolidates validate_docs_consistency, validate_claude_alignment, etc.
 
 # Monthly: Comprehensive audit
-python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --audit --genai
+VALIDATE_README_GENAI=true python .claude/hooks/unified_doc_validator.py  # GenAI-powered README validation
 
 # Per release: Full documentation review
 # - README.md (user-facing accuracy)
@@ -452,9 +449,9 @@ ls -lt docs/sessions/*orchestrator*.md | head -1
 **Performance tuning:**
 ```bash
 # Measure hook execution time
-time python .claude/hooks/validate_project_alignment.py
-time python .claude/hooks/security_scan.py
-time python .claude/hooks/auto_generate_tests.py
+time python .claude/hooks/unified_doc_validator.py
+time python .claude/hooks/unified_code_quality.py
+time python .claude/hooks/unified_doc_auto_fix.py
 
 # If too slow (> 10s), consider:
 # 1. Disable GenAI for specific hooks during dev
@@ -631,8 +628,8 @@ git commit -m "feat: add new-agent for X capability"
 # → PROJECT.md count updates (hook)
 # → README.md count updates (hook)
 
-# 3. Check CLAUDE.md alignment
-python .claude/hooks/validate_claude_alignment.py
+# 3. Check CLAUDE.md alignment (unified_doc_validator consolidates this check)
+python .claude/hooks/unified_doc_validator.py
 # If drift: update CLAUDE.md manually
 
 # 4. Update orchestrator if needed
@@ -746,9 +743,8 @@ git status  # PreCommit hooks catch issues automatically
 ### Weekly
 
 ```bash
-# Documentation alignment
-python .claude/hooks/validate_docs_consistency.py
-python .claude/hooks/validate_claude_alignment.py
+# Documentation alignment (unified_doc_validator consolidates these checks)
+python .claude/hooks/unified_doc_validator.py
 
 # Agent usage patterns
 echo "Agent invocations this week:"
@@ -759,7 +755,7 @@ find docs/sessions -name "*.md" -mtime -7 | \
 
 # Hook performance
 echo "Hook execution times:"
-for hook in validate_project_alignment security_scan auto_generate_tests; do
+for hook in unified_doc_validator unified_code_quality unified_doc_auto_fix; do
     echo -n "  $hook: "
     time python .claude/hooks/${hook}.py 2>&1 | grep real
 done
@@ -876,9 +872,8 @@ git push origin v3.1.0
 
 ```bash
 # 1. Audit current state
-python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --audit --genai
-python .claude/hooks/validate_claude_alignment.py
-python .claude/hooks/validate_docs_consistency.py
+VALIDATE_README_GENAI=true python .claude/hooks/unified_doc_validator.py
+python .claude/hooks/unified_doc_validator.py
 
 # 2. Review PROJECT.md
 cat .claude/PROJECT.md

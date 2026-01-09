@@ -32,12 +32,12 @@ The plugin uses 10 unified hooks that consolidate related functionality:
 | unified_post_tool | PostToolUse | Enabled | CAPTURE_TOOL_ERRORS (default: true) | Tool error capture and logging |
 | unified_git_automation | SubagentStop (doc-master) | Opt-in (default: false) | AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR | Automatic commit/push/PR after pipeline completes |
 | unified_session_tracker | SubagentStop | Enabled | TRACK_SESSIONS (default: true), TRACK_PIPELINE | Track agent execution and pipeline state |
-| unified_doc_validator | PreCommit | Enabled | VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT | Validate documentation alignment |
+| unified_doc_validator | PreCommit | Enabled | VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT | Validate documentation alignment (consolidated validators) |
 | unified_doc_auto_fix | PreCommit, PostToolUse | Enabled | AUTO_FIX_DOCS (default: true), AUTO_UPDATE_DOCS | Auto-fix documentation issues |
 | unified_prompt_validator | UserPromptSubmit | Enabled | ENFORCE_WORKFLOW, QUALITY_NUDGE_ENABLED | Validate user prompts and provide quality nudges |
 | unified_structure_enforcer | PreCommit | Enabled | ENFORCE_FILE_ORGANIZATION, ENFORCE_BLOAT_PREVENTION | Enforce project structure rules |
 | unified_code_quality | PreCommit | Enabled | AUTO_FORMAT (default: true), AUTO_TEST, SECURITY_SCAN | Run formatters, tests, and security scans |
-| unified_manifest_sync | PreCommit | Enabled | VALIDATE_MANIFEST, AUTO_UPDATE_MANIFEST | Sync and validate plugin manifest |
+| unified_manifest_sync | PreCommit | Enabled | VALIDATE_MANIFEST, AUTO_UPDATE_MANIFEST | Sync and validate plugin manifest (consolidated validators) |
 
 ---
 
@@ -80,8 +80,8 @@ Runs before git commit (can block with EXIT_BLOCK).
 | security_scan | Deprecated (consolidated) | SECURITY_SCAN | Legacy security scan |
 | enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code) |
 | auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE | Block commits if coverage drops below 80% |
-| validate_claude_alignment | Deprecated (consolidated) | - | Legacy alignment check |
-| validate_project_alignment | Deprecated (consolidated) | - | Legacy alignment check |
+| validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
+| validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
 | validate_documentation_alignment | Deprecated (consolidated) | - | Legacy doc check |
 | validate_hooks_documented | Enabled | - | Validate all hooks are documented |

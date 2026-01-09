@@ -23,19 +23,19 @@ Usage:
     python unified_doc_validator.py
 
 Environment Variables:
-    UNIFIED_DOC_VALIDATOR=false         - Disable entire validator
-    VALIDATE_PROJECT_ALIGNMENT=false    - Disable PROJECT.md validation
-    VALIDATE_CLAUDE_ALIGNMENT=false     - Disable CLAUDE.md validation
-    VALIDATE_DOC_ALIGNMENT=false        - Disable doc alignment checks
-    VALIDATE_DOCS_CONSISTENCY=false     - Disable docs consistency checks
-    VALIDATE_README_ACCURACY=false      - Disable README accuracy checks
-    VALIDATE_README_SYNC=false          - Disable README sync checks
-    VALIDATE_README_GENAI=false         - Disable README GenAI validation
-    VALIDATE_COMMAND_FILE_OPS=false     - Disable command file ops validation
-    VALIDATE_COMMANDS=false             - Disable command validation
-    VALIDATE_HOOKS_DOCS=false           - Disable hooks documentation validation
-    VALIDATE_COMMAND_FRONTMATTER=false  - Disable command frontmatter validation
-    VALIDATE_MANIFEST_DOC_ALIGNMENT=false - Disable manifest-doc alignment validation
+    UNIFIED_DOC_VALIDATOR=false         - Disable entire validator (default: true)
+    VALIDATE_PROJECT_ALIGNMENT=false    - Disable PROJECT.md validation (default: true)
+    VALIDATE_CLAUDE_ALIGNMENT=false     - Disable CLAUDE.md validation (default: true)
+    VALIDATE_DOC_ALIGNMENT=false        - Disable doc alignment checks (default: true)
+    VALIDATE_DOCS_CONSISTENCY=false     - Disable docs consistency checks (default: true)
+    VALIDATE_README_ACCURACY=false      - Disable README accuracy checks (default: true)
+    VALIDATE_README_SYNC=false          - Disable README sync checks (default: true)
+    VALIDATE_README_GENAI=false         - Disable README GenAI validation (default: false - opt-in)
+    VALIDATE_COMMAND_FILE_OPS=false     - Disable command file ops validation (default: true)
+    VALIDATE_COMMANDS=false             - Disable command validation (default: true)
+    VALIDATE_HOOKS_DOCS=false           - Disable hooks documentation validation (default: true)
+    VALIDATE_COMMAND_FRONTMATTER=false  - Disable command frontmatter validation (default: true)
+    VALIDATE_MANIFEST_DOC_ALIGNMENT=false - Disable manifest-doc alignment validation (default: true)
 
 Exit Codes:
     0 = All validators passed or skipped

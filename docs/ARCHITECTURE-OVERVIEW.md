@@ -87,7 +87,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 - **PreToolUse**: unified_pre_tool.py (MCP security, auto-approval, sandboxing)
 - **PrePromptSubmit**: unified_prompt_validator.py (workflow enforcement)
 - **SubagentStop**: unified_git_automation.py (automated git operations - backward compatible shim at auto_git_workflow.py)
-- **PreCommit**: validate_claude_alignment.py (documentation drift detection)
+- **PreCommit**: unified_doc_validator.py (documentation drift detection via consolidated validators)
 - **See**: [docs/HOOKS.md](docs/HOOKS.md) for complete hook reference
 
 ---

@@ -1,6 +1,6 @@
 # Automation Hooks Reference
 
-**Last Updated**: 2026-01-02 (Issue #172 - UV single-file scripts)
+**Last Updated**: 2026-01-09 (Issue #215 - Audit and consolidate validation hooks)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 This document provides a complete reference for automation hooks in the autonomous-dev plugin.
@@ -701,11 +701,13 @@ Essential hooks for autonomous development workflow and security enforcement.
 
 ### validate_project_alignment.py
 
+**Status**: DEPRECATED (consolidated into unified_doc_validator.py in Issue #215)
 **Purpose**: PROJECT.md validation (Issue #194 - Forbidden sections detection)
 **Checks**:
 - Feature alignment with goals, scope, constraints
 - Forbidden sections detection (TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Planned)
 **Lifecycle**: PreCommit
+**Migration**: Use unified_doc_validator.py with VALIDATE_PROJECT_ALIGNMENT env var instead
 
 **Forbidden Sections Feature (Issue #194)**:
 Prevents strategic documents from becoming task lists. PROJECT.md defines strategic direction (GOALS/SCOPE/CONSTRAINTS); tactical work belongs in GitHub Issues.
@@ -740,6 +742,7 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 
 ### validate_claude_alignment.py
 
+**Status**: DEPRECATED (consolidated into unified_doc_validator.py in Issue #215)
 **Purpose**: CLAUDE.md alignment checking with size enforcement (v3.0.2+, enhanced v1.0.0 Issue #197)
 **Checks**:
 - Version consistency (project version matches documented version)
@@ -751,6 +754,7 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 - **NEW (Issue #197)**: Phased character limits (Phase 1: 35k warn, Phase 2: 25k error, Phase 3: 15k error)
 **Configuration**: CLAUDE_VALIDATION_PHASE environment variable (1, 2, or 3) controls character limit strictness
 **Lifecycle**: PreCommit
+**Migration**: Use unified_doc_validator.py with VALIDATE_CLAUDE_ALIGNMENT env var instead
 **Reference**: docs/CLAUDE-MD-BEST-PRACTICES.md for best practices guide
 
 ### enforce_file_organization.py

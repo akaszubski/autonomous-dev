@@ -448,12 +448,9 @@ vim plugins/autonomous-dev/commands/new-feature.md
    git commit -m "feat: add <feature>"
 
    # PreCommit hooks will run:
-   # - validate_project_alignment.py
-   # - security_scan.py
-   # - auto_generate_tests.py
-   # - auto_update_docs.py
-   # - validate_docs_consistency.py
-   # - auto_fix_docs.py
+   # - unified_doc_validator.py (consolidates validate_project_alignment, validate_docs_consistency, etc.)
+   # - unified_code_quality.py (consolidates security_scan, auto_generate_tests, etc.)
+   # - unified_doc_auto_fix.py (consolidates auto_update_docs, auto_fix_docs, etc.)
 
    # If any fail, fix issues and retry
    ```
@@ -556,8 +553,8 @@ vim plugins/autonomous-dev/agents/my-new-agent.md
 # - CLAUDE.md (update agent count)
 # - README.md (add agent to list)
 
-# 5. Run alignment check
-python .claude/hooks/validate_claude_alignment.py
+# 5. Run alignment check (unified_doc_validator consolidates alignment checks)
+python .claude/hooks/unified_doc_validator.py
 
 # 6. Commit
 git add plugins/autonomous-dev/agents/my-new-agent.md
@@ -781,13 +778,13 @@ ls -la plugins/autonomous-dev/agents/ | wc -l  # Should be 19
 **Diagnose**:
 ```bash
 # 1. See which hook failed (shown in commit output)
-# Example: "validate_project_alignment.py failed"
+# Example: "unified_doc_validator.py failed" (consolidates validate_project_alignment, validate_claude_alignment, etc.)
 
 # 2. Run hook manually to see error
 python .claude/hooks/<hook-name>.py
 
-# 3. Check what the hook validates
-cat .claude/hooks/<hook-name>.py | head -20
+# 3. Check what the hook validates (note: see docstring for env vars to control validators)
+cat .claude/hooks/<hook-name>.py | head -50
 ```
 
 **Fix**:

@@ -151,6 +151,23 @@
           }
         ]
       }
+    ],
+    "PreCommit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/unified_doc_validator.py",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/unified_manifest_sync.py",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

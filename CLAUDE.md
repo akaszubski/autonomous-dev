@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #210 - Remove legacy alignment commands in favor of /align)
+**Last Updated**: 2026-01-09 (Issue #215 - Audit and consolidate validation hooks)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version

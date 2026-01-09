@@ -13,9 +13,9 @@ Consolidates PreCommit manifest validation hooks:
 Hook: PreCommit (runs before git commit completes)
 
 Environment Variables (opt-in/opt-out):
-    VALIDATE_MANIFEST=true/false (default: true)
-    VALIDATE_SETTINGS=true/false (default: true)
-    AUTO_UPDATE_MANIFEST=true/false (default: true)
+    VALIDATE_MANIFEST=false     - Disable manifest validation (default: true)
+    VALIDATE_SETTINGS=false     - Disable settings template validation (default: true)
+    AUTO_UPDATE_MANIFEST=false  - Disable auto-update mode (default: true)
 
 Exit codes:
     0: All validations passed (or were auto-updated)
