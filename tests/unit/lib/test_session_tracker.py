@@ -129,10 +129,16 @@ def nested_subdir(temp_project):
 
 
 @pytest.fixture
-def mock_session_dir(tmp_path):
-    """Create a mock session directory."""
-    session_dir = tmp_path / "docs" / "sessions"
-    session_dir.mkdir(parents=True)
+def mock_session_dir(temp_project, monkeypatch):
+    """Create a mock session directory within a valid project structure.
+
+    Uses temp_project fixture to create a proper project structure with .git
+    marker, which is required for session_tracker path validation.
+    """
+    # Change to temp_project so path_utils.get_project_root() works
+    monkeypatch.chdir(temp_project)
+    session_dir = temp_project / "docs" / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
     return session_dir
 
 
@@ -788,11 +794,574 @@ class TestInfrastructureIntegration:
 
 
 # ============================================================================
+# TEST: SessionTracker ABC Migration (Issue #224)
+# ============================================================================
+
+
+class TestSessionTrackerABCMigration:
+    """Tests for SessionTracker migration to StateManager ABC (Issue #224).
+
+    TDD Mode: These tests are written BEFORE implementation.
+    Tests should FAIL initially (SessionTracker not migrated yet).
+
+    Migration Requirements:
+    1. SessionTracker inherits from StateManager[str]
+    2. Implements abstract methods: load_state(), save_state(), cleanup_state()
+    3. Uses inherited helpers: _validate_state_path(), _atomic_write(), _get_file_lock(), _audit_operation()
+    4. Generic type is str (markdown content)
+    5. Maintains backward compatibility with log() method
+    """
+
+    def test_inherits_from_state_manager(self):
+        """SessionTracker should inherit from StateManager ABC.
+
+        Verifies:
+        - SessionTracker is subclass of StateManager
+        - Enables polymorphism for state management
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        try:
+            from abstract_state_manager import StateManager
+        except ImportError:
+            pytest.skip("StateManager ABC not available")
+
+        # WILL FAIL: Not migrated to ABC yet
+        assert issubclass(SessionTracker, StateManager), (
+            "SessionTracker should inherit from StateManager ABC"
+        )
+
+    def test_generic_type_parameter_is_str(self, temp_project, monkeypatch):
+        """SessionTracker should be Generic[str] because it stores markdown.
+
+        Verifies:
+        - Generic type parameter is str (not Dict[str, Any])
+        - Type hints work correctly for load_state() and save_state()
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        try:
+            from abstract_state_manager import StateManager
+        except ImportError:
+            pytest.skip("StateManager ABC not available")
+
+        # SessionTracker stores markdown content as string
+        # Use temp_project fixture with docs/sessions directory that passes validation
+        monkeypatch.chdir(temp_project)
+        session_file = temp_project / "docs" / "sessions" / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # Verify it's a StateManager instance
+        assert isinstance(tracker, StateManager), (
+            "SessionTracker instance should be instance of StateManager"
+        )
+
+    def test_implements_load_state_method(self):
+        """SessionTracker should implement load_state() abstract method.
+
+        Verifies:
+        - load_state() method exists
+        - Returns str (markdown content)
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        # WILL FAIL: load_state() method doesn't exist yet
+        assert hasattr(SessionTracker, 'load_state'), (
+            "SessionTracker should implement load_state() abstract method"
+        )
+
+    def test_implements_save_state_method(self):
+        """SessionTracker should implement save_state() abstract method.
+
+        Verifies:
+        - save_state() method exists
+        - Accepts str (markdown content)
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        # WILL FAIL: save_state() method doesn't exist yet
+        assert hasattr(SessionTracker, 'save_state'), (
+            "SessionTracker should implement save_state() abstract method"
+        )
+
+    def test_implements_cleanup_state_method(self):
+        """SessionTracker should implement cleanup_state() abstract method.
+
+        Verifies:
+        - cleanup_state() method exists
+        - Removes session file
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        # WILL FAIL: cleanup_state() method doesn't exist yet
+        assert hasattr(SessionTracker, 'cleanup_state'), (
+            "SessionTracker should implement cleanup_state() abstract method"
+        )
+
+
+class TestSessionTrackerLoadState:
+    """Tests for SessionTracker.load_state() implementation."""
+
+    def test_load_state_returns_markdown_string(self, mock_session_dir):
+        """load_state() should return markdown content as string.
+
+        Verifies:
+        - Returns str type
+        - Contains markdown content from session file
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session Log\n\n**12:00:00 - researcher**: Test message\n")
+
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: load_state() not implemented
+        content = tracker.load_state()
+
+        assert isinstance(content, str)
+        assert "Session Log" in content
+        assert "researcher" in content
+
+    def test_load_state_raises_state_error_if_file_missing(self, mock_session_dir):
+        """load_state() should raise StateError if session file missing.
+
+        Verifies:
+        - Raises StateError (not FileNotFoundError)
+        - Error message mentions missing file
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        try:
+            from exceptions import StateError
+        except ImportError:
+            pytest.skip("StateError not available")
+
+        session_file = mock_session_dir / "nonexistent.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: load_state() not implemented or raises wrong exception
+        with pytest.raises(StateError) as exc_info:
+            tracker.load_state()
+
+        assert "not found" in str(exc_info.value).lower() or "missing" in str(exc_info.value).lower()
+
+    def test_load_state_uses_file_locking(self, mock_session_dir):
+        """load_state() should use inherited _get_file_lock() for thread safety.
+
+        Verifies:
+        - Calls _get_file_lock() during load
+        - Prevents concurrent access issues
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session Log\n")
+
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: load_state() doesn't use file locking
+        with patch.object(tracker, '_get_file_lock', wraps=tracker._get_file_lock) as mock_lock:
+            tracker.load_state()
+
+            # Should use file lock for thread safety
+            mock_lock.assert_called()
+
+    def test_load_state_handles_utf8_encoding(self, mock_session_dir):
+        """load_state() should handle UTF-8 encoded content.
+
+        Verifies:
+        - Correctly decodes UTF-8 characters
+        - Supports Unicode in markdown
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session 日本語\n\n**12:00:00 - researcher**: Test message 🎉\n", encoding='utf-8')
+
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: load_state() not implemented or encoding issues
+        content = tracker.load_state()
+
+        assert "日本語" in content
+        assert "🎉" in content
+
+
+class TestSessionTrackerSaveState:
+    """Tests for SessionTracker.save_state() implementation."""
+
+    def test_save_state_writes_markdown_content(self, mock_session_dir):
+        """save_state() should write markdown content to session file.
+
+        Verifies:
+        - Accepts str (markdown content)
+        - Writes to session file
+        - Content is preserved
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        markdown_content = "# Session Log\n\n**12:00:00 - researcher**: Research complete\n"
+
+        # WILL FAIL: save_state() not implemented
+        tracker.save_state(markdown_content)
+
+        assert session_file.exists()
+        saved_content = session_file.read_text()
+        assert saved_content == markdown_content
+
+    def test_save_state_uses_atomic_write_pattern(self, mock_session_dir):
+        """save_state() should use inherited _atomic_write().
+
+        Verifies:
+        - Calls _atomic_write() internally
+        - Uses temp file + rename for atomicity
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        markdown_content = "# Session Log\n"
+
+        # WILL FAIL: save_state() doesn't use _atomic_write()
+        with patch.object(tracker, '_atomic_write', wraps=tracker._atomic_write) as mock_atomic:
+            tracker.save_state(markdown_content)
+
+            # Should use atomic write
+            mock_atomic.assert_called_once()
+
+    def test_save_state_uses_file_locking(self, mock_session_dir):
+        """save_state() should use inherited _get_file_lock().
+
+        Verifies:
+        - Calls _get_file_lock() during save
+        - Thread-safe concurrent writes
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        markdown_content = "# Session Log\n"
+
+        # WILL FAIL: save_state() doesn't use file locking
+        with patch.object(tracker, '_get_file_lock', wraps=tracker._get_file_lock) as mock_lock:
+            tracker.save_state(markdown_content)
+
+            mock_lock.assert_called()
+
+    def test_save_state_validates_path(self, mock_session_dir):
+        """save_state() should validate path before writing.
+
+        Verifies:
+        - Calls _validate_state_path() for security
+        - Prevents path traversal
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        markdown_content = "# Session Log\n"
+
+        # WILL FAIL: save_state() doesn't validate path
+        with patch.object(tracker, '_validate_state_path', wraps=tracker._validate_state_path) as mock_validate:
+            tracker.save_state(markdown_content)
+
+            # Should validate path
+            mock_validate.assert_called()
+
+    def test_save_state_raises_state_error_on_error(self, mock_session_dir):
+        """save_state() should raise StateError on write failure.
+
+        Verifies:
+        - Raises StateError (not IOError)
+        - Error message is helpful
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        try:
+            from exceptions import StateError
+        except ImportError:
+            pytest.skip("StateError not available")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        markdown_content = "# Session Log\n"
+
+        # Mock os.write which is used by _atomic_write (not builtins.open)
+        with patch("os.write", side_effect=OSError("No space left on device")):
+            with pytest.raises(StateError) as exc_info:
+                tracker.save_state(markdown_content)
+
+            error_msg = str(exc_info.value).lower()
+            assert "atomic write failed" in error_msg or "failed" in error_msg
+
+
+class TestSessionTrackerCleanupState:
+    """Tests for SessionTracker.cleanup_state() implementation."""
+
+    def test_cleanup_state_removes_session_file(self, mock_session_dir):
+        """cleanup_state() should remove session file.
+
+        Verifies:
+        - Removes session file from disk
+        - File no longer exists after cleanup
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session Log\n")
+        tracker = SessionTracker(session_file=str(session_file))
+
+        assert session_file.exists()
+
+        # WILL FAIL: cleanup_state() not implemented
+        tracker.cleanup_state()
+
+        assert not session_file.exists()
+
+    def test_cleanup_state_uses_file_locking(self, mock_session_dir):
+        """cleanup_state() should use inherited _get_file_lock().
+
+        Verifies:
+        - Calls _get_file_lock() during cleanup
+        - Thread-safe deletion
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session Log\n")
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: cleanup_state() doesn't use file locking
+        with patch.object(tracker, '_get_file_lock', wraps=tracker._get_file_lock) as mock_lock:
+            tracker.cleanup_state()
+
+            mock_lock.assert_called()
+
+    def test_cleanup_state_raises_state_error_on_error(self, mock_session_dir):
+        """cleanup_state() should raise StateError on deletion failure.
+
+        Verifies:
+        - Raises StateError (not OSError)
+        - Error message is helpful
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        try:
+            from exceptions import StateError
+        except ImportError:
+            pytest.skip("StateError not available")
+
+        session_file = mock_session_dir / "test-session.md"
+        session_file.write_text("# Session Log\n")
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: cleanup_state() raises wrong exception type
+        with patch.object(Path, 'unlink', side_effect=PermissionError("Permission denied")):
+            with pytest.raises(StateError) as exc_info:
+                tracker.cleanup_state()
+
+            error_msg = str(exc_info.value).lower()
+            assert "permission" in error_msg or "failed" in error_msg or "cleanup" in error_msg
+
+
+class TestSessionTrackerInheritedHelpers:
+    """Tests for inherited helper methods from StateManager ABC."""
+
+    def test_validate_state_path_is_available(self, mock_session_dir):
+        """_validate_state_path() should be inherited and available.
+
+        Verifies:
+        - Method exists
+        - Can be called
+        - Validates paths correctly
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: _validate_state_path() not inherited
+        assert hasattr(tracker, '_validate_state_path')
+
+        # Should validate path without raising
+        validated = tracker._validate_state_path(session_file)
+        assert validated.exists() or validated.parent.exists()
+
+    def test_atomic_write_is_available(self, mock_session_dir):
+        """_atomic_write() should be inherited and available.
+
+        Verifies:
+        - Method exists
+        - Can be called
+        - Writes atomically
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: _atomic_write() not inherited
+        assert hasattr(tracker, '_atomic_write')
+
+        # Should write atomically
+        test_data = "# Test Content\n"
+        tracker._atomic_write(session_file, test_data)
+        assert session_file.read_text() == test_data
+
+    def test_get_file_lock_returns_rlock(self, mock_session_dir):
+        """_get_file_lock() should return reentrant lock.
+
+        Verifies:
+        - Method exists
+        - Returns threading.RLock
+        - Same lock for same file
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: _get_file_lock() not inherited
+        assert hasattr(tracker, '_get_file_lock')
+
+        lock = tracker._get_file_lock(session_file)
+        assert type(lock).__name__ == "RLock"
+
+    def test_audit_operation_is_available(self, mock_session_dir):
+        """_audit_operation() should be inherited and available.
+
+        Verifies:
+        - Method exists
+        - Can be called without error
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: _audit_operation() not inherited
+        assert hasattr(tracker, '_audit_operation')
+
+        # Should not raise
+        tracker._audit_operation(
+            operation="test_operation",
+            status="success",
+            details={"test": "data"}
+        )
+
+
+class TestSessionTrackerBackwardCompatibility:
+    """Tests for backward compatibility after ABC migration."""
+
+    def test_log_method_still_works(self, mock_session_dir):
+        """log() method should maintain backward compatibility.
+
+        Verifies:
+        - log() method still exists
+        - Works as before
+        - Appends to session file
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: log() broken after ABC migration
+        tracker.log("researcher", "Test message")
+
+        content = session_file.read_text()
+        assert "researcher" in content
+        assert "Test message" in content
+
+    def test_init_with_custom_file_still_works(self, mock_session_dir):
+        """__init__ with session_file parameter should still work.
+
+        Verifies:
+        - Custom session_file parameter supported
+        - Backward compatibility maintained
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        custom_file = mock_session_dir / "custom-session.md"
+
+        # WILL FAIL: Custom session_file broken after ABC migration
+        tracker = SessionTracker(session_file=str(custom_file))
+
+        assert tracker.session_file == custom_file
+
+    def test_get_default_session_file_still_works(self):
+        """get_default_session_file() helper should still work.
+
+        Verifies:
+        - Function still exists
+        - Returns Path with timestamp
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        # WILL FAIL: get_default_session_file() broken after ABC migration
+        session_file = get_default_session_file()
+
+        assert isinstance(session_file, Path)
+        assert session_file.suffix == ".md"
+
+    def test_existing_public_api_unchanged(self, mock_session_dir):
+        """Existing public API should remain unchanged.
+
+        Verifies:
+        - session_file attribute exists
+        - session_dir attribute exists
+        - log() method exists
+        """
+        if not LIB_SESSION_TRACKER_EXISTS:
+            pytest.skip("Library module doesn't exist yet")
+
+        session_file = mock_session_dir / "test-session.md"
+        tracker = SessionTracker(session_file=str(session_file))
+
+        # WILL FAIL: Public API changed after ABC migration
+        assert hasattr(tracker, 'session_file')
+        assert hasattr(tracker, 'session_dir')
+        assert hasattr(tracker, 'log')
+
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 
 """
-Test Coverage Summary (80 tests total):
+Test Coverage Summary (105 tests total):
 
 1. Library Import (4 tests)
    - Module exists and is importable
@@ -849,6 +1418,50 @@ Test Coverage Summary (80 tests total):
    - Compatible with agent_tracker
    - Session file format matches existing
 
+10. ABC Inheritance Tests - NEW (5 tests) - Issue #224
+   - Inherits from StateManager ABC
+   - Generic type parameter is str (markdown content)
+   - Implements load_state() method
+   - Implements save_state() method
+   - Implements cleanup_state() method
+
+11. Load State Tests - NEW (4 tests)
+   - load_state() returns markdown string
+   - load_state() raises StateError if file missing
+   - load_state() uses file locking
+   - load_state() handles UTF-8 encoding
+
+12. Save State Tests - NEW (5 tests)
+   - save_state() writes markdown content
+   - save_state() uses atomic write pattern
+   - save_state() uses file locking
+   - save_state() validates path
+   - save_state() raises StateError on error
+
+13. Cleanup State Tests - NEW (3 tests)
+   - cleanup_state() removes session file
+   - cleanup_state() uses file locking
+   - cleanup_state() raises StateError on error
+
+14. Inherited Helper Tests - NEW (4 tests)
+   - _validate_state_path() is available
+   - _atomic_write() is available
+   - _get_file_lock() returns RLock
+   - _audit_operation() is available
+
+15. Backward Compatibility Tests - NEW (4 tests)
+   - log() method still works
+   - init with custom file works
+   - get_default_session_file() works
+   - existing public API unchanged
+
 All tests currently FAIL (RED phase) - lib/session_tracker.py doesn't exist yet.
 After implementation, all tests should PASS (GREEN phase).
+
+NEW TESTS (25 tests for Issue #224):
+- Test SessionTracker migration to StateManager ABC
+- Test Generic[str] type parameter (markdown content)
+- Test abstract method implementations (load_state, save_state, cleanup_state)
+- Test inherited helper methods (_validate_state_path, _atomic_write, _get_file_lock, _audit_operation)
+- Test backward compatibility with existing log() method
 """

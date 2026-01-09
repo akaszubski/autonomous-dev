@@ -20,6 +20,7 @@ Design Patterns:
     - Two-tier Design: Library (core logic) + CLI wrapper for reuse and testing
     - Progressive Enhancement: Features gracefully degrade if infrastructure unavailable
     - Path Portability: Uses path_utils for dynamic project root detection
+    - StateManager ABC: Inherits from StateManager for standardized state operations (Issue #224)
     - See library-design-patterns skill for standardized design patterns
     - See state-management-patterns skill for standardized design patterns
 
@@ -40,6 +41,12 @@ Security (GitHub Issue #45):
     - Permission Checking (CWE-732): Warns on world-writable directories
     - Input Validation: Agent names and messages sanitized before logging
     - Atomic Writes: Uses atomic file operations to prevent data corruption
+
+Migration to StateManager ABC (Issue #224):
+    - Inherits from StateManager[str] (generic type is str for markdown content)
+    - Implements abstract methods: load_state(), save_state(), cleanup_state()
+    - Uses inherited helpers: _validate_state_path(), _atomic_write(), _get_file_lock(), _audit_operation()
+    - Maintains backward compatibility with log() method
 """
 
 import os
@@ -52,6 +59,10 @@ from typing import Optional
 # Import path utilities for dynamic PROJECT_ROOT resolution (Issue #79)
 sys.path.insert(0, str(Path(__file__).parent))
 from path_utils import get_session_dir, find_project_root
+
+# Import StateManager ABC and StateError (Issue #224)
+from abstract_state_manager import StateManager
+from exceptions import StateError
 
 # Re-export for backward compatibility and testing
 __all__ = ["SessionTracker", "find_project_root", "get_default_session_file"]
@@ -88,7 +99,23 @@ def get_default_session_file() -> Path:
     return session_dir / filename
 
 
-class SessionTracker:
+class SessionTracker(StateManager[str]):
+    """Session tracker with StateManager ABC integration.
+
+    Manages session tracking state by storing markdown logs of agent actions.
+    Inherits from StateManager[str] because it manages string (markdown) content.
+
+    Generic Type:
+        str - Session tracker stores markdown content as strings
+
+    Implements:
+        - load_state() -> str: Load session markdown content
+        - save_state(state: str) -> None: Save session markdown content
+        - cleanup_state() -> None: Remove session file
+
+    Issue: #224 (Migrate SessionTracker to StateManager ABC)
+    """
+
     def __init__(self, session_file: Optional[str] = None, use_cache: bool = True):
         """Initialize SessionTracker with dynamic path resolution.
 
@@ -192,6 +219,86 @@ class SessionTracker:
         # Print confirmation (non-blocking - helps with progress visibility)
         print(f"✅ Logged: {agent_name} - {message}")
         print(f"📄 Session: {self.session_file.name}")
+
+    # ============================================================================
+    # StateManager ABC Implementation (Issue #224)
+    # ============================================================================
+
+    def load_state(self) -> str:
+        """Load session markdown content from file.
+
+        Returns:
+            str: Markdown content of session file
+
+        Raises:
+            StateError: If session file not found or load fails
+
+        Example:
+            >>> tracker = SessionTracker()
+            >>> content = tracker.load_state()
+            >>> print(content)
+            # Session 20260109-120000
+            **12:00:00 - researcher**: Research complete
+        """
+        if not self.session_file.exists():
+            raise StateError(f"Session file not found: {self.session_file}")
+
+        # Use inherited file locking for thread safety
+        lock = self._get_file_lock(self.session_file)
+        with lock:
+            try:
+                return self.session_file.read_text(encoding='utf-8')
+            except Exception as e:
+                raise StateError(f"Failed to load session file: {e}")
+
+    def save_state(self, state: str) -> None:
+        """Save session markdown content to file.
+
+        Uses atomic writes and file locking for thread safety.
+
+        Args:
+            state: Markdown content to save
+
+        Raises:
+            StateError: If save fails
+
+        Example:
+            >>> tracker = SessionTracker()
+            >>> content = "# Session Log\\n\\n**12:00:00 - researcher**: Test\\n"
+            >>> tracker.save_state(content)
+        """
+        try:
+            # Validate path using inherited helper (CWE-22, CWE-59 prevention)
+            validated_path = self._validate_state_path(self.session_file)
+
+            # Use inherited file locking for thread safety
+            lock = self._get_file_lock(validated_path)
+            with lock:
+                # Use inherited atomic write pattern
+                self._atomic_write(validated_path, state, mode=0o600)
+        except StateError:
+            raise
+        except Exception as e:
+            raise StateError(f"Failed to save session file: {e}")
+
+    def cleanup_state(self) -> None:
+        """Remove session file from disk.
+
+        Raises:
+            StateError: If cleanup fails
+
+        Example:
+            >>> tracker = SessionTracker()
+            >>> tracker.cleanup_state()
+            >>> assert not tracker.session_file.exists()
+        """
+        if self.session_file.exists():
+            lock = self._get_file_lock(self.session_file)
+            with lock:
+                try:
+                    self.session_file.unlink()
+                except Exception as e:
+                    raise StateError(f"Failed to cleanup session file: {e}")
 
 
 def main():

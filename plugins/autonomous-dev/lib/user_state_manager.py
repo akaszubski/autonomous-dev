@@ -33,11 +33,15 @@ from typing import Any, Dict
 # Import security utilities (standard pattern from project libraries)
 try:
     from .security_utils import audit_log
+    from .abstract_state_manager import StateManager
+    from .exceptions import StateError
 except ImportError:
     # Direct script execution - add lib dir to path
     lib_dir = Path(__file__).parent.resolve()
     sys.path.insert(0, str(lib_dir))
     from security_utils import audit_log
+    from abstract_state_manager import StateManager
+    from exceptions import StateError
 
 
 # Default state file location
@@ -53,12 +57,11 @@ DEFAULT_STATE = {
 
 # Exception hierarchy pattern from error-handling-patterns skill:
 # BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
-class UserStateError(Exception):
-    """Exception raised for user state management errors."""
-    pass
+# Note: UserStateError is deprecated - use StateError from exceptions.py
+UserStateError = StateError  # Backward compatibility alias
 
 
-class UserStateManager:
+class UserStateManager(StateManager[Dict[str, Any]]):
     """
     Manage user state and preferences.
 
@@ -74,7 +77,7 @@ class UserStateManager:
             state_file: Path to state file
 
         Raises:
-            UserStateError: If path validation fails or permission denied
+            StateError: If path validation fails or permission denied
         """
         self.state_file = self._validate_state_file_path(state_file)
         self.state = self._load_state()
@@ -88,8 +91,8 @@ class UserStateManager:
         - Symlink attack prevention (CWE-59)
         - TOCTOU mitigation (CWE-367)
 
-        Note: Cannot use security_utils.validate_path() as it's designed for
-        project paths, but state file is in ~/.autonomous-dev/ (outside project).
+        Note: Uses inherited _validate_state_path() for basic checks,
+        then adds custom validation for home/temp directory restriction.
 
         Args:
             path: Path to validate
@@ -98,57 +101,10 @@ class UserStateManager:
             Validated Path object
 
         Raises:
-            UserStateError: If path is unsafe
+            StateError: If path is unsafe
         """
-        # Convert to Path if string
-        if isinstance(path, str):
-            path = Path(path)
-
-        # Check for path traversal in string form (CWE-22)
-        path_str = str(path)
-        if ".." in path_str:
-            audit_log(
-                "security_violation",
-                "failure",
-                {
-                    "type": "path_traversal",
-                    "path": path_str,
-                    "component": "user_state_manager"
-                }
-            )
-            raise UserStateError(f"Path traversal detected: {path_str}")
-
-        # Check for symlink before resolution (CWE-59)
-        if path.exists() and path.is_symlink():
-            audit_log(
-                "security_violation",
-                "failure",
-                {
-                    "type": "symlink_attack",
-                    "path": str(path),
-                    "component": "user_state_manager"
-                }
-            )
-            raise UserStateError(f"Symlinks not allowed: {path}")
-
-        # Resolve to absolute path
-        try:
-            resolved_path = path.resolve()
-        except (OSError, RuntimeError) as e:
-            raise UserStateError(f"Failed to resolve path: {e}")
-
-        # Check for symlink after resolution (CWE-59 - defense in depth)
-        if resolved_path.is_symlink():
-            audit_log(
-                "security_violation",
-                "failure",
-                {
-                    "type": "symlink_after_resolution",
-                    "path": str(resolved_path),
-                    "component": "user_state_manager"
-                }
-            )
-            raise UserStateError(f"Symlink detected after resolution: {resolved_path}")
+        # Use inherited validation for basic security checks (CWE-22, CWE-59)
+        resolved_path = self._validate_state_path(path)
 
         # Ensure path is within home directory or temp directory (for tests)
         home_dir = Path.home().resolve()
@@ -171,8 +127,8 @@ class UserStateManager:
             pass
 
         if not (is_in_home or is_in_temp):
-            audit_log(
-                "security_violation",
+            self._audit_operation(
+                "path_validation",
                 "failure",
                 {
                     "type": "path_outside_allowed_dirs",
@@ -182,7 +138,7 @@ class UserStateManager:
                     "component": "user_state_manager"
                 }
             )
-            raise UserStateError(f"Path must be within home directory: {resolved_path}")
+            raise StateError(f"Path must be within home directory: {resolved_path}")
 
         # Atomic check for file access (CWE-367 - TOCTOU mitigation)
         # Use try/except instead of exists() check to avoid race condition
@@ -191,7 +147,7 @@ class UserStateManager:
                 # Atomically test read access
                 resolved_path.read_text()
             except PermissionError:
-                raise UserStateError(f"Permission denied: {resolved_path}")
+                raise StateError(f"Permission denied: {resolved_path}")
 
         return resolved_path
 
@@ -203,7 +159,7 @@ class UserStateManager:
             State dictionary
         """
         if not self.state_file.exists():
-            audit_log(
+            self._audit_operation(
                 "state_file_not_found",
                 "success",
                 {
@@ -217,7 +173,7 @@ class UserStateManager:
             state_text = self.state_file.read_text()
             state = json.loads(state_text)
 
-            audit_log(
+            self._audit_operation(
                 "state_loaded",
                 "success",
                 {
@@ -229,7 +185,7 @@ class UserStateManager:
             return state
         except (json.JSONDecodeError, ValueError) as e:
             # Corrupted JSON - fall back to default state
-            audit_log(
+            self._audit_operation(
                 "state_file_corrupted",
                 "warning",
                 {
@@ -240,39 +196,68 @@ class UserStateManager:
             )
             return copy.deepcopy(DEFAULT_STATE)
 
-    def save(self) -> None:
-        """
-        Save state to file.
+    # ========================================
+    # Abstract Method Implementations (StateManager ABC)
+    # ========================================
+
+    def load_state(self) -> Dict[str, Any]:
+        """Implement StateManager.load_state().
+
+        Returns:
+            State dictionary loaded from file or default state
 
         Raises:
-            UserStateError: If save fails
+            StateError: If load fails
         """
-        try:
-            # Create parent directories if needed
+        return self._load_state()
+
+    def save_state(self, state: Dict[str, Any]) -> None:
+        """Implement StateManager.save_state() with atomic write.
+
+        Args:
+            state: State dictionary to save
+
+        Raises:
+            StateError: If save fails
+        """
+        self.state = state
+        lock = self._get_file_lock(self.state_file)
+        with lock:
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_json = json.dumps(state, indent=2)
+            self._atomic_write(self.state_file, state_json, mode=0o600)
+            self._audit_operation("state_saved", "success", {
+                "path": str(self.state_file),
+                "first_run_complete": state.get("first_run_complete", False)
+            })
 
-            # Write state to file
-            state_json = json.dumps(self.state, indent=2)
-            self.state_file.write_text(state_json)
+    def cleanup_state(self) -> None:
+        """Implement StateManager.cleanup_state().
 
-            audit_log(
-                "state_saved",
-                "success",
-                {
-                    "path": str(self.state_file),
-                    "first_run_complete": self.state.get("first_run_complete", False)
-                }
-            )
-        except OSError as e:
-            audit_log(
-                "state_save_failed",
-                "failure",
-                {
-                    "path": str(self.state_file),
-                    "error": str(e)
-                }
-            )
-            raise UserStateError(f"Failed to save state: {e}")
+        Removes the state file from disk.
+
+        Raises:
+            StateError: If cleanup fails
+        """
+        if self.state_file.exists():
+            self.state_file.unlink()
+            self._audit_operation("state_cleanup", "success", {
+                "path": str(self.state_file)
+            })
+
+    # ========================================
+    # Backward Compatible Methods
+    # ========================================
+
+    def save(self) -> None:
+        """Save state to file (backward compatible).
+
+        This method maintains backward compatibility by delegating to save_state().
+
+        Raises:
+            StateError: If save fails
+        """
+        self.save_state(self.state)
 
     def is_first_run(self) -> bool:
         """
@@ -286,7 +271,7 @@ class UserStateManager:
     def record_first_run_complete(self) -> None:
         """Mark first run as complete."""
         self.state["first_run_complete"] = True
-        audit_log(
+        self._audit_operation(
             "first_run_marked_complete",
             "success",
             {"path": str(self.state_file)}
@@ -318,7 +303,7 @@ class UserStateManager:
 
         self.state["preferences"][key] = value
 
-        audit_log(
+        self._audit_operation(
             "preference_updated",
             "success",
             {

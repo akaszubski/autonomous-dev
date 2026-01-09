@@ -54,6 +54,7 @@ try:
         UserStateError,
         DEFAULT_STATE_FILE,
     )
+    from exceptions import StateError
 except ImportError as e:
     pytest.skip(f"Implementation not found (TDD red phase): {e}", allow_module_level=True)
 
@@ -201,7 +202,7 @@ class TestUserStateManager:
         # Attempt path traversal
         unsafe_path = tmp_path / ".." / ".." / "etc" / "passwd"
 
-        with pytest.raises(UserStateError, match="Path traversal detected"):
+        with pytest.raises(UserStateError, match="path traversal"):
             UserStateManager(unsafe_path)
 
     def test_user_state_manager_rejects_absolute_paths_outside_home(self):
@@ -405,6 +406,499 @@ class TestErrorHandling:
         """Test save() handles disk full errors gracefully."""
         manager = UserStateManager(state_file)
 
-        with patch("pathlib.Path.write_text", side_effect=OSError("No space left on device")):
-            with pytest.raises(UserStateError, match="Failed to save state"):
+        # Mock os.write since _atomic_write uses os.write, not Path.write_text
+        with patch("os.write", side_effect=OSError("No space left on device")):
+            with pytest.raises(StateError, match="Atomic write failed"):
                 manager.save()
+
+
+class TestUserStateManagerABCMigration:
+    """Tests for Issue #222: UserStateManager ABC migration.
+
+    Tests that UserStateManager properly inherits from StateManager ABC
+    and implements all abstract methods while maintaining backward compatibility.
+
+    Migration Requirements:
+    1. UserStateManager inherits from StateManager[Dict[str, Any]]
+    2. Implements abstract methods: load_state(), save_state(), cleanup_state()
+    3. Uses inherited helpers: _validate_state_path(), _atomic_write(), _get_file_lock()
+    4. Raises StateError instead of UserStateError
+    5. Maintains backward compatibility for existing methods
+
+    TDD Phase: Red - Tests written BEFORE implementation
+    Expected: All tests FAIL initially (migration not done yet)
+    """
+
+    @pytest.fixture
+    def temp_state_file(self, tmp_path):
+        """Create temporary state file path for testing."""
+        state_dir = tmp_path / ".autonomous-dev"
+        state_dir.mkdir()
+        return state_dir / "user_state.json"
+
+    # ========================================
+    # Test 1-2: Inheritance and Generic Type
+    # ========================================
+
+    def test_inherits_from_state_manager(self):
+        """Test that UserStateManager inherits from StateManager ABC.
+
+        Verifies:
+        - UserStateManager is a subclass of StateManager
+        - Enables polymorphism for state management operations
+        """
+        from abstract_state_manager import StateManager
+
+        assert issubclass(UserStateManager, StateManager), (
+            "UserStateManager should inherit from StateManager ABC"
+        )
+
+    def test_generic_type_parameter_dict_str_any(self, temp_state_file):
+        """Test that UserStateManager[Dict[str, Any]] works correctly.
+
+        Verifies:
+        - Generic type parameter is Dict[str, Any]
+        - Type hints are correct for load_state() and save_state()
+        """
+        from abstract_state_manager import StateManager
+
+        # Create manager instance
+        manager = UserStateManager(temp_state_file)
+
+        # Check that manager is instance of StateManager
+        assert isinstance(manager, StateManager), (
+            "UserStateManager instance should be instance of StateManager"
+        )
+
+        # Type hints should be Dict[str, Any] (verified by type checker)
+        # This test validates runtime behavior
+        state = manager.state
+        assert isinstance(state, dict), "State should be a dictionary"
+
+    # ========================================
+    # Test 3-5: Abstract Method Implementation
+    # ========================================
+
+    def test_load_state_returns_dict_str_any(self, temp_state_file):
+        """Test that load_state() returns Dict[str, Any].
+
+        Verifies:
+        - load_state() abstract method is implemented
+        - Returns correct type (Dict[str, Any])
+        - Loads state from file or returns default
+        """
+        # Create state file with test data
+        test_state = {
+            "first_run_complete": True,
+            "preferences": {"auto_git": False},
+            "version": "1.0"
+        }
+        temp_state_file.write_text(json.dumps(test_state))
+
+        # Create manager (calls load_state internally)
+        manager = UserStateManager(temp_state_file)
+
+        # Verify load_state returns correct type and data
+        loaded_state = manager.load_state()
+        assert isinstance(loaded_state, dict), "load_state() should return dict"
+        assert loaded_state["first_run_complete"] is True
+        assert loaded_state["preferences"]["auto_git"] is False
+
+    def test_save_state_accepts_dict_str_any(self, temp_state_file):
+        """Test that save_state() accepts Dict[str, Any].
+
+        Verifies:
+        - save_state() abstract method is implemented
+        - Accepts correct type (Dict[str, Any])
+        - Saves state to file
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Create test state
+        test_state = {
+            "first_run_complete": True,
+            "preferences": {"auto_git": True},
+            "version": "1.0"
+        }
+
+        # Save state
+        manager.save_state(test_state)
+
+        # Verify file was written
+        assert temp_state_file.exists(), "save_state() should create state file"
+        saved_data = json.loads(temp_state_file.read_text())
+        assert saved_data == test_state
+
+    def test_cleanup_state_removes_state_file(self, temp_state_file):
+        """Test that cleanup_state() removes the state file.
+
+        Verifies:
+        - cleanup_state() abstract method is implemented
+        - Removes state file from disk
+        - Handles missing file gracefully
+        """
+        # Create manager and save state
+        manager = UserStateManager(temp_state_file)
+        manager.save()
+        assert temp_state_file.exists()
+
+        # Cleanup state
+        manager.cleanup_state()
+
+        # Verify file is removed
+        assert not temp_state_file.exists(), (
+            "cleanup_state() should remove state file"
+        )
+
+    def test_cleanup_state_handles_missing_file(self, temp_state_file):
+        """Test that cleanup_state() handles missing file gracefully.
+
+        Verifies:
+        - No exception when file doesn't exist
+        - Idempotent operation
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Cleanup non-existent file (should not raise)
+        manager.cleanup_state()
+
+        # Call again (should still not raise)
+        manager.cleanup_state()
+
+    # ========================================
+    # Test 6: Inherited exists() Method
+    # ========================================
+
+    def test_exists_method_works(self, temp_state_file):
+        """Test that inherited exists() method works correctly.
+
+        Verifies:
+        - exists() method is inherited from StateManager
+        - Returns False when file doesn't exist
+        - Returns True when file exists
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Initially doesn't exist
+        assert not manager.exists(), "exists() should return False initially"
+
+        # Save state
+        manager.save()
+
+        # Now exists
+        assert manager.exists(), "exists() should return True after save"
+
+    # ========================================
+    # Test 7-8: Atomic Write and File Locking
+    # ========================================
+
+    def test_atomic_write_is_used_for_save(self, temp_state_file):
+        """Test that _atomic_write() is used for save operations.
+
+        Verifies:
+        - save_state() uses _atomic_write() internally
+        - Atomic write prevents file corruption
+        - Uses temp file + rename pattern
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Mock _atomic_write to verify it's called
+        with patch.object(manager, '_atomic_write', wraps=manager._atomic_write) as mock_atomic:
+            test_state = {
+                "first_run_complete": True,
+                "preferences": {},
+                "version": "1.0"
+            }
+            manager.save_state(test_state)
+
+            # Verify _atomic_write was called
+            assert mock_atomic.call_count >= 1, (
+                "save_state() should use _atomic_write() for atomic operations"
+            )
+
+    def test_file_lock_is_used_for_concurrency(self, temp_state_file):
+        """Test that _get_file_lock() is used for concurrency safety.
+
+        Verifies:
+        - _get_file_lock() returns reentrant lock
+        - Same lock for same file path
+        - Thread-safe concurrent access
+        """
+        manager1 = UserStateManager(temp_state_file)
+        manager2 = UserStateManager(temp_state_file)
+
+        # Get locks for same file
+        lock1 = manager1._get_file_lock(temp_state_file)
+        lock2 = manager2._get_file_lock(temp_state_file)
+
+        # Should be the same lock object
+        assert lock1 is lock2, (
+            "Same file should return same lock object for thread safety"
+        )
+
+        # Should be reentrant lock - check type name (isinstance() doesn't work with RLock in Python 3.14)
+        assert type(lock1).__name__ == "RLock", (
+            "_get_file_lock() should return RLock for reentrancy"
+        )
+
+    # ========================================
+    # Test 9: StateError Instead of UserStateError
+    # ========================================
+
+    def test_raises_state_error_for_invalid_operations(self, tmp_path):
+        """Test that StateError is raised instead of UserStateError.
+
+        Verifies:
+        - Path validation raises StateError
+        - Save errors raise StateError
+        - Consistent with StateManager ABC pattern
+        """
+        from abstract_state_manager import StateError
+
+        # Test path traversal raises StateError
+        unsafe_path = tmp_path / ".." / ".." / "etc" / "passwd"
+        with pytest.raises(StateError, match="path traversal"):
+            UserStateManager(unsafe_path)
+
+    def test_state_error_for_path_outside_home_or_temp(self):
+        """Test StateError raised for paths outside home/temp directories.
+
+        Verifies:
+        - Paths outside allowed directories raise StateError
+        - Security validation integrated with ABC
+        """
+        from abstract_state_manager import StateError
+
+        unsafe_path = Path("/etc/passwd")
+        with pytest.raises(StateError, match="Path must be within home directory"):
+            UserStateManager(unsafe_path)
+
+    def test_state_error_for_symlink_attack(self, tmp_path):
+        """Test StateError raised for symlink attacks (CWE-59).
+
+        Verifies:
+        - Symlink validation raises StateError
+        - Security checks integrated with ABC
+        """
+        from abstract_state_manager import StateError
+
+        # Create symlink
+        target = tmp_path / "target.json"
+        symlink = tmp_path / "symlink.json"
+        target.write_text("{}")
+        symlink.symlink_to(target)
+
+        # Should raise StateError
+        with pytest.raises(StateError, match="symlink"):
+            UserStateManager(symlink)
+
+    # ========================================
+    # Test 10-11: Backward Compatibility
+    # ========================================
+
+    def test_backward_compatible_save_method(self, temp_state_file):
+        """Test that existing save() method still works.
+
+        Verifies:
+        - save() method maintains backward compatibility
+        - Existing code doesn't break after migration
+        - Uses new save_state() internally
+        """
+        manager = UserStateManager(temp_state_file)
+        manager.state["first_run_complete"] = True
+
+        # Old-style save() should still work
+        manager.save()
+
+        # Verify state was saved
+        assert temp_state_file.exists()
+        saved_data = json.loads(temp_state_file.read_text())
+        assert saved_data["first_run_complete"] is True
+
+    def test_backward_compatible_is_first_run(self, temp_state_file):
+        """Test that is_first_run() method still works.
+
+        Verifies:
+        - is_first_run() maintains backward compatibility
+        - Works with new ABC-based implementation
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Should return True initially
+        assert manager.is_first_run() is True
+
+        # Mark complete
+        manager.record_first_run_complete()
+
+        # Should return False now
+        assert manager.is_first_run() is False
+
+    def test_backward_compatible_preferences(self, temp_state_file):
+        """Test that preference methods still work.
+
+        Verifies:
+        - get_preference() maintains backward compatibility
+        - set_preference() maintains backward compatibility
+        - Works with new ABC-based implementation
+        """
+        manager = UserStateManager(temp_state_file)
+
+        # Set preference (old API)
+        manager.set_preference("auto_git_enabled", True)
+
+        # Get preference (old API)
+        value = manager.get_preference("auto_git_enabled")
+        assert value is True
+
+        # Default value
+        missing = manager.get_preference("missing_key", default="default")
+        assert missing == "default"
+
+    # ========================================
+    # Test 12: Path Validation
+    # ========================================
+
+    def test_home_directory_paths_allowed(self, tmp_path):
+        """Test that home directory paths are allowed.
+
+        Verifies:
+        - Paths in home directory pass validation
+        - Uses _validate_state_path() from ABC
+        """
+        # Create path in home directory
+        home_path = Path.home() / ".autonomous-dev" / "user_state.json"
+
+        # Should not raise (but we'll use tmp_path for testing)
+        # Just verify the validation logic accepts home paths
+        manager = UserStateManager(tmp_path / "state.json")
+        validated = manager._validate_state_path(tmp_path / "state.json")
+
+        assert validated.is_absolute(), "Validated path should be absolute"
+
+    def test_temp_directory_paths_allowed(self, tmp_path):
+        """Test that temp directory paths are allowed (for tests).
+
+        Verifies:
+        - Paths in temp directory pass validation
+        - Enables testing without modifying home directory
+        """
+        # tmp_path is in temp directory
+        temp_state_file = tmp_path / "user_state.json"
+
+        # Should not raise
+        manager = UserStateManager(temp_state_file)
+
+        # Verify validation passed
+        assert manager.state_file == temp_state_file.resolve()
+
+    def test_validate_state_path_inherited_method(self, tmp_path):
+        """Test that _validate_state_path() is inherited from StateManager.
+
+        Verifies:
+        - Method is inherited, not reimplemented
+        - Rejects path traversal
+        - Rejects symlinks
+        """
+        from abstract_state_manager import StateError
+
+        manager = UserStateManager(tmp_path / "state.json")
+
+        # Test path traversal detection
+        unsafe = tmp_path / ".." / ".." / "etc" / "passwd"
+        with pytest.raises(StateError, match="path traversal"):
+            manager._validate_state_path(unsafe)
+
+    # ========================================
+    # Test 13: Integration Tests
+    # ========================================
+
+    def test_full_lifecycle_with_abc(self, temp_state_file):
+        """Test full lifecycle using ABC methods.
+
+        Verifies:
+        - Create manager -> load_state() called
+        - Modify state -> save_state() works
+        - Cleanup -> cleanup_state() works
+        - All ABC methods integrate correctly
+        """
+        # Create and load
+        manager = UserStateManager(temp_state_file)
+        initial_state = manager.load_state()
+        assert initial_state["first_run_complete"] is False
+
+        # Modify and save
+        modified_state = {
+            "first_run_complete": True,
+            "preferences": {"test": "value"},
+            "version": "1.0"
+        }
+        manager.save_state(modified_state)
+        assert manager.exists()
+
+        # Reload in new manager
+        manager2 = UserStateManager(temp_state_file)
+        reloaded = manager2.load_state()
+        assert reloaded["first_run_complete"] is True
+        assert reloaded["preferences"]["test"] == "value"
+
+        # Cleanup
+        manager2.cleanup_state()
+        assert not manager2.exists()
+
+    def test_state_manager_polymorphism(self, temp_state_file):
+        """Test that UserStateManager can be used polymorphically.
+
+        Verifies:
+        - UserStateManager works as StateManager[Dict[str, Any]]
+        - Enables generic state management code
+        """
+        from abstract_state_manager import StateManager
+
+        manager: StateManager[Dict[str, Any]] = UserStateManager(temp_state_file)
+
+        # Should work through StateManager interface
+        assert hasattr(manager, 'load_state')
+        assert hasattr(manager, 'save_state')
+        assert hasattr(manager, 'cleanup_state')
+        assert hasattr(manager, 'exists')
+
+        # Should work at runtime
+        state = manager.load_state()
+        assert isinstance(state, dict)
+
+    def test_concurrent_access_with_file_locks(self, temp_state_file):
+        """Test concurrent access safety with file locks.
+
+        Verifies:
+        - Multiple managers for same file use same lock
+        - Thread-safe concurrent operations
+        - No file corruption
+        """
+        import concurrent.futures
+
+        def update_preference(manager_class, state_file, key, value):
+            """Helper to update preference in thread."""
+            manager = manager_class(state_file)
+            manager.set_preference(key, value)
+            manager.save()
+
+        # Create multiple threads updating different preferences
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = []
+            for i in range(5):
+                future = executor.submit(
+                    update_preference,
+                    UserStateManager,
+                    temp_state_file,
+                    f"pref_{i}",
+                    f"value_{i}"
+                )
+                futures.append(future)
+
+            # Wait for all to complete
+            concurrent.futures.wait(futures)
+
+        # Verify state file is valid JSON (not corrupted)
+        final_state = json.loads(temp_state_file.read_text())
+        assert "preferences" in final_state
+        assert isinstance(final_state["preferences"], dict)

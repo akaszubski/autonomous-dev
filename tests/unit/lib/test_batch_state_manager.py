@@ -812,3 +812,276 @@ Coverage Target: 90%+ for batch_state_manager.py
 Security: CWE-22 (path traversal), CWE-59 (symlinks)
 Concurrency: File locking for safe multi-threaded access
 """
+
+
+# =============================================================================
+# SECTION 8: StateManager ABC Migration Tests (Issue #221) - 12 tests
+# =============================================================================
+
+class TestBatchStateManagerABCMigration:
+    """Tests for Issue #221: BatchStateManager ABC migration.
+
+    These tests verify that BatchStateManager correctly inherits from
+    StateManager ABC and implements all abstract methods while maintaining
+    backward compatibility.
+
+    Test Strategy:
+    1. Test inheritance relationship (issubclass)
+    2. Test Generic type parameter (BatchStateManager[BatchState])
+    3. Test abstract method implementations (load_state, save_state, cleanup_state)
+    4. Test inherited helper methods (exists, _validate_state_path, _atomic_write, _get_file_lock)
+    5. Test backward compatibility (existing methods still work)
+    6. Test security integration (_validate_state_path called before operations)
+    """
+
+    def test_inherits_from_state_manager(self):
+        """BatchStateManager should inherit from StateManager ABC."""
+        # Arrange - import StateManager ABC
+        try:
+            from batch_state_manager import BatchStateManager
+            from abstract_state_manager import StateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        # Act & Assert
+        assert issubclass(BatchStateManager, StateManager)
+
+    def test_is_generic_type_with_batch_state(self):
+        """BatchStateManager should be Generic[BatchState] type."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager, BatchState
+            from abstract_state_manager import StateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        # Act - create instance
+        manager = BatchStateManager()
+
+        # Assert - verify type hints work correctly
+        # BatchStateManager should be StateManager[BatchState]
+        assert isinstance(manager, StateManager)
+
+    def test_implements_load_state_abstract_method(self, state_file, sample_batch_state):
+        """BatchStateManager.load_state() should implement StateManager abstract method."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+        manager.save_batch_state(sample_batch_state)
+
+        # Act
+        loaded_state = manager.load_state()
+
+        # Assert
+        assert isinstance(loaded_state, type(sample_batch_state))
+        assert loaded_state.batch_id == sample_batch_state.batch_id
+
+    def test_implements_save_state_abstract_method(self, state_file, sample_batch_state):
+        """BatchStateManager.save_state() should implement StateManager abstract method."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+
+        # Act
+        manager.save_state(sample_batch_state)
+
+        # Assert
+        assert state_file.exists()
+        loaded_state = manager.load_state()
+        assert loaded_state.batch_id == sample_batch_state.batch_id
+
+    def test_implements_cleanup_state_abstract_method(self, state_file, sample_batch_state):
+        """BatchStateManager.cleanup_state() should implement StateManager abstract method."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+        manager.save_state(sample_batch_state)
+        assert state_file.exists()
+
+        # Act
+        manager.cleanup_state()
+
+        # Assert
+        assert not state_file.exists()
+
+    def test_inherited_exists_method_works(self, state_file, sample_batch_state):
+        """BatchStateManager should inherit exists() method from StateManager."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+
+        # Act & Assert - exists() returns False before save
+        assert manager.exists() is False
+
+        # Save state
+        manager.save_state(sample_batch_state)
+
+        # exists() returns True after save
+        assert manager.exists() is True
+
+    def test_inherited_validate_state_path_prevents_traversal(self, sample_batch_state):
+        """BatchStateManager should use inherited _validate_state_path() for CWE-22."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        # Malicious path with traversal
+        malicious_path = Path("/tmp/../../etc/passwd")
+
+        # Act & Assert - should reject path traversal
+        with pytest.raises(Exception) as exc_info:
+            manager = BatchStateManager(malicious_path)
+            # Validation might happen in __init__ or in operations
+
+        # Error should mention path traversal or invalid path
+        error_msg = str(exc_info.value).lower()
+        assert "path traversal" in error_msg or "invalid" in error_msg or ".." in error_msg
+
+    def test_inherited_validate_state_path_prevents_symlinks(self, tmp_path, sample_batch_state):
+        """BatchStateManager should use inherited _validate_state_path() for CWE-59."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        # Create symlink
+        symlink_path = tmp_path / "malicious_link.json"
+        target_path = tmp_path / "target.json"
+        target_path.write_text("{}")
+
+        try:
+            symlink_path.symlink_to(target_path)
+        except OSError:
+            pytest.skip("Cannot create symlinks on this system")
+
+        # Act & Assert - should reject symlinks
+        with pytest.raises(Exception) as exc_info:
+            manager = BatchStateManager(symlink_path)
+            manager.save_state(sample_batch_state)
+
+        # Error should mention symlink
+        error_msg = str(exc_info.value).lower()
+        assert "symlink" in error_msg
+
+    def test_inherited_atomic_write_used_for_save(self, state_file, sample_batch_state):
+        """BatchStateManager should use inherited _atomic_write() for save operations."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+
+        # Mock _atomic_write to verify it's called
+        with patch.object(manager, '_atomic_write', wraps=manager._atomic_write) as mock_atomic:
+            # Act
+            manager.save_state(sample_batch_state)
+
+            # Assert - _atomic_write should be called
+            mock_atomic.assert_called_once()
+
+    def test_inherited_get_file_lock_used_for_concurrency(self, state_file, sample_batch_state):
+        """BatchStateManager should use inherited _get_file_lock() for thread safety."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+
+        # Mock _get_file_lock to verify it's called
+        with patch.object(manager, '_get_file_lock', wraps=manager._get_file_lock) as mock_lock:
+            # Act
+            manager.save_state(sample_batch_state)
+
+            # Assert - _get_file_lock should be called
+            mock_lock.assert_called()
+
+    def test_backward_compatibility_load_batch_state(self, state_file, sample_batch_state):
+        """Existing load_batch_state() method should still work after ABC migration."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+        manager.save_batch_state(sample_batch_state)
+
+        # Act - call old method name
+        loaded_state = manager.load_batch_state()
+
+        # Assert
+        assert loaded_state.batch_id == sample_batch_state.batch_id
+
+    def test_backward_compatibility_save_batch_state(self, state_file, sample_batch_state):
+        """Existing save_batch_state() method should still work after ABC migration."""
+        # Arrange
+        try:
+            from batch_state_manager import BatchStateManager
+        except ImportError:
+            pytest.skip("Implementation not ready (TDD red phase)")
+
+        manager = BatchStateManager(state_file)
+
+        # Act - call old method name
+        manager.save_batch_state(sample_batch_state)
+
+        # Assert
+        assert state_file.exists()
+        loaded_state = manager.load_batch_state()
+        assert loaded_state.batch_id == sample_batch_state.batch_id
+
+
+# =============================================================================
+# Test Summary Update
+# =============================================================================
+
+"""
+TEST SUMMARY UPDATE (42 unit tests):
+
+SECTION 8: StateManager ABC Migration (12 tests) - Issue #221
+✗ test_inherits_from_state_manager
+✗ test_is_generic_type_with_batch_state
+✗ test_implements_load_state_abstract_method
+✗ test_implements_save_state_abstract_method
+✗ test_implements_cleanup_state_abstract_method
+✗ test_inherited_exists_method_works
+✗ test_inherited_validate_state_path_prevents_traversal
+✗ test_inherited_validate_state_path_prevents_symlinks
+✗ test_inherited_atomic_write_used_for_save
+✗ test_inherited_get_file_lock_used_for_concurrency
+✗ test_backward_compatibility_load_batch_state
+✗ test_backward_compatibility_save_batch_state
+
+TOTAL: 42 unit tests (12 new tests for Issue #221 - TDD red phase)
+
+New Coverage:
+- StateManager ABC inheritance verification
+- Generic type parameter testing (BatchStateManager[BatchState])
+- Abstract method implementations (load_state, save_state, cleanup_state)
+- Inherited helper method usage (_validate_state_path, _atomic_write, _get_file_lock)
+- Backward compatibility with existing methods
+- Security integration (CWE-22, CWE-59 via inherited validators)
+"""

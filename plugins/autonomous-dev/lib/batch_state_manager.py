@@ -113,6 +113,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from security_utils import validate_path, audit_log
 from path_utils import get_batch_state_file
+from abstract_state_manager import StateManager
+from exceptions import StateError
 
 # Import sanitization functions
 try:
@@ -160,14 +162,16 @@ def get_default_state_file():
 # File lock timeout (seconds)
 LOCK_TIMEOUT = 30
 
+# Auto-clear threshold (tokens) - for backward compatibility with tests
+CONTEXT_THRESHOLD = 150 * 1000  # 150K tokens
+
 # =============================================================================
 # Exceptions
 # =============================================================================
 
-
-class BatchStateError(Exception):
-    """Base exception for batch state operations."""
-    pass
+# Backward compatibility: BatchStateError is deprecated, use StateError instead
+# This alias will be removed in v4.0.0 (Issue #225)
+BatchStateError = StateError
 
 
 # =============================================================================
@@ -1217,11 +1221,15 @@ def get_feature_git_operations(
 # =============================================================================
 
 
-class BatchStateManager:
+class BatchStateManager(StateManager[BatchState]):
     """Object-oriented wrapper for batch state functions.
 
-    Provides backward compatibility for code expecting a class-based interface.
-    All methods delegate to the functional API defined above.
+    Inherits from StateManager ABC to provide standardized state management
+    interface while maintaining backward compatibility with existing code.
+
+    Implements abstract methods (load_state, save_state, cleanup_state)
+    by delegating to existing batch-specific methods (load_batch_state,
+    save_batch_state, cleanup_batch_state).
 
     Examples:
         >>> manager = BatchStateManager()
@@ -1244,13 +1252,9 @@ class BatchStateManager:
         self.state_file = state_file if state_file else get_default_state_file()
 
         # Validate path if provided (security requirement)
+        # Use inherited _validate_state_path() helper from StateManager ABC
         if state_file:
-            from security_utils import validate_path
-            self.state_file = validate_path(
-                Path(state_file),
-                "batch state file",
-                allow_missing=True
-            )
+            self.state_file = self._validate_state_path(Path(state_file))
 
         # Create parent directory if it doesn't exist
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1320,29 +1324,33 @@ class BatchStateManager:
         """
         return load_batch_state(self.state_file)
 
-    def load_state(self) -> BatchState:
-        """Alias for load_batch_state() for backward compatibility with tests.
-
-        Returns:
-            BatchState object
-        """
-        return self.load_batch_state()
-
     def save_batch_state(self, state: BatchState) -> None:
-        """Save batch state to file (delegates to save_batch_state function).
+        """Save batch state to file.
+
+        Uses inherited _atomic_write() and _get_file_lock() for security
+        and thread safety.
 
         Args:
             state: BatchState object to save
         """
-        save_batch_state(self.state_file, state)
+        # Update timestamp
+        state.updated_at = datetime.utcnow().isoformat() + "Z"
 
-    def save_state(self, state: BatchState) -> None:
-        """Alias for save_batch_state() for backward compatibility with tests.
+        # Acquire file lock for thread safety
+        lock = self._get_file_lock(self.state_file)
+        with lock:
+            # Convert state to JSON
+            json_data = json.dumps(state.to_dict(), indent=2)
 
-        Args:
-            state: BatchState object to save
-        """
-        self.save_batch_state(state)
+            # Use inherited _atomic_write() for atomic file operations
+            self._atomic_write(self.state_file, json_data, mode=0o600)
+
+            # Audit log
+            self._audit_operation("batch_state_save", "success", {
+                "batch_id": state.batch_id,
+                "path": str(self.state_file),
+                "features_count": state.total_features,
+            })
 
     def update_batch_progress(
         self,
@@ -1402,3 +1410,49 @@ class BatchStateManager:
     def cleanup_batch_state(self) -> None:
         """Cleanup batch state file (delegates to cleanup_batch_state function)."""
         cleanup_batch_state(self.state_file)
+
+    # =============================================================================
+    # StateManager ABC Abstract Method Implementations (Issue #221)
+    # =============================================================================
+
+    def load_state(self) -> BatchState:
+        """Implement StateManager.load_state() - delegates to load_batch_state().
+
+        Returns:
+            BatchState object loaded from storage
+
+        Raises:
+            BatchStateError: If load fails
+
+        Note:
+            This implements the StateManager ABC abstract method by delegating
+            to the existing load_batch_state() method for backward compatibility.
+        """
+        return self.load_batch_state()
+
+    def save_state(self, state: BatchState) -> None:
+        """Implement StateManager.save_state() - delegates to save_batch_state().
+
+        Args:
+            state: BatchState object to save
+
+        Raises:
+            BatchStateError: If save fails
+
+        Note:
+            This implements the StateManager ABC abstract method by delegating
+            to the existing save_batch_state() method for backward compatibility.
+        """
+        self.save_batch_state(state)
+
+    def cleanup_state(self) -> None:
+        """Implement StateManager.cleanup_state() - delegates to cleanup_batch_state().
+
+        Raises:
+            BatchStateError: If cleanup fails
+
+        Note:
+            This implements the StateManager ABC abstract method by delegating
+            to the existing cleanup_batch_state() method for backward compatibility.
+        """
+        self.cleanup_batch_state()

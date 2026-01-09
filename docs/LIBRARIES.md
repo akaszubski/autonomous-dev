@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated: 2026-01-09 (Issue #204 - Fix doc-master auto-apply and integrate progress tracker)
+**Last Updated**: 2026-01-09 (Issue #225 - Consolidate exception hierarchy: All state managers now use StateError)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (49)
+### Core Libraries (51)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -21,46 +21,47 @@ The autonomous-dev plugin includes shared libraries organized into the following
 8. **update_plugin.py** - CLI interface for plugin updates
 9. **hook_activator.py** - Automatic hook activation during updates
 10. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
-11. **batch_state_manager.py** - State persistence for /batch-implement with automatic context management (v3.23.0, Issue #218: deprecated context clearing functions removed v3.46.0)
-12. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
-13. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
-14. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
-15. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
-16. **failure_classifier.py** - Error classification (transient vs permanent) for /batch-implement (v3.33.0, Issue #89)
-17. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
-18. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
-19. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
-20. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
-21. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
-22. **feature_dependency_analyzer.py** - Smart dependency ordering for /batch-implement (v1.0.0, Issue #157)
-23. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
-24. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
-25. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
-26. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
-27. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
-28. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
-29. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
-30. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
-31. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
-32. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
-33. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
-34. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
-35. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
-36. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
-37. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
-38. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
-39. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
-40. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
-41. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
-42. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
-43. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
-44. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
-45. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
-46. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
-47. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
-48. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
-49. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
-50. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+11. **abstract_state_manager.py** - StateManager ABC for standardized state management (NEW v1.0.0, Issue #220)
+12. **batch_state_manager.py** - State persistence for /batch-implement with automatic context management (v3.23.0, Issue #218: deprecated context clearing functions removed v3.46.0, Issue #221: now inherits from StateManager ABC)
+13. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
+14. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
+15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
+16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
+17. **failure_classifier.py** - Error classification (transient vs permanent) for /batch-implement (v3.33.0, Issue #89)
+18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
+19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
+20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
+21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
+22. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
+23. **feature_dependency_analyzer.py** - Smart dependency ordering for /batch-implement (v1.0.0, Issue #157)
+24. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
+25. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
+26. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
+27. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
+28. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
+29. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
+30. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
+31. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
+32. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
+33. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
+34. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
+35. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
+36. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
+37. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
+38. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
+39. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
+40. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
+41. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
+42. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
+43. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
+44. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
+45. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
+46. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
+47. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
+48. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
+49. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
+50. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
+51. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
 
 
 
@@ -2010,6 +2011,153 @@ All errors gracefully degrade:
 
 ---
 
+## 12. abstract_state_manager.py (428 lines, NEW v1.0.0, Issue #220)
+
+**Purpose**: Abstract Base Class (ABC) for standardized state management across all state managers.
+
+**Problem**: Multiple state managers (batch_state_manager, session_tracker state management) had duplicate implementations of:
+- Path validation and security checks (CWE-22 path traversal, CWE-59 symlinks)
+- Atomic file writes with temp file + rename
+- File locking for thread safety
+- Audit logging for security events
+
+**Solution**: StateManager ABC defines the contract for state management with concrete helper methods for security and atomicity.
+
+**Note (Issue #221)**: BatchStateManager now inherits from StateManager[BatchState] to implement standardized state management interface while maintaining backward compatibility.
+
+### Abstract Methods (must be implemented by subclasses)
+
+#### `load_state() -> T`
+- **Purpose**: Load state from persistent storage
+- **Returns**: State object of type T
+- **Raises**: StateError if load fails
+
+#### `save_state(state: T) -> None`
+- **Purpose**: Save state to persistent storage
+- **Parameters**: `state` - State object to save
+- **Raises**: StateError if save fails
+
+#### `cleanup_state() -> None`
+- **Purpose**: Clean up state (remove files, etc.)
+- **Raises**: StateError if cleanup fails
+
+### Concrete Helper Methods
+
+#### `exists() -> bool`
+- **Purpose**: Check if state file exists
+- **Returns**: True if state file exists, False otherwise
+
+#### `_validate_state_path(path: Path) -> Path`
+- **Purpose**: Validate state file path for security
+- **Security**:
+  - CWE-22 (Path Traversal): Prevents `../` sequences
+  - CWE-59 (Symlink Following): Detects and rejects symlinks
+- **Parameters**: `path` - Path to validate
+- **Returns**: Resolved, validated path
+- **Raises**: ValueError if path is invalid
+
+#### `_atomic_write(path: Path, content: str, mode: int = 0o600) -> None`
+- **Purpose**: Write file atomically with permissions
+- **Security**:
+  - CWE-367 (Race Condition): Temp file + atomic rename
+  - CWE-732 (File Permissions): Sets file to read-only (0o600)
+- **Parameters**:
+  - `path` - File to write
+  - `content` - Content to write
+  - `mode` - File permissions (default: 0o600)
+- **Raises**: IOError if write fails
+
+#### `_get_file_lock(path: Path) -> threading.RLock`
+- **Purpose**: Get reentrant lock for thread-safe file access
+- **Parameters**: `path` - File path
+- **Returns**: Reentrant lock for the file
+- **Thread Safety**: Multiple threads can acquire the same lock
+
+#### `_audit_operation(operation: str, status: str, details: Dict[str, Any]) -> None`
+- **Purpose**: Log security-relevant operations
+- **Parameters**:
+  - `operation` - Operation type (e.g., "state_save")
+  - `status` - Result status ("success", "failure", "warning")
+  - `details` - Context details for audit log
+
+### Usage Pattern
+
+```python
+from abc import ABC, TypeVar
+from pathlib import Path
+from abstract_state_manager import StateManager
+
+T = TypeVar('T')  # Generic state type
+
+class MyState:
+    """Your state data class."""
+    def to_dict(self) -> dict:
+        ...
+
+class MyStateManager(StateManager[MyState]):
+    """Custom state manager inheriting from StateManager ABC."""
+
+    def __init__(self, state_file: Path = None):
+        self.state_file = state_file or Path(".my_state.json")
+        # Validate path using inherited helper
+        self.state_file = self._validate_state_path(self.state_file)
+
+    def load_state(self) -> MyState:
+        """Load state from file."""
+        # Use inherited helpers as needed
+        if not self.exists():
+            raise StateError("State file not found")
+        # ... load logic ...
+        return MyState(...)
+
+    def save_state(self, state: MyState) -> None:
+        """Save state to file using atomic write."""
+        content = json.dumps(state.to_dict())
+        # Use inherited _atomic_write for security
+        self._atomic_write(self.state_file, content)
+        # Log the operation
+        self._audit_operation("state_save", "success", {...})
+
+    def cleanup_state(self) -> None:
+        """Clean up state file."""
+        if self.exists():
+            self.state_file.unlink()
+```
+
+### Security Features
+
+1. **CWE-22 (Path Traversal Prevention)**:
+   - Validates paths don't contain `../` sequences
+   - Resolves symlinks and detects traversal
+
+2. **CWE-59 (Symlink Following Prevention)**:
+   - Detects and rejects symlinks
+   - Prevents TOCTOU (Time-of-check-time-of-use) races
+
+3. **CWE-367 (Atomic Write)**:
+   - Writes to temp file first
+   - Atomically renames to final location
+   - Prevents partial/corrupted state files
+
+4. **CWE-732 (File Permissions)**:
+   - Sets files to 0o600 (user read/write only)
+   - Prevents unauthorized access
+
+### Design Notes
+
+- **Generic type**: StateManager[T] supports any state data class
+- **Delegation pattern**: Subclasses implement abstract methods, use helpers for security
+- **Backward compatibility**: Existing managers can inherit without refactoring
+- **Phase-based migration**: Issue #220 (ABC foundation), Issue #221 (BatchStateManager), further phases for other managers
+
+### Related
+
+- Issue #220: Create StateManager ABC
+- Issue #221: Migrate BatchStateManager to inherit from StateManager ABC
+- GitHub: `plugins/autonomous-dev/lib/abstract_state_manager.py`
+
+---
+
 ## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0, Issue #218: v3.46.0)
 
 **Purpose**: State persistence for /batch-implement command with automatic context management via Claude Code
@@ -2088,7 +2236,7 @@ state = create_batch_state(
 - **Purpose**: Load batch state from file
 - **Parameters**: `state_file` (Path): Path to state file
 - **Returns**: BatchState object
-- **Raises**: `BatchStateError` if file not found or corrupted
+- **Raises**: `StateError` (BatchStateError is now an alias, Issue #225) if file not found or corrupted
 - **Backward Compatibility**: Old state files load with defaults (issue_numbers=None, source_type="file")
 
 #### `update_batch_progress(state, feature_index, status="completed", error=None)`
@@ -2153,6 +2301,72 @@ class BatchState:
 **Backward Compatibility**: Old state files (v3.23.0) load with default values:
 - `issue_numbers = None`
 - `source_type = "file"`
+
+### Object-Oriented Interface (NEW Issue #221)
+
+#### `BatchStateManager` class (inherits from StateManager[BatchState])
+
+Object-oriented wrapper for batch state functions that inherits from StateManager ABC.
+
+**Constructors**:
+- `__init__(state_file: Optional[Path] = None)` - Initialize with optional custom state file path
+
+**Methods** (implementing StateManager ABC):
+- `load_state() -> BatchState` - Load batch state from file
+- `save_state(state: BatchState) -> None` - Save batch state to file (uses inherited _atomic_write())
+- `cleanup_state() -> None` - Clean up state file
+
+**Methods** (batch-specific operations):
+- `create_batch_state(features, batch_id=None, issue_numbers=None) -> BatchState` - Create new batch state
+- `create_batch(features, features_file=None, batch_id=None, issue_numbers=None) -> BatchState` - Alias for create_batch_state
+- `load_batch_state() -> BatchState` - Load batch state (delegates to load_state)
+- `save_batch_state(state) -> None` - Save batch state (delegates to save_state)
+- `update_batch_progress(feature_index, status, tokens_consumed=0) -> None` - Update batch progress
+- `record_auto_clear_event(feature_index, tokens_before) -> None` - Record auto-clear event
+- `should_auto_clear(threshold=160000) -> bool` - Check if auto-clear threshold exceeded
+- `get_next_pending_feature() -> Optional[str]` - Get next unprocessed feature
+- `cleanup_batch_state() -> None` - Cleanup batch (delegates to cleanup_state)
+
+**Example**:
+```python
+from batch_state_manager import BatchStateManager
+
+# Create manager
+manager = BatchStateManager()
+
+# Create new batch
+state = manager.create_batch_state(
+    features=["Add login", "Add logout"],
+    issue_numbers=[72, 73],
+)
+
+# Save state
+manager.save_batch_state(state)
+
+# Load state
+loaded_state = manager.load_batch_state()
+
+# Update progress
+manager.update_batch_progress(0, "completed", tokens_consumed=50000)
+
+# Check if auto-clear needed
+if manager.should_auto_clear():
+    manager.record_auto_clear_event(0, 155000)
+
+# Get next feature to process
+next_feature = manager.get_next_pending_feature()
+
+# Cleanup when done
+manager.cleanup_batch_state()
+```
+
+**Inheritance Pattern**:
+BatchStateManager now inherits from StateManager[BatchState] ABC (Issue #221), implementing abstract methods via delegation:
+- `load_state()` delegates to `load_batch_state()`
+- `save_state()` delegates to `save_batch_state()`
+- `cleanup_state()` delegates to `cleanup_batch_state()`
+
+This maintains full backward compatibility while providing standardized state management interface with built-in security helpers from StateManager ABC.
 
 ---
 
@@ -4090,17 +4304,22 @@ except ValueError as e:
 
 #### `SessionTracker`
 - **Purpose**: Log agent actions to session file instead of keeping in context
+- **Base Class**: Inherits from `StateManager[str]` (Issue #224)
+  - Generic type is `str` for markdown content
+  - Implements abstract methods: `load_state()`, `save_state()`, `cleanup_state()`
+  - Uses inherited helpers: `_validate_state_path()`, `_atomic_write()`, `_get_file_lock()`, `_audit_operation()`
 - **Initialization**: `SessionTracker(session_file=None, use_cache=True)`
   - `session_file` (Optional[str]): Path to session file for testing
   - `use_cache` (bool): If True, use cached project root (default: True)
   - If None: Creates/finds session file automatically using path_utils
-  - Raises `ValueError` if session_file path is outside project
+  - Raises `StateError` if session_file path is invalid or outside project
 - **Features**:
   - Auto-detects project root from any subdirectory
   - Creates `docs/sessions/` directory if missing
   - Finds or creates session files with timestamp naming: `YYYYMMDD-HHMMSS-session.md`
   - Path validation via shared validation module
   - Directory permission checking (warns on world-writable)
+  - Thread-safe file operations with atomic writes
 
 ### Public Methods
 
@@ -4116,6 +4335,49 @@ except ValueError as e:
 - **Example Output**:
   ```
   **14:30:22 - researcher**: Research complete - docs/research/auth.md
+  ```
+
+#### `load_state() -> str` (StateManager ABC)
+- **Purpose**: Load session markdown content from file
+- **Returns**: str - Markdown content of session file
+- **Raises**: `StateError` if session file not found or load fails
+- **Features**:
+  - Thread-safe with inherited file locking
+  - Validates file path via `_validate_state_path()`
+- **Example**:
+  ```python
+  tracker = SessionTracker()
+  content = tracker.load_state()
+  print(content)  # Full markdown session content
+  ```
+
+#### `save_state(state: str) -> None` (StateManager ABC)
+- **Purpose**: Save session markdown content to file with atomic writes
+- **Parameters**: `state` (str) - Markdown content to save
+- **Raises**: `StateError` if save fails
+- **Features**:
+  - Uses inherited atomic write pattern (temp file + rename)
+  - Thread-safe with file locking
+  - Path validation to prevent CWE-22 (path traversal)
+  - Sets restrictive permissions (0o600)
+- **Example**:
+  ```python
+  tracker = SessionTracker()
+  content = "# Session Log\n\n**12:00:00 - researcher**: Test\n"
+  tracker.save_state(content)
+  ```
+
+#### `cleanup_state() -> None` (StateManager ABC)
+- **Purpose**: Remove session file from disk
+- **Raises**: `StateError` if cleanup fails
+- **Features**:
+  - Thread-safe with file locking
+  - Only removes file if it exists
+- **Example**:
+  ```python
+  tracker = SessionTracker()
+  tracker.cleanup_state()
+  assert not tracker.session_file.exists()
   ```
 
 ### Helper Functions
@@ -4221,15 +4483,25 @@ python plugins/autonomous-dev/scripts/session_tracker.py auto-implement "Paralle
 
 ### Error Handling
 
-All exceptions include context and guidance:
+StateError exceptions include context and guidance:
 ```python
 try:
     tracker = SessionTracker(session_file="../../etc/passwd")
-except ValueError as e:
+except StateError as e:
     # Error includes: what went wrong, why, and what's expected
     # Example: "Path traversal attempt detected: /etc/passwd"
     print(e)
+
+try:
+    content = tracker.load_state()
+except StateError as e:
+    # Handles: file not found, read errors, path validation failures
+    print(e)
 ```
+
+Backward Compatibility:
+- Exceptions raised during `__init__` (path validation) may raise exceptions inherited from StateError
+- StateError is a subclass of AutonomousDevError for consistent error handling
 
 ### Test Coverage
 - 30+ unit tests in `tests/unit/lib/test_session_tracker.py`
@@ -4260,6 +4532,22 @@ except ValueError as e:
 - **Progressive Enhancement**: Features gracefully degrade if unavailable
 - **Portable Paths**: Uses path_utils instead of hardcoded paths
 - **Non-blocking**: Logging failures don't break workflows
+- **StateManager ABC Integration** (Issue #224): Standardized state management
+  - Inherits from StateManager[str] for type-safe state operations
+  - Delegates file operations to inherited helpers for DRY principle
+  - Consistent error handling via StateError exception hierarchy
+  - Phase 5 of StateManager migration (after BatchStateManager, UserStateManager, CheckpointManager)
+
+### StateManager ABC Methods
+
+See [abstract_state_manager.py](../plugins/autonomous-dev/lib/abstract_state_manager.py) for implementation details.
+
+**Inherited Helper Methods**:
+- `exists() -> bool`: Check if state file exists
+- `_validate_state_path(path: Path) -> Path`: Validate path against traversal attacks (CWE-22)
+- `_atomic_write(path: Path, content: str, mode: int = 0o600) -> None`: Write with atomicity guarantees
+- `_get_file_lock(path: Path) -> threading.RLock`: Get thread-safe lock for file operations
+- `_audit_operation(operation: str, details: Dict) -> None`: Log security-relevant operations
 
 ---
 

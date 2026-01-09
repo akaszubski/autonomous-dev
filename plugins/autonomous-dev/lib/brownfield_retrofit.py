@@ -59,17 +59,10 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from plugins.autonomous_dev.lib import security_utils
+from plugins.autonomous_dev.lib.exceptions import StateError
 
-
-# Exception hierarchy pattern from error-handling-patterns skill:
-# BaseException -> Exception -> AutonomousDevError -> DomainError(BaseException) -> SpecificError
-class StateError(Exception):
-    """
-
-    See error-handling-patterns skill for exception hierarchy and error handling best practices.
-
-    Exception raised for state management errors."""
-    pass
+# Exception hierarchy: StateError imported from centralized exceptions.py (Issue #225)
+# See error-handling-patterns skill for exception hierarchy and error handling best practices.
 
 
 class RetrofitPhase(Enum):
