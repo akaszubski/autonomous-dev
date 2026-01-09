@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #208 - Consolidate ARCHITECTURE.md into ARCHITECTURE-OVERVIEW.md)
+**Last Updated**: 2026-01-09 (Issue #209 - Create HOOK-REGISTRY.md with activation status)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version
@@ -194,7 +194,7 @@ ___
 
 **Model Tiers**: Haiku (pattern matching), Sonnet (implementation), Opus (security)
 
-**See**: [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) for complete architecture, [docs/AGENTS.md](docs/AGENTS.md), [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md), [docs/LIBRARIES.md](docs/LIBRARIES.md), [docs/HOOKS.md](docs/HOOKS.md)
+**See**: [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) for complete architecture, [docs/AGENTS.md](docs/AGENTS.md), [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md), [docs/LIBRARIES.md](docs/LIBRARIES.md), [docs/HOOKS.md](docs/HOOKS.md), [docs/HOOK-REGISTRY.md](docs/HOOK-REGISTRY.md)
 
 ___
 

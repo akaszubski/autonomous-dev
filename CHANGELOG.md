@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Added
+- Create HOOK-REGISTRY.md with activation status (#209)
+  - Comprehensive registry of all 66 hooks with activation status
+  - Documents trigger points, environment variables, and purposes
+  - Provides quick reference for hook lifecycle integration points
+  - Added cross-references to HOOKS.md, SANDBOXING.md, GIT-AUTOMATION.md
+  - Added 34 tests for hook registry validation
+
 ### Changed
 - Consolidate ARCHITECTURE.md into ARCHITECTURE-OVERVIEW.md (#208)
   - Archived ARCHITECTURE.md to docs/archived/ with deprecation notice

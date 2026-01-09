@@ -11,6 +11,8 @@ This document provides a complete reference for automation hooks in the autonomo
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
 
+**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 66 hooks with activation status, trigger points, and environment variables.
+
 ---
 
 ## UV Single-File Script Support (Issue #172)
