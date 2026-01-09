@@ -518,10 +518,46 @@ EOF
 
 ---
 
+## Historical Note: Archived Hooks (Issue #211)
+
+Previously, security validation was split across multiple independent hooks:
+
+**auto_approve_tool.py** (Archived 2026-01-09):
+- Provided batch permission approver functionality (now Layer 4)
+- MCP auto-approval for trusted subagents
+- Circuit breaker logic
+- User consent verification
+
+**mcp_security_enforcer.py** (Archived 2026-01-09):
+- Provided MCP security validator functionality (now Layer 2)
+- Path traversal prevention (CWE-22)
+- Command injection prevention (CWE-78)
+- SSRF prevention
+
+**Current Unified Architecture**:
+
+All security validation is now handled by `unified_pre_tool.py` with 4 explicit layers:
+
+1. **Layer 1: Sandbox Enforcer** - Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+2. **Layer 2: MCP Security Validator** - Path traversal, injection, SSRF prevention
+3. **Layer 3: Agent Authorization** - Pipeline agent detection and whitelist checking
+4. **Layer 4: Batch Permission Approver** - User consent caching and circuit breaker
+
+**Benefits of Consolidation**:
+- Single entry point for all pre-tool validation
+- Consistent validation order with clear layer boundaries
+- Easier to maintain, audit, and extend
+- Better defense-in-depth with explicit layers
+
+**See**: `plugins/autonomous-dev/hooks/archived/README.md` for complete deprecation documentation.
+
+---
+
 ## Related Documentation
 
 - docs/LIBRARIES.md Section 66 - sandbox_enforcer.py API reference
 - docs/HOOKS.md - unified_pre_tool.py hook with 4-layer architecture
+- plugins/autonomous-dev/hooks/archived/README.md - Archived hooks documentation
 - CLAUDE.md - MCP Auto-Approval Control section
 - docs/SECURITY.md - Security hardening guide
 - plugins/autonomous-dev/config/sandbox_policy.json - Policy configuration

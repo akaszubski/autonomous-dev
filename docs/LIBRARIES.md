@@ -4873,7 +4873,7 @@ Prevents:
 
 ### Used By
 
-- `mcp_security_enforcer.py` hook - PreToolUse hook for MCP tool validation
+- `unified_pre_tool.py` hook - Layer 2 of unified PreToolUse hook for MCP tool validation (archived: `mcp_security_enforcer.py`)
 - Custom MCP server implementations
 - Permission validation workflows
 
@@ -4881,7 +4881,8 @@ Prevents:
 
 - GitHub Issue #95 (MCP Server Security)
 - [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
-- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+- `plugins/autonomous-dev/hooks/unified_pre_tool.py` - Unified hook implementation (Layer 2)
+- `plugins/autonomous-dev/hooks/archived/README.md` - Archived hook documentation (Issue #211)
 - `.mcp/security_policy.json` - Policy configuration file
 
 ---
@@ -5060,7 +5061,7 @@ Export profile to string format.
 
 ### Used By
 
-- `mcp_security_enforcer.py` hook - Load profiles on startup
+- `unified_pre_tool.py` hook - Load profiles on startup (Layer 2: MCP Security Validator)
 - `mcp_permission_validator.py` - Fallback to development profile
 - Setup and initialization scripts
 
@@ -5068,10 +5069,9 @@ Export profile to string format.
 
 - GitHub Issue #95 (MCP Server Security)
 - [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
-- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+- `plugins/autonomous-dev/hooks/unified_pre_tool.py` - Unified hook implementation (Layer 2)
+- `plugins/autonomous-dev/hooks/archived/README.md` - Archived hook documentation (Issue #211)
 - `.mcp/security_policy.json` - Policy configuration file
-
----
 
 ---
 
@@ -5166,14 +5166,15 @@ Detection patterns for each server type:
 
 ### Used By
 
-- `mcp_security_enforcer.py` hook - Apply server-specific validation rules
+- `unified_pre_tool.py` hook - Apply server-specific validation rules (Layer 2: MCP Security Validator)
 - `mcp_permission_validator.py` - Route to appropriate validator
 
 ### Related
 
 - GitHub Issue #95 (MCP Server Security)
 - [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
-- `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` - Hook implementation
+- `plugins/autonomous-dev/hooks/unified_pre_tool.py` - Unified hook implementation (Layer 2)
+- `plugins/autonomous-dev/hooks/archived/README.md` - Archived hook documentation (Issue #211)
 
 
 ## 38. auto_approval_engine.py (489 lines, v3.38.0)

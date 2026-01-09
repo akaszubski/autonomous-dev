@@ -20,6 +20,15 @@
   - Updated 10+ file references to point to ARCHITECTURE-OVERVIEW.md
   - Added 21 tests for consolidation validation
   - Ensures single source of truth for architecture documentation
+- Archive disabled hooks with deprecation docs (#211)
+  - Consolidated auto_approve_tool.py and mcp_security_enforcer.py into unified_pre_tool.py
+  - Created plugins/autonomous-dev/hooks/archived/README.md with migration guide
+  - Updated docs/HOOKS.md with consolidated hook consolidation section
+  - Updated docs/SANDBOXING.md with historical note and consolidated architecture explanation
+  - Updated docs/TOOL-AUTO-APPROVAL.md with deprecation notice (Layer 4 of unified_pre_tool.py)
+  - Updated docs/MCP-SECURITY.md with deprecation notice (Layer 2 of unified_pre_tool.py)
+  - Updated docs/HOOK-REGISTRY.md to mark archived hooks as deprecated
+  - No functionality changes - all features preserved in unified_pre_tool.py
 
 ## [3.46.0] - 2026-01-09
 ### Changed

@@ -157,17 +157,23 @@ Utility scripts used by other hooks (not directly invoked by lifecycle).
 
 These hooks have been archived (consolidated into unified hooks):
 
-| Hook | Status | Replacement |
-|------|--------|-------------|
-| auto_git_workflow (archived) | Archived | Consolidated into git automation hook |
-| auto_update_project_progress (archived) | Archived | Opt-in feature in session tracking hook |
-| batch_permission_approver (archived) | Archived | Consolidated into pre-tool permission hook |
-| detect_feature_request (archived) | Archived | Consolidated into prompt validation hook |
-| enforce_implementation_workflow (archived) | Archived | Consolidated into prompt validation hook |
-| log_agent_completion (archived) | Archived | Consolidated into session tracking hook |
-| post_tool_use_error_capture (archived) | Archived | Consolidated into post-tool error capture hook |
-| pre_tool_use (archived) | Archived | Consolidated into pre-tool permission hook |
-| session_tracker (archived) | Archived | Consolidated into session tracking hook |
+| Hook | Status | Replacement | Migration Guide |
+|------|--------|-------------|-----------------|
+| auto_approve_tool | Archived 2026-01-09 | unified_pre_tool (Layer 4: Batch Permission Approver) | See hooks/archived/README.md |
+| mcp_security_enforcer | Archived 2026-01-09 | unified_pre_tool (Layer 2: MCP Security Validator) | See hooks/archived/README.md |
+| auto_git_workflow (archived) | Archived | Consolidated into git automation hook | - |
+| auto_update_project_progress (archived) | Archived | Opt-in feature in session tracking hook | - |
+| batch_permission_approver (archived) | Archived | Consolidated into pre-tool permission hook | - |
+| detect_feature_request (archived) | Archived | Consolidated into prompt validation hook | - |
+| enforce_implementation_workflow (archived) | Archived | Consolidated into prompt validation hook | - |
+| log_agent_completion (archived) | Archived | Consolidated into session tracking hook | - |
+| post_tool_use_error_capture (archived) | Archived | Consolidated into post-tool error capture hook | - |
+| pre_tool_use (archived) | Archived | Consolidated into pre-tool permission hook | - |
+| session_tracker (archived) | Archived | Consolidated into session tracking hook | - |
+
+**Note**: For detailed deprecation rationale and migration guidance, see:
+- `plugins/autonomous-dev/hooks/archived/README.md` - Complete archival documentation
+- [SANDBOXING.md](SANDBOXING.md) - Unified 4-layer security architecture
 
 ---
 

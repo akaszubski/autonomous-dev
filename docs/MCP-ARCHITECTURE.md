@@ -166,7 +166,9 @@ Three pre-configured security profiles:
 
 ### 4. Hook Integration
 
-**File**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py`
+**File**: `plugins/autonomous-dev/hooks/unified_pre_tool.py` (Layer 2: MCP Security Validator)
+
+**Legacy**: `mcp_security_enforcer.py` (Archived 2026-01-09, see `hooks/archived/README.md` - Issue #211)
 
 **Lifecycle**: `PreToolUse` (intercepts all MCP tool calls BEFORE execution)
 
@@ -547,12 +549,14 @@ To manually enable:
 {
   "hooks": {
     "PreToolUse": {
-      "description": "MCP Security Enforcement",
-      "command": "python plugins/autonomous-dev/hooks/mcp_security_enforcer.py"
+      "description": "MCP Security Enforcement (unified_pre_tool.py Layer 2)",
+      "command": "python plugins/autonomous-dev/hooks/unified_pre_tool.py"
     }
   }
 }
 ```
+
+**Note**: The legacy `mcp_security_enforcer.py` hook has been consolidated into `unified_pre_tool.py` as of Issue #211 (2026-01-09). See `hooks/archived/README.md` for migration details.
 
 ---
 

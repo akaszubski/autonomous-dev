@@ -7,9 +7,39 @@
 
 ---
 
+## DEPRECATION NOTICE (Issue #211)
+
+**Status**: The standalone `mcp_security_enforcer.py` hook has been **archived** as of 2026-01-09.
+
+**Reason**: Consolidated into unified security architecture for better maintainability.
+
+**Migration**:
+- All MCP security validation now provided by `unified_pre_tool.py` (Layer 2: MCP Security Validator)
+- Enable with `PRE_TOOL_MCP_SECURITY=true` (enabled by default)
+- No configuration changes required
+- Same security guarantees and functionality
+
+**What Changed**:
+- Old: Standalone `mcp_security_enforcer.py` hook
+- New: Layer 2 of unified `unified_pre_tool.py` hook (4-layer security architecture)
+
+**Benefits of Consolidation**:
+- Single entry point for all pre-tool validation
+- Consistent validation order (sandbox → MCP security → agent auth → batch approval)
+- Better defense-in-depth with explicit layers
+- Easier to maintain and extend
+
+**See**: `plugins/autonomous-dev/hooks/archived/README.md` for complete deprecation documentation and functionality preservation details.
+
+**For Users**: No action required. MCP security validation continues to work as documented below.
+
+---
+
 ## Overview
 
 The MCP (Model Context Protocol) server security system provides permission whitelisting to prevent common security vulnerabilities while enabling safe automation.
+
+**Implementation**: Layer 2 of the unified `unified_pre_tool.py` hook (previously standalone `mcp_security_enforcer.py`).
 
 **What It Protects Against**:
 - **CWE-22**: Path traversal attacks (../../.env)
@@ -970,13 +1000,17 @@ manager = MCPProfileManager()
 - `ProfileType.TESTING` - Moderate restrictions
 - `ProfileType.PRODUCTION` - Strictest
 
-### MCPSecurityEnforcer (Hook)
+### MCPSecurityEnforcer (Hook) - DEPRECATED
 
-**Location**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py`
+**Previous Location**: `plugins/autonomous-dev/hooks/mcp_security_enforcer.py` (Archived 2026-01-09)
+
+**Current Location**: `plugins/autonomous-dev/hooks/unified_pre_tool.py` (Layer 2: MCP Security Validator)
 
 **Lifecycle**: PreToolUse
 
 **Validates**: All MCP tool operations before execution
+
+**Migration**: See deprecation notice at top of this document and `hooks/archived/README.md` for Issue #211 details.
 
 ---
 

@@ -1614,8 +1614,93 @@ python .claude/hooks/setup.py --all
 
 ---
 
+## Hook Consolidation and Archived Hooks
+
+### Overview
+
+The autonomous-dev plugin has evolved from individual hooks to a unified hook architecture for better maintainability and consistent security validation. Deprecated hooks have been consolidated into unified hooks that provide the same functionality with improved architecture.
+
+**Benefits of Consolidation**:
+- **Single entry point**: One hook to update instead of multiple
+- **Consistent validation**: Clear layer boundaries and execution order
+- **Better security**: Defense-in-depth with 4 explicit layers
+- **Easier testing**: Reduced complexity in test setup
+- **Improved performance**: Single invocation instead of multiple hook chains
+
+### Archived Hooks (Issue #211)
+
+The following hooks have been archived and replaced by unified hooks:
+
+#### auto_approve_tool.py
+
+**Archived**: 2026-01-09
+**Replacement**: `unified_pre_tool.py` (Layer 4: Batch Permission Approver)
+**Reason**: Consolidated into unified security architecture
+
+**What it did**:
+- MCP auto-approval for trusted subagents (Issue #73)
+- Subagent context detection (CLAUDE_AGENT_NAME)
+- Agent whitelist checking
+- User consent verification
+- Circuit breaker logic (auto-disable after 10 denials)
+- Comprehensive audit logging
+
+**Migration**: All functionality now in `unified_pre_tool.py` Layer 4. Enable with `MCP_AUTO_APPROVE=true`.
+
+#### mcp_security_enforcer.py
+
+**Archived**: 2026-01-09
+**Replacement**: `unified_pre_tool.py` (Layer 2: MCP Security Validator)
+**Reason**: Consolidated into unified security architecture
+
+**What it did**:
+- MCP server security validation (Issue #95)
+- CWE-22: Path Traversal prevention
+- CWE-78: OS Command Injection prevention
+- SSRF: Server-Side Request Forgery prevention
+- Security policy enforcement (.mcp/security_policy.json)
+
+**Migration**: All functionality now in `unified_pre_tool.py` Layer 2. Enable with `PRE_TOOL_MCP_SECURITY=true` (default: enabled).
+
+### Unified Pre-Tool Hook Architecture
+
+The `unified_pre_tool.py` hook provides 4-layer security validation:
+
+**Layer 1: Sandbox Enforcer**
+- Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+- Dangerous command detection
+- Conservative defaults
+
+**Layer 2: MCP Security Validator**
+- Path traversal prevention (CWE-22)
+- Command injection prevention (CWE-78)
+- SSRF prevention
+- Security policy enforcement
+
+**Layer 3: Agent Authorization**
+- Pipeline agent detection
+- Trusted agent verification
+- Agent whitelist checking
+
+**Layer 4: Batch Permission Approver**
+- User consent caching
+- Auto-approval for trusted operations
+- Circuit breaker logic
+
+**See**: [SANDBOXING.md](SANDBOXING.md) for complete unified architecture documentation.
+
+### Historical Reference
+
+For complete deprecation rationale and functionality preservation details, see:
+- `plugins/autonomous-dev/hooks/archived/README.md` - Complete archival documentation
+- Archived hook implementations preserved for reference in `hooks/archived/`
+
+---
+
 ## See Also
 
 - [GIT-AUTOMATION.md](GIT-AUTOMATION.md) - Git automation details
+- [SANDBOXING.md](SANDBOXING.md) - Unified 4-layer security architecture
 - [hooks/](/plugins/autonomous-dev/hooks/) - Hook implementations
+- [hooks/archived/](/plugins/autonomous-dev/hooks/archived/) - Archived hooks with deprecation docs
 - [lib/hook_activator.py](/plugins/autonomous-dev/lib/hook_activator.py) - Activation system
