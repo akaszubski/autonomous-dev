@@ -211,34 +211,36 @@ From `plugins/autonomous-dev/lib/batch_state_manager.py`:
 - JSON persistence with atomic writes
 - Crash recovery via --resume flag
 - Progress tracking (completed/failed features)
-- Automatic context clearing at 150K tokens
+- Automatic context management via Claude Code (200K token budget)
 - State versioning for schema upgrades
+
+**Note** (Issue #218): Deprecated context clearing functions (`should_clear_context()`, `pause_batch_for_clear()`, `get_clear_notification_message()`) have been removed as Claude Code v2.0+ handles context automatically with 200K token budget.
 
 **Usage**:
 ```python
 # Create batch state
-manager = BatchStateManager.create(["feat1", "feat2", "feat3"])
-manager.batch_id  # "batch-20251116-123456"
+state = create_batch_state(features=["feat1", "feat2", "feat3"])
+state.batch_id  # "batch-20251116-123456"
 
 # Process features
-for feature in manager.features:
-    if manager.should_clear_context():
-        # Clear context at 150K tokens
-        manager.record_context_clear()
-
+for feature in state.features:
     try:
         # Process feature
         result = process_feature(feature)
-        manager.mark_completed(feature)
-    except Exception as e:
-        manager.mark_failed(feature, str(e))
+        # Feature implementation updates context automatically
 
-    manager.save()  # Atomic write
+    except Exception as e:
+        # Track failures for audit trail
+        mark_failed(state, feature, str(e))
+
+    save_batch_state(state_file, state)  # Atomic write
 
 # Resume after crash
-manager = BatchStateManager.load("batch-20251116-123456")
-next_feature = manager.get_next_feature()  # Skips completed
+state = load_batch_state(state_file)
+next_feature = get_next_pending_feature(state)  # Skips completed
 ```
+
+**Context Management**: Claude Code automatically manages the 200K token budget. No manual context clearing required.
 
 
 ## Checkpoint Integration (Issue #79)

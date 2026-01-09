@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Removed
+- **BREAKING**: Remove deprecated context clearing functions (#218)
+  - Removed `should_clear_context()` function
+  - Removed `pause_batch_for_clear()` function
+  - Removed `get_clear_notification_message()` function
+  - Removed `@deprecated` decorator (no longer needed)
+  - Removed `CONTEXT_THRESHOLD` constant (150K threshold no longer applicable)
+  - Rationale: Claude Code handles context automatically with 200K token budget
+  - Migration: Remove any calls to these functions (deprecated since v3.34.0)
+
 ### Fixed
 - Resolve invalid escape sequence warnings in Python 3.12+ (#216)
   - Fixed SyntaxWarning in docstring examples by double-escaping regex patterns

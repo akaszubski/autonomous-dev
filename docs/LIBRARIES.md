@@ -21,7 +21,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 8. **update_plugin.py** - CLI interface for plugin updates
 9. **hook_activator.py** - Automatic hook activation during updates
 10. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
-11. **batch_state_manager.py** - State-based auto-clearing for /batch-implement (v3.23.0)
+11. **batch_state_manager.py** - State persistence for /batch-implement with automatic context management (v3.23.0, Issue #218: deprecated context clearing functions removed v3.46.0)
 12. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
 13. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
 14. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
@@ -2010,9 +2010,16 @@ All errors gracefully degrade:
 
 ---
 
-## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0)
+## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0, Issue #218: v3.46.0)
 
-**Purpose**: State-based auto-clearing for /batch-implement command with persistent state management
+**Purpose**: State persistence for /batch-implement command with automatic context management via Claude Code
+
+**Note (Issue #218 - v3.46.0)**: Deprecated context clearing functions removed:
+- `should_clear_context()` - Removed (Claude Code v2.0+ manages context automatically with 200K budget)
+- `pause_batch_for_clear()` - Removed (no longer needed without manual clearing)
+- `get_clear_notification_message()` - Removed (no longer needed without manual clearing)
+- `@deprecated` decorator - Removed (no longer needed)
+- `CONTEXT_THRESHOLD` constant - Removed (Claude Code handles context automatically)
 
 ### Data Classes
 
@@ -2100,12 +2107,13 @@ state = create_batch_state(
   - `tokens_before` (int): Token count before clearing
 - **Returns**: Updated BatchState object
 
-#### `should_auto_clear(state, threshold=150000)`
-- **Purpose**: Check if context should be auto-cleared
+#### `should_auto_clear(state, threshold=160000)`
+- **Purpose**: Internal helper - check if context is approaching Claude Code's 200K token limit
 - **Parameters**:
   - `state` (BatchState): Current state
-  - `threshold` (int): Token threshold (default: 150,000)
-- **Returns**: bool (True if should clear)
+  - `threshold` (int): Token threshold (default: 160,000 - internal use only)
+- **Returns**: bool (True if approaching token limit)
+- **Note**: Used internally for monitoring only. Claude Code manages context automatically with 200K budget. Manual context clearing no longer needed (Issue #218).
 
 #### `get_next_pending_feature(state)`
 - **Purpose**: Get next feature to process
