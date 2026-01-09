@@ -1,9 +1,9 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #204 - doc-master auto-apply integration)
-**Last Validated**: 2026-01-03
+**Last Updated**: 2026-01-09 (Issue #206 - Simplify version tracking - single source of truth)
+**Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
-**Version**: v3.45.0 (Issue #187 - Auto-Claude library integration)
+**Version**: See `plugins/autonomous-dev/VERSION` for current version
 
 > **Maintenance Guide**: See `docs/MAINTAINING-PHILOSOPHY.md` for how to keep the core philosophy active as you iterate
 
@@ -11,13 +11,13 @@ ___
 
 ## Component Versions
 
-| Component | Version | Count | Status |
-|-----------|---------|-------|--------|
-| Skills | 1.0.0 | 28 | ✅ Compliant |
-| Commands | 1.0.0 | 9 | ✅ Compliant |
-| Agents | 1.0.0 | 22 | ✅ Compliant |
-| Hooks | 1.0.0 | 64 | ✅ Compliant |
-| Settings | 1.0.0 | 5 templates | ✅ Compliant |
+| Component | Count | Status |
+|-----------|-------|--------|
+| Skills | 28 | ✅ Compliant |
+| Commands | 9 | ✅ Compliant |
+| Agents | 22 | ✅ Compliant |
+| Hooks | 64 | ✅ Compliant |
+| Settings | 5 templates | ✅ Compliant |
 
 **Last Compliance Check**: 2026-01-09 (Issue #203 - Consolidate /implement commands)
 
@@ -122,14 +122,14 @@ Three modes via `/implement` command:
 
 **Full Pipeline Mode** (15-25 minutes per feature):
 1. Alignment Check
-2. Complexity Assessment (v3.45.0)
+2. Complexity Assessment
 3. Research (Haiku model)
 4. Planning
-5. Pause Control (optional, v3.45.0)
+5. Pause Control (optional)
 6. TDD Tests (failing tests FIRST)
 7. Implementation
 8. Parallel Validation (reviewer + security-auditor + doc-master)
-9. Memory Recording (optional, v3.45.0)
+9. Memory Recording (optional)
 10. Automated Git Operations (consent-based)
 11. Context Clear (optional)
 
@@ -188,7 +188,7 @@ ___
 
 **28 Skills**: Progressive disclosure pattern, `allowed-tools:` for least privilege
 
-**69 Libraries**: Security, validation, automation, infrastructure (v1.0.0 Issue #204: doc-master auto-apply integration)
+**69 Libraries**: Security, validation, automation, infrastructure (Issue #204: doc-master auto-apply integration)
 
 **64 Hooks**: Dispatcher pattern, graceful degradation, env var control
 

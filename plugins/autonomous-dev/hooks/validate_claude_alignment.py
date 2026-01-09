@@ -98,6 +98,7 @@ class ClaudeAlignmentValidator:
         self._check_skills_documented(project_claude)
         self._check_hook_counts(project_claude)
         self._check_documented_features_exist(project_claude)
+        self._check_no_hardcoded_versions(project_claude)
 
         # Run size limit checks (Issue #197)
         self._check_line_count(project_claude)
@@ -370,6 +371,79 @@ class ClaudeAlignmentValidator:
                             f"See docs/CLAUDE-MD-BEST-PRACTICES.md for compression strategies.",
                     expected=f"<= {PHASE_3_CHAR_LIMIT:,} characters",
                     actual=f"{char_count:,} characters",
+                    location="CLAUDE.md"
+                ))
+
+    def _read_version_file(self) -> Optional[str]:
+        """Read VERSION file from plugins/autonomous-dev/VERSION.
+
+        Returns:
+            Version string (e.g., "3.40.0") or None if file not found.
+        """
+        version_path = self.repo_root / "plugins" / "autonomous-dev" / "VERSION"
+        if not version_path.exists():
+            return None
+
+        try:
+            content = version_path.read_text()
+            lines = content.splitlines()
+
+            # Find first non-empty line
+            for line in lines:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    return stripped
+
+            # All lines empty or comments
+            return None
+        except Exception:
+            return None
+
+    def _check_no_hardcoded_versions(self, project_claude: str):
+        """Check that CLAUDE.md references VERSION file instead of hardcoded versions.
+
+        This validates Issue #206: Single source of truth for version tracking.
+        Detects patterns like "v3.45.0" or "(v3.45.0)" in CLAUDE.md content.
+        """
+        if not project_claude:
+            return
+
+        # Pattern to detect hardcoded versions: v3.45.0 or (v3.45.0)
+        # But exclude code blocks (```...```) and VERSION file references
+
+        # Remove code blocks to avoid false positives
+        import re
+        content_no_code = re.sub(r'```.*?```', '', project_claude, flags=re.DOTALL)
+
+        # Pattern for hardcoded versions: v followed by numbers
+        version_pattern = r'\(v\d+\.\d+\.\d+\)|v\d+\.\d+\.\d+'
+
+        matches = list(re.finditer(version_pattern, content_no_code))
+
+        if matches:
+            # Check if CLAUDE.md references VERSION file (good practice)
+            has_version_file_reference = "plugins/autonomous-dev/VERSION" in project_claude
+            versions_str = ', '.join(m.group() for m in matches[:3])
+
+            if not has_version_file_reference:
+                self.issues.append(AlignmentIssue(
+                    severity="warning",
+                    category="version",
+                    message=f"CLAUDE.md contains hardcoded versions ({versions_str}). "
+                            f"Should reference VERSION file instead.",
+                    expected="Version: See `plugins/autonomous-dev/VERSION`",
+                    actual=f"Found hardcoded versions: {versions_str}...",
+                    location="CLAUDE.md"
+                ))
+            else:
+                # Has VERSION file reference but still has hardcoded versions
+                self.issues.append(AlignmentIssue(
+                    severity="warning",
+                    category="version",
+                    message=f"CLAUDE.md contains hardcoded version annotations ({versions_str}). "
+                            f"Remove version annotations from content.",
+                    expected="No version annotations in content",
+                    actual=f"Found: {versions_str}",
                     location="CLAUDE.md"
                 ))
 
