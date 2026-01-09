@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Fixed
+- Resolve invalid escape sequence warnings in Python 3.12+ (#216)
+  - Fixed SyntaxWarning in docstring examples by double-escaping regex patterns
+  - Updated files: code_path_analyzer.py, success_criteria_validator.py
+  - Applied fixes to both .claude/lib and plugins/autonomous-dev/lib
+  - Added 32 regression tests to prevent future reintroduction
+
 ### Changed
 - Audit and consolidate validation hooks (#215)
   - Unified 12 documentation validators into unified_doc_validator.py dispatcher:

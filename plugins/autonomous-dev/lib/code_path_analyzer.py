@@ -25,7 +25,7 @@ Usage:
 
     # Use analyzer for repeated searches
     analyzer = CodePathAnalyzer("/path/to/project")
-    results = analyzer.find(pattern=r"def \w+\(\):")
+    results = analyzer.find(pattern=r"def \\w+\\(\\):")
 
 Author: implementer agent
 Date: 2026-01-03
@@ -149,7 +149,7 @@ def find_all_code_paths(
         ...     print(f"{code_path.file_path}:{code_path.line_number}")
 
         >>> results = find_all_code_paths(
-        ...     pattern=r"def \w+\(\):",
+        ...     pattern=r"def \\w+\\(\\):",
         ...     project_root="/path/to/project",
         ...     context_lines=5
         ... )
@@ -240,7 +240,7 @@ class CodePathAnalyzer:
         ...     "/path/to/project",
         ...     exclude_patterns=["build", "dist"]
         ... )
-        >>> results = analyzer.find(pattern=r"def \w+\(\):", file_types=["*.py"])
+        >>> results = analyzer.find(pattern=r"def \\w+\\(\\):", file_types=["*.py"])
     """
 
     def __init__(

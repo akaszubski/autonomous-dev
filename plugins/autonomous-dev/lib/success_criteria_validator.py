@@ -50,7 +50,7 @@ Usage:
     success, message = validate_output_parsing(
         agent_output,
         strategy="regex",
-        pattern=r"Result: (\d+)",
+        pattern=r"Result: (\\d+)",
         expected="42"
     )
 
