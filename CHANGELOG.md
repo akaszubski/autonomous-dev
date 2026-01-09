@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+- Document evaluation decision for setup-wizard.md split (#214)
+  - Created docs/evaluations/ directory with evaluation documentation
+  - Issue #214: Evaluated whether to split setup-wizard.md (1,145 lines) into multiple agents
+  - Decision: KEEP UNIFIED with hybrid optimizations (extract reusable libraries)
+  - Documented sequential phase dependencies and user experience impact
+  - Added evaluation tests to validate assumptions and decision rationale
+  - Created docs/evaluations/README.md as index of evaluation documents
+  - Established pattern for future architectural evaluations
 - Create HOOK-REGISTRY.md with activation status (#209)
   - Comprehensive registry of all 66 hooks with activation status
   - Documents trigger points, environment variables, and purposes
