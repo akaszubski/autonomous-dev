@@ -1,6 +1,6 @@
 {
   "description": "Granular Bash Permissions - Paranoid mode with explicit command whitelisting",
-  "version": "3.38.0",
+  "version": "3.44.0",
   "notes": [
     "For security-conscious users who want explicit control over every bash command",
     "Uses prefix matching: 'Bash(pytest:*)' allows 'pytest tests/', 'pytest -v', etc.",

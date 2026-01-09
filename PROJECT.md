@@ -1,6 +1,6 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2025-12-24
+**Last Updated**: 2026-01-10
 **Version**: v3.44.0
 
 ---
@@ -128,11 +128,11 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Agents | 21 | Specialized AI assistants (8 pipeline + 13 utility) |
+| Agents | 22 | Specialized AI assistants (8 pipeline + 14 utility) |
 | Skills | 28 | Progressive disclosure knowledge packages |
-| Commands | 8 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue, /advise) |
-| Hooks | 60 | Automation and enforcement |
-| Libraries | 75 | Python utilities for security, validation, automation |
+| Commands | 24 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue, /advise, etc.) |
+| Hooks | 66 | Automation and enforcement |
+| Libraries | 122 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
 
@@ -159,20 +159,20 @@ Git Operations (commit, push, PR)
 - **Sonnet** (11 agents): Balanced reasoning — researcher, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer
 - **Opus** (2 agents): Deep analysis — security-auditor, advisor
 
-**Agent Categories** (21 total):
+**Agent Categories** (22 total):
 - **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (13): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator
+- **Utility** (14): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
 
 ### Repository Structure
 
 ```
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
-│   ├── agents/                 # 21 AI agents
-│   ├── commands/               # 8 slash commands
-│   ├── hooks/                  # 60 automation hooks
+│   ├── agents/                 # 22 AI agents
+│   ├── commands/               # 24 slash commands
+│   ├── hooks/                  # 66 automation hooks
 │   ├── skills/                 # 28 skill packages
-│   ├── lib/                    # 75 Python libraries
+│   ├── lib/                    # 122 Python libraries
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
 ├── tests/                      # Test suite

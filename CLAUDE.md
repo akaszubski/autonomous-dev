@@ -19,7 +19,7 @@ ___
 | Hooks | 66 | ✅ Compliant |
 | Settings | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-09 (Issue #207 - Update component counts)
+**Last Compliance Check**: 2026-01-10 (Issue #226 - Semantic validation sync)
 
 ___
 
@@ -188,7 +188,7 @@ ___
 
 **28 Skills**: Progressive disclosure pattern, `allowed-tools:` for least privilege
 
-**118 Libraries**: Security, validation, automation, infrastructure (Issue #207: Updated component counts)
+**122 Libraries**: Security, validation, automation, infrastructure (Issue #226: Updated component counts)
 
 **66 Hooks**: Dispatcher pattern, graceful degradation, env var control
 
