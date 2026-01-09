@@ -1,9 +1,28 @@
 # Git Automation Control
 
-**Last Updated**: 2026-01-01
-**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168)
+**Last Updated**: 2026-01-09
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#144 - Consolidate git hooks](https://github.com/akaszubski/autonomous-dev/issues/144), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168), [#212 - Resolve duplicate auto_git_workflow.py](https://github.com/akaszubski/autonomous-dev/issues/212)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
+
+## Deprecation Notice
+
+**auto_git_workflow.py has been archived** (Issue #144, #212)
+
+The original `auto_git_workflow.py` hook has been consolidated into `unified_git_automation.py` for better maintainability. A backward compatibility shim exists at `.claude/hooks/auto_git_workflow.py` (56 lines) that redirects to the unified implementation.
+
+**What this means for you**:
+- Git automation continues to work exactly as before
+- No configuration changes required
+- Environment variables unchanged (AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR)
+- Shim provides seamless backward compatibility
+
+**For developers**:
+- The archived `auto_git_workflow.py` logic is now in `unified_git_automation.py`
+- See `plugins/autonomous-dev/hooks/archived/README.md` for archival details
+- The shim at `.claude/hooks/auto_git_workflow.py` redirects old references to unified hook
+
+**Related Issues**: [#144 (Consolidation)](https://github.com/akaszubski/autonomous-dev/issues/144), [#212 (Duplicate resolution)](https://github.com/akaszubski/autonomous-dev/issues/212)
 
 ## Overview
 

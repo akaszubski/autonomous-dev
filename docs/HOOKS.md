@@ -527,9 +527,17 @@ Layer 3 (Batch Permission Approver):
 ### unified_git_automation.py
 
 **Purpose**: Automatic git commit, push, PR creation
-**Consolidates**: auto_git_workflow.py
+**Consolidates**: auto_git_workflow.py (Issue #144, #212)
 **Lifecycle**: SubagentStop
 **Environment Variables**: AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR
+
+**Migration Context**:
+- Original `auto_git_workflow.py` consolidated into this hook (Issue #144)
+- Duplicate resolution completed (Issue #212)
+- Backward compatibility shim at `.claude/hooks/auto_git_workflow.py` (56 lines)
+- Shim redirects to unified_git_automation.py for seamless compatibility
+- All functionality preserved: commit, push, PR, issue-close, consent, batch mode
+- See `plugins/autonomous-dev/hooks/archived/README.md` for archival details
 
 ### verify_completion.py
 

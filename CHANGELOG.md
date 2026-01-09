@@ -29,6 +29,15 @@
   - Updated docs/MCP-SECURITY.md with deprecation notice (Layer 2 of unified_pre_tool.py)
   - Updated docs/HOOK-REGISTRY.md to mark archived hooks as deprecated
   - No functionality changes - all features preserved in unified_pre_tool.py
+- Resolve duplicate auto_git_workflow.py (#212)
+  - Archived duplicate auto_git_workflow.py hook file
+  - Created backward compatibility shim at .claude/hooks/auto_git_workflow.py (56 lines)
+  - Shim redirects to unified_git_automation.py for single source of truth
+  - Updated docs/GIT-AUTOMATION.md with deprecation notice and migration guidance
+  - Updated docs/HOOKS.md with archival context
+  - Updated docs/ARCHITECTURE-OVERVIEW.md to document shim and unified implementation
+  - Updated plugins/autonomous-dev/hooks/archived/README.md with auto_git_workflow.py archival details
+  - All git automation functionality preserved with unified consolidation
 
 ## [3.46.0] - 2026-01-09
 ### Changed

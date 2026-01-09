@@ -69,9 +69,11 @@ Reusable Python libraries for security, validation, automation, and more. See [d
 **Key Libraries** (145 total):
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
-- **Automation**: auto_git_workflow.py, batch_processor.py, session_tracker.py
+- **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
 - **Infrastructure**: path_utils.py, performance_timer.py, agent_tracker.py
 - **See**: [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API reference
+
+**Note on auto_git_workflow.py**: A backward compatibility shim exists at `.claude/hooks/auto_git_workflow.py` (56 lines) that redirects to `unified_git_automation.py`. The original hook was consolidated in Issue #144. Duplicate resolution completed in Issue #212. See `plugins/autonomous-dev/hooks/archived/README.md` for details.
 
 ---
 
@@ -84,7 +86,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 **67 Active Hooks** (v1.0.0):
 - **PreToolUse**: unified_pre_tool.py (MCP security, auto-approval, sandboxing)
 - **PrePromptSubmit**: unified_prompt_validator.py (workflow enforcement)
-- **SubagentStop**: auto_git_workflow.py (automated git operations)
+- **SubagentStop**: unified_git_automation.py (automated git operations - backward compatible shim at auto_git_workflow.py)
 - **PreCommit**: validate_claude_alignment.py (documentation drift detection)
 - **See**: [docs/HOOKS.md](docs/HOOKS.md) for complete hook reference
 

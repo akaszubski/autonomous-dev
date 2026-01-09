@@ -118,4 +118,77 @@ This directory contains hooks that have been deprecated or replaced by the unifi
 
 ---
 
+## auto_git_workflow.py
+
+**Archived**: 2026-01-09
+**Reason**: Consolidated into unified_git_automation.py for better maintainability (Issue #144, #212)
+
+**Problem**:
+- Originally created for automatic git commit/push/PR after /auto-implement (Issue #58)
+- Operated as standalone SubagentStop hook
+- Duplicate files existed: both source and archived versions
+- Confusion about which file was authoritative
+- Two files meant two locations to maintain for git automation logic
+
+**Solution**:
+- Auto git workflow logic consolidated into unified_git_automation.py
+- Backward compatibility shim at .claude/hooks/auto_git_workflow.py (56 lines)
+- Shim redirects to unified_git_automation.py
+- Single source of truth for git automation operations
+- Archived version removed (this directory), shim provides compatibility
+
+**Migration**:
+- Old: auto_git_workflow.py handled git operations independently
+- New: unified_git_automation.py handles all git automation (commit/push/PR/issue-close)
+- Shim: .claude/hooks/auto_git_workflow.py redirects to unified for backward compatibility
+
+**Functionality Preserved**:
+- Automatic commit after feature completion
+- Conventional commit message generation
+- Automatic push to remote (if AUTO_GIT_PUSH=true)
+- Automatic PR creation (if AUTO_GIT_PR=true)
+- Issue auto-close after push (if issue number found)
+- First-run consent prompt
+- Environment variable configuration (AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR)
+- Graceful degradation (errors don't block feature completion)
+- Comprehensive audit logging (all git operations)
+- Batch mode integration (per-feature commits)
+
+**Replacement**: See `plugins/autonomous-dev/hooks/unified_git_automation.py` for the unified implementation
+
+**Files affected by this change**:
+- `hooks/unified_git_automation.py` - Now contains git automation logic (Issue #144)
+- `.claude/hooks/auto_git_workflow.py` - Backward compatibility shim (redirects to unified)
+- `docs/GIT-AUTOMATION.md` - Updated with deprecation notice (Issue #212)
+- `docs/HOOKS.md` - Updated with migration context (Issue #144)
+- `docs/ARCHITECTURE-OVERVIEW.md` - Documents shim and unified implementation (Issue #212)
+- `CHANGELOG.md` - Entry for duplicate resolution (Issue #212)
+
+---
+
+## Benefits of Consolidation
+
+**Improved Maintainability**:
+- Single file to update for pre-tool validation changes
+- Consistent error handling and logging patterns
+- Clear layer boundaries with well-defined responsibilities
+
+**Better Security**:
+- Defense-in-depth with 4 explicit layers
+- Consistent validation order (sandbox → MCP → agent → batch)
+- No gaps between security checks
+- Unified audit trail for all decisions
+
+**Easier Testing**:
+- Single hook to test instead of multiple independent hooks
+- Layer-by-layer testing with clear interfaces
+- Reduced complexity in test setup
+
+**Performance**:
+- Single hook invocation instead of multiple hook chains
+- Shared state across layers (no redundant checks)
+- Optimized cache usage for policies and validators
+
+---
+
 **This directory is kept for historical reference and in case we need to restore parts of the logic.**
