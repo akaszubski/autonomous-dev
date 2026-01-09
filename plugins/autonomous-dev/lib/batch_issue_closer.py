@@ -73,7 +73,8 @@ from typing import Any, Dict, Optional
 
 # Import security utilities for audit logging
 sys.path.insert(0, str(Path(__file__).parent))
-from security_utils import audit_log
+from security_utils import audit_log  # type: ignore[import-not-found]
+from exceptions import GitHubAPIError, IssueNotFoundError, IssueAlreadyClosedError  # type: ignore[import-not-found]
 
 # Import existing github_issue_closer functions for reuse
 try:
@@ -82,23 +83,11 @@ try:
         validate_issue_state,
         close_github_issue,
         generate_close_summary,
-        IssueNotFoundError,
-        IssueAlreadyClosedError,
-        GitHubAPIError,
         MAX_ISSUE_NUMBER,
     )
 except ImportError:
     # Fallback for tests - define constants
     MAX_ISSUE_NUMBER = 999999
-
-    class IssueNotFoundError(Exception):
-        pass
-
-    class IssueAlreadyClosedError(Exception):
-        pass
-
-    class GitHubAPIError(Exception):
-        pass
 
 
 # Import batch_state_manager for state operations

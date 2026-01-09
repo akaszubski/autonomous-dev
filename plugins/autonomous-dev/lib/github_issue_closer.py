@@ -81,27 +81,8 @@ from subprocess import CalledProcessError, TimeoutExpired
 
 # Import security utilities for audit logging
 sys.path.insert(0, str(Path(__file__).parent))
-from security_utils import audit_log
-
-
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
-
-
-class GitHubAPIError(Exception):
-    """Base exception for GitHub API errors."""
-    pass
-
-
-class IssueNotFoundError(GitHubAPIError):
-    """Exception raised when GitHub issue is not found."""
-    pass
-
-
-class IssueAlreadyClosedError(GitHubAPIError):
-    """Exception raised when GitHub issue is already closed."""
-    pass
+from security_utils import audit_log  # type: ignore[import-not-found]
+from exceptions import GitHubAPIError, IssueNotFoundError, IssueAlreadyClosedError  # type: ignore[import-not-found]
 
 
 # =============================================================================

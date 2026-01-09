@@ -18,6 +18,11 @@
   - Added 32 regression tests to prevent future reintroduction
 
 ### Changed
+- Centralize GitHub API exceptions into exceptions.py (#219)
+  - Created exceptions.py with AutonomousDevError base and 3-level hierarchy
+  - Moved GitHubAPIError, IssueNotFoundError, IssueAlreadyClosedError to central module
+  - Updated github_issue_closer.py, github_issue_fetcher.py, batch_issue_closer.py imports
+  - Reduces duplicate exception definitions
 - Consolidate 3 validate_path() implementations into single source of truth (#217)
   - Unified 3 duplicate implementations into security_utils.validate_path():
     - validation.validate_session_path() now delegates to security_utils

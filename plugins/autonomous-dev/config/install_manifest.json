@@ -209,6 +209,7 @@
         "plugins/autonomous-dev/lib/doc_update_risk_classifier.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",
         "plugins/autonomous-dev/lib/error_messages.py",
+        "plugins/autonomous-dev/lib/exceptions.py",
         "plugins/autonomous-dev/lib/failure_analyzer.py",
         "plugins/autonomous-dev/lib/failure_classifier.py",
         "plugins/autonomous-dev/lib/feature_completion_detector.py",
