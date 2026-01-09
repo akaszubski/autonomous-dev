@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #206 - Simplify version tracking - single source of truth)
+**Last Updated**: 2026-01-09 (Issue #207 - Update component counts across all documentation)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version
@@ -14,12 +14,12 @@ ___
 | Component | Count | Status |
 |-----------|-------|--------|
 | Skills | 28 | ✅ Compliant |
-| Commands | 9 | ✅ Compliant |
+| Commands | 24 | ✅ Compliant |
 | Agents | 22 | ✅ Compliant |
-| Hooks | 64 | ✅ Compliant |
+| Hooks | 66 | ✅ Compliant |
 | Settings | 5 templates | ✅ Compliant |
 
-**Last Compliance Check**: 2026-01-09 (Issue #203 - Consolidate /implement commands)
+**Last Compliance Check**: 2026-01-09 (Issue #207 - Update component counts)
 
 ___
 
@@ -188,9 +188,9 @@ ___
 
 **28 Skills**: Progressive disclosure pattern, `allowed-tools:` for least privilege
 
-**69 Libraries**: Security, validation, automation, infrastructure (Issue #204: doc-master auto-apply integration)
+**118 Libraries**: Security, validation, automation, infrastructure (Issue #207: Updated component counts)
 
-**64 Hooks**: Dispatcher pattern, graceful degradation, env var control
+**66 Hooks**: Dispatcher pattern, graceful degradation, env var control
 
 **Model Tiers**: Haiku (pattern matching), Sonnet (implementation), Opus (security)
 

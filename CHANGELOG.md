@@ -1,5 +1,12 @@
 ## [3.46.0] - 2026-01-09
 ### Changed
+- Update component counts across all documentation (#207)
+  - Commands: 9 → 24 (consolidated /implement variations, added /worktree and others)
+  - Hooks: 64 → 67 (added pre-commit hook variations)
+  - Libraries: 69 → 145 (expanded automation, validation, infrastructure libraries)
+  - Updated CLAUDE.md Component Versions table
+  - Updated docs/ARCHITECTURE-OVERVIEW.md counts
+  - Updated docs/DOCUMENTATION_INDEX.md counts
 - Simplify version tracking: Single source of truth via VERSION file (#206)
   - CLAUDE.md now references `plugins/autonomous-dev/VERSION` instead of hardcoded version
   - Removed Version column from Component Versions table

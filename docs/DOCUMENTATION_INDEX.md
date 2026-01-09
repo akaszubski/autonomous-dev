@@ -28,19 +28,19 @@
 ### Agents
 | Document | Description |
 |----------|-------------|
-| [AGENTS.md](AGENTS.md) | 20 specialized AI agents reference |
+| [AGENTS.md](AGENTS.md) | 22 specialized AI agents reference (8 pipeline, 14 utility) |
 | [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) | How agents integrate with skills |
 
 ### Hooks
 | Document | Description |
 |----------|-------------|
-| [HOOKS.md](HOOKS.md) | 44 automation hooks reference |
+| [HOOKS.md](HOOKS.md) | 67 automation hooks reference |
 | [ACCOUNTABILITY-HOOKS.md](ACCOUNTABILITY-HOOKS.md) | Quality enforcement hooks |
 
 ### Libraries
 | Document | Description |
 |----------|-------------|
-| [LIBRARIES.md](LIBRARIES.md) | 29 Python utility libraries reference |
+| [LIBRARIES.md](LIBRARIES.md) | 145 Python utility libraries reference |
 
 ---
 
