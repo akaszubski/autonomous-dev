@@ -192,7 +192,7 @@ cd my-existing-project/
 /plugin install autonomous-dev
 
 # 2. Align structure
-/align-project-retrofit
+/align --retrofit
 
 [Analysis]
 ❌ Files in wrong locations
@@ -229,7 +229,7 @@ Approve? [Yes/No]
 
 ### Validation
 ```bash
-/align-project                    # Check PROJECT.md alignment
+/align                    # Check PROJECT.md alignment
 python hooks/validate_project_alignment.py   # Manual validation
 python hooks/enforce_file_organization.py    # Check structure
 python hooks/enforce_file_organization.py --fix  # Auto-fix structure
@@ -237,7 +237,7 @@ python hooks/enforce_file_organization.py --fix  # Auto-fix structure
 
 ### Brownfield
 ```bash
-/align-project-retrofit           # Retrofit existing project (COMING SOON)
+/align --retrofit           # Retrofit existing project (COMING SOON)
 ```
 
 ---
@@ -370,7 +370,7 @@ Strict mode makes quality automatic, not optional:
 ## 🎯 Future Enhancements
 
 Planned features:
-- [ ] `/align-project-retrofit` - Brownfield alignment command
+- [ ] `/align --retrofit` - Brownfield alignment command
 - [ ] AI-powered SCOPE validation - Semantic alignment checking
 - [ ] Cross-project templates - Reuse patterns across projects
 - [ ] Team presets - Standardize across team members

@@ -1,8 +1,12 @@
 # Security Audit Report: /align-project-retrofit Command Implementation
 
+> **HISTORICAL DOCUMENT**: This audit was performed on the legacy `/align-project-retrofit` command.
+> As of v3.46.0, this command has been **deprecated** and consolidated into `/align --retrofit`.
+> This document is retained for historical reference.
+
 **Audit Date**: 2025-11-11
 **Auditor Role**: security-auditor
-**Command**: /align-project-retrofit (Brownfield Retrofit)
+**Command**: /align-project-retrofit (Brownfield Retrofit) - **DEPRECATED** - Now `/align --retrofit`
 
 ---
 

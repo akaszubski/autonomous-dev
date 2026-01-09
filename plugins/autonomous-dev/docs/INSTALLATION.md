@@ -45,7 +45,7 @@ Pick the installation tier that matches your workflow:
 
 **8 Slash Commands**:
 - `/test` - Run all tests
-- `/align-project` - Check PROJECT.md alignment
+- `/align` - Check PROJECT.md alignment
 - `/auto-implement` - Autonomous feature implementation
 - `/setup` - Configuration wizard
 - `/status` - Project status overview
@@ -172,7 +172,7 @@ Want GitHub integration? → [Team Tier](#team-tier)
 #  - Create GitHub Milestone
 
 # 3. Verify everything works
-/align-project
+/align
 /health-check
 ```
 
@@ -314,7 +314,7 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 
 **"PROJECT.md validation failing"**:
 - Check: PROJECT.md has GOALS, SCOPE, CONSTRAINTS sections
-- Validate: `/align-project`
+- Validate: `/align`
 - Template: `.claude/templates/PROJECT.md`
 
 **"GitHub authentication failing"**:
@@ -357,7 +357,7 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 # Choose: "GitHub Integration"
 
 # 3. Verify
-/align-project
+/align
 ```
 
 ### Team → Standard (Downgrade)

@@ -218,7 +218,7 @@ def main():
             print(f"{i}. {error}\n", file=sys.stderr)
         print(
             "Fix these issues and try again. "
-            "Run: /align-project to auto-detect current state.",
+            "Run: /align to auto-detect current state.",
             file=sys.stderr
         )
         return 2

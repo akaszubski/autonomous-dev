@@ -4,13 +4,13 @@
 **Last Updated**: 2025-11-11
 **Issue**: GitHub Issue #59
 
-Transform existing (brownfield) projects into autonomous-dev compatible projects using the `/align-project-retrofit` command.
+Transform existing (brownfield) projects into autonomous-dev compatible projects using the `/align --retrofit` command.
 
 ---
 
 ## Overview
 
-The `/align-project-retrofit` command provides a structured 5-phase process to retrofit existing projects for autonomous development. It analyzes your project, assesses alignment gaps, creates a migration plan, executes changes with safety guarantees, and verifies readiness for `/auto-implement` workflows.
+The `/align --retrofit` command provides a structured 5-phase process to retrofit existing projects for autonomous development. It analyzes your project, assesses alignment gaps, creates a migration plan, executes changes with safety guarantees, and verifies readiness for `/auto-implement` workflows.
 
 ### Key Features
 
@@ -29,7 +29,7 @@ The `/align-project-retrofit` command provides a structured 5-phase process to r
 ### Basic Usage
 
 ```bash
-/align-project-retrofit
+/align --retrofit
 ```
 
 The command will guide you through the 5 phases with interactive prompts.
@@ -37,7 +37,7 @@ The command will guide you through the 5 phases with interactive prompts.
 ### Dry Run (Preview Only)
 
 ```bash
-/align-project-retrofit --dry-run
+/align --retrofit --dry-run
 ```
 
 Shows what would be changed without making any modifications.
@@ -45,7 +45,7 @@ Shows what would be changed without making any modifications.
 ### Automatic Mode (All Changes)
 
 ```bash
-/align-project-retrofit --auto
+/align --retrofit --auto
 ```
 
 Applies all recommended changes without requiring confirmation at each step.
@@ -188,7 +188,7 @@ Verifies:
 
 **After retrofit**:
 ```bash
-/align-project-retrofit
+/align --retrofit
 # Phase 0: Detects Python, Flask, pip, pytest
 # Phase 1: Analyzes structure, finds 18 test files
 # Phase 2: Score 62/100 - needs PROJECT.md, hooks, docs
@@ -209,7 +209,7 @@ Verifies:
 
 **After retrofit**:
 ```bash
-/align-project-retrofit --step-by-step
+/align --retrofit --step-by-step
 # Phase 0: Detects JavaScript, Express, npm, Jest
 # Phase 1: Finds 24 tests scattered across directories
 # Phase 2: Score 38/100 - major gaps in documentation
@@ -230,7 +230,7 @@ Verifies:
 **After retrofit**:
 ```bash
 cd my-monorepo
-/align-project-retrofit
+/align --retrofit
 # Phase 0: Detects mixed tech stack
 # Phase 1: Analyzes each service independently
 # Phase 2: Provides separate compliance scores per service
@@ -285,7 +285,7 @@ cd my-monorepo
 ### DRY_RUN Mode
 
 ```bash
-/align-project-retrofit --dry-run
+/align --retrofit --dry-run
 ```
 
 **What it does**:
@@ -316,13 +316,13 @@ Total impact: 3 new files, 1 updated, 6 hooks activated
 Estimated effort: 45 minutes
 Critical path: 4 steps
 
-To apply changes, run: /align-project-retrofit --execute
+To apply changes, run: /align --retrofit --execute
 ```
 
 ### STEP_BY_STEP Mode
 
 ```bash
-/align-project-retrofit --step-by-step
+/align --retrofit --step-by-step
 ```
 
 **What it does**:
@@ -355,7 +355,7 @@ Apply this step? [y/N/skip]
 ### AUTO Mode
 
 ```bash
-/align-project-retrofit --auto
+/align --retrofit --auto
 ```
 
 **What it does**:
@@ -435,7 +435,7 @@ Next steps: Fix permissions and retry
 ```bash
 # Run from project root
 cd /path/to/your/project
-/align-project-retrofit
+/align --retrofit
 ```
 
 ### Issue: "Unsupported language detected"
@@ -469,7 +469,7 @@ ls -ld /tmp
 # If needed, use alternate backup location
 # Set environment variable before running:
 export RETROFIT_BACKUP_DIR=/path/to/backup
-/align-project-retrofit
+/align --retrofit
 ```
 
 ### Issue: "TOCTOU error during execution"
@@ -523,7 +523,7 @@ All changes are protected by automatic backup:
 
 ## Next Steps After Retrofit
 
-Once `/align-project-retrofit` completes successfully (Phase 5: "Ready"), you can:
+Once `/align --retrofit` completes successfully (Phase 5: "Ready"), you can:
 
 ### 1. Review Project Documentation
 
@@ -591,7 +591,7 @@ export AUTO_GIT_PR=true
 
 2. **Review migration plan**: Use DRY_RUN mode first
    ```bash
-   /align-project-retrofit --dry-run
+   /align --retrofit --dry-run
    ```
 
 3. **Understand your project**: Know your tech stack

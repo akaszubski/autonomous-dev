@@ -894,8 +894,8 @@ echo "orchestrator rate: $orchestrator / $total"
 cp plugins/autonomous-dev/templates/settings.strict-mode.json \
    .claude/settings.local.json
 
-# 5. Run /align-project
-/align-project
+# 5. Run /align
+/align
 
 # 6. Commit fixes
 git add .

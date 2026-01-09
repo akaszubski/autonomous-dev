@@ -161,7 +161,7 @@ Recommended Approach:
 
 **Use for**: Adding autonomous-dev to existing projects
 
-**Command**: `/align-project-retrofit`
+**Command**: `/align --retrofit`
 
 **What happens**:
 1. **Phase 0**: Project analysis and tech stack detection
@@ -174,7 +174,7 @@ Recommended Approach:
 **Example**:
 ```bash
 # Analyze existing project
-/align-project-retrofit
+/align --retrofit
 
 # Agent analyzes:
 # - Current architecture
@@ -203,7 +203,7 @@ Recommended Approach:
 /status
 
 # Fix alignment issues
-/align-project
+/align
 
 # Track progress
 # (PROJECT.md auto-updated after each /auto-implement)
@@ -442,7 +442,7 @@ No issues detected. Plugin is healthy.
 cat .claude/PROJECT.md | grep -A 5 "## GOALS"
 
 # Option 2: Fix alignment
-/align-project
+/align
 
 # Option 3: Update PROJECT.md if direction changed
 vim .claude/PROJECT.md

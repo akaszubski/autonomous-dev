@@ -101,7 +101,7 @@ I want to add autonomous-dev to this existing project. Please help me:
    - Walk me through the setup wizard options
 
 2. Analyze my existing project:
-   - Run /align-project-retrofit --dry-run
+   - Run /align --retrofit --dry-run
    - Show me what changes would be made
    - Explain the 5-phase retrofit process
 
@@ -113,7 +113,7 @@ I want to add autonomous-dev to this existing project. Please help me:
    - Document my existing ARCHITECTURE
 
 4. Run the retrofit:
-   - Run /align-project-retrofit (step-by-step mode)
+   - Run /align --retrofit --step-by-step
    - Confirm each change with me before applying
 
 5. Set up GitHub integration:

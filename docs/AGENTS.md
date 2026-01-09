@@ -242,7 +242,7 @@ These agents provide specialized functionality for alignment, git operations, an
 **Purpose**: Analyze brownfield projects for retrofit readiness (v3.11.0+, GitHub #59)
 **Model**: Sonnet (Tier 2 - balanced reasoning for complex analysis)
 **Skills**: research-patterns, semantic-validation, file-organization, python-standards
-**Command**: /align-project-retrofit
+**Command**: /align --retrofit
 
 ### project-progress-tracker
 
@@ -256,7 +256,7 @@ These agents provide specialized functionality for alignment, git operations, an
 **Purpose**: Detailed alignment analysis
 **Model**: Sonnet (Tier 2 - balanced reasoning for conflict resolution)
 **Skills**: research-patterns, semantic-validation, file-organization
-**Command**: /align-project
+**Command**: /align
 
 ### project-bootstrapper
 

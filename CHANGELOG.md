@@ -9,6 +9,12 @@
   - Added 34 tests for hook registry validation
 
 ### Changed
+- Consolidate alignment commands into single /align command (#210)
+  - Removed legacy commands: `/align-project`, `/align-project-retrofit`, `/align-claude`
+  - Consolidated into `/align` with three modes: `project`, `retrofit`, `claude`
+  - Updated BROWNFIELD-ADOPTION.md to use `/align --retrofit`
+  - Updated WORKFLOWS.md to use `/align` and `/align --retrofit`
+  - Added 35 tests for command consolidation validation
 - Consolidate ARCHITECTURE.md into ARCHITECTURE-OVERVIEW.md (#208)
   - Archived ARCHITECTURE.md to docs/archived/ with deprecation notice
   - Updated 10+ file references to point to ARCHITECTURE-OVERVIEW.md
