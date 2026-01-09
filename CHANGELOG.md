@@ -8,6 +8,16 @@
   - Added 32 regression tests to prevent future reintroduction
 
 ### Changed
+- Consolidate 3 validate_path() implementations into single source of truth (#217)
+  - Unified 3 duplicate implementations into security_utils.validate_path():
+    - validation.validate_session_path() now delegates to security_utils
+    - feature_flags.validate_path() now delegates to security_utils
+    - worktree_conflict_integration.validate_path() now delegates to security_utils
+  - Security improvements: 4-layer validation (string-level checks, symlink detection, path resolution, whitelist validation)
+  - Reduces code duplication (~150 lines)
+  - Ensures consistent path validation across codebase
+  - Applied to both .claude/lib and plugins/autonomous-dev/lib
+  - Added 23 regression tests for path validation consolidation
 - Audit and consolidate validation hooks (#215)
   - Unified 12 documentation validators into unified_doc_validator.py dispatcher:
     - Consolidated: validate_project_alignment, validate_claude_alignment, validate_documentation_alignment, validate_docs_consistency, validate_readme_accuracy, validate_readme_sync, validate_readme_with_genai, validate_command_file_ops, validate_commands, validate_hooks_documented, validate_command_frontmatter_flags, validate_manifest_doc_alignment

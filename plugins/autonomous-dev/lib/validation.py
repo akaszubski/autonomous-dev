@@ -48,6 +48,9 @@ MAX_AGENT_NAME_LENGTH = 255  # Maximum length for agent names
 def validate_session_path(path: Union[str, Path], purpose: str = "session tracking") -> Path:
     """Validate session path to prevent path traversal.
 
+    Delegates to security_utils.validate_path() for 4-layer security,
+    but restricts paths to session-specific directories.
+
     Args:
         path: Path to validate (string or Path object)
         purpose: Description of what the path is for (for error messages)
@@ -59,76 +62,56 @@ def validate_session_path(path: Union[str, Path], purpose: str = "session tracki
         ValueError: If path contains path traversal sequences or is outside allowed directories
 
     Security:
-        - Prevents path traversal (CWE-22)
-        - Rejects symlinks (CWE-59)
-        - Validates path is within PROJECT_ROOT/docs/sessions or PROJECT_ROOT/.claude
+        - Delegates to security_utils.validate_path() for 4-layer security:
+            1. String-level checks (reject obvious traversal)
+            2. Symlink detection (before resolution)
+            3. Path resolution (normalize to absolute)
+            4. Whitelist validation (PROJECT_ROOT, ~/.claude/, system temp in test mode)
+        - Additional session-specific restriction: docs/sessions or .claude only
 
     Examples:
         >>> path = validate_session_path("/project/docs/sessions/file.json")
         >>> path = validate_session_path("../../etc/passwd")  # Raises ValueError
     """
     # Import here to avoid circular dependency
+    from security_utils import validate_path as _validate_path_strict
     from path_utils import get_project_root
 
     # Convert to Path
     if isinstance(path, str):
         path = Path(path)
 
-    # Check for obvious path traversal
-    if ".." in str(path):
-        raise ValueError(
-            f"Path traversal detected in {purpose}: {path}\n"
-            f"Paths cannot contain '..' sequences.\n"
-            f"Expected: Absolute paths within PROJECT_ROOT"
-        )
+    # Delegate to security_utils for core validation (4-layer security)
+    # This handles: path traversal, symlinks, path resolution, whitelist
+    validated = _validate_path_strict(path, purpose=purpose, allow_missing=True)
 
-    # Reject symlinks BEFORE resolving (CWE-59)
-    # Check on original path before resolve() to catch symlinks
-    if path.is_symlink():
-        raise ValueError(
-            f"Symlinks not allowed (path outside project) for {purpose}: {path}\n"
-            f"Symlinks can be used for path traversal attacks."
-        )
-
-    # Resolve to absolute path (handles relative paths)
-    try:
-        resolved_path = path.resolve()
-    except (OSError, RuntimeError) as e:
-        raise ValueError(f"Failed to resolve path for {purpose}: {path}\nError: {e}")
-
-    # Get project root
+    # Additional session-specific restriction
+    # Even though security_utils allows PROJECT_ROOT, we further restrict
+    # to only docs/sessions and .claude for session tracking
     try:
         project_root = get_project_root()
     except FileNotFoundError as e:
         raise ValueError(f"Cannot validate path - project root not found: {e}")
 
-    # Check if path is within allowed directories
     allowed_dirs = [
         project_root / "docs" / "sessions",
         project_root / ".claude",
     ]
 
-    # Check if resolved path is under any allowed directory
-    is_allowed = False
-    for allowed_dir in allowed_dirs:
-        try:
-            # Check if path is relative to allowed_dir (throws ValueError if not)
-            resolved_path.relative_to(allowed_dir)
-            is_allowed = True
-            break
-        except ValueError:
-            continue
+    is_allowed = any(
+        validated.is_relative_to(allowed_dir)
+        for allowed_dir in allowed_dirs
+    )
 
     if not is_allowed:
         raise ValueError(
-            f"Path outside project for {purpose}: {path}\n"
-            f"Resolved to: {resolved_path}\n"
-            f"Allowed directories:\n"
+            f"Path outside session directories for {purpose}: {path}\n"
+            f"Resolved to: {validated}\n"
+            f"Allowed session directories:\n"
             + "\n".join(f"  - {d}" for d in allowed_dirs)
         )
 
-    # Symlink check already performed above (before resolve())
-    return resolved_path
+    return validated
 
 
 def validate_agent_name(name: str, purpose: str = "agent tracking") -> str:
