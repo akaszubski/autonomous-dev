@@ -9,6 +9,7 @@ Exceptions are organized in a 3-level hierarchy:
 Hierarchy:
     Exception
     └── AutonomousDevError (base for all plugin exceptions)
+        ├── StateError (state management errors)
         └── APIError (category for API-related errors)
             └── GitHubAPIError (GitHub-specific API errors)
                 ├── IssueNotFoundError (GitHub issue not found - 404)
@@ -34,6 +35,17 @@ class AutonomousDevError(Exception):
 
     All plugin-specific exceptions should inherit from this class
     to enable broad exception catching when needed.
+    """
+    pass
+
+
+class StateError(AutonomousDevError):
+    """Base exception for state management errors.
+
+    Raised when state operations fail (load, save, cleanup, validation).
+    All state managers should raise this or subclasses for state-related errors.
+
+    Issue: #220 (Extract StateManager ABC from 4 state managers)
     """
     pass
 

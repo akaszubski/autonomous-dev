@@ -182,6 +182,7 @@
         "plugins/autonomous-dev/lib/agent_pool.py",
         "plugins/autonomous-dev/lib/agent_tracker.py",
         "plugins/autonomous-dev/lib/alignment_assessor.py",
+        "plugins/autonomous-dev/lib/abstract_state_manager.py",
         "plugins/autonomous-dev/lib/alignment_fixer.py",
         "plugins/autonomous-dev/lib/artifacts.py",
         "plugins/autonomous-dev/lib/auto_approval_consent.py",
