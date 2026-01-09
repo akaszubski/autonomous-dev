@@ -1171,15 +1171,15 @@ Hooks for ensuring documentation, commands, codebase stay in sync, and tests pas
 
 ### validate_command_frontmatter_flags.py
 
-**Purpose**: Ensure slash commands document their --flags in frontmatter (GitHub #133)
+**Purpose**: Ensure slash commands document their --flags in frontmatter (GitHub #213)
 **Actions**:
 - Extracts all --flag options used in command bodies
-- Validates flags are documented in frontmatter (description or argument_hint fields)
+- Validates flags are documented in frontmatter (description or argument-hint fields)
 - Filters false positives (--help, --version, generic examples)
 - Reports undocumented flags with fix guidance
 **Lifecycle**: PreCommit
 **Non-blocking**: Exit 1 (warning), never blocking (exit 2)
-**Related**: Issue #131 - Fixed frontmatter for /align, /batch-implement, /create-issue, /sync
+**Related**: Issue #213 - Standardized command YAML frontmatter with kebab-case naming
 
 ### pre_commit_gate.py
 

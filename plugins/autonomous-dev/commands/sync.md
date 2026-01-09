@@ -1,7 +1,7 @@
 ---
 name: sync
 description: "Sync plugin files (--github default, --env, --marketplace, --plugin-dev, --all, --uninstall)"
-argument_hint: "--github | --env | --marketplace | --plugin-dev | --all | --uninstall [--force]"
+argument-hint: "--github | --env | --marketplace | --plugin-dev | --all | --uninstall [--force]"
 allowed-tools: [Bash]
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: batch-implement
 description: "Execute multiple features sequentially (--issues <nums> or --resume <id>)"
-argument_hint: "<features-file> or --issues <issue-numbers> or --resume <batch-id>"
+argument-hint: "<features-file> or --issues <issue-numbers> or --resume <batch-id>"
 author: Claude
 version: 3.45.0
 date: 2026-01-01

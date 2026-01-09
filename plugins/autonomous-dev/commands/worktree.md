@@ -1,7 +1,7 @@
 ---
 name: worktree
 description: "Manage git worktrees (--list default, --status, --review, --merge, --discard)"
-argument_hint: "Optional flags: --list (default), --status FEATURE, --review FEATURE, --merge FEATURE, --discard FEATURE"
+argument-hint: "Optional flags: --list (default), --status FEATURE, --review FEATURE, --merge FEATURE, --discard FEATURE"
 allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 ---
 

@@ -7,7 +7,7 @@
 Validate that slash commands document their --flags in the frontmatter.
 
 This pre-commit hook ensures that commands with --flag options in their body
-have those flags documented in the frontmatter (description and argument_hint
+have those flags documented in the frontmatter (description and argument-hint
 fields) for proper autocomplete display in Claude Code.
 
 Exit codes:
@@ -149,7 +149,7 @@ def check_flags_in_frontmatter(flags: list[str], frontmatter: str) -> list[str]:
     """
     Check which flags are missing from frontmatter.
 
-    Checks both description and argument_hint fields.
+    Checks both description and argument-hint fields.
     Filters out false positive flags (--help, --version, etc.).
 
     Args:
@@ -171,7 +171,7 @@ def check_flags_in_frontmatter(flags: list[str], frontmatter: str) -> list[str]:
             continue
 
         # Check if flag appears anywhere in frontmatter
-        # (description or argument_hint fields)
+        # (description or argument-hint fields)
         if flag not in frontmatter:
             missing.append(flag)
 
@@ -183,7 +183,7 @@ def validate_command_file(filepath: Path) -> list[str]:
     Validate a command file for undocumented flags.
 
     Checks if all --flags used in the body are documented in the
-    frontmatter (description or argument_hint fields).
+    frontmatter (description or argument-hint fields).
 
     Args:
         filepath: Path to the command .md file
@@ -305,11 +305,11 @@ def main():
 
         print("TO FIX:")
         print()
-        print("  Add missing flags to the frontmatter description or argument_hint.")
+        print("  Add missing flags to the frontmatter description or argument-hint.")
         print()
         print("  Example:")
         print('    description: "Command with --flag1 and --flag2 options"')
-        print('    argument_hint: "--flag1 [--flag2]"')
+        print('    argument-hint: "--flag1 [--flag2]"')
         print()
         print("  See Issue #131 for examples of properly documented frontmatter.")
         print()

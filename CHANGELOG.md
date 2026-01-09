@@ -38,6 +38,13 @@
   - Updated docs/ARCHITECTURE-OVERVIEW.md to document shim and unified implementation
   - Updated plugins/autonomous-dev/hooks/archived/README.md with auto_git_workflow.py archival details
   - All git automation functionality preserved with unified consolidation
+- Standardize command YAML frontmatter (#213)
+  - Created COMMAND-FRONTMATTER-SCHEMA.md with complete field definitions and examples
+  - Updated all 21 command files to use kebab-case field names (argument-hint, allowed-tools)
+  - Deprecated `tools:` field in favor of `allowed-tools:` (security-enforced)
+  - Added validation hook: validate_command_frontmatter_flags.py
+  - Added 28 tests for frontmatter standardization validation
+  - Ensures consistent autocomplete metadata and security whitelisting
 
 ## [3.46.0] - 2026-01-09
 ### Changed

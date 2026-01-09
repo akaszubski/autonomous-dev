@@ -5,7 +5,6 @@ argument-hint: (no arguments needed)
 allowed-tools: [Bash, Read, Write, Grep, Edit]
 version: 1.0.0
 category: core
-tools: [Bash, Read, Write, Grep, Edit]
 ---
 
 # /align-project-retrofit - Brownfield Retrofit Command

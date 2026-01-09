@@ -6,7 +6,6 @@ allowed-tools: [Bash, Read, Write]
 version: 1.0.0
 author: autonomous-dev
 tags: [plugin, update, marketplace, version]
-tools: [Bash]
 model: sonnet
 ---
 

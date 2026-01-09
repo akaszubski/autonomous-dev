@@ -1,6 +1,6 @@
 # Documentation Index
 
-**29 documentation files organized by category.**
+**30 documentation files organized by category.**
 
 ---
 
@@ -30,6 +30,11 @@
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | 22 specialized AI agents reference (8 pipeline, 14 utility) |
 | [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) | How agents integrate with skills |
+
+### Commands
+| Document | Description |
+|----------|-------------|
+| [COMMAND-FRONTMATTER-SCHEMA.md](COMMAND-FRONTMATTER-SCHEMA.md) | YAML frontmatter schema and naming conventions for slash commands |
 
 ### Hooks
 | Document | Description |
