@@ -506,7 +506,7 @@ vim .claude/PROJECT.md
 
 ## Learn More
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - How the system works
+- **[ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md)** - How the system works
 - **[REFERENCE.md](REFERENCE.md)** - Complete command reference
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Contributing guide

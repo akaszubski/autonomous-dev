@@ -211,6 +211,6 @@ The autonomous workflow has evolved through 9 major optimization phases:
 ## See Also
 
 - [PERFORMANCE.md](PERFORMANCE.md) - Current benchmarks and metrics
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Agent and workflow architecture
+- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Agent and workflow architecture
 - [agents/researcher.md](/plugins/autonomous-dev/agents/researcher.md) - Haiku model configuration
 - [lib/performance_profiler.py](/plugins/autonomous-dev/lib/performance_profiler.py) - Profiling infrastructure

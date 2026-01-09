@@ -361,7 +361,7 @@ Check these regularly to ensure alignment:
 
 **Key files:**
 - `README.md` - User-facing (what it does)
-- `ARCHITECTURE-EXPLAINED.md` - How it works (500+ lines)
+- `ARCHITECTURE-OVERVIEW.md` - How it works (500+ lines)
 - `CLAUDE.md` - Development standards
 - `docs/UPDATES.md` - Changelog
 - `CHANGELOG.md` - Version history
@@ -397,7 +397,7 @@ python plugins/autonomous-dev/hooks/validate_readme_with_genai.py --audit --gena
 
 # Per release: Full documentation review
 # - README.md (user-facing accuracy)
-# - ARCHITECTURE-EXPLAINED.md (technical accuracy)
+# - ARCHITECTURE-OVERVIEW.md (technical accuracy)
 # - CLAUDE.md (standards currency)
 # - CHANGELOG.md (release notes)
 ```
@@ -686,7 +686,7 @@ vim .claude/settings.local.json
 git commit -m "test: verify new enforcement"
 
 # 3. Document in architecture guide
-vim docs/ARCHITECTURE-EXPLAINED.md
+vim docs/ARCHITECTURE-OVERVIEW.md
 # Explain the new enforcement rule
 ```
 
@@ -789,7 +789,7 @@ ls -lt plugins/autonomous-dev/skills/*/skill.md | head -10
 ```bash
 # Full documentation review
 # - README.md (user-facing accuracy)
-# - ARCHITECTURE-EXPLAINED.md (technical accuracy)
+# - ARCHITECTURE-OVERVIEW.md (technical accuracy)
 # - CLAUDE.md (standards currency)
 # - PROJECT.md (strategic alignment)
 # - CHANGELOG.md (release notes)

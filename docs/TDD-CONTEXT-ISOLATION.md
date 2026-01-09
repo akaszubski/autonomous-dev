@@ -1,7 +1,7 @@
 # TDD Context Isolation: File-Based Handoff
 
 **Last Updated**: 2025-12-09
-**Related**: [ARCHITECTURE.md](ARCHITECTURE.md) | [AGENTS.md](AGENTS.md)
+**Related**: [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) | [AGENTS.md](AGENTS.md)
 
 ---
 
@@ -297,7 +297,7 @@ A: Both test-master and implementer receive a summary of the plan. This is inten
 
 ## References
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Overall system design
+- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Overall system design
 - [AGENTS.md](AGENTS.md) - Agent responsibilities
 - [auto-implement.md](../plugins/autonomous-dev/commands/auto-implement.md) - Workflow implementation
 - [testing-guide skill](../plugins/autonomous-dev/skills/testing-guide/SKILL.md) - TDD methodology

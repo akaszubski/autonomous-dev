@@ -8,7 +8,7 @@ For comprehensive architectural validation, use:
     /validate-architecture (GenAI-powered, understands MEANING)
 
 These tests validate the DESIGN INTENT and ARCHITECTURAL DECISIONS
-documented in ARCHITECTURE.md through static analysis.
+documented in ARCHITECTURE-OVERVIEW.md through static analysis.
 
 LIMITATIONS:
 - Can only check if files exist and contain keywords
@@ -23,14 +23,14 @@ USE CASES:
 - Catch obvious regressions (file removal, count changes)
 
 If these tests fail, it means:
-1. The architecture has fundamentally changed (update ARCHITECTURE.md), OR
+1. The architecture has fundamentally changed (update ARCHITECTURE-OVERVIEW.md), OR
 2. A regression has occurred (fix the code), OR
 3. The test is too strict (update the test)
 
 Each test documents WHY an architectural decision was made and validates
 structural invariants remain true.
 
-See ARCHITECTURE.md § Testing This Document for full validation strategy.
+See ARCHITECTURE-OVERVIEW.md § Testing This Document for full validation strategy.
 """
 
 from pathlib import Path
@@ -47,7 +47,7 @@ class TestProjectMdFirstArchitecture:
 
     BREAKING CHANGE: If orchestrator no longer validates PROJECT.md.
 
-    See ARCHITECTURE.md § Core Design Principles #1
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #1
     """
 
     @pytest.fixture
@@ -66,7 +66,7 @@ class TestProjectMdFirstArchitecture:
         assert "PROJECT.md" in orchestrator, (
             "ARCHITECTURE VIOLATION: Orchestrator must validate PROJECT.md\n"
             "Without this, no alignment validation occurs.\n"
-            "See ARCHITECTURE.md § PROJECT.md-First Architecture"
+            "See ARCHITECTURE-OVERVIEW.md § PROJECT.md-First Architecture"
         )
 
     def test_project_md_has_required_sections(self, project_template):
@@ -77,7 +77,7 @@ class TestProjectMdFirstArchitecture:
             assert section in project_template, (
                 f"ARCHITECTURE VIOLATION: PROJECT.md missing {section} section\n"
                 f"These sections are required for alignment validation.\n"
-                f"See ARCHITECTURE.md § PROJECT.md-First Architecture"
+                f"See ARCHITECTURE-OVERVIEW.md § PROJECT.md-First Architecture"
             )
 
     def test_orchestrator_is_primary_coordinator(self, orchestrator):
@@ -85,7 +85,7 @@ class TestProjectMdFirstArchitecture:
         # Should mention coordination or orchestration
         assert "orchestrat" in orchestrator.lower() or "coordinat" in orchestrator.lower(), (
             "ARCHITECTURE VIOLATION: Orchestrator must be the coordinator\n"
-            "See ARCHITECTURE.md § 8-Agent Pipeline"
+            "See ARCHITECTURE-OVERVIEW.md § 8-Agent Pipeline"
         )
 
 
@@ -101,7 +101,7 @@ class TestEightAgentPipeline:
 
     BREAKING CHANGE: If pipeline order changes or agents are removed.
 
-    See ARCHITECTURE.md § Core Design Principles #2
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #2
     """
 
     @pytest.fixture
@@ -125,7 +125,7 @@ class TestEightAgentPipeline:
             assert (agents_dir / agent).exists(), (
                 f"ARCHITECTURE VIOLATION: Missing agent {agent}\n"
                 f"8-agent pipeline requires all agents present.\n"
-                f"See ARCHITECTURE.md § 8-Agent Pipeline"
+                f"See ARCHITECTURE-OVERVIEW.md § 8-Agent Pipeline"
             )
 
         # Should be exactly 8 (no more, no less)
@@ -133,7 +133,7 @@ class TestEightAgentPipeline:
         assert len(agent_files) == 8, (
             f"ARCHITECTURE VIOLATION: Expected 8 agents, found {len(agent_files)}\n"
             f"Pipeline design assumes exactly 8 specialized agents.\n"
-            f"See ARCHITECTURE.md § 8-Agent Pipeline"
+            f"See ARCHITECTURE-OVERVIEW.md § 8-Agent Pipeline"
         )
 
     def test_test_master_enforces_tdd(self, agents_dir):
@@ -142,7 +142,7 @@ class TestEightAgentPipeline:
         assert test_master.exists(), (
             "ARCHITECTURE VIOLATION: test-master agent missing\n"
             "TDD enforcement requires test-master in pipeline.\n"
-            "See ARCHITECTURE.md § TDD Enforcement"
+            "See ARCHITECTURE-OVERVIEW.md § TDD Enforcement"
         )
 
 
@@ -157,7 +157,7 @@ class TestModelOptimization:
 
     BREAKING CHANGE: If all agents use same model.
 
-    See ARCHITECTURE.md § Core Design Principles #3
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #3
     """
 
     @pytest.fixture
@@ -199,7 +199,7 @@ class TestContextManagement:
 
     BREAKING CHANGE: If session logging removed or /clear not promoted.
 
-    See ARCHITECTURE.md § Core Design Principles #4
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #4
     """
 
     def test_context_management_strategy_documented(self):
@@ -210,7 +210,7 @@ class TestContextManagement:
         assert "/clear" in content, (
             "ARCHITECTURE VIOLATION: /clear command not documented\n"
             "Context management requires /clear after each feature.\n"
-            "See ARCHITECTURE.md § Context Management"
+            "See ARCHITECTURE-OVERVIEW.md § Context Management"
         )
 
     def test_session_logging_over_context(self):
@@ -222,7 +222,7 @@ class TestContextManagement:
         assert "session" in content.lower() or "log" in content.lower(), (
             "ARCHITECTURE VIOLATION: Session logging not documented\n"
             "Agents should log to files, not context.\n"
-            "See ARCHITECTURE.md § Context Management"
+            "See ARCHITECTURE-OVERVIEW.md § Context Management"
         )
 
 
@@ -237,7 +237,7 @@ class TestOptInAutomation:
 
     BREAKING CHANGE: If hooks auto-enable or no manual mode.
 
-    See ARCHITECTURE.md § Core Design Principles #5
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #5
     """
 
     @pytest.fixture
@@ -261,7 +261,7 @@ class TestOptInAutomation:
             assert (commands_dir / command).exists(), (
                 f"ARCHITECTURE VIOLATION: Missing manual command {command}\n"
                 f"Users must have manual control option.\n"
-                f"See ARCHITECTURE.md § Opt-In Automation"
+                f"See ARCHITECTURE-OVERVIEW.md § Opt-In Automation"
             )
 
     def test_automatic_mode_is_opt_in(self, templates_dir):
@@ -271,7 +271,7 @@ class TestOptInAutomation:
         assert settings_template.exists(), (
             "ARCHITECTURE VIOLATION: Hooks template missing\n"
             "Users need template to opt-in to automation.\n"
-            "See ARCHITECTURE.md § Opt-In Automation"
+            "See ARCHITECTURE-OVERVIEW.md § Opt-In Automation"
         )
 
     def test_setup_command_offers_choice(self):
@@ -282,11 +282,11 @@ class TestOptInAutomation:
         # Should offer both slash commands and automatic
         assert "slash" in content.lower() or "manual" in content.lower(), (
             "ARCHITECTURE VIOLATION: Setup doesn't offer manual mode\n"
-            "See ARCHITECTURE.md § Opt-In Automation"
+            "See ARCHITECTURE-OVERVIEW.md § Opt-In Automation"
         )
         assert "automatic" in content.lower() or "hook" in content.lower(), (
             "ARCHITECTURE VIOLATION: Setup doesn't offer automatic mode\n"
-            "See ARCHITECTURE.md § Opt-In Automation"
+            "See ARCHITECTURE-OVERVIEW.md § Opt-In Automation"
         )
 
 
@@ -299,7 +299,7 @@ class TestProjectLevelIsolation:
 
     BREAKING CHANGE: If global config affects all projects.
 
-    See ARCHITECTURE.md § Core Design Principles #6
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #6
     """
 
     def test_project_level_files_isolated(self):
@@ -311,7 +311,7 @@ class TestProjectLevelIsolation:
         assert ".claude" in content, (
             "ARCHITECTURE VIOLATION: Setup doesn't use project-level paths\n"
             "Files must be in project's .claude/, not global.\n"
-            "See ARCHITECTURE.md § Project-Level vs Global Scope"
+            "See ARCHITECTURE-OVERVIEW.md § Project-Level vs Global Scope"
         )
 
     def test_uninstall_preserves_global_plugin(self):
@@ -323,7 +323,7 @@ class TestProjectLevelIsolation:
         assert "project" in content.lower(), (
             "ARCHITECTURE VIOLATION: Uninstall doesn't distinguish project vs global\n"
             "Users must be able to clean one project without affecting others.\n"
-            "See ARCHITECTURE.md § Project-Level vs Global Scope"
+            "See ARCHITECTURE-OVERVIEW.md § Project-Level vs Global Scope"
         )
 
 
@@ -338,7 +338,7 @@ class TestTDDEnforcement:
 
     BREAKING CHANGE: If test-master runs after implementer.
 
-    See ARCHITECTURE.md § Core Design Principles #7
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #7
     """
 
     def test_test_master_exists_before_implementer(self):
@@ -351,12 +351,12 @@ class TestTDDEnforcement:
         assert test_master.exists(), (
             "ARCHITECTURE VIOLATION: test-master missing\n"
             "TDD requires test-master in pipeline.\n"
-            "See ARCHITECTURE.md § TDD Enforcement"
+            "See ARCHITECTURE-OVERVIEW.md § TDD Enforcement"
         )
         assert implementer.exists(), (
             "ARCHITECTURE VIOLATION: implementer missing\n"
             "Pipeline requires both test-master and implementer.\n"
-            "See ARCHITECTURE.md § TDD Enforcement"
+            "See ARCHITECTURE-OVERVIEW.md § TDD Enforcement"
         )
 
 
@@ -371,7 +371,7 @@ class TestReadOnlyPlanning:
 
     BREAKING CHANGE: If planner/reviewer gain Write tools.
 
-    See ARCHITECTURE.md § Core Design Principles #8
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #8
     """
 
     @pytest.fixture
@@ -408,7 +408,7 @@ class TestSecurityFirst:
 
     BREAKING CHANGE: If security scan becomes optional.
 
-    See ARCHITECTURE.md § Core Design Principles #9
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #9
     """
 
     def test_security_auditor_in_pipeline(self):
@@ -419,7 +419,7 @@ class TestSecurityFirst:
         assert security.exists(), (
             "ARCHITECTURE VIOLATION: security-auditor missing\n"
             "Security-first design requires auditor in pipeline.\n"
-            "See ARCHITECTURE.md § Security-First Design"
+            "See ARCHITECTURE-OVERVIEW.md § Security-First Design"
         )
 
     def test_security_scan_command_exists(self):
@@ -430,7 +430,7 @@ class TestSecurityFirst:
         assert security_cmd.exists(), (
             "ARCHITECTURE VIOLATION: /security-scan command missing\n"
             "Users must be able to run security scans manually.\n"
-            "See ARCHITECTURE.md § Security-First Design"
+            "See ARCHITECTURE-OVERVIEW.md § Security-First Design"
         )
 
 
@@ -445,7 +445,7 @@ class TestDocumentationSync:
 
     BREAKING CHANGE: If doc updates become manual.
 
-    See ARCHITECTURE.md § Core Design Principles #10
+    See ARCHITECTURE-OVERVIEW.md § Core Design Principles #10
     """
 
     def test_doc_master_in_pipeline(self):
@@ -456,7 +456,7 @@ class TestDocumentationSync:
         assert doc_master.exists(), (
             "ARCHITECTURE VIOLATION: doc-master missing\n"
             "Documentation sync requires doc-master in pipeline.\n"
-            "See ARCHITECTURE.md § Documentation Sync"
+            "See ARCHITECTURE-OVERVIEW.md § Documentation Sync"
         )
 
 
@@ -466,7 +466,7 @@ class TestArchitecturalInvariants:
 
     If these fail, the core architecture has changed.
 
-    See ARCHITECTURE.md § Architectural Invariants
+    See ARCHITECTURE-OVERVIEW.md § Architectural Invariants
     """
 
     def test_agent_count_is_eight(self):
@@ -477,8 +477,8 @@ class TestArchitecturalInvariants:
         assert len(agent_files) == 8, (
             f"ARCHITECTURAL INVARIANT VIOLATION: Expected 8 agents, found {len(agent_files)}\n"
             f"8-agent pipeline is core to architecture.\n"
-            f"If you need different count, update ARCHITECTURE.md first.\n"
-            f"See ARCHITECTURE.md § Architectural Invariants"
+            f"If you need different count, update ARCHITECTURE-OVERVIEW.md first.\n"
+            f"See ARCHITECTURE-OVERVIEW.md § Architectural Invariants"
         )
 
     def test_required_skills_exist(self):
@@ -497,7 +497,7 @@ class TestArchitecturalInvariants:
             assert (skills_dir / skill).exists(), (
                 f"ARCHITECTURAL INVARIANT VIOLATION: Missing skill {skill}\n"
                 f"6 core skills are required for architecture.\n"
-                f"See ARCHITECTURE.md § Architectural Invariants"
+                f"See ARCHITECTURE-OVERVIEW.md § Architectural Invariants"
             )
 
     def test_project_md_template_structure(self):
@@ -510,7 +510,7 @@ class TestArchitecturalInvariants:
             assert section in content, (
                 f"ARCHITECTURAL INVARIANT VIOLATION: PROJECT.md missing {section}\n"
                 f"These sections required for alignment validation.\n"
-                f"See ARCHITECTURE.md § Architectural Invariants"
+                f"See ARCHITECTURE-OVERVIEW.md § Architectural Invariants"
             )
 
 
@@ -523,7 +523,7 @@ class TestAgentCommunicationStrategy:
 
     BREAKING CHANGE: If agents communicate via context instead of files.
 
-    See ARCHITECTURE.md § Agent Communication Strategy
+    See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy
     """
 
     def test_session_logging_documented(self):
@@ -534,7 +534,7 @@ class TestAgentCommunicationStrategy:
         assert "session" in content.lower() or "/clear" in content, (
             "ARCHITECTURE VIOLATION: Session logging not documented\n"
             "Agents must use session files for communication.\n"
-            "See ARCHITECTURE.md § Agent Communication Strategy"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy"
         )
 
     def test_context_management_strategy_exists(self):
@@ -550,7 +550,7 @@ class TestAgentCommunicationStrategy:
         assert "/clear" in combined, (
             "ARCHITECTURE VIOLATION: /clear not documented\n"
             "Context management requires /clear after features.\n"
-            "See ARCHITECTURE.md § Agent Communication Strategy"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy"
         )
 
 
@@ -565,7 +565,7 @@ class TestAgentSpecializationNoOverlap:
 
     BREAKING CHANGE: If agents gain overlapping responsibilities.
 
-    See ARCHITECTURE.md § Agent Specialization
+    See ARCHITECTURE-OVERVIEW.md § Agent Specialization
     """
 
     @pytest.fixture
@@ -580,7 +580,7 @@ class TestAgentSpecializationNoOverlap:
         assert "Task" in orchestrator or "task" in orchestrator.lower(), (
             "ARCHITECTURE VIOLATION: Orchestrator must coordinate via Task tool\n"
             "Orchestrator's unique role is coordination, not implementation.\n"
-            "See ARCHITECTURE.md § Agent Specialization"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Specialization"
         )
 
     def test_planner_designs_not_codes(self, agents_dir):
@@ -591,7 +591,7 @@ class TestAgentSpecializationNoOverlap:
         assert "plan" in planner.lower() or "architect" in planner.lower(), (
             "ARCHITECTURE VIOLATION: Planner's role is architecture design\n"
             "Planner should not overlap with implementer.\n"
-            "See ARCHITECTURE.md § Agent Specialization"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Specialization"
         )
 
     def test_reviewer_identifies_not_fixes(self, agents_dir):
@@ -602,7 +602,7 @@ class TestAgentSpecializationNoOverlap:
         assert "review" in reviewer.lower() or "quality" in reviewer.lower(), (
             "ARCHITECTURE VIOLATION: Reviewer's role is quality gate\n"
             "Reviewer should identify issues, not fix them.\n"
-            "See ARCHITECTURE.md § Agent Specialization"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Specialization"
         )
 
     def test_all_agents_have_distinct_roles(self, agents_dir):
@@ -626,7 +626,7 @@ class TestAgentSpecializationNoOverlap:
             assert keyword in content, (
                 f"ARCHITECTURE VIOLATION: {agent_file} missing '{keyword}' in description\n"
                 f"Each agent must have clear, unique responsibility.\n"
-                f"See ARCHITECTURE.md § Agent Specialization"
+                f"See ARCHITECTURE-OVERVIEW.md § Agent Specialization"
             )
 
 
@@ -641,7 +641,7 @@ class TestSkillBoundariesNoRedundancy:
 
     BREAKING CHANGE: If skills cover overlapping domains.
 
-    See ARCHITECTURE.md § Skill Boundaries
+    See ARCHITECTURE-OVERVIEW.md § Skill Boundaries
     """
 
     @pytest.fixture
@@ -669,7 +669,7 @@ class TestSkillBoundariesNoRedundancy:
                 assert keyword in content, (
                     f"ARCHITECTURE VIOLATION: {skill_name} missing '{keyword}' focus\n"
                     f"Each skill must have clear domain boundary.\n"
-                    f"See ARCHITECTURE.md § Skill Boundaries"
+                    f"See ARCHITECTURE-OVERVIEW.md § Skill Boundaries"
                 )
 
     def test_exactly_thirteen_skills_exist(self, skills_dir):
@@ -688,7 +688,7 @@ class TestSkillBoundariesNoRedundancy:
             f"13 skills chosen for comprehensive SDLC coverage (dev-focused) + consistency enforcement.\n"
             f"Expected: {sorted(expected_skills)}\n"
             f"Found: {sorted([d.name for d in skill_dirs])}\n"
-            f"See ARCHITECTURE.md § Skill Boundaries"
+            f"See ARCHITECTURE-OVERVIEW.md § Skill Boundaries"
         )
 
 
@@ -703,7 +703,7 @@ class TestDataFlowOneDirection:
 
     BREAKING CHANGE: If agents communicate backward or have circular deps.
 
-    See ARCHITECTURE.md § Data Flow
+    See ARCHITECTURE-OVERVIEW.md § Data Flow
     """
 
     def test_pipeline_order_documented(self):
@@ -716,7 +716,7 @@ class TestDataFlowOneDirection:
             assert "orchestrator" in content.lower() or "pipeline" in content.lower(), (
                 "ARCHITECTURE VIOLATION: Pipeline order not documented\n"
                 "Data flow depends on agent execution order.\n"
-                "See ARCHITECTURE.md § Data Flow"
+                "See ARCHITECTURE-OVERVIEW.md § Data Flow"
             )
 
     def test_no_backward_communication_tools(self):
@@ -743,30 +743,30 @@ class TestContextBudgetManagement:
 
     BREAKING CHANGE: If single agent uses >25K tokens or no budget tracking.
 
-    See ARCHITECTURE.md § Agent Communication Strategy
+    See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy
     """
 
     def test_context_budget_documented(self):
         """Test context budget per agent is documented."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         assert "Context Budget" in content or "context budget" in content.lower(), (
             "ARCHITECTURE VIOLATION: Context budget not documented\n"
             "Each agent should have context budget limit.\n"
-            "See ARCHITECTURE.md § Agent Communication Strategy"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy"
         )
 
     def test_total_context_under_limit(self):
         """Test total context budget per feature is reasonable."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         # Should mention token limits
         assert "25K" in content or "tokens" in content.lower(), (
             "ARCHITECTURE VIOLATION: Context limits not specified\n"
             "Total budget must be <200K to allow multiple features.\n"
-            "See ARCHITECTURE.md § Agent Communication Strategy"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Communication Strategy"
         )
 
 
@@ -774,60 +774,60 @@ class TestDesignDecisionDocumentation:
     """
     Test that design decisions are documented and rationale is clear.
 
-    See ARCHITECTURE.md § Design Decisions & Rationale
+    See ARCHITECTURE-OVERVIEW.md § Design Decisions & Rationale
     """
 
     def test_architecture_document_exists(self):
-        """Test ARCHITECTURE.md exists to document intent."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        """Test ARCHITECTURE-OVERVIEW.md exists to document intent."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
 
         assert arch_doc.exists(), (
-            "CRITICAL: ARCHITECTURE.md missing\n"
+            "CRITICAL: ARCHITECTURE-OVERVIEW.md missing\n"
             "This document is required to explain design intent.\n"
             "Without it, architectural decisions are lost."
         )
 
     def test_architecture_document_has_intent(self):
-        """Test ARCHITECTURE.md documents intent, not just structure."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        """Test ARCHITECTURE-OVERVIEW.md documents intent, not just structure."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         # Should explain WHY, not just WHAT
         assert "WHY:" in content or "Intent:" in content, (
-            "ARCHITECTURE.md must document WHY decisions were made.\n"
+            "ARCHITECTURE-OVERVIEW.md must document WHY decisions were made.\n"
             "Structure without rationale is not useful."
         )
 
     def test_breaking_changes_documented(self):
-        """Test ARCHITECTURE.md defines what constitutes breaking changes."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        """Test ARCHITECTURE-OVERVIEW.md defines what constitutes breaking changes."""
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         assert "Breaking Change" in content or "BREAKING" in content, (
-            "ARCHITECTURE.md must document what changes break architecture.\n"
+            "ARCHITECTURE-OVERVIEW.md must document what changes break architecture.\n"
             "This helps prevent unintentional architectural drift."
         )
 
     def test_agent_responsibilities_table_exists(self):
         """Test agent responsibilities are documented in table."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         # Should have table documenting each agent's unique role
         assert "| Agent |" in content or "Agent" in content and "Responsibility" in content, (
             "ARCHITECTURE VIOLATION: Agent responsibilities not documented\n"
             "Clear role definition prevents overlap and duplication.\n"
-            "See ARCHITECTURE.md § Agent Specialization"
+            "See ARCHITECTURE-OVERVIEW.md § Agent Specialization"
         )
 
     def test_skill_domains_table_exists(self):
         """Test skill domains are documented in table."""
-        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE.md"
+        arch_doc = Path(__file__).parent.parent / "ARCHITECTURE-OVERVIEW.md"
         content = arch_doc.read_text()
 
         # Should have table documenting each skill's domain
         assert "| Skill |" in content or ("Skill" in content and "Coverage" in content), (
             "ARCHITECTURE VIOLATION: Skill domains not documented\n"
             "Clear domain boundaries prevent redundancy.\n"
-            "See ARCHITECTURE.md § Skill Boundaries"
+            "See ARCHITECTURE-OVERVIEW.md § Skill Boundaries"
         )

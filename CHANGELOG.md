@@ -1,3 +1,12 @@
+## [Unreleased]
+
+### Changed
+- Consolidate ARCHITECTURE.md into ARCHITECTURE-OVERVIEW.md (#208)
+  - Archived ARCHITECTURE.md to docs/archived/ with deprecation notice
+  - Updated 10+ file references to point to ARCHITECTURE-OVERVIEW.md
+  - Added 21 tests for consolidation validation
+  - Ensures single source of truth for architecture documentation
+
 ## [3.46.0] - 2026-01-09
 ### Changed
 - Update component counts across all documentation (#207)

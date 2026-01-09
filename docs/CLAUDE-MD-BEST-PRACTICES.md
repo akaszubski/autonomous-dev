@@ -95,7 +95,7 @@ See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 ## More Info
 - [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Development workflow
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design
+- [ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) - System design
 - [SECURITY.md](docs/SECURITY.md) - Security guidelines
 ```
 
@@ -171,7 +171,7 @@ After optimization, validate:
 
 1. **Move to separate docs**:
    - Workflow Discipline details → docs/WORKFLOW.md
-   - Architecture details → docs/ARCHITECTURE.md (expand existing)
+   - Architecture details → docs/ARCHITECTURE-OVERVIEW.md (expand existing)
    - Batch Processing → docs/BATCH-PROCESSING.md (already exists)
    - Git Automation → docs/GIT-AUTOMATION.md (already exists)
    - Troubleshooting → docs/TROUBLESHOOTING.md (consolidate)

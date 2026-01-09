@@ -1094,7 +1094,7 @@ class TestSaveMergedResearch:
                 "Local finding 2: Found in project docs"
             ],
             "sources": [
-                "/Users/andrewkaszubski/Dev/autonomous-dev/docs/ARCHITECTURE.md",
+                "/Users/andrewkaszubski/Dev/autonomous-dev/docs/ARCHITECTURE-OVERVIEW.md",
                 "/Users/andrewkaszubski/Dev/autonomous-dev/.claude/PROJECT.md"
             ]
         }
@@ -1114,7 +1114,7 @@ class TestSaveMergedResearch:
         content = result.read_text()
         assert "Local finding 1" in content
         assert "Local finding 2" in content
-        assert "ARCHITECTURE.md" in content or "docs/ARCHITECTURE.md" in content
+        assert "ARCHITECTURE-OVERVIEW.md" in content or "docs/ARCHITECTURE-OVERVIEW.md" in content
 
     def test_save_merged_research_updates_index(self, temp_project, mock_path_utils, mock_validation):
         """

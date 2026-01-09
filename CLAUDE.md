@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #207 - Update component counts across all documentation)
+**Last Updated**: 2026-01-09 (Issue #208 - Consolidate ARCHITECTURE.md into ARCHITECTURE-OVERVIEW.md)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version

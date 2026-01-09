@@ -1,3 +1,7 @@
+> **DEPRECATED**: This file has been consolidated into [ARCHITECTURE-OVERVIEW.md](../ARCHITECTURE-OVERVIEW.md)
+> **Archived**: 2026-01-09 (Issue #208)
+> **Reason**: Consolidation to prevent documentation drift
+
 # Architecture Overview
 
 **Last Updated**: 2025-11-15
@@ -34,7 +38,7 @@ autonomous-dev combines **deterministic enforcement** (hooks) with **intelligent
 - **Fast** - Python execution, no LLM latency
 - **Consistent** - Same rules for every developer
 
-**See also**: [docs/HOOKS.md](HOOKS.md) for complete hook inventory and lifecycle details, or [ARCHITECTURE-EXPLAINED.md](ARCHITECTURE-EXPLAINED.md) for detailed hook architecture
+**See also**: [docs/HOOKS.md](HOOKS.md) for complete hook inventory and lifecycle details
 
 ### Layer 2: Agent Intelligence (Command-Driven, Adaptive)
 

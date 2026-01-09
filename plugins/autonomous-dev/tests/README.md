@@ -46,7 +46,7 @@ logic, blocking on out-of-scope requests. Validate BEHAVIOR.
    /validate-architecture
    ```
 
-See ARCHITECTURE.md § Testing This Document for full details.
+See ARCHITECTURE-OVERVIEW.md § Testing This Document for full details.
 
 ---
 
@@ -92,12 +92,12 @@ def test_exactly_eight_agents_exist():
     assert len(agents) == 8, (
         "ARCHITECTURAL INVARIANT VIOLATION: Expected 8 agents\n"
         "8-agent pipeline is core to architecture.\n"
-        "See ARCHITECTURE.md § 8-Agent Pipeline"
+        "See ARCHITECTURE-OVERVIEW.md § 8-Agent Pipeline"
     )
 ```
 
 **If This Fails**:
-1. Architecture has changed → Update ARCHITECTURE.md
+1. Architecture has changed → Update ARCHITECTURE-OVERVIEW.md
 2. Regression occurred → Fix the code
 3. Test is too strict → Update the test
 

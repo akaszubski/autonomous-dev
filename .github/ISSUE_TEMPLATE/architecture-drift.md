@@ -15,7 +15,7 @@ assignees: ''
 
 ---
 
-## Documented Intent (ARCHITECTURE.md)
+## Documented Intent (ARCHITECTURE-OVERVIEW.md)
 
 {{ documented_intent }}
 
@@ -80,4 +80,4 @@ assignees: ''
 ---
 
 *Auto-created by `/test architecture --track-issues`*
-*See: [ARCHITECTURE.md](ARCHITECTURE.md)*
+*See: [ARCHITECTURE-OVERVIEW.md](../../docs/ARCHITECTURE-OVERVIEW.md)*

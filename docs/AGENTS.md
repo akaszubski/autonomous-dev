@@ -318,7 +318,7 @@ Three agents execute in parallel during Step 5 of /auto-implement:
 
 ## See Also
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Overall system architecture
+- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Overall system architecture
 - [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) - Agent-skill mapping
 - [commands/auto-implement.md](/plugins/autonomous-dev/commands/auto-implement.md) - Workflow coordination
 - [agents/](/plugins/autonomous-dev/agents/) - Individual agent prompts

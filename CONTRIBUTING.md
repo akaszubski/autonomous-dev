@@ -62,7 +62,7 @@ autonomous-dev/
 │   └── docs/                    # User documentation
 │
 ├── docs/                        # Developer documentation
-│   ├── ARCHITECTURE.md          # System architecture
+│   ├── ARCHITECTURE-OVERVIEW.md # System architecture
 │   ├── DEVELOPMENT.md           # Development guide
 │   ├── AGENTS.md                # Agent reference
 │   └── ...                      # Other dev docs
@@ -286,7 +286,7 @@ Verify plugin integrity:
 
 - **Issues**: [GitHub Issues](https://github.com/akaszubski/autonomous-dev/issues)
 - **Documentation**: See `docs/` folder
-- **Architecture**: `docs/ARCHITECTURE.md`
+- **Architecture**: `docs/ARCHITECTURE-OVERVIEW.md`
 - **Development Guide**: `docs/DEVELOPMENT.md`
 
 ---
