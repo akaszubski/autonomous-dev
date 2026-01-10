@@ -151,6 +151,26 @@ Process multiple features or GitHub issues in isolated git worktrees:
 - Path traversal and injection prevention
 - 84% reduction in permission prompts
 
+### 66 Automation Hooks
+
+Hooks run automatically at key moments to enforce quality without manual intervention:
+
+| Hook Type | What It Does |
+|-----------|--------------|
+| **PreToolUse** | Validates commands before execution (sandboxing, path security, injection prevention) |
+| **PreCommit** | Blocks commits with failing tests, missing docs, or security issues |
+| **SubagentStop** | Triggers git automation after pipeline completion |
+| **PrePromptSubmit** | Enforces workflow discipline and command validation |
+
+**Examples of what hooks catch automatically:**
+- Documentation drift from code changes
+- Secrets accidentally staged for commit
+- `git push --force` to protected branches
+- Missing test coverage on new code
+- CLAUDE.md out of sync with codebase
+
+**Philosophy**: Quality gates should be automatic. If you have to remember to check something, you'll eventually forget.
+
 ---
 
 ## Documentation
@@ -159,6 +179,7 @@ Process multiple features or GitHub issues in isolated git worktrees:
 |-------|-------------|
 | [CLAUDE.md](CLAUDE.md) | Project instructions and quick reference |
 | [Architecture](docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
+| [Hooks](docs/HOOKS.md) | Complete hook reference and configuration |
 | [Workflow Discipline](docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Security](docs/SECURITY.md) | Security model and hardening guide |
