@@ -160,7 +160,7 @@ python3 -c "import sys; sys.path.insert(0, '$HOME/.claude/lib'); import security
 /clear
 
 # Best practice workflow:
-# 1. Complete feature with /auto-implement
+# 1. Complete feature with /implement
 # 2. Run /clear
 # 3. Start next feature
 ```
@@ -314,4 +314,4 @@ cat ~/.claude/settings.json | python3 -m json.tool | head -20
 - **Current version**: v3.41.0+
 - **Agents**: 22 specialists
 - **Hooks**: 50 automation hooks
-- **Commands**: 7 active (`/auto-implement`, `/batch-implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`)
+- **Commands**: 7 active (`/implement`, `/implement --batch`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`)

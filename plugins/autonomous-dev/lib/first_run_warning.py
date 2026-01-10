@@ -2,7 +2,7 @@
 """
 First-run warning system for autonomous-dev plugin.
 
-Interactive warning system for opt-out consent on first /auto-implement run.
+Interactive warning system for opt-out consent on first /implement run.
 
 Features:
 - Displays first-run warning about automatic git operations
@@ -63,7 +63,7 @@ def render_warning() -> str:
 ║                                                              ║
 ║  🚀 Zero Manual Git Operations (NEW DEFAULT)                ║
 ║                                                              ║
-║  Automatic git operations enabled after /auto-implement:    ║
+║  Automatic git operations enabled after /implement:    ║
 ║                                                              ║
 ║    ✓ automatic commit with conventional commit message      ║
 ║    ✓ automatic push to remote                               ║
@@ -186,7 +186,7 @@ def show_first_run_warning(
             retry_count += 1
             if retry_count >= max_retries:
                 raise FirstRunWarningError(
-                    f"Maximum retries exceeded. Please run /auto-implement again and enter 'yes' or 'no'."
+                    f"Maximum retries exceeded. Please run /implement again and enter 'yes' or 'no'."
                 )
             sys.stdout.write(f"\n{e}\n")
             sys.stdout.write("Do you want to enable automatic git operations? (Y/n): ")

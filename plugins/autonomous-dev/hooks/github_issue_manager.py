@@ -4,10 +4,10 @@
 # dependencies = []
 # ///
 """
-GitHub Issue Manager - Automatic issue creation and closure for /auto-implement
+GitHub Issue Manager - Automatic issue creation and closure for /implement
 
 Integrates GitHub issues with the autonomous development pipeline:
-- Creates issue at start of /auto-implement
+- Creates issue at start of /implement
 - Tracks issue number in pipeline JSON
 - Auto-closes issue when pipeline completes
 - Gracefully degrades if gh CLI unavailable
@@ -81,7 +81,7 @@ class GitHubIssueManager:
 
         # Create issue body
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        body = f"""Automated feature implementation via `/auto-implement`
+        body = f"""Automated feature implementation via `/implement`
 
 **Session**: `{session_file.name}`
 **Started**: {timestamp}

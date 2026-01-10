@@ -4,9 +4,9 @@
 # dependencies = []
 # ///
 """
-Pre-commit hook: Enforce pipeline completeness for /auto-implement features
+Pre-commit hook: Enforce pipeline completeness for /implement features
 
-This hook ensures that features developed with /auto-implement go through
+This hook ensures that features developed with /implement go through
 the full 7-agent pipeline before being committed.
 
 Pipeline agents:
@@ -116,7 +116,7 @@ def is_feature_commit():
 
 
 def is_auto_implement_commit():
-    """Check if this is a commit from /auto-implement workflow."""
+    """Check if this is a commit from /implement workflow."""
     # Check if pipeline file exists for today
     pipeline_file = get_today_pipeline_file()
     return pipeline_file is not None
@@ -138,13 +138,13 @@ def main():
         print("=" * 70)
         print()
         print("This is a feature commit (starts with 'feat:' or 'feature:')")
-        print("but no /auto-implement pipeline was detected.")
+        print("but no /implement pipeline was detected.")
         print()
         print("=" * 70)
         print("Why this matters:")
         print("=" * 70)
         print()
-        print("Feature commits MUST use /auto-implement to ensure:")
+        print("Feature commits MUST use /implement to ensure:")
         print("  ✓ Research done (researcher)")
         print("  ✓ Architecture planned (planner)")
         print("  ✓ Tests written FIRST (test-master)")
@@ -157,8 +157,8 @@ def main():
         print("How to fix:")
         print("=" * 70)
         print()
-        print("Option 1: Use /auto-implement (REQUIRED for features)")
-        print("  Run: /auto-implement <your feature description>")
+        print("Option 1: Use /implement (REQUIRED for features)")
+        print("  Run: /implement <your feature description>")
         print("  Wait for all 7 agents to complete")
         print("  Then commit")
         print()
@@ -203,7 +203,7 @@ def main():
     print("Why this matters:")
     print("=" * 70)
     print()
-    print("The /auto-implement workflow requires ALL 7 agents to ensure:")
+    print("The /implement workflow requires ALL 7 agents to ensure:")
     print("  ✓ Tests written (test-master)")
     print("  ✓ Security scanned (security-auditor)")
     print("  ✓ Code reviewed (reviewer)")
@@ -219,11 +219,11 @@ def main():
     print("=" * 70)
     print()
     print("Option 1: Complete the pipeline (RECOMMENDED)")
-    print(f"  Run: /auto-implement again with the same feature")
+    print(f"  Run: /implement again with the same feature")
     print(f"  Claude will invoke the {len(missing_agents)} missing agents")
     print(f"  Then commit again")
     print()
-    print("Option 2: Manual implementation (if you didn't use /auto-implement)")
+    print("Option 2: Manual implementation (if you didn't use /implement)")
     print("  If this was a manual change, the pipeline file shouldn't exist")
     print(f"  Remove: {pipeline_file}")
     print("  Then commit again (hooks will still validate)")

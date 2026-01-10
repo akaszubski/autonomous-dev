@@ -3,7 +3,7 @@
 **Last Updated**: 2025-11-14
 **Related Issue**: [#46 - Multi-Phase Optimization](https://github.com/akaszubski/autonomous-dev/issues/46)
 
-This document tracks the performance optimization journey for the `/auto-implement` autonomous development workflow.
+This document tracks the performance optimization journey for the `/implement` autonomous development workflow.
 
 ## Overview
 
@@ -112,7 +112,7 @@ with PerformanceTimer("agent_execution", {"agent": "researcher"}):
 - `_record_failed_validation()`: Track validation failures
 
 **Integration**:
-- **CHECKPOINT 4.1** added to `plugins/autonomous-dev/commands/auto-implement.md`
+- **CHECKPOINT 4.1** added to `plugins/autonomous-dev/commands/implement.md`
 - Validates reviewer, security-auditor, doc-master run in parallel
 - Alerts if sequential execution detected (performance regression)
 
@@ -324,7 +324,7 @@ metrics = analyze_performance_logs(Path("/path/to/custom.json"))
 
 Track these metrics to identify regressions:
 
-1. **Workflow Duration**: Total time from `/auto-implement` start to completion
+1. **Workflow Duration**: Total time from `/implement` start to completion
 2. **Agent Execution Time**: Individual agent performance
 3. **Parallel Efficiency**: Time saved by parallel validation
 4. **Context Token Usage**: Token consumption per workflow

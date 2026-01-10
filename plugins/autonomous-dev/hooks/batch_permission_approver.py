@@ -7,7 +7,7 @@
 Batch Permission Approver - Reduce permission prompts via intelligent batching
 
 This hook intercepts tool calls to provide intelligent permission handling:
-- Auto-approve SAFE operations during /auto-implement
+- Auto-approve SAFE operations during /implement
 - Batch BOUNDARY operations for single approval
 - Always prompt for SENSITIVE operations
 

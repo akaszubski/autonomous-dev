@@ -489,7 +489,7 @@ class UninstallOrchestrator:
                     relative_structure = Path(*file_parts[3:])
                     file_path = target_dir / relative_structure
                 else:
-                    # Simple file (e.g., commands/auto-implement.md)
+                    # Simple file (e.g., commands/implement.md)
                     file_path = target_dir / file_rel.name
 
                 # Skip if file doesn't exist (partial install)

@@ -6,7 +6,7 @@ This module classifies tool operations into three categories to reduce permissio
 prompts during autonomous workflows:
 
 Categories:
-- SAFE: Read-only operations within project (auto-approve during /auto-implement)
+- SAFE: Read-only operations within project (auto-approve during /implement)
 - BOUNDARY: Write operations to project code (batch approval)
 - SENSITIVE: System operations, config writes (always prompt)
 

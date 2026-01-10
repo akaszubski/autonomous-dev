@@ -330,7 +330,7 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 
 **"Too much governance, want freedom"**:
 - Downgrade to [Standard Tier](#standard-tier)
-- Use `/auto-implement` without PROJECT.md validation
+- Use `/implement` without PROJECT.md validation
 - GitHub integration remains optional
 
 ---

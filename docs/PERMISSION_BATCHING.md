@@ -7,7 +7,7 @@
 ## Problem
 
 Permission fatigue during autonomous workflows:
-- ~50 permission prompts per `/auto-implement` feature
+- ~50 permission prompts per `/implement` feature
 - Constant interruptions for safe read operations
 - Users forced to use `--dangerously-skip-permissions` (unsafe)
 
@@ -41,7 +41,7 @@ cp plugins/autonomous-dev/templates/settings.permission-batching.json .claude/se
 
 ### 3. Verify It's Working
 
-Run `/auto-implement` and observe:
+Run `/implement` and observe:
 - Read-only agents (researcher, planner, reviewer): **Zero prompts** ✅
 - Write agents (implementer, doc-master): **<5 prompts** ✅
 - Total prompts per feature: **<10** (vs ~50 before)
@@ -355,7 +355,7 @@ cp plugins/autonomous-dev/templates/settings.permission-batching.json .claude/se
 
 ## FAQ
 
-**Q: Will this work with all commands or just /auto-implement?**
+**Q: Will this work with all commands or just /implement?**
 A: Works with **all workflows**. Any tool use goes through the permission classifier.
 
 **Q: Can I customize which directories are safe?**

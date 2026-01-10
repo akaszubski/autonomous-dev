@@ -7,7 +7,7 @@
 
 Blocks commits if more than 15 active commands exist.
 Allowed commands:
-  Core (8): auto-implement, align-project, align-claude, setup, test, status, health-check, sync-dev, uninstall
+  Core (8): implement, align-project, align-claude, setup, test, status, health-check, sync-dev, uninstall
   Individual Agents (7): research, plan, test-feature, implement, review, security-scan, update-docs
 """
 
@@ -33,7 +33,7 @@ if not is_running_under_uv():
 
 ALLOWED_COMMANDS = {
     # Core workflow commands (8)
-    "auto-implement",
+    "implement",
     "align-project",
     "align-claude",
     "setup",
@@ -71,7 +71,7 @@ def main():
         print(f"❌ Too many commands: {len(active)} active (limit: 15)", file=sys.stderr)
         print(f"\nAllowed 15 commands:", file=sys.stderr)
         print(f"  Core Workflow (8):", file=sys.stderr)
-        for cmd in sorted(["auto-implement", "align-project", "align-claude", "setup", "test", "status", "health-check", "sync-dev", "uninstall"]):
+        for cmd in sorted(["implement", "align-project", "align-claude", "setup", "test", "status", "health-check", "sync-dev", "uninstall"]):
             marker = "✓" if cmd in active else " "
             print(f"    [{marker}] {cmd}", file=sys.stderr)
         print(f"  Individual Agents (7):", file=sys.stderr)

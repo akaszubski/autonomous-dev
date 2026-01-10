@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch Retry Manager - Orchestrate retry logic for /batch-implement workflows.
+Batch Retry Manager - Orchestrate retry logic for /implement --batch workflows.
 
 Manages automatic retry logic with max retries, circuit breaker, and global limits.
 
@@ -47,7 +47,7 @@ Security:
 - State file validation and atomic writes
 
 Date: 2025-11-18
-Issue: #89 (Automatic Failure Recovery for /batch-implement)
+Issue: #89 (Automatic Failure Recovery for /implement --batch)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 
@@ -184,7 +184,7 @@ def log_audit_event(event_type: str, batch_id: str, details: Dict[str, Any]) -> 
 
 class BatchRetryManager:
     """
-    Orchestrate retry logic for /batch-implement workflows.
+    Orchestrate retry logic for /implement --batch workflows.
 
     Manages:
     - Per-feature retry counts
@@ -341,7 +341,7 @@ class BatchRetryManager:
                 f"\n⚠️  Circuit breaker triggered after {self.state.consecutive_failures} "
                 f"consecutive failures.\n"
                 f"Automatic retries paused for safety.\n"
-                f"To resume, fix the underlying issue and run: /batch-implement --resume {self.batch_id}\n",
+                f"To resume, fix the underlying issue and run: /implement --batch --resume {self.batch_id}\n",
                 file=sys.stderr
             )
 

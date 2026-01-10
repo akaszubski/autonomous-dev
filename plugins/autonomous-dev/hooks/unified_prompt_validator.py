@@ -160,13 +160,13 @@ You MUST use the correct workflow:
 
 Why This Is Blocked:
 - Direct issue creation bypasses duplicate detection
-- Skips research integration (cached for /auto-implement)
+- Skips research integration (cached for /implement)
 - No PROJECT.md alignment validation
 
 Correct Workflow:
 1. Run: /create-issue "feature description"
 2. Command validates + researches + creates issue
-3. Then use: /auto-implement #<issue-number>
+3. Then use: /implement #<issue-number>
 
 Set ENFORCE_WORKFLOW=false in .env to disable this check.
 """
@@ -228,10 +228,10 @@ Before implementing directly, consider the quality workflow:
 2. Search codebase for existing patterns
    Use Grep/Glob to find similar implementations first.
 
-3. Consider /auto-implement (recommended)
+3. Consider /implement (recommended)
    Research → Plan → TDD → Implement → Review → Security → Docs
 
-Why /auto-implement works better (production data):
+Why /implement works better (production data):
   - Bug rate: 23% (direct) vs 4% (pipeline)
   - Security issues: 12% (direct) vs 0.3% (pipeline)
   - Test coverage: 43% (direct) vs 94% (pipeline)
@@ -258,7 +258,7 @@ def is_implementation_intent(user_input: str) -> bool:
     - Documentation updates
     - Bug fixes
     - Reading/searching operations
-    - Already using /auto-implement or /create-issue
+    - Already using /implement or /create-issue
 
     Args:
         user_input: User prompt text
@@ -271,7 +271,7 @@ def is_implementation_intent(user_input: str) -> bool:
         True
         >>> is_implementation_intent("How do I implement this?")
         False
-        >>> is_implementation_intent("/auto-implement #123")
+        >>> is_implementation_intent("/implement #123")
         False
     """
     if not user_input or not user_input.strip():
@@ -280,7 +280,7 @@ def is_implementation_intent(user_input: str) -> bool:
     text = user_input.lower().strip()
 
     # Skip if already using quality commands
-    if re.search(r'/auto-implement|/create-issue', text, re.IGNORECASE):
+    if re.search(r'/implement|/create-issue', text, re.IGNORECASE):
         return False
 
     # Skip questions (end with ?)

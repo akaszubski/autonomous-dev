@@ -52,7 +52,7 @@
 ### Do This (Link to Detail):
 ```markdown
 ## Workflow Discipline
-Use `/auto-implement` for features, bugs, API changes. Direct implementation for docs, configs, typos.
+Use `/implement` for features, bugs, API changes. Direct implementation for docs, configs, typos.
 
 **Why:** Catches 85% of issues before commit. See [docs/WORKFLOW.md](docs/WORKFLOW.md) for metrics.
 ```
@@ -84,7 +84,7 @@ Use `/auto-implement` for features, bugs, API changes. Direct implementation for
 ## Commands
 | Command | Purpose |
 |---------|---------|
-| /auto-implement | Feature development |
+| /implement | Feature development |
 | /create-issue | Issue creation |
 
 ## Architecture

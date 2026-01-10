@@ -128,7 +128,7 @@ tools: [Task, Read, Bash]
 **Update pattern:**
 ```bash
 # Test current behavior
-/auto-implement "add feature X"
+/implement "add feature X"
 # Review session log: docs/sessions/*orchestrator*.md
 
 # If orchestrator behavior is wrong:
@@ -136,7 +136,7 @@ vim plugins/autonomous-dev/agents/orchestrator.md
 # Update coordination logic
 
 # Test again
-/auto-implement "add feature Y"
+/implement "add feature Y"
 # Verify improved behavior
 ```
 
@@ -234,7 +234,7 @@ cat docs/sessions/$(ls -t docs/sessions/*agent-name*.md | head -1)
 vim plugins/autonomous-dev/agents/agent-name.md
 
 # 4. Test behavior
-# Invoke agent manually or via /auto-implement
+# Invoke agent manually or via /implement
 
 # 5. Verify improvement
 # Check session log for updated behavior
@@ -347,7 +347,7 @@ vim plugins/autonomous-dev/agents/[relevant-agent].md
 # Add reference to skill in system prompt
 
 # 4. Test that agents use the pattern
-/auto-implement "feature using new pattern"
+/implement "feature using new pattern"
 # Check session log for skill invocation
 ```
 
@@ -667,7 +667,7 @@ vim plugins/autonomous-dev/agents/[agent].md
 # Tell agent to use the skill
 
 # 3. Test that agents invoke skill
-/auto-implement "feature using new pattern"
+/implement "feature using new pattern"
 grep "skill" docs/sessions/$(ls -t docs/sessions/ | head -1)
 ```
 
@@ -679,7 +679,7 @@ vim .claude/settings.local.json
 # Add/remove/modify hooks
 
 # 2. Test with sample feature
-/auto-implement "test feature"
+/implement "test feature"
 git commit -m "test: verify new enforcement"
 
 # 3. Document in architecture guide
@@ -715,8 +715,8 @@ cat docs/sessions/$(ls -t docs/sessions/*agent-name*.md | head -1)
 # 2. Update agent system prompt
 vim plugins/autonomous-dev/agents/agent-name.md
 
-# 3. Test with /auto-implement
-/auto-implement "test feature"
+# 3. Test with /implement
+/implement "test feature"
 
 # 4. Verify behavior in session log
 cat docs/sessions/$(ls -t docs/sessions/*agent-name*.md | head -1)

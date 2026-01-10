@@ -9,7 +9,7 @@ Enforce Orchestrator Validation - PROJECT.md Gatekeeper (Phase 1)
 Ensures orchestrator validated PROJECT.md alignment before implementation.
 
 This prevents:
-- Users bypassing /auto-implement
+- Users bypassing /implement
 - Features implemented without PROJECT.md alignment check
 - Work proceeding without strategic direction validation
 
@@ -245,8 +245,8 @@ def main():
     print("HOW TO FIX", file=sys.stderr)
     print("=" * 80, file=sys.stderr)
     print(file=sys.stderr)
-    print("Option 1: Use /auto-implement (recommended):", file=sys.stderr)
-    print("  /auto-implement \"your feature description\"", file=sys.stderr)
+    print("Option 1: Use /implement (recommended):", file=sys.stderr)
+    print("  /implement \"your feature description\"", file=sys.stderr)
     print("  → orchestrator validates alignment automatically", file=sys.stderr)
     print("  → Full 7-agent pipeline executes", file=sys.stderr)
     print(file=sys.stderr)

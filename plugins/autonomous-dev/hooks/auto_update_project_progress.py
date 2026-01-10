@@ -7,7 +7,7 @@
 SubagentStop Hook - Auto-Update PROJECT.md Progress After Pipeline
 
 This hook automatically updates PROJECT.md goal progress after the doc-master
-agent completes, marking the end of the /auto-implement pipeline.
+agent completes, marking the end of the /implement pipeline.
 
 Hook Type: SubagentStop
 Trigger: After doc-master agent completes

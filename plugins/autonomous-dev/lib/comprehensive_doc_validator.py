@@ -32,7 +32,7 @@ Usage:
     report = validator.validate_all()
 
 Date: 2026-01-03
-Issue: #198 - Comprehensive documentation validation in /auto-implement
+Issue: #198 - Comprehensive documentation validation in /implement
 Agent: implementer
 
 Design Patterns:

@@ -10,7 +10,7 @@ Real-world usage patterns and examples for autonomous-dev.
 
 | Workflow | Commands | Time | When to Use |
 |----------|----------|------|-------------|
-| **Full Automation** | `/auto-implement "feature"` | 20-30 min | New features, default choice |
+| **Full Automation** | `/implement "feature"` | 20-30 min | New features, default choice |
 | **Step-by-Step** | Individual commands | Varies | Learning, debugging, customization |
 | **Research Only** | `/research "topic"` | 2-5 min | Before planning, spike work |
 | **Planning Only** | `/plan "feature"` | 3-5 min | Architecture decisions |
@@ -22,11 +22,11 @@ Real-world usage patterns and examples for autonomous-dev.
 
 **Use for**: Most features, default workflow
 
-**Command**: `/auto-implement "feature description"`
+**Command**: `/implement "feature description"`
 
 **Example**:
 ```bash
-/auto-implement "Add JWT authentication to the API with refresh tokens"
+/implement "Add JWT authentication to the API with refresh tokens"
 ```
 
 **What happens** (automatic):
@@ -206,7 +206,7 @@ Recommended Approach:
 /align
 
 # Track progress
-# (PROJECT.md auto-updated after each /auto-implement)
+# (PROJECT.md auto-updated after each /implement)
 ```
 
 **Example output** (`/status`):
@@ -307,7 +307,7 @@ No issues detected. Plugin is healthy.
 
 **Workflow**:
 ```bash
-/auto-implement "Add GET /api/users endpoint with cursor-based pagination, limit 100 per page"
+/implement "Add GET /api/users endpoint with cursor-based pagination, limit 100 per page"
 ```
 
 **Result** (after 25 minutes):
@@ -381,7 +381,7 @@ No issues detected. Plugin is healthy.
 # (Edit .claude/PROJECT.md with GOALS, SCOPE, CONSTRAINTS, ARCHITECTURE)
 
 # Step 4: Start building
-/auto-implement "Add user authentication"
+/implement "Add user authentication"
 ```
 
 ---
@@ -392,17 +392,17 @@ No issues detected. Plugin is healthy.
 
 ✅ **Clear after each feature** (recommended):
 ```bash
-/auto-implement "feature 1"
+/implement "feature 1"
 /clear
-/auto-implement "feature 2"
+/implement "feature 2"
 /clear
 ```
 
 ✅ **Clear before unrelated features**:
 ```bash
-/auto-implement "Add auth"       # Context: ~8K tokens
+/implement "Add auth"       # Context: ~8K tokens
 /clear
-/auto-implement "Add analytics"  # Fresh context
+/implement "Add analytics"  # Fresh context
 ```
 
 ❌ **Don't clear mid-feature**:

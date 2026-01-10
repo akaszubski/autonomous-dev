@@ -93,7 +93,7 @@ extract_issue_numbers(["Fix #"])              # No number to extract
 
 **When you use it**:
 - Creating PRs: `plugins/autonomous-dev/lib/pr_automation.py`
-- Called during `/auto-implement` Step 8
+- Called during `/implement` Step 8
 - Can be called directly: `from pr_automation import extract_issue_numbers`
 
 **Error behavior**:

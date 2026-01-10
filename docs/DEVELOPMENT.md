@@ -285,7 +285,7 @@ Add a simple hello world function
 
 **Expected behavior**:
 1. 🎯 Detection message appears
-2. I (Claude) automatically invoke `/auto-implement`
+2. I (Claude) automatically invoke `/implement`
 3. orchestrator validates PROJECT.md
 4. Agents run (you'll see me using Task tool)
 5. Session logs created in `docs/sessions/`

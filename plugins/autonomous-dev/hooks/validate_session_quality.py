@@ -361,8 +361,8 @@ def main():
             print(f"   - docs/sessions/{sf.name}", file=sys.stderr)
         print(file=sys.stderr)
 
-        print("2. Re-run with /auto-implement for complete pipeline:", file=sys.stderr)
-        print("   /auto-implement \"your feature description\"", file=sys.stderr)
+        print("2. Re-run with /implement for complete pipeline:", file=sys.stderr)
+        print("   /implement \"your feature description\"", file=sys.stderr)
         print(file=sys.stderr)
 
         print("3. Proceed anyway (you're in control):", file=sys.stderr)

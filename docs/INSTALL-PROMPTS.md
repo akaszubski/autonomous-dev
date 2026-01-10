@@ -79,7 +79,7 @@ I want to set up autonomous-dev for this new project. Please help me:
 
 5. Show me how to run my first feature:
    - Create a GitHub issue for a simple feature
-   - Run /auto-implement "issue #1"
+   - Run /implement "issue #1"
    - Explain what each agent does as it runs
 
 My project is: [DESCRIBE YOUR PROJECT HERE]
@@ -125,7 +125,7 @@ I want to add autonomous-dev to this existing project. Please help me:
 7. Show me the agent pipeline by running a small feature:
    - Pick a simple enhancement from my codebase
    - Create a GitHub issue for it
-   - Run /auto-implement "issue #X"
+   - Run /implement "issue #X"
 ```
 
 ---
@@ -143,15 +143,15 @@ I have multiple features to implement. Help me set up batch processing:
    - Run: gh issue list
 
 2. Create a batch from issues:
-   - Run: /batch-implement --issues [ISSUE_NUMBERS]
+   - Run: /implement --batch --issues [ISSUE_NUMBERS]
 
    OR create a features file:
    - Create sprint-backlog.txt with one feature per line
-   - Run: /batch-implement sprint-backlog.txt
+   - Run: /implement --batch sprint-backlog.txt
 
 3. Explain the batch workflow:
    - How many features run before context reset (~4-5)
-   - How to resume: /batch-implement --resume <batch-id>
+   - How to resume: /implement --batch --resume <batch-id>
    - How issues are auto-closed on completion
 
 4. Start the batch and let me know when to /clear and resume
@@ -200,6 +200,6 @@ Please update autonomous-dev to the latest version:
 
 - **PROJECT.md is Key**: The plugin validates every feature against PROJECT.md. Take time to define your GOALS, SCOPE, and CONSTRAINTS accurately.
 
-- **GitHub-First**: Issues drive development. Create issues first, then `/auto-implement "issue #X"`.
+- **GitHub-First**: Issues drive development. Create issues first, then `/implement "issue #X"`.
 
 - **Context Limits**: After 4-5 features, run `/clear` then resume. This is by design, not a bug.

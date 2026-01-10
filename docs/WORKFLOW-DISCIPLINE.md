@@ -98,7 +98,7 @@ ENFORCE_WORKFLOW=false  # Disables bypass detection
 
 ## The Choice is Yours
 
-Hooks no longer block direct implementation for new code. But the data shows /auto-implement catches 85% of issues before commit.
+Hooks no longer block direct implementation for new code. But the data shows /implement catches 85% of issues before commit.
 
 **When you implement directly, you accept**:
 - Higher bug rate (23% vs 4%)
@@ -120,7 +120,7 @@ Claude: Implements directly (no PROJECT.md check, no TDD, no research)
 # ✅ CORRECT: Use pipeline
 User: "/create-issue Add JWT authentication"
 Claude: Creates issue with research + duplicate check + cache
-User: "/auto-implement #123"
+User: "/implement #123"
 Claude: Validates alignment → TDD → implements → reviews → documents
 ```
 
@@ -132,7 +132,7 @@ Claude: Validates alignment → TDD → implements → reviews → documents
 |-------|---|---------|----------------|
 | **HOOKS** | 10 | Deterministic blocking | `unified_pre_tool.py`, `unified_prompt_validator.py` |
 | **CLAUDE.md** | 30 | Persuasion via data | Workflow Discipline section |
-| **CONVENIENCE** | 40 | Quality path easiest | `/auto-implement` pipeline |
+| **CONVENIENCE** | 40 | Quality path easiest | `/implement` pipeline |
 | **SKILLS** | 20 | Agent expertise | Native `skills:` frontmatter |
 
 **Completed**: #140-146. **Details**: `docs/epic-142-closeout.md`
@@ -159,7 +159,7 @@ The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion — g
 
 **The Data Shows**:
 
-| Metric | Direct Implementation | /auto-implement Pipeline |
+| Metric | Direct Implementation | /implement Pipeline |
 |--------|----------------------|--------------------------|
 | Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
 | Security issues | 12% (need audit) | 0.3% (caught by auditor) |
@@ -168,4 +168,4 @@ The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion — g
 
 **Your Choice**:
 
-Consider using `/auto-implement` for features where quality matters. For quick fixes, documentation updates, or trivial changes, direct implementation may be appropriate. The data above helps you decide — the choice is yours.
+Consider using `/implement` for features where quality matters. For quick fixes, documentation updates, or trivial changes, direct implementation may be appropriate. The data above helps you decide — the choice is yours.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch State Manager - State-based tracking for /batch-implement command.
+Batch State Manager - State-based tracking for /implement --batch command.
 
 Manages persistent state for batch feature processing. Enables crash recovery,
 resume functionality, and multi-feature batch processing.
@@ -39,10 +39,10 @@ State Structure:
     }
 
 Workflow:
-    1. /batch-implement reads features.txt
+    1. /implement --batch reads features.txt
     2. create_batch_state() creates initial state
     3. For each feature:
-       a. Process with /auto-implement
+       a. Process with /implement
        b. update_batch_progress() increments current_index
        c. should_auto_clear() checks if threshold exceeded
        d. If yes: record_auto_clear_event() → /clear → resume
@@ -87,7 +87,7 @@ Usage:
     cleanup_batch_state(get_batch_state_file())
 
 Date: 2025-11-16
-Issue: #76 (State-based Auto-Clearing for /batch-implement)
+Issue: #76 (State-based Auto-Clearing for /implement --batch)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 
@@ -232,7 +232,7 @@ class BatchState:
     analysis_metadata: Dict[str, Any] = field(default_factory=dict)  # Issue #157: Analysis info (stats, timing, etc.)
     # Compaction-resilience: Workflow methodology survives context summarization
     workflow_mode: str = "auto-implement"  # "auto-implement" or "direct" - tells Claude HOW to process features
-    workflow_reminder: str = "Use /auto-implement for each feature. Do NOT implement directly."  # Reinjects methodology after compaction
+    workflow_reminder: str = "Use /implement for each feature. Do NOT implement directly."  # Reinjects methodology after compaction
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -641,7 +641,7 @@ def load_batch_state(state_file: Path | str) -> BatchState:
             if 'workflow_mode' not in data:
                 data['workflow_mode'] = 'auto-implement'
             if 'workflow_reminder' not in data:
-                data['workflow_reminder'] = 'Use /auto-implement for each feature. Do NOT implement directly.'
+                data['workflow_reminder'] = 'Use /implement for each feature. Do NOT implement directly.'
 
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)

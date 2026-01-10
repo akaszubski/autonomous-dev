@@ -20,7 +20,7 @@ Run this as part of pre-commit to catch missing flag documentation.
 Author: implementer agent
 Date: 2025-12-14
 Issue: GitHub #133 - Add pre-commit hook for command frontmatter flag validation
-Related: Issue #131 - Fixed frontmatter for /align, /batch-implement, /create-issue, /sync
+Related: Issue #131 - Fixed frontmatter for /align, /implement, /create-issue, /sync
 """
 
 import os

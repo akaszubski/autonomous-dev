@@ -2,12 +2,12 @@
 """
 Memory Layer - Cross-session memory for context continuity.
 
-Provides persistent memory storage across /auto-implement sessions, enabling
+Provides persistent memory storage across /implement sessions, enabling
 agents to remember architectural decisions, blockers, patterns, and context
 without re-research.
 
 Problem (Issue #179):
-- No persistent memory between /auto-implement sessions
+- No persistent memory between /implement sessions
 - Context resets force re-research of patterns/decisions
 - No way to recall blockers or architectural decisions
 - Lost productivity when switching between features
@@ -314,7 +314,7 @@ def calculate_utility_score(
 class MemoryLayer:
     """Cross-session memory layer for context continuity.
 
-    Provides persistent memory storage across /auto-implement sessions.
+    Provides persistent memory storage across /implement sessions.
 
     Methods:
         remember(memory_type, content, metadata) -> str

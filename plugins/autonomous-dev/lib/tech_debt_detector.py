@@ -11,7 +11,7 @@ This module detects technical debt patterns that impact code quality and maintai
 - Dead code (unused imports/functions)
 - Complexity issues (McCabe complexity with radon)
 
-Integrated with reviewer checklist at CHECKPOINT 4.2 in /auto-implement workflow.
+Integrated with reviewer checklist at CHECKPOINT 4.2 in /implement workflow.
 
 Security Features:
 - Path traversal prevention (CWE-22)

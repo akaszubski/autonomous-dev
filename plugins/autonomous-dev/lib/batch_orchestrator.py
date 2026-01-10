@@ -613,7 +613,7 @@ def run_full_pipeline(feature: str) -> Dict[str, Any]:
         Dictionary with execution result
 
     Note:
-        This is a stub - actual implementation delegates to /auto-implement logic
+        This is a stub - actual implementation delegates to /implement logic
         which is orchestrated by Claude, not Python code.
     """
     # This function exists for the orchestration layer
@@ -790,11 +790,11 @@ def route_implement_mode(flags: Dict[str, Any]) -> Dict[str, Any]:
 
 DEPRECATION_NOTICES = {
     "auto-implement": """
-**DEPRECATED**: /auto-implement is deprecated as of v3.45.0.
+**DEPRECATED**: /implement is deprecated as of v3.45.0.
 
 Use `/implement` instead (full pipeline is now the default):
 
-Old: /auto-implement "add user authentication"
+Old: /implement "add user authentication"
 New: /implement "add user authentication"
 
 The unified /implement command provides:
@@ -804,17 +804,17 @@ The unified /implement command provides:
 """.strip(),
 
     "batch-implement": """
-**DEPRECATED**: /batch-implement is deprecated as of v3.45.0.
+**DEPRECATED**: /implement --batch is deprecated as of v3.45.0.
 
 Use `/implement` with batch flags instead:
 
-Old: /batch-implement features.txt
+Old: /implement --batch features.txt
 New: /implement --batch features.txt
 
-Old: /batch-implement --issues 72 73 74
+Old: /implement --batch --issues 72 73 74
 New: /implement --issues 72 73 74
 
-Old: /batch-implement --resume batch-123
+Old: /implement --batch --resume batch-123
 New: /implement --resume batch-123
 
 The unified /implement command provides:
@@ -848,17 +848,17 @@ def convert_legacy_args(command: str, args: List[str]) -> List[str]:
         Converted arguments for /implement
     """
     if command == "auto-implement":
-        # /auto-implement "feature" → /implement "feature" (no change needed)
+        # /implement "feature" → /implement "feature" (no change needed)
         return args
 
     elif command == "batch-implement":
         # Check if args already have flags
         if args and args[0].startswith("--"):
-            # /batch-implement --issues 72 → /implement --issues 72
-            # /batch-implement --resume X → /implement --resume X
+            # /implement --batch --issues 72 → /implement --issues 72
+            # /implement --batch --resume X → /implement --resume X
             return args
         else:
-            # /batch-implement features.txt → /implement --batch features.txt
+            # /implement --batch features.txt → /implement --batch features.txt
             return ["--batch"] + args
 
     else:

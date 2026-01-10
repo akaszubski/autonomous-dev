@@ -89,7 +89,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```bash
 # Restart Claude Code
 # Try commands:
-/auto-implement "add hello function"
+/implement "add hello function"
 /status
 /health-check
 /setup
@@ -198,16 +198,16 @@ done
 
 ### Issue: Commands Not Found
 
-**Symptom**: User runs `/auto-implement`, Claude says "unknown command"
+**Symptom**: User runs `/implement`, Claude says "unknown command"
 
 **Test**:
 ```bash
 # After bootstrap, check:
-ls .claude/commands/auto-implement.md
+ls .claude/commands/implement.md
 # Should exist
 
 # Check frontmatter:
-head -5 .claude/commands/auto-implement.md
+head -5 .claude/commands/implement.md
 # Should have: name: auto-implement
 ```
 
@@ -239,7 +239,7 @@ echo $?  # Should be 0
 
 ### Issue: Agents Not Available
 
-**Symptom**: `/auto-implement` runs but no agents invoked
+**Symptom**: `/implement` runs but no agents invoked
 
 **Test**:
 ```bash

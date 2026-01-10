@@ -659,8 +659,8 @@ class DocumentationParityValidator:
             features.extend(matches)
 
         elif feature_type == "command":
-            # Pattern: "- `/auto-implement` - Autonomous feature development"
-            # Pattern: "`/auto-implement`"
+            # Pattern: "- `/implement` - Autonomous feature development"
+            # Pattern: "`/implement`"
             matches = re.findall(r"`/([a-z-]+)`", content)
             # Exclude built-in CLI commands (not part of plugin)
             built_in_commands = {"clear", "exit", "help"}

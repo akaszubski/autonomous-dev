@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Git Operations Library - Consent-based automation for /auto-implement
+Git Operations Library - Consent-based automation for /implement
 
-This library provides git automation functions for the /auto-implement workflow.
+This library provides git automation functions for the /implement workflow.
 All operations are consent-based with graceful degradation - if git operations
 fail, the feature implementation still succeeds.
 

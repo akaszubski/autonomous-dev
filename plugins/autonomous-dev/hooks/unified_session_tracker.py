@@ -295,7 +295,7 @@ def check_pipeline_complete() -> bool:
         session_data = json.loads(latest_session.read_text())
 
         # Check if all expected agents completed
-        # Issue #147: Consolidated to only active agents in /auto-implement pipeline
+        # Issue #147: Consolidated to only active agents in /implement pipeline
         expected_agents = [
             "researcher-local",
             "planner",

@@ -170,7 +170,7 @@ git commit -m "feat: add feature"
 git commit -m "feat: add feature"
 # → Checks: Did orchestrator run?
 # → Looks for session logs
-# → ❌ BLOCKED: "No orchestrator session found. Use /auto-implement"
+# → ❌ BLOCKED: "No orchestrator session found. Use /implement"
 ```
 
 **Catches**: Manually coding instead of using autonomous workflow
@@ -225,7 +225,7 @@ git commit -m "feat(auth): add JWT authentication"
 git commit -m "feat: add feature"
 # → Checks: Was reviewer agent invoked?
 # → Looks for review session
-# → ❌ BLOCKED: "Code review required. Run /auto-implement to invoke reviewer."
+# → ❌ BLOCKED: "Code review required. Run /implement to invoke reviewer."
 ```
 
 **Catches**: Skipping code review step
@@ -520,7 +520,7 @@ Please:
 ### Example 4: Forgot Code Review
 
 ```bash
-# You implement manually without /auto-implement
+# You implement manually without /implement
 vim feature.py
 git add feature.py
 git commit -m "feat: add feature"
@@ -530,7 +530,7 @@ git commit -m "feat: add feature"
 
 This commit has no review session.
 
-Required: Use /auto-implement to invoke reviewer agent
+Required: Use /implement to invoke reviewer agent
 
 Or manually:
 1. Run: /review feature.py
@@ -577,7 +577,7 @@ Or manually:
       "security_scan",
       "enforce_tdd",              // ← Add: Force TDD
       "auto_enforce_coverage",    // ← Add: Min 80% coverage
-      "enforce_orchestrator",     // ← Add: Must use /auto-implement
+      "enforce_orchestrator",     // ← Add: Must use /implement
       "auto_generate_tests",
       "auto_update_docs"
     ]
@@ -628,7 +628,7 @@ Or manually:
 - ⚠️ Commit message format
 
 **The approach**:
-1. **Commands**: Do the work (`/auto-implement`)
+1. **Commands**: Do the work (`/implement`)
 2. **PreCommit Hooks**: Hold you accountable (block bad commits)
 3. **Result**: Can't skip important steps even if you try
 

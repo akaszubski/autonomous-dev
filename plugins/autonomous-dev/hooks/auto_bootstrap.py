@@ -43,7 +43,7 @@ def is_bootstrap_needed(project_dir: Path) -> bool:
         return True
 
     # Check if essential commands exist
-    essential_commands = ["setup.md", "auto-implement.md"]
+    essential_commands = ["setup.md", "implement.md"]
     for cmd in essential_commands:
         if not (commands_dir / cmd).exists():
             return True

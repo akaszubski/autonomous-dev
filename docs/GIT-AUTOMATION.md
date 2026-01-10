@@ -1,9 +1,9 @@
 # Git Automation Control
 
 **Last Updated**: 2026-01-09
-**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /auto-implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#144 - Consolidate git hooks](https://github.com/akaszubski/autonomous-dev/issues/144), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168), [#212 - Resolve duplicate auto_git_workflow.py](https://github.com/akaszubski/autonomous-dev/issues/212)
+**Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#144 - Consolidate git hooks](https://github.com/akaszubski/autonomous-dev/issues/144), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168), [#212 - Resolve duplicate auto_git_workflow.py](https://github.com/akaszubski/autonomous-dev/issues/212)
 
-This document describes the automatic git operations feature for seamless end-to-end workflow after `/auto-implement` completes.
+This document describes the automatic git operations feature for seamless end-to-end workflow after `/implement` completes.
 
 ## Deprecation Notice
 
@@ -37,7 +37,7 @@ Automatic git operations (commit, push, PR creation, issue closing) provide a se
 Configure git automation by setting these variables in your `.env` file:
 
 ```bash
-# Master switch - disables automatic git operations after /auto-implement
+# Master switch - disables automatic git operations after /implement
 AUTO_GIT_ENABLED=false       # Default: true (enabled by default, opt-out)
 
 # Disable automatic push to remote (requires AUTO_GIT_ENABLED=true)
@@ -57,14 +57,14 @@ AUTO_GIT_PR=false            # Default: true (enabled by default, opt-out)
 
 ### First-Run Consent (v3.12.0+)
 
-On the **first run** of `/auto-implement`, users see an interactive consent prompt:
+On the **first run** of `/implement`, users see an interactive consent prompt:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║  🚀 Zero Manual Git Operations (NEW DEFAULT)                ║
 ║                                                              ║
-║  Automatic git operations enabled after /auto-implement:    ║
+║  Automatic git operations enabled after /implement:    ║
 ║                                                              ║
 ║    ✓ automatic commit with conventional commit message      ║
 ║    ✓ automatic push to remote                               ║
@@ -109,10 +109,10 @@ AUTO_GIT_PR=false
 
 ## How It Works
 
-The git automation workflow integrates seamlessly with `/auto-implement`:
+The git automation workflow integrates seamlessly with `/implement`:
 
 ```
-1. /auto-implement completes STEP 6 (parallel validation)
+1. /implement completes STEP 6 (parallel validation)
    ↓
 2. quality-validator agent completes (last validation agent)
    ↓
@@ -137,7 +137,7 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 ### Workflow Steps
 
 **Step 1-2: Feature Completion**
-- `/auto-implement` runs through all 8 agents
+- `/implement` runs through all 8 agents
 - Final validation completes with quality-validator agent
 
 **Step 3: Hook Activation**
@@ -171,7 +171,7 @@ The git automation workflow integrates seamlessly with `/auto-implement`:
 - Creates GitHub PR with comprehensive description
 - Includes summary, test plan, and related issues
 
-**Step 8.5: Auto-Close GitHub Issue (Optional - v3.22.0 Issue #91 for /auto-implement, v3.46.0 Issue #168 for batch mode)**
+**Step 8.5: Auto-Close GitHub Issue (Optional - v3.22.0 Issue #91 for /implement, v3.46.0 Issue #168 for batch mode)**
 - Runs after git push succeeds (Step 7)
 - Only if issue number found in feature request or batch state
 - Features:
@@ -274,7 +274,7 @@ For verbose debugging in user projects, set:
 export GIT_AUTOMATION_VERBOSE=true
 
 # Then run feature implementation
-/auto-implement "add feature to my project"
+/implement "add feature to my project"
 ```
 
 **Output** (with verbose mode):
@@ -306,7 +306,7 @@ Common scenarios and handling:
 
 ```bash
 export GIT_AUTOMATION_VERBOSE=true
-/auto-implement "add feature"
+/implement "add feature"
 
 # Output shows:
 # [2026-01-01 10:15:32] GIT-AUTOMATION WARNING: Git user not configured
@@ -323,7 +323,7 @@ git config user.email "your@email.com"
 
 ```bash
 export GIT_AUTOMATION_VERBOSE=true
-/auto-implement "add feature"
+/implement "add feature"
 
 # Output shows:
 # [2026-01-01 10:15:35] GIT-AUTOMATION WARNING: No remote repository found
@@ -339,7 +339,7 @@ git remote add origin https://github.com/user/repo.git
 
 ```bash
 export GIT_AUTOMATION_VERBOSE=true
-/auto-implement "add feature"
+/implement "add feature"
 
 # Output shows:
 # [2026-01-01 10:15:32] GIT-AUTOMATION INFO: path_utils not available
@@ -410,7 +410,7 @@ Enable `GIT_AUTOMATION_VERBOSE=true` when:
 
 ## Batch Mode Issue Auto-Close (NEW in v3.46.0 - Issue #168)
 
-**Automatic GitHub issue closing after batch feature completion** - When processing multiple features with `/batch-implement`, each completed feature's associated GitHub issue is automatically closed after push succeeds.
+**Automatic GitHub issue closing after batch feature completion** - When processing multiple features with `/implement --batch`, each completed feature's associated GitHub issue is automatically closed after push succeeds.
 
 ### Overview
 
@@ -495,7 +495,7 @@ The system extracts issue numbers from multiple sources in order:
 
 1. **Issue numbers list** (for `--issues` flag): Direct mapping from command line
    ```bash
-   /batch-implement --issues 72 73 74
+   /implement --batch --issues 72 73 74
    # Feature 0 → Issue #72
    # Feature 1 → Issue #73
    # Feature 2 → Issue #74
@@ -569,7 +569,7 @@ grep "batch_issue_close" logs/security_audit.log
 **Example 1: Batch with --issues flag**
 
 ```bash
-/batch-implement --issues 72 73 74
+/implement --batch --issues 72 73 74
 ```
 
 Workflow:
@@ -600,7 +600,7 @@ Add rate limiting
 ```
 
 ```bash
-/batch-implement features.txt
+/implement --batch features.txt
 ```
 
 Workflow:
@@ -624,7 +624,7 @@ Feature 2: "Add rate limiting"
 **Example 3: Mixed success/failure**
 
 ```bash
-/batch-implement --issues 72 73 74
+/implement --batch --issues 72 73 74
 ```
 
 Workflow:
@@ -697,11 +697,11 @@ if should_auto_close_issues():
 
 ## Batch Workflow Integration (NEW in v3.36.0 - Issue #93)
 
-Per-feature git automation is now integrated into `/batch-implement` workflow. Each feature automatically commits with conventional commit messages when batch processing completes.
+Per-feature git automation is now integrated into `/implement --batch` workflow. Each feature automatically commits with conventional commit messages when batch processing completes.
 
 ### Overview
 
-When running `/batch-implement`:
+When running `/implement --batch`:
 
 1. **Feature processing**: Standard workflow runs for each feature
 2. **Quality checks pass**: All validation agents complete
@@ -711,7 +711,7 @@ When running `/batch-implement`:
 
 ### How It Works
 
-The batch mode integration differs from `/auto-implement` in key ways:
+The batch mode integration differs from `/implement` in key ways:
 
 **Similarities**:
 - Same git operations: commit, push, PR creation
@@ -906,7 +906,7 @@ For unattended batch processing, consent is automatically resolved via environme
 
 ### Problem
 
-In `/batch-implement` workflows, if `/auto-implement` shows an interactive consent prompt during the first feature, the entire batch blocks waiting for user input. This defeats the purpose of unattended batch processing.
+In `/implement --batch` workflows, if `/implement` shows an interactive consent prompt during the first feature, the entire batch blocks waiting for user input. This defeats the purpose of unattended batch processing.
 
 **Before Issue #96**: Batch processing would hang on first feature's consent prompt, requiring manual intervention to continue.
 
@@ -941,7 +941,7 @@ export AUTO_GIT_ENABLED=true
 echo "AUTO_GIT_ENABLED=true" >> .env
 
 # Then run batch - no prompts, fully unattended
-/batch-implement features.txt
+/implement --batch features.txt
 ```
 
 **Result**: Each feature in the batch:
@@ -968,7 +968,7 @@ The git automation feature follows an **opt-out consent design** with first-run 
 ### Design Philosophy
 
 1. **Enabled by default** - Seamless zero-manual-git-operations workflow out of the box
-2. **First-run consent** - Interactive prompt on first `/auto-implement` run
+2. **First-run consent** - Interactive prompt on first `/implement` run
 3. **User state persistence** - Consent choice stored in `~/.autonomous-dev/user_state.json`
 4. **Environment override** - `.env` variables override user state preferences
 5. **Validates all prerequisites** - Checks git config, remote, credentials before operations
@@ -1082,7 +1082,7 @@ By default, git automation is **enabled** (v3.12.0+):
 
 Run feature implementation:
 ```bash
-/auto-implement "add user authentication with JWT"
+/implement "add user authentication with JWT"
 ```
 
 Result: Feature implemented, committed, pushed, and PR created automatically.
@@ -1102,7 +1102,7 @@ AUTO_GIT_PR=false
 
 Run feature implementation:
 ```bash
-/auto-implement "add rate limiting to API endpoints"
+/implement "add rate limiting to API endpoints"
 ```
 
 Result: Feature implemented and committed locally (not pushed).
@@ -1214,15 +1214,15 @@ gh issue view <issue-number> --json state
 **Solutions**:
 - **No issue number found**: Ensure feature request includes issue pattern
   - Examples: `"issue #8"`, `"#8"`, `"Issue 8"`
-  - Check: `/auto-implement implement issue #8` (must have issue number)
+  - Check: `/implement implement issue #8` (must have issue number)
 - **User declined consent**: Step 8.5 prompts for consent
   - If you said "no", issue closing is skipped (expected behavior)
-  - Re-run /auto-implement with same issue to get prompt again
+  - Re-run /implement with same issue to get prompt again
 - **gh CLI not installed**: Issue closing requires gh CLI
   - Install: `brew install gh` (Mac) or [GitHub CLI](https://cli.github.com/)
   - Authenticate: `gh auth login`
 - **Issue already closed**: Gracefully skipped (idempotent)
-  - Re-opening issue will allow closing again on next /auto-implement
+  - Re-opening issue will allow closing again on next /implement
 - **Permission error**: You may not have permission to close issue
   - Check: `gh issue view <issue-number>`
   - Solution: Only repo maintainers can close issues (not collaborators)
@@ -1233,7 +1233,7 @@ gh issue view <issue-number> --json state
 
 ## Performance Impact
 
-Git automation adds **minimal overhead** to `/auto-implement` workflow:
+Git automation adds **minimal overhead** to `/implement` workflow:
 
 | Operation | Time (seconds) |
 |-----------|----------------|
@@ -1251,7 +1251,7 @@ Git automation adds **minimal overhead** to `/auto-implement` workflow:
 - [CLAUDE.md](../CLAUDE.md) - Main project documentation
 - [LIBRARIES.md](LIBRARIES.md) - Library API reference (includes auto_implement_git_integration.py and github_issue_closer.py)
 - [GitHub Issue #58](https://github.com/akaszubski/autonomous-dev/issues/58) - Git automation implementation
-- [GitHub Issue #91](https://github.com/akaszubski/autonomous-dev/issues/91) - Auto-close GitHub issues after /auto-implement
+- [GitHub Issue #91](https://github.com/akaszubski/autonomous-dev/issues/91) - Auto-close GitHub issues after /implement
 - [README.md](../README.md) - User guide
 
 ## Contributing

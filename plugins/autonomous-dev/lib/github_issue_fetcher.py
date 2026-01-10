@@ -2,7 +2,7 @@
 """
 GitHub Issue Fetcher - Fetch issue titles via gh CLI for batch processing.
 
-Provides secure GitHub issue fetching functionality for /batch-implement --issues flag.
+Provides secure GitHub issue fetching functionality for /implement --batch --issues flag.
 Uses gh CLI for GitHub operations with comprehensive security validation.
 
 Security Features:
@@ -49,7 +49,7 @@ Usage:
     # Returns: ["Issue #72: Add logging", "Issue #73: Fix bug"]
 
 Date: 2025-11-16
-Issue: #77 (Add --issues flag to /batch-implement)
+Issue: #77 (Add --issues flag to /implement --batch)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 

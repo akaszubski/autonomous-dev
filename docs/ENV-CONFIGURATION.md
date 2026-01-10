@@ -38,8 +38,8 @@ GITHUB_TOKEN=ghp_your_token_here
 
 **Used by**:
 - `/create-issue` - Create GitHub issues
-- `/auto-implement` - Close issues automatically
-- `/batch-implement --issues` - Fetch issue titles
+- `/implement` - Close issues automatically
+- `/implement --batch --issues` - Fetch issue titles
 - Auto-tracking hooks
 
 ### ANTHROPIC_API_KEY (Optional)
@@ -98,7 +98,7 @@ To enable GenAI validation in CI:
 
 ## Git Automation
 
-Controls automatic git operations after `/auto-implement` completes.
+Controls automatic git operations after `/implement` completes.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -139,7 +139,7 @@ AUTO_GIT_ENABLED=false
 
 ## Tool Auto-Approval
 
-Reduces permission prompts during `/auto-implement` and `/batch-implement`.
+Reduces permission prompts during `/implement` and `/implement --batch`.
 
 | Variable | Default | Values | Description |
 |----------|---------|--------|-------------|
@@ -154,7 +154,7 @@ Reduces permission prompts during `/auto-implement` and `/batch-implement`.
 ### Example: Full Auto-Approval
 
 ```bash
-# Eliminates 50+ permission prompts per /auto-implement
+# Eliminates 50+ permission prompts per /implement
 MCP_AUTO_APPROVE=true
 ```
 
@@ -176,7 +176,7 @@ The `detect_feature_request.py` hook (UserPromptSubmit lifecycle) enforces these
 
 **Feature Requests** (Exit code 1 - WARN):
 - Detects: "implement X", "add X", "create X", "build X"
-- Action: Suggests using `/auto-implement` instead
+- Action: Suggests using `/implement` instead
 - Reason: Ensures PROJECT.md alignment and full TDD pipeline
 
 **Bypass Attempts** (Exit code 2 - BLOCK):
@@ -206,7 +206,7 @@ ENFORCE_WORKFLOW=false
 **Scenario 1: Feature Request (Warned)**
 ```bash
 User: "implement JWT authentication"
-Hook: Exit 1 (WARN) - Suggests /auto-implement "#123"
+Hook: Exit 1 (WARN) - Suggests /implement "#123"
 ```
 
 **Scenario 2: Bypass Attempt (Blocked)**
@@ -231,14 +231,14 @@ Hook: Exit 0 (PASS) - Correct command, proceeds normally
 
 - CLAUDE.md: Workflow Discipline section (explains philosophy)
 - `/create-issue` command: Proper GitHub issue creation workflow
-- `/auto-implement` command: Feature implementation with alignment validation
+- `/implement` command: Feature implementation with alignment validation
 - plugins/autonomous-dev/hooks/detect_feature_request.py: Hook implementation
 
 ---
 
 ## Batch Processing
 
-Controls `/batch-implement` behavior.
+Controls `/implement --batch` behavior.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -333,7 +333,7 @@ DEBUG_SECURITY_SCAN=true
 
 ## Fully Autonomous / Unattended Operation
 
-**For `/batch-implement` to run without ANY prompts**, you need these settings:
+**For `/implement --batch` to run without ANY prompts**, you need these settings:
 
 ```bash
 # =============================================================================
@@ -357,7 +357,7 @@ BATCH_RETRY_ENABLED=true
 ```
 
 **What this enables**:
-- `/batch-implement` runs overnight without human intervention
+- `/implement --batch` runs overnight without human intervention
 - All git operations execute automatically
 - Transient failures (network, timeout) auto-retry
 - PRs created and issues closed automatically

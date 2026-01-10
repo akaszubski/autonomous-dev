@@ -74,7 +74,7 @@ User: "what github issues should I work on next"
 Claude: [Bash: gh issue list] → [AUTO-APPROVED] → Shows issues
 
 Subagent workflow:
-User → /auto-implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
+User → /implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
 ```
 
 **Subagent-Only Mode** (legacy behavior):
@@ -84,7 +84,7 @@ User: "what github issues should I work on next"
 Claude: [Bash: gh issue list] → [PROMPT: Approve tool use?] → User approves
 
 Subagent workflow:
-User → /auto-implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
+User → /implement → researcher agent → [Bash: pytest] → [AUTO-APPROVED] → ...
 ```
 
 ---
@@ -138,7 +138,7 @@ Researcher agent: "I'll read the test file"
 [PROMPT] Approve Read tool use for file: tests/unit/test_foo.py? (y/n)
 User: y
 
-... (50+ prompts per /auto-implement run)
+... (50+ prompts per /implement run)
 ```
 
 This defeats the purpose of autonomous development - the user becomes a "permission clicker" instead of focusing on creative work.
@@ -251,11 +251,11 @@ MCP_AUTO_APPROVE=true
 # MCP_AUTO_APPROVE=subagent_only
 ```
 
-### Step 3: Run /auto-implement
+### Step 3: Run /implement
 
 ```bash
 # First run - you'll see consent prompt
-/auto-implement "Add user authentication feature"
+/implement "Add user authentication feature"
 
 # On first subagent tool call, you see:
 ╔══════════════════════════════════════════════════════════════╗
@@ -973,7 +973,7 @@ tail -20 logs/tool_approval_audit.log
    ```bash
    # Reset user state
    rm ~/.autonomous-dev/user_state.json
-   # Re-run /auto-implement and choose "Y" at consent prompt
+   # Re-run /implement and choose "Y" at consent prompt
    ```
 
 3. **Command not in whitelist**:
@@ -1098,7 +1098,7 @@ chmod 644 logs/tool_approval_audit.log
 
 **Step 1: Identify New Commands**
 
-Run `/auto-implement` with `MCP_AUTO_APPROVE=false` and note denied commands:
+Run `/implement` with `MCP_AUTO_APPROVE=false` and note denied commands:
 
 ```bash
 # Check audit log for denied commands
@@ -1155,7 +1155,7 @@ EOF
 pytest tests/unit/lib/test_tool_validator_custom.py -v
 
 # 3. Test in real workflow
-MCP_AUTO_APPROVE=true /auto-implement "Feature that uses your-new-command"
+MCP_AUTO_APPROVE=true /implement "Feature that uses your-new-command"
 ```
 
 **Step 5: Document**

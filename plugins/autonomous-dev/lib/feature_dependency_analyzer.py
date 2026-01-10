@@ -27,7 +27,7 @@ Security:
 - Path traversal protection (CWE-22)
 
 Date: 2025-12-23
-Issue: #157 (Smart dependency ordering for /batch-implement)
+Issue: #157 (Smart dependency ordering for /implement --batch)
 Version: 1.0.0
 """
 

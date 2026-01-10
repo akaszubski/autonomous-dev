@@ -22,18 +22,18 @@ The autonomous-dev plugin includes shared libraries organized into the following
 9. **hook_activator.py** - Automatic hook activation during updates
 10. **auto_implement_git_integration.py** - Automatic git operations (commit/push/PR)
 11. **abstract_state_manager.py** - StateManager ABC for standardized state management (NEW v1.0.0, Issue #220)
-12. **batch_state_manager.py** - State persistence for /batch-implement with automatic context management (v3.23.0, Issue #218: deprecated context clearing functions removed v3.46.0, Issue #221: now inherits from StateManager ABC)
+12. **batch_state_manager.py** - State persistence for /implement --batch with automatic context management (v3.23.0, Issue #218: deprecated context clearing functions removed v3.46.0, Issue #221: now inherits from StateManager ABC)
 13. **github_issue_fetcher.py** - GitHub issue fetching via gh CLI (v3.24.0)
-14. **github_issue_closer.py** - Auto-close GitHub issues after /auto-implement (v3.22.0, Issue #91)
+14. **github_issue_closer.py** - Auto-close GitHub issues after /implement (v3.22.0, Issue #91)
 15. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
 16. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
-17. **failure_classifier.py** - Error classification (transient vs permanent) for /batch-implement (v3.33.0, Issue #89)
-18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /batch-implement (v3.33.0, Issue #89)
+17. **failure_classifier.py** - Error classification (transient vs permanent) for /implement --batch (v3.33.0, Issue #89)
+18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /implement --batch (v3.33.0, Issue #89)
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
 20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
 21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
 22. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
-23. **feature_dependency_analyzer.py** - Smart dependency ordering for /batch-implement (v1.0.0, Issue #157)
+23. **feature_dependency_analyzer.py** - Smart dependency ordering for /implement --batch (v1.0.0, Issue #157)
 24. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
 25. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
 26. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
@@ -1732,7 +1732,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Used By
 - auto_git_workflow.py hook
-- /auto-implement Step 8 (automatic git operations)
+- /implement Step 8 (automatic git operations)
 
 ### Related
 - GitHub Issue #58 (automatic git operations integration)
@@ -1741,7 +1741,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ## 12. github_issue_closer.py (583 lines, v3.22.0+, Issue #91)
 
-**Purpose**: Auto-close GitHub issues after successful `/auto-implement` workflow
+**Purpose**: Auto-close GitHub issues after successful `/implement` workflow
 
 ### Functions
 
@@ -1827,7 +1827,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 ### Integration
 
 - Invoked by auto_git_workflow.py hook (SubagentStop) after git push
-- STEP 8 of /auto-implement workflow: Auto-close GitHub issue
+- STEP 8 of /implement workflow: Auto-close GitHub issue
 - Non-blocking feature (feature success independent of issue close)
 
 ### Security Features
@@ -1848,10 +1848,10 @@ All errors gracefully degrade:
 
 ### Used By
 - auto_git_workflow.py hook
-- /auto-implement Step 8 (auto-close GitHub issue)
+- /implement Step 8 (auto-close GitHub issue)
 
 ### Related
-- GitHub Issue #91 (Auto-close GitHub issues after /auto-implement)
+- GitHub Issue #91 (Auto-close GitHub issues after /implement)
 - github_issue_fetcher.py (Issue fetching via gh CLI)
 
 ---
@@ -1988,16 +1988,16 @@ All errors gracefully degrade:
 - `_verify_configuration()`: Validate PROJECT.md and CLAUDE.md content
 - `_verify_test_setup()`: Confirm test framework is operational
 - `_verify_hooks_installed()`: Check hook activation status
-- `_verify_auto_implement_readiness()`: Verify /auto-implement compatibility
+- `_verify_auto_implement_readiness()`: Verify /implement compatibility
 - `_run_smoke_tests()`: Execute basic validation tests
-- `_assess_final_readiness()`: Determine readiness for /auto-implement
+- `_assess_final_readiness()`: Determine readiness for /implement
 
 #### Features
 - File existence and integrity verification
 - Configuration validation (PROJECT.md structure, CLAUDE.md alignment)
 - Test framework operational check
 - Hook installation verification
-- /auto-implement compatibility check
+- /implement compatibility check
 - Smoke test execution (optional)
 - Readiness assessment (ready, needs_minor_fixes, needs_major_fixes)
 - Remediation recommendations for failures
@@ -2160,7 +2160,7 @@ class MyStateManager(StateManager[MyState]):
 
 ## 13. batch_state_manager.py (692 lines, v3.23.0+, enhanced v3.24.0, Issue #218: v3.46.0)
 
-**Purpose**: State persistence for /batch-implement command with automatic context management via Claude Code
+**Purpose**: State persistence for /implement --batch command with automatic context management via Claude Code
 
 **Note (Issue #218 - v3.46.0)**: Deprecated context clearing functions removed:
 - `should_clear_context()` - Removed (Claude Code v2.0+ manages context automatically with 200K budget)
@@ -2284,7 +2284,7 @@ state = create_batch_state(
 
 ### Integration
 
-- **Command**: `/batch-implement` (file-based and --issues flag)
+- **Command**: `/implement --batch` (file-based and --issues flag)
 - **State File**: `.claude/batch_state.json` (persistent across crashes)
 - **Related**: GitHub Issues #76 (state management), #77 (--issues flag)
 
@@ -2372,7 +2372,7 @@ This maintains full backward compatibility while providing standardized state ma
 
 ## 14. github_issue_fetcher.py (462 lines, v3.24.0+)
 
-**Purpose**: Fetch GitHub issue titles via gh CLI for /batch-implement --issues flag
+**Purpose**: Fetch GitHub issue titles via gh CLI for /implement --batch --issues flag
 
 ### Functions
 
@@ -2439,7 +2439,7 @@ titles = fetch_issue_titles([72, 73, 999])
 ```
 
 #### `format_feature_description(issue_number, title)`
-- **Purpose**: Format issue as feature description for /batch-implement
+- **Purpose**: Format issue as feature description for /implement --batch
 - **Parameters**:
   - `issue_number` (int): GitHub issue number
   - `title` (str): Issue title from GitHub
@@ -2475,10 +2475,10 @@ feature = format_feature_description(72, "Add logging feature")
 
 ### Integration
 
-- **Command**: `/batch-implement --issues 72 73 74`
+- **Command**: `/implement --batch --issues 72 73 74`
 - **State Manager**: Enhanced batch_state_manager.py with issue_numbers and source_type fields
 - **Requirements**: gh CLI v2.0+, authenticated (gh auth login)
-- **Related**: GitHub Issue #77 (Add --issues flag to /batch-implement)
+- **Related**: GitHub Issue #77 (Add --issues flag to /implement --batch)
 
 ### Usage Workflow
 
@@ -3378,7 +3378,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ## 21. failure_classifier.py (343 lines, v3.33.0+)
 
-**Purpose**: Classify /auto-implement failures as transient vs permanent for intelligent retry logic.
+**Purpose**: Classify /implement failures as transient vs permanent for intelligent retry logic.
 
 ### Overview
 
@@ -3484,17 +3484,17 @@ Analyzes error messages to determine if a failed feature attempt should be retri
 
 ### Used By
 - batch_retry_manager.py for retry decisions
-- /batch-implement command for retry logic
+- /implement --batch command for retry logic
 
 ### Related
-- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
 - error-handling-patterns skill for exception hierarchy
 
 ---
 
 ## 22. batch_retry_manager.py (544 lines, v3.33.0+)
 
-**Purpose**: Orchestrate retry logic with safety limits and circuit breaker for /batch-implement.
+**Purpose**: Orchestrate retry logic with safety limits and circuit breaker for /implement --batch.
 
 ### Overview
 
@@ -3660,11 +3660,11 @@ All retry attempts logged to `.claude/audit/batch_*_retry_audit.jsonl` with entr
   - Edge cases (corrupted state, missing files)
 
 ### Used By
-- /batch-implement command for automatic retry
+- /implement --batch command for automatic retry
 - failure_classifier.py for error classification
 
 ### Related
-- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
 - state-management-patterns skill for persistence patterns
 
 ---
@@ -3675,7 +3675,7 @@ All retry attempts logged to `.claude/audit/batch_*_retry_audit.jsonl` with entr
 
 ### Overview
 
-Interactive consent system for /batch-implement automatic retry:
+Interactive consent system for /implement --batch automatic retry:
 - First-run prompt (explains feature, safety limits)
 - Persistent state storage (`~/.autonomous-dev/user_state.json`)
 - Environment variable override (`BATCH_RETRY_ENABLED`)
@@ -3788,11 +3788,11 @@ User state stored in `~/.autonomous-dev/user_state.json`:
   - First-run vs subsequent-run behavior
 
 ### Used By
-- /batch-implement command (check before retry)
+- /implement --batch command (check before retry)
 - batch_retry_manager.py (respects consent setting)
 
 ### Related
-- GitHub Issue #89 (Automatic Failure Recovery for /batch-implement)
+- GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
 - error-handling-patterns skill for exception hierarchy
 
 ## 24. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
@@ -4112,7 +4112,7 @@ def save_agent_checkpoint(
 ) -> bool
 ```
 
-**Purpose**: Convenience class method for agents to save checkpoints without creating AgentTracker instances. Solves the dogfooding bug (Issue #79) where hardcoded paths caused `/auto-implement` to stall for 7+ hours.
+**Purpose**: Convenience class method for agents to save checkpoints without creating AgentTracker instances. Solves the dogfooding bug (Issue #79) where hardcoded paths caused `/implement` to stall for 7+ hours.
 
 **Parameters**:
 - `agent_name` (str): Agent name (e.g., 'researcher', 'planner'). Must be alphanumeric + hyphen/underscore.
@@ -4316,8 +4316,8 @@ except ValueError as e:
 - Security validation (path traversal, symlinks, input bounds)
 
 ### Used By
-- `/auto-implement` command checkpoints (parallel exploration, parallel validation)
-- `/batch-implement` for pipeline tracking
+- `/implement` command checkpoints (parallel exploration, parallel validation)
+- `/implement --batch` for pipeline tracking
 - Dogfooding infrastructure in autonomous-dev repo
 - Optional checkpoint verification (graceful degradation in user projects)
 
@@ -4551,8 +4551,8 @@ Backward Compatibility:
 - Security validation (path traversal, symlinks)
 
 ### Used By
-- `/auto-implement` command checkpoints (progress tracking)
-- `/batch-implement` for feature logging
+- `/implement` command checkpoints (progress tracking)
+- `/implement --batch` for feature logging
 - Dogfooding infrastructure (session logs in docs/sessions/)
 - CI/CD pipelines for audit trails
 - Optional checkpoint logging (graceful degradation in user projects)
@@ -7704,7 +7704,7 @@ Convenience function to get formatted skill injection for an agent.
 
 ### Integration with auto-implement.md
 
-The `/auto-implement` command uses skill_loader.py before each Task call:
+The `/implement` command uses skill_loader.py before each Task call:
 
 ```markdown
 **SKILL INJECTION** (Issue #140): Before calling Task, load skills:
@@ -8057,13 +8057,13 @@ Generate statistics about execution order.
 
 ### Used By
 
-- /batch-implement command (STEP 1.5 - Analyze Dependencies)
+- /implement --batch command (STEP 1.5 - Analyze Dependencies)
 - batch_state_manager.py - Stores optimized order and dependency info
 - Batch processing workflow for reordering features
 
 ### Related Issues
 
-- GitHub Issue #157 - Smart dependency ordering for /batch-implement
+- GitHub Issue #157 - Smart dependency ordering for /implement --batch
 - GitHub Issue #88 - Batch processing support
 - GitHub Issue #89 - Automatic retry for batch features
 - GitHub Issue #93 - Git automation for batch mode
@@ -8075,7 +8075,7 @@ Generate statistics about execution order.
 
 **Used By**:
 - batch_state_manager.py - Stores dependency metadata
-- /batch-implement command - STEP 1.5 dependency analysis
+- /implement --batch command - STEP 1.5 dependency analysis
 
 ### Example Workflow
 
@@ -8115,9 +8115,9 @@ for idx in order:
     process_feature(features[idx])
 ```
 
-### Integration with /batch-implement
+### Integration with /implement --batch
 
-STEP 1.5 in /batch-implement command now calls this analyzer:
+STEP 1.5 in /implement --batch command now calls this analyzer:
 
 ```python
 # Import analyzer
@@ -8568,7 +8568,7 @@ Format acceptance criteria as Gherkin-style UAT scenarios.
 ### Used By
 
 - test-master agent - UAT test generation during TDD phase
-- /auto-implement command - Acceptance criteria parsing in test phase
+- /implement command - Acceptance criteria parsing in test phase
 
 ### Related Issues
 
@@ -8683,7 +8683,7 @@ Validate test pyramid ratios (70% unit, 20% integration, 10% UAT).
 ### Used By
 
 - test-master agent - Organizing generated tests after creation
-- /auto-implement command - Test organization in pipeline
+- /implement command - Test organization in pipeline
 
 ### Related Issues
 
@@ -8837,8 +8837,8 @@ Validate code coverage threshold.
 
 ### Used By
 
-- test-master agent - TDD validation during /auto-implement
-- /auto-implement command - Pre-commit quality gate
+- test-master agent - TDD validation during /implement
+- /implement command - Pre-commit quality gate
 
 ### Related Issues
 
@@ -9050,7 +9050,7 @@ if report.blocked:
 
 ### Integration Points
 
-- reviewer agent - Integrated into code review checklist (CHECKPOINT 4.2 in /auto-implement)
+- reviewer agent - Integrated into code review checklist (CHECKPOINT 4.2 in /implement)
 - /health-check command - Optional tech debt analysis
 - CI/CD pipelines - Pre-commit quality gate
 
@@ -9092,7 +9092,7 @@ if report.blocked:
 
 ### Used By
 
-- reviewer agent - Code quality analysis during /auto-implement
+- reviewer agent - Code quality analysis during /implement
 - /health-check command - Optional tech debt scanning
 - CI/CD integration - Pre-commit quality gates
 
@@ -9673,7 +9673,7 @@ Target: 90+% coverage
 ### Used By
 
 - verify_completion.py - SubagentStop hook for pipeline completion
-- /auto-implement pipeline - Verifies all agents completed
+- /implement pipeline - Verifies all agents completed
 - Batch processing - Validates pipeline completion per feature
 
 ### Related Components
@@ -10079,7 +10079,7 @@ else:
     sys.exit(EXIT_BLOCK)    # Block commit
 ```
 
-**With test-master agent in /auto-implement**:
+**With test-master agent in /implement**:
 ```python
 # test-master writes status after running tests
 from status_tracker import write_status
@@ -10139,7 +10139,7 @@ else:
     sys.exit(2)
 ```
 
-**With /auto-implement pipeline**:
+**With /implement pipeline**:
 ```python
 # test-master agent runs tests and writes status
 write_status(passed=all_tests_pass)
@@ -10168,7 +10168,7 @@ Target: 95% coverage of core functionality
 ### Used By
 
 - `pre_commit_gate.py` hook - Reads status to determine commit permission
-- `test-master` agent in `/auto-implement` - Writes status after test execution
+- `test-master` agent in `/implement` - Writes status after test execution
 - Manual pytest runs - Users can write status via CLI
 
 ### Related
@@ -10410,7 +10410,7 @@ Target: 95% coverage of core functionality
 ### Integration Points
 
 **Used By**:
-- /auto-implement command (future feature branch isolation)
+- /implement command (future feature branch isolation)
 - Parallel feature development workflows
 - Batch feature processing (potential future use)
 
@@ -10432,13 +10432,13 @@ Target: 95% coverage of core functionality
 
 ## 62. memory_layer.py (766 lines, v1.0.0 - Issue #179)
 
-**Purpose**: Cross-session memory layer for context continuity - persistent memory storage across /auto-implement sessions enabling agents to remember architectural decisions, blockers, patterns, and context without re-research.
+**Purpose**: Cross-session memory layer for context continuity - persistent memory storage across /implement sessions enabling agents to remember architectural decisions, blockers, patterns, and context without re-research.
 
 **Location**: `plugins/autonomous-dev/lib/memory_layer.py`
 
 ### Problem Statement
 
-Issue #179 identified that context resets between /auto-implement sessions force expensive re-research:
+Issue #179 identified that context resets between /implement sessions force expensive re-research:
 - No persistent memory between sessions
 - Architectural decisions must be rediscovered
 - Blocker knowledge is lost
@@ -10573,7 +10573,7 @@ frequency_score = min(1.0, access_count / 20)
 ### Integration Points
 
 **Used By**:
-- /auto-implement command (agent memory persistence)
+- /implement command (agent memory persistence)
 - Planner agent (recall previous decisions)
 - Researcher agent (cache pattern findings)
 - Implementer agent (recall blockers)
@@ -10800,7 +10800,7 @@ python complexity_assessor.py "Implement OAuth2" --verbose
 ### Integration Points
 
 **Used By**:
-- /auto-implement command (determine pipeline scaling)
+- /implement command (determine pipeline scaling)
 - planner agent (estimate time and agent requirements)
 - /create-issue command (estimate scope in issue creation)
 
@@ -11142,7 +11142,7 @@ Delete worktree with confirmation.
 - Exit codes signal success/warning/user rejection
 
 **Integration**:
-- Designed to work with /auto-implement worktree output
+- Designed to work with /implement worktree output
 - Part of feature review and merge workflow
 - Can be used standalone for worktree management
 
@@ -11279,7 +11279,7 @@ Parsed command-line arguments.
 SandboxEnforcer provides command classification (SAFE/BLOCKED/NEEDS_APPROVAL) and OS-specific sandboxing to eliminate repetitive permission prompts for safe operations.
 
 **Problem It Solves**:
-- Users approve 50+ permission prompts per /auto-implement workflow
+- Users approve 50+ permission prompts per /implement workflow
 - 80%+ are for safe read-only commands (cat, ls, grep, git status)
 - Each prompt breaks focus and adds 10-20 seconds overhead
 - SandboxEnforcer reduces prompts from 50+ to roughly 8-10 (84% reduction)
@@ -11941,8 +11941,8 @@ if is_headless_mode():
 
 ### Used By
 
-- /auto-implement command (respects headless mode, skips prompts)
-- /batch-implement command (uses headless detection for mode selection)
+- /implement command (respects headless mode, skips prompts)
+- /implement --batch command (uses headless detection for mode selection)
 - GitHub Actions and other CI/CD systems
 - Docker containers (non-TTY environments)
 - Headless servers and API backends
@@ -12373,8 +12373,8 @@ pool.shutdown()
 ### Integration Points
 
 **Commands**:
-- `/auto-implement` - May use for parallel validation phase (reviewer + security-auditor + doc-master)
-- `/batch-implement` - May use for per-feature parallel agents
+- `/implement` - May use for parallel validation phase (reviewer + security-auditor + doc-master)
+- `/implement --batch` - May use for per-feature parallel agents
 
 **Agents**:
 - All agents can be submitted to pool (researcher, planner, implementer, test-master, reviewer, security-auditor, doc-master, etc.)
@@ -12529,7 +12529,7 @@ pool = AgentPool(config=config)
 ### Integration Points
 
 **AgentPool**: Required configuration parameter
-**Commands**: `/auto-implement`, `/batch-implement` may read config
+**Commands**: `/implement`, `/implement --batch` may read config
 
 ### Performance
 
@@ -13062,12 +13062,12 @@ N/A (new libraries - Issue #186)
 
 ### Purpose
 
-Migrates /auto-implement STEP 4.1 parallel validation from prompt engineering to reusable agent_pool library integration. Provides unified parallel validation execution for security-auditor, reviewer, and doc-master agents with security-first priority mode, automatic retry logic, and result aggregation.
+Migrates /implement STEP 4.1 parallel validation from prompt engineering to reusable agent_pool library integration. Provides unified parallel validation execution for security-auditor, reviewer, and doc-master agents with security-first priority mode, automatic retry logic, and result aggregation.
 
 ### Problem
 
-Previously, /auto-implement Step 4.1 parallel validation relied on prompt engineering and manual coordination within the conversation. This approach:
-- Tight coupling between /auto-implement and validation logic
+Previously, /implement Step 4.1 parallel validation relied on prompt engineering and manual coordination within the conversation. This approach:
+- Tight coupling between /implement and validation logic
 - No reusability for other workflows needing parallel validation
 - Manual retry logic and error handling
 - Difficult to test in isolation
@@ -13193,7 +13193,7 @@ Dedicated parallel_validation library that:
 - Gracefully handles pool initialization
 
 **auto-implement Command**
-- Called from /auto-implement Step 4.1 (parallel validation phase)
+- Called from /implement Step 4.1 (parallel validation phase)
 - Replaces prompt engineering with library call
 - Passes feature description, project root, changed files
 
@@ -13290,7 +13290,7 @@ python -m autonomous_dev.lib.parallel_validation \
 
 ### Version History
 
-- v1.0.0 (2026-01-02) - Initial release, migrate from /auto-implement prompt engineering (Issue #188)
+- v1.0.0 (2026-01-02) - Initial release, migrate from /implement prompt engineering (Issue #188)
 
 ### Backward Compatibility
 
@@ -13528,7 +13528,7 @@ else:
 - tests/unit/lib/test_success_criteria_validator.py (test suite)
 
 ---
-100 percent compatible - new library, no API changes to existing code. Replaces internal /auto-implement Step 4.1 orchestration without affecting external interfaces.
+100 percent compatible - new library, no API changes to existing code. Replaces internal /implement Step 4.1 orchestration without affecting external interfaces.
 
 
 ---
@@ -13632,7 +13632,7 @@ Usage:
 - Classify features automatically from descriptions
 - Run periodic cleanup for maintenance
 
-**Usage Example** (Integration in /auto-implement):
+**Usage Example** (Integration in /implement):
 
 After security-auditor completes:
 1. Record the execution with agent_name, feature_type, complexity, duration, success flag
@@ -14377,7 +14377,7 @@ Typical Performance:
 
 **Problem**: Documentation gets out of sync with code during development. Commands listed in README may not exist in code. Features listed in PROJECT.md may not be implemented. Code examples may have wrong API signatures. No systematic validation catches drift until manual reviews, causing user confusion.
 
-**Solution**: Comprehensive documentation validator with four validation categories (command exports, project features, code examples, counts) plus auto-fix engine for safe patterns. Integrates into /auto-implement pipeline via doc-master agent.
+**Solution**: Comprehensive documentation validator with four validation categories (command exports, project features, code examples, counts) plus auto-fix engine for safe patterns. Integrates into /implement pipeline via doc-master agent.
 
 **Key APIs**:
 
@@ -14451,7 +14451,7 @@ Typical Performance:
 
 **Integration Points**:
 
-- /auto-implement pipeline: Runs after doc-master agent completes
+- /implement pipeline: Runs after doc-master agent completes
 - doc-master agent: Calls ComprehensiveDocValidator before finalizing docs
 - /sync command: Includes validation in sync workflow
 - PreCommit hook: Optional validation gate before commit (VALIDATE_COMPREHENSIVE_DOCS=true)
@@ -14908,9 +14908,9 @@ Returns: List of DocUpdateResult for each update
 
 ## 98. auto_implement_pipeline.py (257 lines, v1.0.0 - Issue #204)
 
-**Purpose**: Integration of project-progress-tracker into /auto-implement pipeline (Step 4.3).
+**Purpose**: Integration of project-progress-tracker into /implement pipeline (Step 4.3).
 
-**Problem**: The /auto-implement pipeline completes doc-master updates (Step 4.1) but doesn't update PROJECT.md with completion status, issue references, and timestamps. Users manually update progress tracking.
+**Problem**: The /implement pipeline completes doc-master updates (Step 4.1) but doesn't update PROJECT.md with completion status, issue references, and timestamps. Users manually update progress tracking.
 
 **Solution**: auto_implement_pipeline library that invokes project-progress-tracker after doc-master to update PROJECT.md automatically.
 
@@ -15045,7 +15045,7 @@ Returns: (new_content, was_updated) tuple
 
 ### Pipeline Integration
 
-Step 4.3 of /auto-implement pipeline:
+Step 4.3 of /implement pipeline:
 1. doc-master completes (Step 4.1)
 2. invoke_progress_tracker() called with issue_number and stage
 3. PROJECT.md updated with completion status

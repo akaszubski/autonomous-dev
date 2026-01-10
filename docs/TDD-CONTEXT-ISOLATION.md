@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-autonomous-dev enforces **true TDD discipline** through architectural context isolation. When `/auto-implement` runs:
+autonomous-dev enforces **true TDD discipline** through architectural context isolation. When `/implement` runs:
 
 1. **test-master** writes tests to disk in its own context
 2. **implementer** runs in a separate context, reading only test files
@@ -114,7 +114,7 @@ The first implementation has 3 untested features. The second has 100% coverage o
 
 ### The Task Tool Creates Isolation
 
-When `/auto-implement` invokes agents:
+When `/implement` invokes agents:
 
 ```python
 # STEP 2: test-master runs in Context A
@@ -299,7 +299,7 @@ A: Both test-master and implementer receive a summary of the plan. This is inten
 
 - [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Overall system design
 - [AGENTS.md](AGENTS.md) - Agent responsibilities
-- [auto-implement.md](../plugins/autonomous-dev/commands/auto-implement.md) - Workflow implementation
+- [auto-implement.md](../plugins/autonomous-dev/commands/implement.md) - Workflow implementation
 - [testing-guide skill](../plugins/autonomous-dev/skills/testing-guide/SKILL.md) - TDD methodology
 
 ---

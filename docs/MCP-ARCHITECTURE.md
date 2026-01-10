@@ -580,7 +580,7 @@ To manually enable:
 Agents can now use MCP servers without prompts:
 
 ```bash
-/auto-implement "add rate limiting feature"
+/implement "add rate limiting feature"
 
 # Behind the scenes:
 # 1. researcher agent → filesystem MCP (read existing code)

@@ -2,7 +2,7 @@
 """
 Auto-Implement Git Integration Module
 
-Provides Step 8 integration between /auto-implement workflow and git automation.
+Provides Step 8 integration between /implement workflow and git automation.
 Integrates commit-message-generator and pr-description-generator agents with
 git_operations and pr_automation libraries.
 
@@ -1426,8 +1426,8 @@ def execute_git_workflow(
     """
     Execute git automation workflow with optional batch mode support.
 
-    This is the main entry point for git automation (used by both /auto-implement
-    and /batch-implement workflows). In batch mode, consent prompts are skipped
+    This is the main entry point for git automation (used by both /implement
+    and /implement --batch workflows). In batch mode, consent prompts are skipped
     but environment variable consent is still respected.
 
     Args:
@@ -1437,7 +1437,7 @@ def execute_git_workflow(
         push: Whether to push to remote (optional, uses consent if not provided)
         create_pr: Whether to attempt PR creation
         base_branch: Target branch for PR (default: 'main')
-        in_batch_mode: Skip first-run consent prompts (for /batch-implement)
+        in_batch_mode: Skip first-run consent prompts (for /implement --batch)
 
     Returns:
         Dict with success status, commit info, and optional PR details
@@ -1493,7 +1493,7 @@ def execute_step8_git_operations(
     """
     Execute complete Step 8 git automation workflow.
 
-    This is the main entry point for /auto-implement Step 8.
+    This is the main entry point for /implement Step 8.
 
     Workflow:
     1. Check consent via environment variables
@@ -1757,5 +1757,5 @@ def execute_step8_git_operations_from_hook(
         'commit_sha': '',  # No actual git ops yet (session file parsing not implemented)
         'pushed': False,
         'pr_created': False,
-        'message': 'Session file-based git automation not yet implemented. Use /auto-implement for full workflow.'
+        'message': 'Session file-based git automation not yet implemented. Use /implement for full workflow.'
     }

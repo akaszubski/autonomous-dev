@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Parallel Validation Library - Agent pool integration for /auto-implement
+Parallel Validation Library - Agent pool integration for /implement
 
 Migrates STEP 4.1 parallel validation from prompt engineering to agent_pool.py library.
 Provides reusable validation execution with security-first priority mode, retry logic,
@@ -36,7 +36,7 @@ Security:
 - Error classification (fail fast on permanent errors)
 
 Date: 2026-01-02
-Issue: GitHub #187 (Migrate /auto-implement to agent_pool.py)
+Issue: GitHub #187 (Migrate /implement to agent_pool.py)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 

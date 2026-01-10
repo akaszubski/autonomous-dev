@@ -273,7 +273,7 @@ def enforce_pipeline_complete() -> Tuple[bool, str]:
     try:
         sessions_dir = Path("docs/sessions")
         if not sessions_dir.exists():
-            return True, "[PASS] No sessions directory (not using /auto-implement)"
+            return True, "[PASS] No sessions directory (not using /implement)"
 
         today = datetime.now().strftime("%Y%m%d")
 
@@ -284,7 +284,7 @@ def enforce_pipeline_complete() -> Tuple[bool, str]:
         )
 
         if not pipeline_files:
-            return True, "[PASS] No pipeline file for today (not using /auto-implement)"
+            return True, "[PASS] No pipeline file for today (not using /implement)"
 
         # Check if pipeline is complete
         pipeline_file = pipeline_files[0]
@@ -302,7 +302,7 @@ def enforce_pipeline_complete() -> Tuple[bool, str]:
             missing = [a for a in required_agents if a not in agents_run]
 
             if missing:
-                return False, f"[FAIL] Incomplete pipeline - missing agents: {', '.join(missing)}\n  Tip: Complete the /auto-implement workflow before committing"
+                return False, f"[FAIL] Incomplete pipeline - missing agents: {', '.join(missing)}\n  Tip: Complete the /implement workflow before committing"
 
             return True, "[PASS] Pipeline completeness check passed"
 
@@ -352,7 +352,7 @@ def enforce_orchestrator() -> Tuple[bool, str]:
         # Check for orchestrator validation in recent sessions
         sessions_dir = Path("docs/sessions")
         if not sessions_dir.exists():
-            return False, "[FAIL] No orchestrator validation found - use /auto-implement for features"
+            return False, "[FAIL] No orchestrator validation found - use /implement for features"
 
         # Look for orchestrator logs in last 24 hours
         cutoff = datetime.now() - timedelta(hours=24)
@@ -370,7 +370,7 @@ def enforce_orchestrator() -> Tuple[bool, str]:
             except Exception:
                 continue
 
-        return False, "[FAIL] No orchestrator validation in last 24h - use /auto-implement for features"
+        return False, "[FAIL] No orchestrator validation in last 24h - use /implement for features"
 
     except Exception as e:
         # Graceful degradation

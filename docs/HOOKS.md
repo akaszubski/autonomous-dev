@@ -489,7 +489,7 @@ Layer 2 (Agent Authorization):
 
 Layer 3 (Batch Permission Approver):
 - Caches user consent for identical operations
-- Reduces prompts from 50+ to ~8-10 per /auto-implement
+- Reduces prompts from 50+ to ~8-10 per /implement
 - Audit logging for compliance
 - Decision: Approved -> allow, Denied -> block
 
@@ -797,7 +797,7 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 **How It Works**:
 1. Intercepts Edit and Write tool calls before execution
 2. Analyzes code changes for significant additions (new functions, classes, >10 lines)
-3. If significant: DENIES with guidance to use `/create-issue` or `/auto-implement`
+3. If significant: DENIES with guidance to use `/create-issue` or `/implement`
 4. If minor (typos, small fixes): ALLOWS through
 
 **Significant Code Patterns Detected**:
@@ -808,8 +808,8 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 - Significant line additions (>10 new lines)
 
 **Authorized Agents** (allowed to make significant changes):
-- `implementer` - Makes code changes as part of /auto-implement workflow
-- `test-master` - Writes tests as part of /auto-implement workflow
+- `implementer` - Makes code changes as part of /implement workflow
+- `test-master` - Writes tests as part of /implement workflow
 - `brownfield-analyzer` - Analyzes legacy code during retrofit
 - `setup-wizard` - Generates initial project setup code
 - `project-bootstrapper` - Creates project scaffolding
@@ -824,18 +824,18 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 
 ❌ **Autonomous Implementation (DENIED)**:
 ```
-Claude (not in /auto-implement): Attempts to write a new function to production.py
+Claude (not in /implement): Attempts to write a new function to production.py
 Hook output: DENIES with message:
   "AUTONOMOUS IMPLEMENTATION DETECTED
    New Python function detected
    File: production.py
 
-   STOP. Use /auto-implement instead for feature implementation."
+   STOP. Use /implement instead for feature implementation."
 ```
 
 ✅ **Authorized Agent (ALLOWED)**:
 ```
-Implementer agent (inside /auto-implement #123): Writes function to implement feature
+Implementer agent (inside /implement #123): Writes function to implement feature
 CLAUDE_AGENT_NAME=implementer set by auto-implement command
 Hook output: ALLOWS (passes through)
 ```
@@ -854,8 +854,8 @@ Hook output: ALLOWS - "Non-code file, no enforcement needed"
 
 **Why This Matters**:
 - Prevents vibe coding (Claude implementing features without validation)
-- Enforces TDD (tests must come first via /auto-implement)
-- Ensures security review happens (part of /auto-implement pipeline)
+- Enforces TDD (tests must come first via /implement)
+- Ensures security review happens (part of /implement pipeline)
 - Maintains audit trail of all significant code changes
 - Guarantees PROJECT.md alignment check before implementation
 
@@ -863,12 +863,12 @@ Hook output: ALLOWS - "Non-code file, no enforcement needed"
 - CLAUDE.md Workflow Discipline section (explains philosophy)
 - Issue #139 (implementation workflow enforcement)
 - Issue #137 (comprehensive workflow discipline)
-- `/auto-implement` command (proper feature implementation workflow)
+- `/implement` command (proper feature implementation workflow)
 - `/create-issue` command (GitHub issue creation)
 
 ### auto_git_workflow.py
 
-**Purpose**: Automatic git operations after /auto-implement (v3.9.0+)
+**Purpose**: Automatic git operations after /implement (v3.9.0+)
 **Actions**: Stage changes, create commit, push, create PR
 **Lifecycle**: SubagentStop (triggers on quality-validator completion)
 
@@ -897,7 +897,7 @@ Hook output: ALLOWS - "Non-code file, no enforcement needed"
 
 ### batch_permission_approver.py
 
-**Purpose**: Intelligently reduce permission prompts during `/auto-implement`
+**Purpose**: Intelligently reduce permission prompts during `/implement`
 **Actions**:
 - Classifies operations into SAFE/BOUNDARY/SENSITIVE levels
 - Auto-approves SAFE operations (file reads, doc analysis)
@@ -1015,7 +1015,7 @@ Note: session_tracker.py moved to Core Hooks as essential for context management
 
 ### auto_update_project_progress.py
 
-**Purpose**: Auto-update PROJECT.md goals after /auto-implement (v3.4.0+)
+**Purpose**: Auto-update PROJECT.md goals after /implement (v3.4.0+)
 **Updates**: Completed features, progress tracking
 **Lifecycle**: SubagentStop
 
@@ -1264,7 +1264,7 @@ Once all tests pass, you can commit:
 - Non-breaking: Missing status file treated as "tests not run" (requires running tests)
 
 **Testing**:
-Works seamlessly with `/auto-implement` pipeline:
+Works seamlessly with `/implement` pipeline:
 - test-master writes status via `write_status(passed=True/False)`
 - Commits automatically trigger gate check
 - Users can run `pytest` manually and gate checks after
@@ -1296,7 +1296,7 @@ Helper modules and manual invocation utilities.
 
 ### github_issue_manager.py
 
-**Purpose**: Create and manage GitHub issues for `/auto-implement`
+**Purpose**: Create and manage GitHub issues for `/implement`
 **Actions**:
 - Checks gh CLI availability and authentication
 - Creates GitHub issue at pipeline start

@@ -239,15 +239,15 @@ class ClaudeAlignmentValidator:
     def _check_documented_features_exist(self, project_claude: str):
         """Check that documented features actually exist."""
         # Check key commands mentioned
-        # 7 active commands per Issue #121
+        # 7 active commands per Issue #203 consolidation
         commands_mentioned = [
-            "/auto-implement",
-            "/batch-implement",
+            "/implement",  # Unified command (--quick, --batch, --issues, --resume flags)
             "/create-issue",
             "/align",
             "/setup",
             "/health-check",
             "/sync",
+            "/worktree",
         ]
 
         for cmd in commands_mentioned:

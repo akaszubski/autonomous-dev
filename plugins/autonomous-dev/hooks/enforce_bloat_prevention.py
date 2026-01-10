@@ -91,7 +91,7 @@ def main():
     commands = count_files("./plugins/autonomous-dev/commands -not -path */archive")
     if commands > 8:
         errors.append(f"❌ Too many commands: {commands} (limit: 8)")
-        errors.append("   Allowed: auto-implement, align-project, setup, test, status, health-check, sync-dev, uninstall")
+        errors.append("   Allowed: implement, align-project, setup, test, status, health-check, sync-dev, uninstall")
 
     # Rule 4: Python modules
     lib_modules = len(list(Path("./plugins/autonomous-dev/lib").glob("*.py")))

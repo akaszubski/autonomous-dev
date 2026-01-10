@@ -141,7 +141,7 @@ def verify_pipeline():
         print("⚠️  Warning: No agent pipeline file found for today")
         print("   Expected: docs/sessions/{date}-{time}-pipeline.json")
         print("   This usually means agents weren't invoked (manual implementation?)")
-        print("\n   Recommendation: Use /auto-implement for feature work to ensure")
+        print("\n   Recommendation: Use /implement for feature work to ensure")
         print("   full SDLC pipeline (research → plan → test → implement → review → security → docs)")
 
         if strict_mode:
@@ -186,7 +186,7 @@ def verify_pipeline():
     print("   - researcher (find patterns & best practices)")
     print("   - implementer (write code)")
     print("   - doc-master (update documentation)")
-    print("\n   Recommendation: Use /auto-implement to ensure full SDLC pipeline")
+    print("\n   Recommendation: Use /implement to ensure full SDLC pipeline")
 
     if strict_mode:
         print("\n❌ STRICT_PIPELINE=1: Blocking commit (agents missing)")

@@ -104,7 +104,7 @@ These agents execute the main autonomous development workflow.
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns
 **Tools**: Read, Grep, Glob (local filesystem access only)
-**Execution**: Step 1A of /auto-implement workflow (parallel with researcher-web)
+**Execution**: Step 1A of /implement workflow (parallel with researcher-web)
 **Output Format**: JSON schema with similar_implementations array plus implementation_guidance and testing_guidance sections
   - **similar_implementations**: Existing patterns matching the feature request
   - **implementation_guidance**: Reusable functions, import patterns, error handling patterns
@@ -123,7 +123,7 @@ These agents execute the main autonomous development workflow.
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns, documentation-guide
 **Tools**: WebSearch, WebFetch (external research only)
-**Execution**: Step 1B of /auto-implement workflow (parallel with researcher-local)
+**Execution**: Step 1B of /implement workflow (parallel with researcher-local)
 **Output Format**: JSON schema with antipatterns array plus implementation_guidance and testing_guidance sections
   - **antipatterns**: Industry-standard pitfalls and how to avoid them
   - **implementation_guidance**: Best practices for design and performance
@@ -142,14 +142,14 @@ These agents execute the main autonomous development workflow.
 **Purpose**: Architecture planning and design
 **Model**: Sonnet (Tier 2 - balanced reasoning for complex planning)
 **Skills**: architecture-patterns, api-design, database-design, testing-guide
-**Execution**: Step 2 of /auto-implement workflow (after merging research findings from Step 1.1)
+**Execution**: Step 2 of /implement workflow (after merging research findings from Step 1.1)
 
 ### test-master
 
 **Purpose**: TDD specialist (writes tests first)
 **Model**: Sonnet (Tier 2 - strong reasoning for comprehensive test design)
 **Skills**: testing-guide, security-patterns
-**Execution**: Step 3 of /auto-implement workflow
+**Execution**: Step 3 of /implement workflow
 **Research Context**: Receives testing_guidance from researcher-local and researcher-web (Issue #130)
   - Uses test_file_patterns, edge_cases_to_test, mocking_patterns from researchers
   - Falls back to Grep/Glob pattern discovery if research context not provided
@@ -160,7 +160,7 @@ These agents execute the main autonomous development workflow.
 **Purpose**: Code implementation (makes tests pass)
 **Model**: Sonnet (Tier 2 - balanced reasoning for code implementation)
 **Skills**: python-standards, observability
-**Execution**: Step 4 of /auto-implement workflow
+**Execution**: Step 4 of /implement workflow
 **Research Context**: Receives implementation_guidance from researcher-local and researcher-web (Issue #130)
   - Uses reusable_functions, import_patterns, error_handling_patterns from researchers
   - Uses design_patterns, performance_tips, library_integration_tips from web research
@@ -172,21 +172,21 @@ These agents execute the main autonomous development workflow.
 **Purpose**: Quality gate (code review)
 **Model**: Haiku (Tier 1 - cost optimized for pattern-based code review)
 **Skills**: code-review, consistency-enforcement, python-standards
-**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
+**Execution**: Step 5 of /implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 
 ### security-auditor
 
 **Purpose**: Security scanning and vulnerability detection
 **Model**: Opus (Tier 3 - maximum depth for critical security analysis)
 **Skills**: security-patterns, python-standards
-**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
+**Execution**: Step 5 of /implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 
 ### doc-master
 
 **Purpose**: Documentation synchronization and research management
 **Model**: Haiku (Tier 1 - cost optimized for structured documentation updates)
 **Skills**: documentation-guide, consistency-enforcement, git-workflow, cross-reference-validation, documentation-currency
-**Execution**: Step 5 of /auto-implement workflow (parallel validation - 60% faster with Phase 7 optimization)
+**Execution**: Step 5 of /implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 **Research Documentation** (Issue #151): Validates and maintains research documentation in `docs/research/` - enforces naming conventions, format standards, README sync, and parity validation
 
 ### advisor
@@ -201,7 +201,7 @@ These agents execute the main autonomous development workflow.
 **Purpose**: GenAI-powered feature validation (v3.0+)
 **Model**: Sonnet (Tier 2 - balanced reasoning for comprehensive validation)
 **Skills**: testing-guide, code-review
-**Execution**: Step 6 of /auto-implement workflow (Final validation step, triggers SubagentStop hook)
+**Execution**: Step 6 of /implement workflow (Final validation step, triggers SubagentStop hook)
 
 ---
 
@@ -214,7 +214,7 @@ These agents provide specialized functionality for alignment, git operations, an
 **Purpose**: PROJECT.md alignment checking
 **Model**: Haiku (Tier 1 - cost optimized for validation)
 **Skills**: semantic-validation, file-organization
-**Command**: Invoked during /auto-implement for feature alignment
+**Command**: Invoked during /implement for feature alignment
 
 ### commit-message-generator
 
@@ -304,7 +304,7 @@ All 8 active agents reference relevant skills via `skills:` frontmatter (Issue #
 
 ## Parallel Validation (Phase 7)
 
-Three agents execute in parallel during Step 5 of /auto-implement:
+Three agents execute in parallel during Step 5 of /implement:
 
 - **reviewer**: Code quality validation
 - **security-auditor**: Security scanning
@@ -320,5 +320,5 @@ Three agents execute in parallel during Step 5 of /auto-implement:
 
 - [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Overall system architecture
 - [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) - Agent-skill mapping
-- [commands/auto-implement.md](/plugins/autonomous-dev/commands/auto-implement.md) - Workflow coordination
+- [commands/implement.md](/plugins/autonomous-dev/commands/implement.md) - Workflow coordination
 - [agents/](/plugins/autonomous-dev/agents/) - Individual agent prompts

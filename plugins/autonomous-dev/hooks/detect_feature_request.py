@@ -120,15 +120,15 @@ def get_orchestrator_message(user_input: str) -> str:
     Generate message to display when feature request is detected.
 
     Returns:
-        Formatted message reminding Claude to invoke /auto-implement
+        Formatted message reminding Claude to invoke /implement
     """
     return f"""
 🎯 **STRICT MODE: Feature Request Detected**
 
 **User Request**: {user_input[:100]}{'...' if len(user_input) > 100 else ''}
 
-**ACTION REQUIRED**: You MUST run /auto-implement command now:
-  /auto-implement "{user_input[:80]}{'...' if len(user_input) > 80 else ''}"
+**ACTION REQUIRED**: You MUST run /implement command now:
+  /implement "{user_input[:80]}{'...' if len(user_input) > 80 else ''}"
 
 **Why**: Strict mode requires orchestrator to validate PROJECT.md alignment
 before any implementation work begins. This ensures:

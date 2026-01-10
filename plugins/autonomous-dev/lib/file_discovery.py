@@ -258,7 +258,7 @@ class FileDiscovery:
             "version": "1.0",
             "total_files": 201,
             "files": [
-                {"path": "commands/auto-implement.md", "size": 1234},
+                {"path": "commands/implement.md", "size": 1234},
                 {"path": "lib/security_utils.py", "size": 5678},
                 ...
             ]

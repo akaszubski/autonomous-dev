@@ -89,7 +89,7 @@ class PluginHealthCheck:
     EXPECTED_COMMANDS = [
         "advise.md",  # Added in v3.43.0 (Issue #158)
         "align.md",
-        "auto-implement.md",
+        "implement.md",
         "batch-implement.md",
         "create-issue.md",
         "health-check.md",  # Self-reference

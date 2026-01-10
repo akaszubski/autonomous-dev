@@ -36,7 +36,7 @@ def invoke_progress_tracker(
     """
     Invoke project-progress-tracker after doc-master in the pipeline.
 
-    This is Step 4.3 of the /auto-implement pipeline.
+    This is Step 4.3 of the /implement pipeline.
 
     Args:
         issue_number: GitHub issue number (or from context)

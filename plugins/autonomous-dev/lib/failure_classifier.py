@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Failure Classifier - Classify /auto-implement failures as transient vs permanent.
+Failure Classifier - Classify /implement failures as transient vs permanent.
 
-Classifies error messages to determine if a failed /auto-implement attempt should
+Classifies error messages to determine if a failed /implement attempt should
 be retried (transient errors like network issues) or marked as failed (permanent
 errors like syntax errors).
 
@@ -65,7 +65,7 @@ Security:
 - Safe defaults (unknown → permanent)
 
 Date: 2025-11-18
-Issue: #89 (Automatic Failure Recovery for /batch-implement)
+Issue: #89 (Automatic Failure Recovery for /implement --batch)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 

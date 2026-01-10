@@ -10,7 +10,7 @@ Transform existing (brownfield) projects into autonomous-dev compatible projects
 
 ## Overview
 
-The `/align --retrofit` command provides a structured 5-phase process to retrofit existing projects for autonomous development. It analyzes your project, assesses alignment gaps, creates a migration plan, executes changes with safety guarantees, and verifies readiness for `/auto-implement` workflows.
+The `/align --retrofit` command provides a structured 5-phase process to retrofit existing projects for autonomous development. It analyzes your project, assesses alignment gaps, creates a migration plan, executes changes with safety guarantees, and verifies readiness for `/implement` workflows.
 
 ### Key Features
 
@@ -18,7 +18,7 @@ The `/align --retrofit` command provides a structured 5-phase process to retrofi
 - **Smart planning**: Identifies gaps and creates prioritized migration plan
 - **Safe execution**: Automatic backup/rollback with 0o700 permissions
 - **Three modes**: DRY_RUN (preview), STEP_BY_STEP (confirm each), AUTO (all)
-- **Comprehensive verification**: Validates compliance and /auto-implement readiness
+- **Comprehensive verification**: Validates compliance and /implement readiness
 - **Multi-language**: Supports Python, JavaScript, Go, Java, Rust, C++, C#, PHP
 - **12-Factor App scoring**: Compliance assessment based on industry standards
 
@@ -99,7 +99,7 @@ Evaluates:
 Compliance Score: 45/100
 
 Critical Gaps:
-- Missing PROJECT.md (required for /auto-implement)
+- Missing PROJECT.md (required for /implement)
 - Missing .claude/CLAUDE.md (development standards)
 
 High Gaps:
@@ -156,7 +156,7 @@ Safety features:
 
 ### Phase 5: Verification
 
-**What happens**: Validates compliance and /auto-implement readiness
+**What happens**: Validates compliance and /implement readiness
 **Time**: 30-90 seconds
 **Output**: Readiness assessment and next steps
 
@@ -166,10 +166,10 @@ Verifies:
 - Configuration files properly formatted
 - Test framework operational
 - Hook installation successful
-- /auto-implement compatibility
+- /implement compatibility
 
 **Readiness levels**:
-- ✅ **Ready**: Project fully compatible with /auto-implement
+- ✅ **Ready**: Project fully compatible with /implement
 - ⚠️ **Needs Minor Fixes**: Small adjustments recommended
 - 🚫 **Needs Major Fixes**: Significant work required
 
@@ -184,7 +184,7 @@ Verifies:
 - No PROJECT.md or .claude directory
 - No pre-commit hooks
 - Inconsistent testing approach
-- Cannot use /auto-implement
+- Cannot use /implement
 
 **After retrofit**:
 ```bash
@@ -194,10 +194,10 @@ Verifies:
 # Phase 2: Score 62/100 - needs PROJECT.md, hooks, docs
 # Phase 3: Plan: 7 steps (2 critical, 3 high, 2 medium)
 # Phase 4: Creates PROJECT.md, .claude directory, activates hooks
-# Phase 5: Verification passes - Ready for /auto-implement!
+# Phase 5: Verification passes - Ready for /implement!
 ```
 
-**Result**: Ready to use `/auto-implement` for autonomous feature development
+**Result**: Ready to use `/implement` for autonomous feature development
 
 ### Scenario 2: Legacy Node.js Application
 
@@ -218,7 +218,7 @@ Verifies:
 # Phase 5: Verification identifies 2 minor documentation gaps
 ```
 
-**Result**: Project structure aligned, ready for /auto-implement with documentation cleanup
+**Result**: Project structure aligned, ready for /implement with documentation cleanup
 
 ### Scenario 3: Microservices Architecture
 
@@ -239,7 +239,7 @@ cd my-monorepo
 # Phase 5: Verification confirms each service ready
 ```
 
-**Result**: Entire monorepo compatible with /auto-implement
+**Result**: Entire monorepo compatible with /implement
 
 ---
 
@@ -556,8 +556,8 @@ git commit -m "test: verify retrofit"
 ### 3. Start Autonomous Development
 
 ```bash
-# Develop features with /auto-implement
-/auto-implement "Add JWT authentication to API"
+# Develop features with /implement
+/implement "Add JWT authentication to API"
 
 # Individual agents available
 /research "JWT best practices"
@@ -574,8 +574,8 @@ export AUTO_GIT_ENABLED=true
 export AUTO_GIT_PUSH=true
 export AUTO_GIT_PR=true
 
-# Run /auto-implement with automatic git operations
-/auto-implement "Your feature here"
+# Run /implement with automatic git operations
+/implement "Your feature here"
 ```
 
 ---
@@ -638,8 +638,8 @@ A: Typically 2-10 minutes depending on project size. DRY_RUN takes 1-2 minutes.
 **Q: Can I run retrofit multiple times?**
 A: Yes. Subsequent runs detect existing files and skip creation, updating only stale configurations.
 
-**Q: What about /auto-implement after retrofit?**
-A: Phase 5 verifies compatibility. If "Ready", you can immediately start using /auto-implement.
+**Q: What about /implement after retrofit?**
+A: Phase 5 verifies compatibility. If "Ready", you can immediately start using /implement.
 
 ---
 

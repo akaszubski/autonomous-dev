@@ -8,10 +8,10 @@
 
 ## Overview
 
-Sandboxing reduces permission prompts from 50+ to 8-10 per /auto-implement workflow (84% reduction) by automatically classifying commands as SAFE, BLOCKED, or NEEDS_APPROVAL.
+Sandboxing reduces permission prompts from 50+ to 8-10 per /implement workflow (84% reduction) by automatically classifying commands as SAFE, BLOCKED, or NEEDS_APPROVAL.
 
 **The Problem**:
-- /auto-implement requires 50+ tool approvals
+- /implement requires 50+ tool approvals
 - 80%+ are safe read-only commands (cat, grep, git status)
 - Each prompt breaks focus and adds 10-20 seconds overhead
 - Total overhead: 30+ minutes of interruption per workflow
@@ -40,7 +40,7 @@ That's it! You'll immediately see fewer permission prompts.
 
 ### Verify It's Working
 
-When you run /auto-implement, watch for:
+When you run /implement, watch for:
 
 - Safe commands: No prompt (auto-approved)
 - Blocked commands: Denied with reason
@@ -268,7 +268,7 @@ Return: Ask user (first time), then cache
 ### Example 1: Safe Command (Auto-Approved)
 
 ```
-User: /auto-implement Add feature X
+User: /implement Add feature X
     |
 Claude generates tests with: pytest tests/test_feature_x.py
     |
@@ -319,7 +319,7 @@ Result: 50 identical commands = 1 prompt total
 ### Example 4: Circuit Breaker Activated
 
 ```
-User: /auto-implement Feature (untrusted code)
+User: /implement Feature (untrusted code)
     |
 Layer 0: 10+ blocked commands in quick succession
     |
@@ -382,7 +382,7 @@ export SANDBOX_PROFILE=development
 
 ### Issue: Sandboxing Not Reducing Prompts Enough
 
-**Problem**: Still seeing 20-30 prompts per /auto-implement
+**Problem**: Still seeing 20-30 prompts per /implement
 
 **Causes**:
 1. Many commands outside safe_commands list
@@ -461,7 +461,7 @@ tail -20 .claude/logs/audit.jsonl | jq .
 - Binary detection: 5-50ms on first run, cached after
 - Policy loading: 10-20ms on startup
 
-**Impact on /auto-implement**:
+**Impact on /implement**:
 - Without sandboxing: 50+ prompts = 30+ minutes overhead
 - With sandboxing: 8-10 prompts = ~2 minutes overhead
 - Net savings: 28+ minutes per workflow
@@ -584,7 +584,7 @@ A: Restart Claude Code. Sandboxing disables but MCP Security layer remains activ
 
 **Q: How much time does sandboxing save?**
 
-A: 50+ prompts -> 8-10 prompts = 28+ minutes saved per /auto-implement workflow.
+A: 50+ prompts -> 8-10 prompts = 28+ minutes saved per /implement workflow.
 
 **Q: Can I disable sandboxing?**
 

@@ -3,7 +3,7 @@
 Performance Profiler - Track and aggregate agent execution timing
 
 This module provides timing infrastructure for measuring agent performance
-in the /auto-implement workflow. It captures execution duration, logs metrics
+in the /implement workflow. It captures execution duration, logs metrics
 to JSON, and calculates aggregate statistics (min, max, avg, p95) per agent.
 
 Features:

@@ -134,7 +134,7 @@ class VerificationResult:
         compatibility_report: Compatibility check results
         readiness_score: Overall readiness score (0-100)
         blockers: List of critical blockers
-        ready_for_auto_implement: Whether ready for /auto-implement
+        ready_for_auto_implement: Whether ready for /implement
     """
     compliance_checks: List[ComplianceCheck] = field(default_factory=list)
     test_result: Optional[TestResult] = None
@@ -232,7 +232,7 @@ class RetrofitVerifier:
             # Identify blockers
             result.blockers = self._identify_blockers(result)
 
-            # Determine if ready for /auto-implement
+            # Determine if ready for /implement
             result.ready_for_auto_implement = (
                 len(result.blockers) == 0 and
                 result.readiness_score >= 70.0
@@ -663,7 +663,7 @@ class RetrofitVerifier:
         )
 
     def _identify_blockers(self, result: VerificationResult) -> List[str]:
-        """Identify critical blockers preventing /auto-implement.
+        """Identify critical blockers preventing /implement.
 
         Args:
             result: Verification result

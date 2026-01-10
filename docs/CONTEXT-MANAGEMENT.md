@@ -77,16 +77,16 @@ Added `AgentTracker.save_agent_checkpoint()` class method for agent convenience:
 
 ---
 
-## /auto-implement Checkpoint Fixes (Issue #85, v3.30.0+)
+## /implement Checkpoint Fixes (Issue #85, v3.30.0+)
 
-Fixed `/auto-implement` checkpoints to use portable path detection:
+Fixed `/implement` checkpoints to use portable path detection:
 
 **Changes**:
 - CHECKPOINT 1 (line 109) and CHECKPOINT 4.1 (line 390) replaced hardcoded paths with dynamic detection
 - Same portable path detection strategy as tracking infrastructure (path_utils and fallback)
 - Works from any directory on any machine (not just developer's path)
 
-**See**: `plugins/autonomous-dev/commands/auto-implement.md` for checkpoint implementation details
+**See**: `plugins/autonomous-dev/commands/implement.md` for checkpoint implementation details
 
 ---
 
@@ -100,10 +100,10 @@ Made checkpoint verification optional with graceful degradation:
 - **Broken scripts**: Never blocks workflow, always shows clear warning (⚠️) and continues
 
 **Benefits**:
-- Enables `/auto-implement` to work anywhere without requiring plugins/ directory structure
+- Enables `/implement` to work anywhere without requiring plugins/ directory structure
 - Checkpoints work in both user projects and autonomous-dev repo
 
-**See**: `plugins/autonomous-dev/commands/auto-implement.md` for graceful degradation pattern
+**See**: `plugins/autonomous-dev/commands/implement.md` for graceful degradation pattern
 
 ---
 

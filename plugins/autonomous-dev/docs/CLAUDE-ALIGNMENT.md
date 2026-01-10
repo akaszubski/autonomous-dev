@@ -55,16 +55,16 @@ Fix: Update heading to "### Agents (16 specialists)"
 
 **What**: All commands mentioned in CLAUDE.md must have corresponding `.md` files
 
-**Why**: If you tell someone "use /auto-implement", that command must exist
+**Why**: If you tell someone "use /implement", that command must exist
 
 **Current Reality** (7 commands):
-- `/auto-implement` - Full feature development pipeline
-- `/batch-implement` - Process multiple features with state management
+- `/implement` - Unified implementation (full pipeline, --quick, --batch, --issues, --resume)
 - `/create-issue` - Create GitHub issues with research
 - `/align` - Unified alignment (--project, --claude, --retrofit)
 - `/setup` - Interactive setup wizard
 - `/sync` - Smart sync (dev env, marketplace, or plugin-dev)
 - `/health-check` - Diagnostic health check
+- `/worktree` - Git worktree management
 
 **Example Drift**:
 ```markdown
@@ -75,7 +75,7 @@ Fix: Update heading to "### Agents (16 specialists)"
 /format doesn't exist (archived in v3.1.0)
 
 Issue: Documenting archived command as active
-Fix: Update CLAUDE.md to remove /format, add /auto-implement
+Fix: Update CLAUDE.md to remove /format, add /implement
 ```
 
 ### 4. Skills Status
@@ -236,7 +236,7 @@ New `/align-claude` command provides interactive guidance:
 ```bash
 # CLAUDE.md:
 - Remove references to /format
-- Add references to current commands like /auto-implement
+- Add references to current commands like /implement
 - Check .md file exists: ls plugins/autonomous-dev/commands/
 ```
 

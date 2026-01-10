@@ -7,13 +7,13 @@
   "agents": 22,
   "skills": 28,
   "commands": [
-    "/auto-implement",
-    "/batch-implement",
+    "/implement",
     "/align",
     "/setup",
     "/sync",
     "/health-check",
-    "/create-issue"
+    "/create-issue",
+    "/worktree"
   ],
   "hooks": {
     "core": 11,

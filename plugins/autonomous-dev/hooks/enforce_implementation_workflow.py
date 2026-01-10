@@ -76,7 +76,7 @@ SIGNIFICANT_PATTERNS = [
     (r'\b(?:public|private|protected)\s+(?:static\s+)?(?:\w+\s+)+\w+\s*\(', 'Java method'),
 ]
 
-# Agents allowed to make significant changes (part of /auto-implement workflow)
+# Agents allowed to make significant changes (part of /implement workflow)
 ALLOWED_AGENTS = [
     'implementer',
     'test-master',

@@ -2,7 +2,7 @@
 """
 Batch Retry Consent - First-run consent prompt for automatic retry feature.
 
-Interactive consent system for /batch-implement automatic retry feature.
+Interactive consent system for /implement --batch automatic retry feature.
 
 Features:
 - First-run consent prompt with clear explanation
@@ -38,7 +38,7 @@ Security:
 - Safe defaults (no retry without explicit consent)
 
 Date: 2025-11-18
-Issue: #89 (Automatic Failure Recovery for /batch-implement)
+Issue: #89 (Automatic Failure Recovery for /implement --batch)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 
@@ -269,7 +269,7 @@ def prompt_for_retry_consent() -> bool:
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║  🔄 Automatic Retry for /batch-implement (NEW)              ║
+║  🔄 Automatic Retry for /implement --batch (NEW)              ║
 ║                                                              ║
 ║  Automatic retry enabled for transient failures:            ║
 ║                                                              ║
@@ -294,7 +294,7 @@ def prompt_for_retry_consent() -> bool:
 
     # Get user input
     try:
-        response = input("Enable automatic retry for /batch-implement? (Y/n): ")
+        response = input("Enable automatic retry for /implement --batch? (Y/n): ")
     except (EOFError, KeyboardInterrupt):
         # Non-interactive or interrupted - default to no
         print()  # Newline after prompt

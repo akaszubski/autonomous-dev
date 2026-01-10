@@ -444,17 +444,17 @@ GITHUB_TOKEN=ghp_your_token_here
 
         if self.config["hooks_mode"] == "slash-commands":
             print("  1. Describe feature")
-            print("  2. Run: /auto-implement")
+            print("  2. Run: /implement")
             print("  3. Before commit: /full-check")
             print("  4. Commit: /commit")
         elif self.config["hooks_mode"] == "automatic":
             print("  1. Describe feature")
-            print("  2. Run: /auto-implement")
+            print("  2. Run: /implement")
             print("  3. Commit: git commit (hooks run automatically)")
 
         print("\nUseful Commands:")
         print("  /align-project   Validate alignment")
-        print("  /auto-implement  Autonomous development")
+        print("  /implement  Autonomous development")
         print("  /full-check      Run all quality checks")
         print("  /help            Get help")
 
