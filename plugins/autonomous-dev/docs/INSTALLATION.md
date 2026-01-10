@@ -46,12 +46,12 @@ Pick the installation tier that matches your workflow:
 **8 Slash Commands**:
 - `/test` - Run all tests
 - `/align` - Check PROJECT.md alignment
-- `/auto-implement` - Autonomous feature implementation
+- `/implement` - Smart feature implementation (full pipeline, quick, or batch modes)
 - `/setup` - Configuration wizard
 - `/status` - Project status overview
 - `/health-check` - Validate plugin components
-- `/sync-dev` - Sync plugin changes (developers only)
-- `/uninstall` - Remove plugin
+- `/sync` - Sync plugin changes
+- `/create-issue` - Create GitHub issues with research
 
 **Usage Example**:
 ```bash
@@ -180,7 +180,7 @@ Want GitHub integration? → [Team Tier](#team-tier)
 
 **PROJECT.md Governance**:
 - All features validated against strategic goals
-- `/auto-implement` checks alignment before starting
+- `/implement` checks alignment before starting
 - `/status` tracks progress toward PROJECT.md goals
 - **Zero scope creep** - Claude won't implement out-of-scope features
 
@@ -199,7 +199,7 @@ vim PROJECT.md
 # OUT OF SCOPE: Admin UI, real-time features
 
 # Autonomous implementation
-/auto-implement "add user authentication"
+/implement "add user authentication"
 # → Validates against PROJECT.md goals
 # → Researches existing patterns
 # → Writes tests (TDD)

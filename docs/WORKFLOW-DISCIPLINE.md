@@ -6,12 +6,12 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 
 ---
 
-## Why /auto-implement Produces Better Results (Data-Driven)
+## Why /implement Produces Better Results (Data-Driven)
 
 **The Data** (from autonomous-dev production metrics):
 
-| Metric | Direct Implementation | /auto-implement |
-|--------|----------------------|-----------------|
+| Metric | Direct Implementation | /implement |
+|--------|----------------------|-----------|
 | Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
 | Security issues | 12% (need audit) | 0.3% (caught by auditor) |
 | Documentation drift | 67% (manual sync) | 2% (auto-synced) |
@@ -29,7 +29,7 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 - Minor refactoring (renaming, moving)
 - Typo fixes (1-2 lines)
 
-**Use /auto-implement** (quality matters):
+**Use /implement** (quality matters):
 - New functions, classes, methods
 - Bug fixes requiring logic changes
 - Feature additions
@@ -40,8 +40,8 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 
 ## Time Comparison
 
-| Step | Direct Implementation | /auto-implement |
-|------|----------------------|-----------------|
+| Step | Direct Implementation | /implement |
+|------|----------------------|-----------|
 | Research | Manual (you do it) | Automatic (2-3 min) |
 | Tests | Manual (you write them) | Automatic (TDD enforced) |
 | Security | Manual (you audit) | Automatic (security-auditor) |
@@ -72,8 +72,8 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 - False negatives miss violations (small cumulative edits)
 
 **The new approach**: Persuasion + Convenience + Skills
-1. CLAUDE.md explains WHY /auto-implement is better (data-driven)
-2. /auto-implement is faster than manual implementation
+1. CLAUDE.md explains WHY /implement is better (data-driven)
+2. /implement is faster than manual implementation
 3. Skills inject knowledge into agents (Issue #140)
 4. Deterministic hooks block only verifiable violations
 
@@ -85,7 +85,7 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 ```bash
 gh issue create ...  # BLOCKED - Use /create-issue
 skip /create-issue   # BLOCKED - No skipping allowed
-bypass /auto-implement  # BLOCKED - No bypassing
+bypass /implement    # BLOCKED - No bypassing
 ```
 
 **To Disable** (not recommended):

@@ -21,7 +21,7 @@
 
 ### "Commands not found after installation"
 
-**Symptom**: After running `install.sh`, commands like `/auto-implement` don't appear.
+**Symptom**: After running `install.sh`, commands like `/implement` don't appear.
 
 **Cause**: Claude Code caches commands at startup.
 
@@ -205,7 +205,7 @@ vim .claude/PROJECT.md
 
 ## Command-Specific Issues
 
-### "/auto-implement stops mid-way"
+### "/implement stops mid-way"
 
 **Symptom**: Pipeline doesn't complete all 8 steps.
 
@@ -215,14 +215,14 @@ vim .claude/PROJECT.md
 3. Context may be full - run `/clear` and retry
 4. Check agent output for specific errors
 
-### "/batch-implement crashes"
+### "/implement --batch crashes"
 
 **Symptom**: Batch processing stops unexpectedly.
 
 **Solution**:
 ```bash
 # Resume from where it stopped
-/batch-implement --resume <batch-id>
+/implement --resume <batch-id>
 
 # Check batch state
 cat .claude/batch_state.json

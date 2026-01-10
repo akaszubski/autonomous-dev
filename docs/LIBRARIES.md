@@ -2543,15 +2543,16 @@ except GitHubAPIError as e:
 
 ---
 
-## 15. path_utils.py (320 lines, v3.28.0+ / v3.41.0+)
+## 15. path_utils.py (350+ lines, v3.28.0+ / v3.41.0+ / v3.45.0+)
 
-**Purpose**: Dynamic PROJECT_ROOT detection, path resolution, and policy file location for tracking infrastructure and tool configuration
+**Purpose**: Dynamic PROJECT_ROOT detection, path resolution, policy file location, and worktree batch state isolation for tracking infrastructure and tool configuration
 
-**Issue**: GitHub #79 - Fixes hardcoded paths that failed when running from subdirectories
+**Issues**: GitHub #79 (hardcoded paths), GitHub #226 (worktree isolation)
 
 ### Key Features
 
 - **Dynamic PROJECT_ROOT Detection**: Searches upward from current directory for `.git/` or `.claude/` markers
+- **Worktree Batch State Isolation** (v3.45.0): Automatically isolates batch state per git worktree for concurrent batch processing
 - **Caching**: Module-level cache prevents repeated filesystem searches
 - **Flexible Creation**: Creates directories (docs/sessions, .claude) as needed with safe permissions (0o755)
 - **Backward Compatible**: Existing usage patterns still work, uses get_project_root() internally
@@ -2584,11 +2585,17 @@ except GitHubAPIError as e:
 - **Creates**: Parent directories with safe permissions (0o755 = rwxr-xr-x)
 - **Used By**: session_tracker.py, agent_tracker.py
 
-#### `get_batch_state_file()`
-- **Purpose**: Get batch state file path (`PROJECT_ROOT/.claude/batch_state.json`)
+#### `get_batch_state_file()` (Enhanced v3.45.0 - Issue #226)
+- **Purpose**: Get batch state file path with automatic worktree isolation support
+- **Behavior**:
+  - **Worktrees**: Returns `WORKTREE_DIR/.claude/batch_state.json` (isolated per worktree)
+  - **Main Repository**: Returns `PROJECT_ROOT/.claude/batch_state.json` (backward compatible)
+- **Detection**: Automatically calls `is_worktree()` to detect current directory
 - **Returns**: `Path` - Batch state file path (note: file itself not created)
-- **Creates**: Parent directory (`.claude/`) if missing, with safe permissions
+- **Creates**: Parent directory (`.claude/`) if missing, with safe permissions (0o755)
+- **Fallback**: If worktree detection fails, falls back to main repo behavior
 - **Used By**: batch_state_manager.py
+- **Security**: Graceful fallback on detection errors, CWE-22 (path traversal), CWE-59 (symlinks) protection
 
 #### `get_policy_file(use_cache=True)` (NEW in v3.41.0)
 - **Purpose**: Get policy file path via cascading lookup with fallback
@@ -2610,13 +2617,26 @@ except GitHubAPIError as e:
   - Inherit plugin defaults (omit custom policy)
   - Test with different policies (call with `use_cache=False`)
 
+#### `is_worktree()` (NEW in v3.45.0 - Issue #226)
+- **Purpose**: Check if current directory is a git worktree (lazy-loaded wrapper)
+- **Returns**: `bool` - True if in worktree, False otherwise
+- **Lazy Import**: Imports git_operations.is_worktree() on first call to avoid circular dependencies
+- **Fallback**: Returns False if import fails or detection raises exception
+- **Used By**: get_batch_state_file()
+- **Caching**: Module-level function cache for performance
+- **Testing**: Can be mocked by patching `path_utils.is_worktree`
+
 #### `reset_project_root_cache()`
 - **Purpose**: Reset cached project root (testing only)
 - **Warning**: Only use in test teardown; production code should maintain cache for process lifetime
 
+#### `reset_worktree_cache()` (NEW in v3.45.0 - Issue #226)
+- **Purpose**: Reset cached is_worktree function (testing only)
+- **Warning**: Only use in test teardown; production code should maintain cache for process lifetime
+
 ### Test Coverage
 
-- **Total**: 45+ tests in `tests/unit/test_tracking_path_resolution.py` + 15 tests in `tests/unit/lib/test_policy_path_resolution.py`
+- **Total**: 45+ tests in `tests/unit/test_tracking_path_resolution.py` + 15 tests in `tests/unit/lib/test_policy_path_resolution.py` + 15 tests in `tests/unit/lib/test_path_utils_worktree.py` + 9 integration tests in `tests/integration/test_worktree_batch_isolation.py` (NEW v3.45.0)
 - **Areas**:
   - PROJECT_ROOT detection from various directories
   - Marker file priority (`.git` over `.claude`)
@@ -2626,6 +2646,10 @@ except GitHubAPIError as e:
   - Policy file cascading lookup (NEW v3.41.0)
   - Policy file security validation (NEW v3.41.0)
   - Symlink detection in policy files (NEW v3.41.0)
+  - Worktree batch state path isolation (NEW v3.45.0 - Issue #226)
+  - Concurrent worktree batch operations (NEW v3.45.0)
+  - Worktree detection fallback behavior (NEW v3.45.0)
+  - Real git worktree integration (NEW v3.45.0)
 
 ### Usage Examples
 
@@ -2645,9 +2669,17 @@ print(root)  # /path/to/autonomous-dev
 session_dir = get_session_dir()
 session_file = session_dir / "20251117-session.md"
 
-# Get batch state file path
+# Get batch state file path (with worktree isolation - v3.45.0)
 state_file = get_batch_state_file()
-# Returns: /project/.claude/batch_state.json
+# Main repo: Returns /project/.claude/batch_state.json
+# In worktree: Returns /project/worktree-dir/.claude/batch_state.json
+
+# Check if in worktree (v3.45.0)
+from plugins.autonomous_dev.lib.path_utils import is_worktree
+if is_worktree():
+    print("Running in git worktree - batch state isolated")
+else:
+    print("Running in main repository")
 
 # Get policy file with cascading lookup
 policy_file = get_policy_file()
@@ -2659,6 +2691,13 @@ policy_file = get_policy_file()
 from tests.conftest import isolated_project
 root = get_project_root(use_cache=False)
 policy_file = get_policy_file(use_cache=False)
+
+# Worktree example (v3.45.0)
+# In main repo
+state_file = get_batch_state_file()  # .claude/batch_state.json
+
+# In worktree
+state_file = get_batch_state_file()  # worktree-dir/.claude/batch_state.json (isolated)
 ```
 
 ### Security

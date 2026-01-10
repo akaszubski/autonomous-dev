@@ -1,6 +1,25 @@
 ## [Unreleased]
 
 ### Added
+- Unified `/implement` command with mode flags (#203)
+  - Default mode: Full 8-agent pipeline (replaces `/auto-implement`)
+  - `--quick`: Implementer agent only (replaces old `/implement`)
+  - `--batch <file>`: Batch from file with auto-worktree isolation
+  - `--issues <nums>`: Batch from GitHub issues with auto-worktree isolation
+  - `--resume <id>`: Resume interrupted batch
+  - Auto-worktree creation for batch modes (isolated development)
+  - Created `batch_orchestrator.py` library for flag parsing and mode routing
+  - 32 unit tests + 14 integration tests
+- Per-worktree batch state isolation for concurrent development (#226)
+  - Enhanced get_batch_state_file() to detect git worktrees
+  - Worktrees now use isolated batch state: WORKTREE_DIR/.claude/batch_state.json
+  - Main repository continues using: REPO_ROOT/.claude/batch_state.json (backward compatible)
+  - Graceful fallback to main repo behavior on detection errors
+  - Security: CWE-22 (path traversal), CWE-59 (symlink) protection maintained
+  - Added is_worktree() lazy-loaded wrapper in path_utils.py
+  - Performance: Worktree detection <1ms, zero overhead for state isolation
+  - 15 unit tests + 9 integration tests with real git worktrees
+  - Enables concurrent batch processing in multiple worktrees without interference
 - StateManager Abstract Base Class for state management (#220)
   - Created abstract_state_manager.py with StateManager ABC
   - Abstract methods: load_state(), save_state(), cleanup_state()
@@ -46,6 +65,12 @@
   - Exception hierarchy: AutonomousDevError > StateError (all state-related errors)
   - Ensures consistent exception handling across all state managers
   - Phase 6 of StateManager migration: Exception consolidation complete
+
+### Deprecated
+- `/auto-implement` command - Use `/implement` instead (full pipeline is default) (#203)
+- `/batch-implement` command - Use `/implement --batch`, `--issues`, or `--resume` (#203)
+- Old `/implement` behavior - Use `/implement --quick` for implementer-only mode (#203)
+- Deprecation shims redirect to new command with notice, planned removal in v4.0.0
 
 ### Removed
 - **BREAKING**: Remove deprecated context clearing functions (#218)

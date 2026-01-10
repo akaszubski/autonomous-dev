@@ -1,10 +1,12 @@
 # Batch Feature Processing
 
-**Last Updated**: 2026-01-09
-**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218)
-**Command**: `/batch-implement`
+**Last Updated**: 2026-01-10
+**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218), Command consolidation v3.47.0 (Issue #203)
+**Command**: `/implement --batch`, `/implement --issues`, `/implement --resume`
 
-This document describes the batch feature processing system for sequential multi-feature development with intelligent state management, automatic context management, and per-feature git automation.
+> **Migration Note**: The `/batch-implement` command is deprecated. Use `/implement --batch`, `/implement --issues`, or `/implement --resume` instead. See [Migration Guide](#migration-guide).
+
+This document describes the batch feature processing system for sequential multi-feature development with intelligent state management, automatic worktree isolation, and per-feature git automation.
 
 ---
 
@@ -12,7 +14,7 @@ This document describes the batch feature processing system for sequential multi
 
 Process multiple features sequentially with intelligent state management and automatic context management. Supports 50+ features without manual intervention.
 
-**Workflow**: Parse input → Create batch state → For each: `/auto-implement` → Continue (Claude Code handles context automatically)
+**Workflow**: Parse input → Create batch state → For each: `/implement` → Continue (Claude Code handles context automatically)
 
 ---
 
@@ -31,16 +33,24 @@ Add password reset flow
 Then run:
 
 ```bash
-/batch-implement <features-file>
+/implement --batch <features-file>
 ```
 
-### 2. GitHub Issues Input (NEW in v3.24.0)
+### 2. GitHub Issues Input
 
 Fetch feature titles directly from GitHub issues:
 
 ```bash
-/batch-implement --issues 72 73 74
+/implement --issues 72 73 74
 # Fetches: "Issue #72: [title]", "Issue #73: [title]", "Issue #74: [title]"
+```
+
+### 3. Resume Interrupted Batch
+
+Continue a batch that was interrupted:
+
+```bash
+/implement --resume batch-20260110-143022
 ```
 
 **Requirements**:
@@ -53,7 +63,7 @@ Fetch feature titles directly from GitHub issues:
 
 For fully unattended batch processing (4-5 features, ~2 hours), configure git automation to bypass interactive prompts.
 
-**Why This Matters**: By default, `/auto-implement` prompts for consent on first run. During batch processing, this prompt blocks the entire batch from continuing, defeating the purpose of unattended processing.
+**Why This Matters**: By default, `/implement` prompts for consent on first run. During batch processing, this prompt blocks the entire batch from continuing, defeating the purpose of unattended processing.
 
 ### Configure for Unattended Batches
 
@@ -73,7 +83,7 @@ AUTO_GIT_PR=true     # Default: auto-create pull requests
 Then run your batch:
 
 ```bash
-/batch-implement features.txt
+/implement --batch features.txt
 # No prompts - runs fully unattended
 ```
 
@@ -86,7 +96,7 @@ export AUTO_GIT_ENABLED=true
 export AUTO_GIT_PUSH=true
 export AUTO_GIT_PR=true
 
-/batch-implement features.txt
+/implement --batch features.txt
 ```
 
 **Option 3: Minimal (Commit Only, No Push)**
@@ -102,14 +112,14 @@ AUTO_GIT_PUSH=false    # Don't push during batch
 Then:
 
 ```bash
-/batch-implement features.txt
+/implement --batch features.txt
 # Features committed locally, not pushed
 # Manually push when batch completes: git push
 ```
 
 ### How It Works
 
-**Issue #96 (v3.35.0)**: `/auto-implement` STEP 5 now checks `AUTO_GIT_ENABLED` environment variable BEFORE showing interactive consent prompt.
+**Issue #96 (v3.35.0)**: `/implement` STEP 5 now checks `AUTO_GIT_ENABLED` environment variable BEFORE showing interactive consent prompt.
 
 **Behavior**:
 - `AUTO_GIT_ENABLED=true` (or not set): Auto-proceed with git operations, skip prompt
@@ -458,7 +468,7 @@ When processing multiple features with `/batch-implement`, the workflow now incl
 
 ### Configuration
 
-Git automation in batch mode uses the same environment variables as `/auto-implement`:
+Git automation in batch mode uses the same environment variables as `/implement`:
 
 ```bash
 # .env file (project root)
@@ -469,7 +479,7 @@ AUTO_GIT_PR=false          # Disable PR creation during batch (default: true)
 
 ### Batch Mode Differences
 
-Batch mode differs from `/auto-implement` in three ways:
+Batch mode differs from `/implement` in three ways:
 
 1. **Skips first-run consent prompt** - Uses environment variables silently
 2. **No interactive prompts** - All decisions made via `.env` configuration
@@ -558,7 +568,7 @@ AUTO_GIT_ENABLED=false
 **Batch with issue numbers** (`--issues` flag):
 
 ```bash
-/batch-implement --issues 72 73 74
+/implement --issues 72 73 74
 # Features: [GitHub titles fetched from issues]
 # After feature 0 completes: Issue #72 auto-closed
 # After feature 1 completes: Issue #73 auto-closed
@@ -575,7 +585,7 @@ Add email notifications (related to #74)
 ```
 
 ```bash
-/batch-implement features.txt
+/implement --batch features.txt
 # After feature 0 completes: Issue #72 auto-closed
 # After feature 1 completes: Issue #73 auto-closed
 # Feature 2: Issue #74 not auto-closed (doesn't match close patterns)
@@ -697,7 +707,7 @@ The batch system uses a compaction-resilient design that survives Claude Code's 
 **How It Works**:
 
 1. **Externalized state**: All progress tracked in `batch_state.json`, not conversation memory
-2. **Self-contained features**: Each `/auto-implement` bootstraps fresh from external sources
+2. **Self-contained features**: Each `/implement` bootstraps fresh from external sources
 3. **Auto-compaction safe**: When Claude Code summarizes context, processing continues seamlessly
 4. **Git preserves work**: Every completed feature is committed before moving on
 5. **Resume for crashes only**: `--resume` only needed if Claude Code actually exits/crashes
@@ -739,7 +749,7 @@ Without this update, context compaction causes the batch to "forget" which featu
 Resume from last completed feature:
 
 ```bash
-/batch-implement --resume batch-20251116-123456
+/implement --resume batch-20251116-123456
 ```
 
 **Recovery Process**:
@@ -924,7 +934,7 @@ Automatic retry implements defensive security:
 
 ## Performance
 
-- **Per Feature**: ~20-30 minutes (same as `/auto-implement`)
+- **Per Feature**: ~20-30 minutes (same as `/implement`)
 - **Context Management**: Automatic (Claude Code manages 200K token budget)
 - **State Save/Load**: <10 seconds per feature (persistent tracking)
 - **Scalability**: Tested with 50+ features without manual intervention
@@ -932,29 +942,170 @@ Automatic retry implements defensive security:
 
 ---
 
+## Worktree Support (NEW in v3.45.0 - Issue #226)
+
+**Per-worktree batch state isolation for concurrent development**
+
+### Overview
+
+When developing multiple features in parallel using git worktrees, batch state is now automatically isolated per worktree. This enables:
+- Running independent batch operations in different worktrees without interference
+- Concurrent CI jobs processing different feature sets in parallel
+- Worktree deletion automatically cleans up associated batch state
+
+### How It Works
+
+**Detection**: `get_batch_state_file()` automatically detects if the current directory is a git worktree.
+
+**Isolation Behavior**:
+- **Worktrees**: Batch state stored in `WORKTREE_DIR/.claude/batch_state.json` (isolated)
+- **Main Repository**: Batch state stored in `REPO_ROOT/.claude/batch_state.json` (backward compatible)
+
+### Batch State Paths
+
+```bash
+# In main repository
+.claude/batch_state.json
+
+# In worktree
+worktree-dir/.claude/batch_state.json
+```
+
+Each worktree maintains its own independent batch state, preventing conflicts when multiple developers or CI jobs process features concurrently.
+
+### Concurrent Workflow Example
+
+```bash
+# Main repo - start batch processing features 1-5
+cd /path/to/repo
+/batch-implement features-main.txt
+
+# Concurrent: Developer creates worktree for independent features
+git worktree add -b feature-branch worktree-feature
+cd worktree-feature
+/batch-implement features-worktree.txt
+# Uses isolated: worktree-feature/.claude/batch_state.json
+
+# Both batches run independently without interference
+```
+
+### Performance
+
+- **Detection**: <1ms (cached git status check)
+- **State Isolation**: Zero overhead (uses existing `.claude/batch_state.json` mechanism)
+- **Concurrent Batches**: Tested with 3+ parallel worktrees
+
+### Backward Compatibility
+
+Main repository behavior is unchanged:
+- Single batch state at project root (`.claude/batch_state.json`)
+- Existing batch scripts continue working without modification
+- Detection falls back to main repo behavior if worktree detection fails
+
+### Cleanup
+
+When deleting a worktree, its batch state is automatically removed:
+
+```bash
+# Delete worktree and its isolated batch state
+git worktree remove --force worktree-dir
+# worktree-dir/.claude/batch_state.json is deleted with worktree
+```
+
+### Security
+
+Worktree path detection includes:
+- Graceful fallback to main repo behavior on detection errors
+- Path validation to prevent symlink attacks
+- Safe `.claude/` directory creation (0o755 permissions)
+- CWE-22 (path traversal), CWE-59 (symlinks) protection
+
+### Implementation Details
+
+**File**: `plugins/autonomous-dev/lib/path_utils.py` (Lines 228-294)
+
+**Key Functions**:
+- `is_worktree()` - Lazy-loaded wrapper for git_operations.is_worktree()
+- `get_batch_state_file()` - Returns isolated path based on worktree detection
+- `reset_worktree_cache()` - Clears cached detection (for testing)
+
+**Exception Handling**:
+- ImportError (git_operations not available): Falls back to main repo
+- Detection exceptions: Falls back to main repo
+- Symmetric with existing error handling patterns
+
+### Testing
+
+**Unit Tests** (15 tests - Issue #226):
+- Backward compatibility with main repo
+- Worktree path isolation
+- Edge cases (detection failures, fallback behavior)
+- Security validations
+- Performance characteristics
+
+**Integration Tests** (9 tests - Issue #226):
+- Real git worktrees (not mocks)
+- Concurrent batch operations
+- State persistence and JSON format
+- Worktree cleanup behavior
+
+See `/tests/unit/lib/test_path_utils_worktree.py` and `/tests/integration/test_worktree_batch_isolation.py`.
+
+---
+
+## Migration Guide
+
+**Issue #203**: The `/batch-implement` command has been consolidated into `/implement`.
+
+| Old Command | New Command |
+|-------------|-------------|
+| `/batch-implement file.txt` | `/implement --batch file.txt` |
+| `/batch-implement --issues 1 2 3` | `/implement --issues 1 2 3` |
+| `/batch-implement --resume id` | `/implement --resume id` |
+
+The old commands still work via deprecation shims but display a notice:
+
+```
+⚠️  DEPRECATED: /batch-implement is deprecated and will be removed in v4.0.0
+
+Migration:
+  Old: /batch-implement features.txt
+  New: /implement --batch features.txt
+```
+
+**New Features in v3.47.0**:
+- **Auto-worktree isolation**: Batch modes automatically create isolated worktrees
+- **Unified command**: Single `/implement` command with mode flags
+- **Consistent flags**: `--batch`, `--issues`, `--resume`, `--quick`
+
+---
+
 ## Implementation Files
 
-- **Command**: `plugins/autonomous-dev/commands/batch-implement.md`
-- **State Manager**: `plugins/autonomous-dev/lib/batch_state_manager.py` (enhanced v3.33.0 with retry tracking, v3.36.0 with git operations)
+- **Command**: `plugins/autonomous-dev/commands/implement.md` (unified command - v3.47.0)
+- **Orchestrator**: `plugins/autonomous-dev/lib/batch_orchestrator.py` (flag parsing, mode routing - v3.47.0)
+- **State Manager**: `plugins/autonomous-dev/lib/batch_state_manager.py` (enhanced v3.33.0 with retry tracking, v3.36.0 with git operations, v3.45.0 with worktree isolation)
 - **GitHub Fetcher**: `plugins/autonomous-dev/lib/github_issue_fetcher.py` (v3.24.0)
 - **Failure Classifier**: `plugins/autonomous-dev/lib/failure_classifier.py` (v3.33.0 - Issue #89)
 - **Retry Manager**: `plugins/autonomous-dev/lib/batch_retry_manager.py` (v3.33.0 - Issue #89)
 - **Consent Handler**: `plugins/autonomous-dev/lib/batch_retry_consent.py` (v3.33.0 - Issue #89)
 - **Git Integration**: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (v3.36.0 with `execute_git_workflow()` batch mode support - Issue #93)
-- **State File**: `.claude/batch_state.json` (created automatically, includes git_operations field v3.36.0 - Issue #93)
+- **Path Utilities**: `plugins/autonomous-dev/lib/path_utils.py` (enhanced v3.45.0 with worktree batch state isolation - Issue #226)
+- **State File**: `.claude/batch_state.json` (created automatically, includes git_operations field v3.36.0 - Issue #93, isolated per worktree v3.45.0 - Issue #226)
 - **Retry State File**: `.claude/batch_*_retry_state.json` (created per batch for retry tracking)
 - **Issue Closer**: `plugins/autonomous-dev/lib/batch_issue_closer.py` (v3.46.0 - Issue #168, auto-closes issues after push with circuit breaker)
+- **Deprecated Shim**: `plugins/autonomous-dev/commands/batch-implement.md` (redirects to /implement - v3.47.0)
 
 ---
 
 ## See Also
 
-- [commands/auto-implement.md](/plugins/autonomous-dev/commands/auto-implement.md) - Individual feature workflow
+- [commands/implement.md](/plugins/autonomous-dev/commands/implement.md) - Unified implementation command (v3.47.0)
+- [lib/batch_orchestrator.py](/plugins/autonomous-dev/lib/batch_orchestrator.py) - Flag parsing and mode routing
 - [lib/batch_state_manager.py](/plugins/autonomous-dev/lib/batch_state_manager.py) - State management implementation
 - [lib/github_issue_fetcher.py](/plugins/autonomous-dev/lib/github_issue_fetcher.py) - GitHub integration
 - [lib/feature_dependency_analyzer.py](/plugins/autonomous-dev/lib/feature_dependency_analyzer.py) - Dependency ordering (Issue #157)
 - [lib/failure_classifier.py](/plugins/autonomous-dev/lib/failure_classifier.py) - Error classification logic (Issue #89)
 - [lib/batch_retry_manager.py](/plugins/autonomous-dev/lib/batch_retry_manager.py) - Retry orchestration (Issue #89)
 - [lib/batch_retry_consent.py](/plugins/autonomous-dev/lib/batch_retry_consent.py) - User consent handling (Issue #89)
-- [commands/batch-implement.md](/plugins/autonomous-dev/commands/batch-implement.md) - Automatic context management details
 - [docs/LIBRARIES.md](/docs/LIBRARIES.md) - Complete library API reference

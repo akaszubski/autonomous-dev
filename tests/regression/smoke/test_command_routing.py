@@ -29,10 +29,10 @@ class TestAutoImplementCommand:
             assert command.exists()
 
             content = command.read_text()
-            # Should reference 7-agent workflow
-            assert "researcher" in content.lower()
-            assert "planner" in content.lower()
-            assert "test-master" in content.lower()
+            # Command is now a deprecation shim (Issue #203)
+            # Should reference deprecation and redirect to /implement
+            assert "deprecated" in content.lower()
+            assert "implement" in content.lower()
 
         assert timer.elapsed < 1.0
 

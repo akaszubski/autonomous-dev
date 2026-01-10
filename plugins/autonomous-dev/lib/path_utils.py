@@ -38,7 +38,7 @@ Design Patterns:
 
 import json
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 
 # Cache for project root (avoid repeated filesystem searches)
@@ -46,6 +46,10 @@ _PROJECT_ROOT_CACHE: Optional[Path] = None
 
 # Cache for policy file (avoid repeated filesystem searches)
 _POLICY_FILE_CACHE: Optional[Path] = None
+
+# Lazy import of is_worktree (to avoid circular import)
+# This is initialized on first use in get_batch_state_file()
+_is_worktree_func: Optional[Callable[[], bool]] = None
 
 
 class PolicyFileNotFoundError(Exception):
@@ -158,6 +162,33 @@ def get_project_root(use_cache: bool = True) -> Path:
     return _PROJECT_ROOT_CACHE
 
 
+def is_worktree() -> bool:
+    """Check if current directory is a git worktree (lazy import wrapper).
+
+    This function wraps git_operations.is_worktree() with lazy import to avoid
+    circular dependencies. It caches the function reference for performance.
+
+    Returns:
+        True if current directory is a worktree, False otherwise
+
+    Note:
+        This is a module-level function that can be mocked in tests by patching
+        'path_utils.is_worktree'.
+    """
+    global _is_worktree_func
+
+    # Lazy import on first use
+    if _is_worktree_func is None:
+        try:
+            from git_operations import is_worktree as git_is_worktree
+            _is_worktree_func = git_is_worktree
+        except (ImportError, Exception):
+            # Fallback: If import fails, create a function that always returns False
+            _is_worktree_func = lambda: False
+
+    return _is_worktree_func()
+
+
 def get_session_dir(create: bool = True, use_cache: bool = True) -> Path:
     """Get session directory path (PROJECT_ROOT/docs/sessions).
 
@@ -195,29 +226,67 @@ def get_session_dir(create: bool = True, use_cache: bool = True) -> Path:
 
 
 def get_batch_state_file() -> Path:
-    """Get batch state file path (PROJECT_ROOT/.claude/batch_state.json).
+    """Get batch state file path with worktree isolation support.
+
+    Behavior:
+    - Worktrees: Returns CWD/.claude/batch_state.json (isolated per worktree)
+    - Main repo: Returns PROJECT_ROOT/.claude/batch_state.json (backward compatible)
+
+    This enables concurrent batch processing in different worktrees without conflicts.
+    Each worktree maintains its own batch state, isolated from the main repo and
+    other worktrees.
+
+    Detection Fallback:
+    - If worktree detection fails, falls back to main repo behavior
+    - If is_worktree() unavailable, falls back to main repo behavior
+    - Graceful degradation ensures existing workflows continue working
 
     Note: Does NOT create the file (only returns path).
     Directory (.claude/) is created if it doesn't exist.
 
     Returns:
-        Path to batch state file
+        Path to batch state file (isolated for worktrees, shared for main repo)
 
     Raises:
-        FileNotFoundError: If project root not found
+        FileNotFoundError: If project root not found (main repo only)
         OSError: If directory creation fails
 
     Examples:
+        >>> # In main repo
         >>> state_file = get_batch_state_file()
+        >>> # Returns: PROJECT_ROOT/.claude/batch_state.json
+
+        >>> # In worktree
+        >>> state_file = get_batch_state_file()
+        >>> # Returns: WORKTREE_DIR/.claude/batch_state.json
+
         >>> from batch_state_manager import save_batch_state
         >>> save_batch_state(state_file, state)
 
     Security:
         - Creates parent directory with safe permissions (0o755)
-        - No path traversal risk (uses get_project_root())
+        - No path traversal risk (uses get_project_root() or Path.cwd())
+        - Worktree detection is fail-safe (falls back to main repo)
+
+    Issue: GitHub #226 (Per-worktree batch state isolation)
     """
-    project_root = get_project_root()
-    claude_dir = project_root / ".claude"
+    # Check if we're in a worktree using module-level function
+    # (which handles lazy import and can be mocked in tests)
+    try:
+        in_worktree = is_worktree()
+    except Exception:
+        # Fallback: If detection fails, treat as main repo
+        in_worktree = False
+
+    # Determine base directory based on worktree status
+    if in_worktree:
+        # Worktree: Use current working directory for isolation
+        base_dir = Path.cwd()
+    else:
+        # Main repo: Use project root (backward compatible)
+        base_dir = get_project_root()
+
+    claude_dir = base_dir / ".claude"
 
     # Create .claude/ directory if missing
     claude_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
@@ -262,7 +331,10 @@ def get_research_dir(create: bool = True, use_cache: bool = True) -> Path:
 
 
 def reset_project_root_cache() -> None:
-    """Reset cached project root (for testing only).
+    """Reset cached project root and worktree function (for testing only).
+
+    This function resets both the project root cache and the is_worktree function
+    cache to ensure tests start with a clean state.
 
     Warning: Only use this in test teardown. In production, the cache should
     persist for the lifetime of the process.
@@ -271,8 +343,23 @@ def reset_project_root_cache() -> None:
         >>> # In test teardown
         >>> reset_project_root_cache()
     """
-    global _PROJECT_ROOT_CACHE
+    global _PROJECT_ROOT_CACHE, _is_worktree_func
     _PROJECT_ROOT_CACHE = None
+    _is_worktree_func = None
+
+
+def reset_worktree_cache() -> None:
+    """Reset cached is_worktree function (for testing only).
+
+    Warning: Only use this in test teardown. In production, the cache should
+    persist for the lifetime of the process.
+
+    Examples:
+        >>> # In test teardown
+        >>> reset_worktree_cache()
+    """
+    global _is_worktree_func
+    _is_worktree_func = None
 
 
 def get_policy_file(use_cache: bool = True) -> Path:

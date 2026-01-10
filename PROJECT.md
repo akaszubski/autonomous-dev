@@ -25,7 +25,7 @@ research → plan → test → implement → review → security → docs → co
 Every step. Every feature. Documentation, tests, and code stay in sync automatically.
 
 ```bash
-/auto-implement "issue #72"
+/implement "issue #72"
 ```
 
 **User Intent** (stated 2025-10-26):
@@ -48,7 +48,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - PROJECT.md alignment validation before any work begins
 - File organization enforcement (src/, tests/, docs/)
 - Brownfield project support (`/align --retrofit`)
-- Batch processing with crash recovery (`/batch-implement`)
+- Batch processing with crash recovery (`/implement --batch`, `--issues`, `--resume`)
 - Automated git operations (commit, push, PR creation)
 - MCP security validation and tool auto-approval
 
@@ -115,7 +115,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - **Guaranteed execution** — hooks run on every commit
 
 **Layer 2: Agent-Based Intelligence** (User-Invoked, AI-Enhanced)
-- User invokes `/auto-implement` for AI assistance
+- User invokes `/implement` for AI assistance
 - Claude coordinates specialist agents
 - Provides intelligent guidance and implementation help
 - **Conditional execution** — Claude decides which agents based on complexity
@@ -130,14 +130,14 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 |-----------|-------|---------|
 | Agents | 22 | Specialized AI assistants (8 pipeline + 14 utility) |
 | Skills | 28 | Progressive disclosure knowledge packages |
-| Commands | 24 | Slash commands (/auto-implement, /batch-implement, /align, /setup, /sync, /health-check, /create-issue, /advise, etc.) |
+| Commands | 24 | Slash commands (/implement, /align, /setup, /sync, /health-check, /create-issue, /advise, etc.) |
 | Hooks | 66 | Automation and enforcement |
 | Libraries | 122 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
 
 ```
-/auto-implement "feature"
+/implement "feature"
      ↓
 PROJECT.md Alignment Check (blocks if misaligned)
      ↓

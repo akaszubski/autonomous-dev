@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-09 (Issue #225 - Consolidate exception hierarchy: All state managers now use StateError)
+**Last Updated**: 2026-01-10 (Issue #203 - Consolidate /implement, /auto-implement, /batch-implement into single smart command)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version
@@ -135,7 +135,7 @@ Three modes via `/implement` command:
 
 **Quick Mode** (2-5 minutes): Direct implementer agent invocation, no pipeline overhead
 
-**Batch Mode** (20-30 min per feature): Process multiple features sequentially with state management, crash recovery, per-feature git automation
+**Batch Mode** (20-30 min per feature): Process multiple features in isolated worktree with state management, crash recovery, per-feature git automation
 
 **Performance**: 25-30% improvement from 28-44 min baseline. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks.
 

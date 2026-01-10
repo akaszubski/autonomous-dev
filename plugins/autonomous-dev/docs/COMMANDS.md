@@ -6,10 +6,10 @@
 
 ## Overview
 
-Commands were consolidated to 7 active commands. Individual agent commands were archived - use `/auto-implement` for the full pipeline instead.
+Commands were consolidated to 7 active commands. Individual agent commands were archived - use `/implement` for the full pipeline instead.
 
 **Total Active Commands**: 7
-- **Core Workflow**: `/auto-implement`, `/batch-implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`
+- **Core Workflow**: `/implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`, `/advise`
 
 **Archived** (12 commands): Individual agent commands (`/research`, `/plan`, `/implement`, etc.) and redundant variants moved to `commands/archive/`
 
@@ -19,14 +19,12 @@ Commands were consolidated to 7 active commands. Individual agent commands were 
 
 | Command | Time | Description |
 |---------|------|-------------|
-| `/auto-implement` | 20-30min | Full 7-agent pipeline (research → plan → test → implement → review → security → docs) |
-| `/batch-implement` | varies | Process multiple features sequentially with state management and crash recovery |
+| `/implement` | 15-30min | Smart implementation with three modes: full pipeline (default), quick (--quick), batch (--batch/--issues/--resume) |
 | `/align` | 5-10min | Unified alignment (3 modes: `--project`, `--claude`, `--retrofit`) |
 | `/setup` | 2-5min | Interactive setup wizard |
 | `/sync` | 1-2min | Smart sync (auto-detects: dev env, marketplace, or plugin dev) |
 | `/status` | < 30s | Track PROJECT.md goal progress |
 | `/health-check` | < 30s | Validate plugin integrity |
-| `/pipeline-status` | < 10s | Track /auto-implement workflow |
 | `/create-issue` | 3-5min | Create GitHub issue with research |
 | `/test` | < 60s | Run pytest (unit + integration + UAT) |
 
@@ -96,7 +94,7 @@ The sections below document archived commands for historical reference. These co
 | `/sync-docs-auto` | 1-5min | Auto-detect changes and sync intelligently |
 
 **Removed**: `/sync-docs-api`, `/sync-docs-changelog`, `/sync-docs-organize` (niche - use `/sync-docs` for all needs)
-**Note**: `/auto-implement` includes doc-master agent (automatic documentation sync)
+**Note**: `/implement` includes doc-master agent (automatic documentation sync)
 
 ### Quality Commands (3)
 
@@ -111,8 +109,7 @@ The sections below document archived commands for historical reference. These co
 | Command | Time | Description |
 |---------|------|-------------|
 | `/setup` | 5-10min | Interactive setup wizard for autonomous-dev plugin |
-| `/auto-implement` | 20-30min | Autonomous feature implementation (8-agent pipeline) |
-| `/uninstall` | < 5s | Uninstall or disable autonomous-dev features |
+| `/implement` | 15-30min | Smart feature implementation (full pipeline, quick, or batch modes) |
 | More commands available via `/help` |
 
 ---
@@ -186,7 +183,7 @@ The sections below document archived commands for historical reference. These co
 /sync-docs
 ```
 
-**Note**: `/auto-implement` includes automatic doc sync via doc-master agent
+**Note**: `/implement` includes automatic doc sync via doc-master agent
 
 ---
 
