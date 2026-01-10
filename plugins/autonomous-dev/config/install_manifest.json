@@ -6,6 +6,9 @@
   "commands": [
     "advise",
     "align",
+    "align-claude",
+    "align-project",
+    "align-project-retrofit",
     "audit-tests",
     "auto-implement",
     "batch-implement",

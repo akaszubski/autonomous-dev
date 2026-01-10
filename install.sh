@@ -1299,7 +1299,7 @@ main() {
         commands_success=true
     else
         log_warning "Failed to bootstrap command files"
-        log_info "Commands like /auto-implement, /batch-implement won't be available"
+        log_info "Commands like /implement, /create-issue won't be available"
     fi
 
     # Bootstrap agents (non-blocking)
@@ -1445,8 +1445,8 @@ main() {
         echo "║                                                              ║"
         echo "║  Commands available after restart:                           ║"
         echo "║    /setup           - Interactive project setup              ║"
-        echo "║    /auto-implement  - Full autonomous development workflow   ║"
-        echo "║    /batch-implement - Process multiple features              ║"
+        echo "║    /implement       - Full autonomous development workflow   ║"
+        echo "║                       (--quick, --batch, --issues, --resume) ║"
         echo "║    /sync            - Update plugin from GitHub/marketplace  ║"
         echo "║    /align           - Fix PROJECT.md/doc alignment           ║"
         echo "║    /health-check    - Validate plugin integrity              ║"

@@ -127,7 +127,7 @@ Optional but recommended:
     → Enables: GenAI security scanning, test generation, doc fixes
 
 Key settings already enabled:
-  AUTO_GIT_ENABLED=true     (auto-commit after /auto-implement)
+  AUTO_GIT_ENABLED=true     (auto-commit after /implement)
   AUTO_GIT_PUSH=true        (auto-push commits)
   MCP_AUTO_APPROVE=true     (reduce permission prompts)
   BATCH_RETRY_ENABLED=true  (retry transient failures)
@@ -295,7 +295,7 @@ Running health check...
 
 Next steps:
 1. Review PROJECT.md and fill in TODO sections
-2. Try: /auto-implement "add a simple feature"
+2. Try: /implement "add a simple feature"
 3. When done: /clear (reset context for next feature)
 ```
 
