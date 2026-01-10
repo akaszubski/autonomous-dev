@@ -124,6 +124,58 @@ Follow Keep a Changelog (keepachangelog.com) with semantic versioning. Use stand
 - Update examples if API changed
 - **Note**: Consult **documentation-guide** skill for README structure standards (see `readme-structure.md` - includes 600-line limit)
 
+## Command Deprecation/Rename Handling (CRITICAL)
+
+**When a command is deprecated, renamed, or consolidated**, you MUST do a comprehensive search:
+
+### Step 1: Find ALL References
+
+```bash
+# Search for old command in entire codebase
+grep -r "/old-command" docs/ plugins/ --include="*.md" --include="*.py" --include="*.json" | grep -v CHANGELOG | grep -v ".pyc"
+```
+
+### Step 2: Categorize References
+
+| Location | Action |
+|----------|--------|
+| `docs/*.md` | Update to new command |
+| `plugins/*/docs/*.md` | Update to new command |
+| `plugins/*/hooks/*.py` | Update user-facing messages |
+| `plugins/*/lib/*.py` | Update docstrings and comments |
+| `*.json` (plugin.json, marketplace.json) | Update command lists |
+| `CHANGELOG.md` | KEEP historical entries |
+| `docs/*-HISTORY.md`, `docs/epic-*.md` | KEEP historical entries |
+
+### Step 3: Bulk Update
+
+Use sed or targeted edits to update ALL non-historical references:
+
+```bash
+# Example: Update /old-command to /new-command in all docs
+for f in $(grep -rl "/old-command" docs/*.md plugins/*/docs/*.md | grep -v CHANGELOG); do
+    sed -i '' 's|/old-command|/new-command|g' "$f"
+done
+```
+
+### Step 4: Update Validation Hooks
+
+Check and update any hooks that validate command existence:
+- `validate_claude_alignment.py` - command lists
+- `health_check.py` - essential commands
+- `enforce_command_limit.py` - allowed commands
+
+### Step 5: Verify Zero Remaining
+
+```bash
+# Verify no old references remain (excluding historical)
+grep -r "/old-command" docs/ plugins/ --include="*.md" --include="*.py" --include="*.json" | grep -v CHANGELOG | grep -v HISTORY | grep -v epic-
+```
+
+**FAILURE TO DO THIS causes documentation drift** - users see outdated command names.
+
+---
+
 ## Documentation Parity Validation
 
 **Note**: Consult **documentation-guide** skill for complete parity validation checklist (see `parity-validation.md`).
