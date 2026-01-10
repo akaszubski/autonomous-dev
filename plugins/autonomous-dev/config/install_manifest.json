@@ -65,6 +65,8 @@
         "plugins/autonomous-dev/commands/align-project-retrofit.md",
         "plugins/autonomous-dev/commands/align-project.md",
         "plugins/autonomous-dev/commands/align.md",
+        "plugins/autonomous-dev/commands/archived/sync-dev.md",
+        "plugins/autonomous-dev/commands/archived/update-plugin.md",
         "plugins/autonomous-dev/commands/audit-tests.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
         "plugins/autonomous-dev/commands/batch-implement.md",

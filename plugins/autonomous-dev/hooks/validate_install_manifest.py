@@ -73,7 +73,8 @@ def scan_source_files(plugin_dir: Path) -> dict:
         ("hooks", "*.py", "hooks", False),
         ("lib", "*.py", "lib", False),
         ("agents", "*.md", "agents", False),
-        ("commands", "*.md", "commands", False),  # Top level only, excludes archive/
+        ("commands", "*.md", "commands", False),  # Top level only
+        ("commands/archived", "*.md", "commands", False),  # Archived command shims (Issue #203)
         ("scripts", "*.py", "scripts", False),
         ("config", "*.json", "config", False),
         ("templates", "*.json", "templates", False),
