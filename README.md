@@ -47,6 +47,29 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 ## How It Works
 
+### PROJECT.md-First Development
+
+Every feature starts with alignment validation against your project's strategic goals:
+
+```markdown
+# .claude/PROJECT.md
+## GOALS
+- Build a secure authentication system
+- Maintain sub-100ms API response times
+
+## SCOPE
+- User management, session handling
+- NOT: Payment processing, analytics
+
+## CONSTRAINTS
+- No external auth providers
+- Must support offline mode
+```
+
+When you run `/implement`, the pipeline checks: *Does this feature align with GOALS? Is it within SCOPE? Does it violate CONSTRAINTS?*
+
+**Result**: No scope creep. No wasted effort on misaligned features.
+
 ### One Command, Full Pipeline
 
 ```bash
@@ -72,9 +95,11 @@ autonomous-dev orchestrates **8 specialized AI agents**:
 
 | Command | Purpose |
 |---------|---------|
+| `/setup` | Interactive PROJECT.md creation wizard |
 | `/implement` | Full pipeline: research, plan, test, implement, review, secure, document |
 | `/implement --quick` | Fast mode: implementer agent only (2-5 min) |
 | `/implement --batch` | Process multiple features with crash recovery |
+| `/align` | Validate alignment (project goals, CLAUDE.md, retrofit brownfield) |
 | `/create-issue` | Research-backed GitHub issues with duplicate detection |
 | `/advise` | Critical analysis before major decisions |
 | `/audit-tests` | Identify untested code paths |
