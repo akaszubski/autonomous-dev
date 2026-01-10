@@ -138,19 +138,23 @@ class TestManifestCommandCount:
         """Extract command file paths from manifest."""
         return manifest_data.get("components", {}).get("commands", {}).get("files", [])
 
-    def test_manifest_has_24_commands(self, command_files):
-        """Test that manifest lists all 24 active command files.
+    def test_manifest_has_26_commands(self, command_files):
+        """Test that manifest lists all 26 command files (24 active + 2 archived).
 
-        EXPECTATION: Exactly 24 command paths in manifest
+        EXPECTATION: Exactly 26 command paths in manifest
 
-        Active commands include:
+        Active commands (24):
         - Core: auto-implement, batch-implement, setup, sync, health-check
         - Alignment: align, align-project, align-claude, align-project-retrofit
         - Individual agents: research, plan, test-feature, implement, review, etc.
-        - Utility: advise, create-issue, status, worktree, etc.
+        - Utility: advise, create-issue, status, worktree, update-plugin, etc.
+
+        Archived command shims (2):
+        - sync-dev.md → redirects to /sync --env
+        - update-plugin.md → redirects to /sync --marketplace
         """
-        assert len(command_files) == 24, (
-            f"Expected 24 command files in manifest, found {len(command_files)}\n"
+        assert len(command_files) == 26, (
+            f"Expected 26 command files in manifest (24 active + 2 archived), found {len(command_files)}\n"
             f"Actual files: {sorted([Path(f).name for f in command_files])}\n"
         )
 

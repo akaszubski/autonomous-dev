@@ -580,9 +580,9 @@ Layer 3 (Batch Permission Approver):
 ### unified_doc_validator.py
 
 **Purpose**: Documentation alignment, consistency, README accuracy
-**Consolidates**: validate_project_alignment.py, validate_claude_alignment.py, validate_documentation_alignment.py, validate_docs_consistency.py, validate_readme_accuracy.py, validate_readme_sync.py, validate_readme_with_genai.py, validate_command_file_ops.py, validate_commands.py, validate_hooks_documented.py, validate_command_frontmatter_flags.py
+**Consolidates**: validate_project_alignment.py, validate_claude_alignment.py, validate_documentation_alignment.py, validate_docs_consistency.py, validate_readme_accuracy.py, validate_readme_sync.py, validate_readme_with_genai.py, validate_command_file_ops.py, validate_commands.py, validate_hooks_documented.py, validate_command_frontmatter_flags.py, validate_command_consistency.py
 **Lifecycle**: PreCommit
-**Environment Variables**: VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT, VALIDATE_DOC_ALIGNMENT, VALIDATE_DOCS_CONSISTENCY, VALIDATE_README_ACCURACY, VALIDATE_README_SYNC, VALIDATE_README_GENAI, VALIDATE_COMMAND_FILE_OPS, VALIDATE_COMMANDS, VALIDATE_HOOKS_DOCS, VALIDATE_COMMAND_FRONTMATTER
+**Environment Variables**: VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT, VALIDATE_DOC_ALIGNMENT, VALIDATE_DOCS_CONSISTENCY, VALIDATE_README_ACCURACY, VALIDATE_README_SYNC, VALIDATE_README_GENAI, VALIDATE_COMMAND_FILE_OPS, VALIDATE_COMMANDS, VALIDATE_HOOKS_DOCS, VALIDATE_COMMAND_FRONTMATTER, VALIDATE_COMMAND_CONSISTENCY
 
 ### unified_doc_auto_fix.py
 
@@ -1184,6 +1184,26 @@ Hooks for ensuring documentation, commands, codebase stay in sync, and tests pas
 **Lifecycle**: PreCommit
 **Non-blocking**: Exit 1 (warning), never blocking (exit 2)
 **Related**: Issue #213 - Standardized command YAML frontmatter with kebab-case naming
+
+### validate_command_consistency.py
+
+**Purpose**: Ensure command references are consistent across all configuration files (Issue #203)
+**Actions**:
+- Cross-validates plugin.json, install_manifest.json, and command .md files
+- Detects deprecated commands referenced in install.sh or setup.md
+- Blocks commits when command lists are inconsistent
+- Provides clear guidance on which files need updating
+**Lifecycle**: PreCommit (blocks commits when inconsistencies found)
+**Related**: Issue #203 - Command consolidation, doc-master 5-step deprecation workflow
+
+**What it validates**:
+- plugin.json should not list deprecated commands
+- All plugin.json commands should have corresponding .md files
+- install_manifest.json should include all command files (active + deprecated shims)
+- install.sh and setup.md should not reference deprecated commands
+- Key documentation should not reference deprecated commands
+
+**Environment Variable**: `VALIDATE_COMMAND_CONSISTENCY=false` to disable
 
 ### pre_commit_gate.py
 

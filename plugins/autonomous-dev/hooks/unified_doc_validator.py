@@ -18,6 +18,7 @@ Consolidates 12 validation hooks into a single dispatcher:
 - validate_hooks_documented.py
 - validate_command_frontmatter_flags.py
 - validate_manifest_doc_alignment.py (Issue #159)
+- validate_command_consistency.py (Issue #203)
 
 Usage:
     python unified_doc_validator.py
@@ -36,6 +37,7 @@ Environment Variables:
     VALIDATE_HOOKS_DOCS=false           - Disable hooks documentation validation (default: true)
     VALIDATE_COMMAND_FRONTMATTER=false  - Disable command frontmatter validation (default: true)
     VALIDATE_MANIFEST_DOC_ALIGNMENT=false - Disable manifest-doc alignment validation (default: true)
+    VALIDATE_COMMAND_CONSISTENCY=false    - Disable command consistency validation (default: true)
 
 Exit Codes:
     0 = All validators passed or skipped
@@ -466,6 +468,44 @@ def validate_manifest_doc_alignment() -> bool:
         return False
 
 
+def validate_command_consistency() -> bool:
+    """Validate command consistency across all config files (Issue #203).
+
+    Cross-validates:
+    - plugin.json commands list
+    - install_manifest.json commands list
+    - Actual .md files in commands/
+    - References in install.sh and setup.md
+
+    CRITICAL: This validator fails LOUDLY. No graceful degradation.
+    """
+    try:
+        from validate_command_consistency import main
+        return main() == 0
+    except ImportError:
+        hooks_dir = Path(__file__).parent
+        validator_path = hooks_dir / "validate_command_consistency.py"
+        if not validator_path.exists():
+            # FAIL LOUD: If validator is missing, that's a problem
+            print(f"ERROR: Validator not found at {validator_path}")
+            return False
+
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(validator_path)],
+            capture_output=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            print(result.stdout.decode() if result.stdout else "")
+            print(result.stderr.decode() if result.stderr else "")
+        return result.returncode == 0
+    except Exception as e:
+        # FAIL LOUD: Any error is a validation failure
+        print(f"ERROR: Command consistency validation failed: {e}")
+        return False
+
+
 def main() -> int:
     """Main entry point for unified documentation validator.
 
@@ -538,6 +578,11 @@ def main() -> int:
         "Manifest-Doc Alignment",
         "VALIDATE_MANIFEST_DOC_ALIGNMENT",
         validate_manifest_doc_alignment
+    )
+    dispatcher.register(
+        "Command Consistency",
+        "VALIDATE_COMMAND_CONSISTENCY",
+        validate_command_consistency
     )
 
     # Run all validators

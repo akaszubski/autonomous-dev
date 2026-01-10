@@ -140,6 +140,7 @@
         "plugins/autonomous-dev/hooks/unified_structure_enforcer.py",
         "plugins/autonomous-dev/hooks/validate_claude_alignment.py",
         "plugins/autonomous-dev/hooks/validate_command_file_ops.py",
+        "plugins/autonomous-dev/hooks/validate_command_consistency.py",
         "plugins/autonomous-dev/hooks/validate_command_frontmatter_flags.py",
         "plugins/autonomous-dev/hooks/validate_commands.py",
         "plugins/autonomous-dev/hooks/validate_docs_consistency.py",

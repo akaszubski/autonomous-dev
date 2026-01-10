@@ -1,32 +1,33 @@
 #!/usr/bin/env python3
 """
-Tests for Install Manifest Completeness - Issue #159
+Tests for Install Manifest Completeness - Issue #159, #203
 
 This module verifies that the install manifest
 (plugins/autonomous-dev/config/install_manifest.json) includes all active files.
 
 Requirements:
-1. All 21 agent files on disk must be in manifest
-2. All 23 command files must be in manifest (core + alignment + agent + utility)
-3. All hook files must be in manifest
-4. All lib files must be in manifest
-5. Manifest version must follow semantic versioning
+1. All 22 agent files on disk must be in manifest
+2. All 24 active command files must be in manifest (core + alignment + agent + utility)
+3. All 2 archived command shims must be in manifest (deprecated commands)
+4. All hook files must be in manifest
+5. All lib files must be in manifest
+6. Manifest version must follow semantic versioning
 
 This test suite validates manifest completeness:
-- Agents: 21 total (pipeline + utility)
-- Commands: 23 total (core + alignment + agent + utility)
+- Agents: 22 total (pipeline + utility)
+- Commands: 24 active + 2 archived shims (core + alignment + agent + utility)
 - Hooks: All Python files in hooks/ directory
 - Libs: All Python files in lib/ directory
 
 Author: test-master agent
-Date: 2025-12-24, Updated: 2026-01-02
-Issue: #159, Updated for current command count
+Date: 2025-12-24, Updated: 2026-01-10
+Issue: #159, Updated for Issue #203 command consolidation
 """
 
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Set
 
 import pytest
 
@@ -70,7 +71,7 @@ EXPECTED_AGENTS = {
     "test-master.md",
 }
 
-# All 24 active commands in manifest (as of v3.45.0)
+# All 24 active commands in manifest (as of v3.46.0)
 EXPECTED_COMMANDS = {
     # Core commands
     "advise.md",
@@ -100,6 +101,14 @@ EXPECTED_COMMANDS = {
     "pipeline-status.md",
     "status.md",
     "worktree.md",
+}
+
+# Archived command shims that redirect to new commands (Issue #203)
+# These MUST be in manifest so users get helpful redirect messages
+# Note: sync-dev is fully deprecated, update-plugin has both active and archived versions
+EXPECTED_ARCHIVED_COMMANDS = {
+    "sync-dev.md",      # Redirects to /sync --env
+    "update-plugin.md", # Archived shim redirects to /sync --marketplace
 }
 
 MISSING_HOOKS = {
@@ -322,14 +331,24 @@ class TestManifestCommandCompleteness:
 
     @pytest.fixture
     def manifest_commands(self, manifest_data) -> Set[str]:
-        """Extract command filenames from manifest."""
+        """Extract active (non-archived) command filenames from manifest."""
         files = manifest_data.get("components", {}).get("commands", {}).get("files", [])
-        return {Path(f).name for f in files}
+        # Exclude archived commands (paths containing "/archived/")
+        active_files = [f for f in files if "/archived/" not in f]
+        return {Path(f).name for f in active_files}
 
-    def test_manifest_has_24_commands(self, manifest_commands):
-        """Test that manifest lists exactly 24 command files.
+    @pytest.fixture
+    def manifest_archived_commands(self, manifest_data) -> Set[str]:
+        """Extract archived command filenames from manifest."""
+        files = manifest_data.get("components", {}).get("commands", {}).get("files", [])
+        # Only archived commands (paths containing "/archived/")
+        archived_files = [f for f in files if "/archived/" in f]
+        return {Path(f).name for f in archived_files}
 
-        EXPECTATION: Exactly 24 active commands in manifest (as of v3.45.0)
+    def test_manifest_has_24_active_commands(self, manifest_commands):
+        """Test that manifest lists exactly 24 active command files.
+
+        EXPECTATION: Exactly 24 active commands in manifest (as of v3.46.0)
 
         Commands include:
         - Core: advise, align, auto-implement, batch-implement, create-issue, health-check, setup, sync
@@ -338,7 +357,7 @@ class TestManifestCommandCompleteness:
         - Utility: update-plugin, pipeline-status, status, worktree
         """
         assert len(manifest_commands) == 24, (
-            f"Expected 24 command files in manifest, found {len(manifest_commands)}\n"
+            f"Expected 24 active command files in manifest, found {len(manifest_commands)}\n"
             f"Current manifest commands: {sorted(manifest_commands)}\n"
             f"Expected commands: {sorted(EXPECTED_COMMANDS)}\n"
             f"Missing: {sorted(EXPECTED_COMMANDS - manifest_commands)}\n"
@@ -346,9 +365,9 @@ class TestManifestCommandCompleteness:
         )
 
     def test_all_expected_commands_in_manifest(self, manifest_commands):
-        """Test that all expected command files are in manifest.
+        """Test that all expected active command files are in manifest.
 
-        EXPECTATION: All 24 commands from EXPECTED_COMMANDS set are in manifest
+        EXPECTATION: All 23 commands from EXPECTED_COMMANDS set are in manifest
         """
         missing = EXPECTED_COMMANDS - manifest_commands
         assert not missing, (
@@ -358,9 +377,9 @@ class TestManifestCommandCompleteness:
         )
 
     def test_no_extra_commands_in_manifest(self, manifest_commands):
-        """Test that manifest doesn't include unexpected command files.
+        """Test that manifest doesn't include unexpected active command files.
 
-        EXPECTATION: All manifest commands are in EXPECTED_COMMANDS set
+        EXPECTATION: All active manifest commands are in EXPECTED_COMMANDS set
         """
         extra = manifest_commands - EXPECTED_COMMANDS
         assert not extra, (
@@ -368,6 +387,36 @@ class TestManifestCommandCompleteness:
             f"  {chr(10).join(sorted(extra))}\n\n"
             "These commands are in manifest but not expected.\n"
             "Remove them or add to EXPECTED_COMMANDS if they should exist."
+        )
+
+    def test_archived_commands_in_manifest(self, manifest_archived_commands):
+        """Test that archived command shims are in manifest (Issue #203).
+
+        EXPECTATION: All deprecated command shims are in manifest so users get
+        helpful redirect messages when they use old command names.
+
+        Archived commands redirect to new commands:
+        - sync-dev.md → /sync --env
+        - update-plugin.md → /sync --marketplace
+        """
+        missing = EXPECTED_ARCHIVED_COMMANDS - manifest_archived_commands
+        assert not missing, (
+            f"Missing {len(missing)} archived command shims from manifest:\n"
+            f"  {chr(10).join(sorted(missing))}\n\n"
+            "Archived command shims MUST be in manifest so users get redirect messages.\n"
+            "Add them under plugins/autonomous-dev/commands/archived/"
+        )
+
+    def test_no_extra_archived_commands(self, manifest_archived_commands):
+        """Test that manifest doesn't include unexpected archived commands.
+
+        EXPECTATION: Only known deprecated commands should be in archived/
+        """
+        extra = manifest_archived_commands - EXPECTED_ARCHIVED_COMMANDS
+        assert not extra, (
+            f"Manifest contains {len(extra)} unexpected archived commands:\n"
+            f"  {chr(10).join(sorted(extra))}\n\n"
+            "Add to EXPECTED_ARCHIVED_COMMANDS if these are valid deprecations."
         )
 
 

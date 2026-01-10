@@ -395,21 +395,34 @@ class TestInstallSyncIntegrity:
         assert timer.elapsed < 2.0
 
     def test_no_archived_in_manifest(self, plugins_dir, timing_validator):
-        """Test that archived files are NOT in install manifest.
+        """Test that archived files are NOT in install manifest (except command shims).
 
         Protects: Clean installation without deprecated files (smoke test)
         Historical issue: 652922a - archived files being synced
+
+        Exception: Command deprecation shims ARE allowed in manifest because users
+        need them installed to get redirect messages when using old command names.
+        These have 'redirect-to:' frontmatter that redirects to new commands.
         """
         with timing_validator.measure() as timer:
             manifest = plugins_dir / "config" / "install_manifest.json"
             data = json.loads(manifest.read_text())
+
+            # Command deprecation shims are allowed (they redirect to new commands)
+            ALLOWED_ARCHIVED = {
+                "commands/archived/sync-dev.md",  # Redirects to /sync --env
+                "commands/archived/update-plugin.md",  # Redirects to /sync --marketplace
+            }
 
             archived_refs = []
             # Check all components for archived files (new structure: components.{type}.files)
             for component_name, component in data.get("components", {}).items():
                 for file_path in component.get("files", []):
                     if "archived" in file_path.lower():
-                        archived_refs.append(file_path)
+                        # Check if this is an allowed deprecation shim
+                        is_allowed = any(allowed in file_path for allowed in ALLOWED_ARCHIVED)
+                        if not is_allowed:
+                            archived_refs.append(file_path)
 
             assert len(archived_refs) == 0, f"Manifest contains archived files: {archived_refs}"
 
