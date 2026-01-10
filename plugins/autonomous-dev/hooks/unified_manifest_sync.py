@@ -99,6 +99,7 @@ def scan_source_files(plugin_dir: Path) -> Dict[str, List[str]]:
         ("lib", "*.py", "lib", False),
         ("agents", "*.md", "agents", False),
         ("commands", "*.md", "commands", False),  # Top level only
+        ("commands/archived", "*.md", "commands", False),  # Archived command shims (Issue #203)
         ("scripts", "*.py", "scripts", False),
         ("config", "*.json", "config", False),
         ("templates", "*.json", "templates", False),
@@ -205,7 +206,7 @@ def validate_install_manifest() -> Tuple[bool, str]:
 
     project_root = get_project_root()
     plugin_dir = project_root / "plugins" / "autonomous-dev"
-    manifest_path = plugin_dir / "install_manifest.json"
+    manifest_path = plugin_dir / "config" / "install_manifest.json"
 
     if not manifest_path.exists():
         return True, ""  # No manifest to validate
