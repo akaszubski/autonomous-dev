@@ -1,8 +1,8 @@
 # Workflow Discipline
 
-**Philosophy**: Prefer pipelines. Choose quality over speed.
+**REQUIRED**: Use `/implement` for all code changes. This is not optional.
 
-Claude SHOULD use the proper commands for feature implementation because they produce better results, not because hooks enforce it.
+Claude MUST use `/implement` for code changes because it catches 85% of issues before commit. The data proves this works.
 
 ---
 
@@ -23,18 +23,21 @@ Claude SHOULD use the proper commands for feature implementation because they pr
 
 ## When to Use Each Approach
 
-**Use Direct Implementation** (quick changes):
-- Documentation updates (.md files)
-- Configuration changes (.json, .yaml)
-- Minor refactoring (renaming, moving)
-- Typo fixes (1-2 lines)
+**STOP AND CHECK**: Before writing ANY code, ask: "Am I about to write new logic?" If yes → `/implement`.
 
-**Use /implement** (quality matters):
+**Exceptions** (direct implementation allowed):
+- Documentation updates (.md files only)
+- Configuration changes (.json, .yaml, .toml)
+- Typo fixes (1-2 lines, no logic changes)
+
+**REQUIRED /implement** (no exceptions):
 - New functions, classes, methods
 - Bug fixes requiring logic changes
 - Feature additions
 - API changes
 - Anything that should have tests
+
+**Default Rule**: If unsure, use `/implement`. Quality-safe default.
 
 ---
 
@@ -96,17 +99,17 @@ ENFORCE_WORKFLOW=false  # Disables bypass detection
 
 ---
 
-## The Choice is Yours
+## Why This is Mandatory
 
-Hooks no longer block direct implementation for new code. But the data shows /implement catches 85% of issues before commit.
+Hooks don't block direct implementation (Intent detection doesn't work - Issue #141). But `/implement` is still REQUIRED by instruction.
 
-**When you implement directly, you accept**:
+**If you skip `/implement`, you cause**:
 - Higher bug rate (23% vs 4%)
-- No security audit (12% vulnerability rate)
+- Security vulnerabilities (12% vs 0.3%)
 - Documentation drift (67% of changes)
 - Lower test coverage (43% vs 94%)
 
-**The pipeline exists because it works, not because it's forced.**
+**The rule**: Use `/implement` for code changes. The data proves it works.
 
 ---
 
@@ -139,25 +142,15 @@ Claude: Validates alignment → TDD → implements → reviews → documents
 
 ---
 
-## Quality Reflexes (Constitutional Self-Critique)
+## Quality Reflexes (Mandatory Self-Check)
 
-Before implementing any feature directly, ask yourself these questions. This is guidance, not enforcement — you decide whether to follow the pipeline or proceed directly.
+**BEFORE writing any code**, you MUST ask:
 
-**Self-Validation Questions**:
+1. **Am I about to write new logic?** → If yes, STOP and use `/implement`
+2. **Is this just docs/config/typo?** → If yes, proceed directly
+3. **Am I unsure?** → Use `/implement` (quality-safe default)
 
-1. **Alignment**: Does this feature align with PROJECT.md goals? (If unsure → `cat .claude/PROJECT.md`)
-2. **Research**: Have I researched existing patterns in the codebase? (If not → `grep`/`glob` first)
-3. **Duplicates**: Am I duplicating work that's already implemented or exists as an open issue? (If unsure → `gh issue list --search`)
-4. **Tests First**: Should I write tests first for this change? (If yes → TDD approach)
-5. **Documentation**: Will this require documentation updates? (If yes → plan doc changes now)
-
-**Why This Works** (Constitutional AI Pattern):
-
-Constitutional AI uses natural language principles for self-critique rather than rigid enforcement. By asking questions, Claude can reflect on the best approach before committing to implementation. This respects your agency while surfacing quality considerations.
-
-The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion — guidance through data and reasoning, not blocking.
-
-**The Data Shows**:
+**Why This is Required**:
 
 | Metric | Direct Implementation | /implement Pipeline |
 |--------|----------------------|--------------------------|
@@ -166,6 +159,4 @@ The 4-Layer Consistency Architecture allocates 30% to CLAUDE.md persuasion — g
 | Documentation drift | 67% (manual sync) | 2% (auto-synced) |
 | Test coverage | 43% (optional) | 94% (required) |
 
-**Your Choice**:
-
-Consider using `/implement` for features where quality matters. For quick fixes, documentation updates, or trivial changes, direct implementation may be appropriate. The data above helps you decide — the choice is yours.
+**The Rule**: `/implement` is required for code changes. Exceptions are documented above (docs, config, typos only).

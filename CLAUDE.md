@@ -1,6 +1,6 @@
 # Claude Code Bootstrap - Project Instructions
 
-**Last Updated**: 2026-01-10 (Issue #203 - Unified /implement command with mode flags)
+**Last Updated**: 2026-01-11 (Strengthened workflow discipline - /implement now REQUIRED for code changes)
 **Last Validated**: 2026-01-09
 **Project**: Autonomous Development Plugin for Claude Code 2.0
 **Version**: See `plugins/autonomous-dev/VERSION` for current version
@@ -59,17 +59,24 @@ ___
 
 ___
 
-## Workflow Discipline
+## Workflow Discipline (CRITICAL!)
 
-**Philosophy**: Prefer pipelines. Choose quality over speed.
+**REQUIRED**: Use `/implement` for all code changes. This is not optional.
 
-**Key Metrics**: /implement (full pipeline) catches 85% of issues before commit (4% bug rate vs 23%, 0.3% security issues vs 12%, 94% test coverage vs 43%)
+**STOP AND CHECK**: Before writing ANY new code (functions, classes, methods, bug fixes), you MUST:
+1. Invoke `/implement <feature description>` - NOT implement directly
+2. If user explicitly requests direct implementation, confirm they understand they're skipping tests/security/docs
 
-**When to Use**:
-- **Direct Implementation**: Documentation updates, config changes, typo fixes
-- **/implement**: New code, bug fixes, features, API changes (choose mode: full pipeline for tests, quick for docs, batch for bulk)
+**Exceptions** (direct implementation allowed):
+- Documentation updates (.md files only)
+- Config changes (.json, .yaml, .toml)
+- Typo fixes (1-2 lines, no logic changes)
 
-**See**: [docs/WORKFLOW-DISCIPLINE.md](docs/WORKFLOW-DISCIPLINE.md) for complete data, enforcement philosophy, and 4-layer consistency architecture.
+**Why This Matters**: /implement catches 85% of issues before commit (4% bug rate vs 23%, 0.3% security issues vs 12%, 94% test coverage vs 43%)
+
+**Default Rule**: If unsure whether to use `/implement`, USE IT. Quality-safe default.
+
+**See**: [docs/WORKFLOW-DISCIPLINE.md](docs/WORKFLOW-DISCIPLINE.md) for complete data and enforcement philosophy.
 
 ___
 
