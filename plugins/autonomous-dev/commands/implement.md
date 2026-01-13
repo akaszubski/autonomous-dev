@@ -354,7 +354,7 @@ Process multiple features from a file with automatic worktree isolation.
 
 **STEP B1: Create Worktree**
 
-Before processing features, create an isolated worktree:
+Before processing features, create an isolated worktree and change to it:
 
 ```bash
 # Generate batch ID
@@ -362,14 +362,20 @@ BATCH_ID="batch-$(date +%Y%m%d-%H%M%S)"
 
 # Create worktree (requires git worktree support)
 git worktree add ".worktrees/$BATCH_ID" HEAD
+
+# Change to worktree directory (automatic in create_batch_worktree)
+cd .worktrees/$BATCH_ID
 ```
 
 Display:
 ```
 🌲 Created isolated worktree: .worktrees/$BATCH_ID
+   Current working directory changed to worktree.
    All batch processing will occur in this worktree.
    Main repository remains untouched until merge.
 ```
+
+Note: The `create_batch_worktree()` function automatically changes the current working directory to the worktree after successful creation. All subsequent operations (file writes, edits, shell commands) execute within the worktree context. Use the returned `original_cwd` to restore the previous directory if needed.
 
 **STEP B2: Parse Features File**
 

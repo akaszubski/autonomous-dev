@@ -961,6 +961,8 @@ When developing multiple features in parallel using git worktrees, batch state i
 - **Worktrees**: Batch state stored in `WORKTREE_DIR/.claude/batch_state.json` (isolated)
 - **Main Repository**: Batch state stored in `REPO_ROOT/.claude/batch_state.json` (backward compatible)
 
+**Automatic CWD Change**: When `create_batch_worktree()` successfully creates a worktree, it automatically changes the current working directory to the worktree. This ensures all subsequent operations (file writes, edits, shell commands) execute within the worktree context without manual directory management. The function returns `original_cwd` to allow restoration if needed.
+
 ### Batch State Paths
 
 ```bash

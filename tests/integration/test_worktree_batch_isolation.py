@@ -607,11 +607,266 @@ class TestWorktreeCleanup:
 
 
 # =============================================================================
+# SECTION 5: Batch Orchestrator CWD Management Tests (4 tests)
+# =============================================================================
+
+class TestBatchOrchestratorCWDManagement:
+    """Test batch orchestrator CWD change behavior with worktrees."""
+
+    def test_create_batch_worktree_changes_cwd(self, git_repo, sample_features):
+        """Verify create_batch_worktree() changes CWD to worktree path."""
+        # Arrange
+        original_dir = Path.cwd()
+
+        try:
+            os.chdir(git_repo)
+            reset_project_root_cache()
+
+            # Import batch_orchestrator functions
+            try:
+                from batch_orchestrator import create_batch_worktree
+            except ImportError:
+                pytest.skip("batch_orchestrator not implemented yet (TDD red phase)")
+
+            batch_id = "test-cwd-change"
+            initial_cwd = Path.cwd()
+
+            # Act: Create worktree (should change CWD)
+            result = create_batch_worktree(batch_id)
+
+            # Assert: CWD changed to worktree path
+            current_cwd = Path.cwd()
+
+            if result["success"] and not result.get("fallback", False):
+                # Successful worktree creation should change CWD
+                worktree_path = Path(result["path"])
+                assert current_cwd == worktree_path, (
+                    f"Expected CWD to change to {worktree_path}, "
+                    f"but it's still {current_cwd}"
+                )
+                assert current_cwd != initial_cwd, "CWD should have changed from initial location"
+
+                # Verify result includes CWD metadata
+                assert "original_cwd" in result, "Result should include original_cwd"
+                assert "cwd_changed" in result, "Result should include cwd_changed flag"
+                assert result["cwd_changed"] is True, "cwd_changed should be True"
+                assert Path(result["original_cwd"]) == initial_cwd, (
+                    "original_cwd should match initial CWD"
+                )
+
+            else:
+                # Fallback mode should NOT change CWD
+                assert current_cwd == initial_cwd, (
+                    "CWD should not change in fallback mode"
+                )
+                assert result.get("cwd_changed", False) is False, (
+                    "cwd_changed should be False in fallback"
+                )
+
+        finally:
+            os.chdir(original_dir)
+            reset_project_root_cache()
+
+    def test_batch_orchestrator_fallback_no_cwd_change(self, git_repo, monkeypatch):
+        """Verify fallback mode does not change CWD when worktree manager unavailable."""
+        # Arrange
+        original_dir = Path.cwd()
+
+        try:
+            os.chdir(git_repo)
+            reset_project_root_cache()
+
+            # Import batch_orchestrator functions
+            try:
+                from batch_orchestrator import create_batch_worktree, _get_worktree_manager
+            except ImportError:
+                pytest.skip("batch_orchestrator not implemented yet (TDD red phase)")
+
+            # Mock worktree manager to be unavailable
+            def mock_get_worktree_manager():
+                return None
+
+            import batch_orchestrator
+            monkeypatch.setattr(batch_orchestrator, "_get_worktree_manager", mock_get_worktree_manager)
+
+            batch_id = "test-fallback-cwd"
+            initial_cwd = Path.cwd()
+
+            # Act: Create worktree (should fallback without CWD change)
+            result = create_batch_worktree(batch_id)
+
+            # Assert: Fallback mode activated
+            assert result["success"] is False, "Should fail without worktree manager"
+            assert result["fallback"] is True, "Fallback flag should be True"
+            assert "warning" in result, "Should include warning message"
+
+            # Assert: CWD unchanged
+            current_cwd = Path.cwd()
+            assert current_cwd == initial_cwd, (
+                f"CWD should not change in fallback mode. "
+                f"Expected {initial_cwd}, got {current_cwd}"
+            )
+
+            # Assert: cwd_changed flag is False
+            assert result.get("cwd_changed", False) is False, (
+                "cwd_changed should be False in fallback mode"
+            )
+
+            # Assert: path points to current directory
+            assert Path(result["path"]) == initial_cwd, (
+                "Fallback path should be current directory"
+            )
+
+        finally:
+            os.chdir(original_dir)
+            reset_project_root_cache()
+
+    def test_implementer_writes_to_worktree(self, git_repo, sample_features):
+        """Verify file operations use worktree CWD after create_batch_worktree()."""
+        # Arrange
+        original_dir = Path.cwd()
+
+        try:
+            os.chdir(git_repo)
+            reset_project_root_cache()
+
+            # Import batch_orchestrator functions
+            try:
+                from batch_orchestrator import create_batch_worktree
+            except ImportError:
+                pytest.skip("batch_orchestrator not implemented yet (TDD red phase)")
+
+            batch_id = "test-implementer-write"
+
+            # Act: Create worktree
+            result = create_batch_worktree(batch_id)
+
+            if not result["success"] or result.get("fallback", False):
+                pytest.skip("Test requires successful worktree creation")
+
+            worktree_path = Path(result["path"])
+
+            # Simulate implementer agent writing a file using Path.cwd()
+            test_file = Path.cwd() / "test_implementation.py"
+            test_file.write_text("# Test implementation\nprint('Hello from worktree')\n")
+
+            # Assert: File exists in worktree
+            worktree_file = worktree_path / "test_implementation.py"
+            assert worktree_file.exists(), (
+                f"File should exist in worktree at {worktree_file}"
+            )
+            assert test_file == worktree_file, (
+                f"Test file path {test_file} should match worktree path {worktree_file}"
+            )
+
+            # Assert: File does NOT exist in main repo
+            main_repo_file = git_repo / "test_implementation.py"
+            assert not main_repo_file.exists(), (
+                f"File should NOT exist in main repo at {main_repo_file}"
+            )
+
+            # Verify file content
+            content = worktree_file.read_text()
+            assert "Hello from worktree" in content, (
+                "File should contain expected content"
+            )
+
+        finally:
+            os.chdir(original_dir)
+            reset_project_root_cache()
+
+    def test_multiple_batches_cwd_isolation(self, git_repo, sample_features):
+        """Verify multiple worktrees in sequence each change CWD correctly."""
+        # Arrange
+        original_dir = Path.cwd()
+
+        try:
+            os.chdir(git_repo)
+            reset_project_root_cache()
+
+            # Import batch_orchestrator functions
+            try:
+                from batch_orchestrator import create_batch_worktree
+            except ImportError:
+                pytest.skip("batch_orchestrator not implemented yet (TDD red phase)")
+
+            main_cwd = Path.cwd()
+            batch_1_id = "test-multi-batch-1"
+            batch_2_id = "test-multi-batch-2"
+
+            # Act: Create first worktree
+            result_1 = create_batch_worktree(batch_1_id)
+
+            if not result_1["success"] or result_1.get("fallback", False):
+                pytest.skip("Test requires successful worktree creation")
+
+            # Assert: CWD changed to first worktree
+            worktree_1_path = Path(result_1["path"])
+            cwd_after_1 = Path.cwd()
+            assert cwd_after_1 == worktree_1_path, (
+                f"CWD should be in first worktree. Expected {worktree_1_path}, got {cwd_after_1}"
+            )
+
+            # Write a marker file in first worktree
+            marker_1 = Path.cwd() / "marker_batch_1.txt"
+            marker_1.write_text("Batch 1")
+
+            # Act: Change back to main repo and create second worktree
+            os.chdir(git_repo)
+            reset_project_root_cache()
+            assert Path.cwd() == main_cwd, "Should be back in main repo"
+
+            result_2 = create_batch_worktree(batch_2_id)
+
+            # Assert: CWD changed to second worktree
+            worktree_2_path = Path(result_2["path"])
+            cwd_after_2 = Path.cwd()
+            assert cwd_after_2 == worktree_2_path, (
+                f"CWD should be in second worktree. Expected {worktree_2_path}, got {cwd_after_2}"
+            )
+            assert cwd_after_2 != cwd_after_1, (
+                "Second worktree should be different from first"
+            )
+
+            # Write a marker file in second worktree
+            marker_2 = Path.cwd() / "marker_batch_2.txt"
+            marker_2.write_text("Batch 2")
+
+            # Assert: Both worktrees have their own marker files
+            assert (worktree_1_path / "marker_batch_1.txt").exists(), (
+                "First worktree should have its marker"
+            )
+            assert (worktree_2_path / "marker_batch_2.txt").exists(), (
+                "Second worktree should have its marker"
+            )
+
+            # Assert: Markers are NOT in each other's worktrees
+            assert not (worktree_1_path / "marker_batch_2.txt").exists(), (
+                "First worktree should NOT have second worktree's marker"
+            )
+            assert not (worktree_2_path / "marker_batch_1.txt").exists(), (
+                "Second worktree should NOT have first worktree's marker"
+            )
+
+            # Assert: Markers are NOT in main repo
+            assert not (main_cwd / "marker_batch_1.txt").exists(), (
+                "Main repo should NOT have first marker"
+            )
+            assert not (main_cwd / "marker_batch_2.txt").exists(), (
+                "Main repo should NOT have second marker"
+            )
+
+        finally:
+            os.chdir(original_dir)
+            reset_project_root_cache()
+
+
+# =============================================================================
 # Test Summary
 # =============================================================================
 
 """
-TEST SUMMARY (9 integration tests for Issue #226):
+TEST SUMMARY (13 integration tests for Issue #226 + CWD fix):
 
 SECTION 1: Real Worktree Batch State Path (2 tests)
 ✗ test_real_worktree_batch_state_path
@@ -630,7 +885,13 @@ SECTION 4: Worktree Cleanup (2 tests)
 ✗ test_worktree_deletion_removes_batch_state
 ✗ test_main_repo_state_unaffected_by_worktree_deletion
 
-TOTAL: 9 integration tests (all FAILING - TDD red phase)
+SECTION 5: Batch Orchestrator CWD Management (4 tests) - NEW
+✗ test_create_batch_worktree_changes_cwd
+✗ test_batch_orchestrator_fallback_no_cwd_change
+✗ test_implementer_writes_to_worktree
+✗ test_multiple_batches_cwd_isolation
+
+TOTAL: 13 integration tests (all FAILING - TDD red phase)
 
 Coverage Target: 95%+ for real-world worktree scenarios
 Real git commands: git worktree add, git worktree remove
@@ -643,6 +904,17 @@ Real-World Scenarios Tested:
 4. State persistence (save/load roundtrip)
 5. Cleanup (worktree deletion removes state)
 6. JSON format validation
+7. CWD changes after worktree creation (NEW)
+8. Fallback mode with no CWD change (NEW)
+9. File writes to worktree CWD (NEW)
+10. Multiple batch CWD isolation (NEW)
 
-These tests verify the COMPLETE end-to-end workflow with real git worktrees.
+These tests verify the COMPLETE end-to-end workflow with real git worktrees,
+including the new CWD management behavior for batch orchestrator.
+
+CWD Fix Implementation:
+- create_batch_worktree() now calls os.chdir(worktree_path) after success
+- Returns original_cwd and cwd_changed fields in result dict
+- Fallback mode keeps CWD unchanged
+- Enables implementer to write to worktree using Path.cwd()
 """

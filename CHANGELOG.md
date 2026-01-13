@@ -83,6 +83,12 @@
   - Migration: Remove any calls to these functions (deprecated since v3.34.0)
 
 ### Fixed
+- Batch worktree CWD change fix
+  - `create_batch_worktree()` now automatically changes current working directory to worktree after creation
+  - Ensures all subsequent operations (file writes, edits, shell commands) execute within worktree context
+  - Returns `original_cwd` in result dictionary for restoration if needed
+  - Side effects documented in function docstring and implement.md command documentation
+  - Eliminates manual CWD management in batch processing workflows
 - Resolve invalid escape sequence warnings in Python 3.12+ (#216)
   - Fixed SyntaxWarning in docstring examples by double-escaping regex patterns
   - Updated files: code_path_analyzer.py, success_criteria_validator.py

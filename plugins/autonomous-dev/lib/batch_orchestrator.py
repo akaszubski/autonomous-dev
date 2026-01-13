@@ -400,6 +400,10 @@ def get_batch_state_path_for_worktree(worktree_path: Path) -> Path:
 def create_batch_worktree(batch_id: str) -> Dict[str, Any]:
     """Create a worktree for batch processing.
 
+    This function creates an isolated git worktree and automatically
+    changes the current working directory (CWD) to the worktree.
+    All subsequent operations will execute in the worktree context.
+
     Args:
         batch_id: The batch ID
 
@@ -410,6 +414,12 @@ def create_batch_worktree(batch_id: str) -> Dict[str, Any]:
         - batch_id: Final batch ID (may differ if collision occurred)
         - fallback: True if running without worktree isolation
         - warning: Warning message if fallback
+        - original_cwd: Original working directory before change (if success)
+        - cwd_changed: Boolean indicating if CWD was changed (if success)
+
+    Side Effects:
+        Changes the current working directory to the worktree on success.
+        Use the returned 'original_cwd' to restore if needed.
     """
     validate_batch_id(batch_id)
 
@@ -424,48 +434,81 @@ def create_batch_worktree(batch_id: str) -> Dict[str, Any]:
 
     wm = _get_worktree_manager()
     if wm is None:
-        # Fallback: No worktree isolation
+        # Fallback: No worktree isolation (CWD unchanged)
         return {
             "success": False,
             "fallback": True,
             "path": str(Path.cwd()),
             "batch_id": final_batch_id,
+            "original_cwd": str(Path.cwd()),
+            "cwd_changed": False,
             "warning": "Worktree manager unavailable. Running without isolation.",
         }
 
     try:
         # Create worktree using worktree_manager
-        result = wm.create_worktree(str(worktree_path), final_batch_id)
+        # Note: create_worktree returns tuple (success: bool, result: Path|str)
+        success, result_value = wm.create_worktree(str(worktree_path), final_batch_id)
 
-        if result.get("success"):
+        if success:
+            # Worktree created - result_value is the resolved Path
+            created_path = Path(result_value) if not isinstance(result_value, Path) else result_value
+
             # Create .claude directory in worktree
-            claude_dir = worktree_path / ".claude"
+            claude_dir = created_path / ".claude"
             claude_dir.mkdir(parents=True, exist_ok=True)
+
+            # Change to worktree directory for isolated operations
+            # This ensures all subsequent file operations (Write, Edit, etc.)
+            # write to the worktree, not the main repository
+            original_cwd = str(Path.cwd())
+            cwd_changed = False
+
+            try:
+                os.chdir(created_path)
+                cwd_changed = True
+            except OSError as e:
+                # CWD change failed - return as fallback mode
+                return {
+                    "success": False,
+                    "fallback": True,
+                    "path": str(Path.cwd()),
+                    "batch_id": final_batch_id,
+                    "original_cwd": original_cwd,
+                    "cwd_changed": False,
+                    "warning": f"Failed to change to worktree directory: {e}. Running without isolation.",
+                }
 
             return {
                 "success": True,
                 "fallback": False,
-                "path": str(worktree_path),
+                "path": str(created_path),
                 "batch_id": final_batch_id,
+                "original_cwd": original_cwd,
+                "cwd_changed": cwd_changed,
             }
         else:
-            # Worktree creation failed - fallback
+            # Worktree creation failed - result_value is the error message
+            error_msg = str(result_value)
             return {
                 "success": False,
                 "fallback": True,
                 "path": str(Path.cwd()),
                 "batch_id": final_batch_id,
-                "warning": f"Worktree creation failed: {result.get('error', 'Unknown error')}. "
-                           f"Running without isolation.",
+                "original_cwd": str(Path.cwd()),
+                "cwd_changed": False,
+                "warning": f"Worktree creation failed: {error_msg}. Running without isolation.",
             }
 
     except Exception as e:
-        # Fallback on any error
+        # Fallback on any error (CWD unchanged)
         return {
             "success": False,
             "fallback": True,
             "path": str(Path.cwd()),
             "batch_id": final_batch_id,
+            "original_cwd": str(Path.cwd()),
+            "cwd_changed": False,
             "warning": f"Worktree creation error: {e}. Running without isolation.",
         }
 
