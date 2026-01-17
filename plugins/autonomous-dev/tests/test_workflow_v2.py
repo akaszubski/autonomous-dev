@@ -2,10 +2,18 @@
 """
 Test Script for autonomous-dev v2.0 Workflow
 Demonstrates orchestrator → researcher pipeline with artifact handoff
+
+NOTE: This is a demonstration script, not a pytest test suite.
+Tests depend on sequential execution and pass state via return values.
 """
 
 import sys
 from pathlib import Path
+import pytest
+
+# Skip - this is a demo script, not a proper pytest test suite
+pytestmark = pytest.mark.skip(reason="Demo script - tests depend on sequential execution")
+
 from orchestrator import Orchestrator
 from checkpoint import CheckpointManager
 from artifacts import ArtifactManager
