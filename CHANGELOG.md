@@ -14,6 +14,16 @@
   - Automatically restores stash on merge failure or checkout errors
   - Pops stash after successful merge to restore uncommitted changes
   - 6 unit tests for auto-stash functionality
+- Batch completion summary for visibility into merged vs pending work (#242)
+  - Added BatchCompletionSummary dataclass with feature counts, issue tracking, git stats
+  - Added generate_completion_summary() function to analyze batch state
+  - Shows completed/failed/pending feature counts and descriptions
+  - Categorizes issues by completion status (completed vs pending)
+  - Compares commits in worktree vs main branch
+  - Generates actionable next steps (resume, retry, merge, push)
+  - Provides resume command when pending features exist
+  - format_summary() method for readable console output
+  - 8 unit tests for completion summary
 - AUTO_INSTALL_DEPS environment variable for automatic dependency installation
   - Created auto_install_deps.py library with security-first design
   - Parses pytest output for ImportError/ModuleNotFoundError

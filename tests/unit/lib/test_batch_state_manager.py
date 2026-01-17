@@ -1055,11 +1055,147 @@ class TestBatchStateManagerABCMigration:
 
 
 # =============================================================================
+# SECTION 9: Batch Completion Summary Tests (8 tests) - Issue #242
+# =============================================================================
+
+
+class TestBatchCompletionSummary:
+    """Test generate_completion_summary function."""
+
+    @pytest.fixture
+    def completed_batch_state(self):
+        """Create batch state with some completed features."""
+        from batch_state_manager import BatchState
+        return BatchState(
+            batch_id="batch-20260118-test",
+            features_file="features.txt",
+            total_features=5,
+            features=["Feature A", "Feature B", "Feature C", "Feature D", "Feature E"],
+            current_index=5,
+            completed_features=[0, 1, 3],
+            failed_features=[{"feature_index": 2, "error_message": "Test failed"}],
+            status="in_progress",
+            issue_numbers=[101, 102, 103, 104, 105],
+            source_type="issues"
+        )
+
+    def test_generate_summary_basic_counts(self, completed_batch_state):
+        """Test summary generates correct counts."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+
+        assert summary.total_features == 5
+        assert summary.completed_count == 3
+        assert summary.failed_count == 1
+        assert summary.pending_count == 1
+
+    def test_generate_summary_feature_lists(self, completed_batch_state):
+        """Test summary includes correct feature descriptions."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+
+        assert "Feature A" in summary.completed_features
+        assert "Feature B" in summary.completed_features
+        assert "Feature D" in summary.completed_features
+        assert "Feature E" in summary.pending_features
+        assert len(summary.failed_features) == 1
+        assert summary.failed_features[0][0] == "Feature C"
+
+    def test_generate_summary_issue_categorization(self, completed_batch_state):
+        """Test summary categorizes issues correctly."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+
+        assert 101 in summary.issues_completed
+        assert 102 in summary.issues_completed
+        assert 104 in summary.issues_completed
+        assert 103 in summary.issues_pending
+        assert 105 in summary.issues_pending
+
+    def test_generate_summary_next_steps_with_pending(self, completed_batch_state):
+        """Test summary includes resume step when pending features exist."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+
+        assert any("pending" in step.lower() for step in summary.next_steps)
+        assert summary.resume_command == "/implement --resume batch-20260118-test"
+
+    def test_generate_summary_next_steps_with_failed(self, completed_batch_state):
+        """Test summary includes retry step when failed features exist."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+
+        assert any("failed" in step.lower() for step in summary.next_steps)
+
+    def test_generate_summary_all_complete(self):
+        """Test summary for fully completed batch."""
+        from batch_state_manager import BatchState, generate_completion_summary
+
+        state = BatchState(
+            batch_id="batch-complete",
+            features_file="features.txt",
+            total_features=3,
+            features=["A", "B", "C"],
+            current_index=3,
+            completed_features=[0, 1, 2],
+            failed_features=[],
+            status="completed"
+        )
+
+        summary = generate_completion_summary(state)
+
+        assert summary.completed_count == 3
+        assert summary.failed_count == 0
+        assert summary.pending_count == 0
+        assert summary.resume_command == ""
+        assert any("complete" in step.lower() for step in summary.next_steps)
+
+    def test_format_summary_output(self, completed_batch_state):
+        """Test format_summary produces readable output."""
+        from batch_state_manager import generate_completion_summary
+
+        summary = generate_completion_summary(completed_batch_state)
+        output = summary.format_summary()
+
+        assert "BATCH COMPLETION SUMMARY" in output
+        assert "batch-20260118-test" in output
+        assert "Completed: 3/5" in output
+        assert "Failed:    1/5" in output
+        assert "Pending:   1/5" in output
+        assert "NEXT STEPS:" in output
+
+    @patch('subprocess.run')
+    def test_generate_summary_with_git_commits(self, mock_run, completed_batch_state):
+        """Test summary includes git commit counts when worktree branch provided."""
+        from batch_state_manager import generate_completion_summary
+
+        # Mock git rev-list for commit counts
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="3\n", stderr=""),  # worktree commits
+            Mock(returncode=0, stdout="1\n", stderr=""),  # main commits
+        ]
+
+        summary = generate_completion_summary(
+            completed_batch_state,
+            worktree_branch="feature-batch",
+            target_branch="master"
+        )
+
+        assert summary.worktree_commits == 3
+        assert summary.main_commits == 1
+
+
+# =============================================================================
 # Test Summary Update
 # =============================================================================
 
 """
-TEST SUMMARY UPDATE (42 unit tests):
+TEST SUMMARY UPDATE (50 unit tests):
 
 SECTION 8: StateManager ABC Migration (12 tests) - Issue #221
 ✗ test_inherits_from_state_manager

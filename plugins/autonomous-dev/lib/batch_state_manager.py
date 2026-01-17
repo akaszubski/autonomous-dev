@@ -239,6 +239,224 @@ class BatchState:
         return asdict(self)
 
 
+@dataclass
+class BatchCompletionSummary:
+    """Summary of batch completion status (Issue #242).
+
+    Provides clear visibility into what was merged vs pending after batch processing.
+
+    Attributes:
+        batch_id: The batch identifier
+        total_features: Total features in batch
+        completed_count: Number of successfully completed features
+        failed_count: Number of failed features
+        pending_count: Number of features not yet processed
+        completed_features: List of completed feature descriptions
+        failed_features: List of (feature, error_message) tuples
+        pending_features: List of pending feature descriptions
+        worktree_commits: Commits in worktree branch (not yet merged)
+        main_commits: Commits already merged to main
+        issues_completed: Issue numbers for completed features
+        issues_pending: Issue numbers for pending/failed features
+        next_steps: List of recommended next actions
+        resume_command: Command to resume if pending features exist
+    """
+    batch_id: str
+    total_features: int
+    completed_count: int
+    failed_count: int
+    pending_count: int
+    completed_features: List[str]
+    failed_features: List[tuple]
+    pending_features: List[str]
+    worktree_commits: int = 0
+    main_commits: int = 0
+    issues_completed: List[int] = field(default_factory=list)
+    issues_pending: List[int] = field(default_factory=list)
+    next_steps: List[str] = field(default_factory=list)
+    resume_command: str = ""
+
+    def format_summary(self) -> str:
+        """Format summary as readable text.
+
+        Returns:
+            Multi-line formatted summary string
+        """
+        lines = [
+            f"\n{'=' * 60}",
+            "BATCH COMPLETION SUMMARY",
+            f"{'=' * 60}",
+            f"Batch ID: {self.batch_id}",
+            "",
+            "FEATURE STATUS:",
+            f"  Completed: {self.completed_count}/{self.total_features}",
+            f"  Failed:    {self.failed_count}/{self.total_features}",
+            f"  Pending:   {self.pending_count}/{self.total_features}",
+        ]
+
+        if self.worktree_commits > 0 or self.main_commits > 0:
+            lines.extend([
+                "",
+                "GIT STATUS:",
+                f"  Commits in worktree: {self.worktree_commits}",
+                f"  Commits in main:     {self.main_commits}",
+            ])
+
+        if self.issues_completed:
+            lines.extend([
+                "",
+                f"ISSUES COMPLETED: {', '.join(f'#{n}' for n in self.issues_completed)}",
+            ])
+
+        if self.issues_pending:
+            lines.extend([
+                f"ISSUES PENDING:   {', '.join(f'#{n}' for n in self.issues_pending)}",
+            ])
+
+        if self.failed_features:
+            lines.extend([
+                "",
+                "FAILED FEATURES:",
+            ])
+            for feature, error in self.failed_features:
+                lines.append(f"  - {feature[:50]}...")
+                lines.append(f"    Error: {error[:80]}")
+
+        if self.next_steps:
+            lines.extend([
+                "",
+                "NEXT STEPS:",
+            ])
+            for i, step in enumerate(self.next_steps, 1):
+                lines.append(f"  {i}. {step}")
+
+        if self.resume_command:
+            lines.extend([
+                "",
+                f"RESUME: {self.resume_command}",
+            ])
+
+        lines.append(f"{'=' * 60}\n")
+        return "\n".join(lines)
+
+
+def generate_completion_summary(
+    state: BatchState,
+    worktree_branch: Optional[str] = None,
+    target_branch: str = "master"
+) -> BatchCompletionSummary:
+    """Generate completion summary for a batch (Issue #242).
+
+    Analyzes batch state and git history to provide comprehensive
+    summary of completed vs pending work.
+
+    Args:
+        state: BatchState object to analyze
+        worktree_branch: Branch name in worktree (for commit comparison)
+        target_branch: Target branch for merge comparison (default: master)
+
+    Returns:
+        BatchCompletionSummary with status breakdown and next steps
+
+    Examples:
+        >>> state = load_batch_state(get_batch_state_file())
+        >>> summary = generate_completion_summary(state)
+        >>> print(summary.format_summary())
+    """
+    import subprocess
+
+    # Calculate feature counts
+    completed_indices = set(state.completed_features)
+    failed_indices = {f["feature_index"] for f in state.failed_features}
+    all_indices = set(range(state.total_features))
+    pending_indices = all_indices - completed_indices - failed_indices
+
+    # Get feature descriptions
+    completed_features = [state.features[i] for i in sorted(completed_indices) if i < len(state.features)]
+    pending_features = [state.features[i] for i in sorted(pending_indices) if i < len(state.features)]
+    failed_features = [
+        (state.features[f["feature_index"]] if f["feature_index"] < len(state.features) else f"Feature {f['feature_index']}",
+         f.get("error_message", "Unknown error"))
+        for f in state.failed_features
+    ]
+
+    # Get issue numbers if available
+    issues_completed = []
+    issues_pending = []
+    if state.issue_numbers:
+        for i, issue_num in enumerate(state.issue_numbers):
+            if i in completed_indices:
+                issues_completed.append(issue_num)
+            elif i in pending_indices or i in failed_indices:
+                issues_pending.append(issue_num)
+
+    # Count commits in worktree vs main
+    worktree_commits = 0
+    main_commits = 0
+    if worktree_branch:
+        try:
+            # Commits in worktree not in target
+            result = subprocess.run(
+                ['git', 'rev-list', '--count', f'{target_branch}..{worktree_branch}'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                worktree_commits = int(result.stdout.strip())
+        except (subprocess.SubprocessError, ValueError):
+            pass
+
+        try:
+            # Commits in target since branch point
+            result = subprocess.run(
+                ['git', 'rev-list', '--count', f'{worktree_branch}..{target_branch}'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                main_commits = int(result.stdout.strip())
+        except (subprocess.SubprocessError, ValueError):
+            pass
+
+    # Generate next steps
+    next_steps = []
+    if pending_features:
+        next_steps.append(f"Resume batch to complete {len(pending_features)} pending features")
+    if failed_features:
+        next_steps.append(f"Review and retry {len(failed_features)} failed features")
+    if worktree_commits > 0:
+        next_steps.append(f"Merge worktree to {target_branch} ({worktree_commits} commits)")
+        next_steps.append("Push changes to remote")
+    if issues_completed:
+        next_steps.append(f"Close completed issues: {', '.join(f'#{n}' for n in issues_completed)}")
+    if not pending_features and not failed_features and worktree_commits == 0:
+        next_steps.append("Batch complete! Clean up worktree if no longer needed")
+
+    # Generate resume command
+    resume_command = ""
+    if pending_features or failed_features:
+        resume_command = f"/implement --resume {state.batch_id}"
+
+    return BatchCompletionSummary(
+        batch_id=state.batch_id,
+        total_features=state.total_features,
+        completed_count=len(completed_indices),
+        failed_count=len(failed_indices),
+        pending_count=len(pending_indices),
+        completed_features=completed_features,
+        failed_features=failed_features,
+        pending_features=pending_features,
+        worktree_commits=worktree_commits,
+        main_commits=main_commits,
+        issues_completed=issues_completed,
+        issues_pending=issues_pending,
+        next_steps=next_steps,
+        resume_command=resume_command
+    )
+
+
 # Thread-safe file lock
 _file_locks: Dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
