@@ -11,13 +11,13 @@ This document provides a complete reference for automation hooks in the autonomo
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
 
-**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 67 hooks with activation status, trigger points, and environment variables.
+**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 68 hooks with activation status, trigger points, and environment variables.
 
 ---
 
 ## UV Single-File Script Support (Issue #172)
 
-All 67 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
+All 68 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
 
 ### Features
 
@@ -76,7 +76,7 @@ if lib_path.exists() and str(lib_path) not in sys.path:
 
 ### Migration Details
 
-**Files Modified** (67 hooks):
+**Files Modified** (68 hooks):
 - All hooks in `plugins/autonomous-dev/hooks/` updated to UV format
 - File permissions set to executable (0755)
 - sys.path.insert() fallback preserved for compatibility
@@ -774,6 +774,47 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 **Purpose**: Validates tests written before code (v3.0+)
 **Checks**: Test file timestamps, TDD workflow compliance
 **Lifecycle**: PreCommit
+
+### enforce_no_bare_except.py
+
+**Purpose**: Prevent bare `except:` clauses from being committed
+**Checks**: All staged Python files for bare except clauses using AST parsing
+**Lifecycle**: PreCommit
+**Exit Code**: EXIT_BLOCK (2) if bare except clauses found, EXIT_SUCCESS (0) otherwise
+**Environment Variable**: ENFORCE_NO_BARE_EXCEPT (default: true)
+
+**What it detects**:
+```python
+# Bad - catches ALL exceptions including SystemExit
+try:
+    risky_operation()
+except:
+    handle_error()
+
+# Good - catches most errors, not system exceptions
+try:
+    risky_operation()
+except Exception as e:
+    handle_error(e)
+
+# Better - specific exception handling
+try:
+    risky_operation()
+except ValueError as e:
+    handle_error(e)
+```
+
+**Features**:
+- AST-based detection (reliable, not regex)
+- Shows file:line for each violation
+- Excludes .venv, __pycache__, build directories
+- Clear error messages with remediation guidance
+- Can be bypassed with `ENFORCE_NO_BARE_EXCEPT=false`
+
+**Why this matters**:
+- Bare except clauses catch ALL exceptions including SystemExit, KeyboardInterrupt
+- Masks critical bugs and makes debugging difficult
+- Specific exception handling improves code quality and maintainability
 
 ### detect_feature_request.py
 
