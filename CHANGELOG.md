@@ -14,6 +14,10 @@
   - Package name mapping for PyPI vs import names (e.g., pillow -> PIL)
   - Core functions: extract_missing_packages(), is_package_allowed(), install_package(), auto_install_missing_deps()
   - Security features: Whitelist validation, audit logging, timeout protection
+- Test coverage threshold now configurable via environment variables (#238)
+  - Enhanced auto_enforce_coverage.py with MIN_COVERAGE env var (default: 70%)
+  - Added COVERAGE_REPORT env var for custom report path
+  - 8 unit tests for environment variable configuration
 - Pre-commit hook to enforce logging over print statements (#236)
   - Created enforce_logging_only.py with print statement detection
   - Scans lib/ and hooks/ directories for print statements

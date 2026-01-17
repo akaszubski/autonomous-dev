@@ -81,7 +81,7 @@ Runs before git commit (can block with EXIT_BLOCK).
 | enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code) |
 | enforce_no_bare_except | Enabled | ENFORCE_NO_BARE_EXCEPT (default: true) | Prevent bare except clauses from being committed |
 | enforce_logging_only | Opt-in (default: false) | ENFORCE_LOGGING_ONLY | Prevent print statements in production code |
-| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE | Block commits if coverage drops below 80% |
+| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE, MIN_COVERAGE (default: 70) | Block commits if coverage drops below threshold |
 | validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
