@@ -7,7 +7,7 @@ Quick-reference guide for all hooks in the autonomous-dev plugin, including acti
 ## Purpose
 
 This registry provides a comprehensive view of:
-- All 66 hooks in the plugin
+- All 67 hooks in the plugin
 - Default activation status (enabled/disabled/opt-in)
 - Trigger points (when hooks execute)
 - Environment variables that control behavior

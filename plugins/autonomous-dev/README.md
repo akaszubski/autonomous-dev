@@ -2,7 +2,7 @@
 
 **AI-Powered Development Pipelines for Claude Code**
 
-Version 3.44.0 | 22 Agents | 28 Skills | 66 Hooks | 122 Libraries | 24 Commands
+Version 3.44.0 | 22 Agents | 28 Skills | 67 Hooks | 143 Libraries | 24 Commands
 
 Stop writing buggy code. Start shipping production-ready features with autonomous development workflows that validate, test, and secure your code automatically.
 
@@ -73,7 +73,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 
 **What it installs:**
-- Global infrastructure: `~/.claude/hooks/` (66 files), `~/.claude/lib/` (122 files), `~/.claude/settings.json`
+- Global infrastructure: `~/.claude/hooks/` (67 files), `~/.claude/lib/` (143 files), `~/.claude/settings.json`
 - Project files: `.claude/commands/`, `.claude/agents/`, `.claude/skills/`
 - Git hooks: Pre-commit validation, auto-formatting
 
@@ -356,7 +356,7 @@ SANDBOX_PROFILE=development
 
 ### Automation Hooks
 
-**66 hooks enforce quality without manual intervention:**
+**67 hooks enforce quality without manual intervention:**
 
 | Hook Type | Trigger | What It Prevents |
 |-----------|---------|------------------|

@@ -7,7 +7,7 @@ Stop writing buggy code. Start shipping production-ready features.
 [![Version](https://img.shields.io/badge/version-3.44.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Agents](https://img.shields.io/badge/agents-22-green.svg)](docs/AGENTS.md)
 [![Skills](https://img.shields.io/badge/skills-28-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
-[![Hooks](https://img.shields.io/badge/hooks-66-purple.svg)](docs/HOOKS.md)
+[![Hooks](https://img.shields.io/badge/hooks-67-purple.svg)](docs/HOOKS.md)
 
 ---
 
@@ -152,7 +152,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│   22 Agents  │  28 Skills  │  66 Hooks  │  122 Libraries        │
+│   22 Agents  │  28 Skills  │  67 Hooks  │  143 Libraries        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -166,7 +166,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ---
 
-## 66 Automation Hooks
+## 67 Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 

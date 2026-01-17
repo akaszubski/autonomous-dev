@@ -16,7 +16,7 @@ ___
 | Skills | 28 | ✅ Compliant |
 | Commands | 24 | ✅ Compliant |
 | Agents | 22 | ✅ Compliant |
-| Hooks | 66 | ✅ Compliant |
+| Hooks | 67 | ✅ Compliant |
 | Settings | 5 templates | ✅ Compliant |
 
 **Last Compliance Check**: 2026-01-10 (Issue #226 - Semantic validation sync)
@@ -195,9 +195,9 @@ ___
 
 **28 Skills**: Progressive disclosure pattern, `allowed-tools:` for least privilege
 
-**122 Libraries**: Security, validation, automation, infrastructure (Issue #226: Updated component counts)
+**143 Libraries**: Security, validation, automation, infrastructure (Issue #226: Updated component counts)
 
-**66 Hooks**: Dispatcher pattern, graceful degradation, env var control
+**67 Hooks**: Dispatcher pattern, graceful degradation, env var control
 
 **Model Tiers**: Haiku (pattern matching), Sonnet (implementation), Opus (security)
 

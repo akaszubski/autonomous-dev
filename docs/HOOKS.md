@@ -11,13 +11,13 @@ This document provides a complete reference for automation hooks in the autonomo
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
 
-**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 66 hooks with activation status, trigger points, and environment variables.
+**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 67 hooks with activation status, trigger points, and environment variables.
 
 ---
 
 ## UV Single-File Script Support (Issue #172)
 
-All 62 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
+All 67 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
 
 ### Features
 
@@ -76,7 +76,7 @@ if lib_path.exists() and str(lib_path) not in sys.path:
 
 ### Migration Details
 
-**Files Modified** (62 hooks):
+**Files Modified** (67 hooks):
 - All hooks in `plugins/autonomous-dev/hooks/` updated to UV format
 - File permissions set to executable (0755)
 - sys.path.insert() fallback preserved for compatibility
