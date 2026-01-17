@@ -83,6 +83,11 @@
   - Migration: Remove any calls to these functions (deprecated since v3.34.0)
 
 ### Fixed
+- Fix 3 critical test failures blocking CI/CD (#229)
+  - Fixed missing `import os` in genai_prompts.py preventing module import
+  - Fixed unterminated f-string in test_documentation_consistency.py causing syntax error
+  - Fixed incorrect path reference (scripts→hooks) in test_claude_alignment.py
+  - All tests now pass in CI/CD pipeline
 - Batch worktree CWD change fix
   - `create_batch_worktree()` now automatically changes current working directory to worktree after creation
   - Ensures all subsequent operations (file writes, edits, shell commands) execute within worktree context

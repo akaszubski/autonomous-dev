@@ -388,15 +388,10 @@ class TestDeprecatedPatterns:
                 violations.append(f"Found deprecated pattern: {matches[0]}")
 
         assert not violations, (
-            f"README.md contains deprecated setup instructions:
-" +
-            "
-".join(f"  - {v}" for v in violations) +
-            f"
-
-Fix: Replace 'python setup.py' references with '/setup' command.
-"
-            f"We now use slash commands, not Python scripts for setup."
+            "README.md contains deprecated setup instructions:\n" +
+            "\n".join(f"  - {v}" for v in violations) +
+            "\n\nFix: Replace 'python setup.py' references with '/setup' command.\n" +
+            "We now use slash commands, not Python scripts for setup."
         )
 
     def test_no_deprecated_script_references(self, readme_content):
