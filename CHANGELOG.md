@@ -1,6 +1,12 @@
 ## [Unreleased]
 
 ### Added
+- Pre-merge check for worktree push status (#240)
+  - Added check_worktree_push_status() function to verify branch is pushed
+  - merge_worktree() now verifies branch is pushed before merge (check_push=True default)
+  - force_merge parameter to bypass push check if needed
+  - PushStatus dataclass with is_pushed, commits_ahead, remote_branch, error_message
+  - 6 unit tests for push status functionality
 - AUTO_INSTALL_DEPS environment variable for automatic dependency installation
   - Created auto_install_deps.py library with security-first design
   - Parses pytest output for ImportError/ModuleNotFoundError

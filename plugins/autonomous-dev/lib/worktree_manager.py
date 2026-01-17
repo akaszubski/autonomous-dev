@@ -89,6 +89,134 @@ class MergeResult:
     error_message: str
 
 
+@dataclass
+class PushStatus:
+    """Status of worktree branch push state.
+
+    Attributes:
+        is_pushed: True if local branch matches remote (no unpushed commits)
+        commits_ahead: Number of local commits not pushed to remote
+        remote_branch: Name of remote tracking branch (if any)
+        error_message: Error message if check failed
+    """
+    is_pushed: bool
+    commits_ahead: int
+    remote_branch: Optional[str]
+    error_message: str
+
+
+def check_worktree_push_status(feature_name: str) -> PushStatus:
+    """Check if worktree branch has unpushed commits.
+
+    Args:
+        feature_name: Name of the feature worktree branch to check
+
+    Returns:
+        PushStatus with push state information
+
+    Security:
+        - Validates feature name (CWE-22, CWE-78)
+        - Uses subprocess list args (no shell=True)
+
+    Examples:
+        >>> status = check_worktree_push_status('feature-auth')
+        >>> if not status.is_pushed:
+        ...     print(f"Warning: {status.commits_ahead} commits not pushed")
+    """
+    # Validate feature name
+    is_valid, error = _validate_feature_name(feature_name)
+    if not is_valid:
+        return PushStatus(
+            is_pushed=False,
+            commits_ahead=0,
+            remote_branch=None,
+            error_message=error
+        )
+
+    try:
+        # Fetch latest from remote to ensure accurate comparison
+        subprocess.run(
+            ['git', 'fetch', '--quiet'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        # Check if remote tracking branch exists
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', f'{feature_name}@{{upstream}}'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if result.returncode != 0:
+            # No remote tracking branch - check if branch has been pushed at all
+            remote_check = subprocess.run(
+                ['git', 'ls-remote', '--heads', 'origin', feature_name],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if not remote_check.stdout.strip():
+                # Branch not pushed at all
+                # Count local commits
+                log_result = subprocess.run(
+                    ['git', 'rev-list', '--count', feature_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                commits = int(log_result.stdout.strip()) if log_result.returncode == 0 else 0
+
+                return PushStatus(
+                    is_pushed=False,
+                    commits_ahead=commits,
+                    remote_branch=None,
+                    error_message=f"Branch '{feature_name}' has not been pushed to remote"
+                )
+
+        # Get commits ahead of remote
+        result = subprocess.run(
+            ['git', 'rev-list', '--count', f'origin/{feature_name}..{feature_name}'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if result.returncode == 0:
+            commits_ahead = int(result.stdout.strip())
+            return PushStatus(
+                is_pushed=commits_ahead == 0,
+                commits_ahead=commits_ahead,
+                remote_branch=f'origin/{feature_name}',
+                error_message="" if commits_ahead == 0 else f"{commits_ahead} commit(s) not pushed"
+            )
+        else:
+            return PushStatus(
+                is_pushed=False,
+                commits_ahead=0,
+                remote_branch=None,
+                error_message="Could not determine push status"
+            )
+
+    except subprocess.TimeoutExpired:
+        return PushStatus(
+            is_pushed=False,
+            commits_ahead=0,
+            remote_branch=None,
+            error_message="Timeout checking push status"
+        )
+    except (subprocess.CalledProcessError, ValueError) as e:
+        return PushStatus(
+            is_pushed=False,
+            commits_ahead=0,
+            remote_branch=None,
+            error_message=f"Error checking push status: {e}"
+        )
+
+
 def _validate_feature_name(name: str) -> Tuple[bool, str]:
     """Validate feature name for security.
 
@@ -413,13 +541,21 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
         return (False, f'Unexpected error: {str(e)}')
 
 
-def merge_worktree(feature_name: str, target_branch: str = 'master', auto_resolve: bool = False) -> MergeResult:
+def merge_worktree(
+    feature_name: str,
+    target_branch: str = 'master',
+    auto_resolve: bool = False,
+    check_push: bool = True,
+    force_merge: bool = False
+) -> MergeResult:
     """Merge a worktree branch back to target branch.
 
     Args:
         feature_name: Name of the feature worktree to merge
         target_branch: Target branch to merge into (default: 'master')
         auto_resolve: Automatically attempt AI conflict resolution (default: False)
+        check_push: Verify branch is pushed before merge (default: True)
+        force_merge: Merge even if unpushed commits exist (default: False)
 
     Returns:
         MergeResult with success status and details
@@ -440,6 +576,9 @@ def merge_worktree(feature_name: str, target_branch: str = 'master', auto_resolv
         >>> result = merge_worktree('feature-auth', 'main', auto_resolve=True)
         >>> if result.success:
         ...     print(f"Conflicts auto-resolved")
+
+        >>> # Skip push check
+        >>> result = merge_worktree('feature-auth', 'main', check_push=False)
     """
     # Validate feature name
     is_valid, error = _validate_feature_name(feature_name)
@@ -450,6 +589,21 @@ def merge_worktree(feature_name: str, target_branch: str = 'master', auto_resolv
             merged_files=[],
             error_message=error
         )
+
+    # Step 0: Check if branch is pushed (Issue #240)
+    if check_push and not force_merge:
+        push_status = check_worktree_push_status(feature_name)
+        if not push_status.is_pushed:
+            return MergeResult(
+                success=False,
+                conflicts=[],
+                merged_files=[],
+                error_message=(
+                    f"Branch '{feature_name}' has {push_status.commits_ahead} unpushed commit(s). "
+                    f"Push first with: git push origin {feature_name}\n"
+                    f"Or use force_merge=True to merge anyway."
+                )
+            )
 
     try:
         # Step 1: Checkout target branch

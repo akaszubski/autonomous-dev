@@ -627,7 +627,7 @@ class TestWorktreeMerge:
             Mock(returncode=0, stdout="", stderr=""),  # status check
         ]
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is True
         assert len(result.conflicts) == 0
@@ -647,7 +647,7 @@ class TestWorktreeMerge:
             Mock(returncode=0, stdout="", stderr=""),  # status
         ]
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is False
         assert len(result.conflicts) > 0
@@ -659,7 +659,7 @@ class TestWorktreeMerge:
         """Test merging non-existent worktree."""
         mock_get_path.return_value = None
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is False
         assert "not found" in result.error_message.lower()
@@ -685,7 +685,7 @@ class TestWorktreeMerge:
             Mock(returncode=0, stdout="Already up to date.", stderr=""),  # merge (no changes)
         ]
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         # Should succeed but with no files merged
         assert result.success is True
@@ -703,7 +703,7 @@ class TestWorktreeMerge:
             stderr="error: pathspec 'nonexistent-branch' did not match"
         )
 
-        result = merge_worktree("feature-auth", "nonexistent-branch")
+        result = merge_worktree("feature-auth", "nonexistent-branch", check_push=False)
 
         assert result.success is False
         assert "not match" in result.error_message.lower() or "not found" in result.error_message.lower()
@@ -720,7 +720,7 @@ class TestWorktreeMerge:
             stderr="error: Your local changes would be overwritten by merge"
         )
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is False
         assert "overwritten" in result.error_message.lower() or "uncommitted" in result.error_message.lower()
@@ -742,7 +742,7 @@ class TestWorktreeMerge:
             ),  # status
         ]
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is True
         assert len(result.merged_files) >= 3
@@ -754,10 +754,108 @@ class TestWorktreeMerge:
         mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
         mock_run.side_effect = FileNotFoundError("git command not found")
 
-        result = merge_worktree("feature-auth", "master")
+        result = merge_worktree("feature-auth", "master", check_push=False)
 
         assert result.success is False
         assert "not found" in result.error_message.lower()
+
+
+# =============================================================================
+# SECTION 5.5: Push Status Check Tests (Issue #240)
+# =============================================================================
+
+class TestWorktreePushStatus:
+    """Test check_worktree_push_status function."""
+
+    @patch('subprocess.run')
+    def test_push_status_branch_fully_pushed(self, mock_run):
+        """Test push status when branch is fully pushed."""
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="", stderr=""),  # fetch
+            Mock(returncode=0, stdout="origin/feature-auth", stderr=""),  # rev-parse upstream
+            Mock(returncode=0, stdout="0", stderr=""),  # rev-list count
+        ]
+
+        from worktree_manager import check_worktree_push_status
+        status = check_worktree_push_status("feature-auth")
+
+        assert status.is_pushed is True
+        assert status.commits_ahead == 0
+        assert status.error_message == ""
+
+    @patch('subprocess.run')
+    def test_push_status_has_unpushed_commits(self, mock_run):
+        """Test push status when branch has unpushed commits."""
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="", stderr=""),  # fetch
+            Mock(returncode=0, stdout="origin/feature-auth", stderr=""),  # rev-parse upstream
+            Mock(returncode=0, stdout="3", stderr=""),  # rev-list count (3 ahead)
+        ]
+
+        from worktree_manager import check_worktree_push_status
+        status = check_worktree_push_status("feature-auth")
+
+        assert status.is_pushed is False
+        assert status.commits_ahead == 3
+        assert "3" in status.error_message
+
+    @patch('subprocess.run')
+    def test_push_status_branch_not_pushed(self, mock_run):
+        """Test push status when branch has never been pushed."""
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="", stderr=""),  # fetch
+            Mock(returncode=1, stdout="", stderr="no upstream"),  # rev-parse (no upstream)
+            Mock(returncode=0, stdout="", stderr=""),  # ls-remote (branch not found)
+            Mock(returncode=0, stdout="5", stderr=""),  # rev-list count
+        ]
+
+        from worktree_manager import check_worktree_push_status
+        status = check_worktree_push_status("feature-auth")
+
+        assert status.is_pushed is False
+        assert status.commits_ahead == 5
+        assert "not been pushed" in status.error_message
+
+    def test_push_status_invalid_name(self):
+        """Test push status with invalid branch name."""
+        from worktree_manager import check_worktree_push_status
+        status = check_worktree_push_status("../bad-name")
+
+        assert status.is_pushed is False
+        assert "invalid" in status.error_message.lower()
+
+    @patch('subprocess.run')
+    def test_merge_blocked_when_not_pushed(self, mock_run):
+        """Test merge is blocked when branch not pushed (check_push=True)."""
+        # Mock push status check showing unpushed commits
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="", stderr=""),  # fetch
+            Mock(returncode=0, stdout="origin/feature-auth", stderr=""),  # rev-parse upstream
+            Mock(returncode=0, stdout="2", stderr=""),  # rev-list count (2 ahead)
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=True)
+
+        assert result.success is False
+        assert "unpushed" in result.error_message.lower()
+        assert "2" in result.error_message
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_merge_succeeds_with_force_merge(self, mock_get_path, mock_run):
+        """Test merge succeeds when force_merge=True despite unpushed commits."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        # Mock: push check would fail, but force_merge bypasses it
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="", stderr=""),  # checkout
+            Mock(returncode=0, stdout="", stderr=""),  # merge
+            Mock(returncode=0, stdout="", stderr=""),  # status
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=True, force_merge=True)
+
+        assert result.success is True
 
 
 # =============================================================================
