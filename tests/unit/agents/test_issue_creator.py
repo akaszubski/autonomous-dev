@@ -127,7 +127,9 @@ More content
         # H2 headings (##) are correct for GitHub issues
         assert "## Research Summary" in formatted_body
         assert "## Details" in formatted_body
-        assert "# " not in formatted_body  # No H1 headings
+        # Check no H1 headings (line starting with single #)
+        # Note: "# " is substring of "## ", so we check for newline + single #
+        assert "\n# " not in formatted_body  # No H1 headings
 
     def test_markdown_lists_formatted_correctly(self):
         """Test that lists are formatted correctly."""

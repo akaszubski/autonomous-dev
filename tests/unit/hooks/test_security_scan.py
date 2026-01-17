@@ -138,6 +138,12 @@ class TestGetLanguage:
 class TestScanFile:
     """Test file scanning for secrets."""
 
+    @pytest.fixture(autouse=True)
+    def mock_genai_analyzer(self):
+        """Mock GenAI analyzer to return True (treat as real secret) for consistent tests."""
+        with patch("security_scan.analyze_secret_context", return_value=True):
+            yield
+
     def test_detects_anthropic_api_key(self, tmp_path):
         """Test detection of Anthropic API keys."""
         test_file = tmp_path / "config.py"
@@ -162,7 +168,10 @@ class TestScanFile:
     def test_detects_github_token(self, tmp_path):
         """Test detection of GitHub tokens."""
         test_file = tmp_path / "auth.py"
-        test_file.write_text('token = "ghp_' + 'a' * 36 + '"')
+        # Use realistic-looking pattern that won't trigger test data heuristics
+        # (heuristics filter out patterns containing 'aaaaaaa', '00000000', etc.)
+        # Must be exactly 36 alphanumeric chars after ghp_ prefix
+        test_file.write_text('token = "ghp_6dz1cGLNMdweExV0FT57ptyoc9sOz2kLJlBP"')
 
         violations = scan_file(test_file)
 
@@ -172,7 +181,8 @@ class TestScanFile:
     def test_detects_aws_access_key(self, tmp_path):
         """Test detection of AWS access keys."""
         test_file = tmp_path / "aws.py"
-        test_file.write_text('AWS_KEY = "AKIAIOSFODNN7EXAMPLE"')
+        # Use realistic-looking AWS key (not EXAMPLE suffix which may be filtered as test data)
+        test_file.write_text('AWS_KEY = "AKIAR7KBVJ3N9QPZXM2W"')
 
         violations = scan_file(test_file)
 
@@ -247,7 +257,9 @@ class TestScanDirectory:
 
         lib_dir = tmp_path / "lib"
         lib_dir.mkdir()
-        (lib_dir / "module.js").write_text('const key = "ghp_' + 'a' * 36 + '";')
+        # Use realistic-looking pattern that won't trigger test data heuristics
+        # Must be exactly 36 alphanumeric chars after ghp_ prefix
+        (lib_dir / "module.js").write_text('const key = "ghp_6dz1cGLNMdweExV0FT57ptyoc9sOz2kLJlBP";')
 
         violations = scan_directory(tmp_path)
 

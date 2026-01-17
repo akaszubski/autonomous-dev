@@ -156,10 +156,11 @@ class TestPhase2NudgeFunctionBehavior:
         assert "PROJECT.md" in result["message"]
 
     def test_message_contains_auto_implement_mention(self, import_detect_function):
-        """Test nudge message mentions /auto-implement."""
+        """Test nudge message mentions /implement (formerly /auto-implement)."""
         detect = import_detect_function
         result = detect("implement feature")
-        assert "/auto-implement" in result["message"]
+        # Note: /auto-implement was renamed to /implement in Issue #203
+        assert "/implement" in result["message"]
 
     def test_message_contains_metrics(self, import_detect_function):
         """Test nudge message includes quality metrics."""

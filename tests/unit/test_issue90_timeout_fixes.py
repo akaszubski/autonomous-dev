@@ -6,12 +6,16 @@ Tests verify:
 2. test-master.md uses minimal pytest verbosity flags
 3. Timeout value is reasonable (1200 seconds = 20 minutes)
 4. Pytest flags reduce output significantly
+
+NOTE: auto-implement.md is now deprecated - redirects to /implement (Issue #203)
 """
 
 from pathlib import Path
 import re
+import pytest
 
 
+@pytest.mark.skip(reason="auto-implement.md deprecated - redirects to /implement")
 def test_auto_implement_has_timeout_for_test_master():
     """Verify auto-implement.md specifies timeout for test-master agent."""
     auto_implement_path = Path("plugins/autonomous-dev/commands/auto-implement.md")
@@ -28,6 +32,7 @@ def test_auto_implement_has_timeout_for_test_master():
         "auto-implement.md must reference Issue #90 for timeout fix"
 
 
+@pytest.mark.skip(reason="auto-implement.md deprecated - redirects to /implement")
 def test_auto_implement_timeout_value_is_reasonable():
     """Verify timeout value is 1200 seconds (20 minutes) for test-master."""
     auto_implement_path = Path("plugins/autonomous-dev/commands/auto-implement.md")
@@ -99,6 +104,7 @@ def test_pytest_flags_prevent_verbose_output():
             "test-master.md uses -v flag, must also use -q to reduce output"
 
 
+@pytest.mark.skip(reason="auto-implement.md deprecated - redirects to /implement")
 def test_auto_implement_timeout_prevents_indefinite_freeze():
     """Verify auto-implement.md documents timeout prevents indefinite freeze."""
     auto_implement_path = Path("plugins/autonomous-dev/commands/auto-implement.md")
@@ -151,6 +157,7 @@ def test_pytest_output_reduction_documented():
         "test-master.md must document pytest output reduction"
 
 
+@pytest.mark.skip(reason="auto-implement.md deprecated - redirects to /implement")
 def test_timeout_value_has_rationale():
     """Verify timeout value choice is explained."""
     auto_implement_path = Path("plugins/autonomous-dev/commands/auto-implement.md")
