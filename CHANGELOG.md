@@ -14,6 +14,11 @@
   - Package name mapping for PyPI vs import names (e.g., pillow -> PIL)
   - Core functions: extract_missing_packages(), is_package_allowed(), install_package(), auto_install_missing_deps()
   - Security features: Whitelist validation, audit logging, timeout protection
+- /audit command for comprehensive quality checks (#239)
+  - Run code quality, documentation, coverage, and security audits
+  - Support for --quick, --security, --docs, --code flags
+  - Generates detailed report in docs/sessions/AUDIT_REPORT_<timestamp>.md
+  - Catches issues before they accumulate (prevents 726 print statement scenarios)
 - Test coverage threshold now configurable via environment variables (#238)
   - Enhanced auto_enforce_coverage.py with MIN_COVERAGE env var (default: 70%)
   - Added COVERAGE_REPORT env var for custom report path

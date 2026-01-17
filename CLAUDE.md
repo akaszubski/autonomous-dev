@@ -14,7 +14,7 @@ ___
 | Component | Count | Status |
 |-----------|-------|--------|
 | Skills | 28 | ✅ Compliant |
-| Commands | 24 | ✅ Compliant |
+| Commands | 25 | ✅ Compliant |
 | Agents | 22 | ✅ Compliant |
 | Hooks | 70 | ✅ Compliant |
 | Settings | 5 templates | ✅ Compliant |

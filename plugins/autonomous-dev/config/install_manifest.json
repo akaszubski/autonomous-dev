@@ -68,6 +68,7 @@
         "plugins/autonomous-dev/commands/archived/sync-dev.md",
         "plugins/autonomous-dev/commands/archived/update-plugin.md",
         "plugins/autonomous-dev/commands/audit-tests.md",
+        "plugins/autonomous-dev/commands/audit.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
         "plugins/autonomous-dev/commands/batch-implement.md",
         "plugins/autonomous-dev/commands/create-issue.md",
