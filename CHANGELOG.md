@@ -7,6 +7,13 @@
   - force_merge parameter to bypass push check if needed
   - PushStatus dataclass with is_pushed, commits_ahead, remote_branch, error_message
   - 6 unit tests for push status functionality
+- Auto-stash before worktree merge (#241)
+  - merge_worktree() now auto-stashes uncommitted changes before merge (auto_stash=True default)
+  - Detects file overlap between uncommitted changes and merge files
+  - Returns error if overlap detected (prevents merge conflicts with local changes)
+  - Automatically restores stash on merge failure or checkout errors
+  - Pops stash after successful merge to restore uncommitted changes
+  - 6 unit tests for auto-stash functionality
 - AUTO_INSTALL_DEPS environment variable for automatic dependency installation
   - Created auto_install_deps.py library with security-first design
   - Parses pytest output for ImportError/ModuleNotFoundError

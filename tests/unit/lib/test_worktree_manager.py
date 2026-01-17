@@ -859,6 +859,147 @@ class TestWorktreePushStatus:
 
 
 # =============================================================================
+# SECTION 5b: Worktree Auto-Stash Tests (6 tests)
+# =============================================================================
+
+class TestWorktreeAutoStash:
+    """Test auto-stash functionality in merge_worktree."""
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_with_uncommitted_changes_no_overlap(self, mock_get_path, mock_run):
+        """Test auto-stash when there are uncommitted changes with no overlap."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # Auto-stash sequence
+            Mock(returncode=0, stdout="M  unrelated_file.py\n", stderr=""),  # status --porcelain
+            Mock(returncode=0, stdout="src/auth.py\nsrc/login.py\n", stderr=""),  # diff --name-only HEAD...feature
+            Mock(returncode=0, stdout="Saved working directory", stderr=""),  # stash push
+            # Merge sequence
+            Mock(returncode=0, stdout="", stderr=""),  # checkout
+            Mock(returncode=0, stdout="", stderr=""),  # merge
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only
+            Mock(returncode=0, stdout="", stderr=""),  # stash pop
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=True)
+
+        assert result.success is True
+        # Verify stash pop was called
+        stash_pop_calls = [c for c in mock_run.call_args_list if 'stash' in str(c) and 'pop' in str(c)]
+        assert len(stash_pop_calls) == 1
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_with_overlap_returns_error(self, mock_get_path, mock_run):
+        """Test auto-stash fails when uncommitted changes overlap with merge files."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # Auto-stash sequence - overlap detected
+            Mock(returncode=0, stdout="M  src/auth.py\n", stderr=""),  # status --porcelain (modified file)
+            Mock(returncode=0, stdout="src/auth.py\nsrc/login.py\n", stderr=""),  # diff --name-only (same file)
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=True)
+
+        assert result.success is False
+        assert "overlap" in result.error_message.lower() or "uncommitted" in result.error_message.lower()
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_disabled_skips_stash(self, mock_get_path, mock_run):
+        """Test auto_stash=False skips stashing."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # No stash calls - direct merge
+            Mock(returncode=0, stdout="", stderr=""),  # checkout
+            Mock(returncode=0, stdout="", stderr=""),  # merge
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=False)
+
+        assert result.success is True
+        # Verify no stash calls
+        stash_calls = [c for c in mock_run.call_args_list if 'stash' in str(c)]
+        assert len(stash_calls) == 0
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_no_local_changes(self, mock_get_path, mock_run):
+        """Test auto-stash with no uncommitted changes proceeds normally."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # Auto-stash sequence - no changes
+            Mock(returncode=0, stdout="", stderr=""),  # status --porcelain (empty)
+            # Merge sequence
+            Mock(returncode=0, stdout="", stderr=""),  # checkout
+            Mock(returncode=0, stdout="", stderr=""),  # merge
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=True)
+
+        assert result.success is True
+        # No stash pop should be called since no stash was created
+        stash_pop_calls = [c for c in mock_run.call_args_list if 'stash' in str(c) and 'pop' in str(c)]
+        assert len(stash_pop_calls) == 0
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_restored_on_merge_failure(self, mock_get_path, mock_run):
+        """Test stash is restored when merge fails."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # Auto-stash sequence
+            Mock(returncode=0, stdout="M  unrelated_file.py\n", stderr=""),  # status --porcelain
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only
+            Mock(returncode=0, stdout="Saved working directory", stderr=""),  # stash push
+            # Merge sequence - checkout succeeds, merge fails
+            Mock(returncode=0, stdout="", stderr=""),  # checkout
+            subprocess.CalledProcessError(1, ['git', 'merge'], stderr="Merge conflict"),  # merge fails
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only --diff-filter=U
+            Mock(returncode=0, stdout="UU src/auth.py\n", stderr=""),  # status --porcelain
+            Mock(returncode=0, stdout="", stderr=""),  # stash pop (restore)
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=True)
+
+        assert result.success is False
+        # Verify stash was restored
+        stash_pop_calls = [c for c in mock_run.call_args_list if 'stash' in str(c) and 'pop' in str(c)]
+        assert len(stash_pop_calls) == 1
+
+    @patch('subprocess.run')
+    @patch('worktree_manager.get_worktree_path')
+    def test_auto_stash_restored_on_checkout_failure(self, mock_get_path, mock_run):
+        """Test stash is restored when checkout fails."""
+        mock_get_path.return_value = Path("/Users/dev/worktrees/feature-auth")
+
+        mock_run.side_effect = [
+            # Auto-stash sequence
+            Mock(returncode=0, stdout="M  unrelated_file.py\n", stderr=""),  # status --porcelain
+            Mock(returncode=0, stdout="src/auth.py\n", stderr=""),  # diff --name-only
+            Mock(returncode=0, stdout="Saved working directory", stderr=""),  # stash push
+            # Checkout fails
+            subprocess.CalledProcessError(1, ['git', 'checkout'], stderr="error: pathspec not found"),
+            Mock(returncode=0, stdout="", stderr=""),  # stash pop (restore)
+        ]
+
+        result = merge_worktree("feature-auth", "master", check_push=False, auto_stash=True)
+
+        assert result.success is False
+        # Verify stash was restored
+        stash_pop_calls = [c for c in mock_run.call_args_list if 'stash' in str(c) and 'pop' in str(c)]
+        assert len(stash_pop_calls) == 1
+
+
+# =============================================================================
 # SECTION 6: Worktree Prune Tests (5 tests)
 # =============================================================================
 

@@ -546,7 +546,8 @@ def merge_worktree(
     target_branch: str = 'master',
     auto_resolve: bool = False,
     check_push: bool = True,
-    force_merge: bool = False
+    force_merge: bool = False,
+    auto_stash: bool = True
 ) -> MergeResult:
     """Merge a worktree branch back to target branch.
 
@@ -556,6 +557,7 @@ def merge_worktree(
         auto_resolve: Automatically attempt AI conflict resolution (default: False)
         check_push: Verify branch is pushed before merge (default: True)
         force_merge: Merge even if unpushed commits exist (default: False)
+        auto_stash: Automatically stash uncommitted changes before merge (default: True)
 
     Returns:
         MergeResult with success status and details
@@ -605,6 +607,66 @@ def merge_worktree(
                 )
             )
 
+    # Step 0.5: Auto-stash uncommitted changes (Issue #241)
+    stash_created = False
+    if auto_stash:
+        try:
+            # Check for uncommitted changes
+            status_result = subprocess.run(
+                ['git', 'status', '--porcelain'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            has_changes = bool(status_result.stdout.strip())
+
+            if has_changes:
+                # Get files that will be modified by merge
+                merge_files_result = subprocess.run(
+                    ['git', 'diff', '--name-only', f'{target_branch}...{feature_name}'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                merge_files = set(merge_files_result.stdout.strip().split('\n')) if merge_files_result.stdout.strip() else set()
+
+                # Get uncommitted files
+                uncommitted_files = set()
+                for line in status_result.stdout.strip().split('\n'):
+                    if line:
+                        # Status format: XY filename or XY -> filename (for renames)
+                        parts = line[3:].split(' -> ')
+                        uncommitted_files.add(parts[-1])
+
+                # Check for overlap
+                overlap = uncommitted_files & merge_files
+                if overlap:
+                    return MergeResult(
+                        success=False,
+                        conflicts=[],
+                        merged_files=[],
+                        error_message=(
+                            f"Cannot auto-stash: {len(overlap)} uncommitted file(s) will be modified by merge:\n"
+                            f"  {', '.join(sorted(overlap)[:5])}{'...' if len(overlap) > 5 else ''}\n"
+                            f"Please commit or manually stash these files before merging."
+                        )
+                    )
+
+                # Safe to stash - no overlap with merge files
+                stash_result = subprocess.run(
+                    ['git', 'stash', 'push', '-m', f'auto-stash before merge {feature_name}'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if stash_result.returncode == 0 and 'No local changes' not in stash_result.stdout:
+                    stash_created = True
+
+        except subprocess.TimeoutExpired:
+            pass  # Continue without stashing if timeout
+        except subprocess.CalledProcessError:
+            pass  # Continue without stashing if error
+
     try:
         # Step 1: Checkout target branch
         result = subprocess.run(
@@ -616,6 +678,9 @@ def merge_worktree(
         )
 
     except subprocess.TimeoutExpired:
+        # Restore stash if we created one
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
         return MergeResult(
             success=False,
             conflicts=[],
@@ -624,6 +689,10 @@ def merge_worktree(
         )
 
     except subprocess.CalledProcessError as e:
+        # Restore stash if we created one
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
+
         stderr = e.stderr.strip()
 
         if 'did not match' in stderr.lower() or 'not found' in stderr.lower():
@@ -661,6 +730,10 @@ def merge_worktree(
         except Exception:
             merged_files = []
 
+        # Pop stash if we created one (restore uncommitted changes)
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
+
         return MergeResult(
             success=True,
             conflicts=[],
@@ -669,6 +742,9 @@ def merge_worktree(
         )
 
     except subprocess.TimeoutExpired:
+        # Restore stash if we created one
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
         return MergeResult(
             success=False,
             conflicts=[],
@@ -754,6 +830,10 @@ def merge_worktree(
                         except Exception:
                             merged_files = conflicts  # Use conflicts as merged files
 
+                        # Pop stash if we created one (restore uncommitted changes)
+                        if stash_created:
+                            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
+
                         return MergeResult(
                             success=True,
                             conflicts=[],
@@ -763,6 +843,10 @@ def merge_worktree(
                 except Exception:
                     # AI resolution failed - fall through to return conflict status
                     pass
+
+            # Restore stash if we created one (merge failed with conflicts)
+            if stash_created:
+                subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
 
             return MergeResult(
                 success=False,
@@ -779,6 +863,10 @@ def merge_worktree(
         else:
             error_msg = f'Merge failed: {stderr}'
 
+        # Restore stash if we created one (merge failed)
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
+
         return MergeResult(
             success=False,
             conflicts=[],
@@ -787,6 +875,9 @@ def merge_worktree(
         )
 
     except Exception as e:
+        # Restore stash if we created one (unexpected error)
+        if stash_created:
+            subprocess.run(['git', 'stash', 'pop'], capture_output=True, timeout=10)
         return MergeResult(
             success=False,
             conflicts=[],
