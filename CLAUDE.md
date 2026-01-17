@@ -16,7 +16,7 @@ ___
 | Skills | 28 | ✅ Compliant |
 | Commands | 24 | ✅ Compliant |
 | Agents | 22 | ✅ Compliant |
-| Hooks | 68 | ✅ Compliant |
+| Hooks | 69 | ✅ Compliant |
 | Settings | 5 templates | ✅ Compliant |
 
 **Last Compliance Check**: 2026-01-10 (Issue #226 - Semantic validation sync)
@@ -197,7 +197,7 @@ ___
 
 **143 Libraries**: Security, validation, automation, infrastructure (Issue #226: Updated component counts)
 
-**68 Hooks**: Dispatcher pattern, graceful degradation, env var control
+**69 Hooks**: Dispatcher pattern, graceful degradation, env var control
 
 **Model Tiers**: Haiku (pattern matching), Sonnet (implementation), Opus (security)
 

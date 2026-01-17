@@ -7,7 +7,7 @@ Quick-reference guide for all hooks in the autonomous-dev plugin, including acti
 ## Purpose
 
 This registry provides a comprehensive view of:
-- All 68 hooks in the plugin
+- All 69 hooks in the plugin
 - Default activation status (enabled/disabled/opt-in)
 - Trigger points (when hooks execute)
 - Environment variables that control behavior
@@ -85,6 +85,7 @@ Runs before git commit (can block with EXIT_BLOCK).
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
 | validate_documentation_alignment | Deprecated (consolidated) | - | Legacy doc check |
+| validate_component_counts | Enabled | VALIDATE_COMPONENT_COUNTS | Validate component counts in CLAUDE.md match filesystem |
 | validate_hooks_documented | Enabled | - | Validate all hooks are documented |
 | validate_install_manifest | Deprecated (consolidated) | - | Legacy manifest check |
 | validate_lib_imports | Enabled | - | Validate library imports |

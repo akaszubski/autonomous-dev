@@ -11,13 +11,13 @@ This document provides a complete reference for automation hooks in the autonomo
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
 
-**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 68 hooks with activation status, trigger points, and environment variables.
+**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 69 hooks with activation status, trigger points, and environment variables.
 
 ---
 
 ## UV Single-File Script Support (Issue #172)
 
-All 68 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
+All 69 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
 
 ### Features
 
@@ -76,7 +76,7 @@ if lib_path.exists() and str(lib_path) not in sys.path:
 
 ### Migration Details
 
-**Files Modified** (68 hooks):
+**Files Modified** (69 hooks):
 - All hooks in `plugins/autonomous-dev/hooks/` updated to UV format
 - File permissions set to executable (0755)
 - sys.path.insert() fallback preserved for compatibility
@@ -1245,6 +1245,26 @@ Hooks for ensuring documentation, commands, codebase stay in sync, and tests pas
 - Key documentation should not reference deprecated commands
 
 **Environment Variable**: `VALIDATE_COMMAND_CONSISTENCY=false` to disable
+
+### validate_component_counts.py
+
+**Purpose**: Prevent documentation drift by validating component counts in CLAUDE.md match actual filesystem counts (Issue #237)
+**Actions**:
+- Counts actual components from filesystem (hooks, libraries, agents, skills, commands)
+- Parses CLAUDE.md Component Versions table for documented counts
+- Compares and reports any discrepancies
+- Blocks commits when counts don't match
+
+**What it validates**:
+- Hooks: plugins/autonomous-dev/hooks/*.py (excluding __init__.py)
+- Libraries: plugins/autonomous-dev/lib/**/*.py (excluding __init__.py)
+- Agents: plugins/autonomous-dev/agents/*.md
+- Skills: plugins/autonomous-dev/skills/*/ (directories)
+- Commands: plugins/autonomous-dev/commands/*.md
+
+**Lifecycle**: PreCommit (blocks commits when count drift detected)
+**Environment Variable**: `VALIDATE_COMPONENT_COUNTS=false` to disable
+**Related**: Issue #232 - Fix component count drift
 
 ### pre_commit_gate.py
 
