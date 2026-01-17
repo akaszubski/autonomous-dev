@@ -243,6 +243,7 @@ Controls `/implement --batch` behavior.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BATCH_RETRY_ENABLED` | `false` | Auto-retry transient failures (network, timeout, rate limit) |
+| `AUTO_INSTALL_DEPS` | `false` | Auto-install missing dependencies during tests |
 
 ### Retry Behavior
 
@@ -254,6 +255,40 @@ When enabled:
 ```bash
 # Enable automatic retry
 BATCH_RETRY_ENABLED=true
+```
+
+### Auto-Install Dependencies
+
+Automatically install missing Python packages during test execution when ImportError or ModuleNotFoundError is detected.
+
+**Security Features**:
+- Only installs packages from project's requirements files (pyproject.toml, requirements.txt)
+- Uses subprocess with shell=False (CWE-78 prevention)
+- 30-second timeout for pip install
+- Audit logging for all install attempts
+- Whitelist validation (CWE-494 prevention)
+
+**Usage**:
+```bash
+# Enable auto-install
+AUTO_INSTALL_DEPS=true
+
+# Run tests - missing packages installed automatically
+pytest tests/
+```
+
+**When to use**:
+- CI/CD environments (avoid manual dependency installation)
+- Batch processing (`/implement --batch`) with multiple features
+- Development workflows with frequent dependency changes
+
+**Security note**: Never enables for packages not in project requirements. Refuses to install unrecognized packages.
+
+**Example output**:
+```
+ImportError: No module named 'requests'
+[AUTO_INSTALL] Installing 'requests' from project requirements...
+[AUTO_INSTALL] Successfully installed requests==2.28.0
 ```
 
 ---
@@ -352,6 +387,9 @@ AUTO_CLOSE_ISSUES=true
 # Required: Prevent batch retry prompts
 BATCH_RETRY_ENABLED=true
 
+# Optional: Auto-install missing dependencies (recommended for CI/batch)
+AUTO_INSTALL_DEPS=true
+
 # Optional: Skip workflow enforcement (not recommended)
 # ENFORCE_WORKFLOW=false
 ```
@@ -397,6 +435,7 @@ MCP_AUTO_APPROVE=true
 # Batch Processing
 # =============================================================================
 BATCH_RETRY_ENABLED=true
+AUTO_INSTALL_DEPS=true
 
 # =============================================================================
 # Issue Tracking (conservative)

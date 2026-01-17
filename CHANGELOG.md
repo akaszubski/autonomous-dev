@@ -1,6 +1,19 @@
 ## [Unreleased]
 
 ### Added
+- AUTO_INSTALL_DEPS environment variable for automatic dependency installation
+  - Created auto_install_deps.py library with security-first design
+  - Parses pytest output for ImportError/ModuleNotFoundError
+  - Extracts package names from error messages
+  - Validates packages against project requirements files (pyproject.toml, requirements.txt)
+  - Only installs packages explicitly listed in project requirements (CWE-494 prevention)
+  - Uses subprocess with shell=False (CWE-78 prevention, no command injection)
+  - 30-second timeout for pip install (default, configurable)
+  - Audit logging for all install attempts
+  - Environment variable: AUTO_INSTALL_DEPS=true to enable (default: false)
+  - Package name mapping for PyPI vs import names (e.g., pillow -> PIL)
+  - Core functions: extract_missing_packages(), is_package_allowed(), install_package(), auto_install_missing_deps()
+  - Security features: Whitelist validation, audit logging, timeout protection
 - Document doc-master command deprecation/rename handling workflow (#228)
   - 5-step workflow for comprehensive deprecation handling
   - Step 1: Find ALL references (grep entire codebase)
