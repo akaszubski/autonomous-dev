@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+- Document doc-master command deprecation/rename handling workflow (#228)
+  - 5-step workflow for comprehensive deprecation handling
+  - Step 1: Find ALL references (grep entire codebase)
+  - Step 2: Categorize by location (docs vs historical vs hooks)
+  - Step 3: Bulk update non-historical references
+  - Step 4: Update validation hooks
+  - Step 5: Verify zero remaining stale references
+  - Prevents 80%+ of missed references during command consolidation
 - Create plugins/autonomous-dev/README.md with comprehensive user documentation (#233)
   - User-focused installation and quick-start guide (5 minutes)
   - All 8 core commands with examples and use cases
