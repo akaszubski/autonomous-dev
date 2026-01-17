@@ -606,6 +606,60 @@ class TestWorktreeDeletion:
         assert success is False
         assert "permission" in message.lower()
 
+    def test_delete_worktree_changes_cwd_when_inside_worktree(self, tmp_path):
+        """Test that deletion changes cwd when current directory is inside worktree (Issue #243).
+
+        This prevents shell crash when worktree is deleted while shell is inside it.
+        """
+        # Setup: create worktree directory structure
+        worktree_dir = tmp_path / ".worktrees" / "feature-test"
+        worktree_dir.mkdir(parents=True)
+
+        # Save original cwd
+        original_cwd = Path.cwd()
+
+        try:
+            # Change to inside the worktree
+            os.chdir(worktree_dir)
+
+            with patch('worktree_manager._get_worktree_base_dir', return_value=tmp_path / ".worktrees"):
+                with patch('subprocess.run') as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                    success, message = delete_worktree("feature-test")
+
+            # Verify we're no longer in the worktree (should be in project root)
+            current_cwd = Path.cwd()
+            assert str(current_cwd) == str(tmp_path), f"Should be in project root after delete, got {current_cwd}"
+        finally:
+            # Restore original cwd
+            os.chdir(original_cwd)
+
+    def test_delete_worktree_no_chdir_when_outside_worktree(self, tmp_path):
+        """Test that deletion does NOT change cwd when current directory is outside worktree.
+
+        Only change directory when necessary to avoid unexpected cwd changes.
+        """
+        # Setup: create worktree directory structure
+        worktree_dir = tmp_path / ".worktrees" / "feature-test"
+        worktree_dir.mkdir(parents=True)
+
+        # Save original cwd
+        original_cwd = Path.cwd()
+
+        try:
+            # Stay in original cwd (outside worktree)
+            with patch('worktree_manager._get_worktree_base_dir', return_value=tmp_path / ".worktrees"):
+                with patch('subprocess.run') as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                    success, message = delete_worktree("feature-test")
+
+            # Verify cwd didn't change
+            current_cwd = Path.cwd()
+            assert str(current_cwd) == str(original_cwd), f"CWD should not change when outside worktree"
+        finally:
+            # Restore original cwd (just in case)
+            os.chdir(original_cwd)
+
 
 # =============================================================================
 # SECTION 5: Worktree Merge Tests (9 tests)

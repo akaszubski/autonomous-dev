@@ -492,6 +492,7 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
     Security:
         - Validates feature name (CWE-22)
         - Uses subprocess list args (no shell=True)
+        - Safely changes directory before deletion (Issue #243)
 
     Examples:
         >>> success, msg = delete_worktree('feature-auth', force=False)
@@ -507,6 +508,24 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
         # Get worktree base directory
         worktree_base = _get_worktree_base_dir()
         worktree_path = worktree_base / feature_name
+
+        # Issue #243: Check if current directory is inside the worktree
+        # If so, change to project root before deletion to prevent shell crash
+        try:
+            original_cwd = Path.cwd()
+            worktree_str = str(worktree_path.resolve()) if worktree_path.exists() else str(worktree_path)
+            cwd_str = str(original_cwd.resolve())
+
+            # Check if cwd starts with worktree path (i.e., cwd is inside worktree)
+            if cwd_str.startswith(worktree_str):
+                # We're inside the worktree - need to change directory
+                # Find project root (parent of .worktrees)
+                project_root = worktree_base.parent
+                if project_root.exists():
+                    os.chdir(project_root)
+        except (OSError, RuntimeError):
+            # If we can't determine cwd, proceed anyway - git will handle errors
+            pass
 
         # Build command
         cmd = ['git', 'worktree', 'remove']
