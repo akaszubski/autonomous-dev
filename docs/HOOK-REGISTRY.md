@@ -7,7 +7,7 @@ Quick-reference guide for all hooks in the autonomous-dev plugin, including acti
 ## Purpose
 
 This registry provides a comprehensive view of:
-- All 66 hooks in the plugin
+- All 70 hooks in the plugin
 - Default activation status (enabled/disabled/opt-in)
 - Trigger points (when hooks execute)
 - Environment variables that control behavior
@@ -79,11 +79,14 @@ Runs before git commit (can block with EXIT_BLOCK).
 | auto_test | Deprecated (consolidated) | AUTO_TEST | Legacy test runner |
 | security_scan | Deprecated (consolidated) | SECURITY_SCAN | Legacy security scan |
 | enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code) |
-| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE | Block commits if coverage drops below 80% |
+| enforce_no_bare_except | Enabled | ENFORCE_NO_BARE_EXCEPT (default: true) | Prevent bare except clauses from being committed |
+| enforce_logging_only | Opt-in (default: false) | ENFORCE_LOGGING_ONLY | Prevent print statements in production code |
+| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE, MIN_COVERAGE (default: 70) | Block commits if coverage drops below threshold |
 | validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
 | validate_documentation_alignment | Deprecated (consolidated) | - | Legacy doc check |
+| validate_component_counts | Enabled | VALIDATE_COMPONENT_COUNTS | Validate component counts in CLAUDE.md match filesystem |
 | validate_hooks_documented | Enabled | - | Validate all hooks are documented |
 | validate_install_manifest | Deprecated (consolidated) | - | Legacy manifest check |
 | validate_lib_imports | Enabled | - | Validate library imports |

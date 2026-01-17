@@ -155,14 +155,14 @@ class StateManager:
             if temp_fd is not None:
                 try:
                     os.close(temp_fd)
-                except:
-                    pass
+                except OSError as e:
+                    pass  # Ignore errors closing file descriptor
 
             if temp_path and temp_path.exists():
                 try:
                     temp_path.unlink()
-                except:
-                    pass
+                except (OSError, IOError) as e:
+                    pass  # Ignore errors during cleanup
 
             # Re-raise original exception with context
             raise IOError(f"Failed to save session file: {e}") from e

@@ -91,8 +91,8 @@ class ProgressDisplay:
             try:
                 started_dt = datetime.fromisoformat(started)
                 started_str = started_dt.strftime("%Y-%m-%d %H:%M:%S")
-            except:
-                started_str = started
+            except (ValueError, TypeError) as e:
+                started_str = started  # Use raw value if parsing fails
             lines.append(f"Session: {session_id} (started {started_str})")
 
         github_issue = state.get("github_issue")

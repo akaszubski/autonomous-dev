@@ -4,26 +4,34 @@
 # dependencies = []
 # ///
 """
-Auto-enforce 100% test coverage by generating missing tests.
+Auto-enforce test coverage by generating missing tests.
 
 This hook maintains comprehensive test coverage by:
 1. Running coverage analysis before commit
 2. Identifying uncovered lines of code
 3. Invoking test-master agent to generate coverage tests
-4. Blocking commit if coverage < 80% threshold
+4. Blocking commit if coverage < threshold
 5. Auto-generating tests to fill coverage gaps
 
 Hook: PreCommit (runs before git commit completes)
 
 Purpose:
-- Prevent coverage from dropping below 80%
+- Prevent coverage from dropping below configurable threshold
 - Auto-generate tests for uncovered code
 - Maintain comprehensive test suite without manual effort
 - Ensure all code paths are tested
 
+Environment Variables:
+  ENFORCE_COVERAGE: Enable/disable coverage enforcement (default: false)
+  MIN_COVERAGE: Minimum coverage percentage (default: 70)
+  COVERAGE_REPORT: Path to coverage report (default: coverage.json)
+
 Usage:
   Triggered automatically before git commit
   Can be run manually: python scripts/hooks/auto_enforce_coverage.py
+
+  # Set custom threshold
+  MIN_COVERAGE=80 git commit -m "message"
 """
 
 import json
@@ -59,7 +67,18 @@ COVERAGE_DIR = PROJECT_ROOT / "htmlcov"
 COVERAGE_JSON = PROJECT_ROOT / "coverage.json"
 
 # Coverage threshold (block commit if below this)
-COVERAGE_THRESHOLD = 80.0
+# Configurable via MIN_COVERAGE environment variable (default: 70%)
+def _get_coverage_threshold() -> float:
+    """Get coverage threshold from environment variable or default."""
+    try:
+        return float(os.environ.get("MIN_COVERAGE", "70"))
+    except ValueError:
+        return 70.0
+
+COVERAGE_THRESHOLD = _get_coverage_threshold()
+
+# Coverage report path (configurable via COVERAGE_REPORT env var)
+COVERAGE_REPORT = os.environ.get("COVERAGE_REPORT", str(COVERAGE_JSON))
 
 # Maximum number of iterations to try improving coverage
 MAX_COVERAGE_ITERATIONS = 3

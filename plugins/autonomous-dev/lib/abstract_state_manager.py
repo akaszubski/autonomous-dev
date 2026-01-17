@@ -320,12 +320,12 @@ class StateManager(ABC, Generic[T]):
             # Cleanup temp file on error
             try:
                 os.close(temp_fd)
-            except:
-                pass
+            except OSError as close_error:
+                pass  # Ignore errors closing file descriptor
             try:
                 temp_path.unlink()
-            except:
-                pass
+            except (OSError, IOError) as unlink_error:
+                pass  # Ignore errors during cleanup
             raise StateError(f"Atomic write failed: {e}")
 
     def _get_file_lock(self, path: Path) -> threading.RLock:

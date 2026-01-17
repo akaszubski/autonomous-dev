@@ -11,13 +11,13 @@ This document provides a complete reference for automation hooks in the autonomo
 
 Hooks provide automated quality enforcement, validation, and workflow automation throughout the development process.
 
-**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 66 hooks with activation status, trigger points, and environment variables.
+**Quick Reference**: See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for a complete list of all 70 hooks with activation status, trigger points, and environment variables.
 
 ---
 
 ## UV Single-File Script Support (Issue #172)
 
-All 62 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
+All 70 hooks now use UV (Rye's replacement for Virtual Environments) for reproducible script execution with zero environment setup overhead.
 
 ### Features
 
@@ -76,7 +76,7 @@ if lib_path.exists() and str(lib_path) not in sys.path:
 
 ### Migration Details
 
-**Files Modified** (62 hooks):
+**Files Modified** (70 hooks):
 - All hooks in `plugins/autonomous-dev/hooks/` updated to UV format
 - File permissions set to executable (0755)
 - sys.path.insert() fallback preserved for compatibility
@@ -775,6 +775,88 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 **Checks**: Test file timestamps, TDD workflow compliance
 **Lifecycle**: PreCommit
 
+### enforce_no_bare_except.py
+
+**Purpose**: Prevent bare `except:` clauses from being committed
+**Checks**: All staged Python files for bare except clauses using AST parsing
+**Lifecycle**: PreCommit
+**Exit Code**: EXIT_BLOCK (2) if bare except clauses found, EXIT_SUCCESS (0) otherwise
+**Environment Variable**: ENFORCE_NO_BARE_EXCEPT (default: true)
+
+**What it detects**:
+```python
+# Bad - catches ALL exceptions including SystemExit
+try:
+    risky_operation()
+except:
+    handle_error()
+
+# Good - catches most errors, not system exceptions
+try:
+    risky_operation()
+except Exception as e:
+    handle_error(e)
+
+# Better - specific exception handling
+try:
+    risky_operation()
+except ValueError as e:
+    handle_error(e)
+```
+
+**Features**:
+- AST-based detection (reliable, not regex)
+- Shows file:line for each violation
+- Excludes .venv, __pycache__, build directories
+- Clear error messages with remediation guidance
+- Can be bypassed with `ENFORCE_NO_BARE_EXCEPT=false`
+
+**Why this matters**:
+- Bare except clauses catch ALL exceptions including SystemExit, KeyboardInterrupt
+- Masks critical bugs and makes debugging difficult
+- Specific exception handling improves code quality and maintainability
+
+### enforce_logging_only.py
+
+**Purpose**: Prevent print statements in production code - enforces proper logging
+**Checks**: All Python files in lib/ and hooks/ for print statements
+**Lifecycle**: PreCommit
+**Exit Code**: EXIT_BLOCK (2) if print statements found, EXIT_SUCCESS (0) otherwise
+**Environment Variable**: ENFORCE_LOGGING_ONLY (default: false)
+
+**Additional Environment Variables**:
+- `ALLOW_PRINT_IN_CLI=true` - Allow print in CLI tools (argparse, click, typer)
+- `ALLOW_PRINT_IN_TESTS=true` - Allow print in tests/ directory
+
+**What it detects**:
+```python
+# Bad - print statements in production code
+def process_data(data):
+    print("Processing data...")  # Should use logging
+    return data
+
+# Good - proper logging
+import logging
+logger = logging.getLogger(__name__)
+
+def process_data(data):
+    logger.info("Processing data...")
+    return data
+```
+
+**Features**:
+- Regex-based detection for print statements
+- Excludes CLI tools (argparse, click, typer, main guard)
+- Excludes test files when ALLOW_PRINT_IN_TESTS=true
+- Shows file:line for each violation (first 10)
+- Clear error messages with logger.info() migration guidance
+
+**Why this matters**:
+- Print statements don't have log levels (debug, info, warning, error)
+- No centralized log management with print
+- Production debugging becomes difficult
+- Prevents accumulation of hundreds of print statements over time
+
 ### detect_feature_request.py
 
 **CONSOLIDATED**: Functionality moved to `unified_prompt_validator.py` (Issue #153, v3.43.0+)
@@ -1204,6 +1286,26 @@ Hooks for ensuring documentation, commands, codebase stay in sync, and tests pas
 - Key documentation should not reference deprecated commands
 
 **Environment Variable**: `VALIDATE_COMMAND_CONSISTENCY=false` to disable
+
+### validate_component_counts.py
+
+**Purpose**: Prevent documentation drift by validating component counts in CLAUDE.md match actual filesystem counts (Issue #237)
+**Actions**:
+- Counts actual components from filesystem (hooks, libraries, agents, skills, commands)
+- Parses CLAUDE.md Component Versions table for documented counts
+- Compares and reports any discrepancies
+- Blocks commits when counts don't match
+
+**What it validates**:
+- Hooks: plugins/autonomous-dev/hooks/*.py (excluding __init__.py)
+- Libraries: plugins/autonomous-dev/lib/**/*.py (excluding __init__.py)
+- Agents: plugins/autonomous-dev/agents/*.md
+- Skills: plugins/autonomous-dev/skills/*/ (directories)
+- Commands: plugins/autonomous-dev/commands/*.md
+
+**Lifecycle**: PreCommit (blocks commits when count drift detected)
+**Environment Variable**: `VALIDATE_COMPONENT_COUNTS=false` to disable
+**Related**: Issue #232 - Fix component count drift
 
 ### pre_commit_gate.py
 

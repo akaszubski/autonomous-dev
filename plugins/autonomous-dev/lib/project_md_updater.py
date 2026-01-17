@@ -216,15 +216,15 @@ class ProjectMdUpdater:
             if temp_fd is not None:
                 try:
                     os.close(temp_fd)
-                except:
-                    pass
+                except OSError as e:
+                    pass  # Ignore errors closing file descriptor
 
             # Cleanup temp file on error
             # This prevents orphaned .tmp files accumulating
             if temp_path:
                 try:
                     temp_path.unlink()
-                except:
+                except (OSError, IOError) as e:
                     # Ignore errors during cleanup (file might not exist)
                     pass
 

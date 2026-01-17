@@ -120,8 +120,8 @@ def parse_implement_args(args: List[str]):
         try:
             with redirect_stderr(stderr_capture):
                 parser.parse_args(args)
-        except:
-            pass
+        except SystemExit as e:
+            pass  # Expected when argparse encounters an error
 
         error_msg = stderr_capture.getvalue()
 

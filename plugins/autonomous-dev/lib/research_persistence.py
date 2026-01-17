@@ -369,12 +369,12 @@ def save_research(topic: str, findings: str, sources: List[str]) -> Path:
             # Cleanup temp file on error
             try:
                 os.close(temp_fd)
-            except:
-                pass
+            except OSError as close_error:
+                pass  # Ignore errors closing file descriptor
             try:
                 temp_path.unlink()
-            except:
-                pass
+            except (OSError, IOError) as unlink_error:
+                pass  # Ignore errors during cleanup
             raise ResearchPersistenceError(f"Failed to write research file: {e}")
 
     except OSError as e:
@@ -798,12 +798,12 @@ def update_index() -> Path:
             # Cleanup temp file on error
             try:
                 os.close(temp_fd)
-            except:
-                pass
+            except OSError as close_error:
+                pass  # Ignore errors closing file descriptor
             try:
                 temp_path.unlink()
-            except:
-                pass
+            except (OSError, IOError) as unlink_error:
+                pass  # Ignore errors during cleanup
             raise ResearchPersistenceError(f"Failed to write README.md: {e}")
 
     except OSError as e:

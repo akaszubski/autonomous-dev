@@ -17,14 +17,34 @@ import pytest
 
 # Import validator (adjust path as needed)
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "hooks"))
 
-from validate_claude_alignment import (
-    ClaudeAlignmentValidator,
-    extract_date,
-    extract_agent_count,
-    extract_command_count,
-)
+from validate_claude_alignment import ClaudeAlignmentValidator
+
+# Create helper functions that wrap the class methods for testing
+def extract_date(text: str):
+    """Extract date from text using validator's internal method."""
+    from pathlib import Path
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        validator = ClaudeAlignmentValidator(Path(tmpdir))
+        return validator._extract_date(text)
+
+def extract_agent_count(text: str):
+    """Extract agent count from text using validator's internal method."""
+    from pathlib import Path
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        validator = ClaudeAlignmentValidator(Path(tmpdir))
+        return validator._extract_agent_count(text)
+
+def extract_command_count(text: str):
+    """Extract command count from text using validator's internal method."""
+    from pathlib import Path
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        validator = ClaudeAlignmentValidator(Path(tmpdir))
+        return validator._extract_command_count(text)
 
 
 class TestDateExtraction:

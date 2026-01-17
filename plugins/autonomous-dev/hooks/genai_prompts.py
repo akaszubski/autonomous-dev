@@ -21,6 +21,8 @@ Patterns used:
 - Prompts are optimized for Claude Haiku (fast, cost-effective)
 """
 
+import os
+
 # ============================================================================
 # Security Scanning - security_scan.py
 # ============================================================================

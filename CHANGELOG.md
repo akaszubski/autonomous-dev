@@ -1,6 +1,54 @@
 ## [Unreleased]
 
 ### Added
+- AUTO_INSTALL_DEPS environment variable for automatic dependency installation
+  - Created auto_install_deps.py library with security-first design
+  - Parses pytest output for ImportError/ModuleNotFoundError
+  - Extracts package names from error messages
+  - Validates packages against project requirements files (pyproject.toml, requirements.txt)
+  - Only installs packages explicitly listed in project requirements (CWE-494 prevention)
+  - Uses subprocess with shell=False (CWE-78 prevention, no command injection)
+  - 30-second timeout for pip install (default, configurable)
+  - Audit logging for all install attempts
+  - Environment variable: AUTO_INSTALL_DEPS=true to enable (default: false)
+  - Package name mapping for PyPI vs import names (e.g., pillow -> PIL)
+  - Core functions: extract_missing_packages(), is_package_allowed(), install_package(), auto_install_missing_deps()
+  - Security features: Whitelist validation, audit logging, timeout protection
+- /audit command for comprehensive quality checks (#239)
+  - Run code quality, documentation, coverage, and security audits
+  - Support for --quick, --security, --docs, --code flags
+  - Generates detailed report in docs/sessions/AUDIT_REPORT_<timestamp>.md
+  - Catches issues before they accumulate (prevents 726 print statement scenarios)
+- Test coverage threshold now configurable via environment variables (#238)
+  - Enhanced auto_enforce_coverage.py with MIN_COVERAGE env var (default: 70%)
+  - Added COVERAGE_REPORT env var for custom report path
+  - 8 unit tests for environment variable configuration
+- Pre-commit hook to enforce logging over print statements (#236)
+  - Created enforce_logging_only.py with print statement detection
+  - Scans lib/ and hooks/ directories for print statements
+  - Excludes CLI tools (argparse, click, typer, main guard)
+  - Excludes test files by default
+  - Environment variable: ENFORCE_LOGGING_ONLY=true to enable (default: false)
+  - Additional controls: ALLOW_PRINT_IN_CLI, ALLOW_PRINT_IN_TESTS
+  - 25+ unit tests for comprehensive coverage
+- Document doc-master command deprecation/rename handling workflow (#228)
+  - 5-step workflow for comprehensive deprecation handling
+  - Step 1: Find ALL references (grep entire codebase)
+  - Step 2: Categorize by location (docs vs historical vs hooks)
+  - Step 3: Bulk update non-historical references
+  - Step 4: Update validation hooks
+  - Step 5: Verify zero remaining stale references
+  - Prevents 80%+ of missed references during command consolidation
+- Create plugins/autonomous-dev/README.md with comprehensive user documentation (#233)
+  - User-focused installation and quick-start guide (5 minutes)
+  - All 8 core commands with examples and use cases
+  - Configuration guide (environment variables, git automation, MCP auto-approval)
+  - 22-agent architecture overview with model tier strategy
+  - 66-hook automation reference with examples
+  - Troubleshooting guide with common issues and solutions
+  - Best practices section (context management, workflow discipline, PROJECT.md-first)
+  - Documentation index linking to all detailed guides
+  - Cross-references to contributor and security documentation
 - Unified `/implement` command with mode flags (#203)
   - Default mode: Full 8-agent pipeline (replaces `/auto-implement`)
   - `--quick`: Implementer agent only (replaces old `/implement`)
@@ -83,6 +131,11 @@
   - Migration: Remove any calls to these functions (deprecated since v3.34.0)
 
 ### Fixed
+- Fix 3 critical test failures blocking CI/CD (#229)
+  - Fixed missing `import os` in genai_prompts.py preventing module import
+  - Fixed unterminated f-string in test_documentation_consistency.py causing syntax error
+  - Fixed incorrect path reference (scripts→hooks) in test_claude_alignment.py
+  - All tests now pass in CI/CD pipeline
 - Batch worktree CWD change fix
   - `create_batch_worktree()` now automatically changes current working directory to worktree after creation
   - Ensures all subsequent operations (file writes, edits, shell commands) execute within worktree context

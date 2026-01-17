@@ -60,8 +60,8 @@ def count_lines(pattern: str) -> int:
         try:
             with open(f) as fp:
                 total += len(fp.readlines())
-        except:
-            pass
+        except (OSError, IOError, UnicodeDecodeError) as e:
+            pass  # Skip files that can't be read
     return total
 
 

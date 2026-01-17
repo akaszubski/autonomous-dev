@@ -179,8 +179,8 @@ def upgrade_existing_settings(global_path: Path, template_path: Path) -> Dict[st
                 if "permissions" in original_settings and "allow" in original_settings["permissions"]:
                     broken = [p for p in original_settings["permissions"]["allow"] if p in ["Bash(:*)", "Bash(*)"]]
                     patterns_fixed = len(broken)
-        except:
-            pass
+        except (OSError, IOError, json.JSONDecodeError, KeyError) as e:
+            pass  # Ignore errors reading backup settings
 
         # Build message based on patterns fixed
         if patterns_fixed > 0:
