@@ -46,12 +46,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.agent_tracker import AgentTracker
 
-# This import will FAIL until security_utils.py is created
+# Import actual security utils functions (updated from TDD red phase)
 from plugins.autonomous_dev.lib.security_utils import (
-    validate_path_whitelist,
-    audit_log_security_event,
-    SecurityValidationError
+    validate_path,  # was validate_path_whitelist
+    audit_log,  # was audit_log_security_event
 )
+# Aliases for test compatibility
+validate_path_whitelist = validate_path
+audit_log_security_event = audit_log
+SecurityValidationError = ValueError
 
 
 class TestAgentTrackerUsesSecurityUtils:

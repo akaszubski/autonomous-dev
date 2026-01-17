@@ -679,10 +679,7 @@ if lib_path.exists():
 
     try:
         from agent_tracker import AgentTracker
-        AgentTracker.save_agent_checkpoint(
-            'test-master',
-            'Tests complete - 42 tests created for Issue #167'
-        )
-        print("✅ Checkpoint saved")
-    except ImportError:
+        # Method removed in refactor - checkpoint functionality deprecated
+        print("ℹ️ Checkpoint skipped (method deprecated)")
+    except (ImportError, AttributeError):
         print("ℹ️ Checkpoint skipped (user project)")

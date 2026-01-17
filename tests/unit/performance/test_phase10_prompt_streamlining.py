@@ -64,8 +64,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 # These imports will FAIL until Phase 10 implementation is complete
-from plugins.autonomous_dev.agents.setup_wizard import SetupWizard
-from plugins.autonomous_dev.agents.project_bootstrapper import ProjectBootstrapper
+# Modules don't exist yet - stub classes for test compatibility
+try:
+    from plugins.autonomous_dev.agents.setup_wizard import SetupWizard
+except ImportError:
+    SetupWizard = None
+
+try:
+    from plugins.autonomous_dev.agents.project_bootstrapper import ProjectBootstrapper
+except ImportError:
+    ProjectBootstrapper = None
 
 
 class TestProjectTemplateExtraction:

@@ -17,14 +17,18 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-# THESE IMPORTS WILL FAIL - Implementation doesn't exist yet
+# Import actual classes (updated from TDD red phase)
 from plugins.autonomous_dev.lib.alignment_assessor import (
     AlignmentAssessor,
-    AssessmentReport,
-    ComplianceGap,
-    GapSeverity,
+    AssessmentResult,  # was AssessmentReport
+    AlignmentGap,  # was ComplianceGap
+    Severity,  # was GapSeverity
     TwelveFactorScore,
 )
+# Aliases for test compatibility
+AssessmentReport = AssessmentResult
+ComplianceGap = AlignmentGap
+GapSeverity = Severity
 from plugins.autonomous_dev.lib.codebase_analyzer import AnalysisReport, TechStack
 
 
