@@ -39,7 +39,7 @@ class UserState:
             with os.fdopen(temp_fd, 'w') as f:
                 json.dump(asdict(self), f, indent=2)
             os.replace(temp_path, state_file)
-        except:
+        except (OSError, IOError, TypeError) as e:
             Path(temp_path).unlink()
             raise
 

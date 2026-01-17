@@ -175,7 +175,7 @@ def write_status(passed: bool, details: Optional[Dict[str, Any]] = None) -> bool
             temp_file = STATUS_DIR / f".test-status.{os.getpid()}.tmp"
             if temp_file.exists():
                 temp_file.unlink()
-        except:
+        except (OSError, IOError) as e:
             pass  # Ignore cleanup errors
 
         return False

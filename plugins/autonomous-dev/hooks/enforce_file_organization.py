@@ -182,7 +182,7 @@ def analyze_file_with_genai(
     try:
         lines = file_path.read_text().split('\n')[:20]
         content_preview = '\n'.join(lines)
-    except:
+    except (OSError, IOError, UnicodeDecodeError) as e:
         content_preview = "(binary file or read error)"
 
     # Get project context

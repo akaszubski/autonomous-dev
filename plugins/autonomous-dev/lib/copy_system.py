@@ -319,8 +319,8 @@ class CopySystem:
             with open(file_path, "rb") as f:
                 first_line = f.readline()
                 return first_line.startswith(b"#!")
-        except:
-            return False
+        except (OSError, IOError) as e:
+            return False  # Can't read file, assume not a script
 
     def _set_permissions(self, dest_path: Path, source_path: Path, is_script: bool) -> None:
         """Set appropriate file permissions.

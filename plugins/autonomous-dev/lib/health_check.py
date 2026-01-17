@@ -99,8 +99,8 @@ class AgentHealthCheck:
                         'event': entry.get('event_type', 'unknown'),
                         'message': entry.get('message', '')
                     })
-                except:
-                    pass
+                except (KeyError, AttributeError, TypeError) as e:
+                    pass  # Skip malformed log entries
 
         except Exception as e:
             last_events = []

@@ -226,12 +226,12 @@ class CodePatcher:
             if not fd_closed:
                 try:
                     os.close(fd)
-                except:
-                    pass
+                except OSError as close_error:
+                    pass  # Ignore errors closing file descriptor
             try:
                 Path(temp_path).unlink(missing_ok=True)
-            except:
-                pass
+            except (OSError, IOError) as unlink_error:
+                pass  # Ignore errors during cleanup
             raise
 
     def rollback_last_patch(self) -> bool:

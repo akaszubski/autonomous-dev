@@ -516,12 +516,12 @@ def save_batch_state(state_file: Path | str, state: BatchState) -> None:
                 # Cleanup temp file on error
                 try:
                     os.close(temp_fd)
-                except:
-                    pass
+                except OSError as close_error:
+                    pass  # Ignore errors closing file descriptor
                 try:
                     temp_path.unlink()
-                except:
-                    pass
+                except (OSError, IOError) as unlink_error:
+                    pass  # Ignore errors during cleanup
                 raise
 
         except OSError as e:
