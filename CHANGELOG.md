@@ -1,6 +1,16 @@
 ## [Unreleased]
 
 ### Added
+- Create plugins/autonomous-dev/README.md with comprehensive user documentation (#233)
+  - User-focused installation and quick-start guide (5 minutes)
+  - All 8 core commands with examples and use cases
+  - Configuration guide (environment variables, git automation, MCP auto-approval)
+  - 22-agent architecture overview with model tier strategy
+  - 66-hook automation reference with examples
+  - Troubleshooting guide with common issues and solutions
+  - Best practices section (context management, workflow discipline, PROJECT.md-first)
+  - Documentation index linking to all detailed guides
+  - Cross-references to contributor and security documentation
 - Unified `/implement` command with mode flags (#203)
   - Default mode: Full 8-agent pipeline (replaces `/auto-implement`)
   - `--quick`: Implementer agent only (replaces old `/implement`)
