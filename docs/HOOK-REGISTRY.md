@@ -7,7 +7,7 @@ Quick-reference guide for all hooks in the autonomous-dev plugin, including acti
 ## Purpose
 
 This registry provides a comprehensive view of:
-- All 69 hooks in the plugin
+- All 70 hooks in the plugin
 - Default activation status (enabled/disabled/opt-in)
 - Trigger points (when hooks execute)
 - Environment variables that control behavior
@@ -80,6 +80,7 @@ Runs before git commit (can block with EXIT_BLOCK).
 | security_scan | Deprecated (consolidated) | SECURITY_SCAN | Legacy security scan |
 | enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code) |
 | enforce_no_bare_except | Enabled | ENFORCE_NO_BARE_EXCEPT (default: true) | Prevent bare except clauses from being committed |
+| enforce_logging_only | Opt-in (default: false) | ENFORCE_LOGGING_ONLY | Prevent print statements in production code |
 | auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE | Block commits if coverage drops below 80% |
 | validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |

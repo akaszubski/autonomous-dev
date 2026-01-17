@@ -14,6 +14,14 @@
   - Package name mapping for PyPI vs import names (e.g., pillow -> PIL)
   - Core functions: extract_missing_packages(), is_package_allowed(), install_package(), auto_install_missing_deps()
   - Security features: Whitelist validation, audit logging, timeout protection
+- Pre-commit hook to enforce logging over print statements (#236)
+  - Created enforce_logging_only.py with print statement detection
+  - Scans lib/ and hooks/ directories for print statements
+  - Excludes CLI tools (argparse, click, typer, main guard)
+  - Excludes test files by default
+  - Environment variable: ENFORCE_LOGGING_ONLY=true to enable (default: false)
+  - Additional controls: ALLOW_PRINT_IN_CLI, ALLOW_PRINT_IN_TESTS
+  - 25+ unit tests for comprehensive coverage
 - Document doc-master command deprecation/rename handling workflow (#228)
   - 5-step workflow for comprehensive deprecation handling
   - Step 1: Find ALL references (grep entire codebase)
