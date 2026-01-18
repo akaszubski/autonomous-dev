@@ -107,7 +107,7 @@ Runs when a subagent completes (can block agent exit with EXIT_BLOCK).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
-| ralph_loop_enforcer | Opt-in (default: false) | RALPH_LOOP_ENABLED | Validate agent output and retry if needed (RALPH loop) |
+| ralph_loop_enforcer | Enabled by default (v3.48.0, opt-out) | RALPH_LOOP_DISABLED | Validate agent output and retry if needed (RALPH loop) |
 | verify_completion | Enabled | - | Verify agent completed successfully |
 | verify_agent_pipeline | Enabled | - | Verify pipeline agent execution order |
 

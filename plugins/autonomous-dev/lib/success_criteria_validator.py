@@ -84,8 +84,8 @@ import signal
 # Constants
 # =============================================================================
 
-# Default pytest timeout (30 seconds - reasonable for most test suites)
-DEFAULT_PYTEST_TIMEOUT = 30
+# Default pytest timeout (60 seconds - reasonable for most test suites)
+DEFAULT_PYTEST_TIMEOUT = 60
 
 # Regex timeout (1 second - prevent ReDoS)
 REGEX_TIMEOUT = 1
@@ -192,7 +192,7 @@ def validate_pytest(test_path: str, timeout: int = DEFAULT_PYTEST_TIMEOUT) -> Tu
 
     Args:
         test_path: Path to test file or directory
-        timeout: Timeout in seconds (default: 30)
+        timeout: Timeout in seconds (default: 60)
 
     Returns:
         Tuple of (success, message)
@@ -203,6 +203,20 @@ def validate_pytest(test_path: str, timeout: int = DEFAULT_PYTEST_TIMEOUT) -> Tu
     # Security validation
     _validate_path_security(test_path)
     _validate_command_security(test_path)
+
+    # Support PYTEST_TIMEOUT env var override (only if timeout not explicitly provided)
+    # Explicit parameter takes precedence
+    if timeout == DEFAULT_PYTEST_TIMEOUT:  # No explicit timeout provided
+        env_timeout = os.environ.get("PYTEST_TIMEOUT", "").strip()
+        if env_timeout:
+            try:
+                parsed_timeout = int(env_timeout)
+                # Validate: must be positive
+                if parsed_timeout > 0:
+                    timeout = parsed_timeout
+                # Invalid values (negative, zero) fall back to default
+            except ValueError:
+                pass  # Use default timeout if env var is invalid
 
     # Run pytest
     try:

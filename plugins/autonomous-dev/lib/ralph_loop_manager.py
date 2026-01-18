@@ -70,7 +70,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 
 # =============================================================================
@@ -103,6 +103,7 @@ class RalphLoopState:
     token_limit: int = DEFAULT_TOKEN_LIMIT
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    retry_history: List[Dict[str, Any]] = field(default_factory=list)  # Issue #256: Track retry attempts
 
 
 # =============================================================================
@@ -154,6 +155,7 @@ class RalphLoopManager:
                 self.tokens_used = data.get("tokens_used", 0)
                 # Use loaded token_limit if available, otherwise use constructor value
                 self.token_limit = data.get("token_limit", self.token_limit)
+                self.retry_history = data.get("retry_history", [])
             except (json.JSONDecodeError, KeyError):
                 # Corrupted file - start fresh
                 self._initialize_fresh_state()
@@ -167,6 +169,7 @@ class RalphLoopManager:
         self.consecutive_failures = 0
         self.circuit_breaker_open = False
         self.tokens_used = 0
+        self.retry_history = []
 
     def record_attempt(self, tokens_used: int = 0) -> None:
         """
@@ -193,6 +196,13 @@ class RalphLoopManager:
             # Trip circuit breaker if threshold reached
             if self.consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
                 self.circuit_breaker_open = True
+
+            # Record in retry history (Issue #256)
+            self.retry_history.append({
+                "iteration": self.current_iteration,
+                "error_message": error_message,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            })
 
     def record_success(self) -> None:
         """Record a successful attempt (resets consecutive failures)."""
@@ -252,6 +262,7 @@ class RalphLoopManager:
                 "circuit_breaker_open": self.circuit_breaker_open,
                 "tokens_used": self.tokens_used,
                 "token_limit": self.token_limit,
+                "retry_history": self.retry_history,
                 "created_at": getattr(self, 'created_at', datetime.utcnow().isoformat() + "Z"),
                 "updated_at": datetime.utcnow().isoformat() + "Z",
             }

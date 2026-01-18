@@ -1,5 +1,56 @@
 ## [Unreleased]
 
+## [3.48.0] - 2026-01-19
+
+### Changed
+- Ralph Loop now ENABLED BY DEFAULT (opt-out pattern) (#256)
+  - Changed from opt-in (RALPH_LOOP_ENABLED=true required) to opt-out (RALPH_LOOP_DISABLED=true to disable)
+  - ralph_loop_enforcer.py: is_ralph_loop_enabled() now checks RALPH_LOOP_DISABLED first
+  - RALPH_LOOP_DISABLED takes precedence if both environment variables are set
+  - Simplifies configuration for users who want Ralph Loop (most common case)
+  - Reduces friction: Ralph Loop now works without additional setup
+
+- DEFAULT_PYTEST_TIMEOUT increased from 30 to 60 seconds (#256)
+  - Updated success_criteria_validator.py DEFAULT_PYTEST_TIMEOUT constant
+  - Rationale: Allow slower test suites to run without timeout failures
+  - Prevents false negatives on CI/CD systems with variable performance
+
+### Added
+- New PYTEST_TIMEOUT environment variable support for test timeout configuration (#256)
+  - Override DEFAULT_PYTEST_TIMEOUT (60s) per-test via PYTEST_TIMEOUT env var
+  - validate_pytest() checks env var only when timeout not explicitly provided
+  - Allows per-environment timeout tuning (local dev, CI/CD, slow hardware)
+  - Example: PYTEST_TIMEOUT=120 /implement --quick
+
+- New mark_feature_skipped() function for batch processing (#256)
+  - Skip features from batch processing with reason tracking
+  - Separate from failures: Skipped features don't trigger retries
+  - Parameters: feature_index, reason, category (quality_gate, manual, dependency)
+  - Updates batch_state.json skipped_features field
+  - Thread-safe with file locking (consistent with mark_feature_status)
+  - Use cases: Skip after max retries, security failures, manual exclusions
+
+- New retry_history field in RalphLoopState (#256)
+  - Track all retry attempts in Ralph Loop sessions
+  - Each attempt records timestamp, iteration number, tokens used, status
+  - Enables audit trail for self-correcting agent execution
+  - Helps debug which attempts succeeded/failed
+
+- Enhanced get_next_pending_feature() to skip completed/failed/skipped features (#256)
+  - Previously: Return next sequential feature from current_index
+  - Now: Skip completed, failed, and explicitly skipped features
+  - Returns None when all processable features exhausted
+  - Prevents duplicate processing of skipped features on batch resume
+
+### Deprecated
+- RALPH_LOOP_ENABLED environment variable (opt-in pattern)
+  - Still works via is_ralph_loop_enabled() logic, but redundant
+  - New default is Ralph Loop ON (RALPH_LOOP_DISABLED=true to disable)
+  - Old env var no longer needed for enabling Ralph Loop
+  - Planned removal: v4.0.0
+
+## [Unreleased]
+
 ### Added
 - Strict PROJECT.md alignment gate with score-based validation (#251)
   - Created alignment_gate.py library for GenAI-powered feature alignment validation

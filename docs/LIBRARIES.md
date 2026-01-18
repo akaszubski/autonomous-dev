@@ -2276,6 +2276,43 @@ state = create_batch_state(
 - **Parameters**: `state_file` (Path): Path to state file
 - **Returns**: None
 
+#### `mark_feature_skipped(state_file, feature_index, reason, category="quality_gate")` (NEW v3.48.0, Issue #256)
+- **Purpose**: Mark a feature as permanently skipped (excluded from batch processing and retries)
+- **Parameters**:
+  - `state_file` (Path): Path to batch state file
+  - `feature_index` (int): Index of feature to skip
+  - `reason` (str): Reason for skipping (user-visible message)
+  - `category` (str): Skip category - "quality_gate" (default), "manual", or "dependency"
+- **Returns**: None
+- **Raises**: `BatchStateError` if feature_index invalid, `ValueError` if feature_index out of range
+- **Thread-safe**: Uses file locking consistent with mark_feature_status()
+- **Use Cases**:
+  - Quality gate failures: Skip feature after exhausting max retries
+  - Security audit failures: Skip feature that failed security checks
+  - Manual exclusions: Skip features explicitly excluded by user
+  - Dependency issues: Skip features with unsolvable dependency chains
+- **Example**:
+```python
+from batch_state_manager import mark_feature_skipped
+from path_utils import get_batch_state_file
+
+# Skip feature due to quality gate failure
+mark_feature_skipped(
+    get_batch_state_file(),
+    feature_index=2,
+    reason="Failed security audit - CWE-79 vulnerability detected",
+    category="quality_gate"
+)
+
+# Skip feature due to manual request
+mark_feature_skipped(
+    get_batch_state_file(),
+    feature_index=5,
+    reason="User requested skip - deferring to next batch",
+    category="manual"
+)
+```
+
 ### Security Features
 
 1. **CWE-22 (Path Traversal Prevention)**: All paths validated via security_utils.validate_path()
@@ -13482,7 +13519,8 @@ python -m autonomous_dev.lib.parallel_validation \
 - `DEFAULT_TOKEN_LIMIT = 50000` - Token limit for entire loop
 
 **Key Classes**:
-- `RalphLoopState` (dataclass) - Tracks session state (current iteration, tokens used, consecutive failures, circuit breaker status)
+- `RalphLoopState` (dataclass) - Tracks session state (current iteration, tokens used, consecutive failures, circuit breaker status, retry_history)
+  - **retry_history** (NEW v3.48.0): List of retry attempt records with timestamp, iteration, tokens, status
 - `RalphLoopManager` - Main orchestrator with methods:
   - `record_attempt(tokens_used)` - Record token consumption for attempt
   - `should_retry()` - Check if retry allowed (respects max iterations, circuit breaker, token limit)
@@ -13577,7 +13615,8 @@ manager.record_success()
 
 1. **Pytest Strategy**
    - Runs pytest and checks pass/fail
-   - Timeout: 30 seconds (configurable)
+   - Timeout: 60 seconds by default (v3.48.0, increased from 30s)
+   - Configurable via PYTEST_TIMEOUT environment variable (e.g., PYTEST_TIMEOUT=120)
    - Returns test output and status
    - Use case: Unit/integration test verification
 
@@ -13606,8 +13645,13 @@ manager.record_success()
    - Use case: JSON response validation
 
 **Constants**:
-- `DEFAULT_PYTEST_TIMEOUT = 30` - Timeout for pytest runs
+- `DEFAULT_PYTEST_TIMEOUT = 60` - Timeout for pytest runs (v3.48.0: increased from 30s for slower test suites)
 - `REGEX_TIMEOUT = 1` - Timeout for regex operations (prevent ReDoS)
+
+**Environment Variables** (NEW v3.48.0, Issue #256):
+- `PYTEST_TIMEOUT` - Override DEFAULT_PYTEST_TIMEOUT per test run (e.g., PYTEST_TIMEOUT=120)
+- Checked only when timeout not explicitly provided to validate_pytest()
+- Allows per-environment tuning (local dev, CI/CD, slow hardware)
 
 **Key Functions**:
 ```python

@@ -1566,14 +1566,15 @@ Hooks that run when a subagent attempts to exit to enforce completion criteria a
 5. **json** - Extract and validate data via JSONPath
 
 **Configuration**:
-- **RALPH_LOOP_ENABLED**: Set to "true" to enable (default: false, opt-in)
+- **RALPH_LOOP_DISABLED**: Set to "true" to disable (default: enabled as of v3.48.0, opt-out pattern)
+- **RALPH_LOOP_ENABLED**: Deprecated (opt-in pattern) - kept for backward compatibility. Use RALPH_LOOP_DISABLED instead.
 - **RALPH_LOOP_SESSION_ID**: Session identifier for state tracking (auto-generated if not provided)
 - **RALPH_LOOP_TOKEN_LIMIT**: Token limit for entire loop (default: 50000)
 
 **Workflow**:
-1. Check if Ralph Loop enabled (RALPH_LOOP_ENABLED=true)
-2. If disabled, allow exit (return {"allow": true})
-3. If enabled, load validation criteria from environment
+1. Check if Ralph Loop disabled (RALPH_LOOP_DISABLED=true) - Ralph Loop now ENABLED by default (v3.48.0)
+2. If explicitly disabled, allow exit (return {"allow": true})
+3. If enabled (default), load validation criteria from environment
 4. Call success_criteria_validator library to validate task completion
 5. Check if retry allowed (via ralph_loop_manager library):
    - Check max iterations (5 -> block)

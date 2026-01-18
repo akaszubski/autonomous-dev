@@ -1096,11 +1096,16 @@ def estimate_context_tokens(text: str) -> int:
 def get_next_pending_feature(state: BatchState) -> Optional[str]:
     """Get next pending feature to process.
 
+    Skips over features that are:
+    - Already completed
+    - Already failed (permanent failures)
+    - Explicitly skipped via mark_feature_skipped()
+
     Args:
         state: Batch state
 
     Returns:
-        Next feature description, or None if all features processed
+        Next feature description, or None if all features processed/skipped
 
     Example:
         >>> from path_utils import get_batch_state_file
@@ -1110,9 +1115,17 @@ def get_next_pending_feature(state: BatchState) -> Optional[str]:
         ...     # Process feature
         ...     pass
     """
-    if state.current_index >= state.total_features:
-        return None
-    return state.features[state.current_index]
+    # Build set of indices to skip
+    completed_indices = set(state.completed_features)
+    failed_indices = {f["feature_index"] for f in state.failed_features}
+    skipped_indices = {s["feature_index"] for s in state.skipped_features}
+
+    # Find next processable feature starting from current_index
+    for i in range(state.current_index, state.total_features):
+        if i not in completed_indices and i not in failed_indices and i not in skipped_indices:
+            return state.features[i]
+
+    return None
 
 
 # =============================================================================
@@ -1283,6 +1296,79 @@ def mark_feature_status(
             "feature_index": feature_index,
             "status": status,
             "retry_count": retry_count,
+        })
+
+
+def mark_feature_skipped(
+    state_file: Path | str,
+    feature_index: int,
+    reason: str,
+    category: str = "quality_gate"
+) -> None:
+    """
+    Mark a feature as skipped (permanently excluded from batch processing).
+
+    Skipped features will not be retried on batch resume. Use this for:
+    - Quality gate failures (security issues, test failures after max retries)
+    - Manual exclusions requested by user
+    - Features that require manual intervention
+
+    Thread-safe update using file locking.
+
+    Args:
+        state_file: Path to batch state file
+        feature_index: Index of feature to skip
+        reason: Reason for skipping (user-visible message)
+        category: Skip category ("quality_gate", "manual", "dependency")
+
+    Raises:
+        BatchStateError: If update fails
+        ValueError: If feature_index is invalid
+
+    Examples:
+        >>> mark_feature_skipped(state_file, 2, "Security audit failed", "quality_gate")
+        >>> mark_feature_skipped(state_file, 5, "User requested skip", "manual")
+    """
+    state_path = Path(state_file)
+
+    with _get_file_lock(state_path):
+        # Load current state
+        state = load_batch_state(state_path)
+
+        # Validate feature index
+        if feature_index < 0 or feature_index >= state.total_features:
+            raise BatchStateError(
+                f"Invalid feature index: {feature_index} (total: {state.total_features})"
+            )
+
+        # Check if already skipped
+        if any(s.get("feature_index") == feature_index for s in state.skipped_features):
+            return  # Already skipped, no-op
+
+        # Create skip record
+        skip_record = {
+            "feature_index": feature_index,
+            "feature_name": state.features[feature_index] if feature_index < len(state.features) else f"Feature {feature_index}",
+            "reason": reason,
+            "category": category,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+
+        # Add to skipped_features
+        state.skipped_features.append(skip_record)
+
+        # Update timestamp
+        state.updated_at = datetime.utcnow().isoformat() + "Z"
+
+        # Save updated state
+        save_batch_state(state_path, state)
+
+        # Audit log
+        audit_log("feature_skipped", "info", {
+            "batch_id": state.batch_id,
+            "feature_index": feature_index,
+            "reason": reason,
+            "category": category,
         })
 
 

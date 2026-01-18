@@ -34,7 +34,7 @@ Exit Codes:
 - Returns JSON response: {"allow": true/false, "message": "..."}
 
 Environment Variables:
-- RALPH_LOOP_ENABLED: Set to "true" to enable (default: false, opt-in)
+- RALPH_LOOP_DISABLED: Set to "true" to disable (default: enabled, opt-out)
 
 Validation Strategies:
 - pytest: Run tests and check pass/fail
@@ -80,13 +80,24 @@ def is_ralph_loop_enabled() -> bool:
     Check if Ralph Loop is enabled.
 
     Returns:
-        bool: True if enabled, False otherwise (default: False, opt-in)
+        bool: True if enabled (default), False if explicitly disabled
 
     Environment Variables:
-        RALPH_LOOP_ENABLED: Set to "true" to enable (case-insensitive)
+        RALPH_LOOP_DISABLED: Set to "true" to disable (opt-out)
+        RALPH_LOOP_ENABLED: Legacy support - "false" disables (backward compat)
     """
+    # Check opt-out first (new pattern)
+    disabled = os.environ.get("RALPH_LOOP_DISABLED", "").strip().lower()
+    if disabled == "true":
+        return False
+
+    # Backward compatibility: support RALPH_LOOP_ENABLED="false" to disable
     enabled = os.environ.get("RALPH_LOOP_ENABLED", "").strip().lower()
-    return enabled == "true"
+    if enabled == "false":
+        return False
+
+    # Default: enabled
+    return True
 
 
 def allow_exit(message: str = "") -> None:
