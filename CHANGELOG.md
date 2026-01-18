@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+## [3.49.0] - 2026-01-19
+
+### Changed
+- Graduated enforcement levels for /implement workflow discipline (#246)
+  - Created EnforcementLevel enum: OFF, WARN, SUGGEST, BLOCK
+  - Default enforcement changed from OFF to SUGGEST (allow + suggest /implement)
+  - New ENFORCEMENT_LEVEL env var with precedence: ENFORCEMENT_LEVEL > ENFORCE_WORKFLOW_STRICT > default
+  - ENFORCEMENT_LEVEL supports: off, warn, suggest, block (case-insensitive)
+  - Backward compatibility maintained: ENFORCE_WORKFLOW_STRICT=true maps to BLOCK, false maps to OFF
+  - SUGGEST level provides helpful guidance without blocking code changes
+  - WARN level logs warnings to stderr while allowing edits
+  - Reduces friction while maintaining workflow discipline
+  - enforce_implementation_workflow.py: get_enforcement_level() routes to correct level
+
 ## [3.48.0] - 2026-01-19
 
 ### Changed
