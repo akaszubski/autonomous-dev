@@ -553,6 +553,28 @@ All security validation is now handled by `unified_pre_tool.py` with 4 explicit 
 
 ---
 
+## Protected Directories
+
+**`.claude/local/`** (Issue #244): Repo-specific operational configs
+
+All files in `.claude/local/` are preserved across `/sync` operations:
+- Directory purpose: Store repo-specific operational procedures and configurations
+- Protection: Files never overwritten or deleted during sync
+- File categorization: All `.claude/local/` files marked as "config" type
+- Example uses:
+  - `OPERATIONS.md` - Repo-specific deployment procedures
+  - `config.json` - Environment-specific configurations
+  - `deployment-checklist.txt` - Custom operational procedures
+
+**Protection mechanism**:
+- Pattern-based detection: `.claude/local/**` in PROTECTED_PATTERNS
+- Orphan cleanup exclusion: delete_orphans=true skips `.claude/local/`
+- Safe with all sync modes: Marketplace, plugin-dev, GitHub
+
+**See**: `.claude/local/OPERATIONS.md` (template in plugin) for standard format
+
+---
+
 ## Related Documentation
 
 - docs/LIBRARIES.md Section 66 - sandbox_enforcer.py API reference

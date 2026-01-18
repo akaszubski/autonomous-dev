@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added
+- Repo-specific operational configs preserved across /sync (#244)
+  - Added `.claude/local/` directory protection during /sync operations
+  - All files in `.claude/local/` are preserved (not overwritten or deleted)
+  - Files are categorized as "config" type for identification
+  - Updated protected_file_detector.py with `.claude/local/**` pattern
+  - Prevents deletion of `.claude/local/` during orphan cleanup
+  - Enables repo-specific operational procedures and configurations
+  - See docs/SANDBOXING.md and .claude/local/OPERATIONS.md for usage
+
 ## [3.49.0] - 2026-01-19
 
 ### Changed

@@ -57,6 +57,7 @@ PROTECTED_PATTERNS = [
     ".claude/hooks/custom_*.py",  # Custom hooks
     "*.env",  # All .env files
     "**/*.secret",  # Secret files
+    ".claude/local/**",  # Issue #244: Repo-specific operational configs
 ]
 
 
@@ -183,9 +184,19 @@ class ProtectedFileDetector:
         all_patterns = self.get_protected_patterns()
 
         for pattern in all_patterns:
-            # Use fnmatch for glob pattern matching
-            if fnmatch.fnmatch(file_path, pattern):
-                return True
+            # Handle ** recursive patterns
+            if "**" in pattern:
+                # Split pattern at ** and check if file path starts with prefix
+                prefix = pattern.split("**")[0]
+                if prefix and file_path.startswith(prefix):
+                    return True
+                # Also try fnmatch for patterns like **/*.secret
+                if fnmatch.fnmatch(file_path, pattern.replace("**", "*")):
+                    return True
+            else:
+                # Use fnmatch for standard glob patterns
+                if fnmatch.fnmatch(file_path, pattern):
+                    return True
 
         return False
 
@@ -260,9 +271,10 @@ class ProtectedFileDetector:
 
         # Check always-protected files (these are user artifacts)
         if relative_path in ALWAYS_PROTECTED:
-            # These are always user-created, so category is "new"
+            # Categorize appropriately (config, state, etc.)
+            category = self._categorize_file(relative_path)
             return {
-                "category": "new",
+                "category": category,
                 "modified": False,
                 "reason": "User artifact (always protected)"
             }
@@ -300,8 +312,8 @@ class ProtectedFileDetector:
         if "state.json" in file_path or "batch_" in file_path:
             return "state"
 
-        # Config files
-        if file_path.endswith("PROJECT.md") or ".env" in file_path:
+        # Config files (including .claude/local/)
+        if file_path.endswith("PROJECT.md") or ".env" in file_path or ".claude/local/" in file_path:
             return "config"
 
         # Custom hooks
