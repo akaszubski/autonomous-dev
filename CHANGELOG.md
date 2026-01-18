@@ -1,6 +1,18 @@
 ## [Unreleased]
 
 ### Added
+- Session state persistence in .claude/local/SESSION_STATE.json (#247)
+  - Created SessionStateManager library for persistent session context
+  - Stores key_conventions, active_tasks, important_files, and repo_specific context
+  - Tracks /implement completions with feature name, agents completed, and timestamps
+  - Survives /clear operations (protected by .claude/local/** pattern)
+  - Inherits from StateManager ABC for standardized state management
+  - Atomic writes with file locking for thread safety
+  - Security: Path traversal (CWE-22), symlink (CWE-59), and permission validation
+  - Graceful degradation on corrupted JSON (returns default schema)
+  - Audit logging for all state operations
+  - get_session_summary() for human-readable state inspection
+  - See docs/SESSION-STATE-PERSISTENCE.md for detailed guide
 - Repo-specific operational configs preserved across /sync (#244)
   - Added `.claude/local/` directory protection during /sync operations
   - All files in `.claude/local/` are preserved (not overwritten or deleted)
