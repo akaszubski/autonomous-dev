@@ -365,6 +365,9 @@ git worktree add ".worktrees/$BATCH_ID" HEAD
 
 # Change to worktree directory (automatic in create_batch_worktree)
 cd .worktrees/$BATCH_ID
+
+# Store absolute worktree path for agent prompts (CRITICAL!)
+WORKTREE_PATH="$(pwd)"
 ```
 
 Display:
@@ -373,9 +376,13 @@ Display:
    Current working directory changed to worktree.
    All batch processing will occur in this worktree.
    Main repository remains untouched until merge.
+
+   Absolute worktree path: $WORKTREE_PATH
 ```
 
-Note: The `create_batch_worktree()` function automatically changes the current working directory to the worktree after successful creation. All subsequent operations (file writes, edits, shell commands) execute within the worktree context. Use the returned `original_cwd` to restore the previous directory if needed.
+**CRITICAL**: Store the absolute worktree path in `WORKTREE_PATH` variable. This MUST be passed to ALL agent prompts in STEP B3, as Task-spawned agents do not inherit the parent process's CWD.
+
+Note: The `create_batch_worktree()` function automatically changes the current working directory to the worktree after successful creation. However, Task-spawned agents operate in the original repository directory by default, so the absolute worktree path must be explicitly passed in every agent prompt.
 
 **STEP B2: Parse Features File**
 
@@ -401,9 +408,48 @@ Starting batch processing in worktree: .worktrees/$BATCH_ID
 For each feature:
 
 1. **Update progress**: Display "Batch Progress: Feature M/N"
-2. **Invoke full pipeline**: Use `/implement [feature]` (NOT with --quick)
+2. **Invoke full pipeline**: Execute the full pipeline (STEPS 1-8) for the feature with **BATCH CONTEXT** passed to ALL agents
 3. **Update batch state**: Save progress to `.worktrees/$BATCH_ID/.claude/batch_state.json`
 4. **Continue to next feature**
+
+**CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
+
+When invoking agents in batch mode (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master), you MUST include this context block at the start of EVERY agent prompt:
+
+```
+**BATCH CONTEXT** (CRITICAL - Operating in worktree):
+- Worktree Path: $WORKTREE_PATH (absolute path)
+- ALL file operations MUST use absolute paths within this worktree
+- Read/Write/Edit tools: Use absolute paths like $WORKTREE_PATH/src/file.py
+- Bash commands: Run from worktree using: cd $WORKTREE_PATH && [command]
+- Example: To edit src/auth.py, use: $WORKTREE_PATH/src/auth.py (not ./src/auth.py)
+
+Task-spawned agents do NOT inherit the parent's working directory.
+You MUST use absolute paths in the worktree for all file operations.
+```
+
+**Example Agent Invocation in Batch Mode**:
+
+```
+subagent_type: "implementer"
+description: "Implement [feature name]"
+prompt: "**BATCH CONTEXT** (CRITICAL - Operating in worktree):
+- Worktree Path: $WORKTREE_PATH (absolute path)
+- ALL file operations MUST use absolute paths within this worktree
+- Read/Write/Edit tools: Use absolute paths like $WORKTREE_PATH/src/file.py
+- Bash commands: Run from worktree using: cd $WORKTREE_PATH && [command]
+
+Implement production-quality code for: [user's feature description].
+
+**Implementation Plan**: [Paste planner output]
+**Tests to Pass**: [Paste test-master output summary]
+
+Output: Production-quality code following the architecture plan."
+
+model: "sonnet"
+```
+
+**This applies to ALL 8 agents in the full pipeline when running in batch mode.**
 
 **STEP B4: Batch Summary**
 
@@ -446,10 +492,13 @@ Create feature list: "Issue #N: [title]"
 **STEP I2: Create Worktree and Process**
 
 Same as BATCH FILE MODE:
-1. Create worktree
-2. Process each feature (issue title becomes feature description)
-3. Update batch state
-4. Report summary
+1. Create worktree (see BATCH FILE MODE STEP B1)
+2. Store absolute worktree path in `WORKTREE_PATH` variable
+3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see BATCH FILE MODE STEP B3)
+4. Update batch state
+5. Report summary
+
+**CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in BATCH FILE MODE STEP B3.
 
 ---
 
@@ -481,10 +530,27 @@ Read batch_state.json:
 - Get `current_index` (where to resume)
 - Get `features` list
 - Get `completed_features` list
+- Get `worktree_path` (absolute path to worktree)
+
+Store the worktree path:
+```bash
+# Change to worktree directory
+cd .worktrees/$BATCH_ID
+
+# Store absolute worktree path for agent prompts (CRITICAL!)
+WORKTREE_PATH="$(pwd)"
+```
+
+**OR** if `worktree_path` is stored in batch_state.json:
+```bash
+WORKTREE_PATH="[value from batch_state.json]"
+cd $WORKTREE_PATH
+```
 
 Display:
 ```
 🔄 Resuming batch: $BATCH_ID
+   Worktree path: $WORKTREE_PATH
    Progress: Feature M of N
    Completed: [list completed]
    Remaining: [list remaining]
@@ -495,6 +561,8 @@ Continuing from feature M...
 **STEP R3: Continue Processing**
 
 Continue the batch loop from `current_index`, same as BATCH FILE MODE STEP B3.
+
+**CRITICAL**: When invoking agents in resume mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in BATCH FILE MODE STEP B3.
 
 ---
 
