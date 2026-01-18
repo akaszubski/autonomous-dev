@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2026-01-09 (Issue #225 - Consolidate exception hierarchy: All state managers now use StateError)
+**Last Updated**: 2026-01-19 (Issue #251 - Strict PROJECT.md Alignment Gate)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (52)
+### Core Libraries (53)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -63,6 +63,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 50. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
 51. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
 52. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+53. **alignment_gate.py** - Strict PROJECT.md alignment validation with score-based gating (7+ threshold) (v1.0.0, Issue #251)
 
 
 
@@ -15219,3 +15220,295 @@ Step 4.3 of /implement pipeline:
 **Dependencies**: logging, typing, pathlib, datetime, re - Standard library
 
 **Version History**: v1.0.0 (2026-01-09) - Initial release for progress tracker integration (Issue #204)
+
+## 99. alignment_gate.py (642 lines, v1.0.0 - Issue #251)
+
+**Purpose**: Strict PROJECT.md alignment validation using GenAI with score-based gating for feature proposals.
+
+**Problem**: When proposing new features, it's unclear if they align with PROJECT.md goals and scope. Features that don't explicitly match SCOPE items are approved anyway, leading to scope creep. No systematic way to validate alignment with constraints.
+
+**Solution**: Alignment gate library that validates features against PROJECT.md using GenAI. Features must:
+1. Score >= 7 on alignment (0-10 scale)
+2. EXPLICITLY match a SCOPE item (not just "related to")
+3. Not violate CONSTRAINTS
+4. Pass strict gatekeeper validation (rejects ambiguous features)
+
+### Features
+
+- GenAI-powered strict alignment validation
+- Score-based gating (7+ threshold for approval)
+- Explicit SCOPE membership requirement (not "related to")
+- Constraint violation detection (blocks even high-scoring features)
+- Decision tracking to alignment_history.jsonl (JSONL format)
+- Meta-validation statistics (approval rate, average score, constraint violations)
+- Support for both Anthropic and OpenRouter APIs
+- Comprehensive error messages with actionable suggestions
+- Audit logging for all validation decisions
+
+### API Classes
+
+#### AlignmentGateResult
+
+Result of strict alignment validation with complete analysis.
+
+**Attributes**:
+- `aligned: bool` - Whether feature aligns with PROJECT.md (score >= 7, no constraints)
+- `score: int` - Alignment score 0-10 (7+ = pass, <7 = fail)
+- `violations: List[str]` - List of SCOPE/GOAL violations
+- `reasoning: str` - Detailed reasoning for alignment decision
+- `relevant_scope: List[str]` - List of SCOPE items that match
+- `suggestions: List[str]` - Suggestions for improving alignment
+- `constraint_violations: List[str]` - List of CONSTRAINT violations (blocks approval)
+- `confidence: str` - Confidence level (high/medium/low)
+
+**Methods**:
+- `to_dict() -> Dict[str, Any]` - Convert to dictionary for JSON serialization
+
+### Functions
+
+#### validate_alignment_strict()
+
+Strict alignment validation using GenAI. This is a STRICT GATEKEEPER that:
+- Requires EXPLICIT SCOPE match (not "related to")
+- Scores ambiguous features 4-6 (not 7+)
+- Blocks constraint violations even if score is high
+- Requires score >= 7 to pass
+
+Signature: validate_alignment_strict(
+    feature_desc: str,
+    project_md_path: Optional[Path] = None
+) -> AlignmentGateResult
+
+Parameters:
+- `feature_desc: str` - Feature description to validate
+- `project_md_path: Optional[Path]` - Path to PROJECT.md (default: .claude/PROJECT.md)
+
+Returns: `AlignmentGateResult` with validation decision
+
+Raises: `AlignmentError` if feature description is empty/invalid or PROJECT.md issues
+
+Example:
+```python
+from alignment_gate import validate_alignment_strict
+
+result = validate_alignment_strict("Add CLI command for git status")
+if result.aligned and result.score >= 7:
+    print("Feature approved!")
+else:
+    print(f"Feature blocked: {result.reasoning}")
+    for violation in result.violations:
+        print(f"  - {violation}")
+```
+
+#### check_scope_membership()
+
+Check if feature EXPLICITLY matches an IN SCOPE item (strict matching).
+
+Signature: check_scope_membership(feature: str, scope_section: str) -> bool
+
+Parameters:
+- `feature: str` - Feature description
+- `scope_section: str` - SCOPE section content from PROJECT.md
+
+Returns: `True` if explicit match found, `False` otherwise
+
+Logic:
+- Extract scope items from PROJECT.md SCOPE section
+- Remove common stopwords (the, a, and, for, etc.)
+- Normalize plural forms (s suffix)
+- Require at least 50% of significant words to match
+- For compound terms, require > 1 match to avoid false positives
+
+Example:
+```python
+from alignment_gate import check_scope_membership
+
+scope = "- CLI commands\n- Git automation\n- Testing framework"
+result = check_scope_membership("Add CLI command", scope)
+# Returns: True (matches "CLI commands")
+```
+
+#### track_alignment_decision()
+
+Track alignment decision to history file (JSONL format).
+
+Signature: track_alignment_decision(result: AlignmentGateResult) -> None
+
+Appends decision record to logs/alignment_history.jsonl with timestamp:
+```json
+{"aligned": true, "score": 8, "violations": [], ..., "timestamp": "2026-01-19T15:30:00Z"}
+```
+
+#### get_alignment_stats()
+
+Get meta-validation statistics from alignment history.
+
+Signature: get_alignment_stats() -> Dict[str, Any]
+
+Returns dict with keys:
+- `total_decisions: int` - Total number of alignment decisions
+- `approved_count: int` - Number of approved features
+- `rejected_count: int` - Number of rejected features
+- `approval_rate: float` - Percentage of approved features (0.0-1.0)
+- `average_score: float` - Average alignment score
+- `constraint_violation_count: int` - Number of decisions with constraint violations
+
+Example:
+```python
+from alignment_gate import get_alignment_stats
+
+stats = get_alignment_stats()
+print(f"Approval rate: {stats['approval_rate']:.1%}")
+print(f"Average score: {stats['average_score']:.1f}")
+```
+
+### GenAI Integration
+
+#### LLM Client Selection
+
+Automatically selects LLM provider (priority order):
+1. Anthropic API (if ANTHROPIC_API_KEY set) - Uses claude-sonnet-4-5-20250929
+2. OpenRouter API (if OPENROUTER_API_KEY set) - Uses anthropic/claude-sonnet-4.5
+
+Raises `AlignmentError` if no API key found.
+
+#### Prompt Strategy
+
+STRICT GATEKEEPER prompt that:
+- Provides PROJECT.md context (GOALS, SCOPE, CONSTRAINTS, CURRENT_SPRINT)
+- Enforces explicit SCOPE membership requirement
+- Assigns ambiguous features scores 4-6
+- Blocks constraint violations regardless of score
+- Defines clear scoring scale:
+  - 9-10: Perfect explicit match, no violations
+  - 7-8: Good explicit match, minor concerns
+  - 4-6: Ambiguous, needs clarification, or tangentially related
+  - 1-3: Clearly out of scope, not aligned with GOALS
+  - 0: Completely unrelated or harmful
+
+### Scoring Rules
+
+**Perfect Match (9-10)**:
+- Explicitly matches SCOPE item
+- Aligns with GOALS
+- No constraint violations
+- Clear, detailed description
+
+**Good Match (7-8)**:
+- Good explicit match to SCOPE
+- Aligns with GOALS
+- No major constraint violations
+- Minor concerns addressed
+
+**Ambiguous (4-6)**:
+- Vague descriptions ("improve performance")
+- One-word descriptions
+- Missing context or metrics
+- Only tangentially related to SCOPE
+- Needs clarification
+
+**Out of Scope (1-3)**:
+- Clearly doesn't match SCOPE
+- Not aligned with GOALS
+- Missing implementation details
+
+**Harmful (0)**:
+- Completely unrelated
+- Contradicts GOALS
+- Major constraint violations
+
+### Decision Tracking
+
+Decisions tracked to `logs/alignment_history.jsonl` (JSONL format):
+- One JSON record per line
+- ISO 8601 timestamps (UTC)
+- Complete decision data: score, violations, reasoning, suggestions
+- JSONL format allows easy querying and statistical analysis
+
+### PROJECT.md Integration
+
+**Required Sections**:
+- `## GOALS` - Project success criteria and objectives
+- `## SCOPE` - In-scope and out-of-scope features
+- `## CONSTRAINTS` - Technical, resource, and philosophical limits
+- `## CURRENT_SPRINT` - Active focus (optional)
+
+**Validation Errors**:
+- Missing PROJECT.md: Raises error with helpful path hints
+- Missing GOALS/SCOPE sections: Raises error listing found sections
+- Malformed content: Raises error with expected format
+
+### Error Handling
+
+- Empty/invalid feature descriptions: Raises `AlignmentError`
+- PROJECT.md not found: Raises `AlignmentError` with path hints
+- API key missing: Raises `AlignmentError` with setup instructions
+- GenAI response parsing: Raises `AlignmentError` with response snippet
+- Malformed JSON response: Raises `AlignmentError` with details
+
+### Performance
+
+- GenAI API call: 1-3 seconds (network dependent)
+- SCOPE membership check: O(n) where n = number of SCOPE items
+- History statistics: O(m) where m = number of tracked decisions
+- Total validation: 1-3 seconds per feature
+
+### Security
+
+- Input sanitization for GenAI prompts (no prompt injection)
+- JSON output validation and error handling
+- Audit logging for all decisions via security_utils
+- File path validation via pathlib (CWE-22 prevention)
+- Project root detection with fallback handling
+
+### Integration Points
+
+**Feature Proposal Workflow**:
+1. User proposes new feature
+2. Feature description validated via validate_alignment_strict()
+3. GenAI scores feature against PROJECT.md
+4. Decision tracked to alignment_history.jsonl
+5. Result shown to user (approved/rejected with reasoning)
+
+**Analysis Tools**:
+- Use `get_alignment_stats()` to monitor approval trends
+- Query `logs/alignment_history.jsonl` directly for detailed analysis
+- Track constraint violations separately from low-score rejections
+
+### Constants
+
+- `ALIGNMENT_SCORE_THRESHOLD = 7` - Score required for approval
+- `PROJECT_ROOT` - Dynamically detected from .git or .claude
+- `ALIGNMENT_HISTORY_PATH` - logs/alignment_history.jsonl (relative to PROJECT_ROOT)
+
+### Module Exports
+
+```python
+__all__ = [
+    "AlignmentGateResult",
+    "validate_alignment_strict",
+    "check_scope_membership",
+    "track_alignment_decision",
+    "get_alignment_stats",
+    "AlignmentError",
+    "ALIGNMENT_SCORE_THRESHOLD",
+]
+```
+
+### Testing
+
+54 unit tests covering:
+- Alignment validation with various feature types
+- SCOPE membership checking (explicit vs tangential)
+- Score calculation and threshold enforcement
+- Constraint violation detection
+- GenAI response parsing
+- History file I/O (JSONL format)
+- Statistics calculations
+- Error handling and edge cases
+- API client selection (Anthropic vs OpenRouter)
+- Project root detection
+
+**Test File**: tests/unit/lib/test_alignment_gate.py
+
+**Version History**: v1.0.0 (2026-01-19) - Initial release for strict PROJECT.md alignment validation (Issue #251)

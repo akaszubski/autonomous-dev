@@ -1,6 +1,19 @@
 ## [Unreleased]
 
 ### Added
+- Strict PROJECT.md alignment gate with score-based validation (#251)
+  - Created alignment_gate.py library for GenAI-powered feature alignment validation
+  - Strict gatekeeper: Requires explicit SCOPE membership (not "related to")
+  - Score-based gating (7+ threshold for approval, 0-10 scale)
+  - Constraint violation detection (blocks even high-scoring features)
+  - AlignmentGateResult dataclass with comprehensive validation data
+  - validate_alignment_strict() for feature validation against PROJECT.md
+  - check_scope_membership() for explicit SCOPE matching
+  - track_alignment_decision() to logs/alignment_history.jsonl (JSONL format)
+  - get_alignment_stats() for meta-validation statistics
+  - Support for Anthropic and OpenRouter APIs
+  - Dynamic project root detection with fallback handling
+  - 54 unit tests for validation, scoring, tracking, and statistics
 - Quality persistence enforcement for /implement --batch (#254)
   - Created quality_persistence_enforcer.py central enforcement engine
   - Completion gate enforcement (100% test pass requirement, no faking)
