@@ -1,6 +1,35 @@
 ## [Unreleased]
 
 ### Added
+- Enforce /implement workflow with audit logging (#250)
+  - Created workflow_violation_logger.py library for audit logging
+  - JSON Lines format (one event per line) for easy parsing
+  - Log rotation (10MB max size, keep 10 backups) to prevent disk exhaustion
+  - Thread-safe logging for concurrent hook executions
+  - CWE-117 prevention: Input sanitization prevents log injection attacks
+  - ViolationType enum: DIRECT_IMPLEMENTATION, GIT_BYPASS_ATTEMPT, PROTECTED_PATH_EDIT
+  - ViolationLogEntry dataclass with timestamp, type, file_path, agent_name, reason, details
+  - parse_violation_log() function for querying violations with filters (type, agent, time range)
+  - get_violation_summary() for statistics (total, by_type, by_agent, time range)
+  - Default log location: logs/workflow_violations.log (configurable)
+  - 30+ unit tests for logger, rotation, thread safety, injection prevention
+- Protected paths enforcement for workflow discipline (#250)
+  - Enhanced enforce_implementation_workflow.py with protected paths feature
+  - Blocks edits to .claude/commands/*.md (command definitions)
+  - Blocks edits to .claude/agents/*.md (agent definitions)
+  - Blocks edits to plugins/autonomous-dev/lib/*.py (core library infrastructure)
+  - Logs violations to workflow_violation_logger for audit trail
+  - Allows ALLOWED_AGENTS (implementer, test-master, etc.) to edit protected paths
+  - Can be controlled via ENFORCE_WORKFLOW_STRICT=true (opt-in)
+  - Helpful error messages guide users to proper workflow
+- Git bypass blocking PreCommit hook (block_git_bypass.py) (#250)
+  - Prevents bypassing pre-commit hooks with git commit --no-verify
+  - Detects --no-verify and --no-gpg-sign flags in git commit commands
+  - Blocks bypass attempts with EXIT_BLOCK=2 and helpful message
+  - Logs violations to workflow_violation_logger for audit trail
+  - Can be disabled with ALLOW_GIT_BYPASS=true for emergency situations
+  - Validates that hooks are actually configured before blocking
+  - 20+ unit tests for flag detection, logging, exit codes, error messages
 - Pre-merge check for worktree push status (#240)
   - Added check_worktree_push_status() function to verify branch is pushed
   - merge_worktree() now verifies branch is pushed before merge (check_push=True default)

@@ -50,7 +50,32 @@ import sys
 import os
 import re
 from pathlib import Path
+from fnmatch import fnmatch
 
+
+# Add lib directory to path for imports
+sys.path.insert(
+    0,
+    str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "lib"),
+)
+
+# Import workflow violation logger (will fail gracefully if not available)
+try:
+    from workflow_violation_logger import WorkflowViolationLogger, ViolationType
+    _logger_available = True
+except ImportError:
+    _logger_available = False
+
+
+# Protected paths (cannot be edited by agents outside ALLOWED_AGENTS)
+PROTECTED_PATHS = [
+    ".claude/commands/**/*.md",
+    ".claude/commands/*.md",
+    ".claude/agents/**/*.md",
+    ".claude/agents/*.md",
+    "plugins/autonomous-dev/lib/**/*.py",
+    "plugins/autonomous-dev/lib/*.py",
+]
 
 # Patterns that indicate significant code additions
 SIGNIFICANT_PATTERNS = [
@@ -227,6 +252,92 @@ def is_code_file(file_path: str) -> bool:
     return Path(file_path).suffix.lower() in CODE_EXTENSIONS
 
 
+def is_protected_path(file_path: str) -> bool:
+    """
+    Check if the file path is a protected path.
+
+    Protected paths cannot be edited by agents outside ALLOWED_AGENTS:
+    - .claude/commands/*.md (command definitions)
+    - .claude/agents/*.md (agent definitions)
+    - plugins/autonomous-dev/lib/*.py (core library infrastructure)
+
+    Args:
+        file_path: Path to the file being modified
+
+    Returns:
+        True if file is protected, False otherwise
+    """
+    if not file_path:
+        return False
+
+    # Normalize path for matching
+    path = Path(file_path)
+    path_str = str(path).lower()
+
+    # Check against protected path patterns
+    for pattern in PROTECTED_PATHS:
+        pattern_lower = pattern.lower()
+
+        # Try both absolute and relative matching
+        if fnmatch(path_str, pattern_lower):
+            return True
+
+        # Also check if path ends with the pattern (for absolute paths)
+        if path_str.endswith(pattern_lower.replace("**/", "").replace("*", "")):
+            # Check path components more carefully
+            parts = path_str.split("/")
+            pattern_parts = pattern_lower.split("/")
+
+            # Simple component matching
+            if len(parts) >= len(pattern_parts):
+                for i, pattern_part in enumerate(pattern_parts):
+                    if "**" in pattern_part:
+                        continue
+                    if "*" in pattern_part:
+                        # Wildcard matching for filename
+                        if not fnmatch(parts[-(len(pattern_parts) - i)], pattern_part):
+                            break
+                    else:
+                        # Exact match
+                        if parts[-(len(pattern_parts) - i)] != pattern_part:
+                            break
+                else:
+                    return True
+
+    # Specific path component checks
+    path_components = path_str.split("/")
+
+    # Check for .claude/commands/*.md
+    if ".claude" in path_components:
+        claude_idx = path_components.index(".claude")
+        if (claude_idx + 1 < len(path_components) and
+            path_components[claude_idx + 1] == "commands" and
+            path_str.endswith(".md")):
+            return True
+
+    # Check for .claude/agents/*.md
+    if ".claude" in path_components:
+        claude_idx = path_components.index(".claude")
+        if (claude_idx + 1 < len(path_components) and
+            path_components[claude_idx + 1] == "agents" and
+            path_str.endswith(".md")):
+            return True
+
+    # Check for plugins/autonomous-dev/lib/*.py
+    if "plugins" in path_components:
+        try:
+            plugins_idx = path_components.index("plugins")
+            if (plugins_idx + 2 < len(path_components) and
+                path_components[plugins_idx + 1] == "autonomous-dev" and
+                path_components[plugins_idx + 2] == "lib" and
+                path_str.endswith(".py")):
+                return True
+        except ValueError:
+            pass
+
+    return False
+
+
 def output_decision(decision: str, reason: str):
     """Output the hook decision in required format."""
     print(json.dumps({
@@ -273,6 +384,52 @@ def main():
 
         # Get file path
         file_path = tool_input.get("file_path", "")
+
+        # Check if file is protected path (commands, agents, lib)
+        if is_protected_path(file_path):
+            # Protected paths can only be edited by allowed agents
+            if agent_name not in ALLOWED_AGENTS:
+                # Log violation
+                if _logger_available:
+                    try:
+                        logger = WorkflowViolationLogger()
+                        logger.log_violation(
+                            violation_type=ViolationType.PROTECTED_PATH_EDIT,
+                            file_path=file_path,
+                            agent_name=agent_name or "unknown",
+                            reason="Protected path modification attempted",
+                            details=f"{tool_name} to protected path: {Path(file_path).name}",
+                        )
+                    except Exception:
+                        pass
+
+                # Block with helpful message
+                output_decision("deny", f"""
+PROTECTED PATH EDIT BLOCKED
+
+File: {Path(file_path).name}
+Path: {file_path}
+
+This file is protected and cannot be edited directly. Protected paths include:
+- .claude/commands/*.md (command definitions)
+- .claude/agents/*.md (agent definitions)
+- plugins/autonomous-dev/lib/*.py (core library infrastructure)
+
+RECOMMENDED: Use /implement workflow
+
+Changes to protected paths should go through the /implement pipeline:
+1. Create issue: /create-issue "description of change needed"
+2. Implement: /implement #<issue-number>
+
+This ensures proper testing, review, and documentation.
+
+See docs/WORKFLOW-DISCIPLINE.md for more information.
+""")
+                sys.exit(0)
+            else:
+                # Agent is allowed to edit protected paths
+                output_decision("allow", f"Agent '{agent_name}' authorized to edit protected paths")
+                sys.exit(0)
 
         # Check if file is exempt (tests, docs, configs, hooks, lib)
         if is_exempt_path(file_path):

@@ -108,6 +108,7 @@
         "plugins/autonomous-dev/hooks/auto_update_docs.py",
         "plugins/autonomous-dev/hooks/auto_update_project_progress.py",
         "plugins/autonomous-dev/hooks/batch_permission_approver.py",
+        "plugins/autonomous-dev/hooks/block_git_bypass.py",
         "plugins/autonomous-dev/hooks/detect_doc_changes.py",
         "plugins/autonomous-dev/hooks/detect_feature_request.py",
         "plugins/autonomous-dev/hooks/enforce_bloat_prevention.py",
@@ -306,6 +307,7 @@
         "plugins/autonomous-dev/lib/version_detector.py",
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
         "plugins/autonomous-dev/lib/workflow_tracker.py",
+        "plugins/autonomous-dev/lib/workflow_violation_logger.py",
         "plugins/autonomous-dev/lib/worktree_command.py",
         "plugins/autonomous-dev/lib/worktree_conflict_integration.py",
         "plugins/autonomous-dev/lib/worktree_manager.py"

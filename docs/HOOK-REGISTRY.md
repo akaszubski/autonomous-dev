@@ -49,6 +49,7 @@ Runs before tool execution (can block with permission decision).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
+| enforce_implementation_workflow | Opt-in (default: false) | ENFORCE_WORKFLOW_STRICT | Enforce /implement workflow, block direct code changes, protect system paths |
 | auto_generate_tests | Opt-in (default: false) | AUTO_GENERATE_TESTS | Auto-generate tests before implementation |
 
 ### PostToolUse Hooks
@@ -82,6 +83,7 @@ Runs before git commit (can block with EXIT_BLOCK).
 | enforce_no_bare_except | Enabled | ENFORCE_NO_BARE_EXCEPT (default: true) | Prevent bare except clauses from being committed |
 | enforce_logging_only | Opt-in (default: false) | ENFORCE_LOGGING_ONLY | Prevent print statements in production code |
 | auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE, MIN_COVERAGE (default: 70) | Block commits if coverage drops below threshold |
+| block_git_bypass | Enabled | ALLOW_GIT_BYPASS (default: false) | Block git commit --no-verify and --no-gpg-sign flags, enforce hook validation |
 | validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
@@ -262,7 +264,8 @@ All environment variables with default values:
 |----------|---------|----------|-------------|
 | ENFORCE_WORKFLOW | true | Prompt validator | Enforce workflow suggestions (non-blocking) |
 | QUALITY_NUDGE_ENABLED | true | Prompt validator | Enable quality nudges |
-| ENFORCE_WORKFLOW_STRICT | false | Prompt validator | Enforce /implement workflow strictly |
+| ENFORCE_WORKFLOW_STRICT | false | enforce_implementation_workflow (PreToolUse) | Enforce /implement workflow strictly, block direct code changes, protect system paths |
+| ALLOW_GIT_BYPASS | false | block_git_bypass (PreCommit) | Allow git commit --no-verify for emergency situations (not recommended) |
 
 ### Advanced Features (Opt-in)
 
@@ -279,7 +282,7 @@ All environment variables with default values:
 
 ## Hook Activation Status Summary
 
-### Enabled by Default (38 hooks)
+### Enabled by Default (39 hooks)
 These hooks run automatically without configuration:
 
 **Unified Hooks (9)**:

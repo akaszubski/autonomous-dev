@@ -82,9 +82,104 @@ Claude MUST use `/implement` for code changes because it catches 85% of issues b
 
 ---
 
-## Bypass Detection (Still Active)
+## Enforcement Layers (Issue #250)
 
-**Explicit bypasses are still blocked**:
+The /implement workflow is enforced across three deterministic layers:
+
+### Layer 1: Git Bypass Prevention (block_git_bypass Hook)
+
+**PreCommit hook that blocks git command bypasses**.
+
+Blocked commands:
+```bash
+git commit --no-verify        # BLOCKED - Bypasses pre-commit hooks
+git commit --no-gpg-sign      # BLOCKED - Bypasses GPG signing
+```
+
+What this prevents:
+- Committing code that fails tests
+- Committing code without running security checks
+- Bypassing documentation validation
+- Bypassing linting and formatting
+
+Configuration:
+```bash
+# .env file
+ALLOW_GIT_BYPASS=false  # Default: false (strict)
+ALLOW_GIT_BYPASS=true   # Emergency bypass only (not recommended)
+```
+
+Log location: `logs/workflow_violations.log` (JSON Lines format)
+
+### Layer 2: Protected Paths Enforcement (enforce_implementation_workflow Hook)
+
+**PreToolUse hook that blocks edits to protected system paths**.
+
+Protected paths (cannot be edited without /implement workflow):
+```
+.claude/commands/*.md        # Command definitions
+.claude/agents/*.md          # Agent definitions
+plugins/autonomous-dev/lib/* # Core library infrastructure
+```
+
+What this prevents:
+- Claude autonomously editing command or agent definitions
+- Modifying core plugin infrastructure without review
+- Bypassing the /implement pipeline for system changes
+
+Exemptions:
+- Allowed agents: `implementer`, `test-master`, `brownfield-analyzer`, `setup-wizard`, `project-bootstrapper`
+- These agents ARE part of the /implement workflow
+
+Configuration:
+```bash
+# .env file
+ENFORCE_WORKFLOW_STRICT=false  # Default: false (opt-in)
+ENFORCE_WORKFLOW_STRICT=true   # Enable strict enforcement
+```
+
+Violations logged to: `logs/workflow_violations.log` (JSON Lines format)
+
+### Layer 3: Workflow Violation Audit Logging
+
+**workflow_violation_logger.py library provides audit trail**.
+
+Logged violation types:
+- `direct_implementation`: Code changes outside /implement workflow
+- `git_bypass_attempt`: Attempt to bypass hooks (--no-verify, --no-gpg-sign)
+- `protected_path_edit`: Edits to protected system paths
+
+Log format (JSON Lines, one event per line):
+```json
+{"timestamp": "2026-01-19T12:34:56+00:00", "violation_type": "git_bypass_attempt", "agent_name": "claude", "reason": "--no-verify flag detected", "command": "git commit --no-verify -m 'bypass'"}
+```
+
+Query violations:
+```python
+from workflow_violation_logger import parse_violation_log, get_violation_summary
+
+# Get all violations
+entries = parse_violation_log()
+
+# Filter by type
+bypasses = parse_violation_log(violation_type_filter="git_bypass_attempt")
+
+# Get statistics
+stats = get_violation_summary()
+print(stats)
+# {"total_violations": 5, "by_type": {"git_bypass_attempt": 3, "protected_path_edit": 2}, "by_agent": {"claude": 5}}
+```
+
+Log rotation:
+- Maximum size: 10MB per file
+- Backups kept: 10 rotated files
+- Format: `workflow_violations.log.YYYYMMDD_HHMMSS`
+
+---
+
+## Explicit Bypass Detection (Still Active)
+
+**Explicit bypasses in user prompts are still blocked**:
 ```bash
 gh issue create ...  # BLOCKED - Use /create-issue
 skip /create-issue   # BLOCKED - No skipping allowed

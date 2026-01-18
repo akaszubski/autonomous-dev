@@ -677,7 +677,7 @@ Layer 3 (Batch Permission Approver):
 
 ---
 
-## Core Hooks (14)
+## Core Hooks (15)
 
 Essential hooks for autonomous development workflow and security enforcement.
 
@@ -947,6 +947,57 @@ Hook output: ALLOWS - "Non-code file, no enforcement needed"
 - Issue #137 (comprehensive workflow discipline)
 - `/implement` command (proper feature implementation workflow)
 - `/create-issue` command (GitHub issue creation)
+
+### block_git_bypass.py
+
+**Purpose**: Prevent bypassing pre-commit hooks with `git commit --no-verify` (Issue #250, v3.48.0+)
+**Lifecycle**: PreCommit (can block with exit code 2)
+**Exit Codes**: EXIT_SUCCESS (0) if no bypass attempt, EXIT_BLOCK (2) if bypass detected
+
+**How It Works**:
+1. Detects `--no-verify` or `-n` flags in git commit commands
+2. If bypass attempt detected and ALLOW_GIT_BYPASS not set, blocks commit
+3. Logs all bypass attempts to workflow violation logger
+4. Provides clear guidance on proper workflow
+
+**Environment Variables**:
+- **ALLOW_GIT_BYPASS**: Set to "true" to allow bypass in emergencies (default: false)
+- **CLAUDE_AGENT_NAME**: If set, included in violation logs for tracking
+
+**Example Scenarios**:
+
+❌ **Bypass Attempt (BLOCKED)**:
+```bash
+git commit --no-verify -m "skip hooks"
+# Output:
+# ERROR: Git Hook Enforcement
+# Git commit with --no-verify is blocked.
+# Reason: --no-verify flag detected in git command
+```
+
+✅ **Normal Commit (ALLOWED)**:
+```bash
+git commit -m "normal commit"
+# Proceeds normally through pre-commit hooks
+```
+
+✅ **Emergency Bypass (ALLOWED)**:
+```bash
+ALLOW_GIT_BYPASS=true git commit --no-verify -m "emergency fix"
+# Bypass allowed for production emergencies
+```
+
+**Why This Matters**:
+- Prevents bypassing pre-commit validation (tests, linting, security scans)
+- Ensures all code goes through proper quality gates
+- Maintains audit trail of bypass attempts
+- Part of defense-in-depth workflow enforcement (Issue #250)
+
+**Related**:
+- docs/WORKFLOW-DISCIPLINE.md (enforcement philosophy)
+- Issue #250 (enforce /implement workflow with hooks)
+- `enforce_implementation_workflow.py` (PreToolUse workflow enforcement)
+- `workflow_violation_logger.py` (audit logging library)
 
 ### auto_git_workflow.py
 
