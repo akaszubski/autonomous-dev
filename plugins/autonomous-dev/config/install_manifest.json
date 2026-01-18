@@ -272,6 +272,7 @@
         "plugins/autonomous-dev/lib/project_md_updater.py",
         "plugins/autonomous-dev/lib/protected_file_detector.py",
         "plugins/autonomous-dev/lib/qa_self_healer.py",
+        "plugins/autonomous-dev/lib/quality_persistence_enforcer.py",
         "plugins/autonomous-dev/lib/ralph_loop_manager.py",
         "plugins/autonomous-dev/lib/research_persistence.py",
         "plugins/autonomous-dev/lib/retrofit_executor.py",

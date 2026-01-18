@@ -233,6 +233,9 @@ class BatchState:
     # Compaction-resilience: Workflow methodology survives context summarization
     workflow_mode: str = "auto-implement"  # "auto-implement" or "direct" - tells Claude HOW to process features
     workflow_reminder: str = "Use /implement for each feature. Do NOT implement directly."  # Reinjects methodology after compaction
+    # Issue #254: Quality persistence tracking
+    skipped_features: List[Dict[str, Any]] = field(default_factory=list)  # Skipped feature records
+    quality_metrics: Dict[str, Any] = field(default_factory=dict)  # Quality metrics per feature
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -860,6 +863,12 @@ def load_batch_state(state_file: Path | str) -> BatchState:
                 data['workflow_mode'] = 'auto-implement'
             if 'workflow_reminder' not in data:
                 data['workflow_reminder'] = 'Use /implement for each feature. Do NOT implement directly.'
+
+            # Issue #254: Quality persistence tracking (for backward compatibility)
+            if 'skipped_features' not in data:
+                data['skipped_features'] = []
+            if 'quality_metrics' not in data:
+                data['quality_metrics'] = {}
 
             # Backward compatibility: Accept both 'running' and 'in_progress' as equivalent
             # (Both are valid active states)

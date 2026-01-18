@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (51)
+### Core Libraries (52)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -30,38 +30,39 @@ The autonomous-dev plugin includes shared libraries organized into the following
 17. **failure_classifier.py** - Error classification (transient vs permanent) for /implement --batch (v3.33.0, Issue #89)
 18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /implement --batch (v3.33.0, Issue #89)
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
-20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
-21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
-22. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
-23. **feature_dependency_analyzer.py** - Smart dependency ordering for /implement --batch (v1.0.0, Issue #157)
-24. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
-25. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
-26. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
-27. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
-28. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
-29. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
-30. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
-31. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
-32. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
-33. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
-34. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
-35. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
-36. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
-37. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
-38. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
-39. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
-40. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
-41. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
-42. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
-43. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
-44. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
-45. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
-46. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
-47. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
-48. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
-49. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
-50. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
-51. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+20. **quality_persistence_enforcer.py** - Completion gate enforcement and honest summary for /implement --batch (v1.0.0, Issue #254)
+21. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
+22. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
+23. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
+24. **feature_dependency_analyzer.py** - Smart dependency ordering for /implement --batch (v1.0.0, Issue #157)
+25. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
+26. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
+27. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
+28. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
+29. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
+30. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
+31. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
+32. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
+33. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
+34. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
+35. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
+36. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
+37. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
+38. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
+39. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
+40. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
+41. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
+42. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
+43. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
+44. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
+45. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
+46. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
+47. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
+48. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
+49. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
+50. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
+51. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
+52. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
 
 
 
@@ -3795,7 +3796,168 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
 - error-handling-patterns skill for exception hierarchy
 
-## 24. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
+---
+
+## 24. quality_persistence_enforcer.py (450+ lines, v1.0.0, Issue #254)
+
+**Purpose**: Central enforcement engine for quality gates in batch workflows ensuring features pass all quality requirements before completion.
+
+### Overview
+
+Quality persistence enforcer prevents batches from giving up too easily or faking success when tests fail. System enforces:
+- **100% test pass requirement** (not 80%, not "most" - ALL tests must pass)
+- **Coverage threshold** (80%+ code coverage)
+- **Retry limits** (max 3 attempts per feature)
+- **Honest summaries** (shows actual completion status, not inflated numbers)
+- **Quality metrics tracking** (test pass rate, coverage percentage)
+
+### Quality Gate Rules
+
+Features are only marked as completed when they truly pass ALL quality gates:
+
+1. **All tests must pass** - 100% test pass rate (exit code 0 from test runner)
+2. **Coverage threshold met** - 80%+ code coverage
+3. **No infinite retry loops** - Max 3 retry attempts per feature
+4. **Clear failure tracking** - Failed features tracked separately from completed
+
+### Data Classes
+
+#### `EnforcementResult`
+- **Purpose**: Result of completion gate enforcement check
+- **Attributes**:
+  - `passed` (bool): Whether the quality gate passed
+  - `reason` (str): Human-readable reason (e.g., "Tests failed", "Coverage below threshold")
+  - `test_failures` (int): Number of test failures
+  - `coverage` (float): Test coverage percentage
+  - `attempt_number` (int): Current retry attempt (1-3)
+- **Methods**:
+  - `to_dict()`: Convert to JSON-serializable dict
+
+#### `RetryStrategy`
+- **Purpose**: Escalation strategy for retry attempts
+- **Attributes**:
+  - `approach` (str): Strategy identifier (e.g., "fix_tests_first")
+  - `description` (str): Human-readable description
+  - `attempt_number` (int): Retry attempt number (1-3)
+
+#### `CompletionSummary`
+- **Purpose**: Honest summary of batch completion status
+- **Attributes**:
+  - `total_features` (int): Total features in batch
+  - `completed_count` (int): Features that passed all quality gates
+  - `failed_count` (int): Features that failed and exhausted retries
+  - `skipped_count` (int): Features intentionally skipped
+  - `completed_features` (List[str]): Feature descriptions that passed
+  - `failed_features` (List[str]): Feature descriptions that failed
+  - `skipped_features` (List[str]): Feature descriptions that were skipped
+  - `average_coverage` (float): Average coverage across all features
+- **Methods**:
+  - `completion_rate()`: Percentage of features completed
+  - `to_dict()`: Convert to JSON-serializable dict
+
+### Main Functions
+
+#### `enforce_completion_gate(feature_index, test_results)`
+- **Purpose**: Check if feature passes all quality gates
+- **Parameters**:
+  - `feature_index` (int): Index of feature in batch
+  - `test_results` (Dict): Results from test runner with `total`, `passed`, `failed`, `coverage`
+- **Returns**: `EnforcementResult` with pass/fail decision
+- **Logic**:
+  1. Check if all tests passed (test_results['failed'] == 0)
+  2. Check if coverage meets threshold (test_results['coverage'] >= 80%)
+  3. Return result with reason if any check fails
+- **Example**:
+  ```python
+  test_results = {"total": 10, "passed": 10, "failed": 0, "coverage": 85.0}
+  result = enforce_completion_gate(0, test_results)
+  if result.passed:
+      print("Feature passed quality gate!")
+  else:
+      print(f"Gate failed: {result.reason}")
+  ```
+
+#### `retry_with_different_approach(feature_index, attempt_number, failure_reason)`
+- **Purpose**: Select escalation strategy for retry attempts
+- **Parameters**:
+  - `feature_index` (int): Index of feature
+  - `attempt_number` (int): Which retry (1, 2, or 3)
+  - `failure_reason` (str): Why the feature failed
+- **Returns**: `RetryStrategy` with next approach, or None if max attempts reached
+- **Strategy Progression**:
+  - **Attempt 1** (first retry): Basic retry - "Try again with same approach"
+  - **Attempt 2** (second retry): Fix tests first - "Focus on making tests pass"
+  - **Attempt 3** (third retry): Different implementation - "Try alternative approach"
+  - **Beyond 3**: None (stop retrying)
+
+#### `generate_honest_summary(batch_state)`
+- **Purpose**: Generate accurate summary of batch completion status
+- **Parameters**:
+  - `batch_state` (BatchState): State object with feature results
+- **Returns**: `CompletionSummary` with accurate counts
+- **Behavior**:
+  - Counts completed features (passed all quality gates)
+  - Counts failed features (exhausted retries without passing)
+  - Counts skipped features (intentionally not implemented)
+  - Calculates average coverage across all features
+  - Never inflates numbers or hides failures
+- **Example**:
+  ```python
+  summary = generate_honest_summary(batch_state)
+  print(f"Completed: {summary.completed_count}/{summary.total_features}")
+  print(f"Failed: {summary.failed_count}")
+  print(f"Skipped: {summary.skipped_count}")
+  ```
+
+#### `should_close_issue(batch_state, feature_index)`
+- **Purpose**: Decide if GitHub issue should be auto-closed
+- **Parameters**:
+  - `batch_state` (BatchState): Batch state with feature results
+  - `feature_index` (int): Index of feature in batch
+- **Returns**: `True` only if feature passed all quality gates (ready for closure)
+- **Decision Logic**:
+  - Feature completed (passed quality gate) → True (close issue)
+  - Feature failed (exhausted retries) → False (keep open with 'blocked' label)
+  - Feature skipped (not implemented) → False (keep open with 'blocked' label)
+
+### Constants
+
+- `MAX_RETRY_ATTEMPTS = 3`: Maximum retries per feature
+- `COVERAGE_THRESHOLD = 80.0`: Minimum code coverage percentage
+
+### Security
+
+- **No Faking**: System never marks features as complete when tests failed
+- **Audit Logging**: All enforcement decisions logged with timestamps
+- **Path Validation**: batch_state path validated (CWE-22 prevention)
+- **Input Sanitization**: Error messages sanitized for log injection (CWE-117)
+
+### Test Coverage
+
+- 35+ unit tests covering:
+  - Completion gate enforcement (all test outcomes)
+  - Coverage threshold validation
+  - Retry strategy selection (all 3 attempts)
+  - Honest summary generation
+  - Issue close decision logic
+  - Edge cases (0 tests, 100% coverage, max retries)
+
+### Used By
+
+- `/implement --batch` command for quality gate checks
+- `batch_issue_closer.py` for issue close decisions
+- `batch_retry_manager.py` for retry strategy selection
+- `batch_state_manager.py` for quality metrics tracking
+
+### Related
+
+- GitHub Issue #254 (Quality Persistence: System gives up too easily)
+- error-handling-patterns skill for exception hierarchy
+- state-management-patterns skill for state persistence patterns
+
+---
+
+## 25. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
 
 **Purpose**: Portable tracking infrastructure for agent execution with dynamic project root detection
 

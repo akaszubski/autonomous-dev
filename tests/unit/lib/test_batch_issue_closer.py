@@ -86,7 +86,11 @@ def temp_state_dir(tmp_path):
 
 @pytest.fixture
 def sample_batch_state(temp_state_dir):
-    """Create sample batch state with issue numbers."""
+    """Create sample batch state with issue numbers.
+
+    Note: Feature 0 is marked as completed to allow close_batch_feature_issue()
+    to proceed past the quality gate check (Issue #254).
+    """
     features = [
         "Issue #72: Add authentication",
         "Issue #73: Fix login bug",
@@ -97,6 +101,8 @@ def sample_batch_state(temp_state_dir):
         issue_numbers=[72, 73, None],
         source_type="mixed",
     )
+    # Mark feature 0 as completed to pass quality gate check (Issue #254)
+    state.completed_features = [0]
     return state
 
 
@@ -749,6 +755,8 @@ class TestEdgeCases:
         """Test handling of multiple issue references in single feature."""
         features = ["Fix #72 and resolve #73"]
         state = create_batch_state(features=features)
+        # Mark feature 0 as completed to pass quality gate (Issue #254)
+        state.completed_features = [0]
 
         mock_should_close.return_value = True
         # get_issue_number_for_feature should return first match
@@ -785,6 +793,9 @@ class TestBatchImplementIntegration:
         # Mock issue numbers for each feature
         issue_numbers = [72, 73, None]  # Third feature has no issue
         mock_get_issue.side_effect = issue_numbers
+
+        # Mark all features as completed to pass quality gate (Issue #254)
+        sample_batch_state.completed_features = [0, 1, 2]
 
         # Save initial state
         state_file = temp_state_dir / "batch_state.json"

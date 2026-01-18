@@ -1,6 +1,39 @@
 ## [Unreleased]
 
 ### Added
+- Quality persistence enforcement for /implement --batch (#254)
+  - Created quality_persistence_enforcer.py central enforcement engine
+  - Completion gate enforcement (100% test pass requirement, no faking)
+  - EnforcementResult dataclass with test failure and coverage tracking
+  - RetryStrategy with escalation logic (3-attempt progression)
+  - CompletionSummary with honest status (completed, failed, skipped counts)
+  - MAX_RETRY_ATTEMPTS=3 with per-attempt strategy variation
+  - COVERAGE_THRESHOLD=80% for quality metrics
+  - Enforce 100% test pass rate (not 80%, not "most" - all tests must pass)
+  - Track skipped/failed features separately from completed features
+  - generate_honest_summary() for transparent batch completion reporting
+  - should_close_issue() integration with quality gates
+  - 35+ unit tests for gate enforcement, strategies, and summaries
+- Quality gate integration in batch_issue_closer.py (#254)
+  - Added is_feature_skipped_or_failed() to check quality gate status
+  - Added add_blocked_label_to_issue() for failed features
+  - Skipped/failed issues stay OPEN with 'blocked' label (not closed)
+  - Only close issues for features that passed quality gates
+  - Graceful degradation if GitHub API unavailable
+  - 15+ unit tests for quality gate checks and label application
+- Exponential backoff with jitter in batch_retry_manager.py (#254)
+  - AWS-pattern exponential backoff: delay = BASE_RETRY_DELAY * (2 ^ attempt)
+  - Added jitter to prevent thundering herd: random +/- 10% of base delay
+  - BASE_RETRY_DELAY = 1.0 second, MAX_RETRY_DELAY = 60 seconds
+  - Backoff delays per attempt: 1s, 2s, 4s (capped at 60s)
+  - calculate_backoff_delay() for transparent delay calculation
+  - 10+ unit tests for backoff delays and jitter
+- Quality metrics tracking in batch_state_manager.py (#254)
+  - Added skipped_features field to track intentionally skipped work
+  - Added quality_metrics field for test pass rate and coverage tracking
+  - Enhanced state schema: quality_metrics with test_pass_rate, coverage_percent
+  - batch_state.json now captures full quality picture (not just pass/fail)
+  - 8+ unit tests for metrics persistence
 - Enforce /implement workflow with audit logging (#250)
   - Created workflow_violation_logger.py library for audit logging
   - JSON Lines format (one event per line) for easy parsing
