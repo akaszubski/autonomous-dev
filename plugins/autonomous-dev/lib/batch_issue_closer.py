@@ -18,13 +18,16 @@ Key Functions:
 2. get_issue_number_for_feature() - Extract issue number from batch state
 3. close_batch_feature_issue() - Main entry point for closing issue
 4. handle_close_failure() - Circuit breaker logic
+5. is_feature_skipped_or_failed() - Check if feature should skip issue close (NEW - Issue #254)
+6. add_blocked_label_to_issue() - Add 'blocked' label for failed features (NEW - Issue #254)
 
 Workflow:
     1. Check if auto-close is enabled (AUTO_GIT_ENABLED)
-    2. Extract issue number from batch state (issue_numbers list or feature text regex)
-    3. Close issue via gh CLI (reusing github_issue_closer functions)
-    4. Record result in batch state (git_operations dict)
-    5. Graceful degradation on any failure (non-blocking)
+    2. Check if feature is skipped/failed (quality gate - Issue #254)
+    3. Extract issue number from batch state (issue_numbers list or feature text regex)
+    4. Close issue via gh CLI (reusing github_issue_closer functions)
+    5. Record result in batch state (git_operations dict)
+    6. Graceful degradation on any failure (non-blocking)
 
 Usage:
     from batch_issue_closer import (
@@ -53,6 +56,7 @@ Usage:
 
 Date: 2026-01-01
 Issue: #168 (Auto-close GitHub issues after batch-implement push)
+Issue: #254 (Quality Persistence: Don't close skipped/failed issues)
 Agent: implementer
 Phase: TDD Green (making tests pass)
 
@@ -66,6 +70,7 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import CalledProcessError, TimeoutExpired
@@ -99,6 +104,15 @@ except ImportError:
         pass
 
 
+# Import quality_persistence_enforcer for quality gate integration (Issue #254)
+try:
+    from quality_persistence_enforcer import should_close_issue
+except ImportError:
+    # Fallback for tests - define simple version
+    def should_close_issue(feature_status: Dict[str, Any]) -> bool:
+        return feature_status.get("completed", False)
+
+
 # =============================================================================
 # EXCEPTIONS
 # =============================================================================
@@ -116,6 +130,181 @@ class BatchIssueCloseError(Exception):
 
 # Maximum consecutive failures before circuit breaker triggers
 MAX_CONSECUTIVE_FAILURES = 5
+
+
+# =============================================================================
+# DATA CLASSES (Issue #254)
+# =============================================================================
+
+
+@dataclass
+class FeatureQualityStatus:
+    """
+    Feature quality status for issue close decision.
+
+    Attributes:
+        feature_index: Index of feature
+        completed: Whether feature is completed
+        failed: Whether feature failed
+        skipped: Whether feature was skipped
+        quality_gate_passed: Whether quality gate passed
+    """
+    feature_index: int
+    completed: bool
+    failed: bool
+    skipped: bool
+    quality_gate_passed: bool
+
+    @classmethod
+    def from_batch_state(cls, state: BatchState, feature_index: int) -> 'FeatureQualityStatus':
+        """
+        Create FeatureQualityStatus from BatchState.
+
+        Args:
+            state: Batch state
+            feature_index: Index of feature
+
+        Returns:
+            FeatureQualityStatus for feature
+        """
+        # Check if completed
+        completed = feature_index in state.completed_features
+
+        # Check if failed
+        failed = any(
+            f.get("feature_index") == feature_index
+            for f in state.failed_features
+        )
+
+        # Check if skipped (neither completed nor failed)
+        skipped = not completed and not failed
+
+        # Quality gate passed if completed
+        quality_gate_passed = completed
+
+        return cls(
+            feature_index=feature_index,
+            completed=completed,
+            failed=failed,
+            skipped=skipped,
+            quality_gate_passed=quality_gate_passed
+        )
+
+
+# =============================================================================
+# QUALITY GATE FUNCTIONS (Issue #254)
+# =============================================================================
+
+
+def is_feature_skipped_or_failed(state: BatchState, feature_index: int) -> bool:
+    """
+    Check if feature is skipped or failed (should not close issue).
+
+    A feature is considered skipped/failed if:
+    - It failed (in failed_features list)
+    - It was skipped (neither completed nor failed)
+
+    Args:
+        state: Batch state
+        feature_index: Index of feature to check
+
+    Returns:
+        True if feature is skipped or failed, False if completed
+
+    Raises:
+        ValueError: If feature_index is out of bounds
+
+    Examples:
+        >>> state = create_batch_state(features=["F1", "F2", "F3"])
+        >>> state.completed_features = [0]
+        >>> state.failed_features = [{"feature_index": 1, "error_message": "Tests failed"}]
+        >>> is_feature_skipped_or_failed(state, 0)  # Completed
+        False
+        >>> is_feature_skipped_or_failed(state, 1)  # Failed
+        True
+        >>> is_feature_skipped_or_failed(state, 2)  # Skipped
+        True
+    """
+    # Validate feature_index
+    if feature_index < 0 or feature_index >= len(state.features):
+        raise ValueError(
+            f"Invalid feature index: {feature_index} (total features: {len(state.features)})"
+        )
+
+    # Check if completed
+    if feature_index in state.completed_features:
+        return False  # Completed features are not skipped/failed
+
+    # Check if failed or skipped (not completed)
+    return True
+
+
+def add_blocked_label_to_issue(issue_number: int) -> bool:
+    """
+    Add 'blocked' label to GitHub issue for failed/skipped features.
+
+    Uses gh CLI to add label via subprocess. Graceful degradation on errors.
+
+    Args:
+        issue_number: GitHub issue number
+
+    Returns:
+        True if label added successfully, False on error
+
+    Raises:
+        ValueError: If issue_number is invalid (negative or exceeds MAX_ISSUE_NUMBER)
+
+    Security:
+        - CWE-20: Validates issue number range
+        - CWE-78: Uses subprocess list args (no shell injection)
+        - Audit logging for all operations
+
+    Examples:
+        >>> add_blocked_label_to_issue(101)
+        True
+    """
+    # Validate issue number (CWE-20)
+    if issue_number <= 0 or issue_number > MAX_ISSUE_NUMBER:
+        raise ValueError(
+            f"Invalid issue number: {issue_number} (must be 1-{MAX_ISSUE_NUMBER})"
+        )
+
+    try:
+        # Add 'blocked' label via gh CLI
+        # CWE-78: Command injection prevention - list args, shell=False
+        cmd = ['gh', 'issue', 'edit', str(issue_number), '--add-label', 'blocked']
+        subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+
+        # Audit log
+        audit_log(
+            "issue_label_added",
+            "success",
+            {
+                "issue_number": issue_number,
+                "label": "blocked",
+            }
+        )
+
+        return True
+
+    except (CalledProcessError, TimeoutExpired, FileNotFoundError) as e:
+        # Graceful degradation - log but don't raise
+        audit_log(
+            "issue_label_added",
+            "failed",
+            {
+                "issue_number": issue_number,
+                "label": "blocked",
+                "error": str(e),
+            }
+        )
+        return False
 
 
 # =============================================================================
@@ -287,6 +476,41 @@ def close_batch_feature_issue(
         'reason': None,
         'message': None,
     }
+
+    # STEP 0: Check quality gate - don't close if feature skipped/failed (Issue #254)
+    if is_feature_skipped_or_failed(state, feature_index):
+        # Get issue number for labeling
+        try:
+            issue_number = get_issue_number_for_feature(state, feature_index)
+        except BatchIssueCloseError:
+            issue_number = None
+
+        result = {
+            'success': False,
+            'skipped': True,
+            'reason': 'Feature failed or skipped (quality gate not passed)',
+            'issue_number': issue_number,
+        }
+
+        # Add 'blocked' label to issue if issue number found
+        if issue_number is not None:
+            add_blocked_label_to_issue(issue_number)
+
+        audit_log(
+            event_type='batch_issue_close',
+            status='skipped',
+            context={
+                'feature_index': feature_index,
+                'reason': result['reason'],
+                'issue_number': issue_number,
+            },
+        )
+
+        # Record in batch state if state_file provided
+        if state_file:
+            _record_issue_close_result(state_file, feature_index, result)
+
+        return result
 
     # STEP 1: Check if auto-close is enabled
     if not should_auto_close_issues():

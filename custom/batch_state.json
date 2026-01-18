@@ -1,5 +1,5 @@
 {
-  "batch_id": "batch-20260110-011300-792433",
+  "batch_id": "batch-20260118-152109-518411",
   "features_file": "",
   "total_features": 1,
   "features": [
@@ -11,8 +11,8 @@
   "context_token_estimate": 0,
   "auto_clear_count": 0,
   "auto_clear_events": [],
-  "created_at": "2026-01-10T01:13:00.792441Z",
-  "updated_at": "2026-01-10T01:13:00.792587Z",
+  "created_at": "2026-01-18T15:21:09.518424Z",
+  "updated_at": "2026-01-18T15:21:09.518609Z",
   "status": "in_progress",
   "issue_numbers": null,
   "source_type": "file",
@@ -25,5 +25,7 @@
   "feature_dependencies": {},
   "analysis_metadata": {},
   "workflow_mode": "auto-implement",
-  "workflow_reminder": "Use /auto-implement for each feature. Do NOT implement directly."
+  "workflow_reminder": "Use /implement for each feature. Do NOT implement directly.",
+  "skipped_features": [],
+  "quality_metrics": {}
 }

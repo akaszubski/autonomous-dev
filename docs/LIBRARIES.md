@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2026-01-09 (Issue #225 - Consolidate exception hierarchy: All state managers now use StateError)
+**Last Updated**: 2026-01-19 (Issue #255 - Added workflow_violation_logger.py, doc_change_registry lib/** pattern)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (51)
+### Core Libraries (54)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -30,38 +30,41 @@ The autonomous-dev plugin includes shared libraries organized into the following
 17. **failure_classifier.py** - Error classification (transient vs permanent) for /implement --batch (v3.33.0, Issue #89)
 18. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /implement --batch (v3.33.0, Issue #89)
 19. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
-20. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
-21. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
-22. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
-23. **feature_dependency_analyzer.py** - Smart dependency ordering for /implement --batch (v1.0.0, Issue #157)
-24. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
-25. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
-26. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
-27. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
-28. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
-29. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
-30. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
-31. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
-32. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
-33. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
-34. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
-35. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
-36. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
-37. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
-38. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
-39. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
-40. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
-41. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
-42. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
-43. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
-44. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
-45. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
-46. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
-47. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
-48. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
-49. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
-50. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
-51. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+20. **quality_persistence_enforcer.py** - Completion gate enforcement and honest summary for /implement --batch (v1.0.0, Issue #254)
+21. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
+22. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
+23. **settings_generator.py** - Generate settings.local.json with specific command patterns (NO wildcards) (v3.43.0+, Issue #115)
+24. **feature_dependency_analyzer.py** - Smart dependency ordering for /implement --batch (v1.0.0, Issue #157)
+25. **acceptance_criteria_parser.py** - Parse acceptance criteria from GitHub issues for UAT generation (v3.45.0+, Issue #161)
+26. **test_tier_organizer.py** - Classify and organize tests into unit/integration/uat tiers (v3.45.0+, Issue #161)
+27. **test_validator.py** - Execute tests and validate TDD workflow with quality gates (v3.45.0+, Issue #161)
+28. **tech_debt_detector.py** - Proactive code quality issue detection (large files, circular imports, dead code, complexity) (v1.0.0, Issue #162)
+29. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
+30. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
+31. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
+32. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
+33. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
+34. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
+35. **worktree_command.py** - Interactive CLI for git worktree management (list, status, review, merge, discard) (v1.0.0, Issue #180)
+36. **sandbox_enforcer.py** - Command classification and sandboxing for permission reduction (v1.0.0, Issue #171)
+37. **status_tracker.py** - Test status tracking for pre-commit gate enforcement (v3.48.0+, Issue #174)
+38. **headless_mode.py** - CI/CD integration support for headless/non-interactive environments (v1.0.0, Issue #176)
+39. **qa_self_healer.py** - Orchestrate automatic test healing with fix iterations (v1.0.0, Issue #184)
+40. **failure_analyzer.py** - Parse pytest output to extract failure details (v1.0.0, Issue #184)
+41. **code_patcher.py** - Atomic file patching with backup and rollback (v1.0.0, Issue #184)
+42. **stuck_detector.py** - Detect infinite healing loops from repeated identical errors (v1.0.0, Issue #184)
+43. **ralph_loop_manager.py** - Retry loop orchestration with circuit breaker and validation strategies (v1.0.0, Issue #189)
+44. **success_criteria_validator.py** - Validation strategies for agent task completion (v1.0.0, Issue #189)
+45. **feature_flags.py** - Optional feature configuration with graceful degradation (v1.0.0, Issue #193)
+46. **worktree_conflict_integration.py** - Conflict resolver integration into worktree workflow (v1.0.0, Issue #193)
+47. **comprehensive_doc_validator.py** - Cross-reference validation between documentation files (708 lines, v1.0.0, Issue #198)
+48. **test_runner.py** - Autonomous test execution with structured TestResult (v1.0.0, Issue #200)
+49. **code_path_analyzer.py** - Discover code paths matching patterns for debug-first enforcement (v1.0.0, Issue #200)
+50. **doc_update_risk_classifier.py** - Risk classification for documentation updates (auto-apply vs approval) (v1.0.0, Issue #204)
+51. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
+52. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
+53. **alignment_gate.py** - Strict PROJECT.md alignment validation with score-based gating (7+ threshold) (v1.0.0, Issue #251)
+54. **workflow_violation_logger.py** - Audit logging for workflow violations with JSON Lines format, CWE-117 prevention, log rotation, thread safety (v1.0.0, Issue #250)
 
 
 
@@ -3795,7 +3798,168 @@ User state stored in `~/.autonomous-dev/user_state.json`:
 - GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
 - error-handling-patterns skill for exception hierarchy
 
-## 24. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
+---
+
+## 24. quality_persistence_enforcer.py (450+ lines, v1.0.0, Issue #254)
+
+**Purpose**: Central enforcement engine for quality gates in batch workflows ensuring features pass all quality requirements before completion.
+
+### Overview
+
+Quality persistence enforcer prevents batches from giving up too easily or faking success when tests fail. System enforces:
+- **100% test pass requirement** (not 80%, not "most" - ALL tests must pass)
+- **Coverage threshold** (80%+ code coverage)
+- **Retry limits** (max 3 attempts per feature)
+- **Honest summaries** (shows actual completion status, not inflated numbers)
+- **Quality metrics tracking** (test pass rate, coverage percentage)
+
+### Quality Gate Rules
+
+Features are only marked as completed when they truly pass ALL quality gates:
+
+1. **All tests must pass** - 100% test pass rate (exit code 0 from test runner)
+2. **Coverage threshold met** - 80%+ code coverage
+3. **No infinite retry loops** - Max 3 retry attempts per feature
+4. **Clear failure tracking** - Failed features tracked separately from completed
+
+### Data Classes
+
+#### `EnforcementResult`
+- **Purpose**: Result of completion gate enforcement check
+- **Attributes**:
+  - `passed` (bool): Whether the quality gate passed
+  - `reason` (str): Human-readable reason (e.g., "Tests failed", "Coverage below threshold")
+  - `test_failures` (int): Number of test failures
+  - `coverage` (float): Test coverage percentage
+  - `attempt_number` (int): Current retry attempt (1-3)
+- **Methods**:
+  - `to_dict()`: Convert to JSON-serializable dict
+
+#### `RetryStrategy`
+- **Purpose**: Escalation strategy for retry attempts
+- **Attributes**:
+  - `approach` (str): Strategy identifier (e.g., "fix_tests_first")
+  - `description` (str): Human-readable description
+  - `attempt_number` (int): Retry attempt number (1-3)
+
+#### `CompletionSummary`
+- **Purpose**: Honest summary of batch completion status
+- **Attributes**:
+  - `total_features` (int): Total features in batch
+  - `completed_count` (int): Features that passed all quality gates
+  - `failed_count` (int): Features that failed and exhausted retries
+  - `skipped_count` (int): Features intentionally skipped
+  - `completed_features` (List[str]): Feature descriptions that passed
+  - `failed_features` (List[str]): Feature descriptions that failed
+  - `skipped_features` (List[str]): Feature descriptions that were skipped
+  - `average_coverage` (float): Average coverage across all features
+- **Methods**:
+  - `completion_rate()`: Percentage of features completed
+  - `to_dict()`: Convert to JSON-serializable dict
+
+### Main Functions
+
+#### `enforce_completion_gate(feature_index, test_results)`
+- **Purpose**: Check if feature passes all quality gates
+- **Parameters**:
+  - `feature_index` (int): Index of feature in batch
+  - `test_results` (Dict): Results from test runner with `total`, `passed`, `failed`, `coverage`
+- **Returns**: `EnforcementResult` with pass/fail decision
+- **Logic**:
+  1. Check if all tests passed (test_results['failed'] == 0)
+  2. Check if coverage meets threshold (test_results['coverage'] >= 80%)
+  3. Return result with reason if any check fails
+- **Example**:
+  ```python
+  test_results = {"total": 10, "passed": 10, "failed": 0, "coverage": 85.0}
+  result = enforce_completion_gate(0, test_results)
+  if result.passed:
+      print("Feature passed quality gate!")
+  else:
+      print(f"Gate failed: {result.reason}")
+  ```
+
+#### `retry_with_different_approach(feature_index, attempt_number, failure_reason)`
+- **Purpose**: Select escalation strategy for retry attempts
+- **Parameters**:
+  - `feature_index` (int): Index of feature
+  - `attempt_number` (int): Which retry (1, 2, or 3)
+  - `failure_reason` (str): Why the feature failed
+- **Returns**: `RetryStrategy` with next approach, or None if max attempts reached
+- **Strategy Progression**:
+  - **Attempt 1** (first retry): Basic retry - "Try again with same approach"
+  - **Attempt 2** (second retry): Fix tests first - "Focus on making tests pass"
+  - **Attempt 3** (third retry): Different implementation - "Try alternative approach"
+  - **Beyond 3**: None (stop retrying)
+
+#### `generate_honest_summary(batch_state)`
+- **Purpose**: Generate accurate summary of batch completion status
+- **Parameters**:
+  - `batch_state` (BatchState): State object with feature results
+- **Returns**: `CompletionSummary` with accurate counts
+- **Behavior**:
+  - Counts completed features (passed all quality gates)
+  - Counts failed features (exhausted retries without passing)
+  - Counts skipped features (intentionally not implemented)
+  - Calculates average coverage across all features
+  - Never inflates numbers or hides failures
+- **Example**:
+  ```python
+  summary = generate_honest_summary(batch_state)
+  print(f"Completed: {summary.completed_count}/{summary.total_features}")
+  print(f"Failed: {summary.failed_count}")
+  print(f"Skipped: {summary.skipped_count}")
+  ```
+
+#### `should_close_issue(batch_state, feature_index)`
+- **Purpose**: Decide if GitHub issue should be auto-closed
+- **Parameters**:
+  - `batch_state` (BatchState): Batch state with feature results
+  - `feature_index` (int): Index of feature in batch
+- **Returns**: `True` only if feature passed all quality gates (ready for closure)
+- **Decision Logic**:
+  - Feature completed (passed quality gate) → True (close issue)
+  - Feature failed (exhausted retries) → False (keep open with 'blocked' label)
+  - Feature skipped (not implemented) → False (keep open with 'blocked' label)
+
+### Constants
+
+- `MAX_RETRY_ATTEMPTS = 3`: Maximum retries per feature
+- `COVERAGE_THRESHOLD = 80.0`: Minimum code coverage percentage
+
+### Security
+
+- **No Faking**: System never marks features as complete when tests failed
+- **Audit Logging**: All enforcement decisions logged with timestamps
+- **Path Validation**: batch_state path validated (CWE-22 prevention)
+- **Input Sanitization**: Error messages sanitized for log injection (CWE-117)
+
+### Test Coverage
+
+- 35+ unit tests covering:
+  - Completion gate enforcement (all test outcomes)
+  - Coverage threshold validation
+  - Retry strategy selection (all 3 attempts)
+  - Honest summary generation
+  - Issue close decision logic
+  - Edge cases (0 tests, 100% coverage, max retries)
+
+### Used By
+
+- `/implement --batch` command for quality gate checks
+- `batch_issue_closer.py` for issue close decisions
+- `batch_retry_manager.py` for retry strategy selection
+- `batch_state_manager.py` for quality metrics tracking
+
+### Related
+
+- GitHub Issue #254 (Quality Persistence: System gives up too easily)
+- error-handling-patterns skill for exception hierarchy
+- state-management-patterns skill for state persistence patterns
+
+---
+
+## 25. agent_tracker package (1,710 lines, v3.44.0+, Issue #165)
 
 **Purpose**: Portable tracking infrastructure for agent execution with dynamic project root detection
 
@@ -15057,3 +15221,295 @@ Step 4.3 of /implement pipeline:
 **Dependencies**: logging, typing, pathlib, datetime, re - Standard library
 
 **Version History**: v1.0.0 (2026-01-09) - Initial release for progress tracker integration (Issue #204)
+
+## 99. alignment_gate.py (642 lines, v1.0.0 - Issue #251)
+
+**Purpose**: Strict PROJECT.md alignment validation using GenAI with score-based gating for feature proposals.
+
+**Problem**: When proposing new features, it's unclear if they align with PROJECT.md goals and scope. Features that don't explicitly match SCOPE items are approved anyway, leading to scope creep. No systematic way to validate alignment with constraints.
+
+**Solution**: Alignment gate library that validates features against PROJECT.md using GenAI. Features must:
+1. Score >= 7 on alignment (0-10 scale)
+2. EXPLICITLY match a SCOPE item (not just "related to")
+3. Not violate CONSTRAINTS
+4. Pass strict gatekeeper validation (rejects ambiguous features)
+
+### Features
+
+- GenAI-powered strict alignment validation
+- Score-based gating (7+ threshold for approval)
+- Explicit SCOPE membership requirement (not "related to")
+- Constraint violation detection (blocks even high-scoring features)
+- Decision tracking to alignment_history.jsonl (JSONL format)
+- Meta-validation statistics (approval rate, average score, constraint violations)
+- Support for both Anthropic and OpenRouter APIs
+- Comprehensive error messages with actionable suggestions
+- Audit logging for all validation decisions
+
+### API Classes
+
+#### AlignmentGateResult
+
+Result of strict alignment validation with complete analysis.
+
+**Attributes**:
+- `aligned: bool` - Whether feature aligns with PROJECT.md (score >= 7, no constraints)
+- `score: int` - Alignment score 0-10 (7+ = pass, <7 = fail)
+- `violations: List[str]` - List of SCOPE/GOAL violations
+- `reasoning: str` - Detailed reasoning for alignment decision
+- `relevant_scope: List[str]` - List of SCOPE items that match
+- `suggestions: List[str]` - Suggestions for improving alignment
+- `constraint_violations: List[str]` - List of CONSTRAINT violations (blocks approval)
+- `confidence: str` - Confidence level (high/medium/low)
+
+**Methods**:
+- `to_dict() -> Dict[str, Any]` - Convert to dictionary for JSON serialization
+
+### Functions
+
+#### validate_alignment_strict()
+
+Strict alignment validation using GenAI. This is a STRICT GATEKEEPER that:
+- Requires EXPLICIT SCOPE match (not "related to")
+- Scores ambiguous features 4-6 (not 7+)
+- Blocks constraint violations even if score is high
+- Requires score >= 7 to pass
+
+Signature: validate_alignment_strict(
+    feature_desc: str,
+    project_md_path: Optional[Path] = None
+) -> AlignmentGateResult
+
+Parameters:
+- `feature_desc: str` - Feature description to validate
+- `project_md_path: Optional[Path]` - Path to PROJECT.md (default: .claude/PROJECT.md)
+
+Returns: `AlignmentGateResult` with validation decision
+
+Raises: `AlignmentError` if feature description is empty/invalid or PROJECT.md issues
+
+Example:
+```python
+from alignment_gate import validate_alignment_strict
+
+result = validate_alignment_strict("Add CLI command for git status")
+if result.aligned and result.score >= 7:
+    print("Feature approved!")
+else:
+    print(f"Feature blocked: {result.reasoning}")
+    for violation in result.violations:
+        print(f"  - {violation}")
+```
+
+#### check_scope_membership()
+
+Check if feature EXPLICITLY matches an IN SCOPE item (strict matching).
+
+Signature: check_scope_membership(feature: str, scope_section: str) -> bool
+
+Parameters:
+- `feature: str` - Feature description
+- `scope_section: str` - SCOPE section content from PROJECT.md
+
+Returns: `True` if explicit match found, `False` otherwise
+
+Logic:
+- Extract scope items from PROJECT.md SCOPE section
+- Remove common stopwords (the, a, and, for, etc.)
+- Normalize plural forms (s suffix)
+- Require at least 50% of significant words to match
+- For compound terms, require > 1 match to avoid false positives
+
+Example:
+```python
+from alignment_gate import check_scope_membership
+
+scope = "- CLI commands\n- Git automation\n- Testing framework"
+result = check_scope_membership("Add CLI command", scope)
+# Returns: True (matches "CLI commands")
+```
+
+#### track_alignment_decision()
+
+Track alignment decision to history file (JSONL format).
+
+Signature: track_alignment_decision(result: AlignmentGateResult) -> None
+
+Appends decision record to logs/alignment_history.jsonl with timestamp:
+```json
+{"aligned": true, "score": 8, "violations": [], ..., "timestamp": "2026-01-19T15:30:00Z"}
+```
+
+#### get_alignment_stats()
+
+Get meta-validation statistics from alignment history.
+
+Signature: get_alignment_stats() -> Dict[str, Any]
+
+Returns dict with keys:
+- `total_decisions: int` - Total number of alignment decisions
+- `approved_count: int` - Number of approved features
+- `rejected_count: int` - Number of rejected features
+- `approval_rate: float` - Percentage of approved features (0.0-1.0)
+- `average_score: float` - Average alignment score
+- `constraint_violation_count: int` - Number of decisions with constraint violations
+
+Example:
+```python
+from alignment_gate import get_alignment_stats
+
+stats = get_alignment_stats()
+print(f"Approval rate: {stats['approval_rate']:.1%}")
+print(f"Average score: {stats['average_score']:.1f}")
+```
+
+### GenAI Integration
+
+#### LLM Client Selection
+
+Automatically selects LLM provider (priority order):
+1. Anthropic API (if ANTHROPIC_API_KEY set) - Uses claude-sonnet-4-5-20250929
+2. OpenRouter API (if OPENROUTER_API_KEY set) - Uses anthropic/claude-sonnet-4.5
+
+Raises `AlignmentError` if no API key found.
+
+#### Prompt Strategy
+
+STRICT GATEKEEPER prompt that:
+- Provides PROJECT.md context (GOALS, SCOPE, CONSTRAINTS, CURRENT_SPRINT)
+- Enforces explicit SCOPE membership requirement
+- Assigns ambiguous features scores 4-6
+- Blocks constraint violations regardless of score
+- Defines clear scoring scale:
+  - 9-10: Perfect explicit match, no violations
+  - 7-8: Good explicit match, minor concerns
+  - 4-6: Ambiguous, needs clarification, or tangentially related
+  - 1-3: Clearly out of scope, not aligned with GOALS
+  - 0: Completely unrelated or harmful
+
+### Scoring Rules
+
+**Perfect Match (9-10)**:
+- Explicitly matches SCOPE item
+- Aligns with GOALS
+- No constraint violations
+- Clear, detailed description
+
+**Good Match (7-8)**:
+- Good explicit match to SCOPE
+- Aligns with GOALS
+- No major constraint violations
+- Minor concerns addressed
+
+**Ambiguous (4-6)**:
+- Vague descriptions ("improve performance")
+- One-word descriptions
+- Missing context or metrics
+- Only tangentially related to SCOPE
+- Needs clarification
+
+**Out of Scope (1-3)**:
+- Clearly doesn't match SCOPE
+- Not aligned with GOALS
+- Missing implementation details
+
+**Harmful (0)**:
+- Completely unrelated
+- Contradicts GOALS
+- Major constraint violations
+
+### Decision Tracking
+
+Decisions tracked to `logs/alignment_history.jsonl` (JSONL format):
+- One JSON record per line
+- ISO 8601 timestamps (UTC)
+- Complete decision data: score, violations, reasoning, suggestions
+- JSONL format allows easy querying and statistical analysis
+
+### PROJECT.md Integration
+
+**Required Sections**:
+- `## GOALS` - Project success criteria and objectives
+- `## SCOPE` - In-scope and out-of-scope features
+- `## CONSTRAINTS` - Technical, resource, and philosophical limits
+- `## CURRENT_SPRINT` - Active focus (optional)
+
+**Validation Errors**:
+- Missing PROJECT.md: Raises error with helpful path hints
+- Missing GOALS/SCOPE sections: Raises error listing found sections
+- Malformed content: Raises error with expected format
+
+### Error Handling
+
+- Empty/invalid feature descriptions: Raises `AlignmentError`
+- PROJECT.md not found: Raises `AlignmentError` with path hints
+- API key missing: Raises `AlignmentError` with setup instructions
+- GenAI response parsing: Raises `AlignmentError` with response snippet
+- Malformed JSON response: Raises `AlignmentError` with details
+
+### Performance
+
+- GenAI API call: 1-3 seconds (network dependent)
+- SCOPE membership check: O(n) where n = number of SCOPE items
+- History statistics: O(m) where m = number of tracked decisions
+- Total validation: 1-3 seconds per feature
+
+### Security
+
+- Input sanitization for GenAI prompts (no prompt injection)
+- JSON output validation and error handling
+- Audit logging for all decisions via security_utils
+- File path validation via pathlib (CWE-22 prevention)
+- Project root detection with fallback handling
+
+### Integration Points
+
+**Feature Proposal Workflow**:
+1. User proposes new feature
+2. Feature description validated via validate_alignment_strict()
+3. GenAI scores feature against PROJECT.md
+4. Decision tracked to alignment_history.jsonl
+5. Result shown to user (approved/rejected with reasoning)
+
+**Analysis Tools**:
+- Use `get_alignment_stats()` to monitor approval trends
+- Query `logs/alignment_history.jsonl` directly for detailed analysis
+- Track constraint violations separately from low-score rejections
+
+### Constants
+
+- `ALIGNMENT_SCORE_THRESHOLD = 7` - Score required for approval
+- `PROJECT_ROOT` - Dynamically detected from .git or .claude
+- `ALIGNMENT_HISTORY_PATH` - logs/alignment_history.jsonl (relative to PROJECT_ROOT)
+
+### Module Exports
+
+```python
+__all__ = [
+    "AlignmentGateResult",
+    "validate_alignment_strict",
+    "check_scope_membership",
+    "track_alignment_decision",
+    "get_alignment_stats",
+    "AlignmentError",
+    "ALIGNMENT_SCORE_THRESHOLD",
+]
+```
+
+### Testing
+
+54 unit tests covering:
+- Alignment validation with various feature types
+- SCOPE membership checking (explicit vs tangential)
+- Score calculation and threshold enforcement
+- Constraint violation detection
+- GenAI response parsing
+- History file I/O (JSONL format)
+- Statistics calculations
+- Error handling and edge cases
+- API client selection (Anthropic vs OpenRouter)
+- Project root detection
+
+**Test File**: tests/unit/lib/test_alignment_gate.py
+
+**Version History**: v1.0.0 (2026-01-19) - Initial release for strict PROJECT.md alignment validation (Issue #251)

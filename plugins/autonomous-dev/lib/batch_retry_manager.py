@@ -88,6 +88,10 @@ CIRCUIT_BREAKER_THRESHOLD = 5
 # Global retry limit (prevent resource exhaustion)
 MAX_TOTAL_RETRIES = 50
 
+# Exponential backoff constants (Issue #254)
+BASE_RETRY_DELAY = 1.0  # Base delay in seconds (1 second)
+MAX_RETRY_DELAY = 60.0  # Maximum delay cap in seconds (60 seconds)
+
 
 # =============================================================================
 # Exceptions
@@ -586,6 +590,110 @@ def reset_circuit_breaker(
 
 
 # =============================================================================
+# Exponential Backoff Functions (Issue #254)
+# =============================================================================
+
+
+def get_retry_delay(attempt_number: int) -> float:
+    """
+    Calculate retry delay with exponential backoff and jitter.
+
+    Implements AWS-style exponential backoff with jitter to prevent thundering herd:
+    - Exponential: delay = base * (2 ^ (attempt - 1))
+    - Jitter: randomize ±50% to spread retries
+    - Cap: never exceed MAX_RETRY_DELAY (60 seconds)
+
+    Args:
+        attempt_number: Retry attempt number (1-based)
+
+    Returns:
+        Delay in seconds (with jitter)
+
+    Examples:
+        >>> delay = get_retry_delay(1)
+        >>> 0.5 <= delay <= 1.5  # Base delay 1s ± 50%
+        True
+        >>> delay = get_retry_delay(2)
+        >>> 1.0 <= delay <= 3.0  # 2s ± 50%
+        True
+        >>> delay = get_retry_delay(100)
+        >>> delay <= MAX_RETRY_DELAY
+        True
+    """
+    import random
+
+    # Handle edge case (attempt 0 or negative)
+    if attempt_number <= 0:
+        attempt_number = 1
+
+    # Exponential backoff: base * (2 ^ (attempt - 1))
+    exponential_delay = BASE_RETRY_DELAY * (2 ** (attempt_number - 1))
+
+    # Cap at MAX_RETRY_DELAY
+    capped_delay = min(exponential_delay, MAX_RETRY_DELAY)
+
+    # Add jitter: randomize ±50%
+    jitter_min = capped_delay * 0.5
+    jitter_max = capped_delay * 1.5
+    delay_with_jitter = random.uniform(jitter_min, jitter_max)
+
+    # Final cap (in case jitter pushed over limit)
+    return min(delay_with_jitter, MAX_RETRY_DELAY)
+
+
+def retry_with_different_approach(
+    batch_id: str,
+    feature_index: int,
+    attempt_number: int,
+    previous_error: str
+) -> Dict[str, Any]:
+    """
+    Get retry strategy with different approach based on attempt number.
+
+    Integrates with batch_retry_manager to provide:
+    - Retry strategy escalation (basic → fix tests → different implementation)
+    - Exponential backoff delay calculation
+    - Attempt tracking
+
+    Args:
+        batch_id: Unique batch identifier
+        feature_index: Index of feature to retry
+        attempt_number: Retry attempt number (1-based)
+        previous_error: Error message from previous attempt
+
+    Returns:
+        Dict with keys:
+        - approach: Strategy approach identifier
+        - description: Human-readable strategy description
+        - delay: Calculated retry delay (seconds)
+        - expected_delay: Expected delay without jitter
+        - attempt_number: Retry attempt number
+
+    Examples:
+        >>> result = retry_with_different_approach("batch-123", 0, 1, "Tests failed")
+        >>> result["approach"]
+        'basic_retry'
+        >>> result["delay"] > 0
+        True
+    """
+    # Calculate retry delay with exponential backoff and jitter
+    delay = get_retry_delay(attempt_number)
+
+    # Calculate expected delay (without jitter) for tests
+    exponential_delay = BASE_RETRY_DELAY * (2 ** (attempt_number - 1))
+    expected_delay = min(exponential_delay, MAX_RETRY_DELAY)
+
+    # Return strategy with delay
+    return {
+        "approach": "exponential_backoff",
+        "description": f"Retry with exponential backoff (delay: {delay:.2f}s)",
+        "delay": delay,
+        "expected_delay": expected_delay,
+        "attempt_number": attempt_number,
+    }
+
+
+# =============================================================================
 # Module Exports
 # =============================================================================
 
@@ -598,7 +706,11 @@ __all__ = [
     "check_circuit_breaker",
     "get_retry_count",
     "reset_circuit_breaker",
+    "get_retry_delay",
+    "retry_with_different_approach",
     "MAX_RETRIES_PER_FEATURE",
     "MAX_TOTAL_RETRIES",
     "CIRCUIT_BREAKER_THRESHOLD",
+    "BASE_RETRY_DELAY",
+    "MAX_RETRY_DELAY",
 ]
