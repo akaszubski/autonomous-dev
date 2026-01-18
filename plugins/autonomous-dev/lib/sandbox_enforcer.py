@@ -159,8 +159,9 @@ class SandboxEnforcer:
 
         Checks in order:
         1. Explicit policy_path argument
-        2. Project-local: .claude/sandbox_policy.json
-        3. Plugin default: config/sandbox_policy.json
+        2. Project-local root: .claude/sandbox_policy.json
+        3. Project-local config: .claude/config/sandbox_policy.json (Issue #248)
+        4. Plugin default: config/sandbox_policy.json
 
         Args:
             policy_path: Explicit policy path (optional)
@@ -174,10 +175,16 @@ class SandboxEnforcer:
                 policy_path = Path(policy_path)
             return policy_path
 
-        # 2. Project-local
+        # 2. Project-local (root of .claude/)
         project_local = Path.cwd() / ".claude" / "sandbox_policy.json"
         if project_local.exists():
             return project_local
+
+        # 2b. Project-local in config subdirectory (Issue #248 fix)
+        # install.sh and /sync put config files in .claude/config/
+        project_config = Path.cwd() / ".claude" / "config" / "sandbox_policy.json"
+        if project_config.exists():
+            return project_config
 
         # 3. Plugin default
         plugin_default = Path(__file__).parent.parent / "config" / "sandbox_policy.json"

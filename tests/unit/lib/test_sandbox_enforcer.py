@@ -570,6 +570,72 @@ class TestCascadePathResolution:
 
             assert "custom" in enforcer.policy["safe_commands"]
 
+    def test_cascade_resolution_project_config_subdir_exists(self, tmp_path):
+        """Test cascade resolution uses .claude/config/ path if exists (Issue #248)."""
+        # This test verifies the fix for Issue #248 where sandbox_policy.json
+        # is installed to .claude/config/ but enforcer only checked .claude/
+        project_config_policy = tmp_path / ".claude" / "config" / "sandbox_policy.json"
+        project_config_policy.parent.mkdir(parents=True)
+        policy = {
+            "version": "1.0.0",
+            "profiles": {
+                "development": {
+                    "safe_commands": ["from_config_subdir"],
+                    "blocked_patterns": [],
+                    "sandbox_enabled": True
+                }
+            },
+            "default_profile": "development"
+        }
+        project_config_policy.write_text(json.dumps(policy))
+
+        with patch("pathlib.Path.cwd", return_value=tmp_path):
+            enforcer = SandboxEnforcer(policy_path=None, profile="development")
+
+            # Should find policy in .claude/config/ subdirectory
+            assert "from_config_subdir" in enforcer.policy["safe_commands"]
+
+    def test_cascade_resolution_root_takes_priority_over_config(self, tmp_path):
+        """Test .claude/sandbox_policy.json takes priority over .claude/config/."""
+        # Create both policy files
+        root_policy = tmp_path / ".claude" / "sandbox_policy.json"
+        root_policy.parent.mkdir(parents=True)
+        config_policy = tmp_path / ".claude" / "config" / "sandbox_policy.json"
+        config_policy.parent.mkdir(parents=True)
+
+        # Root policy
+        root_policy.write_text(json.dumps({
+            "version": "1.0.0",
+            "profiles": {
+                "development": {
+                    "safe_commands": ["from_root"],
+                    "blocked_patterns": [],
+                    "sandbox_enabled": True
+                }
+            },
+            "default_profile": "development"
+        }))
+
+        # Config subdir policy
+        config_policy.write_text(json.dumps({
+            "version": "1.0.0",
+            "profiles": {
+                "development": {
+                    "safe_commands": ["from_config"],
+                    "blocked_patterns": [],
+                    "sandbox_enabled": True
+                }
+            },
+            "default_profile": "development"
+        }))
+
+        with patch("pathlib.Path.cwd", return_value=tmp_path):
+            enforcer = SandboxEnforcer(policy_path=None, profile="development")
+
+            # Root should take priority
+            assert "from_root" in enforcer.policy["safe_commands"]
+            assert "from_config" not in enforcer.policy["safe_commands"]
+
     def test_cascade_resolution_project_local_missing_uses_plugin_default(self, tmp_path):
         """Test cascade resolution uses plugin default if project-local missing."""
         with patch("pathlib.Path.cwd", return_value=tmp_path):
