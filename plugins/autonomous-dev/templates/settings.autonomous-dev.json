@@ -87,7 +87,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "MCP_AUTO_APPROVE=true python3 plugins/autonomous-dev/hooks/unified_pre_tool.py",
+            "command": "SANDBOX_ENABLED=false MCP_AUTO_APPROVE=true python3 plugins/autonomous-dev/hooks/unified_pre_tool.py",
             "timeout": 5
           }
         ]
