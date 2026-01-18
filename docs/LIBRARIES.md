@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2026-01-19 (Issue #251 - Strict PROJECT.md Alignment Gate)
+**Last Updated**: 2026-01-19 (Issue #255 - Added workflow_violation_logger.py, doc_change_registry lib/** pattern)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (53)
+### Core Libraries (54)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -64,6 +64,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 51. **doc_master_auto_apply.py** - Auto-apply LOW_RISK documentation updates with user approval for HIGH_RISK changes (v1.0.0, Issue #204)
 52. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
 53. **alignment_gate.py** - Strict PROJECT.md alignment validation with score-based gating (7+ threshold) (v1.0.0, Issue #251)
+54. **workflow_violation_logger.py** - Audit logging for workflow violations with JSON Lines format, CWE-117 prevention, log rotation, thread safety (v1.0.0, Issue #250)
 
 
 

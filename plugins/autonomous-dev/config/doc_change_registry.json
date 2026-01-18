@@ -39,6 +39,15 @@
       "suggestion": "Document hook purpose, when it runs, and what it enforces"
     },
     {
+      "code_pattern": "lib/*.py",
+      "required_docs": [
+        "docs/LIBRARIES.md",
+        "CLAUDE.md"
+      ],
+      "description": "New libraries must be documented in LIBRARIES.md and count updated in CLAUDE.md",
+      "suggestion": "Add library entry to LIBRARIES.md with description, version, issue number. Update library count in CLAUDE.md Component Counts section."
+    },
+    {
       "code_pattern": "scripts/setup.py",
       "required_docs": [
         "plugins/autonomous-dev/QUICKSTART.md",
