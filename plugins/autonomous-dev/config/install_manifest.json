@@ -67,6 +67,7 @@
         "plugins/autonomous-dev/commands/align.md",
         "plugins/autonomous-dev/commands/archived/sync-dev.md",
         "plugins/autonomous-dev/commands/archived/update-plugin.md",
+        "plugins/autonomous-dev/commands/audit-claude.md",
         "plugins/autonomous-dev/commands/audit-tests.md",
         "plugins/autonomous-dev/commands/audit.md",
         "plugins/autonomous-dev/commands/auto-implement.md",
@@ -93,6 +94,7 @@
       "target": ".claude/hooks",
       "files": [
         "plugins/autonomous-dev/hooks/alert_uncommitted_feature.py",
+        "plugins/autonomous-dev/hooks/audit_claude_structure.py",
         "plugins/autonomous-dev/hooks/auto_add_to_regression.py",
         "plugins/autonomous-dev/hooks/auto_bootstrap.py",
         "plugins/autonomous-dev/hooks/auto_enforce_coverage.py",

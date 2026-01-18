@@ -21,6 +21,14 @@
   - Prevents deletion of `.claude/local/` during orphan cleanup
   - Enables repo-specific operational procedures and configurations
   - See docs/SANDBOXING.md and .claude/local/OPERATIONS.md for usage
+- `/audit-claude` command validates CLAUDE.md structure (#245)
+  - Created audit_claude_structure.py hook for structural validation
+  - Checks required items (7): project name, pointers, command references
+  - Detects forbidden content (5): architecture sections, long code blocks, etc.
+  - Enforces size limits: <100 lines (error), <90 lines (warning)
+  - Generates detailed audit reports with suggested actions
+  - Exit code 0 (PASS) or 1 (FAIL) for CI/CD integration
+  - Complements /align-claude (counts) - /audit-claude (structure)
 
 ## [3.49.0] - 2026-01-19
 
