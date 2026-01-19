@@ -325,6 +325,12 @@ class ToolValidator:
             "bash": {
                 "whitelist": [
                     "pytest*",
+                    "python -m pytest*",
+                    "python3 -m pytest*",
+                    "python *",
+                    "python3 *",
+                    "uv run *",
+                    "uv *",
                     "git status",
                     "git diff*",
                     "git log*",
