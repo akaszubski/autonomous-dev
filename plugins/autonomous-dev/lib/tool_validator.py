@@ -364,17 +364,22 @@ class ToolValidator:
                 ],
             },
             "file_paths": {
-                "whitelist": [
-                    "/Users/*/Documents/GitHub/*",
-                    "/tmp/pytest-*",
-                    "/tmp/tmp*",
-                ],
+                "whitelist": ["*"],
                 "blacklist": [
                     "/etc/*",
                     "/var/*",
                     "/root/*",
+                    "/System/*",
+                    "/usr/*",
+                    "/bin/*",
+                    "/sbin/*",
                     "*/.env",
+                    "*/.env.*",
                     "*/secrets/*",
+                    "*/credentials/*",
+                    "*/.ssh/*",
+                    "*/.aws/*",
+                    "*/.gnupg/*",
                 ],
             },
             "agents": {
