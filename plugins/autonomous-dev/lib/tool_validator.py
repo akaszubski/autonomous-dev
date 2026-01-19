@@ -134,7 +134,7 @@ INJECTION_PATTERNS = [
     (r'\|\s*bash\b', 'pipe_to_bash'),             # Pipe to bash (dangerous)
     (r'\|\s*sh\b', 'pipe_to_sh'),                 # Pipe to sh (dangerous)
     (r'\|\s*zsh\b', 'pipe_to_zsh'),               # Pipe to zsh (dangerous)
-    (r'`[^`]+`', 'backticks'),                    # Command substitution (backticks) - legacy syntax
+    # NOTE: Backticks removed - too many false positives with markdown code fences (```)
     # NOTE: $(cat <<'EOF') HEREDOC pattern is intentionally NOT blocked - it's safe for git commits
     # NOTE: Newlines are intentionally NOT blocked - multi-line commands are legitimate
     (r'>\s*/etc/', 'output_redirection_etc'),     # Output redirection to /etc
