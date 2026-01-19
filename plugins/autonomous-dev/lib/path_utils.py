@@ -423,9 +423,12 @@ def _find_policy_file() -> Path:
         return plugin_path
 
     # Define cascading lookup locations
+    home = Path.home()
     locations = [
         project_root / ".claude" / "config" / "auto_approve_policy.json",  # Project-local
-        project_root / "plugins" / "autonomous-dev" / "config" / "auto_approve_policy.json",  # Plugin default
+        project_root / "plugins" / "autonomous-dev" / "config" / "auto_approve_policy.json",  # Plugin in project
+        home / ".claude" / "config" / "auto_approve_policy.json",  # Global user config
+        home / ".claude" / "plugins" / "autonomous-dev" / "config" / "auto_approve_policy.json",  # Global plugin
     ]
 
     # Try each location in priority order
