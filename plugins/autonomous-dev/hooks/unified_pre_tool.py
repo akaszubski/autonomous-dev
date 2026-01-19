@@ -240,8 +240,10 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
 
                 if approved:
                     return ("allow", f"Auto-approved: {reason}")
-                elif "blacklist" in reason.lower() or "injection" in reason.lower() or "security" in reason.lower() or "circuit breaker" in reason.lower():
-                    return ("deny", f"Blacklisted: {reason}")
+                elif "circuit breaker" in reason.lower():
+                    return ("deny", f"Blocked: {reason}")  # Only circuit breaker is hard deny
+                elif "blacklist" in reason.lower() or "injection" in reason.lower() or "security" in reason.lower():
+                    return ("ask", f"Requires approval: {reason}")  # Dangerous but can override
                 else:
                     return ("ask", f"Not whitelisted: {reason}")
 

@@ -396,6 +396,34 @@ class ToolValidator:
                     # PATH manipulation
                     "export PATH=",
                     "unset PATH",
+                    # Secure delete / file destruction
+                    "shred *",
+                    "truncate --size=0 *",
+                    "truncate -s 0 *",
+                    # Scheduled tasks
+                    "crontab -r",
+                    "crontab -e",
+                    "at *",
+                    # Service control
+                    "systemctl disable *",
+                    "systemctl stop *",
+                    "systemctl mask *",
+                    "launchctl unload *",
+                    "launchctl bootout *",
+                    # Firewall
+                    "iptables -F",
+                    "iptables -X",
+                    "iptables --flush",
+                    "ufw disable",
+                    # Sync with delete
+                    "rsync --delete * /*",
+                    "rsync -a --delete * /*",
+                    # Script execution (arbitrary code)
+                    "source /*",
+                    ". /*",
+                    "bash -c *",
+                    "sh -c *",
+                    "zsh -c *",
                 ],
             },
             "file_paths": {
