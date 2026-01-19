@@ -407,6 +407,23 @@ class ToolValidator:
                     "LSP",
                 ],
             },
+            "web_tools": {
+                "whitelist": [
+                    "Fetch",
+                    "WebFetch",
+                    "WebSearch",
+                    "mcp__*__search",
+                    "mcp__*__web_search",
+                ],
+                "allow_all_domains": True,
+                "blocked_domains": [
+                    "localhost",
+                    "127.0.0.1",
+                    "0.0.0.0",
+                    "169.254.169.254",
+                    "[::1]",
+                ],
+            },
         }
 
     def _extract_paths_from_command(self, command: str) -> List[str]:
