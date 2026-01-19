@@ -49,7 +49,7 @@ Runs before tool execution (can block with permission decision).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
-| enforce_implementation_workflow | Opt-in (default: false) | ENFORCE_WORKFLOW_STRICT | Enforce /implement workflow, block direct code changes, protect system paths |
+| enforce_implementation_workflow | Enabled (default: SUGGEST) | ENFORCEMENT_LEVEL, ENFORCE_WORKFLOW_STRICT | Enforce /implement workflow with graduated levels (OFF, WARN, SUGGEST, BLOCK) |
 | auto_generate_tests | Opt-in (default: false) | AUTO_GENERATE_TESTS | Auto-generate tests before implementation |
 
 ### PostToolUse Hooks
@@ -264,7 +264,8 @@ All environment variables with default values:
 |----------|---------|----------|-------------|
 | ENFORCE_WORKFLOW | true | Prompt validator | Enforce workflow suggestions (non-blocking) |
 | QUALITY_NUDGE_ENABLED | true | Prompt validator | Enable quality nudges |
-| ENFORCE_WORKFLOW_STRICT | false | enforce_implementation_workflow (PreToolUse) | Enforce /implement workflow strictly, block direct code changes, protect system paths |
+| ENFORCEMENT_LEVEL | suggest | enforce_implementation_workflow (PreToolUse) | Graduated enforcement level (off, warn, suggest, block) for /implement workflow - default SUGGEST allows + suggests |
+| ENFORCE_WORKFLOW_STRICT | false | enforce_implementation_workflow (PreToolUse) | Legacy variable for BLOCK enforcement (deprecated, use ENFORCEMENT_LEVEL) |
 | ALLOW_GIT_BYPASS | false | block_git_bypass (PreCommit) | Allow git commit --no-verify for emergency situations (not recommended) |
 
 ### Advanced Features (Opt-in)

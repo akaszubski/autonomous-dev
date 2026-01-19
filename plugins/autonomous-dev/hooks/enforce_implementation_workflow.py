@@ -51,6 +51,7 @@ import os
 import re
 from pathlib import Path
 from fnmatch import fnmatch
+from enum import IntEnum
 
 
 # Add lib directory to path for imports
@@ -65,6 +66,14 @@ try:
     _logger_available = True
 except ImportError:
     _logger_available = False
+
+
+class EnforcementLevel(IntEnum):
+    """Graduated enforcement levels for workflow discipline."""
+    OFF = 0      # Disabled - always allow
+    WARN = 1     # Allow + log warning to stderr
+    SUGGEST = 2  # Allow + include /implement suggestion
+    BLOCK = 3    # Deny significant changes (current strict behavior)
 
 
 # Protected paths (cannot be edited by agents outside ALLOWED_AGENTS)
@@ -139,6 +148,33 @@ def load_env():
                             os.environ[key] = value
         except Exception:
             pass
+
+
+def get_enforcement_level() -> EnforcementLevel:
+    """Get enforcement level with precedence: ENFORCEMENT_LEVEL > ENFORCE_WORKFLOW_STRICT > default (SUGGEST)."""
+    # Check new env var first (highest priority)
+    level_str = os.environ.get("ENFORCEMENT_LEVEL", "").strip().lower()
+    if level_str:
+        level_map = {
+            "off": EnforcementLevel.OFF,
+            "warn": EnforcementLevel.WARN,
+            "suggest": EnforcementLevel.SUGGEST,
+            "block": EnforcementLevel.BLOCK
+        }
+        if level_str in level_map:
+            return level_map[level_str]
+        # Invalid value - fall back to default
+        return EnforcementLevel.SUGGEST
+
+    # Check legacy env var (backward compatibility)
+    strict_str = os.environ.get("ENFORCE_WORKFLOW_STRICT", "").strip().lower()
+    if strict_str == "true":
+        return EnforcementLevel.BLOCK
+    elif strict_str == "false":
+        return EnforcementLevel.OFF
+
+    # Default: SUGGEST
+    return EnforcementLevel.SUGGEST
 
 
 def count_new_lines(old_string: str, new_string: str) -> int:
@@ -355,15 +391,12 @@ def main():
         # Load environment
         load_env()
 
-        # Check if strict enforcement is enabled (opt-in, default: false)
-        # Support both new and legacy variable names
-        strict_enforce = os.getenv("ENFORCE_WORKFLOW_STRICT", "false").lower() == "true"
-        legacy_enforce = os.getenv("ENFORCE_IMPLEMENTATION_WORKFLOW", "false").lower() == "true"
+        # Get enforcement level using new graduated system
+        enforcement_level = get_enforcement_level()
 
-        enforce_enabled = strict_enforce or legacy_enforce
-
-        if not enforce_enabled:
-            output_decision("allow", "Workflow enforcement disabled (opt-in with ENFORCE_WORKFLOW_STRICT=true)")
+        # If OFF: always allow, return early
+        if enforcement_level == EnforcementLevel.OFF:
+            output_decision("allow", "Workflow enforcement disabled (level: off)")
             sys.exit(0)
 
         # Check if running inside allowed agent (part of /implement workflow)
@@ -452,11 +485,50 @@ See docs/WORKFLOW-DISCIPLINE.md for more information.
             is_significant, reason, details = has_significant_additions("", content)
 
         if is_significant:
-            # Block with guidance to use proper workflow
             file_name = Path(file_path).name
 
-            # Updated message with /implement command and how to disable
-            output_decision("deny", f"""
+            # Handle based on enforcement level
+            if enforcement_level == EnforcementLevel.WARN:
+                # WARN: Allow but log warning to stderr
+                warning_msg = f"""
+WARNING: Significant code change detected outside /implement workflow
+
+{reason}: {details}
+File: {file_name}
+
+RECOMMENDED: Use /implement for better quality
+The /implement pipeline provides:
+- Automatic research (finds existing patterns)
+- TDD enforcement (tests written first)
+- Security audit (catches vulnerabilities)
+- 85% fewer bugs vs direct implementation
+
+See docs/WORKFLOW-DISCIPLINE.md for more information.
+"""
+                sys.stderr.write(warning_msg)
+                sys.stderr.flush()
+                output_decision("allow", f"Significant change detected ({reason}), but allowed at WARN level")
+
+            elif enforcement_level == EnforcementLevel.SUGGEST:
+                # SUGGEST: Allow but include suggestion in reason
+                suggestion_msg = f"""Significant change allowed, but /implement is recommended.
+
+Detected: {reason} - {details}
+File: {file_name}
+
+SUGGESTION: Use /implement for better quality outcomes:
+- /implement "description of feature/fix"
+- /implement --quick "description" (skip full pipeline)
+- /implement #<issue-number> (implement existing issue)
+
+The /implement pipeline provides automatic research, TDD enforcement, security audit, and documentation sync (85% fewer bugs vs direct implementation).
+
+See docs/WORKFLOW-DISCIPLINE.md for more information."""
+                output_decision("allow", suggestion_msg)
+
+            elif enforcement_level == EnforcementLevel.BLOCK:
+                # BLOCK: Deny with guidance (original strict behavior)
+                output_decision("deny", f"""
 WORKFLOW ENFORCEMENT ACTIVE
 
 {reason}: {details}
@@ -487,9 +559,7 @@ HOW TO USE:
 TO DISABLE THIS ENFORCEMENT:
 
 Add to your .env file:
-ENFORCE_WORKFLOW_STRICT=false
-
-Or remove it entirely (enforcement is opt-in by default).
+ENFORCEMENT_LEVEL=off
 
 See docs/WORKFLOW-DISCIPLINE.md for data on why /implement is recommended.
 """)

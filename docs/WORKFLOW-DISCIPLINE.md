@@ -82,6 +82,76 @@ Claude MUST use `/implement` for code changes because it catches 85% of issues b
 
 ---
 
+## Graduated Enforcement Levels (Issue #246)
+
+The /implement workflow enforcement supports graduated levels to balance discipline and friction:
+
+### Enforcement Levels
+
+| Level | Behavior | Use Case | Environment Variable |
+|-------|----------|----------|----------------------|
+| **OFF** | Allow all changes, no enforcement | Development/learning | `ENFORCEMENT_LEVEL=off` |
+| **WARN** | Allow all changes, log warnings to stderr | Monitoring without friction | `ENFORCEMENT_LEVEL=warn` |
+| **SUGGEST** | Allow all changes, suggest /implement in response | Default - guidance without blocking | `ENFORCEMENT_LEVEL=suggest` (default) |
+| **BLOCK** | Deny significant changes, require /implement | Strict teams, production | `ENFORCEMENT_LEVEL=block` |
+
+### Configuration
+
+**New Environment Variable** (recommended):
+```bash
+# Set enforcement level
+ENFORCEMENT_LEVEL=off      # Disable enforcement
+ENFORCEMENT_LEVEL=warn     # Warn on violations
+ENFORCEMENT_LEVEL=suggest  # Suggest /implement (default)
+ENFORCEMENT_LEVEL=block    # Block violations (strictest)
+```
+
+**Legacy Variable** (backward compatible):
+```bash
+ENFORCE_WORKFLOW_STRICT=false   # Maps to OFF (disabled)
+ENFORCE_WORKFLOW_STRICT=true    # Maps to BLOCK (strictest)
+```
+
+**Precedence**: `ENFORCEMENT_LEVEL` takes precedence over `ENFORCE_WORKFLOW_STRICT`
+
+### Default Behavior (v3.49.0+)
+
+By default, enforcement level is **SUGGEST**:
+- Claude can make code changes directly
+- If significant code detected, Claude gets a suggestion to use `/implement`
+- No blocking, no friction - purely informational
+- Users can opt-in to stricter levels as needed
+
+### What Each Level Does
+
+**OFF**:
+- Disables all enforcement for the hook
+- All edits allowed without restriction
+- No logging or warnings
+- Use in early development phases
+
+**WARN**:
+- Allows all edits to proceed
+- Logs violations to stderr with timestamps
+- Useful for monitoring without disrupting workflows
+- Violations appear in console/logs for auditing
+
+**SUGGEST** (Default):
+- Allows all edits to proceed
+- Includes /implement suggestion in Claude's response when significant code detected
+- Non-blocking guidance toward better workflow
+- Balances discipline with user friction
+- Most suitable for most teams
+
+**BLOCK**:
+- Denies significant code edits (new functions, classes, >10 lines)
+- Forces use of /implement for meaningful work
+- Allows minor edits (typos, config, docs)
+- Strictly enforces workflow discipline
+- Best for teams with high-quality requirements or regulated environments
+
+---
+
 ## Enforcement Layers (Issue #250)
 
 The /implement workflow is enforced across three deterministic layers:
@@ -113,9 +183,16 @@ Log location: `logs/workflow_violations.log` (JSON Lines format)
 
 ### Layer 2: Protected Paths Enforcement (enforce_implementation_workflow Hook)
 
-**PreToolUse hook that blocks edits to protected system paths**.
+**PreToolUse hook that enforces code quality with configurable levels** (Issue #246).
 
-Protected paths (cannot be edited without /implement workflow):
+This hook works at four graduated levels (new in v3.49.0):
+
+**OFF**: Allow all changes unconditionally
+**WARN**: Allow changes but warn about significant code
+**SUGGEST** (default): Allow changes, suggest /implement when significant code detected
+**BLOCK**: Deny significant code changes, require /implement workflow
+
+Protected paths (always protected, even at SUGGEST level):
 ```
 .claude/commands/*.md        # Command definitions
 .claude/agents/*.md          # Agent definitions
@@ -123,9 +200,9 @@ plugins/autonomous-dev/lib/* # Core library infrastructure
 ```
 
 What this prevents:
-- Claude autonomously editing command or agent definitions
-- Modifying core plugin infrastructure without review
-- Bypassing the /implement pipeline for system changes
+- Significant code changes outside the /implement workflow
+- Claude autonomously editing system paths (protected at all levels)
+- Bypassing the /implement pipeline for meaningful work
 
 Exemptions:
 - Allowed agents: `implementer`, `test-master`, `brownfield-analyzer`, `setup-wizard`, `project-bootstrapper`
@@ -134,8 +211,14 @@ Exemptions:
 Configuration:
 ```bash
 # .env file
-ENFORCE_WORKFLOW_STRICT=false  # Default: false (opt-in)
-ENFORCE_WORKFLOW_STRICT=true   # Enable strict enforcement
+ENFORCEMENT_LEVEL=off       # Disable enforcement
+ENFORCEMENT_LEVEL=warn      # Warn on violations
+ENFORCEMENT_LEVEL=suggest   # Suggest /implement (default)
+ENFORCEMENT_LEVEL=block     # Strictly enforce /implement
+
+# Legacy variable (backward compatible)
+ENFORCE_WORKFLOW_STRICT=false   # Maps to OFF
+ENFORCE_WORKFLOW_STRICT=true    # Maps to BLOCK
 ```
 
 Violations logged to: `logs/workflow_violations.log` (JSON Lines format)

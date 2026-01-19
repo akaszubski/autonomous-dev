@@ -740,6 +740,17 @@ Forbidden sections: TODO, Roadmap, Future, Backlog, Next Steps, Coming Soon, Pla
 - Git PreCommit - Blocks commits with forbidden sections
 - Alignment fixer (`alignment_fixer.py`) - Provides section extraction methods for remediation
 
+### audit_claude_structure.py
+
+**Purpose**: CLAUDE.md structure validation against best practices spec (Issue #245)
+**Checks**:
+- Required items (7): project name/purpose, pointers to PROJECT.md and OPERATIONS.md, /implement, /sync, /clear references, workflow discipline note
+- Forbidden content (5): architecture sections, workflow guides, troubleshooting, long code blocks (>5 lines), long sections (>20 lines)
+- Size limits: error >100 lines, warning >90 lines
+**Lifecycle**: Manual (via /audit-claude command)
+**Exit Codes**: 0 (PASS), 1 (FAIL) for CI/CD integration
+**Related**: /audit-claude command, complements validate_claude_alignment.py (structure vs counts)
+
 ### validate_claude_alignment.py
 
 **Status**: DEPRECATED (consolidated into unified_doc_validator.py in Issue #215)

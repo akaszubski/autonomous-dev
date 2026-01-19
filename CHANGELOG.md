@@ -1,5 +1,49 @@
 ## [Unreleased]
 
+### Added
+- Session state persistence in .claude/local/SESSION_STATE.json (#247)
+  - Created SessionStateManager library for persistent session context
+  - Stores key_conventions, active_tasks, important_files, and repo_specific context
+  - Tracks /implement completions with feature name, agents completed, and timestamps
+  - Survives /clear operations (protected by .claude/local/** pattern)
+  - Inherits from StateManager ABC for standardized state management
+  - Atomic writes with file locking for thread safety
+  - Security: Path traversal (CWE-22), symlink (CWE-59), and permission validation
+  - Graceful degradation on corrupted JSON (returns default schema)
+  - Audit logging for all state operations
+  - get_session_summary() for human-readable state inspection
+  - See docs/SESSION-STATE-PERSISTENCE.md for detailed guide
+- Repo-specific operational configs preserved across /sync (#244)
+  - Added `.claude/local/` directory protection during /sync operations
+  - All files in `.claude/local/` are preserved (not overwritten or deleted)
+  - Files are categorized as "config" type for identification
+  - Updated protected_file_detector.py with `.claude/local/**` pattern
+  - Prevents deletion of `.claude/local/` during orphan cleanup
+  - Enables repo-specific operational procedures and configurations
+  - See docs/SANDBOXING.md and .claude/local/OPERATIONS.md for usage
+- `/audit-claude` command validates CLAUDE.md structure (#245)
+  - Created audit_claude_structure.py hook for structural validation
+  - Checks required items (7): project name, pointers, command references
+  - Detects forbidden content (5): architecture sections, long code blocks, etc.
+  - Enforces size limits: <100 lines (error), <90 lines (warning)
+  - Generates detailed audit reports with suggested actions
+  - Exit code 0 (PASS) or 1 (FAIL) for CI/CD integration
+  - Complements /align-claude (counts) - /audit-claude (structure)
+
+## [3.49.0] - 2026-01-19
+
+### Changed
+- Graduated enforcement levels for /implement workflow discipline (#246)
+  - Created EnforcementLevel enum: OFF, WARN, SUGGEST, BLOCK
+  - Default enforcement changed from OFF to SUGGEST (allow + suggest /implement)
+  - New ENFORCEMENT_LEVEL env var with precedence: ENFORCEMENT_LEVEL > ENFORCE_WORKFLOW_STRICT > default
+  - ENFORCEMENT_LEVEL supports: off, warn, suggest, block (case-insensitive)
+  - Backward compatibility maintained: ENFORCE_WORKFLOW_STRICT=true maps to BLOCK, false maps to OFF
+  - SUGGEST level provides helpful guidance without blocking code changes
+  - WARN level logs warnings to stderr while allowing edits
+  - Reduces friction while maintaining workflow discipline
+  - enforce_implementation_workflow.py: get_enforcement_level() routes to correct level
+
 ## [3.48.0] - 2026-01-19
 
 ### Changed

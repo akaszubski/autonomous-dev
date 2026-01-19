@@ -217,6 +217,11 @@ Analyzes test coverage and identifies:
 /sync --uninstall  # Remove plugin with backup
 ```
 
+**Preserves repo-specific configs** (Issue #244):
+- All files in `.claude/local/` protected across sync operations
+- Use `.claude/local/OPERATIONS.md` for repo-specific procedures
+- Custom configurations never overwritten during updates
+
 ### /worktree - Isolated Feature Development
 
 ```bash

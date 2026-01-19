@@ -552,9 +552,9 @@ class TestEnvironmentControl:
 
     @patch("sys.stdin", new_callable=StringIO)
     @patch("sys.stdout", new_callable=StringIO)
-    @patch.dict("os.environ", {"ENFORCE_IMPLEMENTATION_WORKFLOW": "true"}, clear=True)
+    @patch.dict("os.environ", {"ENFORCEMENT_LEVEL": "block"}, clear=True)
     def test_enabled_enforcement_blocks_significant_changes(self, mock_stdout, mock_stdin):
-        """Test that enforcement is enabled by default."""
+        """Test that enforcement at BLOCK level denies significant changes."""
         mock_stdin.write(json.dumps({
             "tool_name": "Edit",
             "tool_input": {

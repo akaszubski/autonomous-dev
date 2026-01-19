@@ -323,7 +323,9 @@ class TestViolationLogging:
         # Should have logged the violation
         mock_logger.log_violation.assert_called_once()
         call_args = mock_logger.log_violation.call_args
-        assert call_args[1]["violation_type"] == "protected_path_edit"
+        # Compare enum value (ViolationType.PROTECTED_PATH_EDIT.value == "protected_path_edit")
+        violation_type = call_args[1]["violation_type"]
+        assert getattr(violation_type, "value", violation_type) == "protected_path_edit"
         assert "implement.md" in call_args[1]["file_path"]
         assert call_args[1]["agent_name"] == "researcher"
 

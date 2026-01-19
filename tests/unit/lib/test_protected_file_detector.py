@@ -298,16 +298,17 @@ class TestModificationDetection:
         assert not any("auto_format.py" in f["path"] for f in protected_files)
 
     def test_categorize_modified_vs_new_files(self, tmp_path):
-        """Test categorization of modified vs new user files.
+        """Test categorization of modified vs config user files.
 
-        Current: FAILS - ProtectedFileDetector doesn't exist
+        PROJECT.md is categorized as 'config' (not 'new') since it's a configuration file.
+        Modified plugin files are categorized as 'modified'.
         """
         project_dir = tmp_path / "project"
         project_dir.mkdir()
         claude_dir = project_dir / ".claude"
         claude_dir.mkdir()
 
-        # New user file (no plugin default)
+        # User config file (no plugin default)
         (claude_dir / "PROJECT.md").write_text("# Goals")
 
         # Modified plugin file
@@ -321,13 +322,13 @@ class TestModificationDetection:
         detector = ProtectedFileDetector(plugin_defaults=defaults_registry)
         protected_files = detector.detect_protected_files(project_dir)
 
-        # Check categorization
-        new_files = [f for f in protected_files if f.get("category") == "new"]
+        # Check categorization - PROJECT.md is a config file, not "new"
+        config_files = [f for f in protected_files if f.get("category") == "config"]
         modified_files = [
             f for f in protected_files if f.get("category") == "modified"
         ]
 
-        assert any("PROJECT.md" in f["path"] for f in new_files)
+        assert any("PROJECT.md" in f["path"] for f in config_files)
         assert any("auto_format.py" in f["path"] for f in modified_files)
 
 
@@ -430,6 +431,166 @@ class TestGlobPatternMatching:
         assert detector.matches_pattern("config/api.secret")
         assert detector.matches_pattern("deep/nested/dir/data.secret")
         assert not detector.matches_pattern("config/api.json")
+
+
+class TestLocalDirectoryProtection:
+    """Test protection of .claude/local/ directory (Issue #244)."""
+
+    def test_local_directory_pattern_in_protected_patterns(self, tmp_path):
+        """Test that .claude/local/** is in PROTECTED_PATTERNS.
+
+        Current: FAILS - Pattern not added yet
+        """
+        detector = ProtectedFileDetector()
+        patterns = detector.get_protected_patterns()
+
+        # Should include .claude/local/** pattern
+        assert any("local" in pattern for pattern in patterns)
+
+    def test_local_operations_md_is_protected(self, tmp_path):
+        """Test that .claude/local/OPERATIONS.md is detected as protected.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+        (local_dir / "OPERATIONS.md").write_text("# Operations")
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        assert any(".claude/local/OPERATIONS.md" in f["path"] for f in protected_files)
+
+    def test_local_config_json_is_protected(self, tmp_path):
+        """Test that .claude/local/config.json is detected as protected.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+        (local_dir / "config.json").write_text('{"key": "value"}')
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        assert any(".claude/local/config.json" in f["path"] for f in protected_files)
+
+    def test_nested_local_paths_are_protected(self, tmp_path):
+        """Test that nested paths like .claude/local/configs/db.json are protected.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        configs_dir = project_dir / ".claude" / "local" / "configs"
+        configs_dir.mkdir(parents=True)
+        (configs_dir / "db.json").write_text('{"connection": "string"}')
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        assert any(
+            ".claude/local/configs/db.json" in f["path"] for f in protected_files
+        )
+
+    def test_empty_local_directory_detection(self, tmp_path):
+        """Test detection of empty .claude/local/ directory.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        # Empty directory should not create protected files
+        # (directories don't get listed, only files)
+        local_files = [f for f in protected_files if "local" in f["path"]]
+        assert len(local_files) == 0
+
+    def test_local_files_categorized_as_config(self, tmp_path):
+        """Test that files in .claude/local/ are categorized as 'config' type.
+
+        Current: FAILS - Categorization not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+        (local_dir / "OPERATIONS.md").write_text("# Operations")
+        (local_dir / "config.json").write_text('{"key": "value"}')
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        local_files = [f for f in protected_files if "local" in f["path"]]
+        for f in local_files:
+            assert f.get("category") == "config"
+
+    def test_local_protection_doesnt_affect_other_paths(self, tmp_path):
+        """Test that protection of .claude/local/ doesn't affect .claude/hooks/.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+
+        # Create local file (should be protected)
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+        (local_dir / "OPERATIONS.md").write_text("# Operations")
+
+        # Create hook file with plugin default (should NOT be protected)
+        hooks_dir = project_dir / ".claude" / "hooks"
+        hooks_dir.mkdir(parents=True)
+        default_content = "# Default hook"
+        (hooks_dir / "auto_format.py").write_text(default_content)
+
+        import hashlib
+
+        default_hash = hashlib.sha256(default_content.encode()).hexdigest()
+        defaults_registry = {".claude/hooks/auto_format.py": default_hash}
+
+        detector = ProtectedFileDetector(plugin_defaults=defaults_registry)
+        protected_files = detector.detect_protected_files(project_dir)
+
+        # Local file should be protected
+        assert any(".claude/local/OPERATIONS.md" in f["path"] for f in protected_files)
+
+        # Hook file matching default should NOT be protected
+        assert not any("auto_format.py" in f["path"] for f in protected_files)
+
+    def test_multiple_local_files_all_protected(self, tmp_path):
+        """Test that multiple files in .claude/local/ are all protected.
+
+        Current: FAILS - Protection not implemented yet
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        local_dir = project_dir / ".claude" / "local"
+        local_dir.mkdir(parents=True)
+
+        # Create multiple local files
+        (local_dir / "OPERATIONS.md").write_text("# Operations")
+        (local_dir / "config.json").write_text('{"key": "value"}')
+        (local_dir / "notes.txt").write_text("Notes")
+
+        detector = ProtectedFileDetector()
+        protected_files = detector.detect_protected_files(project_dir)
+
+        local_files = [f for f in protected_files if "local" in f["path"]]
+        assert len(local_files) == 3
+
+        # All should be categorized as config
+        for f in local_files:
+            assert f.get("category") == "config"
 
 
 class TestEdgeCases:
