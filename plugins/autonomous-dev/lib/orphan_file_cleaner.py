@@ -55,8 +55,14 @@ from typing import List, Optional, Set
 # Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
 try:
     from plugins.autonomous_dev.lib.security_utils import validate_path, audit_log
+    from plugins.autonomous_dev.lib.protected_file_detector import ProtectedFileDetector
 except ImportError:
     from security_utils import validate_path, audit_log
+    try:
+        from protected_file_detector import ProtectedFileDetector
+    except ImportError:
+        # Graceful degradation if protected_file_detector not available
+        ProtectedFileDetector = None
 
 
 @dataclass
@@ -197,6 +203,37 @@ class OrphanFileCleaner:
 
         # Set up project-specific audit log
         self.audit_log_file = self.project_root / "logs" / "orphan_cleanup_audit.log"
+
+        # Initialize protected file detector (for filtering .claude/local/)
+        self.protected_detector = ProtectedFileDetector() if ProtectedFileDetector else None
+
+    def _is_protected_file(self, file_path: Path) -> bool:
+        """Check if file is protected (should not be treated as orphan).
+
+        Args:
+            file_path: Absolute path to file
+
+        Returns:
+            True if file is protected (e.g., in .claude/local/)
+
+        Note:
+            Uses ProtectedFileDetector if available, otherwise checks path manually.
+        """
+        # Get relative path from project root
+        try:
+            relative_path = file_path.relative_to(self.project_root)
+            relative_str = str(relative_path).replace("\\", "/")
+        except ValueError:
+            # File is outside project root - not protected
+            return False
+
+        # Use protected file detector if available
+        if self.protected_detector:
+            return self.protected_detector.matches_pattern(relative_str)
+
+        # Fallback: Manual check for .claude/local/ pattern
+        # This ensures backward compatibility if ProtectedFileDetector is not available
+        return ".claude/local/" in relative_str or relative_str.startswith(".claude/local/")
 
     def _write_audit_log(self, operation: str, path: str, category: str, **kwargs):
         """Write to project-specific orphan cleanup audit log (JSON format).
@@ -571,6 +608,11 @@ class OrphanFileCleaner:
             # Find orphans (files not in expected list)
             for file_path in actual_files:
                 if file_path.name not in expected_files:
+                    # Check if file is protected (e.g., .claude/local/*)
+                    if self._is_protected_file(file_path):
+                        # Skip protected files - they are not orphans
+                        continue
+
                     orphan = OrphanFile(
                         path=file_path,
                         category=category.rstrip("s"),  # "commands" -> "command"

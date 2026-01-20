@@ -28,6 +28,7 @@ try:
     from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
     from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
     from plugins.autonomous_dev.lib.sync_validator import SyncValidator, SyncValidationResult
+    from plugins.autonomous_dev.lib.protected_file_detector import ProtectedFileDetector
 except ImportError:
     # Fallback for installed environment (.claude/lib/)
     from security_utils import validate_path, audit_log  # type: ignore
@@ -42,6 +43,11 @@ except ImportError:
         # Graceful degradation if sync_validator not available
         SyncValidator = None  # type: ignore
         SyncValidationResult = None  # type: ignore
+    try:
+        from protected_file_detector import ProtectedFileDetector  # type: ignore
+    except ImportError:
+        # Graceful degradation if protected_file_detector not available
+        ProtectedFileDetector = None  # type: ignore
 
 # Import from package modules
 from .models import SyncResult, SyncDispatcherError
@@ -55,7 +61,7 @@ class SyncDispatcher:
         _backup_dir: Temporary directory for backup files
     """
 
-    def __init__(self, project_path: str = None, project_root: str = None):
+    def __init__(self, project_path: Optional[str] = None, project_root: Optional[str] = None):
         """Initialize dispatcher with project path.
 
         Args:
@@ -405,6 +411,9 @@ class SyncDispatcher:
         # Delete orphaned files (TRUE SYNC behavior)
         orphans_deleted = 0
         if delete_orphans and dst.exists():
+            # Initialize protected file detector (for .claude/local/ protection)
+            protected_detector = ProtectedFileDetector() if ProtectedFileDetector else None
+
             # Get source file names (relative to src)
             source_names = {f.name for f in matching_files}
 
@@ -413,6 +422,26 @@ class SyncDispatcher:
             for dst_file in dst.iterdir():
                 if dst_file.is_file() and fn.fnmatch(dst_file.name, pattern):
                     if dst_file.name not in source_names:
+                        # Check if file is protected (e.g., .claude/local/)
+                        if protected_detector:
+                            try:
+                                relative_path = dst_file.relative_to(self.project_path)
+                                relative_str = str(relative_path).replace("\\", "/")
+                                if protected_detector.matches_pattern(relative_str):
+                                    # Skip protected files
+                                    audit_log(
+                                        "sync_directory",
+                                        "orphan_protected",
+                                        {
+                                            "file": str(dst_file),
+                                            "reason": "protected pattern",
+                                        }
+                                    )
+                                    continue
+                            except ValueError:
+                                # File is outside project root - skip protection check
+                                pass
+
                         try:
                             dst_file.unlink()
                             orphans_deleted += 1
@@ -444,6 +473,27 @@ class SyncDispatcher:
                     # Skip special directories
                     if dst_subdir.name in {"__pycache__", ".git", "node_modules"}:
                         continue
+
+                    # Check if directory is protected (e.g., .claude/local/)
+                    if protected_detector:
+                        try:
+                            relative_path = dst_subdir.relative_to(self.project_path)
+                            relative_str = str(relative_path).replace("\\", "/")
+                            if protected_detector.matches_pattern(relative_str):
+                                # Skip protected directories
+                                audit_log(
+                                    "sync_directory",
+                                    "orphan_dir_protected",
+                                    {
+                                        "directory": str(dst_subdir),
+                                        "reason": "protected pattern",
+                                    }
+                                )
+                                continue
+                        except ValueError:
+                            # Directory is outside project root - skip protection check
+                            pass
+
                     try:
                         # Safer deletion: remove files first, then directory
                         for f in dst_subdir.rglob("*"):
