@@ -954,7 +954,25 @@ class ToolValidator:
         Returns:
             ValidationResult with approval decision and reason
         """
-        # Validate based on tool type
+        # Check tools.always_allowed FIRST (before tool-specific validation)
+        always_allowed = self.policy.get("tools", {}).get("always_allowed", [
+            "Read", "Write", "Edit", "Grep", "Glob", "Search",
+            "AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand",
+            "BashOutput", "NotebookEdit", "TodoWrite", "EnterPlanMode",
+            "ExitPlanMode", "AgentOutputTool", "KillShell", "LSP",
+        ])
+        if tool in always_allowed:
+            return ValidationResult(
+                approved=True,
+                reason=f"{tool} allowed (in always_allowed list)",
+                security_risk=False,
+                tool=tool,
+                agent=agent_name,
+                parameters=parameters,
+                matched_pattern=None,
+            )
+
+        # Validate based on tool type (only for tools NOT in always_allowed)
         if tool == "Bash" and "command" in parameters:
             result = self.validate_bash_command(parameters["command"])
             result.tool = tool
@@ -990,26 +1008,7 @@ class ToolValidator:
             result.agent = agent_name
             return result
 
-        # Check tools.always_allowed from config (with fallback for backward compatibility)
-        always_allowed = self.policy.get("tools", {}).get("always_allowed", [
-            "Read", "Write", "Edit", "Grep", "Glob", "Search",
-            "AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand",
-            "BashOutput", "NotebookEdit", "TodoWrite", "EnterPlanMode",
-            "ExitPlanMode", "AgentOutputTool", "KillShell", "LSP",
-        ])
-        if tool in always_allowed:
-            # Always allow these tools - they're interactive, delegating, workflow management, or read-only
-            return ValidationResult(
-                approved=True,
-                reason=f"{tool} allowed (interactive/delegating tool)",
-                security_risk=False,
-                tool=tool,
-                agent=agent_name,
-                parameters=parameters,
-                matched_pattern=None,
-            )
-
-        # Deny unknown tools by default
+        # Deny unknown tools by default (always_allowed already checked at top)
         return ValidationResult(
             approved=False,
             reason=f"Tool '{tool}' not supported for auto-approval",
