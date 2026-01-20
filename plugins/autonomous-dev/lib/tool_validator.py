@@ -460,6 +460,14 @@ class ToolValidator:
             },
             "tools": {
                 "always_allowed": [
+                    # Core file operations
+                    "Read",
+                    "Write",
+                    "Edit",
+                    "Grep",
+                    "Glob",
+                    "Search",
+                    # Task/agent tools
                     "AskUserQuestion",
                     "Task",
                     "TaskOutput",
