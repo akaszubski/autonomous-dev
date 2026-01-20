@@ -387,10 +387,13 @@ class ToolValidator:
                     # Dangerous docker operations
                     "docker rm -f $(docker ps -aq)",
                     "docker system prune -af",
-                    # Bulk deletion
-                    "xargs rm*",
-                    "find * -delete",
-                    "find * -exec rm*",
+                    # Bulk deletion (only block root/home, allow project cleanup)
+                    "xargs rm -rf /*",
+                    "xargs rm -rf ~*",
+                    "find / -delete",
+                    "find ~ -delete",
+                    "find / -exec rm*",
+                    "find ~ -exec rm*",
                     # Fork bomb
                     ":(){:|:&};:",
                     # PATH manipulation
