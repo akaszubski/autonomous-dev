@@ -25,6 +25,16 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
 **Use `/sync` to update.** Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
+## Code Navigation
+
+**Prefer LSP over Grep for code navigation.** When LSP is available:
+- `goToDefinition` - Find where functions/classes are defined
+- `findReferences` - Find all usages of a symbol
+- `incomingCalls` / `outgoingCalls` - Understand call hierarchies
+- `documentSymbol` - Get file structure overview
+
+Use Grep/Glob for: text patterns, file names, comments/strings.
+
 ## Commands
 
 | Command | Purpose |
