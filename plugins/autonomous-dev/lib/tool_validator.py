@@ -992,6 +992,7 @@ class ToolValidator:
 
         # Check tools.always_allowed from config (with fallback for backward compatibility)
         always_allowed = self.policy.get("tools", {}).get("always_allowed", [
+            "Read", "Write", "Edit", "Grep", "Glob", "Search",
             "AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand",
             "BashOutput", "NotebookEdit", "TodoWrite", "EnterPlanMode",
             "ExitPlanMode", "AgentOutputTool", "KillShell", "LSP",
