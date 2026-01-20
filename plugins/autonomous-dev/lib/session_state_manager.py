@@ -115,6 +115,9 @@ except ImportError:
 # Default state file location
 DEFAULT_STATE_FILE = ".claude/local/SESSION_STATE.json"
 
+# Active work markdown file (human-readable summary)
+ACTIVE_WORK_FILE = ".claude/local/ACTIVE_WORK.md"
+
 # Default schema version
 SCHEMA_VERSION = "1.0"
 
@@ -410,6 +413,16 @@ class SessionStateManager(StateManager[Dict[str, Any]]):
                         "path": str(validated_path),
                     })
 
+                    # Update ACTIVE_WORK.md (human-readable summary)
+                    # Non-blocking - errors logged but don't fail save
+                    try:
+                        self.update_active_work_md()
+                    except Exception as md_error:
+                        audit_log("session_state_save", "warning", {
+                            "message": "Failed to update ACTIVE_WORK.md",
+                            "error": str(md_error),
+                        })
+
                 except Exception as e:
                     # Cleanup temp file on error
                     try:
@@ -635,3 +648,91 @@ class SessionStateManager(StateManager[Dict[str, Any]]):
 
         lines.append("=" * 60)
         return "\n".join(lines)
+
+    def update_active_work_md(self) -> None:
+        """Update ACTIVE_WORK.md with human-readable session summary.
+
+        Creates or updates the ACTIVE_WORK.md file alongside SESSION_STATE.json.
+        This provides a human-readable view of the current session state.
+
+        Note:
+            This method is called automatically by save_state() to keep
+            ACTIVE_WORK.md in sync with SESSION_STATE.json.
+        """
+        state = self.load_state()
+
+        # Build ACTIVE_WORK.md content
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+        lines = [
+            "# Active Work",
+            "",
+            f"Last updated: {now}",
+            "",
+        ]
+
+        # Current task section
+        lines.append("## Current Task")
+        lines.append("")
+
+        active_tasks = state["session_context"]["active_tasks"]
+        if active_tasks:
+            for task in active_tasks[:3]:  # Show top 3 tasks
+                lines.append(f"- {task}")
+        else:
+            lines.append("(No active task)")
+        lines.append("")
+
+        # Recent context section
+        lines.append("## Recent Context")
+        lines.append("")
+
+        last_impl = state["workflow_state"]["last_implement"]
+        if last_impl.get("feature"):
+            lines.append(f"- Last /implement: {last_impl['feature']}")
+            if last_impl.get("completed_at"):
+                lines.append(f"- Completed: {last_impl['completed_at']}")
+            if last_impl.get("agents_completed"):
+                lines.append(f"- Agents: {', '.join(last_impl['agents_completed'])}")
+        else:
+            lines.append("- No recent /implement completion")
+
+        recent_files = state["workflow_state"]["recent_files"]
+        if recent_files:
+            lines.append(f"- Recent files: {len(recent_files)} modified")
+            for f in recent_files[:5]:
+                lines.append(f"  - {f}")
+        lines.append("")
+
+        # Conventions section
+        conventions = state["session_context"]["key_conventions"]
+        if conventions:
+            lines.append("## Key Conventions")
+            lines.append("")
+            for conv in conventions[:5]:
+                lines.append(f"- {conv}")
+            lines.append("")
+
+        # Resume instructions
+        lines.append("## Resume Instructions")
+        lines.append("")
+        lines.append("1. Read `.claude/local/SESSION_STATE.json` for full context")
+        lines.append("2. Check active tasks and their next steps")
+        lines.append("3. Continue with pending work or ask what's next")
+        lines.append("")
+
+        content = "\n".join(lines)
+
+        # Write to ACTIVE_WORK.md
+        active_work_path = self.state_file.parent / "ACTIVE_WORK.md"
+        try:
+            active_work_path.write_text(content)
+            audit_log("session_state_active_work", "success", {
+                "path": str(active_work_path),
+            })
+        except (OSError, IOError) as e:
+            # Non-critical - log but don't raise
+            audit_log("session_state_active_work", "warning", {
+                "error": str(e),
+                "path": str(active_work_path),
+            })

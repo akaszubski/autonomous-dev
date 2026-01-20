@@ -45,10 +45,20 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 | `/audit-claude` | Validate this file |
 | `/health-check` | Validate plugin integrity |
 
+## Session Continuity
+
+At session start, read `.claude/local/SESSION_STATE.json` for:
+- **Active tasks**: Current work and next steps
+- **Key conventions**: Repo-specific patterns and rules
+- **Recent context**: Files modified, workflows completed
+
+Update state after completing significant work. State survives `/clear` operations.
+
 ## Project Alignment
 
 - **Goals/Scope**: See [.claude/PROJECT.md](.claude/PROJECT.md)
 - **Operations**: See [.claude/local/OPERATIONS.md](.claude/local/OPERATIONS.md) (repo-specific procedures)
+- **Session State**: See [.claude/local/SESSION_STATE.json](.claude/local/SESSION_STATE.json) (machine-readable context)
 
 ### Agents
 

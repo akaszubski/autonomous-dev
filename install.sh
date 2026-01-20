@@ -1146,6 +1146,71 @@ bootstrap_skills() {
     return 0
 }
 
+# Bootstrap .claude/local/ directory with OPERATIONS.md template (Issue #244)
+bootstrap_local_operations() {
+    log_step "Installing .claude/local/ directory template..."
+
+    local local_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/templates/local"
+    local local_target_dir=".claude/local"
+
+    # Check if local source directory exists
+    if [[ ! -d "$local_source_dir" ]]; then
+        log_warning "Local templates directory not found in staging - .claude/local/ won't be bootstrapped"
+        return 1
+    fi
+
+    # Create .claude/local/ directory if it doesn't exist (idempotent)
+    if ! mkdir -p "$local_target_dir" 2>/dev/null; then
+        log_error "Failed to create .claude/local/ directory (permission denied?)"
+        return 1
+    fi
+
+    # Only copy OPERATIONS.md if it doesn't already exist (preserve user customizations)
+    local operations_template="${local_source_dir}/OPERATIONS.md"
+    local operations_target="${local_target_dir}/OPERATIONS.md"
+
+    local files_installed=0
+
+    # Copy OPERATIONS.md if it doesn't exist (preserve user customizations)
+    if [[ ! -f "$operations_target" ]]; then
+        if [[ -f "$operations_template" ]]; then
+            if cp -P "$operations_template" "$operations_target" 2>/dev/null; then
+                log_success "Installed OPERATIONS.md template to .claude/local/"
+                ((files_installed++))
+            else
+                log_warning "Failed to copy OPERATIONS.md template"
+            fi
+        fi
+    else
+        # OPERATIONS.md already exists - preserve it (Issue #244)
+        if $VERBOSE; then
+            log_info ".claude/local/OPERATIONS.md already exists - preserving user customizations"
+        fi
+    fi
+
+    # Copy ACTIVE_WORK.md if it doesn't exist (Issue #247 - session state)
+    local active_work_template="${local_source_dir}/ACTIVE_WORK.md"
+    local active_work_target="${local_target_dir}/ACTIVE_WORK.md"
+
+    if [[ ! -f "$active_work_target" ]]; then
+        if [[ -f "$active_work_template" ]]; then
+            if cp -P "$active_work_template" "$active_work_target" 2>/dev/null; then
+                log_success "Installed ACTIVE_WORK.md template to .claude/local/"
+                ((files_installed++))
+            else
+                log_warning "Failed to copy ACTIVE_WORK.md template"
+            fi
+        fi
+    else
+        if $VERBOSE; then
+            log_info ".claude/local/ACTIVE_WORK.md already exists - preserving session state"
+        fi
+    fi
+
+    # Return success if at least one file installed or all already exist
+    return 0
+}
+
 # Add autonomous-dev section to project CLAUDE.md (if exists)
 add_autonomous_dev_section() {
     local project_claude_md="$1"
@@ -1347,6 +1412,15 @@ main() {
         log_info "Skills provide context for agents - some features may be limited"
     fi
 
+    # Bootstrap .claude/local/ directory with OPERATIONS.md template (Issue #244)
+    local local_operations_success=false
+    if bootstrap_local_operations; then
+        local_operations_success=true
+    else
+        log_warning "Failed to bootstrap .claude/local/ directory"
+        log_info "You can manually create .claude/local/OPERATIONS.md for repo-specific procedures"
+    fi
+
     # Configure global settings.json (non-blocking)
     local settings_success=false
     if configure_global_settings; then
@@ -1413,6 +1487,11 @@ main() {
         log_success "Skill files installed to .claude/skills/"
     else
         log_warning "Skill files not installed (agent context may be limited)"
+    fi
+    if $local_operations_success; then
+        log_success ".claude/local/ directory bootstrapped with OPERATIONS.md template"
+    else
+        log_warning ".claude/local/ directory not bootstrapped (manual setup may be needed)"
     fi
     if $settings_success; then
         log_success "Global settings configured in ~/.claude/settings.json"
