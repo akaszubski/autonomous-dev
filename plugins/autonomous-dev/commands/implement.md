@@ -348,6 +348,21 @@ Consider running `/implement [feature]` (without --quick) for full pipeline.
 
 ---
 
+### STEP Q2: Git Automation (Issue #258)
+
+**After quick mode completes**, trigger git automation if enabled:
+
+```bash
+# Check if AUTO_GIT_ENABLED and trigger git workflow
+if [ "$AUTO_GIT_ENABLED" = "true" ]; then
+  FORCE_GIT_TRIGGER=true python3 ~/.claude/hooks/unified_git_automation.py 2>/dev/null || true
+fi
+```
+
+This ensures git automation works in quick mode (where doc-master doesn't run).
+
+---
+
 # BATCH FILE MODE
 
 Process multiple features from a file with automatic worktree isolation.
@@ -451,7 +466,18 @@ model: "sonnet"
 
 **This applies to ALL 8 agents in the full pipeline when running in batch mode.**
 
-**STEP B4: Batch Summary**
+**STEP B4: Git Automation (Issue #258)**
+
+After ALL features in batch are processed, trigger git automation if enabled:
+
+```bash
+# Trigger git automation for batch completion
+if [ "$AUTO_GIT_ENABLED" = "true" ]; then
+  FORCE_GIT_TRIGGER=true python3 ~/.claude/hooks/unified_git_automation.py 2>/dev/null || true
+fi
+```
+
+**STEP B5: Batch Summary**
 
 ```
 ========================================
@@ -495,8 +521,8 @@ Same as BATCH FILE MODE:
 1. Create worktree (see BATCH FILE MODE STEP B1)
 2. Store absolute worktree path in `WORKTREE_PATH` variable
 3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see BATCH FILE MODE STEP B3)
-4. Update batch state
-5. Report summary
+4. Git automation (see BATCH FILE MODE STEP B4) - triggers at end of batch
+5. Report summary (see BATCH FILE MODE STEP B5)
 
 **CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in BATCH FILE MODE STEP B3.
 
@@ -562,6 +588,10 @@ Continuing from feature M...
 
 Continue the batch loop from `current_index`, same as BATCH FILE MODE STEP B3.
 
+**STEP R4: Git Automation**
+
+After batch completion, trigger git automation (same as BATCH FILE MODE STEP B4).
+
 **CRITICAL**: When invoking agents in resume mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in BATCH FILE MODE STEP B3.
 
 ---
@@ -587,6 +617,10 @@ MCP_AUTO_APPROVE=true
 # Git automation
 AUTO_GIT_ENABLED=true
 AUTO_GIT_PUSH=true
+
+# Force git trigger (used internally by /implement for quick/batch modes)
+# Issue #258: Ensures git automation works in all modes
+FORCE_GIT_TRIGGER=true
 
 # Batch retry
 BATCH_RETRY_ENABLED=true

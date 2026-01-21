@@ -142,7 +142,7 @@
         ]
       },
       {
-        "matcher": "quality-validator",
+        "matcher": "doc-master",
         "hooks": [
           {
             "type": "command",

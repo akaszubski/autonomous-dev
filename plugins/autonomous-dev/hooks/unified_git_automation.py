@@ -145,21 +145,38 @@ AUTO_GIT_PR = parse_bool(os.environ.get('AUTO_GIT_PR', 'false')) if AUTO_GIT_ENA
 
 def should_trigger_git_workflow(agent_name: Optional[str]) -> bool:
     """
-    Check if git workflow should trigger based on agent name.
+    Check if git workflow should trigger based on agent name or explicit flag.
 
-    Only triggers for doc-master (last agent in parallel validation phase).
+    Triggers for:
+    - doc-master: Last agent in full pipeline mode (SubagentStop hook)
+    - FORCE_GIT_TRIGGER=true: Explicit trigger from /implement command (quick/batch modes)
+
+    Issue #258: Git automation now works in all /implement modes:
+    - Full pipeline: Triggers on doc-master completion (SubagentStop hook)
+    - Quick mode: Triggers via explicit FORCE_GIT_TRIGGER at end of command
+    - Batch mode: Triggers via explicit FORCE_GIT_TRIGGER at end of command
+    - Coordinator edits: Triggers via explicit FORCE_GIT_TRIGGER at end of command
 
     Args:
-        agent_name: Name of agent that just completed
+        agent_name: Name of agent that just completed (can be None for explicit trigger)
 
     Returns:
         True if workflow should trigger, False otherwise
     """
+    # Check for explicit trigger (Issue #258 - quick/batch/coordinator modes)
+    force_trigger = os.environ.get('FORCE_GIT_TRIGGER', 'false').lower() == 'true'
+    if force_trigger:
+        log_info("Git automation triggered via FORCE_GIT_TRIGGER (quick/batch/coordinator mode)")
+        return True
+
     if not agent_name:
         return False
 
-    # Trigger for doc-master (last agent in parallel validation phase)
-    return agent_name == 'doc-master'
+    # Trigger for doc-master (last agent in full pipeline)
+    if agent_name == 'doc-master':
+        return True
+
+    return False
 
 
 def check_git_workflow_consent() -> Dict[str, bool]:
