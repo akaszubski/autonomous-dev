@@ -69,9 +69,12 @@
       "twine upload*",
       "docker rm -f $(docker ps -aq)",
       "docker system prune -af",
-      "xargs rm*",
-      "find * -delete",
-      "find * -exec rm*",
+      "xargs rm -rf /*",
+      "xargs rm -rf ~*",
+      "find / -delete",
+      "find ~ -delete",
+      "find / -exec rm*",
+      "find ~ -exec rm*",
       ":(){:|:&};:",
       "export PATH=",
       "unset PATH"
@@ -141,6 +144,11 @@
   },
   "tools": {
     "always_allowed": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
       "AskUserQuestion",
       "Task",
       "TaskOutput",

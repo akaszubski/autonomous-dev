@@ -121,6 +121,7 @@
         "plugins/autonomous-dev/hooks/enforce_no_bare_except.py",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
         "plugins/autonomous-dev/hooks/enforce_pipeline_complete.py",
+        "plugins/autonomous-dev/hooks/enforce_pipeline_order.py",
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.py",
