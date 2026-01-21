@@ -959,6 +959,105 @@ Hook output: ALLOWS - "Non-code file, no enforcement needed"
 - `/implement` command (proper feature implementation workflow)
 - `/create-issue` command (GitHub issue creation)
 
+### enforce_pipeline_order.py
+
+**Purpose**: Prevent skipping prerequisite agents in /implement pipeline (Issue #246, v3.49.0+)
+**Lifecycle**: PreToolUse (intercepts Task tool calls with subagent_type)
+**Exit Code**: 0 (always - allows Claude Code to process the permission decision)
+
+**How It Works**:
+1. Tracks Task tool calls with subagent_type in a session state file
+2. Records which agents have been invoked (researcher-local, researcher-web, planner, test-master, implementer)
+3. When implementer agent is invoked, checks that prerequisites have run
+4. If prerequisites missing: BLOCKS implementer with detailed error message
+5. Resets state when new /implement session starts (>2 hours since last activity)
+
+**Pipeline Order Enforced**:
+1. researcher-local (codebase analysis)
+2. researcher-web or general-purpose (web best practices research)
+3. planner (implementation plan)
+4. test-master (TDD tests)
+5. implementer (production code) ← Cannot run unless 1-4 complete
+
+**Minimum Prerequisites Required**:
+- Local research (researcher-local agent invoked)
+- Web research (researcher-web or general-purpose agent invoked)
+- Planning (planner agent invoked)
+- Test design (test-master agent invoked)
+
+**State Management**:
+- Session state file: `/tmp/implement_pipeline_state.json` (configurable)
+- Atomic writes with file locking for thread safety
+- Tracks: agents_invoked (list), prerequisites_met (dict), session_start (timestamp)
+- Session expires after 2 hours of inactivity (new session starts fresh)
+
+**Control**:
+- **ENFORCE_PIPELINE_ORDER** env var (default: `true`)
+  - Set to `false` to disable pipeline order enforcement
+  - Recommended: Keep enabled to ensure complete pipeline execution
+- **PIPELINE_STATE_FILE** env var (default: `/tmp/implement_pipeline_state.json`)
+  - Override session state file location if needed
+  - Must be writable by Claude Code process
+
+**Authorized Agents** (always allowed):
+- `implementer` - Subject to pipeline order enforcement
+- `researcher-local`, `researcher-web`, `general-purpose` - Prerequisite agents
+- `planner` - Prerequisite agent
+- `test-master` - Prerequisite agent
+- All other agents (reviewer, security-auditor, doc-master) - Recorded and allowed
+
+**Example Scenarios**:
+
+❌ **Skip Prerequisite Agents (BLOCKED)**:
+```
+Claude: "Let me implement this feature directly"
+Implementer agent invoked WITHOUT research, planning, or tests
+Hook output: DENIES with message:
+  "⛔ PIPELINE ORDER VIOLATION - IMPLEMENTER BLOCKED
+
+   You are attempting to invoke the implementer agent, but required prerequisite
+   agents have not been run yet.
+
+   MISSING PREREQUISITES:
+   - researcher-local (codebase analysis)
+   - researcher-web (best practices research)
+   - planner (implementation plan)
+   - test-master (TDD tests)
+
+   AGENTS INVOKED SO FAR: (none)
+
+   ⚠️ DO NOT SKIP STEPS. Go back and invoke the missing agents first."
+```
+
+✅ **Correct Pipeline (ALLOWED)**:
+```
+1. Researcher-local invoked → Allowed (recorded)
+2. Researcher-web invoked → Allowed (recorded)
+3. Planner invoked → Allowed (recorded)
+4. Test-master invoked → Allowed (recorded)
+5. Implementer invoked → ALLOWED (all prerequisites met)
+```
+
+❌ **Partial Pipeline (BLOCKED)**:
+```
+1. Researcher-local invoked → Allowed
+2. Implementer invoked → BLOCKED (missing: researcher-web, planner, test-master)
+```
+
+**Why This Matters**:
+- Ensures all agents in /implement pipeline are utilized
+- Prevents skipping research (bugs from missing requirements)
+- Prevents skipping planning (poor code organization)
+- Prevents skipping TDD (low test coverage and fragile code)
+- Maintains data-proven quality improvements (4% bug rate vs 23% for direct implementation)
+
+**Related**:
+- docs/WORKFLOW-DISCIPLINE.md Layer 3 (Pipeline Order Enforcement)
+- Issue #246 (Bug - Claude bypasses /implement for code changes)
+- `/implement` command (full 8-agent pipeline)
+- enforce_implementation_workflow.py (PreToolUse workflow enforcement)
+- docs/ARCHITECTURE-OVERVIEW.md (8-agent SDLC pipeline)
+
 ### block_git_bypass.py
 
 **Purpose**: Prevent bypassing pre-commit hooks with `git commit --no-verify` (Issue #250, v3.48.0+)

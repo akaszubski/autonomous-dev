@@ -223,9 +223,65 @@ ENFORCE_WORKFLOW_STRICT=true    # Maps to BLOCK
 
 Violations logged to: `logs/workflow_violations.log` (JSON Lines format)
 
-### Layer 3: Workflow Violation Audit Logging
+### Layer 3: Pipeline Order Enforcement (enforce_pipeline_order Hook)
 
-**workflow_violation_logger.py library provides audit trail**.
+**PreToolUse hook that prevents skipping prerequisite agents**.
+
+This hook tracks Task tool calls and ensures that when running `/implement`, agents are invoked in the required order:
+
+1. researcher-local (codebase analysis)
+2. researcher-web or general-purpose (web best practices research)
+3. planner (implementation plan)
+4. test-master (TDD tests)
+5. implementer (production code)
+
+If the implementer agent is invoked before all prerequisites have run, the hook BLOCKS the implementer with a detailed error message.
+
+What this prevents:
+- Skipping research phase (jumping to implementation)
+- Skipping planning phase (no strategy before coding)
+- Skipping TDD phase (no tests before implementation)
+- Partial pipeline execution (e.g., only research, then implement)
+
+Configuration:
+```bash
+# .env file
+ENFORCE_PIPELINE_ORDER=true   # Default: enabled
+ENFORCE_PIPELINE_ORDER=false  # Disable enforcement (not recommended)
+```
+
+State tracking:
+- Session state file: `/tmp/implement_pipeline_state.json` (configurable via `PIPELINE_STATE_FILE`)
+- Tracks: agents_invoked, prerequisites_met, session_start timestamp
+- File locking ensures thread-safe concurrent operations
+- State resets when a new /implement session starts (>2 hours since last activity)
+
+Example error message:
+```
+⛔ PIPELINE ORDER VIOLATION - IMPLEMENTER BLOCKED
+
+You are attempting to invoke the implementer agent, but required prerequisite
+agents have not been run yet.
+
+MISSING PREREQUISITES:
+  - researcher-local (codebase analysis)
+  - planner (implementation plan)
+
+AGENTS INVOKED SO FAR: (none)
+
+REQUIRED PIPELINE ORDER:
+1. researcher-local (codebase patterns)
+2. researcher-web / general-purpose (web best practices)
+3. planner (implementation plan)
+4. test-master (TDD tests)
+5. implementer (production code) ← YOU ARE HERE
+
+⚠️ DO NOT SKIP STEPS. Go back and invoke the missing agents first.
+```
+
+### Layer 4: Workflow Violation Audit Logging
+
+**workflow_violation_logger.py library provides audit trail for enforcement layers 1-3**.
 
 Logged violation types:
 - `direct_implementation`: Code changes outside /implement workflow

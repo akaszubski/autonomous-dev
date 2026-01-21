@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+- Pipeline order enforcement hook to prevent skipping agent prerequisites (#246)
+  - Created enforce_pipeline_order.py PreToolUse hook that tracks agent invocations
+  - Blocks implementer agent from running unless researcher-local, researcher-web, planner, and test-master have been invoked first
+  - Maintains session state with file locking for thread-safe operation
+  - Provides clear error messages listing missing prerequisites when pipeline order is violated
+  - Can be disabled with ENFORCE_PIPELINE_ORDER=false environment variable
+  - Complements enforce_implementation_workflow.py by preventing step skipping within /implement pipeline
+  - See docs/WORKFLOW-DISCIPLINE.md Layer 3 for detailed architecture
 - Session state persistence in .claude/local/SESSION_STATE.json (#247)
   - Created SessionStateManager library for persistent session context
   - Stores key_conventions, active_tasks, important_files, and repo_specific context

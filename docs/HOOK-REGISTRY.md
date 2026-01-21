@@ -7,7 +7,7 @@ Quick-reference guide for all hooks in the autonomous-dev plugin, including acti
 ## Purpose
 
 This registry provides a comprehensive view of:
-- All 70 hooks in the plugin
+- All 71 hooks in the plugin
 - Default activation status (enabled/disabled/opt-in)
 - Trigger points (when hooks execute)
 - Environment variables that control behavior
@@ -49,6 +49,7 @@ Runs before tool execution (can block with permission decision).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
+| enforce_pipeline_order | Enabled | ENFORCE_PIPELINE_ORDER (default: true), PIPELINE_STATE_FILE | Prevent skipping agent prerequisites in /implement pipeline - blocks implementer unless researcher-local, researcher-web, planner, and test-master have been invoked first |
 | enforce_implementation_workflow | Enabled (default: SUGGEST) | ENFORCEMENT_LEVEL, ENFORCE_WORKFLOW_STRICT | Enforce /implement workflow with graduated levels (OFF, WARN, SUGGEST, BLOCK) |
 | auto_generate_tests | Opt-in (default: false) | AUTO_GENERATE_TESTS | Auto-generate tests before implementation |
 
@@ -262,6 +263,8 @@ All environment variables with default values:
 
 | Variable | Default | Controls | Description |
 |----------|---------|----------|-------------|
+| ENFORCE_PIPELINE_ORDER | true | enforce_pipeline_order (PreToolUse) | Enable pipeline order enforcement - prevents implementer unless researcher-local, researcher-web, planner, and test-master have run first |
+| PIPELINE_STATE_FILE | /tmp/implement_pipeline_state.json | enforce_pipeline_order (PreToolUse) | Path to pipeline state tracking file (session state, agents invoked, prerequisites met) |
 | ENFORCE_WORKFLOW | true | Prompt validator | Enforce workflow suggestions (non-blocking) |
 | QUALITY_NUDGE_ENABLED | true | Prompt validator | Enable quality nudges |
 | ENFORCEMENT_LEVEL | suggest | enforce_implementation_workflow (PreToolUse) | Graduated enforcement level (off, warn, suggest, block) for /implement workflow - default SUGGEST allows + suggests |
