@@ -1,9 +1,9 @@
 ---
 name: scientific-validation
-version: 1.0.0
+version: 2.0.0
 type: knowledge
-description: Scientific method for validating claims from books, papers, or theories. Enforces pre-registration, statistical rigor, bias prevention, and evidence-based acceptance/rejection. Use when testing any testable hypothesis.
-keywords: scientific method, hypothesis, validation, experiment, p-value, sample size, bias, out-of-sample, backtest, evidence, claims, books, research
+description: Scientific method for validating claims from books, papers, or theories. Enforces pre-registration, power analysis, statistical rigor, Bayesian methods, sensitivity analysis, bias prevention, and evidence-based acceptance/rejection. Use when testing any testable hypothesis.
+keywords: scientific method, hypothesis, validation, experiment, p-value, sample size, bias, out-of-sample, backtest, evidence, claims, books, research, power analysis, Bayesian, sensitivity analysis, walk-forward
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash, Write]
 ---
@@ -109,6 +109,45 @@ For each claim:
 
 ---
 
+## Phase 1.5: Publication Bias Prevention
+
+**BEFORE selecting claims to test, prevent cherry-picking bias.**
+
+### 1.5.1 Document ALL Claims First
+
+```markdown
+## Complete Claims Inventory
+
+**Total claims identified:** X
+**Claims selected for testing:** Y
+**Selection ratio:** Y/X = Z%
+**Selection method:** [Random / Highest priority / All HIGH priority]
+```
+
+### 1.5.2 Selection Bias Correction
+
+| Selection Ratio | Correction Required |
+|-----------------|---------------------|
+| > 80% | None - testing most claims |
+| 50-80% | Report selection criteria |
+| < 50% | Apply p-value adjustment |
+
+**Adjustment formula:**
+```python
+# If testing < 50% of identified claims
+adjusted_p = raw_p * (total_claims / tested_claims)
+```
+
+### 1.5.3 Mandatory Reporting
+
+- [ ] ALL identified claims listed (not just tested ones)
+- [ ] Selection criteria documented BEFORE testing
+- [ ] Untested claims have documented reason (LOW priority, not falsifiable, etc.)
+
+**Red Flag:** Testing only claims that "look promising" = selection bias.
+
+---
+
 ## Phase 2: Pre-Registration
 
 **CRITICAL: Document hypothesis BEFORE seeing any results.**
@@ -150,6 +189,68 @@ For each claim:
 2. **Specific predictions** - "It works" is not a hypothesis
 3. **Define failure** - Know what "doesn't work" looks like
 4. **Lock parameters** - Set all thresholds before testing
+
+---
+
+## Phase 2.3: Power Analysis (MANDATORY)
+
+**BEFORE running experiment, calculate required sample size.**
+
+### 2.3.1 Why Power Analysis Matters
+
+- n >= 30 is a **minimum**, not always sufficient
+- Small effects require LARGER samples
+- Underpowered studies waste resources and miss true effects
+- 80% power = 20% chance of missing a real effect
+
+### 2.3.2 Effect Size Standards (Cohen's d)
+
+| Effect Size | Cohen's d | Typical n (80% power) | Typical n (90% power) |
+|-------------|-----------|----------------------|----------------------|
+| Very Small | 0.1 | 1,571 | 2,103 |
+| Small | 0.2 | 394 | 527 |
+| Medium | 0.5 | 64 | 86 |
+| Large | 0.8 | 26 | 34 |
+| Very Large | 1.2 | 12 | 16 |
+
+### 2.3.3 Power Calculation
+
+```python
+from statsmodels.stats.power import TTestIndPower
+
+def calculate_required_n(effect_size, power=0.80, alpha=0.05):
+    """Calculate required sample size for given effect size."""
+    analysis = TTestIndPower()
+    n = analysis.solve_power(
+        effect_size=effect_size,
+        power=power,
+        alpha=alpha,
+        alternative='two-sided'
+    )
+    return int(np.ceil(n))
+
+# Example: Detect 10% difference with std=20%
+# Cohen's d = 0.10 / 0.20 = 0.5 (medium effect)
+required_n = calculate_required_n(effect_size=0.5, power=0.80)
+# Result: n = 64 per group
+```
+
+### 2.3.4 Power Analysis Checklist
+
+- [ ] Expected effect size estimated (from pilot or literature)
+- [ ] Required n calculated for 80% power minimum
+- [ ] If available n < required n, document as UNDERPOWERED
+- [ ] Consider 90% power for critical claims
+
+### 2.3.5 Underpowered Study Gate
+
+| Available n vs Required n | Action |
+|---------------------------|--------|
+| Available >= Required | Proceed normally |
+| Available = 50-99% of Required | Proceed with CONDITIONAL max |
+| Available < 50% of Required | BLOCK - need more data |
+
+**Rule:** An underpowered study cannot achieve VALIDATED status.
 
 ---
 
@@ -197,6 +298,74 @@ Expected: Low completion rates (5-20%) with strict validation
 - Strict train/test split (typically 70/30 or 80/20)
 - Parameters set on training data ONLY
 - If you peek at test results and adjust, you need NEW test data
+
+---
+
+## Phase 3.5: Walk-Forward Validation (MANDATORY for Time Series)
+
+**Standard train/test split leaks regime information. Use walk-forward instead.**
+
+### 3.5.1 Why Walk-Forward is Required
+
+| Problem with Standard Split | Walk-Forward Solution |
+|----------------------------|----------------------|
+| Uses "future to predict past" | Maintains temporal order |
+| Single train-test boundary | Multiple rolling windows |
+| Ignores regime changes | Adapts to evolving patterns |
+| Overstates performance | Realistic deployment estimate |
+
+### 3.5.2 Window Strategies
+
+**Sliding Window (Recommended for trading):**
+```python
+def walk_forward_validate(data, model, train_window, test_window):
+    """Walk-forward validation with sliding window."""
+    results = []
+
+    for i in range(train_window, len(data) - test_window, test_window):
+        # Train on past data only
+        train = data[i - train_window : i]
+        test = data[i : i + test_window]
+
+        # Fit and predict
+        model.fit(train)
+        predictions = model.predict(test)
+
+        # Evaluate
+        fold_result = evaluate(predictions, test)
+        fold_result['fold_start'] = data.index[i]
+        results.append(fold_result)
+
+    return aggregate_results(results)
+```
+
+**Expanding Window:**
+```python
+# Use all available history (grows over time)
+train = data[0 : i]  # Instead of fixed window
+```
+
+### 3.5.3 Recommended Parameters
+
+| Domain | Train Window | Test Window | Min Folds |
+|--------|--------------|-------------|-----------|
+| Trading (daily) | 2-5 years | 6-12 months | 5 |
+| Trading (intraday) | 3-6 months | 1-2 months | 6 |
+| Macro signals | 5-10 years | 1-2 years | 4 |
+
+### 3.5.4 Walk-Forward Checklist
+
+- [ ] Temporal ordering preserved (no future data in training)
+- [ ] Multiple folds evaluated (not just one split)
+- [ ] Fold-to-fold variance reported
+- [ ] Parameters re-optimized per fold (if applicable)
+
+### 3.5.5 Walk-Forward Gate
+
+**For time series experiments:**
+- Standard K-fold CV → INVALID (temporal leakage)
+- Single train/test split → CONDITIONAL at best
+- Walk-forward validation → Can achieve VALIDATED
 
 ---
 
@@ -286,6 +455,104 @@ Statistical significance != practical significance
 - Define minimum meaningful effect BEFORE testing
 - Report effect size alongside p-value
 
+### 4.6.1 Domain-Specific Effect Thresholds
+
+**Trading/Finance:**
+
+| Metric | Minimum Meaningful | Strong | Exceptional |
+|--------|-------------------|--------|-------------|
+| Sharpe Ratio | > 0.5 | > 1.0 | > 2.0 |
+| Win Rate | > 55% | > 60% | > 70% |
+| Profit Factor | > 1.2 | > 1.5 | > 2.0 |
+| Information Ratio | > 0.3 | > 0.5 | > 1.0 |
+| Max Drawdown | < 25% | < 15% | < 10% |
+
+**Psychology/Behavioral:**
+
+| Metric | Small | Medium | Large |
+|--------|-------|--------|-------|
+| Cohen's d | 0.2 | 0.5 | 0.8 |
+| Correlation r | 0.1 | 0.3 | 0.5 |
+| Odds Ratio | 1.5 | 2.5 | 4.0 |
+
+**Classification Gate:**
+```
+Statistical significance + Effect below "Minimum Meaningful" = REJECTED
+Statistical significance + Effect above "Strong" = VALIDATED candidate
+```
+
+---
+
+### 4.7 Bayesian Complement (For Small Samples or Ambiguous Results)
+
+**When frequentist p-values are insufficient:**
+
+### 4.7.1 When to Use Bayesian Methods
+
+| Scenario | Use Bayesian? |
+|----------|---------------|
+| n < 30 | YES - frequentist underpowered |
+| p-value near 0.05 (0.03-0.07) | YES - quantify uncertainty |
+| Want probability OF hypothesis (not just against null) | YES |
+| Incorporating prior knowledge | YES |
+| Large sample, clear result | OPTIONAL - frequentist sufficient |
+
+### 4.7.2 Bayes Factor Interpretation (Jeffreys Scale)
+
+| Bayes Factor | Evidence Strength | Interpretation |
+|--------------|-------------------|----------------|
+| < 1 | Supports null | Evidence AGAINST hypothesis |
+| 1-3 | Weak/Anecdotal | Barely worth mentioning |
+| 3-10 | Moderate | Substantial evidence |
+| 10-30 | Strong | Strong evidence |
+| 30-100 | Very Strong | Very strong evidence |
+| > 100 | Decisive | Decisive evidence |
+
+### 4.7.3 Bayesian A/B Test Example
+
+```python
+import pymc as pm
+import numpy as np
+
+def bayesian_ab_test(wins_a, n_a, wins_b, n_b):
+    """Bayesian comparison of two proportions."""
+    with pm.Model() as model:
+        # Uninformative priors
+        p_a = pm.Beta('p_a', alpha=1, beta=1)
+        p_b = pm.Beta('p_b', alpha=1, beta=1)
+
+        # Likelihoods
+        obs_a = pm.Binomial('obs_a', n=n_a, p=p_a, observed=wins_a)
+        obs_b = pm.Binomial('obs_b', n=n_b, p=p_b, observed=wins_b)
+
+        # Difference
+        diff = pm.Deterministic('diff', p_a - p_b)
+
+        # Sample posterior
+        trace = pm.sample(2000, return_inferencedata=True)
+
+    # P(A > B)
+    prob_a_better = (trace.posterior['p_a'] > trace.posterior['p_b']).mean()
+
+    return {
+        'prob_a_better': float(prob_a_better.values),
+        'mean_diff': float(trace.posterior['diff'].mean().values),
+        'ci_95': [
+            float(np.percentile(trace.posterior['diff'], 2.5)),
+            float(np.percentile(trace.posterior['diff'], 97.5))
+        ]
+    }
+```
+
+### 4.7.4 Bayesian Classification Gate
+
+| P(Hypothesis) | Bayes Factor | Classification Allowed |
+|---------------|--------------|------------------------|
+| > 95% | > 30 | VALIDATED candidate |
+| 90-95% | 10-30 | CONDITIONAL |
+| 75-90% | 3-10 | Needs more data |
+| < 75% | < 3 | REJECTED or INSUFFICIENT |
+
 ---
 
 ## Phase 5: Multi-Source Validation
@@ -306,6 +573,103 @@ If claim only works in ONE context -> likely overfitting
 Good: Works across 5/6 datasets
 Bad: Works on 1 dataset, fails on 5
 ```
+
+---
+
+## Phase 5.3: Sensitivity Analysis (MANDATORY for VALIDATED)
+
+**BEFORE classifying as VALIDATED, verify results are robust to parameter changes.**
+
+### 5.3.1 Why Sensitivity Analysis Matters
+
+- Results may be fragile to small parameter changes
+- Overfitted models break with ±10% variation
+- Robust results survive reasonable perturbations
+
+### 5.3.2 One-Factor-At-a-Time (OFAT) Method
+
+```python
+def sensitivity_analysis(base_params, param_ranges, evaluate_func):
+    """Test sensitivity to ±20% parameter variation."""
+    results = {'base': evaluate_func(base_params)}
+
+    for param, base_value in base_params.items():
+        if param not in param_ranges:
+            continue
+
+        # Test low and high variations
+        for multiplier in [0.8, 1.2]:  # ±20%
+            test_params = base_params.copy()
+            test_params[param] = base_value * multiplier
+
+            key = f'{param}_{multiplier}'
+            results[key] = evaluate_func(test_params)
+
+    return analyze_stability(results)
+
+def analyze_stability(results):
+    """Check if all variations maintain positive result."""
+    base_positive = results['base']['win_rate'] > 0.5
+
+    all_positive = all(
+        r['win_rate'] > 0.5
+        for key, r in results.items()
+        if key != 'base'
+    )
+
+    variance = np.var([r['win_rate'] for r in results.values()])
+
+    return {
+        'stable': base_positive and all_positive,
+        'variance': variance,
+        'sign_flips': sum(1 for k, r in results.items()
+                         if k != 'base' and (r['win_rate'] > 0.5) != base_positive),
+        'all_results': results
+    }
+```
+
+### 5.3.3 Stability Requirements
+
+| Stability Check | Result | Classification Impact |
+|-----------------|--------|----------------------|
+| All variations positive | PASS | Can achieve VALIDATED |
+| 1-2 sign flips | WARN | CONDITIONAL at best |
+| 3+ sign flips | FAIL | REJECTED (fragile) |
+| Variance > 0.05 | WARN | Document instability |
+
+### 5.3.4 Global Sensitivity Analysis (For Complex Models)
+
+For models with many parameters, use Sobol indices:
+
+```python
+from SALib.sample import saltelli
+from SALib.analyze import sobol
+
+def global_sensitivity_analysis(model, problem_def, n_samples=1024):
+    """Sobol variance-based sensitivity analysis."""
+    # Generate parameter combinations
+    param_values = saltelli.sample(problem_def, n_samples)
+
+    # Evaluate model for all combinations
+    Y = np.array([model.evaluate(params) for params in param_values])
+
+    # Analyze sensitivity
+    Si = sobol.analyze(problem_def, Y)
+
+    return {
+        'first_order': Si['S1'],      # Main effects
+        'total_order': Si['ST'],       # Total effects (including interactions)
+        'second_order': Si['S2']       # Pairwise interactions
+    }
+```
+
+### 5.3.5 Sensitivity Analysis Checklist
+
+- [ ] Key parameters identified for testing
+- [ ] ±20% variation tested (or domain-appropriate range)
+- [ ] Result sign stability verified
+- [ ] High-sensitivity parameters documented
+- [ ] Robustness conclusion stated
 
 ---
 
@@ -424,6 +788,77 @@ Maintain a summary table of ALL experiments:
 
 ---
 
+## Phase 7.3: Structured Negative Results (MANDATORY for REJECTED)
+
+**Negative results are valuable. Document them systematically.**
+
+### 7.3.1 Negative Result Template
+
+```markdown
+## NEGATIVE RESULT: EXP-XXX - [Claim Name]
+
+**Date:** [Date]
+**Source:** [Book/Paper]
+**Verdict:** REJECTED
+
+### What We Expected
+[The hypothesis and why it seemed plausible based on source]
+
+### What We Found
+| Metric | Expected | Actual |
+|--------|----------|--------|
+| Win Rate | > 60% | 48% |
+| p-value | < 0.05 | 0.73 |
+| Effect Size | > 0.5 | 0.08 |
+
+### Why It Failed
+
+**Failure Classification:**
+- [ ] **SOURCE ERROR** - Claim was wrong (data contradicts source)
+- [ ] **IMPLEMENTATION ERROR** - Our detection/methodology was flawed
+- [ ] **DATA QUALITY** - Data was insufficient or biased
+- [ ] **CONTEXT MISMATCH** - Works elsewhere, not in our context
+- [ ] **OVERFITTING** - Source overfit to their dataset
+
+**Evidence for Classification:**
+[Explain why you chose this classification]
+
+### Did Source Acknowledge This Limitation?
+- [ ] YES - Source mentioned caveats we confirmed
+- [ ] NO - Source overstated reliability
+- [ ] PARTIAL - Source mentioned but downplayed
+
+### Implications
+- **What this tells us:** [Learnings]
+- **What to avoid:** [Don't do this]
+- **What to try next:** [Alternative approaches]
+
+### Value of This Negative Result
+[Why documenting this failure helps future research]
+```
+
+### 7.3.2 Negative Result Registry
+
+Maintain separate registry of negative results:
+
+```markdown
+# Negative Results Registry
+
+| ID | Source | Claim | Why Failed | Value |
+|----|--------|-------|------------|-------|
+| EXP-005 | Book A | Pattern X | SOURCE ERROR | Disproved claim |
+| EXP-012 | Paper B | Method Y | CONTEXT MISMATCH | Works in equities only |
+```
+
+### 7.3.3 Publication of Negative Results
+
+**Requirements:**
+- All REJECTED experiments get structured documentation
+- Negative results included in final research summary
+- Source credibility updated based on rejection rate
+
+---
+
 ## Phase 8: Comprehensive Logging
 
 **MANDATORY: Complete audit trail for reproducibility.**
@@ -503,27 +938,33 @@ experiments/[domain]/
 ## Quick Checklist
 
 ### Pre-Experiment
-- [ ] Claim extracted with source citation
-- [ ] Hypothesis documented BEFORE seeing results
+- [ ] Claim extracted with source citation (Phase 1)
+- [ ] ALL claims documented, not just tested ones (Phase 1.5)
+- [ ] Hypothesis documented BEFORE seeing results (Phase 2)
+- [ ] Power analysis completed - required n calculated (Phase 2.3)
 - [ ] EXP-XXX ID assigned
 - [ ] Success criteria defined (effect size, p-value, n)
-- [ ] Train/test split defined
+- [ ] Train/test split defined (walk-forward for time series) (Phase 3.5)
 - [ ] Domain-specific costs/constraints specified
 
 ### During Experiment
-- [ ] Look-ahead bias audit completed
-- [ ] Survivorship tracking enabled
-- [ ] No parameter tuning on test data
+- [ ] Look-ahead bias audit completed (Phase 3.1)
+- [ ] Survivorship tracking enabled (Phase 3.2)
+- [ ] Walk-forward validation used for time series (Phase 3.5)
+- [ ] No parameter tuning on test data (Phase 3.4)
 - [ ] All experiments logged (including failures)
 
 ### Post-Experiment
-- [ ] Sample size adequate (n >= 30)
-- [ ] p-value calculated
-- [ ] Effect size reported
-- [ ] Confidence intervals computed
-- [ ] Multi-context validation (if applicable)
+- [ ] Sample size adequate (n >= required from power analysis) (Phase 2.3)
+- [ ] p-value calculated (Phase 4.4)
+- [ ] Effect size reported vs domain thresholds (Phase 4.6.1)
+- [ ] Bayesian analysis if p-value ambiguous (Phase 4.7)
+- [ ] Confidence intervals computed (Phase 4.5)
+- [ ] Sensitivity analysis passed (Phase 5.3)
+- [ ] Multi-context validation (if applicable) (Phase 5)
 - [ ] Adversarial review completed (Phase 5.5)
 - [ ] Results logged to experiment registry
+- [ ] Negative results documented if REJECTED (Phase 7.3)
 - [ ] Verdict assigned with evidence
 
 ### Red Flags (Investigate!)
@@ -531,6 +972,8 @@ experiments/[domain]/
 - [ ] OOS better than training (possible leakage)
 - [ ] No failures in 20+ samples (suspicious)
 - [ ] Parameters changed after seeing OOS (snooping)
+- [ ] Result flips with ±20% parameter change (fragile)
+- [ ] Only tested "interesting" claims (selection bias)
 
 ---
 
@@ -538,11 +981,13 @@ experiments/[domain]/
 
 1. **Hypothesis BEFORE data** - No peeking
 2. **Falsifiable claims** - Specific, measurable predictions
-3. **Sufficient samples** - n >= 30 minimum
+3. **Power analysis BEFORE experiment** - Know required n upfront
 4. **Statistical AND practical significance** - Both required
-5. **Out-of-sample testing** - Never tune on test data
-6. **Multi-context validation** - One context = possible overfitting
-7. **Adversarial self-critique** - Challenge your own methodology
-8. **Reject failures** - Data beats authority
-9. **Document everything** - Including failures
-10. **Sources can be wrong** - Even experts, even textbooks
+5. **Walk-forward for time series** - Preserve temporal order
+6. **Sensitivity analysis** - Results must survive ±20% parameter changes
+7. **Multi-context validation** - One context = possible overfitting
+8. **Adversarial self-critique** - Challenge your own methodology
+9. **Bayesian when ambiguous** - Complement p-values with Bayes factors
+10. **Document negative results** - Failures are valuable
+11. **Reject failures** - Data beats authority
+12. **Sources can be wrong** - Even experts, even textbooks
