@@ -1,4 +1,5 @@
 ---
+name: uninstall
 description: Uninstall or disable autonomous-dev plugin features with guided options
 ---
 

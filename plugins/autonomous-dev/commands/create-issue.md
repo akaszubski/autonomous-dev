@@ -24,6 +24,22 @@ ARGUMENTS: {{ARGUMENTS}}
 
 ---
 
+### Argument Handling
+
+The `{{ARGUMENTS}}` placeholder is replaced with user input at runtime.
+
+**Parsing strategy**:
+1. Scan for flags: `--quick`, `--thorough` (deprecated, now default)
+2. Everything remaining after flags = feature request text
+3. If no text provided, prompt user for feature description
+
+**Examples**:
+- `/create-issue Add JWT authentication` → feature="Add JWT authentication", mode=default
+- `/create-issue Add JWT auth --quick` → feature="Add JWT auth", mode=quick
+- `/create-issue --quick Fix login bug` → feature="Fix login bug", mode=quick
+
+---
+
 ### STEP 0: Parse Arguments and Mode
 
 Parse the ARGUMENTS to detect mode flags:

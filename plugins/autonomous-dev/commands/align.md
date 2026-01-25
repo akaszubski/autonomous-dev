@@ -1,10 +1,10 @@
 ---
 name: align
 description: "Unified alignment command (--project, --docs, --retrofit)"
-argument-hint: "Mode flags: --project (PROJECT.md conflicts), --docs (doc drift), --retrofit (brownfield) [--dry-run] [--auto]"
+argument-hint: "[--project | --docs | --retrofit] [--dry-run] [--auto]"
 version: 3.1.0
 category: core
-allowed-tools: [Task, Read, Write, Edit, Grep, Glob, Bash]
+allowed-tools: [Task, Read, Write, Edit, Grep, Glob]
 ---
 
 # /align - Unified Alignment Command
@@ -317,11 +317,22 @@ python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
 
 ## Implementation
 
-Based on arguments, invoke the appropriate alignment workflow:
+ARGUMENTS: {{ARGUMENTS}}
 
-1. **Default mode** (`/align` or `/align --project`): Invoke the alignment-analyzer agent to validate PROJECT.md and fix conflicts
-2. **Documentation mode** (`/align --docs`): Run documentation consistency validation via alignment_fixer.py
-3. **Retrofit mode** (`/align --retrofit`): Execute 5-phase brownfield retrofit workflow
+Based on arguments, invoke the appropriate agent:
+
+**Default mode** (`/align` or `/align --project`):
+- Invoke `alignment-analyzer` agent with Task tool
+- Agent performs 4-phase validation: quick scan, semantic validation, hooks review, interactive resolution
+
+**Documentation mode** (`/align --docs`):
+- Invoke `alignment-analyzer` agent with Task tool (docs-only mode)
+- Agent validates documentation consistency against PROJECT.md
+
+**Retrofit mode** (`/align --retrofit`):
+- Invoke `alignment-analyzer` agent with Task tool (retrofit mode)
+- Agent executes 5-phase brownfield transformation
+- Sub-flags: `--dry-run` (preview), `--auto` (non-interactive)
 
 ---
 
