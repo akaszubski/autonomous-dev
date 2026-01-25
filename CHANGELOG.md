@@ -1,6 +1,19 @@
 ## [Unreleased]
 
 ### Added
+- System-wide session resource management for stability across repos (#259)
+  - Created SessionResourceManager library for tracking sessions globally
+  - Global session registry at /tmp/autonomous-dev-sessions.lock with file locking
+  - Auto-cleanup of stale sessions (detects dead PIDs with psutil fallback)
+  - Pre-flight health checks before heavy operations (batch, worktrees)
+  - Prevents "fork failed: resource temporarily unavailable" errors
+  - Environment variables: RESOURCE_MAX_SESSIONS (default 3), RESOURCE_PROCESS_WARN_THRESHOLD (default 1500), RESOURCE_PROCESS_HARD_LIMIT (default 2000)
+  - Resource limit enforcement with SessionLimitExceededError and ProcessLimitExceededError
+  - Atomic registry writes with secure permissions (0o600) to prevent race conditions
+  - Thread-safe with RLock for concurrent session management
+  - Security: CWE-22 (path traversal), CWE-59 (symlink) protection
+  - Added ResourceError exception hierarchy to exceptions.py (ResourceError, SessionLimitExceededError, ProcessLimitExceededError, ResourceLockError)
+  - 48+ unit tests covering registration, cleanup, limits, and security
 - Pipeline order enforcement hook to prevent skipping agent prerequisites (#246)
   - Created enforce_pipeline_order.py PreToolUse hook that tracks agent invocations
   - Blocks implementer agent from running unless researcher-local, researcher-web, planner, and test-master have been invoked first

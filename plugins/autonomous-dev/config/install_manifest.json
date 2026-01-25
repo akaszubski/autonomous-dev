@@ -285,6 +285,7 @@
         "plugins/autonomous-dev/lib/scope_detector.py",
         "plugins/autonomous-dev/lib/search_utils.py",
         "plugins/autonomous-dev/lib/security_utils.py",
+        "plugins/autonomous-dev/lib/session_resource_manager.py",
         "plugins/autonomous-dev/lib/session_state_manager.py",
         "plugins/autonomous-dev/lib/session_tracker.py",
         "plugins/autonomous-dev/lib/settings_generator.py",

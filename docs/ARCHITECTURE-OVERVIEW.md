@@ -66,11 +66,11 @@ Reusable Python libraries for security, validation, automation, and more. See [d
 
 **Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
 
-**Key Libraries** (144 total):
+**Key Libraries** (145 total):
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
 - **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
-- **State Management**: session_state_manager.py (session persistence), batch_state_manager.py, user_state_manager.py
+- **State Management**: session_state_manager.py (session persistence), batch_state_manager.py, user_state_manager.py, session_resource_manager.py (resource tracking)
 - **Infrastructure**: path_utils.py, performance_timer.py, agent_tracker.py
 - **See**: [docs/LIBRARIES.md](docs/LIBRARIES.md) for complete API reference
 

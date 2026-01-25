@@ -84,3 +84,41 @@ class IssueAlreadyClosedError(GitHubAPIError):
     in the closed state.
     """
     pass
+
+
+class ResourceError(AutonomousDevError):
+    """Base exception for resource management errors.
+
+    Raised when resource allocation, tracking, or limit enforcement fails.
+    All resource-related errors should inherit from this class.
+
+    Issue: #259 (System-wide resource management)
+    """
+    pass
+
+
+class SessionLimitExceededError(ResourceError):
+    """Exception raised when max sessions already active.
+
+    Raised when attempting to create a new session but the maximum
+    number of concurrent sessions is already active.
+    """
+    pass
+
+
+class ProcessLimitExceededError(ResourceError):
+    """Exception raised when system process count exceeds hard limit.
+
+    Raised when system process count exceeds the configured hard limit,
+    preventing new operations from starting.
+    """
+    pass
+
+
+class ResourceLockError(ResourceError):
+    """Exception raised when lockfile operations fail.
+
+    Raised when file locking operations fail (lock acquisition,
+    lock release, corrupted lockfile, etc.).
+    """
+    pass

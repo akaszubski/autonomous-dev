@@ -152,7 +152,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│   22 Agents  │  28 Skills  │  67 Hooks  │  143 Libraries        │
+│   22 Agents  │  28 Skills  │  67 Hooks  │  145 Libraries        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
