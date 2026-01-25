@@ -2,6 +2,15 @@
 
 Step-by-step guide to validate claims from any source using rigorous methodology.
 
+## Related Files
+
+| File | Content |
+|------|---------|
+| `SKILL.md` | Quick reference, activation, key principles |
+| `code-examples.md` | Python implementations |
+| `templates.md` | Markdown templates for documentation |
+| `../../agents/experiment-critic.md` | Adversarial review agent |
+
 ---
 
 ## Overview: The Enhanced Validation Process

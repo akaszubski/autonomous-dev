@@ -468,6 +468,8 @@
         "plugins/autonomous-dev/skills/research-patterns/docs/detailed-guide-3.md",
         "plugins/autonomous-dev/skills/research-patterns/docs/detailed-guide-4.md",
         "plugins/autonomous-dev/skills/scientific-validation/SKILL.md",
+        "plugins/autonomous-dev/skills/scientific-validation/code-examples.md",
+        "plugins/autonomous-dev/skills/scientific-validation/templates.md",
         "plugins/autonomous-dev/skills/scientific-validation/workflow.md",
         "plugins/autonomous-dev/skills/security-patterns/SKILL.md",
         "plugins/autonomous-dev/skills/semantic-validation/SKILL.md",
