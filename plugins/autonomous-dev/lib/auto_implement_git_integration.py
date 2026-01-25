@@ -1157,7 +1157,8 @@ def create_commit_with_agent_message(
     workflow_id: str,
     request: str,
     branch: str,
-    push: bool = False
+    push: bool = False,
+    issue_number: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Create git commit using agent-generated message.
@@ -1165,13 +1166,15 @@ def create_commit_with_agent_message(
     Workflow:
     1. Invoke commit-message-generator agent
     2. Validate agent output
-    3. Execute git commit using git_operations.auto_commit_and_push()
+    3. Append 'Closes #N' if issue_number provided (Issue #267)
+    4. Execute git commit using git_operations.auto_commit_and_push()
 
     Args:
         workflow_id: Unique workflow identifier
         request: Feature request description
         branch: Git branch name
         push: Whether to push after committing
+        issue_number: Optional GitHub issue number to auto-close (Issue #267)
 
     Returns:
         Dict with:
@@ -1189,7 +1192,8 @@ def create_commit_with_agent_message(
         ...     workflow_id='workflow-123',
         ...     request='Add authentication',
         ...     branch='main',
-        ...     push=True
+        ...     push=True,
+        ...     issue_number=123  # Will append 'Closes #123'
         ... )
         >>> if result['success']:
         ...     print(f"Committed: {result['commit_sha']}")
@@ -1226,6 +1230,24 @@ def create_commit_with_agent_message(
 
     # Step 2: Extract commit message
     commit_message = agent_result['output'].strip()
+
+    # Step 2.5: Append 'Closes #N' if issue_number provided (Issue #267)
+    # This enables GitHub auto-close when using /implement --issues mode
+    if issue_number is not None:
+        # Check if closing keyword already exists (avoid duplicates)
+        closing_patterns = [
+            f'closes #{issue_number}',
+            f'close #{issue_number}',
+            f'fixes #{issue_number}',
+            f'fix #{issue_number}',
+            f'resolves #{issue_number}',
+            f'resolve #{issue_number}',
+        ]
+        message_lower = commit_message.lower()
+        already_has_closing = any(pattern in message_lower for pattern in closing_patterns)
+
+        if not already_has_closing:
+            commit_message += f'\n\nCloses #{issue_number}'
 
     # Step 3: Execute git operations
     git_result = auto_commit_and_push(
@@ -1421,7 +1443,8 @@ def execute_git_workflow(
     push: Optional[bool] = None,
     create_pr: bool = False,
     base_branch: str = 'main',
-    in_batch_mode: bool = False
+    in_batch_mode: bool = False,
+    issue_number: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Execute git automation workflow with optional batch mode support.
@@ -1438,6 +1461,7 @@ def execute_git_workflow(
         create_pr: Whether to attempt PR creation
         base_branch: Target branch for PR (default: 'main')
         in_batch_mode: Skip first-run consent prompts (for /implement --batch)
+        issue_number: Optional GitHub issue number to auto-close (Issue #267)
 
     Returns:
         Dict with success status, commit info, and optional PR details
@@ -1451,11 +1475,12 @@ def execute_git_workflow(
         ...     in_batch_mode=False
         ... )
 
-        >>> # Batch mode (skips first-run warning)
+        >>> # Batch mode with issue auto-close (Issue #267)
         >>> result = execute_git_workflow(
         ...     workflow_id='batch-20251206-feature-1',
         ...     request='Add logging',
-        ...     in_batch_mode=True
+        ...     in_batch_mode=True,
+        ...     issue_number=267  # Will append 'Closes #267' to commit
         ... )
     """
     # In batch mode, skip first-run warning but still respect env var consent
@@ -1466,14 +1491,15 @@ def execute_git_workflow(
         pass  # No first-run warning in batch mode
 
     # Delegate to execute_step8_git_operations
-    return execute_step8_git_operations(
+    result = execute_step8_git_operations(
         workflow_id=workflow_id,
         request=request,
         branch=branch,
         push=push,
         create_pr=create_pr,
         base_branch=base_branch,
-        _skip_first_run_warning=in_batch_mode  # Internal parameter
+        _skip_first_run_warning=in_batch_mode,
+        issue_number=issue_number
     )
 
     # Add batch_mode flag to return value for test compatibility
@@ -1488,7 +1514,8 @@ def execute_step8_git_operations(
     push: Optional[bool] = None,
     create_pr: bool = False,
     base_branch: str = 'main',
-    _skip_first_run_warning: bool = False  # Internal: bypass first-run warning
+    _skip_first_run_warning: bool = False,  # Internal: bypass first-run warning
+    issue_number: Optional[int] = None  # Issue #267: auto-close GitHub issues
 ) -> Dict[str, Any]:
     """
     Execute complete Step 8 git automation workflow.
@@ -1499,9 +1526,10 @@ def execute_step8_git_operations(
     1. Check consent via environment variables
     2. Validate git CLI is available
     3. Invoke commit-message-generator agent
-    4. Create commit with agent message
-    5. Optionally push to remote (if consent given)
-    6. Optionally create PR (if consent given)
+    4. Append 'Closes #N' if issue_number provided (Issue #267)
+    5. Create commit with agent message
+    6. Optionally push to remote (if consent given)
+    7. Optionally create PR (if consent given)
 
     Args:
         workflow_id: Unique workflow identifier
@@ -1510,6 +1538,7 @@ def execute_step8_git_operations(
         push: Whether to push to remote (optional, uses consent if not provided)
         create_pr: Whether to attempt PR creation
         base_branch: Target branch for PR (default: 'main')
+        issue_number: Optional GitHub issue number to auto-close (Issue #267)
 
     Returns:
         Dict with:
@@ -1617,7 +1646,8 @@ def execute_step8_git_operations(
         workflow_id=workflow_id,
         request=request,
         branch=branch,
-        push=push  # Use explicit push parameter
+        push=push,  # Use explicit push parameter
+        issue_number=issue_number  # Issue #267: auto-close GitHub issues
     )
 
     # If commit failed, return early
