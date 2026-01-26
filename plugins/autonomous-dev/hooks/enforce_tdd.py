@@ -42,14 +42,65 @@ if not is_running_under_uv():
     # But we keep sys.path.insert() for test compatibility
     from pathlib import Path
     import sys
+
     hook_dir = Path(__file__).parent
     lib_path = hook_dir.parent / "lib"
     if lib_path.exists():
         sys.path.insert(0, str(lib_path))
 
+# Import repo detector for self-validation
+try:
+    from repo_detector import is_autonomous_dev_repo
+
+    REPO_DETECTOR_AVAILABLE = True
+except ImportError:
+    REPO_DETECTOR_AVAILABLE = False
+
+    def is_autonomous_dev_repo() -> bool:
+        """Fallback when repo_detector not available."""
+        return False
+
+# Import security utils for audit logging
+try:
+    from security_utils import audit_log
+
+    AUDIT_LOG_AVAILABLE = True
+except ImportError:
+    AUDIT_LOG_AVAILABLE = False
+
+    def audit_log(event_type: str, status: str, context: dict) -> None:
+        """Fallback when security_utils not available."""
+        pass
+
 
 def is_strict_mode_enabled() -> bool:
-    """Check if strict mode is enabled."""
+    """
+    Check if strict mode is enabled.
+
+    Self-Validation (Issue #271):
+    - In autonomous-dev repo: ALWAYS enabled (ignore settings)
+    - In user repos: Check settings.local.json (backward compatible)
+
+    Returns:
+        True if strict mode enabled, False otherwise
+    """
+    # Check if we're in autonomous-dev repo
+    is_self = is_autonomous_dev_repo()
+
+    # If autonomous-dev, ALWAYS enforce TDD (self-validation)
+    if is_self:
+        audit_log(
+            "tdd_enforcement",
+            "enabled",
+            {
+                "operation": "enforce_tdd",
+                "repo": "autonomous-dev",
+                "reason": "Self-validation mode - TDD always enforced",
+            },
+        )
+        return True
+
+    # User project - check settings file (backward compatibility)
     settings_file = Path(".claude/settings.local.json")
     if not settings_file.exists():
         return False
@@ -285,20 +336,29 @@ def get_file_additions() -> dict:
         return {"test_additions": 0, "src_additions": 0, "ratio": 0}
 
 
-def main():
-    """Enforce TDD workflow in strict mode."""
+def main() -> int:
+    """
+    Enforce TDD workflow in strict mode.
+
+    Self-Validation (Issue #271):
+    - Autonomous-dev: TDD always enforced (no bypass)
+    - User projects: TDD enforced only in strict mode
+
+    Returns:
+        Exit code (0 for success, 2 for block)
+    """
 
     # Only run on PreCommit
     try:
         data = json.loads(sys.stdin.read())
         if data.get("hook") != "PreCommit":
-            sys.exit(0)
+            return 0
     except Exception:
-        sys.exit(0)
+        return 0
 
-    # Check if strict mode is enabled
+    # Check if strict mode is enabled (always True for autonomous-dev)
     if not is_strict_mode_enabled():
-        sys.exit(0)
+        return 0
 
     # Get staged files
     files = get_staged_files()
@@ -308,7 +368,7 @@ def main():
     # If no source files changed, TDD not applicable
     if not src_files:
         print("ℹ️  No source files changed - TDD not applicable", file=sys.stderr)
-        sys.exit(0)
+        return 0
 
     # If source files but no test files, check if this is acceptable
     if src_files and not test_files:
@@ -324,7 +384,7 @@ def main():
         if session_evidence or history_evidence:
             print("✅ TDD evidence found (tests exist in separate commits)",
                   file=sys.stderr)
-            sys.exit(0)
+            return 0
 
         # No test files at all - this is a violation
         print("\n" + "=" * 80, file=sys.stderr)
@@ -365,7 +425,7 @@ def main():
         print("=" * 80, file=sys.stderr)
         print(file=sys.stderr)
 
-        sys.exit(2)  # Block commit
+        return 2  # Block commit
 
     # Both test and src files present
     if test_files and src_files:
@@ -378,7 +438,7 @@ def main():
             print(f"✅ TDD evidence: {additions['test_additions']} test lines, "
                   f"{additions['src_additions']} src lines (ratio: {ratio:.2f})",
                   file=sys.stderr)
-            sys.exit(0)
+            return 0
 
         # Minimal test changes - warn but allow
         if additions["src_additions"] > 50 and additions["test_additions"] < 10:
@@ -389,7 +449,7 @@ def main():
                   file=sys.stderr)
             print("   Consider adding more test coverage", file=sys.stderr)
             # Don't block - just warn
-            sys.exit(0)
+            return 0
 
     # Test files present - assume TDD followed
     print("✅ TDD workflow validated", file=sys.stderr)
@@ -397,4 +457,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

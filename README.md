@@ -214,6 +214,33 @@ AUTO_GIT_PR=true        # Auto-create PRs (default: true)
 
 ---
 
+## Self-Validation Quality Gates
+
+autonomous-dev enforces its own quality standards. When the plugin detects it's running in the autonomous-dev repository, stricter gates activate automatically:
+
+**In autonomous-dev Repository**:
+- **Coverage Threshold**: 80% (vs 70% for user projects)
+- **No Bypass**: Cannot override quality gates with `--no-verify`
+- **Automatic Enforcement**: Enabled without configuration needed
+
+**Quality Gates Enforced**:
+| Gate | Standard | autonomous-dev |
+|------|----------|-----------------|
+| Test Coverage | 70% | **80%** |
+| TDD Requirement | Suggested | **Required** |
+| Pre-commit Checks | Optional | **Mandatory** |
+| Documentation Sync | Auto-checked | **Strictly enforced** |
+
+**How It Works**:
+1. Hooks detect autonomous-dev repository via `plugins/autonomous-dev/manifest.json`
+2. Auto-detect based on file structure (survives worktrees, CI/CD)
+3. Apply stricter thresholds in enforcement hooks
+4. Block commits that don't meet standards (no bypass possible)
+
+**Philosophy**: "We practice what we preach." If autonomous-dev requires 80% coverage from you, it requires it from itself.
+
+---
+
 ## Batch Processing
 
 Process 50+ features without manual intervention:

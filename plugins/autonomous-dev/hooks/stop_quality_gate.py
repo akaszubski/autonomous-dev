@@ -63,10 +63,35 @@ if not is_running_under_uv():
     # But we keep sys.path.insert() for test compatibility
     from pathlib import Path
     import sys
+
     hook_dir = Path(__file__).parent
     lib_path = hook_dir.parent / "lib"
     if lib_path.exists():
         sys.path.insert(0, str(lib_path))
+
+# Import repo detector for self-validation
+try:
+    from repo_detector import is_autonomous_dev_repo
+
+    REPO_DETECTOR_AVAILABLE = True
+except ImportError:
+    REPO_DETECTOR_AVAILABLE = False
+
+    def is_autonomous_dev_repo() -> bool:
+        """Fallback when repo_detector not available."""
+        return False
+
+# Import security utils for audit logging
+try:
+    from security_utils import audit_log
+
+    AUDIT_LOG_AVAILABLE = True
+except ImportError:
+    AUDIT_LOG_AVAILABLE = False
+
+    def audit_log(event_type: str, status: str, context: dict) -> None:
+        """Fallback when security_utils not available."""
+        pass
 
 
 try:
@@ -79,26 +104,48 @@ def should_enforce_quality_gate() -> bool:
     """
     Check if quality gate should be enforced.
 
+    Self-Validation (Issue #271):
+    - In autonomous-dev repo: ALWAYS enforce (ignore skip env var)
+    - In user repos: Respect ENFORCE_QUALITY_GATE env var (backward compatible)
+
     Returns:
         bool: True if quality gate enabled (default), False if disabled.
 
     Environment Variables:
-        ENFORCE_QUALITY_GATE: Set to "false", "0", or "no" to disable.
+        ENFORCE_QUALITY_GATE: Set to "false", "0", or "no" to disable (user repos only).
                              Case-insensitive. Defaults to True.
 
     Examples:
-        >>> os.environ["ENFORCE_QUALITY_GATE"] = "true"
-        >>> should_enforce_quality_gate()
-        True
-
+        >>> # In user project
         >>> os.environ["ENFORCE_QUALITY_GATE"] = "false"
         >>> should_enforce_quality_gate()
         False
 
-        >>> os.environ.pop("ENFORCE_QUALITY_GATE", None)
-        >>> should_enforce_quality_gate()
+        >>> # In autonomous-dev (skip ignored)
+        >>> os.environ["ENFORCE_QUALITY_GATE"] = "false"
+        >>> should_enforce_quality_gate()  # Still True if autonomous-dev
         True
     """
+    # Check if we're in autonomous-dev repo
+    is_self = is_autonomous_dev_repo()
+
+    # If autonomous-dev, ALWAYS enforce (no skip)
+    if is_self:
+        # Log skip attempt for audit
+        skip_value = os.environ.get("ENFORCE_QUALITY_GATE", "").strip().lower()
+        if skip_value in ("false", "0", "no"):
+            audit_log(
+                "bypass_attempt",
+                "blocked",
+                {
+                    "operation": "stop_quality_gate",
+                    "repo": "autonomous-dev",
+                    "reason": "Self-validation mode - skip not allowed",
+                },
+            )
+        return True
+
+    # User project - respect skip env var (backward compatibility)
     enforce = os.environ.get("ENFORCE_QUALITY_GATE", "").strip().lower()
 
     # Default to True (enabled) if not set or empty

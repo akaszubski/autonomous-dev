@@ -70,6 +70,28 @@ except ImportError:
     EXIT_SUCCESS = 0
     EXIT_BLOCK = 2
 
+# Import repo detector for self-validation
+try:
+    from repo_detector import is_autonomous_dev_repo
+    REPO_DETECTOR_AVAILABLE = True
+except ImportError:
+    REPO_DETECTOR_AVAILABLE = False
+
+    def is_autonomous_dev_repo() -> bool:
+        """Fallback when repo_detector not available."""
+        return False
+
+# Import security utils for audit logging
+try:
+    from security_utils import audit_log
+    AUDIT_LOG_AVAILABLE = True
+except ImportError:
+    AUDIT_LOG_AVAILABLE = False
+
+    def audit_log(event_type: str, status: str, context: dict) -> None:
+        """Fallback when security_utils not available."""
+        pass
+
 
 # =============================================================================
 # Configuration
@@ -87,7 +109,11 @@ def should_enforce_gate() -> bool:
     """
     Check if test gate should be enforced.
 
-    The gate is enforced by default. It can be disabled by setting
+    Self-Validation (Issue #271):
+    - In autonomous-dev repo: ALWAYS enforce (ignore bypass env var)
+    - In user repos: Respect ENFORCE_TEST_GATE env var (backward compatible)
+
+    The gate is enforced by default. In user projects, it can be disabled by setting
     ENFORCE_TEST_GATE environment variable to:
     - "false" or "False" or "FALSE"
     - "0"
@@ -97,14 +123,35 @@ def should_enforce_gate() -> bool:
         True if gate should be enforced, False otherwise
 
     Examples:
+        >>> # In user project
         >>> os.environ["ENFORCE_TEST_GATE"] = "false"
         >>> should_enforce_gate()
         False
 
-        >>> os.environ.pop("ENFORCE_TEST_GATE", None)
-        >>> should_enforce_gate()
+        >>> # In autonomous-dev (bypass ignored)
+        >>> os.environ["ENFORCE_TEST_GATE"] = "false"
+        >>> should_enforce_gate()  # Still True if autonomous-dev
         True
     """
+    # Check if we're in autonomous-dev repo
+    is_self = is_autonomous_dev_repo()
+
+    # If autonomous-dev, ALWAYS enforce (no bypass)
+    if is_self:
+        # Log bypass attempt for audit
+        if os.environ.get(ENV_VAR_ENFORCE, "").lower() in ["false", "0", ""]:
+            audit_log(
+                "bypass_attempt",
+                "blocked",
+                {
+                    "operation": "pre_commit_gate",
+                    "repo": "autonomous-dev",
+                    "reason": "Self-validation mode - bypass not allowed",
+                },
+            )
+        return True
+
+    # User project - respect bypass env var (backward compatibility)
     value = os.environ.get(ENV_VAR_ENFORCE, "true")
 
     # Normalize to lowercase for case-insensitive comparison
@@ -245,7 +292,7 @@ Why this matters:
 """.strip()
 
 
-def main() -> None:
+def main() -> int:
     """
     Main entry point for pre-commit gate hook.
 
@@ -254,16 +301,23 @@ def main() -> None:
         EXIT_BLOCK (2): Tests failed or not run, block commit
 
     Environment Variables:
-        ENFORCE_TEST_GATE: Set to "false" or "0" to bypass gate
+        ENFORCE_TEST_GATE: Set to "false" or "0" to bypass gate (user repos only)
+
+    Self-Validation (Issue #271):
+        In autonomous-dev repo, bypass attempts are blocked and logged.
+
+    Returns:
+        Exit code (0 for success, 2 for block)
     """
     # Check if gate should be enforced
     if not should_enforce_gate():
         # Gate disabled - allow commit
-        sys.exit(EXIT_SUCCESS)
+        return EXIT_SUCCESS
 
     # Read test status (single read for both check and error message)
     try:
         from status_tracker import read_status
+
         status = read_status()
     except (ImportError, Exception):
         # Tracker unavailable - treat as tests not run
@@ -280,7 +334,7 @@ def main() -> None:
 
     if passed:
         # Tests passed - allow commit
-        sys.exit(EXIT_SUCCESS)
+        return EXIT_SUCCESS
 
     else:
         # Tests failed or not run - block commit
@@ -296,7 +350,7 @@ def main() -> None:
             pass
 
         # Block commit
-        sys.exit(EXIT_BLOCK)
+        return EXIT_BLOCK
 
 
 # =============================================================================
@@ -304,4 +358,4 @@ def main() -> None:
 # =============================================================================
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

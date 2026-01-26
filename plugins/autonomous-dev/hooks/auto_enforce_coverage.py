@@ -54,10 +54,35 @@ if not is_running_under_uv():
     # But we keep sys.path.insert() for test compatibility
     from pathlib import Path
     import sys
+
     hook_dir = Path(__file__).parent
     lib_path = hook_dir.parent / "lib"
     if lib_path.exists():
         sys.path.insert(0, str(lib_path))
+
+# Import repo detector for self-validation
+try:
+    from repo_detector import is_autonomous_dev_repo
+
+    REPO_DETECTOR_AVAILABLE = True
+except ImportError:
+    REPO_DETECTOR_AVAILABLE = False
+
+    def is_autonomous_dev_repo() -> bool:
+        """Fallback when repo_detector not available."""
+        return False
+
+# Import security utils for audit logging
+try:
+    from security_utils import audit_log
+
+    AUDIT_LOG_AVAILABLE = True
+except ImportError:
+    AUDIT_LOG_AVAILABLE = False
+
+    def audit_log(event_type: str, status: str, context: dict) -> None:
+        """Fallback when security_utils not available."""
+        pass
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -67,13 +92,46 @@ COVERAGE_DIR = PROJECT_ROOT / "htmlcov"
 COVERAGE_JSON = PROJECT_ROOT / "coverage.json"
 
 # Coverage threshold (block commit if below this)
-# Configurable via MIN_COVERAGE environment variable (default: 70%)
+# Configurable via MIN_COVERAGE environment variable
+# Self-Validation (Issue #271): 80% for autonomous-dev, 70% for user projects
 def _get_coverage_threshold() -> float:
-    """Get coverage threshold from environment variable or default."""
-    try:
-        return float(os.environ.get("MIN_COVERAGE", "70"))
-    except ValueError:
+    """
+    Get coverage threshold from environment variable or default.
+
+    Self-Validation (Issue #271):
+    - Autonomous-dev repo: 80% (higher standard)
+    - User projects: 70% (backward compatible)
+
+    Returns:
+        Coverage threshold percentage
+    """
+    # Check if explicitly set via environment variable
+    if "MIN_COVERAGE" in os.environ:
+        try:
+            return float(os.environ["MIN_COVERAGE"])
+        except ValueError:
+            pass  # Fall through to auto-detection
+
+    # Auto-detect based on repo type
+    is_self = is_autonomous_dev_repo()
+
+    if is_self:
+        # Autonomous-dev enforces 80% (PROJECT.md requirement)
+        audit_log(
+            "coverage_threshold",
+            "selected",
+            {
+                "operation": "auto_enforce_coverage",
+                "repo": "autonomous-dev",
+                "threshold": 80.0,
+                "reason": "Self-validation mode - higher standard",
+            },
+        )
+        return 80.0
+    else:
+        # User projects use 70% (backward compatible)
         return 70.0
+
 
 COVERAGE_THRESHOLD = _get_coverage_threshold()
 
@@ -353,8 +411,17 @@ def display_coverage_report(summary: Dict, uncovered: List[Dict]):
 # ============================================================================
 
 
-def main():
-    """Main coverage enforcement logic."""
+def main() -> int:
+    """
+    Main coverage enforcement logic.
+
+    Self-Validation (Issue #271):
+    - Autonomous-dev: 80% threshold (higher standard)
+    - User projects: 70% threshold (backward compatible)
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
 
     print(f"\n🔍 Auto-Coverage Enforcement Hook")
     print(f"   Threshold: {COVERAGE_THRESHOLD}%")
@@ -367,7 +434,7 @@ def main():
         print(f"   Error: {coverage_data.get('error', 'Unknown error')}")
         print(f"\n   ⚠️  Cannot enforce coverage without analysis")
         print(f"   Allowing commit to proceed (fix coverage manually)")
-        sys.exit(0)  # Don't block commit on analysis failure
+        return 0  # Don't block commit on analysis failure
 
     # Get coverage summary
     summary = get_coverage_summary(coverage_data)
@@ -382,7 +449,7 @@ def main():
     if total_coverage >= COVERAGE_THRESHOLD:
         print(f"\n✅ Coverage check PASSED: {total_coverage:.1f}%")
         print(f"   All code adequately tested")
-        sys.exit(0)
+        return 0
 
     # Coverage below threshold - try to auto-fix
     print(f"\n⚠️  Coverage BELOW threshold!")
@@ -393,7 +460,7 @@ def main():
     if not uncovered:
         print(f"\n   ℹ️  No uncovered code found (might be excluded lines)")
         print(f"   Allowing commit to proceed")
-        sys.exit(0)
+        return 0
 
     # Auto-generate coverage tests
     print(f"\n🤖 Auto-generating tests to improve coverage...")
@@ -418,7 +485,7 @@ def main():
 
             if new_coverage >= COVERAGE_THRESHOLD:
                 print(f"   ✅ Now above threshold!")
-                sys.exit(0)
+                return 0
             else:
                 print(f"   ⚠️  Still below threshold")
                 print(f"   Gap remaining: {COVERAGE_THRESHOLD - new_coverage:.1f}%")
@@ -451,4 +518,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
