@@ -317,7 +317,7 @@ class TestEnhancedCopySystem:
             # Cleanup: Restore permissions
             try:
                 (source / "bad.txt").chmod(0o644)
-            except:
+            except OSError:
                 pass
 
     def test_stops_on_error_by_default(self, tmp_path):

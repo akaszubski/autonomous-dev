@@ -625,5 +625,5 @@ class TestFileDiscoveryEdgeCases:
             # Cleanup: Restore permissions
             try:
                 restricted_dir.chmod(0o755)
-            except:
+            except OSError:
                 pass
