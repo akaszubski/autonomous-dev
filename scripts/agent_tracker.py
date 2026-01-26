@@ -321,13 +321,13 @@ class AgentTracker:
             if temp_fd is not None:
                 try:
                     os.close(temp_fd)
-                except:
+                except OSError:
                     pass
 
             if temp_path and temp_path.exists():
                 try:
                     temp_path.unlink()
-                except:
+                except OSError:
                     pass
 
             # Re-raise original exception with context

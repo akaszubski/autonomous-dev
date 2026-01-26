@@ -222,7 +222,7 @@ class TestParallelRaceConditionPrevention:
         with patch.object(mock_session_file, 'write_text', side_effect=crash_mid_write):
             try:
                 tracker.log_complete("researcher", "Research complete", tools_used=["WebSearch"])
-            except:
+            except Exception:
                 pass
 
         # Assert: File still valid (either old or new data, not corrupted)

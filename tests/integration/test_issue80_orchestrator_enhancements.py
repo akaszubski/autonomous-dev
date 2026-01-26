@@ -657,7 +657,7 @@ class TestInstallationEdgeCases:
             # Cleanup
             try:
                 problem_file.chmod(0o644)
-            except:
+            except OSError:
                 pass
 
     def test_validates_plugin_directory_exists(self, tmp_path):

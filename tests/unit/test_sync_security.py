@@ -381,7 +381,7 @@ class TestAuditLogging:
             with patch('plugins.autonomous_dev.lib.sync_mode_detector.audit_log') as mock_audit:
                 try:
                     detector = SyncModeDetector(str(malicious_project))
-                except:
+                except Exception:
                     pass  # Expected to fail, we're testing the audit log
 
                 # If audit_log was called, verify newlines were escaped

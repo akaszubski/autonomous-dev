@@ -1,6 +1,19 @@
 ## [Unreleased]
 
 ### Added
+- Self-validation quality gates for autonomous-dev repository (#271)
+  - Created repo_detector.py library for detecting autonomous-dev vs user projects
+  - Detection via plugins/autonomous-dev/manifest.json with multi-marker strategy
+  - Worktree-safe detection (works in batch processing and CI/CD)
+  - Thread-safe caching for performance optimization
+  - Enhanced auto_enforce_coverage.py: 80% threshold for autonomous-dev (70% for users)
+  - Enhanced enforce_tdd.py: Mandatory TDD in autonomous-dev (suggested for users)
+  - Enhanced pre_commit_gate.py: No bypass allowed in autonomous-dev
+  - Enhanced stop_quality_gate.py: Stricter enforcement in autonomous-dev
+  - No configuration needed - auto-detects and enforces automatically
+  - Backward compatible (user projects unaffected)
+  - Security: Graceful degradation on detection failures, audit logging for all decisions
+  - 45+ unit tests for repo detection, caching, and hook integration
 - System-wide session resource management for stability across repos (#259)
   - Created SessionResourceManager library for tracking sessions globally
   - Global session registry at /tmp/autonomous-dev-sessions.lock with file locking
@@ -50,6 +63,16 @@
   - Generates detailed audit reports with suggested actions
   - Exit code 0 (PASS) or 1 (FAIL) for CI/CD integration
   - Complements /align-claude (counts) - /audit-claude (structure)
+
+### Changed
+- Exception handling improvements for Python 3.14+ compatibility (#230)
+  - Replaced 8 bare except clauses with specific exception types
+  - scripts/agent_tracker.py: 2 clauses changed to `except OSError:` (file cleanup)
+  - 4 test files: Changed cleanup blocks to `except OSError:` (chmod operations)
+  - 2 test files: Changed error handling to `except Exception:` (test assertions)
+  - Prepares for PEP 760: Python 3.14 will deprecate bare except, Python 3.17 will disallow
+  - Improves debugging by avoiding catching SystemExit and KeyboardInterrupt
+  - No behavior changes - only makes exception types explicit
 
 ## [3.49.0] - 2026-01-19
 

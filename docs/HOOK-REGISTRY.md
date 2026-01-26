@@ -76,15 +76,15 @@ Runs before git commit (can block with EXIT_BLOCK).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
-| pre_commit_gate | Enabled | ENFORCE_TEST_GATE (default: true) | Block commits if tests failed |
+| pre_commit_gate | Enabled | ENFORCE_TEST_GATE (default: true) | Block commits if tests failed; stricter enforcement in autonomous-dev |
 | auto_format | Deprecated (consolidated) | AUTO_FORMAT | Legacy formatter |
 | auto_test | Deprecated (consolidated) | AUTO_TEST | Legacy test runner |
 | security_scan | Deprecated (consolidated) | SECURITY_SCAN | Legacy security scan |
-| enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code) |
+| enforce_tdd | Opt-in (default: false) | ENFORCE_TDD | Enforce TDD workflow (tests before code); mandatory in autonomous-dev |
 | enforce_no_bare_except | Enabled | ENFORCE_NO_BARE_EXCEPT (default: true) | Prevent bare except clauses from being committed |
 | enforce_logging_only | Opt-in (default: false) | ENFORCE_LOGGING_ONLY | Prevent print statements in production code |
-| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE, MIN_COVERAGE (default: 70) | Block commits if coverage drops below threshold |
-| block_git_bypass | Enabled | ALLOW_GIT_BYPASS (default: false) | Block git commit --no-verify and --no-gpg-sign flags, enforce hook validation |
+| auto_enforce_coverage | Opt-in (default: false) | ENFORCE_COVERAGE, MIN_COVERAGE (default: 70 / 80 in autonomous-dev) | Block commits if coverage drops below threshold; 80% in autonomous-dev (#271) |
+| block_git_bypass | Enabled | ALLOW_GIT_BYPASS (default: false) | Block git commit --no-verify and --no-gpg-sign flags, enforce hook validation; no bypass allowed in autonomous-dev |
 | validate_claude_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_project_alignment | Deprecated (consolidated into unified_doc_validator) | - | Legacy alignment check |
 | validate_docs_consistency | Deprecated (consolidated) | - | Legacy doc check |
@@ -118,7 +118,7 @@ Runs after every turn/response completes (cannot block, informational only).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
-| stop_quality_gate | Enabled | ENFORCE_QUALITY_GATE (default: true) | Run quality checks and provide feedback |
+| stop_quality_gate | Enabled | ENFORCE_QUALITY_GATE (default: true) | Run quality checks and provide feedback; stricter enforcement in autonomous-dev (#271) |
 
 ### SessionStart Hooks
 

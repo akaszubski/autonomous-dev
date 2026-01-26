@@ -614,7 +614,7 @@ class TestErrorHandlingAndRecovery:
         finally:
             try:
                 bad_file.chmod(0o644)
-            except:
+            except OSError:
                 pass
 
     def test_provides_clear_error_messages(self, tmp_path):
