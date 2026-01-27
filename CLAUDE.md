@@ -62,9 +62,9 @@ Update state after completing significant work. State survives `/clear` operatio
 
 ### Agents
 
-22 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
+23 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
 
-Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master.
+Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, experiment-critic.
 
 ## Detailed Guides
 
@@ -82,4 +82,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-22 agents, 28 skills, 26 commands, 145 libraries, 67 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+23 agents, 29 skills, 21 active commands, 154 libraries, 72 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+
+**Last Updated**: 2026-01-27

@@ -5,9 +5,9 @@
 Stop writing buggy code. Start shipping production-ready features.
 
 [![Version](https://img.shields.io/badge/version-3.44.0-blue.svg)](plugins/autonomous-dev/VERSION)
-[![Agents](https://img.shields.io/badge/agents-22-green.svg)](docs/AGENTS.md)
-[![Skills](https://img.shields.io/badge/skills-28-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
-[![Hooks](https://img.shields.io/badge/hooks-67-purple.svg)](docs/HOOKS.md)
+[![Agents](https://img.shields.io/badge/agents-23-green.svg)](docs/AGENTS.md)
+[![Skills](https://img.shields.io/badge/skills-29-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
+[![Hooks](https://img.shields.io/badge/hooks-72-purple.svg)](docs/HOOKS.md)
 
 ---
 
@@ -128,6 +128,8 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 | `/create-issue` | Research-backed GitHub issues with duplicate detection |
 | `/advise` | Critical analysis before major decisions |
 | `/audit-tests` | Identify untested code paths |
+| `/audit-claude` | Validate CLAUDE.md structure against best practices |
+| `/health-check` | Validate all plugin components (agents, hooks, commands) |
 | `/sync` | Update plugin from marketplace |
 | `/worktree` | Manage git worktrees for isolated development |
 
@@ -152,7 +154,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│   22 Agents  │  28 Skills  │  67 Hooks  │  145 Libraries        │
+│   23 Agents  │  29 Skills  │  72 Hooks  │  154 Libraries        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -166,7 +168,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ---
 
-## 67 Automation Hooks
+## 72 Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 
