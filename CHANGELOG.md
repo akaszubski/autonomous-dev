@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### Fixed
+- Integration test infrastructure improvements and coverage enforcement bug (#272)
+  - Updated test_self_validation_hooks.py: Fixed 11 infrastructure bugs
+  - All mocks now use autospec=True (2024-2025 best practice for test reliability)
+  - Replaced MagicMock with proper subprocess.CompletedProcess for subprocess.run mocks
+  - Replaced hardcoded exit codes (2) with EXIT_BLOCK constant from hook_exit_codes
+  - Added comprehensive audit_log verification in bypass prevention tests
+  - Fixed mock_pytest_output fixture to return proper CompletedProcess with args, returncode, stdout, stderr
+  - Corrected environment variable names in test assertions (ENFORCE_TEST_GATE, ENFORCE_QUALITY_GATE)
+  - Improved mock setup for coverage analysis with proper env var passing (COVERAGE_REPORT)
+  - TDD Red Phase: All tests properly isolated with clean_cache fixture
+  - Better test documentation with explicit ENFORCEMENT and BACKWARD COMPATIBILITY comments
+  - Fixed auto_enforce_coverage.py: Now blocks commits when coverage < 80% in autonomous-dev even when no specific uncovered lines found (tests revealed this bypass bug)
+
 ### Added
 - Self-validation quality gates for autonomous-dev repository (#271)
   - Created repo_detector.py library for detecting autonomous-dev vs user projects

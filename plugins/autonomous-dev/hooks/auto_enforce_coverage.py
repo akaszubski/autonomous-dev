@@ -72,6 +72,16 @@ except ImportError:
         """Fallback when repo_detector not available."""
         return False
 
+# Import hook exit codes for consistent exit status
+try:
+    from hook_exit_codes import EXIT_BLOCK, EXIT_SUCCESS
+
+    EXIT_CODES_AVAILABLE = True
+except ImportError:
+    EXIT_CODES_AVAILABLE = False
+    EXIT_BLOCK = 2
+    EXIT_SUCCESS = 0
+
 # Import security utils for audit logging
 try:
     from security_utils import audit_log
@@ -459,8 +469,14 @@ def main() -> int:
 
     if not uncovered:
         print(f"\n   ℹ️  No uncovered code found (might be excluded lines)")
+
+        # In autonomous-dev, enforce threshold strictly even without specific uncovered lines
+        if is_autonomous_dev_repo():
+            print(f"   ❌ Coverage below threshold - commit blocked")
+            return EXIT_BLOCK
+
         print(f"   Allowing commit to proceed")
-        return 0
+        return EXIT_SUCCESS
 
     # Auto-generate coverage tests
     print(f"\n🤖 Auto-generating tests to improve coverage...")
