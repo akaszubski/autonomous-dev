@@ -41,23 +41,65 @@ sys.path.insert(0, str(LIB_DIR))
 
 # Load .env file if available
 def load_env():
-    """Load .env file from project root if it exists."""
-    env_file = Path(os.getcwd()) / ".env"
-    if env_file.exists():
-        try:
-            with open(env_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith('#'):
-                        continue
-                    if '=' in line:
-                        key, value = line.split('=', 1)
-                        key = key.strip()
-                        value = value.strip().strip('"').strip("'")
-                        if key not in os.environ:
-                            os.environ[key] = value
-        except Exception:
-            pass  # Silently skip
+    """Load .env file from project root if it exists.
+
+    Searches in order:
+    1. Git repository root (works in worktrees)
+    2. PROJECT_ROOT environment variable
+    3. Current working directory
+    4. User home directory
+    """
+    # Try to find git repository root (works even in worktrees)
+    git_root = None
+    try:
+        import subprocess
+        # Use --git-common-dir to find the main repo (works in worktrees)
+        result = subprocess.run(
+            ['git', 'rev-parse', '--git-common-dir'],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if result.returncode == 0:
+            git_common = Path(result.stdout.strip()).resolve()
+            # The parent of .git is the repository root
+            git_root = git_common.parent if git_common.name == '.git' else git_common.parent.parent
+    except Exception:
+        pass
+
+    # Build list of possible .env locations
+    possible_env_files = []
+
+    if git_root:
+        possible_env_files.append(git_root / ".env")
+
+    project_root = os.getenv("PROJECT_ROOT")
+    if project_root:
+        possible_env_files.append(Path(project_root) / ".env")
+
+    possible_env_files.extend([
+        Path.cwd() / ".env",
+        Path.home() / ".env"
+    ])
+
+    # Try each location until we find a .env file
+    for env_file in possible_env_files:
+        if env_file.exists():
+            try:
+                with open(env_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            key = key.strip()
+                            value = value.strip().strip('"').strip("'")
+                            if key not in os.environ:
+                                os.environ[key] = value
+                return  # Stop after first .env file found
+            except Exception:
+                pass  # Silently skip unreadable files
 
 load_env()
 
