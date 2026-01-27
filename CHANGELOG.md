@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Added
+- **Training Best Practices**: 5 new components for LLM training quality enforcement (Issue #274)
+  - Agents: data-quality-validator, distributed-training-coordinator
+  - Skills: data-distillation, preference-data-quality, mlx-performance
+  - Library: training_metrics.py (IFD scoring, DPO validation, RLVR assessment)
+  - Realigns training best practices agents and skills for production LLM development
+
 ### Fixed
 - Integration test infrastructure improvements and coverage enforcement bug (#272)
   - Updated test_self_validation_hooks.py: Fixed 11 infrastructure bugs

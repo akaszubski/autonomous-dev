@@ -128,11 +128,11 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Agents | 23 | Specialized AI assistants (8 pipeline + 15 utility) |
-| Skills | 29 | Progressive disclosure knowledge packages |
+| Agents | 25 | Specialized AI assistants (8 pipeline + 17 utility) |
+| Skills | 32 | Progressive disclosure knowledge packages |
 | Commands | 21 | Active slash commands (5 archived: align-claude, align-project, align-project-retrofit, sync-dev, update-plugin) |
 | Hooks | 72 | Automation and enforcement |
-| Libraries | 154 | Python utilities for security, validation, automation |
+| Libraries | 155 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
 
@@ -156,12 +156,12 @@ Git Operations (commit, push, PR)
 
 **Model Tiers:**
 - **Haiku** (8 agents): Fast pattern matching — researcher-local, reviewer, doc-master, commit-message-generator, alignment-validator, project-progress-tracker, sync-validator, pr-description-generator
-- **Sonnet** (11 agents): Balanced reasoning — researcher, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer
+- **Sonnet** (13 agents): Balanced reasoning — researcher, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer, data-quality-validator, distributed-training-coordinator
 - **Opus** (2 agents): Deep analysis — security-auditor, advisor
 
-**Agent Categories** (23 total):
+**Agent Categories** (25 total):
 - **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (15): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
+- **Utility** (17): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, data-quality-validator, distributed-training-coordinator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
 
 ### Repository Structure
 

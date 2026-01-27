@@ -95,6 +95,18 @@ class AgentInvoker:
             'artifacts_required': ['manifest', 'implementation'],
             'description_template': 'Track PROJECT.md progress for: {request}',
             'mission': 'Track and update PROJECT.md goal completion progress'
+        },
+        'data-quality-validator': {
+            'progress_pct': 15,
+            'artifacts_required': ['manifest'],
+            'description_template': 'Validate data quality for: {request}',
+            'mission': 'Assess training data quality using IFD, DPO, and RLVR metrics'
+        },
+        'distributed-training-coordinator': {
+            'progress_pct': 25,
+            'artifacts_required': ['manifest', 'data_quality'],
+            'description_template': 'Coordinate distributed training for: {request}',
+            'mission': 'Design distributed training strategy with RDMA and MLX optimization'
         }
     }
 

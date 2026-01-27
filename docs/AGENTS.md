@@ -1,6 +1,6 @@
 # Agent Architecture
 
-**Last Updated**: 2025-12-16
+**Last Updated**: 2026-01-27
 **Location**: `plugins/autonomous-dev/agents/`
 
 This document describes the agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
@@ -205,9 +205,9 @@ These agents execute the main autonomous development workflow.
 
 ---
 
-## Utility Agents (11)
+## Utility Agents (13)
 
-These agents provide specialized functionality for alignment, git operations, and project management.
+These agents provide specialized functionality for alignment, git operations, project management, and training best practices.
 
 ### alignment-validator
 
@@ -285,6 +285,22 @@ These agents provide specialized functionality for alignment, git operations, an
 **Model**: Haiku (Tier 1 - cost optimized for validation and sync)
 **Skills**: consistency-enforcement, file-organization, python-standards, security-patterns
 **Command**: /sync
+
+### data-quality-validator
+
+**Purpose**: LLM training data quality assessment and validation (v3.44+, Issue #274)
+**Model**: Sonnet (Tier 2 - balanced reasoning for quality assessment)
+**Skills**: data-distillation, preference-data-quality, testing-guide
+**Command**: /assess-training-data
+**Training Metrics**: IFD scoring, DPO validation, RLVR assessment via training_metrics.py library
+
+### distributed-training-coordinator
+
+**Purpose**: Distributed LLM training orchestration and optimization (v3.44+, Issue #274)
+**Model**: Sonnet (Tier 2 - balanced reasoning for distributed systems)
+**Skills**: mlx-performance, data-distillation, performance-optimization
+**Implementation**: Coordinates multi-node training, validates data distribution, monitors performance
+**Related**: Works with data-quality-validator for end-to-end training pipeline
 
 ---
 

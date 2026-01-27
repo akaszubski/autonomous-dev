@@ -1,0 +1,10 @@
+{"instruction": "Write a Python function to add two numbers", "response": "def add(a, b):\n    \"\"\"Add two numbers and return the result.\"\"\"\n    return a + b"}
+{"instruction": "Create a function to sort a list in ascending order", "response": "def sort_list(lst):\n    \"\"\"Sort a list in ascending order.\"\"\"\n    return sorted(lst)"}
+{"instruction": "Implement a function to find the maximum value in a list", "response": "def find_max(lst):\n    \"\"\"Find and return the maximum value in a list.\"\"\"\n    if not lst:\n        raise ValueError('List is empty')\n    return max(lst)"}
+{"instruction": "Write a function to reverse a string", "response": "def reverse_string(s):\n    \"\"\"Reverse a string and return it.\"\"\"\n    return s[::-1]"}
+{"instruction": "Create a function to check if a number is even", "response": "def is_even(n):\n    \"\"\"Check if a number is even.\"\"\"\n    return n % 2 == 0"}
+{"instruction": "Implement a function to calculate factorial", "response": "def factorial(n):\n    \"\"\"Calculate factorial of n.\"\"\"\n    if n < 0:\n        raise ValueError('n must be non-negative')\n    if n == 0:\n        return 1\n    return n * factorial(n - 1)"}
+{"instruction": "Write a function to merge two dictionaries", "response": "def merge_dicts(d1, d2):\n    \"\"\"Merge two dictionaries.\"\"\"\n    result = d1.copy()\n    result.update(d2)\n    return result"}
+{"instruction": "Create a function to filter even numbers from a list", "response": "def filter_even(lst):\n    \"\"\"Filter even numbers from a list.\"\"\"\n    return [x for x in lst if x % 2 == 0]"}
+{"instruction": "Implement a function to count vowels in a string", "response": "def count_vowels(s):\n    \"\"\"Count vowels in a string.\"\"\"\n    vowels = 'aeiouAEIOU'\n    return sum(1 for c in s if c in vowels)"}
+{"instruction": "Write a function to remove duplicates from a list", "response": "def remove_duplicates(lst):\n    \"\"\"Remove duplicates from a list.\"\"\"\n    return list(set(lst))"}
