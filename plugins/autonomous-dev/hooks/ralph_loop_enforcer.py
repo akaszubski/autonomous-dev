@@ -213,6 +213,16 @@ def main() -> None:
             reason = "Circuit breaker open (too many failures)"
         elif manager.tokens_used >= manager.token_limit:
             reason = f"Token limit exceeded ({manager.token_limit})"
+
+            # Issue #276: Checkpoint before exit if in batch mode
+            # This allows batch to resume after token limit exceeded
+            if "batch_state" in hook_input or hasattr(manager, '_batch_context'):
+                try:
+                    # Try to create checkpoint before exit
+                    manager.checkpoint()
+                except Exception:
+                    # Graceful degradation: allow exit even if checkpoint fails
+                    pass
         else:
             reason = "Retry not allowed"
 

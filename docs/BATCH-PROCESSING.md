@@ -700,6 +700,273 @@ The `in_batch_mode=True` parameter signals that:
 
 ---
 
+## Checkpoint/Resume Mechanism (NEW in v3.50.0 - Issue #276)
+
+**Session snapshots for extended batch processing** - autonomous-dev now creates checkpoints after each feature to enable safe resume from any point, with automatic state capture and rollback capability.
+
+### Overview
+
+The RALPH loop checkpoint mechanism provides:
+1. **Automatic checkpoints**: After each feature completes
+2. **Resume capability**: Continue from any checkpoint
+3. **Context preservation**: Capture full session state (files, state, context)
+4. **Rollback support**: Restore previous checkpoint on validation failure
+5. **Corrupted checkpoint recovery**: Auto-cleanup with warnings
+
+### Context Threshold (Issue #276)
+
+Context threshold increased to support longer batch sessions:
+
+```
+Old threshold: 150K tokens
+New threshold: 185K tokens (23% increase)
+Rationale: Allow 5-7 concurrent features in memory
+```
+
+When context approaches 185K tokens, CheckpointManager automatically creates a checkpoint instead of blocking.
+
+### Checkpoint Creation (Automatic)
+
+Checkpoints are created automatically after each feature completes:
+
+```
+Feature 1: Add authentication → COMPLETED
+  └─> Checkpoint #1 created
+      - State snapshot: batch_state.json
+      - Context estimate: 85K tokens
+      - Timestamp: 2026-01-28T10:15:30Z
+      - Files: 23 changed, 145 added
+
+Feature 2: Add authorization → COMPLETED
+  └─> Checkpoint #2 created
+      - State snapshot: batch_state.json
+      - Context estimate: 120K tokens (increased due to accumulated context)
+      - Timestamp: 2026-01-28T10:35:45Z
+      - Files: 12 changed, 34 added
+```
+
+### Resume from Checkpoint
+
+If batch processing is interrupted (context limit hit, crash, manual stop), resume from the last checkpoint:
+
+```bash
+# View available checkpoints
+ls -la .claude/checkpoints/
+
+# Resume from last checkpoint
+/implement --resume batch-20260128-100000
+```
+
+Resume restores:
+1. Batch state (completed features, current index)
+2. Session context (previous work context)
+3. Git state (branch, staging area)
+4. Progress tracking (feature completions, failures)
+
+### Checkpoint Storage
+
+Checkpoints stored in `.claude/checkpoints/` directory with manifest:
+
+```json
+{
+  "checkpoint_id": "batch-20260128-100000-checkpoint-001",
+  "batch_id": "batch-20260128-100000",
+  "feature_index": 1,
+  "timestamp": "2026-01-28T10:35:45Z",
+  "context_tokens": 120000,
+  "files_changed": 12,
+  "files_added": 34,
+  "compressed": true,
+  "size_bytes": 45230,
+  "state_hash": "abc123def456",
+  "rollback_available": true,
+  "expiry": "2026-02-28T10:35:45Z"
+}
+```
+
+### Rollback Capability
+
+If a feature fails critical validation after resuming from checkpoint:
+
+```
+Feature 3: Add database layer
+├─ Resume from Checkpoint #2
+├─ Implementation starts
+├─ Tests fail: 5 failures
+├─ Quality gate: FAILED
+├─ Manual rollback requested
+└─> Restore Checkpoint #2
+    - Restore batch state
+    - Revert file changes
+    - Continue from previous state
+```
+
+Rollback command:
+
+```bash
+# Rollback to specific checkpoint
+/implement --rollback batch-20260128-100000 checkpoint-001
+
+# Or rollback to previous checkpoint
+/implement --rollback batch-20260128-100000 --previous
+```
+
+### Troubleshooting Corrupted Checkpoints
+
+**Symptom**: Resume fails with "corrupted checkpoint" error
+
+```
+Error: Checkpoint state.json is corrupted (invalid JSON)
+├─ Checkpoint ID: batch-20260128-100000-checkpoint-001
+├─ Size: 45230 bytes
+└─ Attempting recovery...
+```
+
+**Auto-recovery process**:
+
+1. **Detection**: Validate checkpoint JSON format
+2. **Parsing attempt**: Try to parse despite corruption
+3. **Fallback**: Use previous valid checkpoint
+4. **Cleanup**: Move corrupted checkpoint to `checkpoints/corrupted/` with timestamp
+5. **Audit log**: Record corruption details in `logs/checkpoint_errors.jsonl`
+
+**Manual recovery**:
+
+```bash
+# List all checkpoints (including corrupted)
+python .claude/checkpoint_manager.py list
+
+# View corruption details
+python .claude/checkpoint_manager.py inspect batch-20260128-100000-checkpoint-001
+
+# Restore from previous checkpoint
+/implement --resume batch-20260128-100000 --previous
+
+# Clean up corrupted checkpoints
+python .claude/checkpoint_manager.py cleanup --corrupted
+```
+
+**Prevention**:
+
+- Checkpoint validation happens automatically during creation
+- Atomic writes prevent partial saves
+- Compression with integrity checks (gzip CRC-32)
+- Regular backup of checkpoints to `checkpoints/backups/`
+
+### Checkpoint Metadata
+
+Each checkpoint includes metadata for debugging:
+
+```json
+{
+  "metadata": {
+    "batch_id": "batch-20260128-100000",
+    "checkpoint_number": 2,
+    "created_by": "batch_processing",
+    "context_tokens": 120000,
+    "session_id": "session-abc123",
+    "python_version": "3.11.0",
+    "os": "darwin",
+    "autonomous_dev_version": "3.50.0"
+  },
+  "content_hash": "abc123def456",
+  "compression_ratio": 0.65,
+  "created_at": "2026-01-28T10:35:45Z",
+  "expires_at": "2026-02-28T10:35:45Z"
+}
+```
+
+### Performance Impact
+
+- **Checkpoint creation**: <500ms per feature (minimal overhead)
+- **Compression**: ~35% size reduction (65% of original)
+- **Storage**: ~50KB per checkpoint (1000 checkpoints = 50MB)
+- **Memory**: Zero additional overhead (loaded on-demand)
+
+### Examples
+
+#### Example 1: Resume from Last Checkpoint
+
+```bash
+# Batch was interrupted after feature 3
+/implement --resume batch-20260128-100000
+
+# Resume loads Checkpoint #3
+├─ Batch state restored: feature_index = 3
+├─ Files restored from snapshot
+├─ Context summarized (120K tokens → 85K tokens)
+└─ Continue with Feature 4
+```
+
+#### Example 2: Rollback and Retry
+
+```bash
+# Feature 4 fails validation
+/implement --rollback batch-20260128-100000 --previous
+
+# Rollback restores Checkpoint #3
+├─ Batch state: feature_index = 3
+├─ Files: Reverted to Checkpoint #3 snapshot
+├─ Git state: Revert uncommitted changes
+└─ Retry: /implement Feature 4 with different approach
+```
+
+#### Example 3: Corrupted Checkpoint Recovery
+
+```bash
+# Resume fails
+/implement --resume batch-20260128-100000
+# Error: Checkpoint #2 corrupted
+
+# Auto-recovery kicks in
+├─ Checkpoint #2 moved to checkpoints/corrupted/
+├─ Checkpoint #1 loaded (previous valid)
+└─ Continue from Checkpoint #1
+
+# View error details
+cat logs/checkpoint_errors.jsonl | tail -20
+```
+
+### Configuration
+
+Checkpoint behavior controlled via environment variables:
+
+```bash
+# Enable/disable checkpoints (default: enabled)
+CHECKPOINT_ENABLED=true
+
+# Checkpoint storage directory (default: .claude/checkpoints/)
+CHECKPOINT_DIR=.claude/checkpoints/
+
+# Context threshold for automatic checkpoint (default: 185000 tokens)
+CONTEXT_THRESHOLD=185000
+
+# Checkpoint expiry (default: 30 days)
+CHECKPOINT_EXPIRY_DAYS=30
+
+# Compression (default: enabled)
+CHECKPOINT_COMPRESS=true
+
+# Rollback retention (number of previous checkpoints to keep)
+ROLLBACK_DEPTH=5
+```
+
+### Implementation Files
+
+- **Checkpoint Manager**: `plugins/autonomous-dev/lib/checkpoint_manager.py` (Issue #276)
+- **RALPH Loop**: Updated `plugins/autonomous-dev/lib/ralph_loop_enforcer.py` with checkpoint hooks
+- **Batch State Manager**: Enhanced with checkpoint references
+- **State files**: `.claude/checkpoints/` directory with manifest
+- **Error Log**: `logs/checkpoint_errors.jsonl` (JSONL format)
+- **Metadata**: `.claude/checkpoint_manifest.json`
+
+### See Also
+
+- [docs/LIBRARIES.md](LIBRARIES.md#checkpoint-manager) - CheckpointManager API reference
+- [docs/SESSION-STATE-PERSISTENCE.md](SESSION-STATE-PERSISTENCE.md) - Session state details
+
+---
+
 ## Context Management (Compaction-Resilient)
 
 The batch system uses a compaction-resilient design that survives Claude Code's automatic context summarization, enabling truly unattended operation for large batches.

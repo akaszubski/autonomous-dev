@@ -4,10 +4,10 @@
 
 Stop writing buggy code. Start shipping production-ready features.
 
-[![Version](https://img.shields.io/badge/version-3.44.0-blue.svg)](plugins/autonomous-dev/VERSION)
+[![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Agents](https://img.shields.io/badge/agents-25-green.svg)](docs/AGENTS.md)
 [![Skills](https://img.shields.io/badge/skills-32-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
-[![Hooks](https://img.shields.io/badge/hooks-72-purple.svg)](docs/HOOKS.md)
+[![Hooks](https://img.shields.io/badge/hooks-84-purple.svg)](docs/HOOKS.md)
 
 ---
 
@@ -154,7 +154,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│   25 Agents  │  32 Skills  │  72 Hooks  │  155 Libraries        │
+│   25 Agents  │  32 Skills  │  84 Hooks  │  156 Libraries        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,7 +168,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ---
 
-## 72 Automation Hooks
+## 84 Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 
@@ -272,10 +272,17 @@ Original: [tests, auth, email]
 Optimized: [auth, email, tests]  # Tests run after implementation
 ```
 
-**Crash Recovery**: Resume from exactly where you left off
+**Checkpoint/Resume**: Automatic session snapshots with safe resume capability (Issue #276)
 ```bash
+# Batch processing automatically creates checkpoints after each feature
+# If interrupted, resume from checkpoint:
 /implement --resume batch-20260110-143022
+
+# Rollback to previous checkpoint if needed:
+/implement --rollback batch-20260110-143022 --previous
 ```
+
+**Context Management**: Context threshold increased to 185K tokens (23% more than previous 150K) for extended batch sessions without interruption.
 
 **Automatic Retry**: Transient failures (network, rate limits) retry automatically. Permanent errors (syntax, type) skip immediately.
 

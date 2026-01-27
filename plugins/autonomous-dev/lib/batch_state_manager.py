@@ -162,8 +162,9 @@ def get_default_state_file():
 # File lock timeout (seconds)
 LOCK_TIMEOUT = 30
 
-# Auto-clear threshold (tokens) - for backward compatibility with tests
-CONTEXT_THRESHOLD = 150 * 1000  # 150K tokens
+# Auto-clear threshold (tokens) - Issue #276: Increased from 150K to 185K
+# This provides more context headroom before triggering auto-clear + checkpoint
+CONTEXT_THRESHOLD = 185 * 1000  # 185K tokens
 
 # =============================================================================
 # Exceptions
@@ -236,6 +237,10 @@ class BatchState:
     # Issue #254: Quality persistence tracking
     skipped_features: List[Dict[str, Any]] = field(default_factory=list)  # Skipped feature records
     quality_metrics: Dict[str, Any] = field(default_factory=dict)  # Quality metrics per feature
+
+    # Issue #276: Checkpoint tracking
+    last_checkpoint_at: Optional[str] = None  # Timestamp of last checkpoint
+    checkpoint_count: int = 0  # Number of checkpoints created
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -1046,25 +1051,41 @@ def record_auto_clear_event(
 # =============================================================================
 
 
-def should_auto_clear(state: BatchState) -> bool:
+def should_auto_clear(
+    state: BatchState,
+    checkpoint_callback: Optional[callable] = None
+) -> bool:
     """Check if context should be auto-cleared.
+
+    Issue #276: Added checkpoint_callback parameter to trigger checkpoint
+    before auto-clear. Threshold increased from 150K to 185K tokens.
 
     Args:
         state: Batch state
+        checkpoint_callback: Optional callback to invoke before auto-clear
+                           (for creating checkpoint)
 
     Returns:
-        True if context token estimate exceeds threshold (150K tokens)
+        True if context token estimate exceeds threshold (185K tokens)
 
     Example:
         >>> from path_utils import get_batch_state_file
         >>> state = load_batch_state(get_batch_state_file())
-        >>> if should_auto_clear(state):
-        ...     # Trigger /clear
+        >>>
+        >>> def checkpoint_callback():
+        ...     ralph_manager.checkpoint(batch_state=state)
+        >>>
+        >>> if should_auto_clear(state, checkpoint_callback=checkpoint_callback):
+        ...     # Checkpoint created, now trigger /clear
         ...     pass
     """
-    # Auto-clear threshold: 150K tokens (inline value, no constant needed)
-    threshold = 150 * 1000
-    return state.context_token_estimate >= threshold
+    needs_clear = state.context_token_estimate >= CONTEXT_THRESHOLD
+
+    # Invoke checkpoint callback before returning (if provided and threshold exceeded)
+    if needs_clear and checkpoint_callback:
+        checkpoint_callback()
+
+    return needs_clear
 
 
 def estimate_context_tokens(text: str) -> int:
@@ -1297,6 +1318,68 @@ def mark_feature_status(
             "status": status,
             "retry_count": retry_count,
         })
+
+
+def record_checkpoint(
+    state_file: Path | str,
+) -> None:
+    """
+    Record checkpoint creation in batch state.
+
+    Updates checkpoint count and timestamp. This helps track when
+    checkpoints were created for debugging and monitoring.
+
+    Thread-safe update using file locking.
+
+    Args:
+        state_file: Path to batch state file
+
+    Examples:
+        >>> record_checkpoint(state_file)
+    """
+    state_path = Path(state_file)
+
+    with _get_file_lock(state_path):
+        # Load current state
+        state = load_batch_state(state_path)
+
+        # Update checkpoint tracking
+        state.checkpoint_count += 1
+        state.last_checkpoint_at = datetime.utcnow().isoformat() + "Z"
+
+        # Update timestamp
+        state.updated_at = datetime.utcnow().isoformat() + "Z"
+
+        # Save updated state
+        save_batch_state(state_path, state)
+
+        # Audit log
+        audit_log("checkpoint_recorded", "info", {
+            "batch_id": state.batch_id,
+            "checkpoint_count": state.checkpoint_count,
+            "timestamp": state.last_checkpoint_at,
+        })
+
+
+def get_last_checkpoint(
+    state: BatchState
+) -> Optional[str]:
+    """
+    Get timestamp of last checkpoint.
+
+    Args:
+        state: Batch state
+
+    Returns:
+        ISO 8601 timestamp of last checkpoint, or None if no checkpoints yet
+
+    Examples:
+        >>> state = load_batch_state(state_file)
+        >>> last_checkpoint = get_last_checkpoint(state)
+        >>> if last_checkpoint:
+        ...     print(f"Last checkpoint: {last_checkpoint}")
+    """
+    return state.last_checkpoint_at
 
 
 def mark_feature_skipped(
