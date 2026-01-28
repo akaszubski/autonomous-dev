@@ -1,13 +1,14 @@
 # autonomous-dev
 
-**AI-Powered Development Pipelines for Claude Code**
+**8-Agent SDLC Pipeline for Claude Code**
 
-Stop writing buggy code. Start shipping production-ready features.
+Transform feature implementation into an automated, quality-enforced workflow. One command runs research → plan → test → implement → review → security → docs → git automation.
 
 [![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
-[![Agents](https://img.shields.io/badge/agents-25-green.svg)](docs/AGENTS.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-8_agents-green.svg)](docs/AGENTS.md)
 [![Skills](https://img.shields.io/badge/skills-32-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
-[![Hooks](https://img.shields.io/badge/hooks-84-purple.svg)](docs/HOOKS.md)
+[![Hooks](https://img.shields.io/badge/hooks-73-purple.svg)](docs/HOOKS.md)
+[![Commands](https://img.shields.io/badge/commands-21-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
 
 ---
 
@@ -154,30 +155,65 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│   25 Agents  │  32 Skills  │  84 Hooks  │  156 Libraries        │
+│  8 Pipeline Agents  │  32 Skills  │  73 Hooks  │  132 Libraries │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Agent Architecture
+
+**8 Pipeline Agents** (invoked via Task tool):
+1. **researcher-local** (Haiku) - Searches codebase for existing patterns
+2. **researcher-web** (Sonnet) - Researches best practices and security considerations
+3. **planner** (Sonnet) - Designs implementation architecture
+4. **test-master** (Sonnet) - Writes comprehensive tests BEFORE implementation (TDD)
+5. **implementer** (Sonnet) - Writes production-quality code to make tests pass
+6. **reviewer** (Sonnet) - Reviews code quality, patterns, and coverage
+7. **security-auditor** (Haiku) - Scans for OWASP vulnerabilities
+8. **doc-master** (Haiku) - Updates documentation to match code changes
+
+**Utility Agents** (invoked via Task tool):
+- alignment-validator, commit-message-generator, issue-creator, pr-description-generator, and more
+
+**How Agents Work**:
+- Agents are markdown prompts (not Python files)
+- Invoked via Claude's Task tool with `subagent_type` parameter
+- Each agent has specialized knowledge and tools
+- Pipeline runs sequentially (except parallel validation in step 6)
+
 ### Model Tier Strategy (Cost-Optimized)
 
-| Tier | Model | Agents | Use Case |
-|------|-------|--------|----------|
-| **Tier 1** | Haiku | researcher, reviewer, doc-master | Fast pattern matching (40-60% cost savings) |
-| **Tier 2** | Sonnet | implementer, test-master, planner | Balanced reasoning for implementation |
-| **Tier 3** | Opus | security-auditor | Deep reasoning for critical security |
+| Tier | Model | Agents | Cost Savings |
+|------|-------|--------|--------------|
+| **Tier 1** | Haiku | researcher-local, reviewer, doc-master, security-auditor | 40-60% savings |
+| **Tier 2** | Sonnet | implementer, test-master, planner, researcher-web | Balanced cost/quality |
+| **Tier 3** | Opus | (reserved for future complex reasoning tasks) | Deep reasoning when needed |
 
 ---
 
-## 84 Automation Hooks
+## 73 Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 
 | Hook Type | What It Does |
 |-----------|--------------|
-| **PreToolUse** | Validates commands before execution (sandboxing, path security, injection prevention) |
+| **PreToolUse** | 4-layer security validation (sandboxing → MCP → agent auth → batch permissions) |
 | **PreCommit** | Blocks commits with failing tests, missing docs, or security issues |
 | **SubagentStop** | Triggers git automation after pipeline completion |
 | **PrePromptSubmit** | Enforces workflow discipline and command validation |
+| **SessionStart** | Restores session state after `/clear` for continuity |
+
+**Key Hooks**:
+- **unified_pre_tool.py**: 4-layer security (84% reduction in permission prompts)
+- **ralph_loop_enforcer.py**: Self-correcting agent execution with 5 validation strategies
+- **pre_commit_gate.py**: 100% test pass requirement (no bypass)
+- **enforce_pipeline_order.py**: Prevents skipping research/planning/tests
+- **unified_session_tracker.py**: Session state persistence across `/clear` operations
+
+**Hook Exit Code Semantics**:
+- `EXIT_SUCCESS (0)`: Hook passed, continue execution
+- `EXIT_WARNING (1)`: Non-blocking warning, log and continue
+- `EXIT_BLOCK (2)`: Critical failure, block operation
+- Lifecycle hooks (PreToolUse, SubagentStop) must exit 0 (blocking not allowed)
 
 **What hooks catch automatically:**
 - Documentation drift from code changes
@@ -186,6 +222,7 @@ Hooks run automatically at key moments to enforce quality without manual interve
 - Missing test coverage on new code
 - CLAUDE.md out of sync with codebase
 - Path traversal and injection attacks
+- Agent execution failures (auto-retry with circuit breaker)
 
 **Philosophy**: Quality gates should be automatic. If you have to remember to check something, you'll eventually forget.
 
@@ -278,13 +315,17 @@ Add email notifications
 
 ### Smart Features
 
-**Dependency Analysis**: Automatically reorders features based on dependencies
+**Dependency Analysis**: Automatically reorders features based on dependencies (Issue #157)
 ```
 Original: [tests, auth, email]
 Optimized: [auth, email, tests]  # Tests run after implementation
 ```
+- Analyzes feature dependencies via keyword matching
+- Topological sort for optimal execution order
+- Circular dependency detection with ASCII graph visualization
+- Preserves explicit ordering when dependencies are ambiguous
 
-**Checkpoint/Resume**: Automatic session snapshots with safe resume capability (Issue #276)
+**Checkpoint/Resume**: Automatic session snapshots with safe resume capability (Issues #276, #277)
 ```bash
 # Batch processing automatically creates checkpoints after each feature
 # If interrupted, resume from checkpoint:
@@ -294,13 +335,103 @@ Optimized: [auth, email, tests]  # Tests run after implementation
 /implement --rollback batch-20260110-143022 --previous
 ```
 
-**Context Management**: Claude handles auto-compact automatically. Batch system checkpoints after every feature (Issue #276) and resumes seamlessly when Claude compacts context (Issue #277).
+**Context Management**:
+- Claude auto-compact at ~185K tokens (23% increase from 150K baseline)
+- Batch checkpoints after every feature (state + progress saved)
+- SessionStart hook auto-resumes after `/clear` or auto-compact
+- Corrupted checkpoint recovery with `.bak` fallback
+- Token tracking: `context_token_delta` per feature for threshold detection
 
 **Automatic Retry**: Transient failures (network, rate limits) retry automatically. Permanent errors (syntax, type) skip immediately.
 
 **Per-Feature Git**: Each feature commits separately with conventional messages.
 
 **Issue Auto-Close**: GitHub issues closed automatically after push with summary comment.
+
+---
+
+## Advanced Features
+
+### Ralph Loop: Self-Correcting Agent Execution
+
+Agents automatically retry failed operations with intelligent validation:
+
+```
+Agent fails → Analyze error → Adjust strategy → Retry (up to 3x)
+           ↓
+     Circuit breaker prevents infinite loops
+```
+
+**5 Validation Strategies**:
+1. **pytest**: Test-based validation (tests must pass)
+2. **safe_word**: AI confirms completion in response
+3. **file_existence**: Required files must exist
+4. **regex**: Output must match pattern
+5. **json**: Output must be valid JSON
+
+**Features**:
+- Token limits prevent runaway costs
+- Circuit breaker after 3 failures
+- Validation strategy per agent type
+- Default: ENABLED for all pipeline agents
+
+### Quality Persistence: Honest Batch Summaries
+
+Batch processing enforces 100% integrity:
+
+**Rules**:
+- 100% test pass requirement (not 80%)
+- Failed features keep GitHub issues OPEN + 'blocked' label
+- Retry escalation: 3 attempts with increasing wait times
+- Honest summaries: Never fakes success
+
+**Why This Matters**: Prevents "silent failures" where batch reports success but issues remain broken.
+
+### Worktree Isolation
+
+Per-batch worktree creation for parallel development:
+
+```bash
+/implement --batch features.txt
+# Creates: .worktrees/batch-20260128-143022/
+# Automatic CWD change to worktree
+# Main repo remains untouched until merge
+```
+
+**Benefits**:
+- Concurrent CI jobs without interference
+- Per-worktree batch state isolation
+- Safe experimentation (discard without affecting main)
+- Supports nested worktrees
+
+### Session State Persistence
+
+Session state survives `/clear` operations:
+
+**Stored in** `.claude/local/SESSION_STATE.json`:
+- Active tasks and next steps
+- Key conventions (repo-specific patterns)
+- Recent context (files modified, workflows completed)
+
+**Read at SessionStart**: Automatic continuity across sessions
+
+### UV Script Execution
+
+All 73 hooks use UV for reproducible execution:
+
+**Features**:
+- PEP 723 metadata blocks (inline dependencies)
+- Zero environment setup overhead
+- Graceful fallback to `sys.path`
+- Single-file portability
+
+**Example** (from any hook):
+```python
+#!/usr/bin/env -S uv run --quiet
+# /// script
+# dependencies = ["pytest", "coverage"]
+# ///
+```
 
 ---
 
@@ -357,13 +488,13 @@ Layer 4: Batch Approver        → Caches user consent for identical operations
 |-------|-------------|
 | [CLAUDE.md](CLAUDE.md) | Project instructions and quick reference |
 | [Architecture](docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
-| [Agents](docs/AGENTS.md) | 25 specialized agents and their roles |
-| [Hooks](docs/HOOKS.md) | 72 automation hooks reference |
+| [Agents](docs/AGENTS.md) | 8-agent pipeline + utility agents |
+| [Hooks](docs/HOOKS.md) | 73 automation hooks reference |
 | [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) | 32 skills and agent integration |
 | [Workflow Discipline](docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Git Automation](docs/GIT-AUTOMATION.md) | Zero manual git operations |
-| [Batch Processing](docs/BATCH-PROCESSING.md) | Multi-feature workflows |
+| [Batch Processing](docs/BATCH-PROCESSING.md) | Multi-feature workflows with auto-continuation |
 | [Security](docs/SECURITY.md) | Security model and hardening guide |
 
 ---
