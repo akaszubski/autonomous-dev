@@ -1,6 +1,17 @@
 ## [Unreleased]
 
 ### Added
+- Batch processing auto-continuation loop (Issue #285)
+  - Batch now auto-continues through all N features in single invocation
+  - Implemented explicit while-loop using get_next_pending_feature() and update_batch_progress() APIs
+  - No manual `/implement --resume` needed between features
+  - Failed features recorded but don't stop batch processing
+  - Batch loop continues until get_next_pending_feature() returns None
+  - Resume mode uses same auto-continuation pattern (continues from current_index)
+  - 7 integration tests validate auto-continuation workflow
+  - Updated plugins/autonomous-dev/commands/implement.md BATCH FILE MODE STEP B3
+  - Updated docs/BATCH-PROCESSING.md with auto-continuation documentation
+  - Updated README.md batch processing section to clarify behavior
 - RALPH checkpoint integration with Claude auto-compact lifecycle (Issue #277)
   - Created batch_resume_helper.py CLI utility for SessionStart hook batch recovery
   - SessionStart hook automatically resumes batch processing after Claude auto-compacts

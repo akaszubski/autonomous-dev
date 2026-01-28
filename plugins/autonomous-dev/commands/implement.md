@@ -418,14 +418,164 @@ Found N features in [file]:
 Starting batch processing in worktree: .worktrees/$BATCH_ID
 ```
 
-**STEP B3: Process Each Feature**
+**STEP B3: Process Each Feature (Auto-Continuation Loop)**
 
-For each feature:
+**CRITICAL**: Batch must auto-continue through ALL features without manual intervention.
 
-1. **Update progress**: Display "Batch Progress: Feature M/N"
-2. **Invoke full pipeline**: Execute the full pipeline (STEPS 1-8) for the feature with **BATCH CONTEXT** passed to ALL agents
-3. **Update batch state**: Save progress to `.worktrees/$BATCH_ID/.claude/batch_state.json`
-4. **Continue to next feature**
+Execute this loop until all features are processed:
+
+```bash
+# Process all features with auto-continuation
+while true; do
+    # Load current batch state
+    STATE_FILE=".worktrees/$BATCH_ID/.claude/batch_state.json"
+
+    # Get next pending feature using batch_state_manager API
+    NEXT_FEATURE=$(python3 -c "
+import sys
+from pathlib import Path
+
+# Add lib to path
+project_root = Path.cwd()
+lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_path))
+
+from batch_state_manager import load_batch_state, get_next_pending_feature
+
+state = load_batch_state('$STATE_FILE')
+next_feat = get_next_pending_feature(state)
+print(next_feat if next_feat else '')
+")
+
+    # Exit loop if no more features
+    if [ -z "$NEXT_FEATURE" ]; then
+        echo "All features processed. Exiting batch loop."
+        break
+    fi
+
+    # Get current feature index and total for progress tracking
+    FEATURE_INDEX=$(python3 -c "
+import sys
+from pathlib import Path
+
+project_root = Path.cwd()
+lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_path))
+
+from batch_state_manager import load_batch_state
+
+state = load_batch_state('$STATE_FILE')
+print(state.current_index)
+")
+
+    TOTAL_FEATURES=$(python3 -c "
+import sys
+from pathlib import Path
+
+project_root = Path.cwd()
+lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_path))
+
+from batch_state_manager import load_batch_state
+
+state = load_batch_state('$STATE_FILE')
+print(state.total_features)
+")
+
+    # Display progress
+    echo ""
+    echo "=========================================="
+    echo "Batch Progress: Feature $((FEATURE_INDEX + 1))/$TOTAL_FEATURES"
+    echo "Processing: $NEXT_FEATURE"
+    echo "=========================================="
+    echo ""
+
+    # Invoke full pipeline (STEPS 1-8) with BATCH CONTEXT
+    # CRITICAL: Include BATCH CONTEXT in ALL agent prompts (see section below)
+    #
+    # Execute full 8-agent pipeline for this feature:
+    # 1. researcher-local
+    # 2. researcher-web
+    # 3. planner
+    # 4. test-master
+    # 5. implementer
+    # 6. reviewer
+    # 7. security-auditor
+    # 8. doc-master
+    #
+    # All agents MUST receive BATCH CONTEXT (worktree path) in their prompts
+
+    # Track whether feature succeeded or failed
+    FEATURE_SUCCESS=true
+    ERROR_MESSAGE=""
+
+    # Execute pipeline (replace with actual pipeline invocation)
+    # For now, this is pseudocode showing the error handling pattern
+    if ! invoke_full_pipeline_for_feature "$NEXT_FEATURE" "$WORKTREE_PATH"; then
+        FEATURE_SUCCESS=false
+        ERROR_MESSAGE="Pipeline failed for Feature $((FEATURE_INDEX + 1))"
+    fi
+
+    # Update batch progress based on success/failure
+    if [ "$FEATURE_SUCCESS" = true ]; then
+        # Feature succeeded - mark as completed
+        python3 -c "
+import sys
+from pathlib import Path
+
+project_root = Path.cwd()
+lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_path))
+
+from batch_state_manager import update_batch_progress
+
+update_batch_progress(
+    '$STATE_FILE',
+    $FEATURE_INDEX,
+    'completed',
+    context_token_delta=5000  # Estimate tokens used
+)
+print('Feature $((FEATURE_INDEX + 1)) completed successfully')
+"
+    else
+        # Feature failed - mark as failed and continue to next
+        python3 -c "
+import sys
+from pathlib import Path
+
+project_root = Path.cwd()
+lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
+sys.path.insert(0, str(lib_path))
+
+from batch_state_manager import update_batch_progress
+
+update_batch_progress(
+    '$STATE_FILE',
+    $FEATURE_INDEX,
+    'failed',
+    context_token_delta=5000,  # Estimate tokens used
+    error_message='$ERROR_MESSAGE'
+)
+print('⚠️ Feature $((FEATURE_INDEX + 1)) failed: $ERROR_MESSAGE')
+print('Continuing to next feature...')
+"
+    fi
+
+    # Loop continues to next feature automatically
+done
+```
+
+**Key Implementation Points**:
+
+1. **Loop APIs** (already implemented in `batch_state_manager.py`):
+   - `get_next_pending_feature(state)` - Returns next feature or None when complete
+   - `update_batch_progress()` - Updates state after each feature
+
+2. **Error Handling**: Failed features are recorded but batch continues
+
+3. **Infinite Loop Prevention**: Explicit None check from `get_next_pending_feature()`
+
+4. **Resume Support**: Same loop pattern works for both initial run and resume
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 

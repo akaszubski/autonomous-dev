@@ -264,6 +264,18 @@ Add email notifications
 /implement --issues 72 73 74
 ```
 
+### Auto-Continuation (Issue #285)
+
+**New**: Batch now automatically continues through all features in a single invocation.
+```bash
+/implement --batch features.txt
+# Processes Features 1/5 → 2/5 → 3/5 → 4/5 → 5/5 automatically
+# No manual `/implement --resume` needed between features
+# Manual resume only needed if batch is interrupted (not between features)
+```
+
+**Why This Matters**: Previously, batch processing stopped after each feature requiring manual intervention. Now features auto-continue without interruption. Failed features are recorded but don't stop the batch.
+
 ### Smart Features
 
 **Dependency Analysis**: Automatically reorders features based on dependencies

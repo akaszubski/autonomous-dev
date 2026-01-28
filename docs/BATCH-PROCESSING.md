@@ -1,10 +1,10 @@
 # Batch Feature Processing
 
-**Last Updated**: 2026-01-19
-**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218), Command consolidation v3.47.0 (Issue #203), Quality persistence enforcement added v1.0.0 (Issue #254)
+**Last Updated**: 2026-01-28
+**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218), Command consolidation v3.47.0 (Issue #203), Quality persistence enforcement added v1.0.0 (Issue #254), **Auto-continuation loop added v3.50.0 (Issue #285)**
 **Command**: `/implement --batch`, `/implement --issues`, `/implement --resume`
 
-> **Migration Note**: The `/implement --batch` command is deprecated. Use `/implement --batch`, `/implement --issues`, or `/implement --resume` instead. See [Migration Guide](#migration-guide).
+> **NEW in v3.50.0 (Issue #285)**: Batch now auto-continues through all features in a single invocation. Manual `/implement --resume` is only needed if the batch is interrupted, not between features.
 
 This document describes the batch feature processing system for sequential multi-feature development with intelligent state management, automatic worktree isolation, and per-feature git automation.
 
@@ -12,9 +12,15 @@ This document describes the batch feature processing system for sequential multi
 
 ## Overview
 
-Process multiple features sequentially with intelligent state management and automatic context management. Supports 50+ features without manual intervention.
+Process multiple features sequentially with intelligent state management, automatic context management, and auto-continuation through all features. Supports 50+ features without manual intervention.
 
-**Workflow**: Parse input → Create batch state → For each: `/implement` → Continue (Claude Code handles context automatically)
+**Workflow** (NEW in Issue #285): Parse input → Create batch state → **Auto-continue loop**: For each feature: `/implement` → Check for next feature → Continue (repeat until all features complete)
+
+**Key Improvement (Issue #285)**: Batch now uses an explicit while-loop with `get_next_pending_feature()` API to automatically continue through all features. No manual `/implement --resume` needed between features. Failed features are recorded and batch continues processing remaining features.
+
+**When to Use `--resume`**:
+- **Between features**: Never (auto-continues automatically)
+- **After interruption**: Only if batch is interrupted and needs to be resumed from checkpoint
 
 ---
 
@@ -132,6 +138,151 @@ Then:
 - Feature 3-5: Checks env var → auto-proceeds (no prompt)
 
 Result: Fully unattended processing with zero blocking prompts.
+
+---
+
+## Auto-Continuation Loop (NEW in v3.50.0 - Issue #285)
+
+**Batch now automatically processes all features in a single invocation without manual resume between features.**
+
+### Overview
+
+The batch system implements an explicit auto-continuation loop that:
+1. Processes Feature 1/N
+2. Updates batch state
+3. **Automatically checks for next pending feature**
+4. **If more features exist**: Loops back to step 1 for Feature 2/N
+5. **If no more features**: Loop exits cleanly
+
+**Result**: Single `/implement --batch features.txt` call processes ALL features without user intervention.
+
+### Workflow Example
+
+```bash
+$ /implement --batch features.txt
+
+Batch Progress: Feature 1/5
+Processing: Add JWT authentication
+... [full pipeline runs] ...
+
+Batch Progress: Feature 2/5
+Processing: Add password reset (requires JWT)
+... [full pipeline runs] ...
+
+Batch Progress: Feature 3/5
+Processing: Add email notifications
+... [full pipeline runs] ...
+
+[continues automatically through Features 4-5]
+
+Batch Complete
+Completed: 5/5 (100%)
+```
+
+### Implementation Details
+
+The auto-continuation is implemented via:
+
+**STEP B3 Loop APIs** (batch_state_manager.py):
+- `get_next_pending_feature(state)` - Returns next feature or None when complete
+- `update_batch_progress()` - Updates state after each feature
+
+**Loop Pattern** (implement.md):
+```bash
+while true; do
+    # Get next pending feature
+    NEXT_FEATURE=$(python3 -c "
+        from batch_state_manager import load_batch_state, get_next_pending_feature
+        state = load_batch_state('$STATE_FILE')
+        next_feat = get_next_pending_feature(state)
+        print(next_feat if next_feat else '')
+    ")
+
+    # Exit if no more features
+    if [ -z "$NEXT_FEATURE" ]; then
+        break
+    fi
+
+    # Process feature (invoke full pipeline)
+    # ... implementation ...
+
+    # Update batch state
+    update_batch_progress($STATE_FILE, $INDEX, 'completed')
+done
+```
+
+**Key Points**:
+- **Explicit None check**: Loop exits when `get_next_pending_feature()` returns None
+- **Error resilience**: Failed features recorded but batch continues
+- **Infinite loop prevention**: Deterministic exit condition
+- **Resume support**: Same loop works for `--resume` (continues from current_index)
+
+### Failed Features Don't Stop Batch
+
+If a feature fails during the pipeline:
+
+```bash
+# Feature processing
+Feature 2: Add password reset
+├─ Implementation: FAILED (3 test failures)
+├─ Update state: Mark as failed
+├─ Batch status: CONTINUE (not STOP)
+└─ Next: Loop continues to Feature 3
+
+# Feature 3 processes normally
+Feature 3: Add email notifications
+├─ Implementation: Success
+└─ Continue loop...
+```
+
+**Result**: Even if Feature 2 fails, Features 3-5 still process.
+
+### When to Use `--resume`
+
+**Auto-Continue** (No `--resume` needed):
+- Feature 1 completes → Feature 2 starts automatically
+- Feature 2 completes → Feature 3 starts automatically
+- Feature 3 completes → Feature 4 starts automatically
+
+**Manual Resume** (Use `--resume`):
+```bash
+# Batch interrupted (network error, crash, manual stop)
+/implement --resume batch-20260128-143022
+
+# Resumes from current_index
+# Uses same auto-continuation loop
+# Completes remaining features
+```
+
+### Validation Tests
+
+7 integration tests validate auto-continuation (tests/integration/test_batch_auto_continuation.py):
+
+1. **test_batch_processes_all_features_without_manual_resume**
+   - Validates: Auto-continuation through all 5 features
+   - Verifies: No manual resume needed between features
+
+2. **test_batch_continues_after_feature_failure**
+   - Validates: Batch continues after Feature 3 fails
+   - Verifies: Features 4-10 still process
+
+3. **test_batch_exits_when_no_more_features**
+   - Validates: Loop exits when get_next_pending_feature() returns None
+   - Verifies: No infinite loop
+
+4. **test_resume_uses_same_loop_pattern**
+   - Validates: Resume uses same auto-continuation loop
+   - Verifies: No duplicate processing
+
+5. **test_batch_completes_with_multiple_failures**
+   - Validates: Multiple failures don't stop batch
+   - Verifies: All 10 features attempted
+
+6. **test_empty_batch_exits_immediately**
+   - Validates: Empty batch validation (StateError)
+
+7. **test_single_feature_batch**
+   - Validates: Single-feature batch works correctly
 
 ### Verification
 
