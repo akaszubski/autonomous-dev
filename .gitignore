@@ -132,3 +132,7 @@ DOCUMENTATION_*.md
 
 # Git worktrees (isolated build directories)
 .worktrees/
+
+# Malformed test artifacts (pytest temp path bugs - files with backslashes)
+\private*
+*\private*

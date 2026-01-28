@@ -560,6 +560,53 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
         return (False, f'Unexpected error: {str(e)}')
 
 
+def _check_worktree_hygiene(worktree_path: Path) -> Tuple[bool, str]:
+    """Check worktree for malformed files and suspicious patterns.
+
+    Args:
+        worktree_path: Path to worktree directory
+
+    Returns:
+        Tuple of (is_clean, error_message)
+
+    Checks for:
+        - Files with backslashes in names (pytest temp path artifacts)
+        - Files with absolute paths as names (malformed test artifacts)
+        - Other suspicious file patterns
+    """
+    if not worktree_path.exists():
+        return (True, '')
+
+    try:
+        issues = []
+
+        # Check for files with backslashes or absolute paths in their names
+        for _root, _dirs, files in os.walk(worktree_path):
+            for filename in files:
+                # Check for backslashes (common in pytest temp path bugs)
+                if '\\' in filename:
+                    issues.append(f"Malformed filename with backslashes: {filename[:100]}")
+
+                # Check for absolute path patterns (e.g., starts with /private, /tmp, etc.)
+                if filename.startswith(('/', '\\', 'private', 'tmp', 'var')):
+                    issues.append(f"Suspicious absolute path filename: {filename[:100]}")
+
+        if issues:
+            error_msg = (
+                f"Worktree hygiene check failed ({len(issues)} issue(s)):\n"
+                + "\n".join(f"  - {issue}" for issue in issues[:5])
+                + (f"\n  ... and {len(issues) - 5} more" if len(issues) > 5 else "")
+                + f"\n\nClean up these files before merging."
+            )
+            return (False, error_msg)
+
+        return (True, '')
+
+    except Exception as e:
+        # Don't fail merge on hygiene check errors, just warn
+        return (True, f'Warning: hygiene check failed: {str(e)}')
+
+
 def merge_worktree(
     feature_name: str,
     target_branch: str = 'master',
@@ -585,6 +632,7 @@ def merge_worktree(
         - Validates feature name (CWE-22, CWE-78)
         - Uses subprocess list args (no shell=True)
         - AI resolution only if feature flag enabled
+        - Pre-merge hygiene check for malformed files
 
     Examples:
         >>> result = merge_worktree('feature-auth', 'main')
@@ -610,6 +658,18 @@ def merge_worktree(
             merged_files=[],
             error_message=error
         )
+
+    # Pre-merge hygiene check: verify worktree doesn't have malformed files
+    worktree_path = get_worktree_path(feature_name)
+    if worktree_path:
+        is_clean, hygiene_error = _check_worktree_hygiene(worktree_path)
+        if not is_clean:
+            return MergeResult(
+                success=False,
+                conflicts=[],
+                merged_files=[],
+                error_message=hygiene_error
+            )
 
     # Step 0: Check if branch is pushed (Issue #240)
     if check_push and not force_merge:
