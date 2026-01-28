@@ -142,7 +142,7 @@ The system now integrates with official MCP servers for each capability:
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${PROJECT_ROOT}"
       ]
     },
     "git": {
@@ -151,7 +151,7 @@ The system now integrates with official MCP servers for each capability:
         "-y",
         "@modelcontextprotocol/server-git",
         "--repository",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${PROJECT_ROOT}"
       ]
     },
     "github": {

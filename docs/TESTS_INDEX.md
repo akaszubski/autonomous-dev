@@ -3,11 +3,11 @@
 ## Quick Navigation
 
 ### Executive Summaries
-- **[TDD_RED_PHASE_SUMMARY.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/TDD_RED_PHASE_SUMMARY.md)** - High-level overview of all 96 tests, success criteria, and implementation roadmap
-- **[tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md)** - Comprehensive technical reference for all phases
+- **[TDD_RED_PHASE_SUMMARY.md](${PROJECT_ROOT}/TDD_RED_PHASE_SUMMARY.md)** - High-level overview of all 96 tests, success criteria, and implementation roadmap
+- **[tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md](${PROJECT_ROOT}/tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md)** - Comprehensive technical reference for all phases
 
 ### Test Directories
-- **[tests/unit/performance/](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/)** - All 4 test modules
+- **[tests/unit/performance/](${PROJECT_ROOT}/tests/unit/performance/)** - All 4 test modules
   - [test_phase8_5_profiler_integration.py](#phase-85-profiler-integration) (27 tests)
   - [test_phase9_model_downgrade.py](#phase-9-model-downgrade) (19 tests)
   - [test_phase10_prompt_streamlining.py](#phase-10-prompt-streamlining) (22 tests)
@@ -19,7 +19,7 @@
 ## Test Files Overview
 
 ### Phase 8.5: Profiler Integration
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase8_5_profiler_integration.py`
+**File**: `${PROJECT_ROOT}/tests/unit/performance/test_phase8_5_profiler_integration.py`
 
 **Size**: 662 lines, 25 KB | **Tests**: 27 | **Classes**: 6
 
@@ -62,7 +62,7 @@
 ---
 
 ### Phase 9: Model Downgrade
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase9_model_downgrade.py`
+**File**: `${PROJECT_ROOT}/tests/unit/performance/test_phase9_model_downgrade.py`
 
 **Size**: 607 lines, 22 KB | **Tests**: 19 | **Classes**: 4
 
@@ -103,7 +103,7 @@
 ---
 
 ### Phase 10: Prompt Streamlining
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase10_prompt_streamlining.py`
+**File**: `${PROJECT_ROOT}/tests/unit/performance/test_phase10_prompt_streamlining.py`
 
 **Size**: 470 lines, 18 KB | **Tests**: 22 | **Classes**: 6
 
@@ -153,7 +153,7 @@
 ---
 
 ### Phase 11: Partial Parallelization
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase11_partial_parallelization.py`
+**File**: `${PROJECT_ROOT}/tests/unit/performance/test_phase11_partial_parallelization.py`
 
 **Size**: 555 lines, 21 KB | **Tests**: 28 | **Classes**: 7
 
@@ -241,7 +241,7 @@
 
 ### All Tests
 ```bash
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev
+cd ${PROJECT_ROOT}
 source .venv/bin/activate
 python -m pytest tests/unit/performance/ -v
 ```
@@ -382,20 +382,20 @@ python -m pytest tests/unit/performance/ --cov=plugins.autonomous_dev --cov-repo
 ## Quick Links
 
 ### Test Files
-- [test_phase8_5_profiler_integration.py](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase8_5_profiler_integration.py)
-- [test_phase9_model_downgrade.py](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase9_model_downgrade.py)
-- [test_phase10_prompt_streamlining.py](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase10_prompt_streamlining.py)
-- [test_phase11_partial_parallelization.py](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/test_phase11_partial_parallelization.py)
+- [test_phase8_5_profiler_integration.py](${PROJECT_ROOT}/tests/unit/performance/test_phase8_5_profiler_integration.py)
+- [test_phase9_model_downgrade.py](${PROJECT_ROOT}/tests/unit/performance/test_phase9_model_downgrade.py)
+- [test_phase10_prompt_streamlining.py](${PROJECT_ROOT}/tests/unit/performance/test_phase10_prompt_streamlining.py)
+- [test_phase11_partial_parallelization.py](${PROJECT_ROOT}/tests/unit/performance/test_phase11_partial_parallelization.py)
 
 ### Documentation
-- [TDD_RED_PHASE_SUMMARY.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/TDD_RED_PHASE_SUMMARY.md)
-- [tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md)
-- [tests/unit/performance/README.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/tests/unit/performance/README.md)
+- [TDD_RED_PHASE_SUMMARY.md](${PROJECT_ROOT}/TDD_RED_PHASE_SUMMARY.md)
+- [tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md](${PROJECT_ROOT}/tests/PHASE_8_PERFORMANCE_TESTS_SUMMARY.md)
+- [tests/unit/performance/README.md](${PROJECT_ROOT}/tests/unit/performance/README.md)
 
 ### Implementation Reference
-- [CLAUDE.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md) - Project standards
-- [PROJECT.md](/Users/akaszubski/Documents/GitHub/autonomous-dev/PROJECT.md) - Project goals
-- [plugins/autonomous-dev/agents/](/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents/) - Agent implementations
+- [CLAUDE.md](${PROJECT_ROOT}/CLAUDE.md) - Project standards
+- [PROJECT.md](${PROJECT_ROOT}/PROJECT.md) - Project goals
+- [plugins/autonomous-dev/agents/](${PROJECT_ROOT}/plugins/autonomous-dev/agents/) - Agent implementations
 
 ---
 

@@ -110,6 +110,13 @@ temp/
 test_venv/
 .claude-plugin/
 
+# Pytest temp artifacts (macOS/Linux temp directories)
+# Prevents accidentally committing test artifacts with personal paths
+/private/
+\\private/
+**/pytest-of-*/
+**/pytest-*/
+
 # Session logs (all of them)
 docs/sessions/
 

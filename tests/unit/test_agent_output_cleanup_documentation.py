@@ -29,7 +29,7 @@ def test_claude_md_mentions_issue_72():
 
     EXPECTED TO FAIL: Documentation not updated yet.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Should mention Issue #72 or agent output cleanup
@@ -44,7 +44,7 @@ def test_claude_md_documents_token_savings():
 
     EXPECTED TO FAIL: Token savings not documented yet.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Should mention token savings amount
@@ -65,8 +65,8 @@ def test_claude_md_token_savings_matches_actual_measurements():
     from scripts.measure_agent_tokens import calculate_token_savings
 
     # Get actual savings from measurements
-    baseline_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/baseline_tokens.json")
-    post_cleanup_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/post_cleanup_tokens.json")
+    baseline_file = Path("${PROJECT_ROOT}/docs/metrics/baseline_tokens.json")
+    post_cleanup_file = Path("${PROJECT_ROOT}/docs/metrics/post_cleanup_tokens.json")
 
     assert baseline_file.exists(), "Baseline token measurements not found"
     assert post_cleanup_file.exists(), "Post-cleanup token measurements not found"
@@ -81,7 +81,7 @@ def test_claude_md_token_savings_matches_actual_measurements():
     actual_savings = savings["total_saved"]
 
     # Extract documented savings from CLAUDE.md
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Look for Issue #72 section and extract token number
@@ -106,7 +106,7 @@ def test_claude_md_explains_cleanup_approach():
 
     EXPECTED TO FAIL: Cleanup approach not documented yet.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Should explain the phased approach
@@ -130,7 +130,7 @@ def test_claude_md_maintains_correct_skill_count():
 
     EXPECTED TO FAIL: Skill count may be outdated.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Find skills section
@@ -154,7 +154,7 @@ def test_changelog_includes_issue_72_entry():
 
     EXPECTED TO FAIL: Changelog not updated yet.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     assert "#72" in content or "Issue 72" in content, \
@@ -167,7 +167,7 @@ def test_changelog_entry_has_correct_format():
 
     EXPECTED TO FAIL: Entry doesn't exist yet or has wrong format.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     # Find Issue #72 entry
@@ -193,7 +193,7 @@ def test_changelog_entry_describes_cleanup():
 
     EXPECTED TO FAIL: Entry doesn't exist or lacks description.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     # Find Issue #72 section (could be multiple lines)
@@ -219,7 +219,7 @@ def test_changelog_entry_includes_token_savings():
 
     EXPECTED TO FAIL: Entry doesn't mention token savings yet.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     issue_72_start = content.find("#72")
@@ -264,8 +264,8 @@ def test_token_savings_range_is_accurate():
     from scripts.measure_agent_tokens import calculate_token_savings
 
     # Get actual measurements
-    baseline_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/baseline_tokens.json")
-    post_cleanup_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/post_cleanup_tokens.json")
+    baseline_file = Path("${PROJECT_ROOT}/docs/metrics/baseline_tokens.json")
+    post_cleanup_file = Path("${PROJECT_ROOT}/docs/metrics/post_cleanup_tokens.json")
 
     if baseline_file.exists() and post_cleanup_file.exists():
         import json
@@ -288,7 +288,7 @@ def test_baseline_token_measurements_saved():
 
     EXPECTED TO FAIL: Baseline measurements not saved yet.
     """
-    baseline_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/baseline_tokens.json")
+    baseline_file = Path("${PROJECT_ROOT}/docs/metrics/baseline_tokens.json")
 
     assert baseline_file.exists(), \
         "Baseline token measurements should be saved in docs/metrics/"
@@ -308,7 +308,7 @@ def test_post_cleanup_token_measurements_saved():
 
     EXPECTED TO FAIL: Post-cleanup measurements not saved yet.
     """
-    post_cleanup_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/metrics/post_cleanup_tokens.json")
+    post_cleanup_file = Path("${PROJECT_ROOT}/docs/metrics/post_cleanup_tokens.json")
 
     assert post_cleanup_file.exists(), \
         "Post-cleanup token measurements should be saved in docs/metrics/"
@@ -333,7 +333,7 @@ def test_verification_script_exists():
 
     EXPECTED TO FAIL: Script doesn't exist yet.
     """
-    script_path = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/scripts/verify_token_claims.py")
+    script_path = Path("${PROJECT_ROOT}/scripts/verify_token_claims.py")
 
     assert script_path.exists(), f"Verification script not found: {script_path}"
 
@@ -348,7 +348,7 @@ def test_verification_script_checks_claude_md():
 
     result = subprocess.run(
         ["python", "scripts/verify_token_claims.py", "--check-claude-md"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -367,7 +367,7 @@ def test_verification_script_checks_changelog():
 
     result = subprocess.run(
         ["python", "scripts/verify_token_claims.py", "--check-changelog"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -386,7 +386,7 @@ def test_verification_script_reports_discrepancies():
 
     result = subprocess.run(
         ["python", "scripts/verify_token_claims.py", "--all"],
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev",
+        cwd="${PROJECT_ROOT}",
         capture_output=True,
         text=True
     )
@@ -409,7 +409,7 @@ def test_claude_md_issue_72_section_placement():
 
     EXPECTED TO FAIL: Section placement may be incorrect.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Find Issue #72 mention
@@ -444,7 +444,7 @@ def test_changelog_entry_in_unreleased_section():
 
     EXPECTED TO FAIL: Entry may be in wrong section.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     # Find [Unreleased] section
@@ -479,8 +479,8 @@ def test_documentation_uses_consistent_terminology():
 
     EXPECTED TO FAIL: Terminology may be inconsistent.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
 
     claude_content = claude_md.read_text()
     changelog_content = changelog.read_text()
@@ -529,7 +529,7 @@ def test_claude_md_version_updated():
 
     EXPECTED TO FAIL: Version not updated yet.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Extract version from header
@@ -551,7 +551,7 @@ def test_claude_md_last_updated_date():
 
     EXPECTED TO FAIL: Date may not be updated.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Extract Last Updated date
@@ -582,12 +582,12 @@ def test_issue_72_mentioned_in_all_relevant_docs():
     EXPECTED TO FAIL: May not be mentioned everywhere.
     """
     relevant_docs = [
-        Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md"),
-        Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md"),
+        Path("${PROJECT_ROOT}/CLAUDE.md"),
+        Path("${PROJECT_ROOT}/CHANGELOG.md"),
     ]
 
     # Optional: README might mention it
-    readme = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/README.md")
+    readme = Path("${PROJECT_ROOT}/README.md")
     if readme.exists():
         relevant_docs.append(readme)
 
@@ -613,7 +613,7 @@ def test_documentation_links_are_valid():
     from scripts.validate_doc_links import validate_links_in_section
 
     # Validate links in CLAUDE.md Issue #72 section
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     issue_72_start = content.find("#72")
@@ -630,6 +630,6 @@ def test_documentation_links_are_valid():
             for link_text, link_url in links:
                 # If relative path, check if file exists
                 if not link_url.startswith('http'):
-                    link_path = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev") / link_url
+                    link_path = Path("${PROJECT_ROOT}") / link_url
                     assert link_path.exists(), \
                         f"Broken link in Issue #72 docs: {link_url}"

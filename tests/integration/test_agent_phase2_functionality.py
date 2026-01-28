@@ -26,8 +26,8 @@ import tempfile
 
 
 # Constants
-AGENTS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
-SKILLS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/skills")
+AGENTS_DIR = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
+SKILLS_DIR = Path("${PROJECT_ROOT}/plugins/autonomous-dev/skills")
 
 # Phase 2 agents (15 remaining)
 PHASE_2_HIGH_PRIORITY = [

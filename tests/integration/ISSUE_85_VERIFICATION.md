@@ -9,7 +9,7 @@
 ## Current State (BEFORE Implementation)
 
 ### Problems
-- ❌ Hardcoded `/Users/akaszubski/Documents/GitHub/autonomous-dev` on lines 112 and 344
+- ❌ Hardcoded `${PROJECT_ROOT}` on lines 112 and 344
 - ❌ Breaks for other developers
 - ❌ Breaks in CI/CD environments
 - ❌ Not cross-platform compatible

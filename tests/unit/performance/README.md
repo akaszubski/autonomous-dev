@@ -14,7 +14,7 @@ This directory contains **96 failing TDD tests** for GitHub Issue #46 Phases 8.5
 
 ### Run All Tests
 ```bash
-cd /Users/akaszubski/Documents/GitHub/autonomous-dev
+cd ${PROJECT_ROOT}
 source .venv/bin/activate
 python -m pytest tests/unit/performance/ -v
 ```
