@@ -415,9 +415,13 @@ class TestBatchStateUpdates:
         assert "timestamp" in event
 
     def test_should_auto_clear_returns_true_when_threshold_exceeded(self, sample_batch_state):
-        """Test that should_auto_clear returns True when context exceeds threshold."""
+        """Test that should_auto_clear returns True when context exceeds threshold.
+
+        NOTE: should_auto_clear() is DEPRECATED (Issue #277) - not used in production.
+        This test validates backward compatibility only.
+        """
         # Arrange
-        sample_batch_state.context_token_estimate = 160000  # Above 150K threshold
+        sample_batch_state.context_token_estimate = 186000  # Above 185K threshold
 
         # Act
         result = should_auto_clear(sample_batch_state)
@@ -426,9 +430,13 @@ class TestBatchStateUpdates:
         assert result is True
 
     def test_should_auto_clear_returns_false_below_threshold(self, sample_batch_state):
-        """Test that should_auto_clear returns False when context below threshold."""
+        """Test that should_auto_clear returns False when context below threshold.
+
+        NOTE: should_auto_clear() is DEPRECATED (Issue #277) - not used in production.
+        This test validates backward compatibility only.
+        """
         # Arrange
-        sample_batch_state.context_token_estimate = 100000  # Below 150K threshold
+        sample_batch_state.context_token_estimate = 100000  # Below 185K threshold
 
         # Act
         result = should_auto_clear(sample_batch_state)

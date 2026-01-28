@@ -2259,13 +2259,18 @@ state = create_batch_state(
   - `tokens_before` (int): Token count before clearing
 - **Returns**: Updated BatchState object
 
-#### `should_auto_clear(state, threshold=160000)`
-- **Purpose**: Internal helper - check if context is approaching Claude Code's 200K token limit
+#### `should_auto_clear(state, checkpoint_callback=None)` **[DEPRECATED]**
+- **Status**: DEPRECATED (Issue #277) - Not used in production
+- **Purpose**: Check if context should be auto-cleared (legacy function)
 - **Parameters**:
   - `state` (BatchState): Current state
-  - `threshold` (int): Token threshold (default: 160,000 - internal use only)
-- **Returns**: bool (True if approaching token limit)
-- **Note**: Used internally for monitoring only. Claude Code manages context automatically with 200K budget. Manual context clearing no longer needed (Issue #218).
+  - `checkpoint_callback` (callable, optional): Callback to invoke before clearing (Issue #276)
+- **Returns**: bool (True if context token estimate exceeds 185K threshold)
+- **Deprecation Note**: This function is not used in production. Claude Code handles auto-compact automatically. The batch system now relies on:
+  - Checkpoint after every feature (Issue #276)
+  - Claude's automatic compaction (whenever it decides)
+  - SessionStart hook auto-resume (Issue #277)
+- **Kept For**: Backward compatibility with existing tests only
 
 #### `get_next_pending_feature(state)`
 - **Purpose**: Get next feature to process
@@ -2364,7 +2369,7 @@ Object-oriented wrapper for batch state functions that inherits from StateManage
 - `save_batch_state(state) -> None` - Save batch state (delegates to save_state)
 - `update_batch_progress(feature_index, status, tokens_consumed=0) -> None` - Update batch progress
 - `record_auto_clear_event(feature_index, tokens_before) -> None` - Record auto-clear event
-- `should_auto_clear(threshold=160000) -> bool` - Check if auto-clear threshold exceeded
+- `should_auto_clear(checkpoint_callback=None) -> bool` - **[DEPRECATED]** Check if auto-clear threshold exceeded (not used in production)
 - `get_next_pending_feature() -> Optional[str]` - Get next unprocessed feature
 - `cleanup_batch_state() -> None` - Cleanup batch (delegates to cleanup_state)
 
@@ -2390,12 +2395,11 @@ loaded_state = manager.load_batch_state()
 # Update progress
 manager.update_batch_progress(0, "completed", tokens_consumed=50000)
 
-# Check if auto-clear needed
-if manager.should_auto_clear():
-    manager.record_auto_clear_event(0, 155000)
-
 # Get next feature to process
 next_feature = manager.get_next_pending_feature()
+
+# Note: should_auto_clear() is deprecated (Issue #277)
+# Claude handles auto-compact automatically - no manual checking needed
 
 # Cleanup when done
 manager.cleanup_batch_state()

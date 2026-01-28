@@ -268,10 +268,11 @@ def test_batch_state_save_load_roundtrip():
 
 
 def test_should_auto_clear_still_works():
-    """Verify should_auto_clear() function still works (NOT deprecated).
+    """Verify should_auto_clear() function still works (backward compatibility).
 
-    Note: should_auto_clear() is NOT deprecated (unlike should_clear_context).
-    It's used internally for auto-clearing logic.
+    Note: should_auto_clear() was NOT deprecated in Issue #218, but IS deprecated
+    as of Issue #277. Claude handles auto-compact automatically. This test validates
+    backward compatibility only - the function is not used in production.
     """
     from batch_state_manager import should_auto_clear  # type: ignore[import-not-found]
 
@@ -283,9 +284,9 @@ def test_should_auto_clear_still_works():
     assert should_auto_clear(state) is False
 
     # Increase token estimate to threshold
-    state.context_token_estimate = 160000
+    state.context_token_estimate = 186000
 
-    # Should auto-clear at 160000 tokens
+    # Should auto-clear at 186000 tokens (above 185K threshold)
     assert should_auto_clear(state) is True
 
 

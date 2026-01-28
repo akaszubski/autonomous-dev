@@ -282,7 +282,7 @@ Optimized: [auth, email, tests]  # Tests run after implementation
 /implement --rollback batch-20260110-143022 --previous
 ```
 
-**Context Management**: Context threshold increased to 185K tokens (23% more than previous 150K) for extended batch sessions without interruption.
+**Context Management**: Claude handles auto-compact automatically. Batch system checkpoints after every feature (Issue #276) and resumes seamlessly when Claude compacts context (Issue #277).
 
 **Automatic Retry**: Transient failures (network, rate limits) retry automatically. Permanent errors (syntax, type) skip immediately.
 
