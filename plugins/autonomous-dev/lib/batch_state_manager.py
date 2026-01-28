@@ -163,8 +163,9 @@ def get_default_state_file():
 LOCK_TIMEOUT = 30
 
 # Auto-clear threshold (tokens) - Issue #276: Increased from 150K to 185K
-# This provides more context headroom before triggering auto-clear + checkpoint
-CONTEXT_THRESHOLD = 185 * 1000  # 185K tokens
+# DEPRECATED: Not used in production. Claude Code handles auto-compact automatically.
+# Kept for backward compatibility with tests only. See should_auto_clear() deprecation notice.
+CONTEXT_THRESHOLD = 185 * 1000  # 185K tokens (unused)
 
 # =============================================================================
 # Exceptions
@@ -1056,6 +1057,14 @@ def should_auto_clear(
     checkpoint_callback: Optional[callable] = None
 ) -> bool:
     """Check if context should be auto-cleared.
+
+    DEPRECATED: This function is not used in production. Claude Code handles
+    auto-compact automatically. The batch system now relies on:
+    - Checkpoint after every feature (Issue #276)
+    - Claude's automatic compaction (whenever it decides)
+    - SessionStart hook auto-resume (Issue #277)
+
+    This function is kept for backward compatibility with existing tests only.
 
     Issue #276: Added checkpoint_callback parameter to trigger checkpoint
     before auto-clear. Threshold increased from 150K to 185K tokens.

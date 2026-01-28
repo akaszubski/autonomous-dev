@@ -744,3 +744,284 @@ Integration Points:
 - should_auto_clear(checkpoint_callback=...)
 - BatchOrchestrator checkpoint coordination
 """
+
+
+# =============================================================================
+# SECTION 5: Issue #277 - SessionStart Hook Integration (3 tests)
+# =============================================================================
+
+class TestSessionStartHookIntegration:
+    """Test SessionStart hook calls batch_resume_helper for checkpoint loading."""
+
+    def test_sessionstart_hook_calls_resume_batch(
+        self,
+        temp_workspace,
+        features_file,
+        batch_id
+    ):
+        """
+        Test SessionStart hook invokes batch_resume_helper.py after auto-compact.
+
+        Validates Issue #277 Phase 2:
+        - Hook detects auto-compact event (source == "compact")
+        - Hook invokes batch_resume_helper.py with batch_id
+        - Helper returns checkpoint JSON
+        - Hook parses JSON and displays batch context
+
+        Integration Points:
+        - SessionStart-batch-recovery.sh (lines 18-21, 35-50)
+        - batch_resume_helper.py load_checkpoint()
+        """
+        # Arrange
+        checkpoint_dir = temp_workspace / ".ralph-checkpoints"
+        features = features_file.read_text().strip().split("\n")
+        batch_state_file = temp_workspace / ".claude" / "batch_state.json"
+
+        # Create batch state
+        batch_state = create_batch_state(
+            features=features,
+            batch_id=batch_id,
+            state_file=str(batch_state_file)
+        )
+        batch_state.current_index = 3
+        batch_state.completed_features = [0, 1, 2]
+        batch_state.status = "in_progress"
+        save_batch_state(batch_state_file, batch_state)
+
+        # Create checkpoint
+        ralph_manager = RalphLoopManager(f"ralph-{batch_id}", state_dir=checkpoint_dir)
+        ralph_manager.checkpoint(batch_state=batch_state)
+
+        # Verify checkpoint exists
+        checkpoint_file = checkpoint_dir / f"ralph-{batch_id}_checkpoint.json"
+        assert checkpoint_file.exists()
+
+        # Act - trigger SessionStart hook with auto-compact event
+        hook_path = project_root / "plugins" / "autonomous-dev" / "hooks" / "SessionStart-batch-recovery.sh"
+        hook_input = {
+            "source": "compact",  # Auto-compact event
+            "timestamp": "2026-01-28T15:00:00Z"
+        }
+
+        env = os.environ.copy()
+        env["CHECKPOINT_DIR"] = str(checkpoint_dir)
+
+        result = subprocess.run(
+            ["bash", str(hook_path)],
+            input=json.dumps(hook_input),
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=temp_workspace,
+            timeout=10
+        )
+
+        # Assert - hook fired successfully
+        assert result.returncode == 0, f"Hook failed: {result.stderr}"
+
+        # Verify hook output contains batch resumption context
+        hook_output = result.stdout
+        assert "BATCH PROCESSING RESUMED" in hook_output
+        assert batch_id in hook_output
+        assert "Feature 4 of 10" in hook_output  # Next feature (current_index=3)
+        assert "/auto-implement" in hook_output or "/implement" in hook_output
+
+    def test_auto_compact_preserves_batch_workflow(
+        self,
+        temp_workspace,
+        features_file,
+        batch_id,
+        mock_agent_execution
+    ):
+        """
+        Test batch workflow preserved across auto-compact lifecycle.
+
+        Validates Issue #277 end-to-end flow:
+        1. Batch processes features until context threshold
+        2. Auto-compact triggered (checkpoint created beforehand)
+        3. SessionStart hook fires after compact
+        4. Batch resumes from checkpoint
+        5. Workflow methodology reminder displayed
+        6. Remaining features completed
+
+        Integration Points:
+        - should_auto_clear(checkpoint_callback=...)
+        - SessionStart hook
+        - Batch state persistence
+        """
+        # Arrange
+        features = features_file.read_text().strip().split("\n")
+        batch_state_file = temp_workspace / ".claude" / "batch_state.json"
+        checkpoint_dir = temp_workspace / ".ralph-checkpoints"
+
+        batch_state = create_batch_state(
+            features=features,
+            batch_id=batch_id,
+            state_file=str(batch_state_file)
+        )
+        save_batch_state(batch_state_file, batch_state)
+
+        ralph_manager = RalphLoopManager(f"ralph-{batch_id}", state_dir=checkpoint_dir)
+
+        # Process features with high token consumption to trigger auto-compact
+        tokens_per_feature = 50000  # 50K tokens per feature
+        auto_compact_triggered = False
+
+        for i in range(5):
+            feature = features[i]
+            success, tokens_used, error = mock_agent_execution(feature)
+
+            ralph_manager.record_attempt(tokens_used=tokens_per_feature)
+            ralph_manager.record_success()
+
+            batch_state = load_batch_state(batch_state_file)
+            batch_state.completed_features.append(i)
+            batch_state.current_index = i + 1
+            batch_state.context_token_estimate += tokens_per_feature
+
+            # Check auto-clear threshold (185K tokens)
+            if should_auto_clear(batch_state, checkpoint_callback=lambda: ralph_manager.checkpoint(batch_state=batch_state)):
+                # Checkpoint created by callback
+                checkpoint_file = checkpoint_dir / f"ralph-{batch_id}_checkpoint.json"
+                assert checkpoint_file.exists(), "Checkpoint not created before auto-compact"
+
+                # Record auto-clear event
+                record_auto_clear_event(batch_state_file, i, batch_state.context_token_estimate)
+
+                # Simulate auto-compact
+                batch_state = load_batch_state(batch_state_file)
+                batch_state.context_token_estimate = 0
+                save_batch_state(batch_state_file, batch_state)
+
+                auto_compact_triggered = True
+                break
+
+            save_batch_state(batch_state_file, batch_state)
+
+        # Assert auto-compact triggered
+        assert auto_compact_triggered is True
+
+        # Act - resume from checkpoint
+        resumed_manager = RalphLoopManager.resume_batch(batch_id, state_dir=checkpoint_dir)
+        resumed_batch_state = resumed_manager.get_batch_state()
+
+        # Assert - batch workflow preserved
+        assert resumed_batch_state.batch_id == batch_id
+        assert resumed_batch_state.workflow_mode == "auto-implement"
+        assert "Use /implement" in resumed_batch_state.workflow_reminder
+
+        # Verify can continue processing
+        next_feature = get_next_pending_feature(resumed_batch_state)
+        assert next_feature is not None
+
+    def test_resume_displays_correct_feature_index(
+        self,
+        temp_workspace,
+        batch_id
+    ):
+        """
+        Test SessionStart hook displays correct next feature index.
+
+        Validates Issue #277 UX requirement:
+        - Hook displays "Resume at Feature X of Y"
+        - X = current_feature_index + 1 (1-indexed for humans)
+        - Y = total_features
+
+        Example: If current_index=6, display "Resume at Feature 7 of 10"
+        """
+        # Arrange
+        checkpoint_dir = temp_workspace / ".ralph-checkpoints"
+        features = [f"Feature {i}: Task {i}" for i in range(1, 11)]
+        batch_state_file = temp_workspace / ".claude" / "batch_state.json"
+
+        # Create batch state with current_index=6 (completed features 0-5)
+        batch_state = create_batch_state(
+            features=features,
+            batch_id=batch_id,
+            state_file=str(batch_state_file)
+        )
+        batch_state.current_index = 6
+        batch_state.completed_features = [0, 1, 2, 3, 4, 5]
+        batch_state.status = "in_progress"
+        save_batch_state(batch_state_file, batch_state)
+
+        # Create checkpoint
+        ralph_manager = RalphLoopManager(f"ralph-{batch_id}", state_dir=checkpoint_dir)
+        ralph_manager.checkpoint(batch_state=batch_state)
+
+        # Act - trigger SessionStart hook
+        hook_path = project_root / "plugins" / "autonomous-dev" / "hooks" / "SessionStart-batch-recovery.sh"
+        hook_input = {
+            "source": "compact",
+            "timestamp": "2026-01-28T15:00:00Z"
+        }
+
+        env = os.environ.copy()
+        env["CHECKPOINT_DIR"] = str(checkpoint_dir)
+
+        result = subprocess.run(
+            ["bash", str(hook_path)],
+            input=json.dumps(hook_input),
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=temp_workspace,
+            timeout=10
+        )
+
+        # Assert - correct feature index displayed
+        assert result.returncode == 0
+        hook_output = result.stdout
+
+        # Verify "Feature 7 of 10" (current_index=6 → next is 7)
+        assert "Feature 7 of 10" in hook_output
+
+
+# =============================================================================
+# Updated Test Summary
+# =============================================================================
+
+"""
+TEST SUMMARY (15 integration tests for RALPH Loop Checkpoint/Resume):
+
+SECTION 1: End-to-End Checkpoint Flow (4 tests) - Issue #276
+✗ test_batch_processes_all_features_with_checkpoints
+✗ test_batch_resumes_from_checkpoint_after_interruption
+✗ test_batch_skips_failed_features_on_resume
+✗ test_multiple_resume_cycles_complete_batch
+
+SECTION 2: Context Clear Integration (3 tests) - Issue #276
+✗ test_checkpoint_created_before_context_clear
+✗ test_batch_resumes_after_context_clear
+✗ test_checkpoint_callback_invoked_by_should_auto_clear
+
+SECTION 3: Batch Orchestration (3 tests) - Issue #276
+✗ test_batch_orchestrator_creates_checkpoints_automatically
+✗ test_batch_orchestrator_resumes_from_checkpoint
+✗ test_batch_orchestrator_handles_checkpoint_auto_clear_coordination
+
+SECTION 4: Recovery Scenarios (2 tests) - Issue #276
+✗ test_checkpoint_corruption_recovery
+✗ test_rollback_to_previous_checkpoint
+
+SECTION 5: SessionStart Hook Integration (3 tests) - Issue #277
+✗ test_sessionstart_hook_calls_resume_batch
+✗ test_auto_compact_preserves_batch_workflow
+✗ test_resume_displays_correct_feature_index
+
+Expected Status: ALL TESTS FAILING (RED phase - implementation doesn't exist yet)
+Next Steps:
+1. Implement batch_resume_helper.py (Python checkpoint loader)
+2. Enhance SessionStart-batch-recovery.sh (invoke helper, display context)
+3. Verify checkpoint_callback in should_auto_clear() (Issue #276 - line 1086)
+
+Coverage Target: 80%+ for checkpoint integration workflow
+Integration Points:
+- RalphLoopManager.checkpoint()
+- RalphLoopManager.resume_batch()
+- RalphLoopManager.rollback_to_checkpoint()
+- should_auto_clear(checkpoint_callback=...)
+- BatchOrchestrator checkpoint coordination
+- SessionStart-batch-recovery.sh (Issue #277)
+- batch_resume_helper.py (Issue #277)
+"""

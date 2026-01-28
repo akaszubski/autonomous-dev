@@ -204,6 +204,7 @@
         "plugins/autonomous-dev/lib/auto_install_deps.py",
         "plugins/autonomous-dev/lib/batch_issue_closer.py",
         "plugins/autonomous-dev/lib/batch_orchestrator.py",
+        "plugins/autonomous-dev/lib/batch_resume_helper.py",
         "plugins/autonomous-dev/lib/batch_retry_consent.py",
         "plugins/autonomous-dev/lib/batch_retry_manager.py",
         "plugins/autonomous-dev/lib/batch_state_manager.py",

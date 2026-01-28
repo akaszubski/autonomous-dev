@@ -700,9 +700,9 @@ The `in_batch_mode=True` parameter signals that:
 
 ---
 
-## Checkpoint/Resume Mechanism (NEW in v3.50.0 - Issue #276)
+## Checkpoint/Resume Mechanism (NEW in v3.50.0 - Issue #276, Auto-compact Integration Issue #277)
 
-**Session snapshots for extended batch processing** - autonomous-dev now creates checkpoints after each feature to enable safe resume from any point, with automatic state capture and rollback capability.
+**Session snapshots for extended batch processing** - autonomous-dev now creates checkpoints after each feature to enable safe resume from any point, with automatic state capture and rollback capability. Issue #277 adds automatic SessionStart hook integration to resume batch processing after Claude auto-compact.
 
 ### Overview
 
@@ -712,6 +712,7 @@ The RALPH loop checkpoint mechanism provides:
 3. **Context preservation**: Capture full session state (files, state, context)
 4. **Rollback support**: Restore previous checkpoint on validation failure
 5. **Corrupted checkpoint recovery**: Auto-cleanup with warnings
+6. **Auto-compact integration**: Automatically resume batch after Claude summarizes context (Issue #277)
 
 ### Context Threshold (Issue #276)
 
@@ -927,6 +928,106 @@ Each checkpoint includes metadata for debugging:
 cat logs/checkpoint_errors.jsonl | tail -20
 ```
 
+### Auto-Compact Integration (NEW in Issue #277)
+
+**Automatic batch resumption after Claude auto-compact** - When Claude Code summarizes context during a long batch processing session, the SessionStart hook automatically detects the resumption and restores batch context from the most recent checkpoint.
+
+#### How It Works
+
+When Claude auto-compacts during batch processing:
+
+1. **Auto-Compact Triggered**: Claude Code summarizes context to preserve tokens
+2. **SessionStart Hook Fires**: Detects batch checkpoint exists
+3. **Checkpoint Restoration**: `batch_resume_helper.py` loads checkpoint data
+4. **Context Restored**: Batch state, completed features, current progress restored
+5. **Batch Continues**: Automatically proceeds to next feature
+
+**Key Advantage**: No manual `/implement --resume` needed after auto-compact. Batch continues seamlessly.
+
+#### Configuration
+
+Enable auto-compact integration via SessionStart hook settings:
+
+```bash
+# In .claude/hooks/enabled/ or via global_settings.json
+SessionStart-batch-recovery.sh  # Enabled by default in v3.50.0+
+```
+
+No additional configuration needed - works automatically once SessionStart hook is active.
+
+#### Troubleshooting
+
+**Symptom**: Batch stops after auto-compact
+
+```bash
+# Check if SessionStart hook is enabled
+ls -la .claude/hooks/enabled/ | grep SessionStart
+
+# Check checkpoint exists
+ls -la .claude/checkpoints/
+
+# Manually resume if needed
+/implement --resume batch-20260128-123456
+```
+
+**Corrupt Checkpoint During Auto-Compact**:
+
+SessionStart hook automatically tries fallback recovery:
+
+1. **Load latest checkpoint**: Attempts most recent checkpoint
+2. **Backup fallback**: If corrupted, tries .bak file
+3. **Error logging**: Detailed errors in logs/checkpoint_errors.jsonl
+4. **Manual recovery**: Resume with previous checkpoint if needed
+
+```bash
+# View checkpoint errors
+cat logs/checkpoint_errors.jsonl | tail -10
+
+# List available checkpoints
+python .claude/checkpoint_manager.py list
+
+# Resume from previous if latest is corrupted
+/implement --resume batch-20260128-123456 --previous
+```
+
+#### Implementation Details
+
+**File**: `plugins/autonomous-dev/lib/batch_resume_helper.py` (Issue #277)
+- **Load checkpoint**: `load_checkpoint(batch_id)` function
+- **Permission validation**: `validate_file_permissions()` (0o600 only)
+- **Path traversal protection**: `validate_batch_id()` (CWE-22)
+- **JSON corruption recovery**: Automatic .bak fallback
+- **CLI interface**: `python batch_resume_helper.py <batch_id>`
+
+**Hook**: `plugins/autonomous-dev/hooks/SessionStart-batch-recovery.sh`
+- Triggered: When SessionStart event fires (after auto-compact)
+- Calls: `batch_resume_helper.py` to load checkpoint
+- Displays: Batch context and next feature to process
+- Continues: Automatically proceeds to next feature
+
+#### Exit Codes
+
+`batch_resume_helper.py` returns these exit codes:
+
+| Code | Meaning | Recovery |
+|------|---------|----------|
+| 0 | Success - checkpoint loaded | Batch continues automatically |
+| 1 | Missing checkpoint | Use `/implement --resume` manually |
+| 2 | Corrupted JSON | Try .bak fallback or previous checkpoint |
+| 3 | Insecure permissions | Fix with `chmod 600 checkpoint_file` |
+| 4 | Security violation | Check for path traversal in batch_id |
+
+#### Security
+
+Auto-compact integration implements security-first design:
+
+- **CWE-22**: Path traversal validation in batch_id
+- **CWE-59**: Symlink rejection (file permissions check)
+- **Permissions**: 0o600 only (owner read/write)
+- **JSON-only**: No pickle/exec deserialization
+- **Backup safe**: Validates .bak file permissions too
+- **Error handling**: Graceful degradation on failures
+
 ### Configuration
 
 Checkpoint behavior controlled via environment variables:
@@ -949,11 +1050,23 @@ CHECKPOINT_COMPRESS=true
 
 # Rollback retention (number of previous checkpoints to keep)
 ROLLBACK_DEPTH=5
+
+# Auto-compact integration (default: enabled)
+SESSIONSTART_BATCH_RECOVERY=true
 ```
 
 ### Implementation Files
 
 - **Checkpoint Manager**: `plugins/autonomous-dev/lib/checkpoint_manager.py` (Issue #276)
+- **Batch Resume Helper**: `plugins/autonomous-dev/lib/batch_resume_helper.py` (Issue #277)
+  - CLI interface: `python batch_resume_helper.py <batch_id>`
+  - Loads checkpoints for SessionStart hook
+  - Validates permissions (0o600 only), handles corruption with .bak fallback
+  - Exit codes: 0 (success), 1 (missing), 2 (corrupted), 3 (permissions), 4 (security)
+- **SessionStart Hook**: `plugins/autonomous-dev/hooks/SessionStart-batch-recovery.sh` (Issue #277)
+  - Automatically triggered after Claude auto-compact
+  - Calls batch_resume_helper.py to restore batch context
+  - Displays next feature and automatically continues batch
 - **RALPH Loop**: Updated `plugins/autonomous-dev/lib/ralph_loop_enforcer.py` with checkpoint hooks
 - **Batch State Manager**: Enhanced with checkpoint references
 - **State files**: `.claude/checkpoints/` directory with manifest

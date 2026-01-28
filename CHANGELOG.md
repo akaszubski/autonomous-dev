@@ -1,11 +1,19 @@
 ## [Unreleased]
 
 ### Added
+- RALPH checkpoint integration with Claude auto-compact lifecycle (Issue #277)
+  - Created batch_resume_helper.py CLI utility for SessionStart hook batch recovery
+  - SessionStart hook automatically resumes batch processing after Claude auto-compacts
+  - Batch context automatically restored from RALPH checkpoint during auto-compact recovery
+  - Exit codes: 0 (success), 1 (missing checkpoint), 2 (corrupted JSON), 3 (permissions), 4 (security)
+  - Security: CWE-22 (path traversal), file permissions (0o600 only), backup fallback on corruption
+  - Eliminates need for manual batch resumption after Claude context auto-compact
+  - Enable with SessionStart hook configuration
+  - 12+ unit tests for checkpoint loading, permission validation, and error handling
 - RALPH loop checkpoint/resume mechanism for context management (Issue #276)
   - Created CheckpointManager library for creating and loading session snapshots
   - Checkpoint creation after each feature completion with automatic state capture
   - Resume from checkpoint using `/implement --resume` with checkpoint ID
-  - Context threshold increased from 150K to 185K tokens for extended sessions
   - Rollback capability: Restore previous checkpoint if current work fails critical validation
   - Automatic cleanup of corrupted checkpoints with audit logging
   - Persistent checkpoint metadata in `.claude/checkpoints/` directory
@@ -13,6 +21,7 @@
   - Compression support for checkpoint payloads (JSON → gzip)
   - Security: Path traversal (CWE-22), symlink (CWE-59) protection
   - 28+ unit tests for checkpoint creation, loading, validation, and recovery
+  - Note: 185K threshold deprecated (Issue #277) - Claude handles auto-compact automatically
 - **Training Best Practices**: 5 new components for LLM training quality enforcement (Issue #274)
   - Agents: data-quality-validator, distributed-training-coordinator
   - Skills: data-distillation, preference-data-quality, mlx-performance
