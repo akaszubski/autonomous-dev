@@ -1,6 +1,131 @@
 ## [Unreleased]
 
 ### Added
+
+- **Enhanced distributed-training-coordinator agent** (Issue #283)
+  - Added 5 new validation phases (1.5 Pre-RDMA Sync, 2.5 Hardware Calibration, 3.5 Worker Consistency, 4.5 Coordinator Chunking, 5 Pre-Flight Checklist)
+  - Integration with hardware_calibrator (Issue #280), worker_consistency_validator (Issue #281), distributed_training_validator (Issue #282)
+  - Extended JSON output format from 6 to 11 sections (version 2.0.0)
+  - macOS QoS API support (pthread_set_qos_class_self_np instead of nice())
+  - Coordinator-level chunking for datasets >50K examples
+  - Equal performance documentation (~0.85 ex/s per machine, not 65/35 split)
+  - Overhead-bound pipeline documentation (realistic 1.2-1.8x speedup, not 5.1x)
+  - Backward compatibility with graceful degradation
+  - Security: CWE-20, CWE-22, CWE-117 compliance
+  - 68 comprehensive tests (integration, smoke, edge cases)
+  - Files: plugins/autonomous-dev/agents/distributed-training-coordinator.md (enhanced: 4→9 phases)
+- **distributed_training_validator library** (Issue #282)
+  - Multi-layer distributed training validation (hardware, worker, checkpoint, gradient, performance, health)
+  - 8-point pre-flight checklist for distributed training setup
+  - Integration with HardwareCalibrator and WorkerConsistencyValidator
+  - Security: CWE-20, CWE-22, CWE-117 compliance
+  - Library: plugins/autonomous-dev/lib/distributed_training_validator.py
+- **worker_consistency_validator library** (Issue #281)
+  - Worker state consistency validation with SHA256 hash verification
+  - Byzantine worker detection using Krum algorithm
+  - Gradient norm and loss value validation
+  - Security: CWE-20, CWE-22, CWE-117 compliance
+  - Library: plugins/autonomous-dev/lib/worker_consistency_validator.py
+- **hardware_calibrator library** (Issue #280)
+  - Per-GPU throughput measurement and workload distribution
+  - Straggler detection (GPUs >20% slower than mean)
+  - macOS QoS API integration for process priority
+  - Security: CWE-20, CWE-22 compliance
+  - Library: plugins/autonomous-dev/lib/hardware_calibrator.py
+- **mlx-performance skill comprehensive documentation** (Issue #284)
+  - Updated 5 existing docs (SKILL.md, mlx-distributed.md, rdma-networking.md, batch-optimization.md, flash-recovery.md)
+  - Created 2 new comprehensive guides (multi-node-orchestration.md, performance-benchmarking.md)
+  - ReAlign pattern integration from Issues #279-#283
+  - Multi-node orchestration guide for 10+ nodes
+  - Performance benchmarking methodology with RDMA vs TCP/IP comparison
+  - Storage backend selection decision matrix (GCS vs S3 vs NFS)
+  - Coordinator-level chunking checkpoint patterns
+  - Version 2.0.0 with backward compatibility
+  - Files: 7 documentation files (58.1 KB total)
+- **Orchestration features for realign-curator agent** (Issue #303)
+  - Auto-detect data types from user requests (DPO/SRF/RLVR/anti-hallucination/persona/source)
+  - Auto-select workflow skills (realign-dpo-workflow, realign-srf-workflow, etc.)
+  - Auto-configure hardware (M4 Max vs M3 Ultra, batch sizes, worker counts)
+  - Supervisor orchestration pattern for workflow coordination
+  - Security: CWE-20, CWE-22, CWE-117 compliance
+  - Performance: <1ms detection, <100ms config
+  - 103/103 tests passing (100% pass rate)
+  - Library: plugins/autonomous-dev/lib/realign_orchestrator.py (700+ lines)
+  - **Libraries count**: 61 → 62 (updated docs/LIBRARIES.md, docs/ARCHITECTURE-OVERVIEW.md)
+- **Performance optimization for all 6 ReAlign workflow skills** (Issues #296-#301)
+  - Added identical performance optimization section to: realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow
+  - Hardware-specific optimization strategies for Apple Silicon MLX training
+  - Machine selection guide by model size (≤30B M4 Max, 70-200B M3 Ultra, 200B+ distributed)
+  - Optimal batch size configurations: M4 Max batch_size=32 (peaks at 776 ex/s), M3 Ultra batch_size=4 (peaks at 278 ex/s)
+  - Validated benchmarks: M4 Max 5.1x faster than M3 Ultra (3.86 ex/s vs 0.76 ex/s)
+  - Work distribution strategy: 65.5% M4 Max, 34.5% M3 Ultra (NOT 50/50 based on core count)
+  - RDMA vs separate batches decision framework (use separate batches for ≤70B models)
+  - Environment configuration: MLX_METAL_PREALLOCATE, MLX_METAL_FAST_SYNCH, TOKENIZERS_PARALLELISM
+  - Performance tracking and cost analysis utilities for training time estimation
+  - Anti-patterns documentation: Prevents naive 50/50 splits, linear scaling assumptions
+  - Integration with mlx-performance skill and hardware_calibrator.py library
+  - Created docs/performance-optimization.md in realign-dpo-workflow (418 lines) with benchmarks and implementation examples
+  - All 6 SKILL.md files updated (246-271 lines, under 500 line progressive disclosure limit)
+  - Achieves 5x speedup compared to naive configurations
+- **Tulu3 multi-dimensional scoring system** - MLX training quality metrics (Issue #279)
+  - Added Tulu3Score dataclass for 4-dimensional quality assessment
+  - Implemented calculate_tulu3_score() for JSONL dataset quality evaluation
+  - Implemented generate_dpo_preferences() for preference pair generation from scored data
+  - Supports quality tiers: INSUFFICIENT (0), LOW (<3.0), MEDIUM (3.0-4.0), HIGH (≥4.0)
+  - Security: CWE-22 path validation, CWE-117 audit logging, CWE-20 input validation
+  - 20 comprehensive tests covering unit, integration, and boundary value scenarios
+  - Library: plugins/autonomous-dev/lib/training_metrics.py
+  - Tests: plugins/autonomous-dev/tests/unit/ml/test_training_metrics.py
+  - Integration with preference-data-quality skill for DPO validation
+- **MLX native environment variables documentation** (Issue #279)
+  - Documented MLX_RANK (process rank alternative to MLX_GLOBAL_RANK)
+  - Documented MLX_HOSTFILE (multi-node hostfile path)
+  - Documented MLX_METAL_FAST_SYNCH (Apple Silicon GPU synchronization optimization)
+  - Updated plugins/autonomous-dev/skills/mlx-performance/docs/mlx-distributed.md
+  - Updated plugins/autonomous-dev/agents/distributed-training-coordinator.md
+  - Enables efficient distributed training across Apple Silicon GPUs
+- **realign-dpo-workflow skill** - Complete DPO realignment workflow (v1.0.0)
+  - Knowledge skill with 7-stage pipeline: SFT → Preference Data → Init → Modeling → Optimization → Iteration → Evaluation
+  - 12 files (~4,700 lines) with workflow guides, templates, and detailed documentation
+  - Quality thresholds: Preference gap ≥0.15, KL divergence ≤0.1, minimum 1000 pairs, decontamination ≥0.9, capability retention ≥95%
+  - Capability regression detection methods: baseline comparison, benchmark tracking, task-specific evaluation, human review
+  - Integration with preference-data-quality skill via training_metrics.py library
+  - Progressive disclosure: SKILL.md overview → workflow.md detailed pipeline → templates.md examples → docs/*.md stage-specific guides
+  - Cross-references: preference-data-quality, data-distillation, scientific-validation skills
+  - Auto-activates on DPO/RLHF/preference/realignment keywords
+  - Extends autonomous-dev's LLM training best practices (complements Issue #274)
+  - **Skills count**: 32 → 33 (updated README.md, CLAUDE.md, ARCHITECTURE-OVERVIEW.md)
+- **realign-srf-workflow skill** - Supervised Reward Finetuning realignment workflow (v1.0.0, Issue #297)
+  - Knowledge skill with SRF pipeline for reward model training
+  - Quality thresholds: Reward calibration, preference ranking accuracy, model stability
+  - Integration with reward-modeling skill
+  - Auto-activates on SRF/reward/finetuning keywords
+- **realign-rlvr-workflow skill** - Reinforcement Learning Verification Regression detection (v1.0.0, Issue #298)
+  - Knowledge skill for RLVR evaluation and capability regression detection
+  - Comprehensive evaluation methodologies for reinforcement learning approaches
+  - Cross-references with training-quality and evaluation-standards skills
+  - Auto-activates on RLVR/verification/regression keywords
+- **realign-antihallucination-workflow skill** - Antihallucination training realignment (v1.0.0, Issue #299)
+  - Knowledge skill for hallucination detection and mitigation in LLM training
+  - Quality frameworks for factuality enforcement
+  - Integration with grounding and knowledge-bases skills
+  - Auto-activates on hallucination/grounding/factuality keywords
+- **realign-persona-workflow skill** - Persona-specific realignment workflow (v1.0.0, Issue #300)
+  - Knowledge skill for persona consistency and multi-agent coordination
+  - Role-based training methodologies for specialized agent behaviors
+  - Integration with multi-agent-coordination skill
+  - Auto-activates on persona/identity/consistency keywords
+- **realign-source-workflow skill** - Source-based realignment and attribution (v1.0.0, Issue #301)
+  - Knowledge skill for source attribution and knowledge tracing in LLM training
+  - Quality frameworks for citation accuracy and knowledge grounding
+  - Integration with knowledge-grounding and documentation-standards skills
+  - Auto-activates on source/attribution/citation keywords
+- **realign-curator agent** - Realignment workflow orchestrator (v1.0.0, Issue #302)
+  - Utility agent for coordinating multiple realignment skills
+  - Selects appropriate realignment workflow based on training requirements
+  - Validates training parameters against realign skill requirements
+  - Provides realignment strategy recommendations
+  - **Agents count**: 25 → 26, **Skills count**: 33 → 39 (updated README.md, CLAUDE.md, ARCHITECTURE-OVERVIEW.md)
 - Batch processing auto-continuation loop (Issue #285)
   - Batch now auto-continues through all N features in single invocation
   - Implemented explicit while-loop using get_next_pending_feature() and update_batch_progress() APIs

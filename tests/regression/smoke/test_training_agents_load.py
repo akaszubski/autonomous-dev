@@ -29,7 +29,7 @@ class TestTrainingAgentsLoad:
     @pytest.fixture
     def agent_dir(self):
         """Get agents directory."""
-        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous_dev" / "agents"
+        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "agents"
 
     def test_data_quality_validator_agent_exists_and_valid(self, agent_dir):
         """
@@ -58,6 +58,20 @@ class TestTrainingAgentsLoad:
         assert len(content) > 100, "distributed-training-coordinator.md appears empty"
         assert "---" in content, "distributed-training-coordinator.md missing frontmatter"
 
+    def test_realign_curator_agent_exists_and_valid(self, agent_dir):
+        """
+        GIVEN: Agents directory
+        WHEN: Checking realign-curator/AGENT.md
+        THEN: File exists and is valid markdown
+        """
+        agent_file = agent_dir / "realign-curator" / "AGENT.md"
+        assert agent_file.exists(), "realign-curator/AGENT.md not found"
+
+        content = agent_file.read_text()
+        assert len(content) > 100, "realign-curator/AGENT.md appears empty"
+        assert "---" in content, "realign-curator/AGENT.md missing frontmatter"
+        assert "realign-curator" in content, "Agent name not in file"
+
 
 class TestTrainingSkillsLoad:
     """Smoke tests for training skills loading."""
@@ -65,7 +79,7 @@ class TestTrainingSkillsLoad:
     @pytest.fixture
     def skills_dir(self):
         """Get skills directory."""
-        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous_dev" / "skills"
+        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "skills"
 
     def test_data_distillation_skill_exists_and_valid(self, skills_dir):
         """
@@ -119,7 +133,7 @@ class TestTrainingMetricsLibraryLoad:
     @pytest.fixture
     def lib_dir(self):
         """Get lib directory."""
-        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous_dev" / "lib"
+        return Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "lib"
 
     def test_training_metrics_library_exists(self, lib_dir):
         """
@@ -196,7 +210,8 @@ class TestAgentRegistration:
         configs = AgentInvoker.AGENT_CONFIGS
         training_agents = [
             'data-quality-validator',
-            'distributed-training-coordinator'
+            'distributed-training-coordinator',
+            'realign-curator'
         ]
 
         for agent_name in training_agents:

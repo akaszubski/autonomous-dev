@@ -8,9 +8,9 @@ Complete technical architecture for the autonomous-dev plugin, including agents,
 
 23 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Active Agents** (23 total):
+**Active Agents** (24 total):
 - **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (15): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
+- **Utility** (16): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, realign-curator, researcher, setup-wizard, sync-validator, test-coverage-auditor
 
 **Key Features**:
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
@@ -50,12 +50,13 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**29 Active Skills** (v1.0.0):
+**39 Active Skills** (v1.0.0):
 - **Core**: python-standards, testing-guide, error-handling-patterns, code-review
 - **Automation**: git-automation, batch-processing, performance-optimization
 - **Security**: security-patterns, mcp-security, sandboxing
 - **Documentation**: documentation-standards, markdown-best-practices
 - **Integration**: skill-integration-templates, agent-output-formats
+- **LLM Training Realignment** (6 new): realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow
 - **See**: [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for full list
 
 ---
@@ -66,7 +67,7 @@ Reusable Python libraries for security, validation, automation, and more. See [d
 
 **Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
 
-**Key Libraries** (154 total):
+**Key Libraries** (156 total):
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
 - **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
@@ -84,7 +85,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 
 **Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
 
-**72 Active Hooks** (v1.0.0):
+**73 Active Hooks** (v1.0.0):
 - **PreToolUse**: unified_pre_tool.py (MCP security, auto-approval, sandboxing)
 - **PrePromptSubmit**: unified_prompt_validator.py (workflow enforcement)
 - **SubagentStop**: unified_git_automation.py (automated git operations - backward compatible shim at auto_git_workflow.py)

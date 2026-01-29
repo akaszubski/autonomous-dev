@@ -146,9 +146,95 @@ export NCCL_IB_DISABLE=1
 export NCCL_SOCKET_IFNAME=eth0
 ```
 
+## MLX Backend Comparison
+
+MLX supports multiple communication backends for distributed training:
+
+### JACCL Backend (MLX Native)
+
+- **Platform**: Apple Silicon (M1/M2/M3)
+- **Protocol**: JAX Collective Communications Library
+- **Performance**: Optimized for unified memory architecture
+- **Latency**: 5-10 μs for local GPU-to-GPU
+- **Use case**: Apple Silicon clusters
+
+### Ring Backend (NCCL Alternative)
+
+- **Platform**: Cross-platform (CPU fallback)
+- **Protocol**: Ring allreduce algorithm
+- **Performance**: Moderate, CPU-bound
+- **Latency**: 50-100 μs
+- **Use case**: Heterogeneous clusters without RDMA
+
+### GPU Direct RDMA
+
+**GPU Direct RDMA** bypasses CPU for direct GPU-to-GPU communication:
+
+```bash
+# Enable GPU Direct RDMA
+export NCCL_NET_GDR_LEVEL=5        # Maximum GPU Direct level
+export NCCL_NET_GDR_READ=1         # Enable GPU Direct reads
+export NCCL_P2P_LEVEL=5            # Enable peer-to-peer GPU transfers
+```
+
+**Benefits**:
+- **Zero CPU involvement**: GPU-to-GPU direct memory access
+- **Lower latency**: 1-2 μs (vs 5-10 μs with CPU)
+- **Higher bandwidth**: 200+ Gbps (vs 100 Gbps TCP/IP)
+- **Reduced memory copies**: Single transfer instead of GPU → CPU → GPU
+
+**Requirements**:
+- InfiniBand or RoCE adapter
+- RDMA-capable GPUs (NVIDIA A100, H100, etc.)
+- NCCL 2.7+ with GPU Direct support
+
+## Performance Benchmarking
+
+See comprehensive guide: `performance-benchmarking.md` for measuring RDMA vs TCP/IP speedup.
+
+## NCCL Debugging Troubleshooting
+
+### Enable Verbose Logging
+
+```bash
+# Maximum debug verbosity
+export NCCL_DEBUG=INFO              # Basic info
+export NCCL_DEBUG_SUBSYS=ALL        # All subsystems
+export NCCL_DEBUG_FILE=/tmp/nccl_debug.log  # Log to file
+```
+
+### Common Debug Messages
+
+| Message | Meaning | Action |
+|---------|---------|--------|
+| `Using network InfiniBand` | RDMA detected | Success! |
+| `Using network Socket` | Falling back to TCP/IP | Check `ibstat`, verify NCCL_IB_DISABLE=0 |
+| `NET/IB : No device found` | No RDMA adapter | Install InfiniBand driver |
+| `GPU Direct RDMA Disabled` | GDR not available | Set NCCL_NET_GDR_LEVEL=5 |
+
+### Bandwidth Testing
+
+```bash
+# Test RDMA bandwidth between two nodes
+ib_write_bw --port=1 --size=4194304 --iters=10000
+
+# Expected: 90+ Gbps for InfiniBand EDR, 200+ Gbps for HDR
+```
+
+### Troubleshooting Checklist
+
+1. **Verify RDMA devices**: `ibstat` (should show active ports)
+2. **Check NCCL configuration**: `NCCL_DEBUG=INFO python train.py`
+3. **Test network bandwidth**: `ib_write_bw` between nodes
+4. **Verify GPU Direct**: Look for "NET/IB/GDR" in NCCL logs
+5. **Check firewall**: Ensure ports 18515-18519 open for NCCL
+6. **Validate MPI binding**: Use `mpirun --bind-to none` for flexibility
+
 ## Related
 
 - See `mlx-distributed.md` for MLX setup
 - See `flash-recovery.md` for checkpointing
+- See `performance-benchmarking.md` for measuring RDMA speedup
+- See `multi-node-orchestration.md` for orchestrating 10+ nodes
 - External: NCCL documentation (NVIDIA)
 - External: Red Hat OpenShift AI docs

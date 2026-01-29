@@ -151,8 +151,89 @@ total_batch_size = batch_size_per_gpu * 4  # 256
 | Slow convergence | Many epochs needed | Increase batch size (with LR scaling) |
 | Poor generalization | Low val accuracy | Reduce batch size |
 
+## Distributed Training Coordinator Integration
+
+The `distributed-training-coordinator` agent provides automated batch optimization:
+
+### Batch Configuration Output
+
+The coordinator generates JSON output with optimized batch settings:
+
+```json
+{
+  "batch_configuration": {
+    "per_gpu_batch_size": 64,
+    "total_batch_size": 512,
+    "gradient_accumulation_steps": 1,
+    "learning_rate": 0.004,
+    "warmup_epochs": 5
+  }
+}
+```
+
+### Mapping to Optimization Strategies
+
+| Coordinator Output | Optimization Strategy | Implementation |
+|--------------------|-----------------------|----------------|
+| `per_gpu_batch_size` | Memory-constrained batch size | Start small, double until OOM |
+| `gradient_accumulation_steps` | Simulate larger batches | Accumulate gradients over N steps |
+| `learning_rate` | Scaled LR for batch size | Linear scaling rule |
+| `warmup_epochs` | Large batch stabilization | Gradual LR increase |
+
+### Hardware Calibration Integration
+
+The coordinator measures actual hardware performance and adjusts batch sizes:
+
+```json
+{
+  "hardware_calibration": {
+    "measured_performance": {
+      "worker-0": 0.85,
+      "worker-1": 0.85,
+      "worker-2": 0.85,
+      "worker-3": 0.85
+    },
+    "workload_distribution": {
+      "worker-0": 0.25,
+      "worker-1": 0.25,
+      "worker-2": 0.25,
+      "worker-3": 0.25
+    }
+  }
+}
+```
+
+**Key Insights**:
+- **Equal performance**: Machines show equal throughput (~0.85 ex/s per worker)
+- **Overhead-bound pipeline**: Bottlenecked by I/O, synchronization, not compute
+- **Typical speedup**: 1.2-1.8x for 4 workers (not linear due to overhead)
+- **Expected overhead**: <105s per epoch
+
+### Using Coordinator Output
+
+```python
+import json
+from pathlib import Path
+
+# Load coordinator output
+with open("training_plan.json") as f:
+    plan = json.load(f)
+
+# Extract batch configuration
+batch_config = plan["batch_configuration"]
+per_gpu_batch = batch_config["per_gpu_batch_size"]
+accumulation_steps = batch_config["gradient_accumulation_steps"]
+learning_rate = batch_config["learning_rate"]
+
+# Apply to training
+effective_batch = per_gpu_batch * accumulation_steps * num_gpus
+print(f"Effective batch size: {effective_batch}")
+print(f"Learning rate: {learning_rate}")
+```
+
 ## Related
 
 - See `mlx-distributed.md` for multi-GPU training
 - See `flash-recovery.md` for checkpointing large models
+- See `multi-node-orchestration.md` for coordinator patterns
 - External: "On Large-Batch Training for Deep Learning" (Keskar et al.)

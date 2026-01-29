@@ -85,6 +85,11 @@ mlx.launch --gpus 8 --nodes 2 --node-rank 0 train.py
 export MLX_WORLD_SIZE=4       # Total number of processes
 export MLX_LOCAL_RANK=0       # GPU index on this machine
 export MLX_GLOBAL_RANK=0      # Process index across all machines
+
+# MLX native environment variables (Issue #279)
+export MLX_RANK=0             # Process rank (0-N), alternative to MLX_GLOBAL_RANK
+export MLX_HOSTFILE=/path/to/hostfile  # Path to hostfile for multi-node training
+export MLX_METAL_FAST_SYNCH=1 # Enable faster GPU synchronization on Apple Silicon
 ```
 
 ## Gradient Synchronization
@@ -124,8 +129,47 @@ MLX's unified memory architecture:
 - **Gradient accumulation**: For large models that don't fit
 - **Mixed precision**: Use float16 for faster training
 
+## Multi-Node Orchestration
+
+For distributed training across 10+ nodes, MLX provides native multi-node support through hostfile configuration and environment variables.
+
+### Hostfile Configuration
+
+```bash
+# hostfile format: one host per line, optionally with process count
+# /path/to/hostfile:
+node1.example.com:4
+node2.example.com:4
+node3.example.com:4
+node4.example.com:4
+```
+
+### Multi-Node Launch
+
+```bash
+# Launch multi-node training with hostfile
+export MLX_HOSTFILE=/path/to/hostfile
+mlx.launch --gpus 4 train.py
+
+# Alternatively, specify hostfile in command
+mlx.launch --gpus 4 --hostfile /path/to/hostfile train.py
+```
+
+### Integration with distributed-training-coordinator
+
+The `distributed-training-coordinator` agent automates multi-node setup:
+- Generates hostfile from available nodes
+- Validates worker consistency before training
+- Performs hardware calibration for workload distribution
+- Runs pre-flight checklist (8 validation checks)
+- Monitors training progress across all nodes
+
+See comprehensive guide: `multi-node-orchestration.md`
+
 ## Related
 
 - See `batch-optimization.md` for batch size tuning
 - See `flash-recovery.md` for checkpointing
+- See `multi-node-orchestration.md` for orchestrating 10+ nodes
+- See `rdma-networking.md` for RDMA configuration
 - External: MLX documentation (ml-explore/mlx)

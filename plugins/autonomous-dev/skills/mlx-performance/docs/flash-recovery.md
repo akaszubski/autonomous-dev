@@ -239,9 +239,174 @@ def train_with_recovery(model, dataloader, checkpoint_dir):
 | Sync, compressed | 5 min | 10-15% slowdown |
 | Async, compressed | 150s | <5% slowdown |
 
+## Checkpoint Storage Backend Selection
+
+Choose the right storage backend based on your infrastructure:
+
+### GCS (Google Cloud Storage)
+
+**Best for**: Google Cloud infrastructure, large-scale training
+
+```python
+def save_checkpoint_gcs(model, optimizer, epoch, bucket_name):
+    """Save checkpoint to Google Cloud Storage."""
+    from google.cloud import storage
+    import pickle
+    import gzip
+
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch
+    }
+
+    # Compress checkpoint
+    compressed = gzip.compress(pickle.dumps(checkpoint))
+
+    # Upload to GCS
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(f"checkpoints/checkpoint_{epoch}.pkl.gz")
+    blob.upload_from_string(compressed)
+```
+
+### S3 (AWS Simple Storage Service)
+
+**Best for**: AWS infrastructure, multi-region replication
+
+```python
+def save_checkpoint_s3(model, optimizer, epoch, bucket_name):
+    """Save checkpoint to AWS S3."""
+    import boto3
+    import pickle
+    import gzip
+
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch
+    }
+
+    # Compress checkpoint
+    compressed = gzip.compress(pickle.dumps(checkpoint))
+
+    # Upload to S3
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=bucket_name,
+        Key=f"checkpoints/checkpoint_{epoch}.pkl.gz",
+        Body=compressed
+    )
+```
+
+### NFS (Network File System)
+
+**Best for**: On-premise clusters, low latency access
+
+```python
+def save_checkpoint_nfs(model, optimizer, epoch, nfs_path):
+    """Save checkpoint to NFS mount."""
+    from pathlib import Path
+    import pickle
+    import gzip
+
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch
+    }
+
+    # Write to NFS mount
+    path = Path(nfs_path) / f"checkpoints/checkpoint_{epoch}.pkl.gz"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with gzip.open(path, 'wb') as f:
+        pickle.dump(checkpoint, f)
+```
+
+### Decision Matrix
+
+| Backend | Latency | Throughput | Cost | Durability | Best For |
+|---------|---------|------------|------|------------|----------|
+| **GCS** | Medium (100-200ms) | High (5-10 GB/s) | Low | 99.999999999% | Google Cloud clusters |
+| **S3** | Medium (100-200ms) | High (5-10 GB/s) | Low | 99.999999999% | AWS clusters |
+| **NFS** | Low (10-50ms) | Medium (1-5 GB/s) | N/A | Depends on RAID | On-premise, low-latency |
+
+## Integration with distributed-training-coordinator
+
+The coordinator automates checkpoint strategy selection:
+
+```json
+{
+  "checkpoint_strategy": {
+    "approach": "FlashRecovery",
+    "async": true,
+    "compression": "gzip",
+    "storage": "gs://training-checkpoints/",
+    "frequency": "every_epoch",
+    "retention": "last_3_checkpoints",
+    "expected_recovery_time": "150s for 4800 devices"
+  }
+}
+```
+
+### Coordinator-Level Chunking Checkpoint Pattern
+
+For large datasets (>50K examples), the coordinator enables chunking:
+
+```json
+{
+  "coordinator_chunking": {
+    "enabled": true,
+    "chunk_size": 50000,
+    "num_chunks": 10,
+    "memory_management": {
+      "gc_collect": true,
+      "mx_clear_cache": true
+    },
+    "progress_reporting": "Processing chunk 3/10 (30% complete)"
+  }
+}
+```
+
+**Implementation**:
+
+```python
+import mlx.core as mx
+import gc
+
+def train_with_coordinator_chunking(model, dataset, chunk_size=50000):
+    """Train with coordinator-level chunking for large datasets."""
+    num_chunks = (len(dataset) + chunk_size - 1) // chunk_size
+
+    for chunk_idx in range(num_chunks):
+        start = chunk_idx * chunk_size
+        end = min(start + chunk_size, len(dataset))
+        chunk = dataset[start:end]
+
+        print(f"Processing chunk {chunk_idx+1}/{num_chunks} ({(chunk_idx+1)*100//num_chunks}% complete)")
+
+        # Train on chunk
+        for batch in chunk:
+            train_step(model, batch)
+
+        # Memory management after each chunk
+        gc.collect()
+        mx.clear_cache()
+
+        # Save checkpoint after each chunk
+        save_checkpoint(model, optimizer, f"chunk_{chunk_idx}")
+```
+
+**Benefits**:
+- **Memory efficiency**: Process large datasets without OOM
+- **Fault tolerance**: Checkpoint after each chunk (resume from chunk boundary)
+- **Progress tracking**: Clear progress reporting per chunk
+
 ## Related
 
 - See `mlx-distributed.md` for distributed setup
 - See `batch-optimization.md` for memory management
+- See `multi-node-orchestration.md` for coordinator patterns
 - External: Google Cloud Storage (GCS)
 - External: AWS S3

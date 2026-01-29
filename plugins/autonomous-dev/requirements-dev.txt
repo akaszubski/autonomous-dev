@@ -5,3 +5,7 @@ pytest-xdist>=3.0.0
 syrupy>=4.0.0
 pytest-testmon>=2.0.0
 PyYAML>=6.0.0
+
+# Optional dependencies for book parsing
+# See: requirements-book-parsing.txt for complete list
+# Install with: pip install -r requirements-book-parsing.txt

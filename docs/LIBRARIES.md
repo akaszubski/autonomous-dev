@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (55)
+### Core Libraries (56)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -66,6 +66,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 53. **auto_implement_pipeline.py** - Pipeline integration for project-progress-tracker invocation after doc-master (v1.0.0, Issue #204)
 54. **alignment_gate.py** - Strict PROJECT.md alignment validation with score-based gating (7+ threshold) (v1.0.0, Issue #251)
 55. **workflow_violation_logger.py** - Audit logging for workflow violations with JSON Lines format, CWE-117 prevention, log rotation, thread safety (v1.0.0, Issue #250)
+56. **training_metrics.py** - Tulu3 multi-dimensional scoring and DPO preference generation for LLM training quality assessment (v1.0.0, Issue #279)
 
 
 
