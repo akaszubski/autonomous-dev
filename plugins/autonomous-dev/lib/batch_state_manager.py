@@ -137,8 +137,13 @@ try:
     DEFAULT_STATE_FILE = get_batch_state_file()
 except FileNotFoundError:
     # Fallback for edge cases (e.g., running outside a git repo)
-    # This maintains backward compatibility
-    DEFAULT_STATE_FILE = Path(".claude/batch_state.json")
+    # This maintains backward compatibility - Issue #313: Use get_project_root() for fallback
+    from path_utils import get_project_root
+    try:
+        DEFAULT_STATE_FILE = get_project_root() / ".claude" / "batch_state.json"
+    except FileNotFoundError:
+        # Ultimate fallback if project root detection fails
+        DEFAULT_STATE_FILE = Path(".claude/batch_state.json")
 
 def get_default_state_file():
     """Get default state file path (lazy evaluation - use in tests).
@@ -156,8 +161,13 @@ def get_default_state_file():
         return get_batch_state_file()
     except FileNotFoundError:
         # Fallback for edge cases (e.g., running outside a git repo)
-        # This maintains backward compatibility
-        return Path(".claude/batch_state.json")
+        # This maintains backward compatibility - Issue #313: Use get_project_root() for fallback
+        from path_utils import get_project_root
+        try:
+            return get_project_root() / ".claude" / "batch_state.json"
+        except FileNotFoundError:
+            # Ultimate fallback if project root detection fails
+            return Path(".claude/batch_state.json")
 
 # File lock timeout (seconds)
 LOCK_TIMEOUT = 30

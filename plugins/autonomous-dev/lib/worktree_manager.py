@@ -517,15 +517,21 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
             cwd_str = str(original_cwd.resolve())
 
             # Check if cwd starts with worktree path (i.e., cwd is inside worktree)
+            # Issue #315: Use cwd= parameter instead of os.chdir()
             if cwd_str.startswith(worktree_str):
-                # We're inside the worktree - need to change directory
+                # We're inside the worktree - need to run from project root
                 # Find project root (parent of .worktrees)
                 project_root = worktree_base.parent
                 if project_root.exists():
-                    os.chdir(project_root)
+                    # Store project root for cwd= parameter
+                    git_cwd = project_root
+                else:
+                    git_cwd = None
+            else:
+                git_cwd = None
         except (OSError, RuntimeError):
             # If we can't determine cwd, proceed anyway - git will handle errors
-            pass
+            git_cwd = None
 
         # Build command
         cmd = ['git', 'worktree', 'remove']
@@ -533,12 +539,15 @@ def delete_worktree(feature_name: str, force: bool = False) -> Tuple[bool, str]:
             cmd.append('--force')
         cmd.append(str(worktree_path))
 
+        # Issue #315: Use cwd= parameter instead of changing global cwd
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             check=True,
-            timeout=10
+            timeout=10,
+            cwd=git_cwd,
+            env=os.environ.copy()
         )
 
         return (True, f"Worktree '{feature_name}' deleted successfully")

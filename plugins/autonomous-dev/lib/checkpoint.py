@@ -25,6 +25,7 @@ from typing import Dict, Any, Optional, List
 # Import StateManager ABC and StateError
 sys.path.insert(0, str(Path(__file__).parent))
 from abstract_state_manager import StateManager, StateError
+from path_utils import get_project_root
 
 # Backward compatibility alias
 CheckpointError = StateError
@@ -46,7 +47,7 @@ class CheckpointManager(StateManager[Dict[str, Any]]):
             artifacts_dir: Base directory for artifacts (default: .claude/artifacts)
         """
         if artifacts_dir is None:
-            artifacts_dir = Path(".claude/artifacts")
+            artifacts_dir = get_project_root() / ".claude" / "artifacts"
 
         self.artifacts_dir = artifacts_dir
 

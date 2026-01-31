@@ -189,7 +189,12 @@ def load_checkpoint(batch_id: str, checkpoint_dir: Optional[Path] = None) -> Dic
 
     # Determine checkpoint directory
     if checkpoint_dir is None:
-        checkpoint_dir = Path(os.environ.get("CHECKPOINT_DIR", ".ralph-checkpoints"))
+        from path_utils import get_project_root
+        try:
+            checkpoint_dir = Path(os.environ.get("CHECKPOINT_DIR", str(get_project_root() / ".ralph-checkpoints")))
+        except FileNotFoundError:
+            # Fallback if project root detection fails
+            checkpoint_dir = Path(os.environ.get("CHECKPOINT_DIR", ".ralph-checkpoints"))
 
     # Build checkpoint file path
     checkpoint_file = checkpoint_dir / f"ralph-{batch_id}_checkpoint.json"
