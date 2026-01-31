@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, Literal
 from enum import Enum
+from path_utils import get_project_root
 
 
 class LogLevel(str, Enum):
@@ -44,7 +45,7 @@ class WorkflowLogger:
 
         # Set up log directory
         if log_dir is None:
-            log_dir = Path(".claude/logs/workflows")
+            log_dir = get_project_root() / ".claude" / "logs" / "workflows"
         self.log_dir = log_dir / workflow_id
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -308,7 +309,7 @@ class WorkflowProgressTracker:
         self.workflow_id = workflow_id
 
         if log_dir is None:
-            log_dir = Path(".claude/logs/workflows")
+            log_dir = get_project_root() / ".claude" / "logs" / "workflows"
 
         self.progress_file = log_dir / workflow_id / "progress.json"
         self.progress_file.parent.mkdir(parents=True, exist_ok=True)

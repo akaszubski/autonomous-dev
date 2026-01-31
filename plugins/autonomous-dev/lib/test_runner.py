@@ -38,6 +38,7 @@ Date: 2026-01-03
 Related: Issue #200 - Debug-first enforcement and self-test requirements
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -186,6 +187,7 @@ def run_tests(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=os.environ.copy(),
         )
 
         return _parse_pytest_output(result.stdout, result.stderr, result.returncode)
@@ -260,6 +262,7 @@ def run_single_test(test_path: str, timeout: int = 300) -> TestResult:
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=os.environ.copy(),
         )
 
         return _parse_pytest_output(result.stdout, result.stderr, result.returncode)

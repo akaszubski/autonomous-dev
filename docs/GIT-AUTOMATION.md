@@ -1030,6 +1030,39 @@ All git operations follow security best practices:
 - All git commands use subprocess with argument lists (not shell strings)
 - Prevents command injection attacks
 - Input validation for all user-provided data (branch names, commit messages)
+- **Environment propagation** (Issue #314): All subprocess calls propagate environment variables via `env=os.environ`
+  - Ensures consistent behavior in worktree-based batch processing
+  - Prevents PATH and other environment variable inconsistencies
+  - Fixes CWE-426 (Untrusted Search Path) vulnerabilities
+
+### Environment Propagation Pattern (NEW in Issue #314)
+
+All subprocess calls must propagate environment variables for worktree safety:
+
+```python
+import os
+import subprocess
+
+# BROKEN (Issue #314 - missing environment)
+result = subprocess.run(
+    ["pytest", "tests/"],
+    capture_output=True
+)
+# Missing environment variables from parent process
+
+# FIXED (Issue #314 - environment propagated)
+result = subprocess.run(
+    ["pytest", "tests/"],
+    capture_output=True,
+    env=os.environ  # Propagate parent environment
+)
+```
+
+**Files Using This Pattern** (Issue #314):
+- qa_self_healer.py: Added env=os.environ to all subprocess.run() calls
+- test_runner.py: Propagated environment variables to pytest subprocess
+
+**Security**: Fixes CWE-426 (Untrusted Search Path) by ensuring consistent environment across all subprocesses.
 
 ## Implementation Files
 

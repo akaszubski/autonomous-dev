@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, Literal
 from dataclasses import dataclass
+from path_utils import get_project_root
 
 
 @dataclass
@@ -63,7 +64,7 @@ class ArtifactManager:
             artifacts_dir: Base directory for artifacts (default: .claude/artifacts)
         """
         if artifacts_dir is None:
-            artifacts_dir = Path(".claude/artifacts")
+            artifacts_dir = get_project_root() / ".claude" / "artifacts"
 
         self.artifacts_dir = artifacts_dir
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)

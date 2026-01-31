@@ -12,6 +12,7 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from path_utils import get_project_root
 
 
 class WebFetchCache:
@@ -38,7 +39,7 @@ class WebFetchCache:
             ttl_days: Time to live in days. Default 7 days.
         """
         if cache_dir is None:
-            cache_dir = Path(".claude/cache/web-fetch")
+            cache_dir = get_project_root() / ".claude" / "cache" / "web-fetch"
 
         self.cache_dir = Path(cache_dir)
         self.ttl_days = ttl_days
@@ -434,7 +435,7 @@ def bootstrap_knowledge_base(
         Tuple of (success, message)
     """
     if workspace_kb is None:
-        workspace_kb = Path(".claude/knowledge")
+        workspace_kb = get_project_root() / ".claude" / "knowledge"
 
     if template_kb is None:
         template_kb = Path("plugins/autonomous-dev/templates/knowledge")
