@@ -771,3 +771,247 @@ class TestErrorMessages:
         # Explains how to enable
         assert result.get('how_to_enable') is not None
         assert 'export AUTO_GIT_ENABLED=true' in result['how_to_enable']
+
+
+class TestIssue318ExecuteStep8RespectsAutoGitPR:
+    """
+    Integration test for Issue #318: execute_step8 respects AUTO_GIT_PR=false.
+
+    End-to-end workflow test for complete Step 8 execution with AUTO_GIT_PR=false.
+    Tests full pipeline: commit -> push -> (skip PR creation).
+
+    TDD Mode: Written BEFORE implementation (RED phase).
+    Test should FAIL until agent prompts and library are updated.
+
+    Date: 2026-02-01
+    Issue: #318
+    Phase: TDD Red
+    """
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.invoke_pr_description_agent')
+    @patch('auto_implement_git_integration.auto_commit_and_push')
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true', 'AUTO_GIT_PUSH': 'true', 'AUTO_GIT_PR': 'false'})
+    def test_execute_step8_respects_auto_git_pr_false(self, mock_git_ops, mock_pr_agent, mock_commit_agent):
+        """
+        Integration test: execute_step8 should commit+push but NOT create PR.
+
+        Workflow when AUTO_GIT_PR=false:
+        1. commit-message-generator agent invoked -> commit message generated
+        2. auto_commit_and_push() called -> changes committed and pushed
+        3. pr-description-generator agent NOT invoked (consent check fails)
+        4. gh pr create NOT called
+        5. User notified: "PR creation skipped (AUTO_GIT_PR=false)"
+        6. Manual command provided: gh pr create --title "..." --base main
+
+        Expected result:
+        {
+            'success': True,
+            'commit_sha': 'abc1234',
+            'pushed': True,
+            'pr_created': False,
+            'pr_skipped': True,
+            'reason': 'User consent not provided (AUTO_GIT_PR=false)'
+        }
+        """
+        # Arrange: Mock commit agent (should be invoked)
+        mock_commit_agent.return_value = {
+            'success': True,
+            'output': 'feat: add user authentication\n\nImplemented JWT-based auth',
+            'error': ''
+        }
+
+        # Mock git operations (should be invoked)
+        mock_git_ops.return_value = {
+            'success': True,
+            'commit_sha': 'abc1234',
+            'pushed': True,
+            'error': ''
+        }
+
+        # Mock PR agent (should NOT be invoked)
+        mock_pr_agent.return_value = {
+            'success': True,
+            'output': '## Summary\n- Added auth',
+            'error': ''
+        }
+
+        # Act: Execute full Step 8 workflow
+        result = execute_step8_git_operations(
+            workflow_id='test-workflow-123',
+            branch='feature/add-auth',
+            request='Add user authentication',
+            create_pr=True  # Request PR but should be skipped due to consent
+        )
+
+        # Assert: Commit and push succeeded
+        mock_commit_agent.assert_called_once()
+        mock_git_ops.assert_called_once()
+        assert result['success'] is True
+        assert result['commit_sha'] == 'abc1234'
+        assert result['pushed'] is True
+
+        # Assert: PR creation was skipped
+        mock_pr_agent.assert_not_called()  # Agent should NOT be invoked
+        assert result['pr_created'] is False
+
+        # Assert: User notification provided
+        assert result.get('pr_skipped') is True or result.get('skipped') is True
+        if 'reason' in result:
+            assert 'AUTO_GIT_PR=false' in result['reason']
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.auto_commit_and_push')
+    @patch('subprocess.run')
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true', 'AUTO_GIT_PUSH': 'true', 'AUTO_GIT_PR': 'false'})
+    def test_execute_step8_no_gh_pr_create_called(self, mock_run, mock_git_ops, mock_commit_agent):
+        """
+        Integration test: verify gh pr create is never called when AUTO_GIT_PR=false.
+
+        This is the critical regression test - ensures agents don't bypass consent.
+        """
+        # Arrange: Mock successful commit workflow
+        mock_commit_agent.return_value = {
+            'success': True,
+            'output': 'feat: add feature',
+            'error': ''
+        }
+
+        mock_git_ops.return_value = {
+            'success': True,
+            'commit_sha': 'abc1234',
+            'pushed': True,
+            'error': ''
+        }
+
+        # Mock subprocess for any git operations
+        mock_run.return_value = Mock(returncode=0, stdout='')
+
+        # Act: Execute Step 8
+        execute_step8_git_operations(
+            workflow_id='test-workflow-123',
+            branch='feature/test',
+            request='Add feature',
+            create_pr=True
+        )
+
+        # Assert: Verify gh pr create was NEVER called
+        gh_pr_calls = [
+            call for call in mock_run.call_args_list
+            if 'gh' in str(call) and 'pr' in str(call) and 'create' in str(call)
+        ]
+        assert len(gh_pr_calls) == 0, (
+            f"gh pr create should not be called when AUTO_GIT_PR=false, "
+            f"but found {len(gh_pr_calls)} calls: {gh_pr_calls}"
+        )
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.invoke_pr_description_agent')
+    @patch('auto_implement_git_integration.auto_commit_and_push')
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true', 'AUTO_GIT_PUSH': 'true', 'AUTO_GIT_PR': 'true'})
+    def test_execute_step8_creates_pr_when_enabled(self, mock_git_ops, mock_pr_agent, mock_commit_agent):
+        """
+        Integration test: verify PR creation still works when AUTO_GIT_PR=true.
+
+        This ensures the fix doesn't break existing functionality.
+        """
+        # Arrange: Mock successful workflow
+        mock_commit_agent.return_value = {
+            'success': True,
+            'output': 'feat: add feature',
+            'error': ''
+        }
+
+        mock_git_ops.return_value = {
+            'success': True,
+            'commit_sha': 'abc1234',
+            'pushed': True,
+            'error': ''
+        }
+
+        mock_pr_agent.return_value = {
+            'success': True,
+            'output': '## Summary\n- Added feature',
+            'error': ''
+        }
+
+        # Mock gh pr create success
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = Mock(
+                returncode=0,
+                stdout='https://github.com/user/repo/pull/42\n'
+            )
+
+            # Act
+            result = execute_step8_git_operations(
+                workflow_id='test-workflow-123',
+                branch='feature/test',
+                request='Add feature',
+                create_pr=True
+            )
+
+            # Assert: PR created successfully
+            assert result['success'] is True
+            assert result['pr_created'] is True
+            mock_pr_agent.assert_called_once()
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.auto_commit_and_push')
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'false', 'AUTO_GIT_PUSH': 'true', 'AUTO_GIT_PR': 'true'})
+    def test_execute_step8_cascading_from_git_disabled(self, mock_git_ops, mock_commit_agent):
+        """
+        Integration test: verify cascading behavior when AUTO_GIT_ENABLED=false.
+
+        If git is disabled, PR should also be disabled (cascading).
+        """
+        # Act
+        result = execute_step8_git_operations(
+            workflow_id='test-workflow-123',
+            branch='feature/test',
+            request='Add feature',
+            create_pr=True
+        )
+
+        # Assert: Everything skipped due to git disabled
+        assert result['success'] is True
+        assert result['skipped'] is True
+        assert result.get('pr_created') is False
+        mock_commit_agent.assert_not_called()
+        mock_git_ops.assert_not_called()
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.auto_commit_and_push')
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true', 'AUTO_GIT_PUSH': 'false', 'AUTO_GIT_PR': 'true'})
+    def test_execute_step8_cascading_from_push_disabled(self, mock_git_ops, mock_commit_agent):
+        """
+        Integration test: verify cascading behavior when AUTO_GIT_PUSH=false.
+
+        If push is disabled, PR should also be disabled (cascading).
+        """
+        # Arrange
+        mock_commit_agent.return_value = {
+            'success': True,
+            'output': 'feat: add feature',
+            'error': ''
+        }
+
+        mock_git_ops.return_value = {
+            'success': True,
+            'commit_sha': 'abc1234',
+            'pushed': False,
+            'error': ''
+        }
+
+        # Act
+        result = execute_step8_git_operations(
+            workflow_id='test-workflow-123',
+            branch='feature/test',
+            request='Add feature',
+            create_pr=True
+        )
+
+        # Assert: Commit succeeded, push and PR skipped
+        assert result['success'] is True
+        assert result['commit_sha'] == 'abc1234'
+        assert result['pushed'] is False
+        assert result.get('pr_created') is False

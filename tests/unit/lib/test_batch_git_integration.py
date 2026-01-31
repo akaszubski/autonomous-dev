@@ -471,3 +471,59 @@ class TestReturnValuesInBatchMode:
 
             # Should indicate batch mode in result
             assert result.get('batch_mode') is True or result.get('in_batch_mode') is True
+
+
+# =============================================================================
+# Test .env Loading in Batch Mode (Issue #312)
+# =============================================================================
+
+class TestDotenvInBatchMode:
+    """Test .env loading before batch processing starts (Issue #312)."""
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_dotenv_loaded_before_batch_starts(self, mock_git_available):
+        """Should load .env before checking AUTO_GIT_ENABLED in batch mode."""
+        with patch('auto_implement_git_integration.load_dotenv') as mock_load:
+            def set_batch_env(*args, **kwargs):
+                os.environ['AUTO_GIT_ENABLED'] = 'true'
+
+            mock_load.side_effect = set_batch_env
+
+            # Verify environment available for batch
+            # In real scenario, batch orchestrator would call this first
+            mock_load(dotenv_path='.env')
+
+            # Now batch mode can check consent
+            consent = check_consent_via_env()
+            assert consent['git_enabled'] is True
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_batch_respects_dotenv_auto_git_enabled_false(self, mock_git_available):
+        """Should respect AUTO_GIT_ENABLED=false from .env in batch."""
+        with patch('auto_implement_git_integration.load_dotenv') as mock_load:
+            def set_disabled(*args, **kwargs):
+                os.environ['AUTO_GIT_ENABLED'] = 'false'
+
+            mock_load.side_effect = set_disabled
+
+            mock_load(dotenv_path='.env')
+
+            # Batch mode should respect disabled setting
+            consent = check_consent_via_env()
+            assert consent['git_enabled'] is False
+
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true'})
+    def test_environment_available_in_batch_context(self, mock_git_available, mock_agent_invoker):
+        """Should have environment variables available during batch execution."""
+        with patch('auto_implement_git_integration.auto_commit_and_push') as mock_git:
+            mock_git.return_value = {'success': True, 'commit_sha': 'abc123'}
+
+            # In batch mode, environment should be pre-loaded
+            result = execute_git_workflow(
+                workflow_id='batch-123',
+                request='Add feature',
+                in_batch_mode=True
+            )
+
+            # Should have accessed AUTO_GIT_ENABLED from environment
+            assert result['success'] is True

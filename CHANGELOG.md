@@ -2,6 +2,16 @@
 
 ### Added
 
+- **Agents respect AUTO_GIT_PR=false with graceful degradation** (Issue #318)
+  - Enhanced auto_implement_git_integration.py with user-visible notifications
+  - When AUTO_GIT_PR=false, agents skip PR creation but continue with push/commit
+  - User notification shows: "ℹ️  Git Automation Mode: Direct Push"
+  - Includes reason (AUTO_GIT_PR=false) and how to enable (Set AUTO_GIT_PR=true in .env)
+  - Audit logged with graceful_degradation=True flag
+  - No workflow interruption - feature still succeeds
+  - Works in both single /implement and batch mode
+  - Security: CWE-20 (input validation), CWE-117 (sanitized audit logs)
+  - Library: plugins/autonomous-dev/lib/auto_implement_git_integration.py (push_and_create_pr function)
 - **Enhanced distributed-training-coordinator agent** (Issue #283)
   - Added 5 new validation phases (1.5 Pre-RDMA Sync, 2.5 Hardware Calibration, 3.5 Worker Consistency, 4.5 Coordinator Chunking, 5 Pre-Flight Checklist)
   - Integration with hardware_calibrator (Issue #280), worker_consistency_validator (Issue #281), distributed_training_validator (Issue #282)
@@ -184,6 +194,14 @@
   - Realigns training best practices agents and skills for production LLM development
 
 ### Fixed
+- Batch processing respects AUTO_GIT_ENABLED from .env in worktree contexts (Issue #312)
+  - Added .env file loading to unified_git_automation.py main() function
+  - Uses get_project_root() for secure absolute path resolution (CWE-426 prevention)
+  - Gracefully falls back to current directory if path_utils unavailable
+  - Works in worktree contexts where relative paths fail
+  - Verbose logging via GIT_AUTOMATION_VERBOSE environment variable
+  - Never logs .env contents (CWE-200 prevention)
+  - Non-blocking fallback when dotenv library unavailable
 - Integration test infrastructure improvements and coverage enforcement bug (#272)
   - Updated test_self_validation_hooks.py: Fixed 11 infrastructure bugs
   - All mocks now use autospec=True (2024-2025 best practice for test reliability)

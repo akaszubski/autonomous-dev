@@ -401,6 +401,93 @@ class TestParseBool:
             assert parse_bool(value) is False
 
 
+class TestDotenvLoading:
+    """Test .env file loading in main() function (Issue #312)."""
+
+    def test_loads_dotenv_with_absolute_path_from_project_root(self):
+        """Should load .env using absolute path from get_project_root()."""
+        with patch('unified_git_automation.get_project_root') as mock_get_root:
+            mock_get_root.return_value = Path('/project/root')
+
+            with patch('unified_git_automation.load_dotenv') as mock_load:
+                with patch('unified_git_automation.Path') as mock_path:
+                    mock_env_file = MagicMock()
+                    mock_env_file.exists.return_value = True
+                    mock_path.return_value.__truediv__.return_value = mock_env_file
+
+                    with patch.dict(os.environ, {
+                        'CLAUDE_AGENT_NAME': 'doc-master',
+                        'CLAUDE_AGENT_STATUS': 'success',
+                        'AUTO_GIT_ENABLED': 'true',
+                    }):
+                        main()
+
+                        # Should call get_project_root
+                        mock_get_root.assert_called_once()
+
+                        # Should call load_dotenv
+                        assert mock_load.called
+
+    def test_graceful_fallback_when_dotenv_missing(self):
+        """Should not crash when .env file missing."""
+        with patch('unified_git_automation.Path') as mock_path:
+            mock_env_file = MagicMock()
+            mock_env_file.exists.return_value = False
+            mock_path.return_value.__truediv__.return_value = mock_env_file
+
+            with patch.dict(os.environ, {
+                'CLAUDE_AGENT_NAME': 'doc-master',
+                'CLAUDE_AGENT_STATUS': 'success',
+            }, clear=True):
+                # Should not raise exception
+                exit_code = main()
+                assert exit_code == 0
+
+    def test_graceful_fallback_when_load_dotenv_fails(self):
+        """Should handle load_dotenv() exceptions gracefully."""
+        with patch('unified_git_automation.load_dotenv') as mock_load:
+            mock_load.side_effect = Exception("Parse error")
+
+            with patch('unified_git_automation.Path') as mock_path:
+                mock_env_file = MagicMock()
+                mock_env_file.exists.return_value = True
+                mock_path.return_value.__truediv__.return_value = mock_env_file
+
+                with patch.dict(os.environ, {
+                    'CLAUDE_AGENT_NAME': 'doc-master',
+                    'CLAUDE_AGENT_STATUS': 'success',
+                }):
+                    # Should not crash
+                    exit_code = main()
+                    assert exit_code == 0
+
+    def test_security_no_dotenv_contents_logged(self):
+        """Should NOT log .env variable values (CWE-200)."""
+        with patch('unified_git_automation.load_dotenv') as mock_load:
+            def set_sensitive_env(*args, **kwargs):
+                os.environ['GITHUB_TOKEN'] = 'secret-token-12345'
+
+            mock_load.side_effect = set_sensitive_env
+
+            with patch('unified_git_automation.Path') as mock_path:
+                mock_env_file = MagicMock()
+                mock_env_file.exists.return_value = True
+                mock_path.return_value.__truediv__.return_value = mock_env_file
+
+                with patch.dict(os.environ, {
+                    'CLAUDE_AGENT_NAME': 'doc-master',
+                    'CLAUDE_AGENT_STATUS': 'success',
+                    'GIT_AUTOMATION_VERBOSE': 'true',
+                }):
+                    captured = StringIO()
+                    with patch('sys.stderr', captured):
+                        main()
+
+                        output = captured.getvalue()
+                        # Should NOT log secret token value
+                        assert 'secret-token-12345' not in output
+
+
 class TestMainWorkflow:
     """Test main hook entry point workflow."""
 

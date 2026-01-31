@@ -220,6 +220,48 @@ To commit manually:
 
 **Key point**: Feature implementation is still successful even if git operations fail.
 
+### AUTO_GIT_PR=false Behavior (Issue #318)
+
+When AUTO_GIT_PR is set to false, the git automation workflow respects this setting and provides clear user feedback:
+
+**Behavior**:
+- Commits to local branch (if AUTO_GIT_ENABLED=true)
+- Pushes to remote (if AUTO_GIT_PUSH=true)
+- SKIPS PR creation (when AUTO_GIT_PR=false)
+- Shows user-visible notification of graceful degradation
+
+**User Notification** (when AUTO_GIT_PR=false):
+```
+ℹ️  Git Automation Mode: Direct Push
+    AUTO_GIT_PR=false - PR creation disabled
+    Changes pushed to branch: feature/auth-system
+    To enable PR creation: Set AUTO_GIT_PR=true in .env
+```
+
+**Audit Log**:
+```json
+{
+  "operation": "pr_creation",
+  "status": "skipped",
+  "reason": "AUTO_GIT_PR=false",
+  "graceful_degradation": true,
+  "branch": "feature/auth-system"
+}
+```
+
+**Configuration to Enable PR Creation**:
+```bash
+# Add to .env file
+AUTO_GIT_PR=true
+
+# Then run feature implementation
+/implement "add authentication"
+```
+
+**Works in Both Modes**:
+- Single `/implement`: Shows notification after feature completes
+- Batch mode `/implement --batch`: Skips PR for each feature, shows summary after batch
+
 ## User Project Support (NEW in v3.45.0+ - Issue #167)
 
 Git automation now works seamlessly in **user projects** (projects outside the autonomous-dev repository) without requiring the plugin directory structure.
@@ -960,6 +1002,162 @@ echo "AUTO_GIT_ENABLED=true" >> .env
 
 - [docs/BATCH-PROCESSING.md](BATCH-PROCESSING.md) - Prerequisites for unattended batches
 - [GitHub Issue #96](https://github.com/akaszubski/autonomous-dev/issues/96) - Consent blocking fix
+
+## Worktree-Specific Configuration (NEW in Issue #312)
+
+**Batch processing now respects AUTO_GIT_ENABLED from .env in worktree contexts**
+
+### Overview
+
+When batch processing runs in git worktrees, git automation (`unified_git_automation.py` hook) now properly loads environment variables from the `.env` file in the project root. This ensures that AUTO_GIT_ENABLED, AUTO_GIT_PUSH, and AUTO_GIT_PR settings are respected consistently across main branch and worktrees.
+
+**Problem Fixed (Issue #312)**:
+- In worktrees, relative .env paths failed to resolve
+- Auto-discovered .env file in project root (not worktree root)
+- Result: AUTO_GIT_ENABLED setting ignored in batch worktrees
+
+### Solution: Absolute Path Resolution
+
+The unified_git_automation.py hook now:
+
+1. **Loads .env from project root** - Uses `get_project_root()` for secure path resolution
+2. **Handles worktree contexts** - Works correctly when cwd is inside a worktree
+3. **Graceful fallback** - Falls back to current directory if `get_project_root()` unavailable
+4. **No data leakage** - Never logs .env contents (prevents credential exposure)
+
+**Implementation** (lines 326-359 in unified_git_automation.py):
+
+```python
+# Load .env file from project root before reading environment variables (Issue #312)
+# Security: Use absolute path from get_project_root() to prevent CWE-426
+# Security: Never log .env contents to prevent CWE-200
+if HAS_DOTENV:
+    if HAS_PATH_UTILS:
+        try:
+            project_root = get_project_root()
+            env_file = project_root / '.env'
+            if env_file.exists():
+                load_dotenv(env_file)  # Loads variables into os.environ
+                log_info(f"Loaded .env from {env_file}")
+        except Exception as e:
+            log_warning(f"Failed to load .env: {e}")
+    else:
+        # Fallback to current directory
+        env_file = Path('.env')
+        if env_file.exists():
+            load_dotenv(env_file)
+```
+
+### How It Works
+
+**Scenario 1: Batch processing in main branch**
+
+```bash
+cd /path/to/repo
+/implement --batch features.txt
+# .env loaded from: /path/to/repo/.env
+# AUTO_GIT_ENABLED=true respected ✓
+```
+
+**Scenario 2: Batch processing in worktree**
+
+```bash
+git worktree add -b feature-branch worktree-dir
+cd worktree-dir
+/implement --batch features.txt
+# Current directory: /path/to/repo/worktree-dir
+# But .env loaded from: /path/to/repo/.env (project root)
+# AUTO_GIT_ENABLED=true respected ✓
+```
+
+### Configuration
+
+Create or update `.env` in your project root:
+
+```bash
+# Project root: /path/to/repo/.env
+AUTO_GIT_ENABLED=true
+AUTO_GIT_PUSH=true
+AUTO_GIT_PR=true
+```
+
+**Important**: The `.env` file must be in the **project root** (same directory as `.claude/`), not in the worktree directory.
+
+```bash
+# Correct location
+/path/to/repo/.env
+
+# Worktree will find this .env via get_project_root()
+/path/to/repo/worktree-dir/  # cwd during batch
+```
+
+### Verbose Logging
+
+Enable detailed logging to verify .env loading:
+
+```bash
+# Enable verbose git automation logging
+export GIT_AUTOMATION_VERBOSE=true
+
+# Run batch - logs will show .env path
+/implement --batch features.txt
+# Output:
+# [2026-02-01 10:15:32] GIT-AUTOMATION INFO: Loaded .env from /path/to/repo/.env
+```
+
+### Debugging
+
+If AUTO_GIT_ENABLED setting is not respected in worktree:
+
+```bash
+# Check 1: Verify .env exists in project root
+cat /path/to/repo/.env | grep AUTO_GIT
+
+# Check 2: Enable verbose logging to see path resolution
+export GIT_AUTOMATION_VERBOSE=true
+/implement --batch features.txt
+# Look for: "Loaded .env from ..." message
+
+# Check 3: Verify environment variable is set
+env | grep AUTO_GIT
+
+# Check 4: Fallback behavior (if get_project_root fails)
+cd /path/to/repo/worktree-dir
+ls -la .env  # Falls back to current directory .env
+```
+
+### Security
+
+The .env loading implementation follows security best practices:
+
+- **CWE-426** (untrusted search path): Uses absolute path from `get_project_root()`
+- **CWE-200** (information exposure): Never logs .env contents or environment variables
+- **CWE-22** (path traversal): Validates paths via security_utils when available
+- **Graceful degradation**: Continues without error if dotenv unavailable
+
+### Implementation Details
+
+**File**: `plugins/autonomous-dev/hooks/unified_git_automation.py` (Issue #312)
+
+**Function**: `main()` (lines 326-359)
+
+**Dependencies**:
+- `python-dotenv` library (optional, gracefully skipped if unavailable)
+- `path_utils.get_project_root()` (optional, falls back to current directory)
+
+**Environment Variables**:
+- `GIT_AUTOMATION_VERBOSE` - Enable detailed logging (default: false)
+- `AUTO_GIT_ENABLED` - Master switch (default: true after first-run consent)
+- `AUTO_GIT_PUSH` - Enable push (default: true)
+- `AUTO_GIT_PR` - Enable PR creation (default: true)
+
+### See Also
+
+- [docs/BATCH-PROCESSING.md](BATCH-PROCESSING.md) - Batch processing configuration
+- [GitHub Issue #312](https://github.com/akaszubski/autonomous-dev/issues/312) - Batch processing .env respects
+- `plugins/autonomous-dev/hooks/unified_git_automation.py` - Implementation
+
+---
 
 ## Opt-Out Consent Design (v3.12.0+)
 

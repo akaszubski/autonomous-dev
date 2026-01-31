@@ -101,6 +101,12 @@ def log_info(message: str, verbose: bool = None) -> None:
 
 # Optional imports with graceful fallback
 try:
+    from dotenv import load_dotenv
+    HAS_DOTENV = True
+except ImportError:
+    HAS_DOTENV = False
+
+try:
     from security_utils import validate_path, audit_log
     HAS_SECURITY_UTILS = True
 except ImportError as e:
@@ -117,7 +123,7 @@ except ImportError as e:
     log_warning(f"auto_implement_git_integration import failed: {e}. Git automation disabled.")
 
 try:
-    from path_utils import get_session_dir
+    from path_utils import get_session_dir, get_project_root
     HAS_PATH_UTILS = True
 except ImportError as e:
     HAS_PATH_UTILS = False
@@ -317,6 +323,41 @@ def main() -> int:
     Returns:
         Always 0 (non-blocking hook - failures logged but don't block)
     """
+    # Load .env file from project root before reading environment variables (Issue #312)
+    # Security: Use absolute path from get_project_root() to prevent CWE-426
+    # Security: Never log .env contents to prevent CWE-200
+    verbose = os.getenv('GIT_AUTOMATION_VERBOSE', 'false').lower() == 'true'
+
+    if HAS_DOTENV:
+        if HAS_PATH_UTILS:
+            try:
+                project_root = get_project_root()
+                # Build absolute path to .env file (Security: CWE-426 - use absolute path)
+                env_file_str = str(project_root / '.env')
+                env_file = Path(env_file_str)
+
+                if env_file.exists():
+                    # Pass absolute path to load_dotenv (can accept Path or str)
+                    load_dotenv(env_file)
+                    if verbose:
+                        log_info(f"Loaded .env from {env_file}", verbose)
+            except Exception as e:
+                if verbose:
+                    log_warning(f"Failed to load .env: {e}", verbose)
+        else:
+            # Fallback when path_utils not available (less secure but compatible)
+            try:
+                env_file = Path('.env')
+                if env_file.exists():
+                    load_dotenv(env_file)
+                    if verbose:
+                        log_info(f"Loaded .env from {env_file}", verbose)
+            except Exception as e:
+                if verbose:
+                    log_warning(f"Failed to load .env: {e}", verbose)
+    elif verbose:
+        log_info("python-dotenv not available. Install with: pip install python-dotenv", verbose)
+
     # Get agent info from environment
     agent_name = os.environ.get("CLAUDE_AGENT_NAME")
     agent_status = os.environ.get("CLAUDE_AGENT_STATUS", "success")

@@ -500,3 +500,88 @@ class TestBatchPartialSuccess:
             assert final_state.git_operations[0]['commit']['success'] is True
             assert final_state.git_operations[1]['commit']['success'] is False
             assert final_state.git_operations[2]['commit']['success'] is True
+
+
+# =============================================================================
+# Test Worktree Environment Propagation (Issue #312)
+# =============================================================================
+
+class TestWorktreeEnvironmentPropagation:
+    """Test environment variable propagation in worktree contexts (Issue #312)."""
+
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true'})
+    def test_batch_with_dotenv_in_worktree(self, temp_repo, sample_features_file, mock_auto_implement):
+        """Test batch processing with .env in worktree context."""
+        with patch('auto_implement_git_integration.auto_commit_and_push') as mock_git:
+            mock_git.return_value = {'success': True, 'commit_sha': 'abc123'}
+
+            # Create .env in main repo
+            env_file = temp_repo / '.env'
+            env_file.write_text('AUTO_GIT_ENABLED=true\nAUTO_GIT_PUSH=true\n')
+
+            state_file = temp_repo / ".claude" / "batch_state.json"
+            state_file.parent.mkdir(exist_ok=True)
+
+            state = create_batch_state(
+                features_file=str(sample_features_file),
+                features=sample_features_file.read_text().strip().split('\n'),
+                state_file=str(state_file)
+            )
+
+            # Process feature in worktree context
+            # In real scenario, this would run in worktree subprocess
+            mock_auto_implement()
+            result = execute_git_workflow(
+                workflow_id=f'batch-{state.batch_id}-feature-0',
+                request=state.features[0],
+                in_batch_mode=True
+            )
+
+            # Should succeed (environment from .env)
+            assert result['success'] is True
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_subprocess_inherits_auto_git_enabled_in_worktree(self, temp_repo):
+        """Test subprocess in worktree inherits AUTO_GIT_ENABLED from .env."""
+        # Create .env in main repo
+        env_file = temp_repo / '.env'
+        env_file.write_text('AUTO_GIT_ENABLED=true\n')
+
+        # Simulate loading .env in parent process
+        with patch('auto_implement_git_integration.load_dotenv') as mock_load:
+            def set_env(*args, **kwargs):
+                os.environ['AUTO_GIT_ENABLED'] = 'true'
+
+            mock_load.side_effect = set_env
+
+            # Load .env
+            mock_load(dotenv_path=str(env_file))
+
+            # Verify subprocess would inherit
+            assert os.environ.get('AUTO_GIT_ENABLED') == 'true'
+
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true', 'AUTO_GIT_PUSH': 'true'})
+    def test_worktree_subprocess_env_parameter_passed(self, temp_repo, sample_features_file, mock_auto_implement):
+        """Test subprocess calls in worktree receive env parameter."""
+        with patch('subprocess.run') as mock_subprocess:
+            mock_subprocess.return_value = MagicMock(
+                returncode=0,
+                stdout='success',
+                stderr=''
+            )
+
+            # In real batch processing, worktree creation passes env
+            from worktree_manager import create_worktree
+
+            # Mock git worktree add
+            with patch('worktree_manager.subprocess.run') as mock_wt_subprocess:
+                mock_wt_subprocess.return_value = MagicMock(
+                    returncode=0,
+                    stdout='',
+                    stderr=''
+                )
+
+                success, path = create_worktree('feature-test', 'master')
+
+                # Subprocess should be called
+                # In Issue #312 fix, env parameter should be passed

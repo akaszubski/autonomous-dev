@@ -168,6 +168,10 @@ def check_consent_via_env(_skip_first_run_warning: bool = False) -> Dict[str, bo
     If AUTO_GIT_ENABLED=false, all operations are disabled regardless of
     other settings.
 
+    CASCADING BEHAVIOR (Issue #318):
+    - If AUTO_GIT_ENABLED=false, push and PR are both disabled
+    - If AUTO_GIT_PUSH=false, PR is also disabled (can't create PR without push)
+
     Returns:
         Dict with consent flags:
             - enabled: Whether git operations are enabled
@@ -188,6 +192,13 @@ def check_consent_via_env(_skip_first_run_warning: bool = False) -> Dict[str, bo
         >>> os.environ['AUTO_GIT_ENABLED'] = 'false'
         >>> consent = check_consent_via_env()
         >>> consent['enabled']
+        False
+
+        >>> # Cascading: push disabled also disables PR (Issue #318)
+        >>> os.environ['AUTO_GIT_PUSH'] = 'false'
+        >>> os.environ['AUTO_GIT_PR'] = 'true'
+        >>> consent = check_consent_via_env()
+        >>> consent['pr_enabled']
         False
     """
     # STEP 1: Check if first-run warning should be shown (Issue #61)
@@ -271,6 +282,20 @@ def check_consent_via_env(_skip_first_run_warning: bool = False) -> Dict[str, bo
             'pr_enabled': False,  # Backward compatibility
             'all_enabled': False
         }
+
+    # CASCADING BEHAVIOR (Issue #318): PR requires push
+    # If push is disabled, PR must also be disabled
+    if not push_enabled:
+        pr_enabled = False
+        audit_log(
+            "git_automation",
+            "cascading_pr_disabled",
+            {
+                "reason": "AUTO_GIT_PUSH=false",
+                "pr_original_value": os.environ.get('AUTO_GIT_PR', 'not set'),
+                "pr_final_value": False
+            }
+        )
 
     # Return actual values
     return {
@@ -1335,6 +1360,23 @@ def push_and_create_pr(
     consent = check_consent_via_env()
 
     if not consent['pr_enabled']:
+        # Notify user of graceful degradation (Issue #318)
+        print("\nℹ️  Git Automation Mode: Direct Push")
+        print("    AUTO_GIT_PR=false - PR creation disabled")
+        print(f"    Changes pushed to branch: {branch}")
+        print("    To enable PR creation: Set AUTO_GIT_PR=true in .env")
+
+        audit_log(
+            "pr_creation",
+            "skipped",
+            {
+                "component": "push_and_create_pr",
+                "reason": "AUTO_GIT_PR=false",
+                "branch": branch,
+                "graceful_degradation": True
+            }
+        )
+
         return {
             'success': True,
             'skipped': True,
@@ -1391,6 +1433,7 @@ def push_and_create_pr(
         if pr_result['success']:
             return {
                 'success': True,
+                'skipped': False,
                 'pr_created': True,
                 'pr_url': pr_result['pr_url'],
                 'pr_number': pr_result['pr_number'],
@@ -1671,10 +1714,11 @@ def execute_step8_git_operations(
     # Step 5: Optionally create PR
     pr_result = {'pr_created': False, 'pr_url': '', 'pr_number': None, 'pr_error': ''}
 
-    if create_pr and consent['pr_enabled']:
+    if create_pr:
         # Extract title from commit message (first line)
         title = commit_result['commit_message_generated'].split('\n')[0]
 
+        # Call push_and_create_pr - it will check consent internally and skip if needed
         pr_result = push_and_create_pr(
             workflow_id=workflow_id,
             branch=branch,
@@ -1690,7 +1734,7 @@ def execute_step8_git_operations(
             pr_result['manual_pr_command'] = pr_result.get('fallback_command', '')
 
     # Build final response
-    return {
+    response = {
         'success': True,  # Commit succeeded (PR is optional)
         'commit_sha': commit_result['commit_sha'],
         'pushed': commit_result['pushed'],
@@ -1702,6 +1746,13 @@ def execute_step8_git_operations(
         'agent_invoked': True,
         'error': ''
     }
+
+    # Add pr_skipped if PR was skipped (Issue #318)
+    if pr_result.get('skipped'):
+        response['pr_skipped'] = True
+        response['pr_skip_reason'] = pr_result.get('reason', '')
+
+    return response
 
 
 # =============================================================================

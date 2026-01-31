@@ -284,6 +284,31 @@ Feature 3: Add email notifications
 7. **test_single_feature_batch**
    - Validates: Single-feature batch works correctly
 
+### .env File Configuration (NEW in Issue #312)
+
+For batch processing in worktrees, the .env file must be in the **project root** (same directory as `.claude/`):
+
+```bash
+# Project structure
+/path/to/repo/
+├── .claude/               # Project root marker
+├── .env                   # PUT ENV FILE HERE (not in worktree)
+├── plugins/
+├── docs/
+└── .worktrees/
+    └── batch-branch/      # Worktree will find .env in parent (project root)
+```
+
+**Important**: Create `.env` at project root, not inside the worktree directory.
+
+When batch processing runs in a worktree:
+
+1. `unified_git_automation.py` loads `.env` from project root
+2. AUTO_GIT_ENABLED setting is read correctly
+3. Git operations proceed as configured
+
+**Why This Matters**: Worktrees have isolated cwd (working directory), but unified_git_automation.py uses `get_project_root()` to find the actual project root where `.env` is located.
+
 ### Verification
 
 Before starting your batch, verify configuration:
