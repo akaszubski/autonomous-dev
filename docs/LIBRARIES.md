@@ -2697,6 +2697,31 @@ except GitHubAPIError as e:
   - Worktree detection fallback behavior (NEW v3.45.0)
   - Real git worktree integration (NEW v3.45.0)
 
+### Worktree Safety Pattern (NEW in Issues #313-316)
+
+**Critical for Batch Processing**: All libraries must use `get_project_root()` for absolute path resolution to work correctly in worktree-based batch processing.
+
+```python
+from path_utils import get_project_root
+
+# BROKEN (Issue #313 - hardcoded relative path)
+plugins_dir = "plugins/autonomous-dev"  # Fails in worktrees
+config_file = ".claude/settings.json"   # Fails in worktrees
+
+# FIXED (Issue #313 - absolute path via get_project_root())
+plugins_dir = get_project_root() / "plugins/autonomous-dev"  # Works in worktrees
+config_file = get_project_root() / ".claude/settings.json"   # Works in worktrees
+```
+
+**Files Using This Pattern** (Issue #313):
+- brownfield_retrofit.py: Dynamic get_project_root() for plugins/ references
+- orphan_file_cleaner.py: get_project_root() for plugins directory
+- settings_generator.py: get_project_root() for plugins directory
+- test_session_state_manager.py: get_project_root() for .claude/ directory
+- test_agent_tracker.py: get_project_root() for docs/sessions directory
+
+**Security**: Fixes CWE-22 (Path Traversal) by validating all paths relative to dynamically detected project root.
+
 ### Usage Examples
 
 ```python

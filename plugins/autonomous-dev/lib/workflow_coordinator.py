@@ -613,11 +613,11 @@ Next: Review changes and commit
             # Step 1: Stage files
             if files_to_commit:
                 for file_path in files_to_commit:
-                    subprocess.run(['git', 'add', file_path], check=True)
+                    subprocess.run(['git', 'add', file_path], check=True, env=os.environ.copy())
                 logger.log_event('files_staged', f'Staged {len(files_to_commit)} files')
             else:
                 # Stage all changed files
-                subprocess.run(['git', 'add', '.'], check=True)
+                subprocess.run(['git', 'add', '.'], check=True, env=os.environ.copy())
                 logger.log_event('files_staged', 'Staged all changed files')
 
             # Step 2: Get list of staged files
@@ -625,7 +625,8 @@ Next: Review changes and commit
                 ['git', 'diff', '--cached', '--name-only'],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
             staged_files = [f for f in result.stdout.strip().split('\n') if f]
 
@@ -652,7 +653,8 @@ Next: Review changes and commit
             # Step 4: Create git commit
             subprocess.run(
                 ['git', 'commit', '-m', commit_message],
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
 
             # Step 5: Get commit SHA
@@ -660,7 +662,8 @@ Next: Review changes and commit
                 ['git', 'rev-parse', 'HEAD'],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
             commit_sha = result.stdout.strip()
 
@@ -719,7 +722,8 @@ Next: Review changes and commit
                 ['git', 'branch', '--show-current'],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
             current_branch = result.stdout.strip()
 
@@ -737,14 +741,16 @@ Next: Review changes and commit
                 # Create and switch to feature branch
                 subprocess.run(
                     ['git', 'checkout', '-b', branch_name],
-                    check=True
+                    check=True,
+                    env=os.environ.copy()
                 )
                 logger.log_event('branch_created', f'Created feature branch: {branch_name}')
 
             # Step 3: Push to remote with upstream tracking
             subprocess.run(
                 ['git', 'push', '-u', 'origin', branch_name],
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
 
             # Step 4: Get remote URL
@@ -752,7 +758,8 @@ Next: Review changes and commit
                 ['git', 'remote', 'get-url', 'origin'],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
             remote_url = result.stdout.strip()
 
@@ -834,7 +841,8 @@ Next: Review changes and commit
                 ['gh', 'pr', 'create', '--title', pr_title, '--body', pr_description],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=os.environ.copy()
             )
 
             # Parse PR URL from output
