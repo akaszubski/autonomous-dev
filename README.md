@@ -155,13 +155,13 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  8 Pipeline Agents  │  39 Skills  │  73 Hooks  │  132 Libraries │
+│  9 Pipeline Agents  │  39 Skills  │  84 Hooks  │  159 Libraries │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Agent Architecture
 
-**8 Pipeline Agents** (invoked via Task tool):
+**9 Pipeline Agents** (invoked via Task tool):
 1. **researcher-local** (Haiku) - Searches codebase for existing patterns
 2. **researcher-web** (Sonnet) - Researches best practices and security considerations
 3. **planner** (Sonnet) - Designs implementation architecture
@@ -170,9 +170,10 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 6. **reviewer** (Sonnet) - Reviews code quality, patterns, and coverage
 7. **security-auditor** (Haiku) - Scans for OWASP vulnerabilities
 8. **doc-master** (Haiku) - Updates documentation to match code changes
+9. **data-curator** (Haiku) - Orchestrates A-grade data pipeline for LLM training
 
 **Utility Agents** (invoked via Task tool):
-- alignment-validator, commit-message-generator, issue-creator, pr-description-generator, and more
+- alignment-validator, commit-message-generator, issue-creator, pr-description-generator, data-quality-validator, distributed-training-coordinator, and more
 
 **How Agents Work**:
 - Agents are markdown prompts (not Python files)

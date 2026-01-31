@@ -126,6 +126,25 @@
   - Validates training parameters against realign skill requirements
   - Provides realignment strategy recommendations
   - **Agents count**: 25 → 26, **Skills count**: 33 → 39 (updated README.md, CLAUDE.md, ARCHITECTURE-OVERVIEW.md)
+- **quality-scoring skill** for multi-dimensional data assessment (Issue #310)
+  - Documented 6 quality scorers: FastIFD, Quality, MultiDimensional, LLMQuality, Ensemble, Tulu3
+  - Documented 6 quality dimensions: IFD, Factuality, Reasoning, Diversity, Domain, LLM Quality
+  - Training thresholds by type: SFT (≥8.0), DPO chosen (≥9.0), RLVR (≥9.0), Calibration (≥8.0)
+  - CLI commands and distributed performance guidance (M4 Max ~0.85 ex/s, Combined ~1.7 ex/s)
+  - Progressive disclosure: SKILL.md (226 lines) + 3 detailed docs
+  - Security: CWE-20 (input validation), CWE-22 (path traversal)
+  - Integration with training_metrics.py library
+  - 39 comprehensive tests (100% pass rate)
+- **data-curator agent** for A-grade LLM training data pipeline (Issue #311)
+  - 9-stage pipeline: extract → prefilter → score → dedup → decontaminate → filter → generate → mix → validate
+  - 4-phase workflow: Assessment → Execution → Reporting → Resume
+  - IFD quality scoring with training_metrics.py library integration
+  - DPO pair generation and RLVR trace creation for verifiable reasoning
+  - Checkpoint/resume capability for long-running pipelines with granular stage-level state
+  - Security: Path validation (CWE-22), log injection prevention (CWE-117), input validation (CWE-20)
+  - Model: Haiku (cost-optimized for data processing orchestration)
+  - Skills: quality-scoring for metric interpretation and reporting
+  - 37 comprehensive tests (100% pass rate)
 - Batch processing auto-continuation loop (Issue #285)
   - Batch now auto-continues through all N features in single invocation
   - Implemented explicit while-loop using get_next_pending_feature() and update_batch_progress() APIs

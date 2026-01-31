@@ -9,23 +9,24 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Overview
 
-8 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
+9 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
 
-**Active Agents**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
+**Active Agents**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator, data-curator
 
 ---
 
 ## Model Tier Strategy (Issue #108, Updated #147)
 
-Agent model assignments optimized for cost-performance balance (8 active agents):
+Agent model assignments optimized for cost-performance balance (9 active agents):
 
-### Tier 1: Haiku (3 agents)
+### Tier 1: Haiku (4 agents)
 
 Fast, cost-effective for pattern matching:
 
 - **researcher-local**: Search codebase patterns
 - **reviewer**: Code quality checks
 - **doc-master**: Documentation sync
+- **data-curator**: A-grade data pipeline orchestration
 
 ### Tier 2: Sonnet (4 agents)
 
@@ -38,13 +39,13 @@ Balanced reasoning for implementation:
 
 ### Tier 3: Opus (1 agent)
 
-Maximum depth for security:
+Maximum depth for security and complex analysis:
 
 - **security-auditor**: OWASP security scanning
 
 ### Rationale
 
-- **Tier 1 (Haiku)**: Cost optimization for well-defined tasks (40-60% cost reduction vs Opus)
+- **Tier 1 (Haiku)**: Cost optimization for well-defined tasks (40-60% cost reduction vs Opus) - pattern matching, code review, documentation, data pipeline orchestration
 - **Tier 2 (Sonnet)**: Sweet spot for development work requiring both speed and reasoning
 - **Tier 3 (Opus)**: Reserved for high-risk security decisions
 
@@ -94,7 +95,7 @@ Maximum depth for security:
 
 ---
 
-## Core Workflow Agents (7 active + 1 utility)
+## Core Workflow Agents (8 active + 1 utility)
 
 These agents execute the main autonomous development workflow.
 
@@ -189,6 +190,28 @@ These agents execute the main autonomous development workflow.
 **Execution**: Step 5 of /implement workflow (parallel validation - 60% faster with Phase 7 optimization)
 **Research Documentation** (Issue #151): Validates and maintains research documentation in `docs/research/` - enforces naming conventions, format standards, README sync, and parity validation
 
+### data-curator
+
+**Purpose**: Orchestrate 9-stage A-grade data pipeline for LLM training (Issue #311)
+**Model**: Haiku (Tier 1 - cost optimized for data processing orchestration)
+**Skills**: quality-scoring
+**Tools**: Bash, Read, Write, Grep, Glob (filesystem and processing access)
+**Execution**: Utility agent for training data preparation workflows
+**Pipeline Stages** (9-stage orchestration):
+  1. **Extract**: Persona-driven extraction from diverse formats (JSONL, Parquet, CSV)
+  2. **Prefilter**: KenLM perplexity filtering for language quality (threshold <500)
+  3. **Score**: IFD quality scoring using training_metrics.calculate_ifd_score()
+  4. **Dedup**: Exact + fuzzy deduplication (MinHash/LSH, threshold 0.85)
+  5. **Decontaminate**: Benchmark contamination removal (MMLU, HumanEval, GSM8K, 13-gram threshold)
+  6. **Filter**: Quality threshold filtering (IFD ≥0.6, length constraints)
+  7. **Generate**: DPO pair generation and RLVR trace creation
+  8. **Mix**: Weighted dataset mixing for domain balance
+  9. **Validate**: Final quality checks and data poisoning detection
+**Checkpoint Integration**: Load/save pipeline state via CheckpointManager for resume capability across interruptions
+**Training Metrics**: Integrates with training_metrics.py library (IFD scoring, DPO validation, RLVR assessment)
+**Security**: Path validation (CWE-22), log injection prevention (CWE-117), input validation (CWE-20)
+**Output**: Structured JSON pipeline report with stage metrics, quality summary, and checkpoint state
+
 ### advisor
 
 **Purpose**: Critical thinking and validation (v3.0+)
@@ -205,7 +228,7 @@ These agents execute the main autonomous development workflow.
 
 ---
 
-## Utility Agents (13)
+## Utility Agents (14)
 
 These agents provide specialized functionality for alignment, git operations, project management, and training best practices.
 
