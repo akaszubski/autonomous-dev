@@ -739,6 +739,132 @@ AUTO_GIT_ENABLED=true
 AUTO_GIT_ENABLED=false
 ```
 
+### RALPH Auto-Continue Configuration (Issue #319)
+
+**Autonomous batch execution without manual confirmation prompts** - Control whether the RALPH loop automatically continues through all features or requires manual confirmation between features.
+
+#### Default Behavior (RALPH_AUTO_CONTINUE=false)
+
+When disabled (default), batch processing prompts for manual confirmation after each feature:
+
+```
+========================================
+Batch Progress: Feature 2/5
+Processing: Add JWT authentication
+========================================
+
+[Feature 2 completes successfully]
+
+Continue to next feature? (yes/no): _
+```
+
+User must type "yes" to continue to the next feature. This prevents unintended autonomous processing and allows review between features.
+
+#### Autonomous Mode (RALPH_AUTO_CONTINUE=true)
+
+When enabled, batch processing auto-continues through ALL features without stopping:
+
+```
+========================================
+Batch Progress: Feature 2/5
+Processing: Add JWT authentication
+========================================
+
+[Feature 2 completes successfully]
+
+→ Auto-continuing to feature 3/5 (RALPH_AUTO_CONTINUE=true)
+
+========================================
+Batch Progress: Feature 3/5
+Processing: Add password reset flow
+========================================
+```
+
+No user input required - batch processes all features unattended.
+
+#### Configuration
+
+Enable autonomous batch execution via environment variable:
+
+```bash
+# Enable autonomous batch execution (no prompts)
+RALPH_AUTO_CONTINUE=true
+```
+
+Or keep default manual confirmation mode:
+
+```bash
+# Require manual confirmation between features (default)
+RALPH_AUTO_CONTINUE=false
+```
+
+#### Security Features
+
+- **Fail-safe default**: Defaults to `false` (opt-in model per OWASP)
+- **Invalid values fail secure**: Any invalid value defaults to `false`
+- **Audit logging**: All decisions are logged for compliance tracking
+- **No hardcoded bypasses**: Cannot be overridden programmatically
+
+#### Use Cases
+
+**Enable autonomous mode** (`RALPH_AUTO_CONTINUE=true`):
+- Overnight batch processing (process 50+ features unattended)
+- CI/CD pipelines (fully automated workflows)
+- Unattended batch jobs (no human available for prompts)
+
+**Keep manual mode** (`RALPH_AUTO_CONTINUE=false`, default):
+- Interactive development (review each feature before continuing)
+- Testing batch workflows (verify behavior between features)
+- Debugging batch issues (inspect state after each feature)
+
+#### Example Workflows
+
+**Interactive Batch** (default):
+```bash
+# Process features with manual confirmation
+/implement --batch features.txt
+# Prompts after each feature: "Continue to next feature? (yes/no)"
+```
+
+**Autonomous Batch** (overnight):
+```bash
+# Set environment variable
+export RALPH_AUTO_CONTINUE=true
+
+# Process all features without prompts
+/implement --batch features.txt
+# Auto-continues through all features
+```
+
+**CI/CD Integration**:
+```bash
+# .github/workflows/batch-features.yml
+env:
+  RALPH_AUTO_CONTINUE: true
+  AUTO_GIT_ENABLED: true
+  MCP_AUTO_APPROVE: true
+
+run: |
+  /implement --batch features.txt
+```
+
+#### Graceful Degradation
+
+When `RALPH_AUTO_CONTINUE=false` (or not set), batch shows helpful notification:
+
+```
+ℹ️  RALPH Auto-Continue: Disabled
+   Manual confirmation required between features.
+   To enable: Set RALPH_AUTO_CONTINUE=true in .env
+```
+
+When `RALPH_AUTO_CONTINUE=true`, batch shows confirmation:
+
+```
+✓ RALPH Auto-Continue: Enabled
+  Batch will process all features without prompts.
+```
+
 #### Examples
 
 **Batch with issue numbers** (`--issues` flag):

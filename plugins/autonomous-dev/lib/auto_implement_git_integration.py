@@ -309,6 +309,77 @@ def check_consent_via_env(_skip_first_run_warning: bool = False) -> Dict[str, bo
     }
 
 
+def check_ralph_auto_continue() -> bool:
+    """
+    Check if RALPH batch loop should auto-continue without user prompts.
+
+    Issue #319: Add RALPH_AUTO_CONTINUE setting to control autonomous batch execution.
+
+    Reads RALPH_AUTO_CONTINUE environment variable:
+    - true/True/TRUE: Enable autonomous batch execution (no prompts between features)
+    - false/False/FALSE: Require manual confirmation prompts between features
+    - Not set or invalid: Defaults to False (fail-safe, opt-in model)
+
+    SECURITY: Defaults to False (fail-safe, opt-in) per OWASP best practices.
+    Invalid values fail secure to False. All decisions are audit logged.
+
+    Returns:
+        bool: True if autonomous continuation is enabled, False otherwise
+
+    Examples:
+        >>> # Default behavior (no env var set)
+        >>> os.environ.pop('RALPH_AUTO_CONTINUE', None)
+        >>> check_ralph_auto_continue()
+        False
+
+        >>> # Explicit enable
+        >>> os.environ['RALPH_AUTO_CONTINUE'] = 'true'
+        >>> check_ralph_auto_continue()
+        True
+
+        >>> # Explicit disable
+        >>> os.environ['RALPH_AUTO_CONTINUE'] = 'false'
+        >>> check_ralph_auto_continue()
+        False
+
+        >>> # Invalid value fails safe
+        >>> os.environ['RALPH_AUTO_CONTINUE'] = 'garbage'
+        >>> check_ralph_auto_continue()
+        False
+
+    See:
+        - Issue #319 for feature requirements
+        - Issue #318 for graceful degradation pattern
+        - parse_consent_value() for value parsing logic
+    """
+    # Read environment variable
+    env_value = os.environ.get('RALPH_AUTO_CONTINUE')
+
+    # Parse value using existing parse_consent_value() with default=False (fail-safe)
+    # This reuses the existing logic for parsing true/false values
+    auto_continue = parse_consent_value(env_value, default=False)
+
+    # Determine source for audit logging
+    if env_value is None:
+        source = 'default'
+    else:
+        source = 'environment'
+
+    # Audit log the decision (Issue #319 - security requirement)
+    status = 'enabled' if auto_continue else 'disabled'
+    audit_log(
+        'ralph_auto_continue',
+        status,
+        context={
+            'value': auto_continue,
+            'source': source,
+            'env_var': 'RALPH_AUTO_CONTINUE'
+        }
+    )
+
+    return auto_continue
+
+
 def invoke_commit_message_agent(
     workflow_id: str,
     request: str,

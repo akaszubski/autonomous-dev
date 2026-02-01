@@ -242,6 +242,7 @@ Controls `/implement --batch` behavior.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `RALPH_AUTO_CONTINUE` | `false` | Enable autonomous batch execution (no prompts between features) |
 | `BATCH_RETRY_ENABLED` | `false` | Auto-retry transient failures (network, timeout, rate limit) |
 | `AUTO_INSTALL_DEPS` | `false` | Auto-install missing dependencies during tests |
 
@@ -255,6 +256,45 @@ When enabled:
 ```bash
 # Enable automatic retry
 BATCH_RETRY_ENABLED=true
+```
+
+### RALPH Auto-Continue (Issue #319)
+
+Controls whether batch processing auto-continues through all features without manual confirmation prompts.
+
+**Default Behavior** (RALPH_AUTO_CONTINUE=false):
+- After each feature completes, batch loop prompts: "Continue to next feature? (yes/no)"
+- User must confirm before processing next feature
+- Prevents unintended autonomous processing
+
+**Autonomous Mode** (RALPH_AUTO_CONTINUE=true):
+- Batch loop processes ALL features without stopping
+- No confirmation prompts between features
+- Ideal for overnight batch jobs or CI/CD
+
+```bash
+# Enable autonomous batch execution (no prompts)
+RALPH_AUTO_CONTINUE=true
+```
+
+**Security**:
+- Defaults to `false` (opt-in, fail-safe per OWASP)
+- Invalid values default to `false` (secure failure mode)
+- All decisions are audit logged for compliance
+
+**Use Cases**:
+- **Enabled**: Overnight batch processing, CI/CD pipelines, unattended execution
+- **Disabled**: Interactive development, manual review between features, testing
+
+**Example Workflow**:
+```bash
+# Interactive batch (default)
+/implement --batch features.txt
+# Prompts after each feature
+
+# Autonomous batch (overnight)
+RALPH_AUTO_CONTINUE=true /implement --batch features.txt
+# Processes all features without prompts
 ```
 
 ### Auto-Install Dependencies
@@ -384,6 +424,9 @@ AUTO_GIT_PUSH=true
 AUTO_GIT_PR=true
 AUTO_CLOSE_ISSUES=true
 
+# Required: Enable autonomous batch execution (no prompts)
+RALPH_AUTO_CONTINUE=true
+
 # Required: Prevent batch retry prompts
 BATCH_RETRY_ENABLED=true
 
@@ -434,6 +477,7 @@ MCP_AUTO_APPROVE=true
 # =============================================================================
 # Batch Processing
 # =============================================================================
+RALPH_AUTO_CONTINUE=false  # Set to true for autonomous overnight batches
 BATCH_RETRY_ENABLED=true
 AUTO_INSTALL_DEPS=true
 

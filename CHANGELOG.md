@@ -28,6 +28,17 @@
 
 ### Added
 
+- **RALPH_AUTO_CONTINUE environment variable for autonomous batch execution** (Issue #319)
+  - Added RALPH_AUTO_CONTINUE setting to control batch processing prompts
+  - Default: false (opt-in, fail-safe per OWASP security standards)
+  - When disabled: Batch prompts for manual confirmation after each feature
+  - When enabled: Batch processes all features without stopping
+  - Use cases: Overnight batch processing, CI/CD pipelines, unattended execution
+  - Updated docs/ENV-CONFIGURATION.md with RALPH Auto-Continue section (Issue #319)
+  - Updated docs/BATCH-PROCESSING.md with RALPH Auto-Continue Configuration section
+  - Security: Defaults to false (secure failure mode), audit logged, invalid values fail-safe
+  - Configuration via .env: RALPH_AUTO_CONTINUE=true (or false)
+  - Example workflows documented: Interactive vs autonomous batches
 - **Agents respect AUTO_GIT_PR=false with graceful degradation** (Issue #318)
   - Enhanced auto_implement_git_integration.py with user-visible notifications
   - When AUTO_GIT_PR=false, agents skip PR creation but continue with push/commit
