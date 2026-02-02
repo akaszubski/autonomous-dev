@@ -19,8 +19,8 @@ import json
 
 
 # Constants
-AGENTS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/plugins/autonomous-dev/agents")
-TESTS_DIR = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/tests")
+AGENTS_DIR = Path("${PROJECT_ROOT}/plugins/autonomous-dev/agents")
+TESTS_DIR = Path("${PROJECT_ROOT}/tests")
 
 # Phase 1 agents (already cleaned up)
 PHASE_1_AGENTS = [
@@ -165,7 +165,7 @@ def test_run_all_existing_unit_tests():
         ["pytest", str(TESTS_DIR / "unit"), "-v", "--tb=short"],
         capture_output=True,
         text=True,
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        cwd="${PROJECT_ROOT}"
     )
 
     assert result.returncode == 0, \
@@ -182,7 +182,7 @@ def test_run_all_existing_integration_tests():
         ["pytest", str(TESTS_DIR / "integration"), "-v", "--tb=short"],
         capture_output=True,
         text=True,
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        cwd="${PROJECT_ROOT}"
     )
 
     assert result.returncode == 0, \
@@ -199,7 +199,7 @@ def test_run_all_existing_skill_tests():
         ["pytest", str(TESTS_DIR / "unit/skills"), "-v", "--tb=short"],
         capture_output=True,
         text=True,
-        cwd="/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        cwd="${PROJECT_ROOT}"
     )
 
     assert result.returncode == 0, \
@@ -516,7 +516,7 @@ def test_claude_md_updated_for_phase2():
 
     EXPECTED TO FAIL: Documentation update verification needed.
     """
-    claude_md = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CLAUDE.md")
+    claude_md = Path("${PROJECT_ROOT}/CLAUDE.md")
     content = claude_md.read_text()
 
     # Should mention Phase 2 completion
@@ -534,7 +534,7 @@ def test_issue_72_documentation_complete():
 
     EXPECTED TO FAIL: Documentation completeness check needed.
     """
-    docs_file = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/ISSUE_72_IMPLEMENTATION_SUMMARY.md")
+    docs_file = Path("${PROJECT_ROOT}/docs/ISSUE_72_IMPLEMENTATION_SUMMARY.md")
 
     content = docs_file.read_text()
 
@@ -550,7 +550,7 @@ def test_changelog_updated_for_phase2():
 
     EXPECTED TO FAIL: Changelog update verification needed.
     """
-    changelog = Path("/Users/akaszubski/Documents/GitHub/autonomous-dev/CHANGELOG.md")
+    changelog = Path("${PROJECT_ROOT}/CHANGELOG.md")
     content = changelog.read_text()
 
     # Should have Phase 2 entry

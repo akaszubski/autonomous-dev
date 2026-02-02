@@ -5,7 +5,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${CLAUDE_PROJECT_DIR}"
       ]
     },
     "git": {
@@ -14,7 +14,7 @@
         "-y",
         "@modelcontextprotocol/server-git",
         "--repository",
-        "/Users/akaszubski/Documents/GitHub/autonomous-dev"
+        "${CLAUDE_PROJECT_DIR}"
       ]
     },
     "github": {

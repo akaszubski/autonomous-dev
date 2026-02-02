@@ -9,7 +9,7 @@
 ## Quick Links to Audit Documents
 
 ### 1. Executive Summary (Start here)
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/SECURITY_AUDIT_COMPREHENSIVE.md`  
+**File**: `${PROJECT_ROOT}/SECURITY_AUDIT_COMPREHENSIVE.md`  
 **Length**: 251 lines  
 **Contains**:
 - Overview of vulnerabilities
@@ -23,7 +23,7 @@
 ---
 
 ### 2. Detailed Vulnerability Report
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/SECURITY_AUDIT_ISSUE72.md`  
+**File**: `${PROJECT_ROOT}/SECURITY_AUDIT_ISSUE72.md`  
 **Length**: 321 lines  
 **Contains**:
 - Complete vulnerability details
@@ -38,7 +38,7 @@
 ---
 
 ### 3. Session Log
-**File**: `/Users/akaszubski/Documents/GitHub/autonomous-dev/docs/sessions/20251112-security-audit-issue72.md`  
+**File**: `${PROJECT_ROOT}/docs/sessions/20251112-security-audit-issue72.md`  
 **Length**: ~100 lines  
 **Contains**:
 - Audit summary

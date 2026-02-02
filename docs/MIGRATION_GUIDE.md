@@ -145,7 +145,7 @@ diff -r .claude.backup.$(date +%Y%m%d) .claude
 The realign project already has bootstrap files from our earlier testing:
 
 ```bash
-cd /Users/akaszubski/Documents/GitHub/realign
+cd /path/to/your/realign-project
 
 # Check current state
 ls .claude/commands/

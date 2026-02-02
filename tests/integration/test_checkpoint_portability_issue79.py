@@ -7,7 +7,7 @@ path detection and don't have hardcoded paths.
 
 Problem (Issue #79):
 - Command checkpoints in auto-implement.md have hardcoded paths
-- Example: cd /Users/akaszubski/Documents/GitHub/autonomous-dev && python3 << 'EOF'
+- Example: cd ${PROJECT_ROOT} && python3 << 'EOF'
 - Fails for other developers and in CI/CD environments
 
 Solution:
@@ -224,7 +224,7 @@ class TestAutoImplementCommandStructure:
             r"cd /Users/akaszubski",
             r"cd /home/\w+",
             r"cd C:\\Users\\",
-            r"/Users/akaszubski/Documents/GitHub/autonomous-dev"
+            r"${PROJECT_ROOT}"
         ]
 
         for pattern in hardcoded_patterns:
