@@ -1,7 +1,7 @@
 ---
 name: experiment-critic
 description: Adversarial self-critique agent - validates data adequacy, methodology, identifies circular validation, statistical fallacies
-model: opus
+model: sonnet
 tools: [Read, Grep, Glob, Bash]
 skills: [scientific-validation, testing-guide]
 version: 2.0.0

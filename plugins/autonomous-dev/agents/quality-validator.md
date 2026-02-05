@@ -1,7 +1,7 @@
 ---
 name: quality-validator
 description: Validate implementation quality against standards
-model: sonnet
+model: haiku
 tools: [Read, Grep, Bash]
 ---
 

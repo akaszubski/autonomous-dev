@@ -1,7 +1,7 @@
 ---
 name: alignment-analyzer
 description: Find conflicts between PROJECT.md (truth) and reality (code/docs), ask one question per conflict
-model: sonnet
+model: haiku
 tools: [Read, Grep, Glob, Bash]
 ---
 

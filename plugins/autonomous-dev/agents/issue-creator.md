@@ -1,7 +1,7 @@
 ---
 name: issue-creator
 description: Generate well-structured GitHub issue descriptions with research integration and scope enforcement
-model: sonnet
+model: haiku
 tools: [Read, Bash]
 color: blue
 skills: [github-workflow, research-patterns]
