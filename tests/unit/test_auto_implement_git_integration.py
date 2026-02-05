@@ -1077,3 +1077,349 @@ class TestSecurityValidation:
             # Should not raise
             result = check_git_credentials()
             assert result is True
+
+
+# =============================================================================
+# Integration Tests for Core Functions (Issue #270)
+# Coverage target: 60%+ for auto_implement_git_integration.py
+# =============================================================================
+
+
+class TestCreateCommitWithAgentMessage:
+    """Tests for create_commit_with_agent_message() function.
+
+    This function:
+    - Invokes commit-message-generator agent
+    - Stages and commits files
+    - Returns commit SHA
+    """
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.subprocess.run')
+    def test_create_commit_success(self, mock_run, mock_agent):
+        """Test successful commit creation with agent message."""
+        try:
+            from auto_implement_git_integration import create_commit_with_agent_message
+        except ImportError:
+            pytest.skip("create_commit_with_agent_message not yet implemented")
+
+        # Arrange
+        mock_agent.return_value = {
+            'success': True,
+            'output': 'feat: add user authentication\n\nImplement JWT-based auth',
+            'error': ''
+        }
+        mock_run.return_value = Mock(returncode=0, stdout='abc123def')
+
+        # Act
+        result = create_commit_with_agent_message(
+            workflow_id='test-123',
+            files=['src/auth.py'],
+            request='Add user authentication'
+        )
+
+        # Assert
+        assert result['success'] is True
+        assert 'commit_sha' in result
+        mock_agent.assert_called_once()
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    def test_create_commit_agent_failure_fallback(self, mock_agent):
+        """Test fallback when agent fails to generate message."""
+        try:
+            from auto_implement_git_integration import create_commit_with_agent_message
+        except ImportError:
+            pytest.skip("create_commit_with_agent_message not yet implemented")
+
+        mock_agent.return_value = {
+            'success': False,
+            'output': '',
+            'error': 'Agent timeout'
+        }
+
+        with patch('auto_implement_git_integration.subprocess.run') as mock_run:
+            mock_run.return_value = Mock(returncode=0, stdout='abc123')
+
+            result = create_commit_with_agent_message(
+                workflow_id='test-123',
+                files=['src/auth.py'],
+                request='Add auth',
+                fallback_message='feat: auto-generated commit'
+            )
+
+            # Should use fallback message
+            assert result['success'] is True
+            assert result.get('used_fallback') is True
+
+    @patch('auto_implement_git_integration.invoke_commit_message_agent')
+    @patch('auto_implement_git_integration.subprocess.run')
+    def test_create_commit_git_failure(self, mock_run, mock_agent):
+        """Test handling of git commit failure."""
+        try:
+            from auto_implement_git_integration import create_commit_with_agent_message
+        except ImportError:
+            pytest.skip("create_commit_with_agent_message not yet implemented")
+
+        mock_agent.return_value = {
+            'success': True,
+            'output': 'feat: test commit',
+            'error': ''
+        }
+        mock_run.side_effect = CalledProcessError(1, 'git commit', stderr='error')
+
+        result = create_commit_with_agent_message(
+            workflow_id='test-123',
+            files=['src/auth.py'],
+            request='Add auth'
+        )
+
+        assert result['success'] is False
+        assert 'error' in result
+
+
+class TestPushAndCreatePR:
+    """Tests for push_and_create_pr() function."""
+
+    @patch('auto_implement_git_integration.subprocess.run')
+    @patch('auto_implement_git_integration.invoke_pr_description_agent')
+    def test_push_only_success(self, mock_agent, mock_run):
+        """Test push without PR creation."""
+        try:
+            from auto_implement_git_integration import push_and_create_pr
+        except ImportError:
+            pytest.skip("push_and_create_pr not yet implemented")
+
+        mock_run.return_value = Mock(returncode=0, stdout='')
+
+        result = push_and_create_pr(
+            branch='feature/test',
+            create_pr=False
+        )
+
+        assert result['success'] is True
+        assert result['pushed'] is True
+        assert result.get('pr_created') is False
+
+    @patch('auto_implement_git_integration.subprocess.run')
+    @patch('auto_implement_git_integration.invoke_pr_description_agent')
+    def test_push_and_create_pr_success(self, mock_agent, mock_run):
+        """Test push with PR creation."""
+        try:
+            from auto_implement_git_integration import push_and_create_pr
+        except ImportError:
+            pytest.skip("push_and_create_pr not yet implemented")
+
+        mock_agent.return_value = {
+            'success': True,
+            'output': '## Summary\n\nAdd user authentication',
+            'error': ''
+        }
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout=''),  # git push
+            Mock(returncode=0, stdout='https://github.com/user/repo/pull/123')  # gh pr create
+        ]
+
+        result = push_and_create_pr(
+            branch='feature/auth',
+            create_pr=True,
+            request='Add authentication'
+        )
+
+        assert result['success'] is True
+        assert result['pushed'] is True
+        assert result['pr_created'] is True
+        assert 'pr_url' in result
+
+    @patch('auto_implement_git_integration.subprocess.run')
+    def test_push_failure(self, mock_run):
+        """Test handling of push failure."""
+        try:
+            from auto_implement_git_integration import push_and_create_pr
+        except ImportError:
+            pytest.skip("push_and_create_pr not yet implemented")
+
+        mock_run.side_effect = CalledProcessError(1, 'git push', stderr='rejected')
+
+        result = push_and_create_pr(
+            branch='feature/test',
+            create_pr=False
+        )
+
+        assert result['success'] is False
+        assert 'error' in result
+        assert result['pushed'] is False
+
+
+class TestExecuteGitWorkflow:
+    """Tests for execute_git_workflow() function."""
+
+    @patch('auto_implement_git_integration.check_consent_via_env')
+    @patch('auto_implement_git_integration.validate_git_state')
+    @patch('auto_implement_git_integration.create_commit_with_agent_message')
+    def test_execute_workflow_commit_only(self, mock_commit, mock_validate, mock_consent):
+        """Test workflow with commit only (no push/PR)."""
+        try:
+            from auto_implement_git_integration import execute_git_workflow
+        except ImportError:
+            pytest.skip("execute_git_workflow not yet implemented")
+
+        mock_consent.return_value = {
+            'git_enabled': True,
+            'push_enabled': False,
+            'pr_enabled': False,
+            'all_enabled': False
+        }
+        mock_validate.return_value = True
+        mock_commit.return_value = {'success': True, 'commit_sha': 'abc123'}
+
+        result = execute_git_workflow(
+            workflow_id='test-123',
+            files=['src/test.py'],
+            request='Test feature'
+        )
+
+        assert result['success'] is True
+        assert result['committed'] is True
+        assert result['pushed'] is False
+
+    @patch('auto_implement_git_integration.check_consent_via_env')
+    def test_execute_workflow_consent_disabled(self, mock_consent):
+        """Test workflow skipped when consent disabled."""
+        try:
+            from auto_implement_git_integration import execute_git_workflow
+        except ImportError:
+            pytest.skip("execute_git_workflow not yet implemented")
+
+        mock_consent.return_value = {
+            'git_enabled': False,
+            'push_enabled': False,
+            'pr_enabled': False,
+            'all_enabled': False
+        }
+
+        result = execute_git_workflow(
+            workflow_id='test-123',
+            files=['src/test.py'],
+            request='Test'
+        )
+
+        assert result['success'] is True
+        assert result['skipped'] is True
+
+
+class TestExecuteStep8GitOperations:
+    """Tests for execute_step8_git_operations() function."""
+
+    @patch('auto_implement_git_integration.execute_git_workflow')
+    def test_step8_success(self, mock_workflow):
+        """Test successful Step 8 execution."""
+        try:
+            from auto_implement_git_integration import execute_step8_git_operations
+        except ImportError:
+            pytest.skip("execute_step8_git_operations not yet implemented")
+
+        mock_workflow.return_value = {
+            'success': True,
+            'committed': True,
+            'commit_sha': 'abc123',
+            'pushed': True,
+            'pr_created': False
+        }
+
+        result = execute_step8_git_operations(
+            workflow_id='workflow-123',
+            branch='feature/test',
+            request='Add test feature'
+        )
+
+        assert result['success'] is True
+
+    @patch('auto_implement_git_integration.execute_git_workflow')
+    def test_step8_first_run_warning(self, mock_workflow):
+        """Test first-run warning integration."""
+        try:
+            from auto_implement_git_integration import execute_step8_git_operations
+        except ImportError:
+            pytest.skip("execute_step8_git_operations not yet implemented")
+
+        mock_workflow.return_value = {'success': True, 'committed': True}
+
+        with patch('auto_implement_git_integration.should_show_warning', return_value=True):
+            with patch('auto_implement_git_integration.show_first_run_warning', return_value=True):
+                result = execute_step8_git_operations(
+                    workflow_id='workflow-123',
+                    branch='feature/test',
+                    request='Test'
+                )
+
+                assert result['success'] is True
+
+
+class TestSecurityValidationCWE:
+    """Tests for CWE-specific security validations."""
+
+    def test_cwe78_branch_name_command_injection_backticks(self):
+        """CWE-78: Block backtick command substitution in branch names."""
+        try:
+            from auto_implement_git_integration import validate_branch_name
+        except ImportError:
+            pytest.skip("validate_branch_name not yet implemented")
+
+        malicious_names = [
+            'feature/`whoami`',
+            'branch/test`cat /etc/passwd`',
+        ]
+
+        for name in malicious_names:
+            with pytest.raises(ValueError):
+                validate_branch_name(name)
+
+    def test_cwe22_branch_name_path_traversal(self):
+        """CWE-22: Block path traversal in branch names."""
+        try:
+            from auto_implement_git_integration import validate_branch_name
+        except ImportError:
+            pytest.skip("validate_branch_name not yet implemented")
+
+        traversal_attempts = [
+            '../../../etc/passwd',
+            'feature/../../../root',
+            'branch/..\\..\\windows\\system32',
+        ]
+
+        for name in traversal_attempts:
+            with pytest.raises(ValueError):
+                validate_branch_name(name)
+
+    def test_cwe117_commit_message_allows_newlines(self):
+        """CWE-117: Allow legitimate newlines in commit messages."""
+        try:
+            from auto_implement_git_integration import validate_commit_message
+        except ImportError:
+            pytest.skip("validate_commit_message not yet implemented")
+
+        valid_multiline = (
+            'feat: add user authentication\n'
+            '\n'
+            'This implements JWT-based authentication.\n'
+            'Fixes #123'
+        )
+
+        result = validate_commit_message(valid_multiline)
+        assert '\n' in result  # Newlines preserved
+
+    def test_cwe117_commit_message_blocks_ansi(self):
+        """CWE-117: Block ANSI escape sequences in commit messages."""
+        try:
+            from auto_implement_git_integration import validate_commit_message
+        except ImportError:
+            pytest.skip("validate_commit_message not yet implemented")
+
+        ansi_attempts = [
+            'feat: test\x1b[31mRED\x1b[0m',  # ANSI color
+            'fix: \x1b[2J\x1b[H clear screen',  # ANSI clear
+        ]
+
+        for msg in ansi_attempts:
+            with pytest.raises(ValueError):
+                validate_commit_message(msg)
