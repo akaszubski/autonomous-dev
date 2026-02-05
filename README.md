@@ -6,7 +6,7 @@ Transform feature implementation into an automated, quality-enforced workflow. O
 
 [![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Pipeline](https://img.shields.io/badge/pipeline-8_agents-green.svg)](docs/AGENTS.md)
-[![Skills](https://img.shields.io/badge/skills-39-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
+[![Skills](https://img.shields.io/badge/skills-40-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
 [![Hooks](https://img.shields.io/badge/hooks-73-purple.svg)](docs/HOOKS.md)
 [![Commands](https://img.shields.io/badge/commands-21-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
 

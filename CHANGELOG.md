@@ -173,6 +173,18 @@
   - Validates training parameters against realign skill requirements
   - Provides realignment strategy recommendations
   - **Agents count**: 25 → 26, **Skills count**: 33 → 39 (updated README.md, CLAUDE.md, ARCHITECTURE-OVERVIEW.md)
+- **grpo-verifiable-training skill** - Group Relative Policy Optimization for verifiable tasks (v1.0.0, Issue #309)
+  - Knowledge skill for math/code verification training workflows
+  - Critic-free RL approach using group-based advantage calculation
+  - 4 verifier types: symbolic solver (math), execution sandbox (code), knowledge base lookup (factual), parser validation (format)
+  - Production-validated hyperparameters from DeepSeek-R1: epsilon=10, beta=0.001, group_size=16
+  - Quality metrics: mean reward tracking, advantage variance, KL divergence <0.1, verification rate >80%
+  - Data format: JSONL with prompt + group of responses + verification scores
+  - Progressive disclosure: SKILL.md (336 lines) + 4 detailed docs
+  - Cross-references: realign-rlvr-workflow, preference-data-quality, scientific-validation
+  - Integration with training_metrics.py library
+  - Auto-activates on GRPO, group relative policy, verifiable training keywords
+  - **Skills count**: 39 → 40 (updated README.md, CLAUDE.md, ARCHITECTURE-OVERVIEW.md)
 - **quality-scoring skill** for multi-dimensional data assessment (Issue #310)
   - Documented 6 quality scorers: FastIFD, Quality, MultiDimensional, LLMQuality, Ensemble, Tulu3
   - Documented 6 quality dimensions: IFD, Factuality, Reasoning, Diversity, Domain, LLM Quality

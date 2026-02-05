@@ -50,13 +50,13 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**39 Active Skills** (v1.0.0):
+**40 Active Skills** (v1.0.0):
 - **Core**: python-standards, testing-guide, error-handling-patterns, code-review
 - **Automation**: git-automation, batch-processing, performance-optimization
 - **Security**: security-patterns, mcp-security, sandboxing
 - **Documentation**: documentation-standards, markdown-best-practices
 - **Integration**: skill-integration-templates, agent-output-formats
-- **LLM Training Realignment** (6 new): realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow
+- **LLM Training Realignment** (7 new): realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow, grpo-verifiable-training
 - **See**: [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for full list
 
 ---
