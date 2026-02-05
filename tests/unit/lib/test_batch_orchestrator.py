@@ -751,3 +751,136 @@ TOTAL: 32 unit tests (all FAILING - TDD red phase)
 Coverage Target: 95%+ for batch_orchestrator module
 Security: CWE-22 (path traversal), CWE-78 (command injection)
 """
+
+
+# =============================================================================
+# SECTION 6: Batch Auto-Approve Tests (Issue #323)
+# =============================================================================
+
+class TestBatchAutoApprove:
+    """Test batch auto-approval for permission prompts (Issue #323)."""
+
+    def test_enable_batch_auto_approve_sets_env_var(self):
+        """Test that enable_batch_auto_approve sets BATCH_AUTO_APPROVE env var."""
+        from batch_orchestrator import enable_batch_auto_approve, disable_batch_auto_approve
+
+        # Clean up any existing value
+        if 'BATCH_AUTO_APPROVE' in os.environ:
+            del os.environ['BATCH_AUTO_APPROVE']
+        if 'MCP_AUTO_APPROVE' in os.environ:
+            del os.environ['MCP_AUTO_APPROVE']
+
+        try:
+            result = enable_batch_auto_approve()
+            assert result is True
+            assert os.environ.get('BATCH_AUTO_APPROVE') == 'true'
+        finally:
+            disable_batch_auto_approve()
+
+    def test_enable_batch_auto_approve_respects_mcp_auto_approve_true(self):
+        """Test that enable_batch_auto_approve respects MCP_AUTO_APPROVE=true."""
+        from batch_orchestrator import enable_batch_auto_approve, disable_batch_auto_approve
+
+        # Clean up
+        if 'BATCH_AUTO_APPROVE' in os.environ:
+            del os.environ['BATCH_AUTO_APPROVE']
+
+        os.environ['MCP_AUTO_APPROVE'] = 'true'
+        try:
+            result = enable_batch_auto_approve()
+            assert result is True
+            assert os.environ.get('BATCH_AUTO_APPROVE') == 'true'
+        finally:
+            disable_batch_auto_approve()
+            del os.environ['MCP_AUTO_APPROVE']
+
+    def test_enable_batch_auto_approve_respects_mcp_auto_approve_false(self):
+        """Test that enable_batch_auto_approve respects MCP_AUTO_APPROVE=false."""
+        from batch_orchestrator import enable_batch_auto_approve, disable_batch_auto_approve
+
+        # Clean up
+        if 'BATCH_AUTO_APPROVE' in os.environ:
+            del os.environ['BATCH_AUTO_APPROVE']
+
+        os.environ['MCP_AUTO_APPROVE'] = 'false'
+        try:
+            result = enable_batch_auto_approve()
+            assert result is False
+            assert os.environ.get('BATCH_AUTO_APPROVE') is None
+        finally:
+            if 'BATCH_AUTO_APPROVE' in os.environ:
+                disable_batch_auto_approve()
+            del os.environ['MCP_AUTO_APPROVE']
+
+    def test_enable_batch_auto_approve_respects_existing_batch_env(self):
+        """Test that existing BATCH_AUTO_APPROVE env var is respected."""
+        from batch_orchestrator import enable_batch_auto_approve
+
+        os.environ['BATCH_AUTO_APPROVE'] = 'false'
+        try:
+            result = enable_batch_auto_approve()
+            assert result is False
+        finally:
+            del os.environ['BATCH_AUTO_APPROVE']
+
+    def test_disable_batch_auto_approve_removes_env_var(self):
+        """Test that disable_batch_auto_approve removes env var."""
+        from batch_orchestrator import disable_batch_auto_approve
+
+        os.environ['BATCH_AUTO_APPROVE'] = 'true'
+        disable_batch_auto_approve()
+        assert 'BATCH_AUTO_APPROVE' not in os.environ
+
+    @patch('batch_orchestrator.create_batch_worktree')
+    @patch('batch_orchestrator.validate_features_file')
+    def test_run_batch_file_mode_enables_auto_approve(self, mock_validate, mock_worktree):
+        """Test that run_batch_file_mode enables batch auto-approve."""
+        from batch_orchestrator import run_batch_file_mode, disable_batch_auto_approve
+
+        mock_worktree.return_value = {
+            'success': True,
+            'batch_id': 'batch-123',
+            'path': '/tmp/worktree'
+        }
+
+        # Clean up
+        if 'BATCH_AUTO_APPROVE' in os.environ:
+            del os.environ['BATCH_AUTO_APPROVE']
+        if 'MCP_AUTO_APPROVE' in os.environ:
+            del os.environ['MCP_AUTO_APPROVE']
+
+        try:
+            result = run_batch_file_mode('/tmp/features.txt')
+            assert 'batch_auto_approve' in result
+            assert result['batch_auto_approve'] is True
+        finally:
+            disable_batch_auto_approve()
+
+    @patch('batch_orchestrator.create_batch_worktree')
+    @patch('batch_orchestrator.validate_issue_numbers')
+    @patch('batch_orchestrator.fetch_issue_titles')
+    def test_run_batch_issues_mode_enables_auto_approve(
+        self, mock_fetch, mock_validate, mock_worktree
+    ):
+        """Test that run_batch_issues_mode enables batch auto-approve."""
+        from batch_orchestrator import run_batch_issues_mode, disable_batch_auto_approve
+
+        mock_worktree.return_value = {
+            'success': True,
+            'batch_id': 'batch-issues-1-2-3',
+            'path': '/tmp/worktree'
+        }
+        mock_fetch.return_value = ['Feature 1', 'Feature 2', 'Feature 3']
+
+        # Clean up
+        if 'BATCH_AUTO_APPROVE' in os.environ:
+            del os.environ['BATCH_AUTO_APPROVE']
+        if 'MCP_AUTO_APPROVE' in os.environ:
+            del os.environ['MCP_AUTO_APPROVE']
+
+        try:
+            result = run_batch_issues_mode([1, 2, 3])
+            assert 'batch_auto_approve' in result
+            assert result['batch_auto_approve'] is True
+        finally:
+            disable_batch_auto_approve()

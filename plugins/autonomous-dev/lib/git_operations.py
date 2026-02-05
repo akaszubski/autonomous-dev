@@ -249,9 +249,108 @@ def has_uncommitted_changes() -> bool:
         return True
 
 
-def stage_all_changes() -> Tuple[bool, str]:
+def get_files_to_stage(cwd: Optional[Path] = None) -> Tuple[List[str], List[str]]:
+    """
+    Get list of files to stage, filtering out gitignored files.
+
+    Issue #325: Fix batch processing git automation that stages gitignored files.
+    Uses `git check-ignore` to filter files before staging.
+
+    Args:
+        cwd: Working directory (default: current directory)
+
+    Returns:
+        Tuple of (files_to_stage, ignored_files)
+        - files_to_stage: List of file paths that should be staged
+        - ignored_files: List of file paths that are gitignored (for logging)
+
+    Security:
+        - Uses subprocess list args (no shell=True)
+        - CWE-78: Command injection prevention
+
+    Example:
+        >>> to_stage, ignored = get_files_to_stage()
+        >>> print(f"Staging {len(to_stage)} files, skipping {len(ignored)} ignored")
+    """
+    cwd_path = cwd or Path.cwd()
+
+    try:
+        # Get list of modified/untracked files
+        result = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=str(cwd_path),
+            timeout=30
+        )
+
+        if not result.stdout.strip():
+            return ([], [])
+
+        # Parse file list from git status --porcelain output
+        # Format: XY filename (where XY is 2-char status code)
+        all_files = []
+        for line in result.stdout.strip().split('\n'):
+            if not line or len(line) < 3:
+                continue
+            # Extract filename (skip 2-char status + space)
+            filename = line[3:].strip()
+            # Handle renamed files (format: "old -> new")
+            if ' -> ' in filename:
+                filename = filename.split(' -> ')[-1]
+            if filename:
+                all_files.append(filename)
+
+        if not all_files:
+            return ([], [])
+
+        # Check which files are gitignored
+        # `git check-ignore` returns files that ARE ignored
+        check_result = subprocess.run(
+            ['git', 'check-ignore', '--stdin'],
+            input='\n'.join(all_files),
+            capture_output=True,
+            text=True,
+            cwd=str(cwd_path),
+            timeout=30
+        )
+
+        # Parse ignored files (one per line)
+        ignored_files = set()
+        if check_result.stdout.strip():
+            for line in check_result.stdout.strip().split('\n'):
+                if line.strip():
+                    ignored_files.add(line.strip())
+
+        # Filter out ignored files
+        files_to_stage = [f for f in all_files if f not in ignored_files]
+
+        return (files_to_stage, list(ignored_files))
+
+    except subprocess.TimeoutExpired:
+        # On timeout, fall back to staging all (let git handle it)
+        return ([], [])
+    except subprocess.CalledProcessError:
+        # On error, fall back to staging all (let git handle it)
+        return ([], [])
+    except Exception:
+        # On unexpected error, fall back to staging all
+        return ([], [])
+
+
+def stage_all_changes(cwd: Optional[Path] = None, gitignore_aware: bool = False) -> Tuple[bool, str]:
     """
     Stage all changes in the working tree.
+
+    Issue #325: Added gitignore_aware parameter to filter out gitignored files
+    before staging. This prevents batch processing from attempting to stage
+    .claude/* files which causes "nothing added to commit" errors.
+
+    Args:
+        cwd: Working directory (default: current directory)
+        gitignore_aware: If True, filter out gitignored files before staging.
+                        If False, use `git add .` directly (default: False for backward compat)
 
     Returns:
         Tuple of (success, error_message)
@@ -262,15 +361,62 @@ def stage_all_changes() -> Tuple[bool, str]:
         >>> success, error = stage_all_changes()
         >>> if not success:
         ...     print(f"Staging failed: {error}")
+
+        >>> # Worktree-aware staging (Issue #325)
+        >>> success, error = stage_all_changes(cwd=worktree_path, gitignore_aware=True)
     """
+    cwd_str = str(cwd) if cwd else None
+
     try:
-        subprocess.run(
-            ['git', 'add', '.'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return (True, '')
+        if gitignore_aware:
+            # Issue #325: Filter out gitignored files before staging
+            files_to_stage, ignored_files = get_files_to_stage(cwd=cwd)
+
+            if not files_to_stage:
+                # Check if there's anything to stage at all
+                status_result = subprocess.run(
+                    ['git', 'status', '--porcelain'],
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd_str,
+                    timeout=10
+                )
+                if not status_result.stdout.strip():
+                    return (True, '')  # Nothing to stage, success
+                elif ignored_files:
+                    # Only ignored files exist - this is expected in worktrees
+                    return (True, '')  # Success, no non-ignored files to stage
+                else:
+                    # Fall back to git add . if filtering returned nothing unexpected
+                    subprocess.run(
+                        ['git', 'add', '.'],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        cwd=cwd_str
+                    )
+                    return (True, '')
+
+            # Stage only non-ignored files
+            # Use git add with explicit file list
+            subprocess.run(
+                ['git', 'add', '--'] + files_to_stage,
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=cwd_str
+            )
+            return (True, '')
+        else:
+            # Original behavior: stage everything
+            subprocess.run(
+                ['git', 'add', '.'],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=cwd_str
+            )
+            return (True, '')
     except PermissionError:
         return (False, 'permission denied')
     except subprocess.CalledProcessError as e:
@@ -428,6 +574,108 @@ def push_to_remote(
         return (False, f'unexpected error: {str(e)}')
 
 
+def push_worktree_branch(
+    branch: str,
+    remote: str = 'origin',
+    set_upstream: bool = True,
+    timeout: int = 30,
+    cwd: Optional[Path] = None
+) -> Tuple[bool, str]:
+    """
+    Push commits from a worktree, handling detached HEAD state.
+
+    Issue #325: Fix batch processing push failure with "unable to push to
+    unqualified destination" error. Worktrees created with `-b` flag can
+    end up in detached HEAD state, requiring `HEAD:<branch>` push syntax.
+
+    This function:
+    1. Checks if HEAD is detached
+    2. If detached: uses `git push origin HEAD:<branch>` syntax
+    3. If on branch: uses standard `git push origin <branch>` syntax
+
+    Args:
+        branch: Branch name to push to remote
+        remote: Remote name (default: 'origin')
+        set_upstream: Use -u flag for new branches (default: True)
+        timeout: Network timeout in seconds (default: 30)
+        cwd: Working directory (default: current directory)
+
+    Returns:
+        Tuple of (success, error_message)
+        - (True, '') if push succeeded
+        - (False, error_message) if push failed
+
+    Security:
+        - Uses subprocess list args (no shell=True)
+        - CWE-78: Command injection prevention
+
+    Example:
+        >>> # Push from worktree
+        >>> success, error = push_worktree_branch('batch-20260205-123456')
+        >>> if not success:
+        ...     print(f"Push failed: {error}")
+    """
+    cwd_str = str(cwd) if cwd else None
+
+    try:
+        # Check if HEAD is detached
+        head_check = subprocess.run(
+            ['git', 'symbolic-ref', '-q', 'HEAD'],
+            capture_output=True,
+            text=True,
+            cwd=cwd_str,
+            timeout=10
+        )
+
+        is_detached = head_check.returncode != 0
+
+        # Build push command based on HEAD state
+        if is_detached:
+            # Detached HEAD: use HEAD:<branch> syntax (Issue #325)
+            cmd = ['git', 'push']
+            if set_upstream:
+                cmd.append('-u')
+            cmd.extend([remote, f'HEAD:{branch}'])
+        else:
+            # Normal branch: standard push
+            cmd = ['git', 'push']
+            if set_upstream:
+                cmd.append('-u')
+            cmd.extend([remote, branch])
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+            cwd=cwd_str
+        )
+        return (True, '')
+
+    except subprocess.TimeoutExpired:
+        return (False, 'network timeout while pushing to remote')
+
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or '').strip()
+
+        # Parse specific errors
+        if 'protected branch' in stderr.lower():
+            return (False, 'protected branch update failed')
+        elif 'permission denied' in stderr.lower() or 'forbidden' in stderr.lower():
+            return (False, 'permission denied')
+        elif 'rejected' in stderr.lower():
+            return (False, f'push rejected: {stderr}')
+        elif 'unqualified destination' in stderr.lower():
+            # This shouldn't happen with HEAD:<branch> syntax, but handle it
+            return (False, f'push failed (detached HEAD): {stderr}')
+        else:
+            return (False, f'git push failed: {stderr}')
+
+    except Exception as e:
+        return (False, f'unexpected error: {str(e)}')
+
+
 def create_feature_branch(branch_name: str) -> Tuple[bool, str, str]:
     """
     Create a new feature branch.
@@ -467,6 +715,130 @@ def create_feature_branch(branch_name: str) -> Tuple[bool, str, str]:
 
     except Exception as e:
         return (False, '', f'unexpected error: {str(e)}')
+
+
+def auto_commit_and_push_worktree(
+    commit_message: str,
+    branch: str,
+    push: bool = True,
+    cwd: Optional[Path] = None
+) -> Dict[str, Any]:
+    """
+    High-level function for worktree-aware commit-and-push workflow.
+
+    Issue #325: This function handles git automation in worktrees by:
+    1. Using gitignore-aware staging (filters out .claude/* files)
+    2. Using worktree-aware push (handles detached HEAD with HEAD:<branch>)
+
+    This function provides graceful degradation - if commit succeeds but push
+    fails, it still reports success (the commit worked).
+
+    Workflow:
+        1. Validate git repo
+        2. Check git config
+        3. Detect merge conflicts
+        4. Check for uncommitted changes
+        5. Stage changes (gitignore-aware)
+        6. Commit changes
+        7. Get remote name (if push requested)
+        8. Push to remote using worktree-aware push
+
+    Args:
+        commit_message: Commit message
+        branch: Branch name to push to
+        push: Whether to push after committing (default: True)
+        cwd: Working directory (worktree path, default: current directory)
+
+    Returns:
+        Dictionary with keys:
+            - success (bool): Overall success (True if commit succeeded)
+            - commit_sha (str): Commit SHA if committed, '' otherwise
+            - pushed (bool): True if pushed successfully
+            - error (str): Error message if any, '' otherwise
+
+    Example:
+        >>> result = auto_commit_and_push_worktree(
+        ...     'feat: add feature',
+        ...     'batch-20260205-123456',
+        ...     push=True,
+        ...     cwd=Path('.worktrees/batch-issues-322-323-325')
+        ... )
+        >>> if result['success']:
+        ...     print(f"Committed: {result['commit_sha']}")
+        ...     if result['pushed']:
+        ...         print("Pushed to remote")
+    """
+    result = {
+        'success': False,
+        'commit_sha': '',
+        'pushed': False,
+        'error': ''
+    }
+
+    cwd_str = str(cwd) if cwd else None
+
+    # Step 1: Validate git repository
+    is_valid, error = validate_git_repo()
+    if not is_valid:
+        result['error'] = error
+        return result
+
+    # Step 2: Check git config
+    is_configured, error = check_git_config()
+    if not is_configured:
+        result['error'] = error
+        return result
+
+    # Step 3: Detect merge conflicts
+    has_conflict, files = detect_merge_conflict()
+    if has_conflict:
+        result['error'] = f"merge conflict detected in: {', '.join(files)}"
+        return result
+
+    # Step 4: Check for uncommitted changes
+    if not has_uncommitted_changes():
+        result['success'] = True  # Not an error - just nothing to do
+        result['error'] = 'nothing to commit, working tree clean'
+        return result
+
+    # Step 5: Stage changes (gitignore-aware for worktrees - Issue #325)
+    stage_success, error = stage_all_changes(cwd=cwd, gitignore_aware=True)
+    if not stage_success:
+        result['error'] = f'failed to stage changes: {error}'
+        return result
+
+    # Step 6: Commit changes
+    commit_success, commit_sha, error = commit_changes(commit_message)
+    if not commit_success:
+        result['error'] = error
+        return result
+
+    # Commit succeeded - mark as success even if push fails
+    result['success'] = True
+    result['commit_sha'] = commit_sha
+
+    # Step 7-8: Push to remote (if requested)
+    if push:
+        # Get remote name
+        remote = get_remote_name()
+        if not remote:
+            result['error'] = 'no remote configured'
+            return result
+
+        # Push to remote using worktree-aware push (Issue #325)
+        push_success, error = push_worktree_branch(
+            branch=branch,
+            remote=remote,
+            set_upstream=True,
+            cwd=cwd
+        )
+        if push_success:
+            result['pushed'] = True
+        else:
+            # Push failed, but commit succeeded - graceful degradation
+            result['error'] = error
+
+    return result
 
 
 def auto_commit_and_push(
