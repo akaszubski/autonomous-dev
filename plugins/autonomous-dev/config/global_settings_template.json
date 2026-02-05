@@ -1,6 +1,13 @@
 {
+  "permissionBatching": {
+    "enabled": true
+  },
   "permissions": {
     "allow": [
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
       "Bash(git:*)",
       "Bash(npm:*)",
       "Bash(python:*)",
