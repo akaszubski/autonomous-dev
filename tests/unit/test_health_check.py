@@ -349,5 +349,239 @@ class TestMarketplaceVersionValidation:
                                 mock_validate_version.assert_called_once()
 
 
+class TestClaudeMemValidation:
+    """Test suite for claude-mem prerequisite validation (Issue #327)."""
+
+    def test_validate_claude_mem_not_installed(self):
+        """Test claude-mem validation when not installed."""
+        checker = PluginHealthCheck()
+
+        with patch.object(Path, 'exists', return_value=False):
+            result = checker.validate_claude_mem()
+
+        assert result["installed"] is False
+        assert result["overall"] == "NOT_INSTALLED"
+        assert result["prerequisites"] == {}
+
+    def test_check_node_version_success(self):
+        """Test Node.js version check with valid version."""
+        checker = PluginHealthCheck()
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "v20.10.0\n"
+
+        with patch('subprocess.run', return_value=mock_result):
+            result = checker._check_node_version()
+
+        assert result["status"] == "PASS"
+        assert result["version"] == "20.10.0"
+        assert ">= 18" in result["message"]
+
+    def test_check_node_version_too_old(self):
+        """Test Node.js version check with old version."""
+        checker = PluginHealthCheck()
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "v16.14.0\n"
+
+        with patch('subprocess.run', return_value=mock_result):
+            result = checker._check_node_version()
+
+        assert result["status"] == "FAIL"
+        assert result["version"] == "16.14.0"
+        assert "18+ required" in result["message"]
+
+    def test_check_node_version_not_found(self):
+        """Test Node.js version check when not installed."""
+        checker = PluginHealthCheck()
+
+        with patch('subprocess.run', side_effect=FileNotFoundError()):
+            result = checker._check_node_version()
+
+        assert result["status"] == "FAIL"
+        assert result["version"] is None
+        assert "not found" in result["message"]
+
+    def test_check_bun_success(self):
+        """Test Bun check when installed."""
+        checker = PluginHealthCheck()
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "1.0.25\n"
+
+        with patch('shutil.which', return_value="/usr/local/bin/bun"):
+            with patch('subprocess.run', return_value=mock_result):
+                result = checker._check_bun()
+
+        assert result["status"] == "PASS"
+        assert result["path"] == "/usr/local/bin/bun"
+        assert result["version"] == "1.0.25"
+
+    def test_check_bun_not_found(self):
+        """Test Bun check when not installed."""
+        checker = PluginHealthCheck()
+
+        with patch('shutil.which', return_value=None):
+            result = checker._check_bun()
+
+        assert result["status"] == "FAIL"
+        assert result["path"] is None
+        assert "not found" in result["message"]
+        assert "bun.sh" in result["message"]
+
+    def test_check_uv_success(self):
+        """Test uv check when installed."""
+        checker = PluginHealthCheck()
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "uv 0.1.24\n"
+
+        with patch('shutil.which', return_value="/usr/local/bin/uv"):
+            with patch('subprocess.run', return_value=mock_result):
+                result = checker._check_uv()
+
+        assert result["status"] == "PASS"
+        assert result["path"] == "/usr/local/bin/uv"
+        assert result["version"] == "uv 0.1.24"
+
+    def test_check_uv_not_found(self):
+        """Test uv check when not installed."""
+        checker = PluginHealthCheck()
+
+        with patch('shutil.which', return_value=None):
+            result = checker._check_uv()
+
+        assert result["status"] == "FAIL"
+        assert result["path"] is None
+        assert "not found" in result["message"]
+        assert "astral.sh" in result["message"]
+
+    def test_check_port_available(self):
+        """Test port check when port is available."""
+        checker = PluginHealthCheck()
+
+        with patch('socket.socket') as mock_socket:
+            mock_sock_instance = Mock()
+            mock_sock_instance.connect_ex.return_value = 1  # Connection refused = port available
+            mock_socket.return_value.__enter__ = Mock(return_value=mock_sock_instance)
+            mock_socket.return_value.__exit__ = Mock(return_value=False)
+
+            result = checker._check_port(37777)
+
+        assert result["status"] == "PASS"
+        assert result["in_use"] is False
+        assert "available" in result["message"]
+
+    def test_check_port_in_use(self):
+        """Test port check when port is in use."""
+        checker = PluginHealthCheck()
+
+        with patch('socket.socket') as mock_socket:
+            mock_sock_instance = Mock()
+            mock_sock_instance.connect_ex.return_value = 0  # Connection success = port in use
+            mock_socket.return_value.__enter__ = Mock(return_value=mock_sock_instance)
+            mock_socket.return_value.__exit__ = Mock(return_value=False)
+
+            result = checker._check_port(37777)
+
+        assert result["status"] == "PASS"
+        assert result["in_use"] is True
+        assert "in use" in result["message"]
+
+    def test_validate_claude_mem_all_pass(self):
+        """Test claude-mem validation when all prerequisites pass."""
+        checker = PluginHealthCheck()
+
+        # Mock ~/.claude-mem exists
+        with patch.object(Path, 'exists', return_value=True):
+            # Mock all prerequisite checks
+            with patch.object(checker, '_check_node_version', return_value={
+                "status": "PASS", "version": "20.10.0", "message": "OK"
+            }):
+                with patch.object(checker, '_check_bun', return_value={
+                    "status": "PASS", "path": "/usr/local/bin/bun", "version": "1.0.25", "message": "OK"
+                }):
+                    with patch.object(checker, '_check_uv', return_value={
+                        "status": "PASS", "path": "/usr/local/bin/uv", "version": "0.1.24", "message": "OK"
+                    }):
+                        with patch.object(checker, '_check_port', return_value={
+                            "status": "PASS", "in_use": False, "message": "OK"
+                        }):
+                            result = checker.validate_claude_mem()
+
+        assert result["installed"] is True
+        assert result["overall"] == "HEALTHY"
+        assert all(p["status"] == "PASS" for p in result["prerequisites"].values())
+
+    def test_validate_claude_mem_degraded(self):
+        """Test claude-mem validation when some prerequisites fail."""
+        checker = PluginHealthCheck()
+
+        # Mock ~/.claude-mem exists
+        with patch.object(Path, 'exists', return_value=True):
+            # Mock mixed prerequisite checks (bun fails)
+            with patch.object(checker, '_check_node_version', return_value={
+                "status": "PASS", "version": "20.10.0", "message": "OK"
+            }):
+                with patch.object(checker, '_check_bun', return_value={
+                    "status": "FAIL", "path": None, "version": None, "message": "Not found"
+                }):
+                    with patch.object(checker, '_check_uv', return_value={
+                        "status": "PASS", "path": "/usr/local/bin/uv", "version": "0.1.24", "message": "OK"
+                    }):
+                        with patch.object(checker, '_check_port', return_value={
+                            "status": "PASS", "in_use": False, "message": "OK"
+                        }):
+                            result = checker.validate_claude_mem()
+
+        assert result["installed"] is True
+        assert result["overall"] == "DEGRADED"
+
+    def test_print_report_includes_claude_mem(self):
+        """Integration test: Verify print_report() includes claude-mem section."""
+        checker = PluginHealthCheck()
+
+        # Mock all validate methods
+        with patch.object(checker, 'validate_agents', return_value=(8, 8)):
+            with patch.object(checker, 'validate_skills', return_value=(0, 0)):
+                with patch.object(checker, 'validate_hooks', return_value=(12, 12)):
+                    with patch.object(checker, 'validate_commands', return_value=(8, 8)):
+                        with patch.object(checker, 'validate_sync_status', return_value=(True, [])):
+                            with patch.object(checker, '_validate_marketplace_version', return_value=True):
+                                with patch.object(checker, 'validate_claude_mem', return_value={
+                                    "installed": True,
+                                    "prerequisites": {
+                                        "nodejs": {"status": "PASS", "message": "Node 20"},
+                                        "bun": {"status": "PASS", "message": "Bun 1.0"},
+                                    },
+                                    "overall": "HEALTHY"
+                                }):
+                                    # Mock results
+                                    checker.results = {
+                                        "agents": {a: "PASS" for a in checker.EXPECTED_AGENTS},
+                                        "skills": {},
+                                        "hooks": {h: "PASS" for h in checker.EXPECTED_HOOKS},
+                                        "commands": {c.replace(".md", ""): "PASS" for c in checker.EXPECTED_COMMANDS},
+                                        "overall": "UNKNOWN"
+                                    }
+
+                                    # Capture stdout
+                                    import io
+                                    captured = io.StringIO()
+                                    with patch('sys.stdout', captured):
+                                        try:
+                                            checker.print_report()
+                                        except SystemExit:
+                                            pass
+
+                                    output = captured.getvalue()
+
+        assert "claude-mem Integration" in output
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--cov=health_check", "--cov-report=term-missing"])

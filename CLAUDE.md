@@ -44,6 +44,7 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 | `/create-issue` | GitHub issue with research |
 | `/audit-claude` | Validate this file |
 | `/health-check` | Validate plugin integrity |
+| `/mem-search` | Search claude-mem persistent memory (optional) |
 
 ## Session Continuity
 
@@ -78,10 +79,11 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 | Sandboxing | [docs/SANDBOXING.md](docs/SANDBOXING.md) |
 | Libraries | [docs/LIBRARIES.md](docs/LIBRARIES.md) |
 | Performance | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
+| claude-mem integration | [docs/CLAUDE-MEM-INTEGRATION.md](docs/CLAUDE-MEM-INTEGRATION.md) |
 | Troubleshooting | [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) |
 
 ## Component Counts
 
-26 agents, 40 skills, 26 active commands, 159 libraries, 84 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+26 agents, 40 skills, 27 active commands, 159 libraries, 84 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
-**Last Updated**: 2026-02-01
+**Last Updated**: 2026-02-06

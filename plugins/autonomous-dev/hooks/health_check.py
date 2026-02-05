@@ -21,9 +21,12 @@ Usage:
 
 import json
 import os
+import shutil
+import socket
+import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 
 
 def is_running_under_uv() -> bool:
@@ -93,6 +96,7 @@ class PluginHealthCheck:
         "batch-implement.md",
         "create-issue.md",
         "health-check.md",  # Self-reference
+        "mem-search.md",  # Added in Issue #327 (claude-mem integration)
         "setup.md",
         "sync.md",
     ]
@@ -187,6 +191,185 @@ class PluginHealthCheck:
             if exists:
                 passed += 1
         return passed, len(self.EXPECTED_COMMANDS)
+
+    def validate_claude_mem(self) -> Dict[str, Any]:
+        """Validate claude-mem plugin prerequisites.
+
+        Checks for optional claude-mem integration requirements:
+        - Node.js 18.0.0+
+        - Bun runtime
+        - uv package manager
+        - Port 37777 availability
+
+        Returns:
+            Dictionary with validation results for each prerequisite
+        """
+        results = {
+            "installed": False,
+            "prerequisites": {},
+            "overall": "NOT_INSTALLED",
+        }
+
+        # Check if claude-mem is installed
+        claude_mem_dir = Path.home() / ".claude-mem"
+        if not claude_mem_dir.exists():
+            return results
+
+        results["installed"] = True
+
+        # Check Node.js version (requires 18+)
+        node_result = self._check_node_version()
+        results["prerequisites"]["nodejs"] = node_result
+
+        # Check Bun availability
+        bun_result = self._check_bun()
+        results["prerequisites"]["bun"] = bun_result
+
+        # Check uv availability
+        uv_result = self._check_uv()
+        results["prerequisites"]["uv"] = uv_result
+
+        # Check port 37777 availability
+        port_result = self._check_port(37777)
+        results["prerequisites"]["port_37777"] = port_result
+
+        # Determine overall status
+        all_pass = all(
+            r.get("status") == "PASS"
+            for r in results["prerequisites"].values()
+        )
+        results["overall"] = "HEALTHY" if all_pass else "DEGRADED"
+
+        self.results["claude_mem"] = results
+        return results
+
+    def _check_node_version(self) -> Dict[str, Any]:
+        """Check Node.js version (requires 18.0.0+)."""
+        try:
+            result = subprocess.run(
+                ["node", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                version_str = result.stdout.strip().lstrip("v")
+                major_version = int(version_str.split(".")[0])
+                if major_version >= 18:
+                    return {
+                        "status": "PASS",
+                        "version": version_str,
+                        "message": f"Node.js {version_str} (>= 18 required)"
+                    }
+                else:
+                    return {
+                        "status": "FAIL",
+                        "version": version_str,
+                        "message": f"Node.js {version_str} too old (18+ required)"
+                    }
+        except FileNotFoundError:
+            return {
+                "status": "FAIL",
+                "version": None,
+                "message": "Node.js not found. Install from https://nodejs.org/"
+            }
+        except Exception as e:
+            return {
+                "status": "FAIL",
+                "version": None,
+                "message": f"Error checking Node.js: {str(e)}"
+            }
+
+    def _check_bun(self) -> Dict[str, Any]:
+        """Check Bun runtime availability."""
+        bun_path = shutil.which("bun")
+        if bun_path:
+            try:
+                result = subprocess.run(
+                    ["bun", "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                version = result.stdout.strip() if result.returncode == 0 else "unknown"
+                return {
+                    "status": "PASS",
+                    "path": bun_path,
+                    "version": version,
+                    "message": f"Bun {version} found"
+                }
+            except Exception:
+                return {
+                    "status": "PASS",
+                    "path": bun_path,
+                    "version": "unknown",
+                    "message": "Bun found (version check failed)"
+                }
+        return {
+            "status": "FAIL",
+            "path": None,
+            "version": None,
+            "message": "Bun not found. Install: curl -fsSL https://bun.sh/install | bash"
+        }
+
+    def _check_uv(self) -> Dict[str, Any]:
+        """Check uv package manager availability."""
+        uv_path = shutil.which("uv")
+        if uv_path:
+            try:
+                result = subprocess.run(
+                    ["uv", "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                version = result.stdout.strip() if result.returncode == 0 else "unknown"
+                return {
+                    "status": "PASS",
+                    "path": uv_path,
+                    "version": version,
+                    "message": f"uv {version} found"
+                }
+            except Exception:
+                return {
+                    "status": "PASS",
+                    "path": uv_path,
+                    "version": "unknown",
+                    "message": "uv found (version check failed)"
+                }
+        return {
+            "status": "FAIL",
+            "path": None,
+            "version": None,
+            "message": "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
+        }
+
+    def _check_port(self, port: int) -> Dict[str, Any]:
+        """Check if a port is available or in use by expected service."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                result = s.connect_ex(("localhost", port))
+                if result == 0:
+                    # Port in use - check if it's claude-mem worker
+                    return {
+                        "status": "PASS",
+                        "in_use": True,
+                        "message": f"Port {port} in use (likely claude-mem worker)"
+                    }
+                else:
+                    # Port available
+                    return {
+                        "status": "PASS",
+                        "in_use": False,
+                        "message": f"Port {port} available"
+                    }
+        except Exception as e:
+            return {
+                "status": "WARN",
+                "in_use": None,
+                "message": f"Could not check port {port}: {str(e)}"
+            }
 
     def _is_plugin_development_mode(self) -> bool:
         """Check if we're in plugin development mode (editing source)."""
@@ -382,6 +565,22 @@ class PluginHealthCheck:
         # Marketplace version validation
         self._validate_marketplace_version()
         print()
+
+        # claude-mem integration (optional)
+        claude_mem_results = self.validate_claude_mem()
+        if claude_mem_results["installed"]:
+            print(f"claude-mem Integration: {claude_mem_results['overall']}")
+            for prereq, result in claude_mem_results["prerequisites"].items():
+                status = result.get("status", "UNKNOWN")
+                message = result.get("message", "")
+                dots = "." * (30 - len(prereq))
+                status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+                print(f"  {prereq} {dots} {status_icon} {message}")
+            print()
+        else:
+            print("claude-mem Integration: NOT INSTALLED (optional)")
+            print("  Install: https://github.com/thedotmack/claude-mem")
+            print()
 
         # Overall status
         total_issues = (
