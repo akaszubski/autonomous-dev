@@ -311,40 +311,111 @@ def validate_path(
             f"Expected: Reasonable path length"
         )
 
-    # SECURITY LAYER 2: Symlink detection (before resolution)
+    # SECURITY LAYER 2: Symlink detection (allow internal project symlinks)
     if path.exists() and path.is_symlink():
-        audit_log("path_validation", "failure", {
-            "operation": f"validate_{purpose.replace(' ', '_')}",
-            "path": path_str,
-            "reason": "symlink_detected"
-        })
-        raise ValueError(
-            f"Symlinks are not allowed: {path}\n"
-            f"Purpose: {purpose}\n"
-            f"Symlinks can be used to escape directory boundaries.\n"
-            f"Expected: Regular file or directory path\n"
-            f"See: docs/SECURITY.md#symlink-policy"
-        )
+        # Resolve the symlink to check if it stays within project
+        try:
+            symlink_target = path.resolve()
+            # Allow symlinks that resolve within PROJECT_ROOT or CLAUDE_HOME_DIR
+            is_internal = False
+            try:
+                symlink_target.relative_to(PROJECT_ROOT)
+                is_internal = True
+            except ValueError:
+                pass
+            if not is_internal:
+                try:
+                    symlink_target.relative_to(CLAUDE_HOME_DIR.resolve())
+                    is_internal = True
+                except ValueError:
+                    pass
+
+            if not is_internal:
+                audit_log("path_validation", "failure", {
+                    "operation": f"validate_{purpose.replace(' ', '_')}",
+                    "path": path_str,
+                    "target": str(symlink_target),
+                    "reason": "external_symlink_detected"
+                })
+                raise ValueError(
+                    f"External symlinks are not allowed: {path}\n"
+                    f"Symlink target: {symlink_target}\n"
+                    f"Purpose: {purpose}\n"
+                    f"Symlinks that escape project boundaries are blocked.\n"
+                    f"Expected: Symlink within project or ~/.claude/\n"
+                    f"See: docs/SECURITY.md#symlink-policy"
+                )
+            # Internal symlink - allowed, continue validation
+            audit_log("path_validation", "info", {
+                "operation": f"validate_{purpose.replace(' ', '_')}",
+                "path": path_str,
+                "target": str(symlink_target),
+                "reason": "internal_symlink_allowed"
+            })
+        except (OSError, RuntimeError) as e:
+            audit_log("path_validation", "failure", {
+                "operation": f"validate_{purpose.replace(' ', '_')}",
+                "path": path_str,
+                "reason": "symlink_resolution_error",
+                "error": str(e)
+            })
+            raise ValueError(
+                f"Cannot resolve symlink: {path}\n"
+                f"Purpose: {purpose}\n"
+                f"Error: {e}\n"
+                f"See: docs/SECURITY.md#symlink-policy"
+            )
 
     # SECURITY LAYER 3: Path resolution and normalization
     try:
         resolved_path = path.resolve()
 
         # Check resolved path for symlinks (catches symlinks in parent dirs)
+        # Note: After resolution, is_symlink() should be False for valid symlinks
+        # This check catches edge cases where resolution itself returns a symlink
         if not allow_missing and resolved_path.exists() and resolved_path.is_symlink():
-            audit_log("path_validation", "failure", {
-                "operation": f"validate_{purpose.replace(' ', '_')}",
-                "path": path_str,
-                "resolved": str(resolved_path),
-                "reason": "symlink_in_resolved_path"
-            })
-            raise ValueError(
-                f"Path contains symlink: {path}\n"
-                f"Resolved path is a symlink: {resolved_path}\n"
-                f"Purpose: {purpose}\n"
-                f"Expected: Regular path without symlinks\n"
-                f"See: docs/SECURITY.md#symlink-policy"
-            )
+            # Double-check if this symlink escapes the project
+            try:
+                final_target = resolved_path.resolve()
+                is_internal = False
+                try:
+                    final_target.relative_to(PROJECT_ROOT)
+                    is_internal = True
+                except ValueError:
+                    pass
+                if not is_internal:
+                    try:
+                        final_target.relative_to(CLAUDE_HOME_DIR.resolve())
+                        is_internal = True
+                    except ValueError:
+                        pass
+                if not is_internal:
+                    audit_log("path_validation", "failure", {
+                        "operation": f"validate_{purpose.replace(' ', '_')}",
+                        "path": path_str,
+                        "resolved": str(resolved_path),
+                        "reason": "external_symlink_in_resolved_path"
+                    })
+                    raise ValueError(
+                        f"Path resolves to external symlink: {path}\n"
+                        f"Resolved: {resolved_path}\n"
+                        f"Purpose: {purpose}\n"
+                        f"Expected: Path within project boundaries\n"
+                        f"See: docs/SECURITY.md#symlink-policy"
+                    )
+            except (OSError, RuntimeError):
+                # If we can't resolve further, block it
+                audit_log("path_validation", "failure", {
+                    "operation": f"validate_{purpose.replace(' ', '_')}",
+                    "path": path_str,
+                    "resolved": str(resolved_path),
+                    "reason": "symlink_resolution_failed"
+                })
+                raise ValueError(
+                    f"Cannot fully resolve path: {path}\n"
+                    f"Purpose: {purpose}\n"
+                    f"See: docs/SECURITY.md#symlink-policy"
+                )
 
     except (OSError, RuntimeError) as e:
         audit_log("path_validation", "failure", {
