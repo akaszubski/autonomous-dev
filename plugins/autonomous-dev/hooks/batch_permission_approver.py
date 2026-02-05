@@ -101,11 +101,36 @@ def main():
 
 def is_batching_enabled() -> bool:
     """
-    Check if permission batching is enabled in settings.
+    Check if permission batching is enabled via environment or settings.
+
+    Issue #323: Check MCP_AUTO_APPROVE environment variable first to enable
+    batch mode permission suppression. This allows the environment variable
+    to propagate to subagents in batch processing.
+
+    Priority (first match wins):
+    1. BATCH_AUTO_APPROVE env var (batch-specific override)
+    2. MCP_AUTO_APPROVE env var (general auto-approve setting)
+    3. settings.local.json permissionBatching.enabled
+    4. Default: False (opt-in design)
 
     Returns:
         True if batching enabled, False otherwise (default: False)
     """
+    # Issue #323: Check environment variables first (propagates to subagents)
+    batch_auto_approve = os.environ.get('BATCH_AUTO_APPROVE', '').strip().lower()
+    if batch_auto_approve in ('true', '1', 'yes', 'on', 'enable'):
+        return True
+    elif batch_auto_approve in ('false', '0', 'no', 'off', 'disable'):
+        return False
+
+    # Check MCP_AUTO_APPROVE (general auto-approve setting)
+    mcp_auto_approve = os.environ.get('MCP_AUTO_APPROVE', '').strip().lower()
+    if mcp_auto_approve in ('true', '1', 'yes', 'on', 'enable', 'everywhere'):
+        return True
+    elif mcp_auto_approve in ('false', '0', 'no', 'off', 'disable', 'disabled'):
+        return False
+
+    # Fall back to settings file
     try:
         settings_path = Path.cwd() / ".claude" / "settings.local.json"
         if not settings_path.exists():

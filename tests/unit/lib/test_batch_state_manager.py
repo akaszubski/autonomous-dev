@@ -446,6 +446,126 @@ class TestBatchStateUpdates:
 
 
 # =============================================================================
+# SECTION 3.5: Issue #322 - Auto-close Integration Tests
+# =============================================================================
+
+
+class TestBatchIssueCloseIntegration:
+    """Test auto-close GitHub issues integration (Issue #322).
+
+    Tests that update_batch_progress() calls close_batch_feature_issue()
+    after a feature is marked as completed.
+    """
+
+    def test_update_batch_progress_calls_issue_closer_on_completion(
+        self, state_file, sample_batch_state
+    ):
+        """Test that issue closer is called when feature completes successfully."""
+        # Arrange
+        save_batch_state(state_file, sample_batch_state)
+
+        with patch(
+            "batch_state_manager._get_batch_issue_closer"
+        ) as mock_get_closer:
+            mock_closer = Mock()
+            mock_closer.close_batch_feature_issue.return_value = {
+                'success': True,
+                'issue_number': 72,
+                'message': 'Issue #72 closed successfully',
+            }
+            mock_get_closer.return_value = mock_closer
+
+            # Act
+            update_batch_progress(
+                state_file,
+                feature_index=0,
+                status="completed",
+                context_token_delta=5000,
+            )
+
+            # Assert
+            mock_closer.close_batch_feature_issue.assert_called_once()
+            call_kwargs = mock_closer.close_batch_feature_issue.call_args
+            assert call_kwargs[1]['feature_index'] == 0
+
+    def test_update_batch_progress_does_not_close_on_failure(
+        self, state_file, sample_batch_state
+    ):
+        """Test that issue closer is NOT called when feature fails."""
+        # Arrange
+        save_batch_state(state_file, sample_batch_state)
+
+        with patch(
+            "batch_state_manager._get_batch_issue_closer"
+        ) as mock_get_closer:
+            mock_closer = Mock()
+            mock_get_closer.return_value = mock_closer
+
+            # Act
+            update_batch_progress(
+                state_file,
+                feature_index=0,
+                status="failed",
+                error_message="Test failed",
+                context_token_delta=2000,
+            )
+
+            # Assert - issue closer should NOT be called for failed features
+            mock_closer.close_batch_feature_issue.assert_not_called()
+
+    def test_update_batch_progress_graceful_degradation_on_close_error(
+        self, state_file, sample_batch_state
+    ):
+        """Test that update_batch_progress succeeds even if issue close fails."""
+        # Arrange
+        save_batch_state(state_file, sample_batch_state)
+
+        with patch(
+            "batch_state_manager._get_batch_issue_closer"
+        ) as mock_get_closer:
+            mock_closer = Mock()
+            mock_closer.close_batch_feature_issue.side_effect = Exception("Network error")
+            mock_get_closer.return_value = mock_closer
+
+            # Act - should not raise even though issue close fails
+            update_batch_progress(
+                state_file,
+                feature_index=0,
+                status="completed",
+                context_token_delta=5000,
+            )
+
+            # Assert - state should still be updated
+            updated_state = load_batch_state(state_file)
+            assert 0 in updated_state.completed_features
+
+    def test_update_batch_progress_works_without_issue_closer(
+        self, state_file, sample_batch_state
+    ):
+        """Test that update_batch_progress works when batch_issue_closer is unavailable."""
+        # Arrange
+        save_batch_state(state_file, sample_batch_state)
+
+        with patch(
+            "batch_state_manager._get_batch_issue_closer"
+        ) as mock_get_closer:
+            # Simulate import failure
+            mock_get_closer.return_value = None
+
+            # Act - should not raise
+            update_batch_progress(
+                state_file,
+                feature_index=0,
+                status="completed",
+                context_token_delta=5000,
+            )
+
+            # Assert - state should still be updated
+            updated_state = load_batch_state(state_file)
+            assert 0 in updated_state.completed_features
+
+
+# =============================================================================
 # SECTION 4: Concurrent Access Tests (4 tests)
 # =============================================================================
 

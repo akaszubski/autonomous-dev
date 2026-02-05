@@ -100,6 +100,68 @@ def _get_batch_state_manager():
     return _batch_state_manager
 
 
+# =============================================================================
+# Batch Auto-Approve (Issue #323)
+# =============================================================================
+
+def enable_batch_auto_approve() -> bool:
+    """
+    Enable batch auto-approval for permission prompts.
+
+    Issue #323: Set BATCH_AUTO_APPROVE environment variable to propagate
+    auto-approval settings to subagents during batch processing. This reduces
+    permission prompts from ~50 to <10 per feature.
+
+    The environment variable is checked by batch_permission_approver hook.
+
+    Returns:
+        True if auto-approve was enabled, False if user declined or error
+
+    Note:
+        This only sets the environment variable for the current process.
+        Subprocesses (subagents) inherit environment variables automatically.
+    """
+    # Check if already set
+    existing = os.environ.get('BATCH_AUTO_APPROVE', '').strip().lower()
+    if existing in ('true', '1', 'yes', 'on', 'enable'):
+        return True
+    elif existing in ('false', '0', 'no', 'off', 'disable'):
+        return False
+
+    # Check if MCP_AUTO_APPROVE is set (user already consented)
+    mcp_approve = os.environ.get('MCP_AUTO_APPROVE', '').strip().lower()
+    if mcp_approve in ('true', '1', 'yes', 'on', 'enable', 'everywhere'):
+        # User has global auto-approve - enable batch auto-approve
+        os.environ['BATCH_AUTO_APPROVE'] = 'true'
+        return True
+    elif mcp_approve in ('false', '0', 'no', 'off', 'disable', 'disabled'):
+        # User explicitly disabled - respect their choice
+        return False
+
+    # Check RALPH_AUTO_CONTINUE (batch auto-continue mode)
+    ralph_auto = os.environ.get('RALPH_AUTO_CONTINUE', '').strip().lower()
+    if ralph_auto in ('true', '1', 'yes', 'on', 'enable'):
+        # RALPH auto-continue implies batch auto-approve
+        os.environ['BATCH_AUTO_APPROVE'] = 'true'
+        return True
+
+    # Default: Enable for batch mode (opt-in at batch start)
+    # This is safe because batch mode requires explicit --batch or --issues flag
+    os.environ['BATCH_AUTO_APPROVE'] = 'true'
+    return True
+
+
+def disable_batch_auto_approve() -> None:
+    """
+    Disable batch auto-approval (cleanup after batch completes).
+
+    Issue #323: Remove BATCH_AUTO_APPROVE environment variable to restore
+    normal permission behavior after batch processing completes.
+    """
+    if 'BATCH_AUTO_APPROVE' in os.environ:
+        del os.environ['BATCH_AUTO_APPROVE']
+
+
 def _get_path_utils():
     """Lazy import path_utils to avoid circular dependencies."""
     global _path_utils
@@ -700,6 +762,9 @@ def run_batch_file_mode(file_path: str) -> Dict[str, Any]:
     """
     validate_features_file(file_path)
 
+    # Issue #323: Enable batch auto-approval for permission prompts
+    batch_auto_approve = enable_batch_auto_approve()
+
     # Generate batch ID
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     batch_id = f"batch-{timestamp}"
@@ -727,6 +792,7 @@ def run_batch_file_mode(file_path: str) -> Dict[str, Any]:
         "worktree_path": worktree_result["path"],
         "fallback": worktree_result.get("fallback", False),
         "warning": worktree_result.get("warning"),
+        "batch_auto_approve": batch_auto_approve,  # Issue #323
         "status": "ready",
     }
 
@@ -741,6 +807,9 @@ def run_batch_issues_mode(issues: List[int]) -> Dict[str, Any]:
         Dictionary with execution result including worktree info
     """
     validate_issue_numbers(issues)
+
+    # Issue #323: Enable batch auto-approval for permission prompts
+    batch_auto_approve = enable_batch_auto_approve()
 
     # Generate batch ID
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -765,6 +834,7 @@ def run_batch_issues_mode(issues: List[int]) -> Dict[str, Any]:
         "worktree_path": worktree_result["path"],
         "fallback": worktree_result.get("fallback", False),
         "warning": worktree_result.get("warning"),
+        "batch_auto_approve": batch_auto_approve,  # Issue #323
         "status": "ready",
     }
 
@@ -781,6 +851,9 @@ def run_resume_mode(batch_id: str) -> Dict[str, Any]:
     Raises:
         BatchNotFoundError: If batch cannot be found
     """
+    # Issue #323: Enable batch auto-approval for permission prompts
+    batch_auto_approve = enable_batch_auto_approve()
+
     batch_info = find_batch_worktree(batch_id)
 
     return {
@@ -793,6 +866,7 @@ def run_resume_mode(batch_id: str) -> Dict[str, Any]:
         "total_features": batch_info["state"].get("total_features", 0),
         "completed_features": batch_info["state"].get("completed_features", []),
         "failed_features": batch_info["state"].get("failed_features", []),
+        "batch_auto_approve": batch_auto_approve,  # Issue #323
         "status": "ready",
     }
 

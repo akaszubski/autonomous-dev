@@ -49,6 +49,9 @@ try:
         has_uncommitted_changes,
         get_remote_name,
         auto_commit_and_push,
+        auto_commit_and_push_worktree,
+        get_files_to_stage,
+        push_worktree_branch,
     )
 except ImportError as e:
     pytest.skip(f"Implementation not found (TDD red phase): {e}", allow_module_level=True)
@@ -1032,3 +1035,475 @@ class TestAutoCommitAndPush:
         assert result['commit_sha'] == 'abc1234'
         assert result['pushed'] is False
         assert result['error'] == ''
+
+
+class TestGetFilesToStage:
+    """Test gitignore-aware file staging (Issue #325)."""
+
+    @patch('subprocess.run')
+    def test_get_files_to_stage_filters_gitignored(self, mock_run):
+        """Test that gitignored files are filtered out."""
+        # Arrange: Mock git status showing both tracked and gitignored files
+        # Porcelain format: XY filename (XY is 2 chars, then space, then filename)
+        # ' M' means index unmodified, worktree modified
+        # '??' means untracked file
+        mock_run.side_effect = [
+            # git status --porcelain
+            Mock(
+                returncode=0,
+                stdout='M  file1.py\nM  .claude/hooks/test.py\n?? new_file.py\n',
+                stderr=''
+            ),
+            # git check-ignore --stdin
+            Mock(
+                returncode=0,
+                stdout='.claude/hooks/test.py\n',
+                stderr=''
+            ),
+        ]
+
+        # Act
+        files_to_stage, ignored_files = get_files_to_stage()
+
+        # Assert
+        assert 'file1.py' in files_to_stage
+        assert 'new_file.py' in files_to_stage
+        assert '.claude/hooks/test.py' not in files_to_stage
+        assert '.claude/hooks/test.py' in ignored_files
+
+    @patch('subprocess.run')
+    def test_get_files_to_stage_no_files(self, mock_run):
+        """Test when there are no files to stage."""
+        # Arrange: Mock git status showing clean
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='',
+            stderr=''
+        )
+
+        # Act
+        files_to_stage, ignored_files = get_files_to_stage()
+
+        # Assert
+        assert files_to_stage == []
+        assert ignored_files == []
+
+    @patch('subprocess.run')
+    def test_get_files_to_stage_handles_renamed_files(self, mock_run):
+        """Test handling of renamed files in git status output."""
+        # Arrange: Mock git status with renamed file
+        mock_run.side_effect = [
+            # git status --porcelain
+            Mock(
+                returncode=0,
+                stdout='R  old_name.py -> new_name.py\n',
+                stderr=''
+            ),
+            # git check-ignore --stdin
+            Mock(
+                returncode=0,
+                stdout='',
+                stderr=''
+            ),
+        ]
+
+        # Act
+        files_to_stage, ignored_files = get_files_to_stage()
+
+        # Assert: Should extract the new name
+        assert 'new_name.py' in files_to_stage
+
+    @patch('subprocess.run')
+    def test_get_files_to_stage_with_cwd(self, mock_run):
+        """Test get_files_to_stage with custom working directory."""
+        # Arrange
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout=' M file.py\n', stderr=''),
+            Mock(returncode=0, stdout='', stderr=''),
+        ]
+        custom_cwd = Path('/custom/path')
+
+        # Act
+        files_to_stage, ignored_files = get_files_to_stage(cwd=custom_cwd)
+
+        # Assert: Verify cwd was passed to subprocess
+        assert mock_run.call_args_list[0][1]['cwd'] == str(custom_cwd)
+
+    @patch('subprocess.run')
+    def test_get_files_to_stage_timeout_fallback(self, mock_run):
+        """Test that timeout returns empty lists (fallback behavior)."""
+        # Arrange
+        mock_run.side_effect = TimeoutExpired(['git', 'status'], 30)
+
+        # Act
+        files_to_stage, ignored_files = get_files_to_stage()
+
+        # Assert: Fallback returns empty lists
+        assert files_to_stage == []
+        assert ignored_files == []
+
+
+class TestStageAllChangesWithCwd:
+    """Test stage_all_changes with cwd and gitignore_aware parameters (Issue #325)."""
+
+    @patch('subprocess.run')
+    def test_stage_all_changes_with_cwd(self, mock_run):
+        """Test stage_all_changes passes cwd to subprocess."""
+        # Arrange
+        mock_run.return_value = Mock(returncode=0, stdout='', stderr='')
+        custom_cwd = Path('/custom/path')
+
+        # Act
+        success, error = stage_all_changes(cwd=custom_cwd)
+
+        # Assert
+        assert success is True
+        assert mock_run.call_args[1]['cwd'] == str(custom_cwd)
+
+    @patch('git_operations.get_files_to_stage')
+    @patch('subprocess.run')
+    def test_stage_all_changes_gitignore_aware(self, mock_run, mock_get_files):
+        """Test gitignore_aware=True filters files before staging."""
+        # Arrange
+        mock_get_files.return_value = (['file1.py', 'file2.py'], ['.claude/hooks/test.py'])
+        mock_run.return_value = Mock(returncode=0, stdout='', stderr='')
+
+        # Act
+        success, error = stage_all_changes(gitignore_aware=True)
+
+        # Assert
+        assert success is True
+        mock_get_files.assert_called_once()
+        # Verify git add was called with specific files, not '.'
+        args = mock_run.call_args[0][0]
+        assert 'file1.py' in args
+        assert 'file2.py' in args
+        assert '.claude/hooks/test.py' not in args
+
+    @patch('git_operations.get_files_to_stage')
+    @patch('subprocess.run')
+    def test_stage_all_changes_gitignore_aware_only_ignored_files(self, mock_run, mock_get_files):
+        """Test gitignore_aware=True when only gitignored files exist."""
+        # Arrange: Only gitignored files, nothing to stage
+        mock_get_files.return_value = ([], ['.claude/hooks/test.py'])
+        mock_run.return_value = Mock(returncode=0, stdout='', stderr='')
+
+        # Act
+        success, error = stage_all_changes(gitignore_aware=True)
+
+        # Assert: Should succeed with nothing staged
+        assert success is True
+
+    @patch('subprocess.run')
+    def test_stage_all_changes_default_not_gitignore_aware(self, mock_run):
+        """Test that default behavior (gitignore_aware=False) uses git add ."""
+        # Arrange
+        mock_run.return_value = Mock(returncode=0, stdout='', stderr='')
+
+        # Act
+        success, error = stage_all_changes()
+
+        # Assert
+        assert success is True
+        args = mock_run.call_args[0][0]
+        assert args == ['git', 'add', '.']
+
+
+class TestPushWorktreeBranch:
+    """Test push_worktree_branch for handling detached HEAD state (Issue #325)."""
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_detached_head(self, mock_run):
+        """Test push from detached HEAD uses HEAD:<branch> syntax."""
+        # Arrange: Simulate detached HEAD
+        # Note: symbolic-ref doesn't use check=True, so it returns with non-zero
+        # returncode instead of raising CalledProcessError
+        mock_run.side_effect = [
+            # git symbolic-ref returns non-zero for detached HEAD (no exception, just returncode)
+            Mock(returncode=1, stdout='', stderr=''),
+            # git push succeeds
+            Mock(returncode=0, stdout='', stderr=''),
+        ]
+
+        # Act
+        success, error = push_worktree_branch('batch-20260205-123456')
+
+        # Assert
+        assert success is True
+        # Verify push used HEAD:<branch> syntax
+        push_call = mock_run.call_args_list[1]
+        push_args = push_call[0][0]
+        assert 'HEAD:batch-20260205-123456' in push_args
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_on_branch(self, mock_run):
+        """Test push when on branch uses standard syntax."""
+        # Arrange: On a branch (not detached)
+        mock_run.side_effect = [
+            # git symbolic-ref succeeds (on a branch)
+            Mock(returncode=0, stdout='refs/heads/batch-20260205-123456\n'),
+            # git push succeeds
+            Mock(returncode=0, stdout='', stderr=''),
+        ]
+
+        # Act
+        success, error = push_worktree_branch('batch-20260205-123456')
+
+        # Assert
+        assert success is True
+        # Verify push used standard syntax (not HEAD:)
+        push_call = mock_run.call_args_list[1]
+        push_args = push_call[0][0]
+        assert 'batch-20260205-123456' in push_args
+        # Check that HEAD: syntax was NOT used
+        assert not any('HEAD:' in str(arg) for arg in push_args)
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_with_cwd(self, mock_run):
+        """Test push_worktree_branch with custom working directory."""
+        # Arrange
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout='refs/heads/main\n'),
+            Mock(returncode=0, stdout='', stderr=''),
+        ]
+        custom_cwd = Path('/custom/worktree/path')
+
+        # Act
+        success, error = push_worktree_branch('main', cwd=custom_cwd)
+
+        # Assert
+        assert success is True
+        # Both calls should use cwd
+        assert mock_run.call_args_list[0][1]['cwd'] == str(custom_cwd)
+        assert mock_run.call_args_list[1][1]['cwd'] == str(custom_cwd)
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_with_set_upstream(self, mock_run):
+        """Test push_worktree_branch with set_upstream=True."""
+        # Arrange
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout='refs/heads/feature\n'),
+            Mock(returncode=0, stdout='', stderr=''),
+        ]
+
+        # Act
+        success, error = push_worktree_branch('feature', set_upstream=True)
+
+        # Assert
+        assert success is True
+        push_args = mock_run.call_args_list[1][0][0]
+        assert '-u' in push_args
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_network_timeout(self, mock_run):
+        """Test push_worktree_branch handles network timeout."""
+        # Arrange
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout='refs/heads/main\n'),
+            TimeoutExpired(['git', 'push'], 30),
+        ]
+
+        # Act
+        success, error = push_worktree_branch('main')
+
+        # Assert
+        assert success is False
+        assert 'timeout' in error.lower()
+
+    @patch('subprocess.run')
+    def test_push_worktree_branch_unqualified_destination_error(self, mock_run):
+        """Test push_worktree_branch handles unqualified destination error."""
+        # Arrange: This is the error we're fixing with Issue #325
+        # symbolic-ref doesn't use check=True, so returns non-zero returncode
+        mock_run.side_effect = [
+            Mock(returncode=1, stdout='', stderr=''),  # detached HEAD
+            CalledProcessError(
+                1,
+                ['git', 'push'],
+                stderr='error: unable to push to unqualified destination'
+            ),
+        ]
+
+        # Act
+        success, error = push_worktree_branch('batch-20260205-123456')
+
+        # Assert
+        assert success is False
+        assert 'detached head' in error.lower() or 'unqualified' in error.lower()
+
+
+class TestAutoCommitAndPushWorktree:
+    """Test worktree-aware auto-commit-and-push workflow (Issue #325)."""
+
+    @patch('git_operations.validate_git_repo')
+    @patch('git_operations.check_git_config')
+    @patch('git_operations.detect_merge_conflict')
+    @patch('git_operations.has_uncommitted_changes')
+    @patch('git_operations.stage_all_changes')
+    @patch('git_operations.commit_changes')
+    @patch('git_operations.get_remote_name')
+    @patch('git_operations.push_worktree_branch')
+    def test_auto_commit_and_push_worktree_success(
+        self,
+        mock_push_worktree,
+        mock_get_remote,
+        mock_commit,
+        mock_stage,
+        mock_has_changes,
+        mock_conflict,
+        mock_config,
+        mock_validate,
+    ):
+        """Test full worktree workflow succeeds with gitignore-aware staging."""
+        # Arrange: All prerequisites pass
+        mock_validate.return_value = (True, '')
+        mock_config.return_value = (True, '')
+        mock_conflict.return_value = (False, [])
+        mock_has_changes.return_value = True
+        mock_stage.return_value = (True, '')
+        mock_commit.return_value = (True, 'abc1234', '')
+        mock_get_remote.return_value = 'origin'
+        mock_push_worktree.return_value = (True, '')
+
+        # Act
+        result = auto_commit_and_push_worktree(
+            commit_message='feat: add feature',
+            branch='batch-20260205-123456',
+            push=True,
+            cwd=Path('/worktrees/batch')
+        )
+
+        # Assert
+        assert result['success'] is True
+        assert result['commit_sha'] == 'abc1234'
+        assert result['pushed'] is True
+        assert result['error'] == ''
+        # Verify gitignore-aware staging was used
+        mock_stage.assert_called_once()
+        call_kwargs = mock_stage.call_args[1]
+        assert call_kwargs.get('gitignore_aware') is True
+        # Verify worktree-aware push was used
+        mock_push_worktree.assert_called_once()
+        call_args = mock_push_worktree.call_args
+        assert call_args[1]['branch'] == 'batch-20260205-123456'
+
+    @patch('git_operations.validate_git_repo')
+    @patch('git_operations.check_git_config')
+    @patch('git_operations.detect_merge_conflict')
+    @patch('git_operations.has_uncommitted_changes')
+    @patch('git_operations.stage_all_changes')
+    @patch('git_operations.commit_changes')
+    @patch('git_operations.get_remote_name')
+    @patch('git_operations.push_worktree_branch')
+    def test_auto_commit_and_push_worktree_with_cwd(
+        self,
+        mock_push_worktree,
+        mock_get_remote,
+        mock_commit,
+        mock_stage,
+        mock_has_changes,
+        mock_conflict,
+        mock_config,
+        mock_validate,
+    ):
+        """Test that cwd is passed to stage and push functions."""
+        # Arrange
+        mock_validate.return_value = (True, '')
+        mock_config.return_value = (True, '')
+        mock_conflict.return_value = (False, [])
+        mock_has_changes.return_value = True
+        mock_stage.return_value = (True, '')
+        mock_commit.return_value = (True, 'abc1234', '')
+        mock_get_remote.return_value = 'origin'
+        mock_push_worktree.return_value = (True, '')
+        worktree_path = Path('/worktrees/my-batch')
+
+        # Act
+        result = auto_commit_and_push_worktree(
+            commit_message='feat: batch feature',
+            branch='batch-branch',
+            push=True,
+            cwd=worktree_path
+        )
+
+        # Assert
+        assert result['success'] is True
+        # Verify cwd was passed to stage_all_changes
+        mock_stage.assert_called_with(cwd=worktree_path, gitignore_aware=True)
+        # Verify cwd was passed to push_worktree_branch
+        push_call_kwargs = mock_push_worktree.call_args[1]
+        assert push_call_kwargs['cwd'] == worktree_path
+
+    @patch('git_operations.validate_git_repo')
+    @patch('git_operations.check_git_config')
+    @patch('git_operations.detect_merge_conflict')
+    @patch('git_operations.has_uncommitted_changes')
+    def test_auto_commit_and_push_worktree_nothing_to_commit(
+        self,
+        mock_has_changes,
+        mock_conflict,
+        mock_config,
+        mock_validate,
+    ):
+        """Test worktree workflow handles nothing to commit gracefully."""
+        # Arrange: No changes to commit
+        mock_validate.return_value = (True, '')
+        mock_config.return_value = (True, '')
+        mock_conflict.return_value = (False, [])
+        mock_has_changes.return_value = False
+
+        # Act
+        result = auto_commit_and_push_worktree(
+            commit_message='feat: feature',
+            branch='batch-branch',
+            push=True
+        )
+
+        # Assert
+        assert result['success'] is True  # Not an error
+        assert result['commit_sha'] == ''
+        assert result['pushed'] is False
+        assert 'nothing to commit' in result['error'].lower()
+
+    @patch('git_operations.validate_git_repo')
+    @patch('git_operations.check_git_config')
+    @patch('git_operations.detect_merge_conflict')
+    @patch('git_operations.has_uncommitted_changes')
+    @patch('git_operations.stage_all_changes')
+    @patch('git_operations.commit_changes')
+    @patch('git_operations.get_remote_name')
+    @patch('git_operations.push_worktree_branch')
+    def test_auto_commit_and_push_worktree_push_fails_gracefully(
+        self,
+        mock_push_worktree,
+        mock_get_remote,
+        mock_commit,
+        mock_stage,
+        mock_has_changes,
+        mock_conflict,
+        mock_config,
+        mock_validate,
+    ):
+        """Test worktree workflow handles push failure gracefully (commit succeeds)."""
+        # Arrange: Commit succeeds, push fails
+        mock_validate.return_value = (True, '')
+        mock_config.return_value = (True, '')
+        mock_conflict.return_value = (False, [])
+        mock_has_changes.return_value = True
+        mock_stage.return_value = (True, '')
+        mock_commit.return_value = (True, 'abc1234', '')
+        mock_get_remote.return_value = 'origin'
+        mock_push_worktree.return_value = (False, 'Network timeout')
+
+        # Act
+        result = auto_commit_and_push_worktree(
+            commit_message='feat: feature',
+            branch='batch-branch',
+            push=True
+        )
+
+        # Assert: Commit succeeded, push failed
+        assert result['success'] is True
+        assert result['commit_sha'] == 'abc1234'
+        assert result['pushed'] is False
+        assert 'network timeout' in result['error'].lower()

@@ -125,6 +125,29 @@ except ImportError:
         """Fallback sanitization."""
         return name.replace("\n", " ").replace("\r", " ")
 
+
+# =============================================================================
+# Lazy Import for Batch Issue Closer (Issue #322)
+# =============================================================================
+
+_batch_issue_closer = None
+
+
+def _get_batch_issue_closer():
+    """Lazy import batch_issue_closer to avoid circular dependencies.
+
+    Returns:
+        batch_issue_closer module or None if import fails
+    """
+    global _batch_issue_closer
+    if _batch_issue_closer is None:
+        try:
+            import batch_issue_closer
+            _batch_issue_closer = batch_issue_closer
+        except ImportError:
+            _batch_issue_closer = False  # Mark as failed to avoid retry
+    return _batch_issue_closer if _batch_issue_closer else None
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -1003,6 +1026,44 @@ def update_batch_progress(
 
         # Save updated state (lock is reentrant, so this is safe)
         save_batch_state(state_file, state)
+
+    # Issue #322: Auto-close GitHub issue after successful feature completion
+    # This runs OUTSIDE the lock since it involves network calls that could be slow
+    if status == "completed":
+        batch_issue_closer = _get_batch_issue_closer()
+        if batch_issue_closer is not None:
+            try:
+                # Get current state (unlocked - already saved)
+                current_state = load_batch_state(state_file)
+
+                # Close the issue if auto-close is enabled
+                close_result = batch_issue_closer.close_batch_feature_issue(
+                    state=current_state,
+                    feature_index=feature_index,
+                    state_file=state_file_path,
+                )
+
+                # Log result (non-blocking - don't fail if issue close fails)
+                if close_result.get('success'):
+                    audit_log("batch_issue_close", "success", {
+                        "feature_index": feature_index,
+                        "issue_number": close_result.get('issue_number'),
+                    })
+                elif close_result.get('skipped'):
+                    # Skipped is normal (e.g., AUTO_GIT_ENABLED not set, no issue number)
+                    pass
+                else:
+                    # Failed but non-blocking
+                    audit_log("batch_issue_close", "failed", {
+                        "feature_index": feature_index,
+                        "error": close_result.get('error'),
+                    })
+            except Exception as e:
+                # Graceful degradation - log but don't fail
+                audit_log("batch_issue_close", "error", {
+                    "feature_index": feature_index,
+                    "error": str(e),
+                })
 
 
 def record_auto_clear_event(

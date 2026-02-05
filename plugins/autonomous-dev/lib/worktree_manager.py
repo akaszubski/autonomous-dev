@@ -331,8 +331,41 @@ def create_worktree(feature_name: str, base_branch: str = 'master') -> Tuple[boo
             timeout=30
         )
 
-        # Resolve symlinks and return absolute path
+        # Issue #325: Explicitly checkout the branch after worktree creation
+        # git worktree add with -b can leave HEAD in detached state
+        # This ensures the branch is properly checked out
         resolved_path = worktree_path.resolve()
+        try:
+            checkout_result = subprocess.run(
+                ['git', 'checkout', feature_name],
+                capture_output=True,
+                text=True,
+                check=False,  # Don't fail if already on branch
+                timeout=10,
+                cwd=str(resolved_path)
+            )
+            # Verify we're on the branch (not detached)
+            verify_result = subprocess.run(
+                ['git', 'symbolic-ref', '-q', 'HEAD'],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=str(resolved_path)
+            )
+            if verify_result.returncode != 0:
+                # Still detached - try harder by creating branch if needed
+                subprocess.run(
+                    ['git', 'checkout', '-B', feature_name],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    cwd=str(resolved_path)
+                )
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            # Non-fatal: worktree still created, just might be in detached state
+            pass
+
         return (True, resolved_path)
 
     except subprocess.TimeoutExpired:
