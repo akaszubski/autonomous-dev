@@ -131,6 +131,20 @@ class PermissionClassifier:
             return self._classify_bash(params)
         elif tool in ["Grep", "Glob"]:
             return self._classify_search(params)
+        elif tool in ["Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop"]:
+            # Internal Claude Code task management tools - always safe
+            audit_log("permission_classification", "safe_task_tool", {
+                "tool": tool,
+                "level": PermissionLevel.SAFE.value
+            })
+            return PermissionLevel.SAFE
+        elif tool in ["Skill", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode"]:
+            # Internal Claude Code workflow tools - always safe
+            audit_log("permission_classification", "safe_workflow_tool", {
+                "tool": tool,
+                "level": PermissionLevel.SAFE.value
+            })
+            return PermissionLevel.SAFE
         else:
             # Unknown tool → conservative (sensitive)
             audit_log("permission_classification", "unknown_tool", {

@@ -474,6 +474,11 @@ class ToolValidator:
                     "AskUserQuestion",
                     "Task",
                     "TaskOutput",
+                    "TaskCreate",
+                    "TaskUpdate",
+                    "TaskList",
+                    "TaskGet",
+                    "TaskStop",
                     "Skill",
                     "SlashCommand",
                     "BashOutput",
@@ -960,7 +965,8 @@ class ToolValidator:
         # Check tools.always_allowed FIRST (before tool-specific validation)
         always_allowed = self.policy.get("tools", {}).get("always_allowed", [
             "Read", "Write", "Edit", "Grep", "Glob", "Search",
-            "AskUserQuestion", "Task", "TaskOutput", "Skill", "SlashCommand",
+            "AskUserQuestion", "Task", "TaskOutput", "TaskCreate", "TaskUpdate",
+            "TaskList", "TaskGet", "TaskStop", "Skill", "SlashCommand",
             "BashOutput", "NotebookEdit", "TodoWrite", "EnterPlanMode",
             "ExitPlanMode", "AgentOutputTool", "KillShell", "LSP",
         ])
