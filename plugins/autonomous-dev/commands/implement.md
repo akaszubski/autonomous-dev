@@ -75,6 +75,12 @@ else:
     feature = args.strip()
 ```
 
+**ACTION REQUIRED**: Before routing, activate the pipeline state file so the workflow enforcement hook allows edits from both subagents and the main process:
+
+```bash
+echo '{"session_start": "'$(date -u +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'"}' > /tmp/implement_pipeline_state.json
+```
+
 **Route based on mode**:
 - **full_pipeline** → Continue to STEP 1 (Full Pipeline)
 - **quick** → Jump to QUICK MODE section
@@ -336,6 +342,11 @@ model: "haiku"
 Feature is ready to commit!
 ```
 
+**Cleanup**: Remove the pipeline state file:
+```bash
+rm -f /tmp/implement_pipeline_state.json
+```
+
 ---
 
 # QUICK MODE
@@ -365,6 +376,11 @@ After completion, report:
 🧪 Tests: Run `pytest` to verify
 
 Consider running `/implement [feature]` (without --quick) for full pipeline.
+```
+
+**Cleanup**: Remove the pipeline state file:
+```bash
+rm -f /tmp/implement_pipeline_state.json
 ```
 
 ---
