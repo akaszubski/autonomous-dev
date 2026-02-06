@@ -216,6 +216,15 @@ def validate_sandbox_layer(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
         return ("ask", f"Sandbox error: {e}")
 
 
+NATIVE_TOOLS = {
+    "Read", "Write", "Edit", "Glob", "Grep", "Bash",
+    "Task", "TaskOutput", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop",
+    "AskUserQuestion", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
+    "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell",
+    "LSP", "WebFetch", "WebSearch",
+}
+
+
 def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     """
     Validate MCP security (path traversal, injection, SSRF).
@@ -229,6 +238,10 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
         - decision: "allow", "deny", or "ask"
         - reason: Human-readable reason for decision
     """
+    # Native Claude Code tools skip MCP security (not MCP tools)
+    if tool_name in NATIVE_TOOLS:
+        return ("allow", f"Native tool '{tool_name}' - MCP security not applicable")
+
     # Check if MCP security is enabled
     enabled = os.getenv("PRE_TOOL_MCP_SECURITY", "true").lower() == "true"
     if not enabled:
