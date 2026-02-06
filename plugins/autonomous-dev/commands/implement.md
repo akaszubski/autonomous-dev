@@ -231,13 +231,34 @@ Output: Production-quality code following the architecture plan."
 model: "sonnet"
 ```
 
-**After implementer completes**, RUN TESTS:
+**After implementer completes**, YOU (the coordinator) MUST run tests and resolve ALL failures before STEP 6:
 
 ```bash
 pytest --tb=short -q
 ```
 
-⚠️ **CHECKPOINT**: ALL tests MUST pass (0 failures, 0 errors). Fix any failures before proceeding.
+**Read the output carefully. If there are ANY failures, you are NOT done with STEP 5.**
+
+⚠️ **HARD GATE - DO NOT PROCEED UNTIL RESOLVED**:
+
+ALL tests MUST show **0 failures, 0 errors** before moving to STEP 6. This is NON-NEGOTIABLE.
+
+**If ANY test fails, you MUST do one of these three things for EACH failing test:**
+
+1. **Fix it** - Debug and fix the code or test until it passes
+2. **Mark it as not implemented** - Add `@pytest.mark.skip(reason="Not yet implemented: [description]")` with a clear reason
+3. **Make it work** - Adjust the test expectations to match correct behavior
+
+**You are FORBIDDEN from:**
+- ❌ Saying "X% passing is good enough" and proceeding
+- ❌ Describing failures as a "solid foundation"
+- ❌ Categorizing failures as "expected" without fixing or skipping them
+- ❌ Proceeding to STEP 6 with ANY test failures or errors
+- ❌ Blaming infrastructure (SQLite, mocks, etc.) without resolving
+
+**Run `pytest --tb=short -q` and verify the output shows 0 failures. If not, loop back and resolve EVERY failure.**
+
+**Only when pytest output shows `X passed, 0 failed` (or all failures are marked as skipped) may you proceed.**
 
 ---
 

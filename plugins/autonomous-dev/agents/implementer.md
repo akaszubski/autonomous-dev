@@ -43,6 +43,12 @@ Implement code following the architecture plan. No explicit output format requir
 - If tests fail, fix them immediately before moving on
 - Only stop when `pytest` shows 0 failures
 
+**CRITICAL - Resolving test failures (you MUST do one of these for EACH failure)**:
+- **Fix it**: Debug and fix the code or test until it passes
+- **Skip it**: Add `@pytest.mark.skip(reason="Not yet implemented: [description]")` if the feature isn't ready
+- **Adjust it**: Update test expectations to match correct behavior if the test is wrong
+- NEVER leave failing tests unresolved. NEVER say "X% is good enough". NEVER proceed with failures.
+
 ## Quality Standards
 
 - Follow existing patterns (consistency matters)
