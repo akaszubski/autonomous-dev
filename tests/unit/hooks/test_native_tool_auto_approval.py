@@ -280,3 +280,47 @@ class TestWorkflowEnforcementRegression:
 
         decision = result["hookSpecificOutput"]["permissionDecision"]
         assert decision == "allow", "Pipeline agents should bypass enforcement"
+
+    def test_active_pipeline_state_file_allows_edits(self):
+        """When /implement pipeline state file exists with recent timestamp, edits should be allowed."""
+        import tempfile
+        from datetime import datetime
+
+        state_file = Path(tempfile.mktemp(suffix=".json"))
+        try:
+            state_file.write_text(json.dumps({
+                "session_start": datetime.now().isoformat(),
+                "current_step": "STEP 4",
+            }))
+            result = run_hook("Edit", {
+                "file_path": "/tmp/app.py",
+                "old_string": "pass",
+                "new_string": "def handler():\n    return 'ok'\ndef process():\n    return True",
+            }, {"ENFORCEMENT_LEVEL": "block", "PIPELINE_STATE_FILE": str(state_file)})
+
+            decision = result["hookSpecificOutput"]["permissionDecision"]
+            assert decision == "allow", "Active pipeline state file should bypass enforcement"
+        finally:
+            state_file.unlink(missing_ok=True)
+
+    def test_stale_pipeline_state_file_does_not_allow_edits(self):
+        """When pipeline state file has an old timestamp (> 2h), enforcement should still apply."""
+        import tempfile
+        from datetime import datetime, timedelta
+
+        state_file = Path(tempfile.mktemp(suffix=".json"))
+        try:
+            old_time = datetime.now() - timedelta(hours=3)
+            state_file.write_text(json.dumps({
+                "session_start": old_time.isoformat(),
+            }))
+            result = run_hook("Edit", {
+                "file_path": "/tmp/app.py",
+                "old_string": "pass",
+                "new_string": "def handler():\n    return 'ok'\ndef process():\n    return True",
+            }, {"ENFORCEMENT_LEVEL": "block", "PIPELINE_STATE_FILE": str(state_file)})
+
+            decision = result["hookSpecificOutput"]["permissionDecision"]
+            assert decision == "deny", "Stale pipeline state should not bypass enforcement"
+        finally:
+            state_file.unlink(missing_ok=True)

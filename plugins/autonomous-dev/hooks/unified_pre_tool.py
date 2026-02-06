@@ -364,6 +364,24 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     if agent_name in PIPELINE_AGENTS:
         return ("allow", f"Pipeline agent '{agent_name}' authorized")
 
+    # Fallback: check if /implement pipeline is active via state file
+    pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json")
+    try:
+        state_path = Path(pipeline_state_file)
+        if state_path.exists():
+            import json as _json
+            from datetime import datetime as _datetime
+            with open(state_path) as f:
+                state = _json.load(f)
+            session_start = state.get("session_start", "")
+            if session_start:
+                start_time = _datetime.fromisoformat(session_start)
+                elapsed = (_datetime.now() - start_time).total_seconds()
+                if elapsed < 7200:  # 2 hours
+                    return ("allow", "Active /implement pipeline detected via state file")
+    except Exception:
+        pass  # If state file is unreadable, fall through to normal enforcement
+
     # Only check Edit and Write tools
     if tool_name not in ("Edit", "Write"):
         return ("allow", f"Tool '{tool_name}' not subject to workflow enforcement")
