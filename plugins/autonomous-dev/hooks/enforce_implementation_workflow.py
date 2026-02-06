@@ -108,6 +108,10 @@ SIGNIFICANT_PATTERNS = [
 
     # Java/Kotlin
     (r'\b(?:public|private|protected)\s+(?:static\s+)?(?:\w+\s+)+\w+\s*\(', 'Java method'),
+
+    # Error handling / conditional imports (ad-hoc implementation patterns)
+    (r'\btry:\s*\n\s+(?:from|import)\s+', 'Conditional import (try/except)'),
+    (r'\bif\s+\w+.*:\s*\n(?:\s+.*\n){3,}else:', 'Multi-branch conditional'),
 ]
 
 # Agents allowed to make significant changes (part of /implement workflow)
@@ -127,7 +131,7 @@ CODE_EXTENSIONS = {
 }
 
 # Minimum lines to be considered "significant"
-SIGNIFICANT_LINE_THRESHOLD = 10
+SIGNIFICANT_LINE_THRESHOLD = 5
 
 
 def load_env():
@@ -173,8 +177,8 @@ def get_enforcement_level() -> EnforcementLevel:
     elif strict_str == "false":
         return EnforcementLevel.OFF
 
-    # Default: SUGGEST
-    return EnforcementLevel.SUGGEST
+    # Default: BLOCK - enforce /implement for significant changes
+    return EnforcementLevel.BLOCK
 
 
 def count_new_lines(old_string: str, new_string: str) -> int:

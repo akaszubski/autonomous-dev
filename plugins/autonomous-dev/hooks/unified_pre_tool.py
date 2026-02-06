@@ -133,6 +133,31 @@ PIPELINE_AGENTS = [
     'doc-master',
 ]
 
+# Code file extensions subject to workflow enforcement
+CODE_EXTENSIONS = {
+    '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.go', '.rs',
+    '.c', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.swift',
+    '.kt', '.scala', '.sh', '.bash', '.zsh', '.vue', '.svelte',
+}
+
+# Patterns that indicate significant code additions
+SIGNIFICANT_PATTERNS = [
+    (r'\bdef\s+\w+\s*\(', 'Python function'),
+    (r'\basync\s+def\s+\w+\s*\(', 'Python async function'),
+    (r'\bclass\s+\w+', 'Python/JS class'),
+    (r'\bfunction\s+\w+\s*\(', 'JavaScript function'),
+    (r'\bconst\s+\w+\s*=\s*(?:async\s*)?\(.*?\)\s*=>', 'Arrow function'),
+    (r'\bexport\s+(?:default\s+)?(?:function|class|const)', 'JS export'),
+    (r'\bfunc\s+(?:\(\w+\s+\*?\w+\)\s+)?\w+\s*\(', 'Go function'),
+    (r'\bfn\s+\w+\s*[<(]', 'Rust function'),
+    (r'\bimpl\s+', 'Rust impl block'),
+    # Error handling / conditional imports (ad-hoc implementation patterns)
+    (r'\btry:\s*\n\s+(?:from|import)\s+', 'Conditional import (try/except)'),
+    (r'\bif\s+\w+.*:\s*\n(?:\s+.*\n){3,}else:', 'Multi-branch conditional'),
+]
+
+SIGNIFICANT_LINE_THRESHOLD = 5
+
 
 def validate_sandbox_layer(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     """
@@ -259,9 +284,55 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
         return ("ask", f"MCP security error: {e}")
 
 
+def _is_exempt_path(file_path: str) -> bool:
+    """Check if file is exempt from workflow enforcement (tests, docs, configs)."""
+    if not file_path:
+        return False
+    path = Path(file_path)
+    path_str = str(path).lower()
+    # Test files
+    if ('test_' in path_str or '_test.' in path_str or '.test.' in path_str
+            or path_str.startswith('tests/') or path_str.startswith('test/')):
+        return True
+    # Docs, configs, hooks, scripts, lib, agents, commands
+    if path.suffix.lower() in {'.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.toml', '.env', '.ini', '.cfg'}:
+        return True
+    if any(s in path_str for s in ['.claude/hooks/', 'hooks/', '/lib/', 'lib/', '.claude/agents/',
+                                    '.claude/commands/', '.claude/skills/', 'scripts/']):
+        return True
+    return False
+
+
+def _has_significant_additions(old_string: str, new_string: str) -> tuple:
+    """Check if the edit adds significant code (new functions, classes, >10 lines)."""
+    import re
+    old_string = old_string or ""
+    new_string = new_string or ""
+    for pattern, desc in SIGNIFICANT_PATTERNS:
+        old_matches = len(re.findall(pattern, old_string, re.MULTILINE))
+        new_matches = len(re.findall(pattern, new_string, re.MULTILINE))
+        if new_matches > old_matches:
+            match = re.search(pattern, new_string)
+            if match:
+                return True, f"New {desc} detected", match.group(0)[:60]
+    old_lines = len(old_string.strip().split('\n')) if old_string.strip() else 0
+    new_lines = len(new_string.strip().split('\n')) if new_string.strip() else 0
+    added = max(0, new_lines - old_lines)
+    if added >= SIGNIFICANT_LINE_THRESHOLD:
+        return True, f"Significant addition ({added} new lines)", f"+{added} lines"
+    return False, "", ""
+
+
 def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     """
     Validate agent authorization for code changes.
+
+    Enforces /implement workflow for significant code changes.
+    Enforcement level controlled by ENFORCEMENT_LEVEL env var:
+    - off: always allow
+    - warn: allow + log warning (default for backward compat)
+    - suggest: allow + include /implement suggestion in reason
+    - block: deny significant changes outside pipeline
 
     Args:
         tool_name: Name of the tool being called
@@ -269,8 +340,6 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
 
     Returns:
         Tuple of (decision, reason)
-        - decision: "allow", "deny", or "ask"
-        - reason: Human-readable reason for decision
     """
     # Check if agent authorization is enabled
     enabled = os.getenv("PRE_TOOL_AGENT_AUTH", "true").lower() == "true"
@@ -282,9 +351,56 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     if agent_name in PIPELINE_AGENTS:
         return ("allow", f"Pipeline agent '{agent_name}' authorized")
 
-    # Issue #141: Intent detection removed
-    # All changes allowed - rely on persuasion, convenience, and skills
-    return ("allow", f"Tool '{tool_name}' allowed (intent detection removed per Issue #141)")
+    # Only check Edit and Write tools
+    if tool_name not in ("Edit", "Write"):
+        return ("allow", f"Tool '{tool_name}' not subject to workflow enforcement")
+
+    # Get enforcement level (default: block - use /implement for significant changes)
+    level = os.getenv("ENFORCEMENT_LEVEL", "block").strip().lower()
+    if level == "off":
+        return ("allow", "Workflow enforcement disabled (level: off)")
+
+    # Get file path and check exemptions
+    file_path = tool_input.get("file_path", "")
+    if _is_exempt_path(file_path):
+        return ("allow", f"File exempt from workflow enforcement: {Path(file_path).name}")
+    if file_path and Path(file_path).suffix.lower() not in CODE_EXTENSIONS:
+        return ("allow", "Non-code file, no enforcement needed")
+
+    # Analyze the change for significance
+    if tool_name == "Edit":
+        old_string = tool_input.get("old_string", "")
+        new_string = tool_input.get("new_string", "")
+        is_significant, reason, details = _has_significant_additions(old_string, new_string)
+    else:  # Write
+        content = tool_input.get("content", "")
+        is_significant, reason, details = _has_significant_additions("", content)
+
+    if not is_significant:
+        return ("allow", "Minor edit, no significant code additions detected")
+
+    file_name = Path(file_path).name if file_path else "unknown"
+    suggestion = (
+        f"\n\nUse /implement for this change:\n"
+        f"- /implement \"description\"\n"
+        f"- /implement --quick \"description\" (skip full pipeline)\n"
+        f"- /implement #<issue-number>"
+    )
+
+    if level == "warn":
+        import sys as _sys
+        _sys.stderr.write(f"WARNING: Significant code change outside /implement: {reason} in {file_name}\n")
+        _sys.stderr.flush()
+        return ("allow", f"Significant change detected ({reason}), allowed at WARN level")
+
+    elif level == "suggest":
+        return ("allow", f"Significant change detected: {reason} - {details} in {file_name}.{suggestion}")
+
+    elif level == "block":
+        return ("deny", f"WORKFLOW ENFORCEMENT: {reason} - {details} in {file_name}. "
+                f"Significant code changes require /implement workflow.{suggestion}")
+
+    return ("allow", f"Tool '{tool_name}' allowed")
 
 
 def validate_batch_permission(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
