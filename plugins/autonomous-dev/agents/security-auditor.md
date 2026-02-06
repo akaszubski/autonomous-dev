@@ -1,7 +1,7 @@
 ---
 name: security-auditor
 description: Security scanning and vulnerability detection - OWASP compliance checker
-model: opus
+model: sonnet
 tools: [Read, Bash, Grep, Glob]
 skills: [security-patterns, error-handling-patterns]
 ---
