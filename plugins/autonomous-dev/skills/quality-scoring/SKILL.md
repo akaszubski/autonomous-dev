@@ -86,6 +86,48 @@ is_valid = validate_dpo_pairs(
 # Ensures quality gap ≥0.15
 ```
 
+### REQUIRED: DPO Multi-Dimensional Scoring
+
+**Every DPO pair MUST have multi-dimensional quality scores before training.**
+
+This is a hard requirement — DPO data without quality scores will learn shortcuts (e.g., "longer = better") instead of genuine preference signal.
+
+**Required output fields per pair**:
+- `chosen_score` (float): Composite quality score for chosen response
+- `rejected_score` (float): Composite quality score for rejected response
+- `margin` (float): chosen_score - rejected_score (must be ≥3.0)
+
+**Length bias audit** (MUST run before DPO training):
+```python
+from pathlib import Path
+from training_metrics import validate_dpo_pairs
+
+metrics = validate_dpo_pairs(dpo_path=Path("dpo_pairs.jsonl"))
+
+# Check length bias
+longer_chosen = sum(1 for p in metrics.pairs if len(p.chosen) > len(p.rejected))
+length_bias = longer_chosen / metrics.total_pairs
+
+if length_bias > 0.70:
+    raise ValueError(
+        f"DPO length bias {length_bias:.0%} > 70% threshold.\n"
+        f"Model will learn 'longer = better' shortcut.\n"
+        f"Fix: Score by quality dimensions, not length."
+    )
+
+# Check quality scores present
+missing = sum(1 for p in metrics.pairs if p.chosen_score is None)
+if missing > 0:
+    raise ValueError(f"{missing} pairs missing quality scores — run scoring first")
+```
+
+**Scoring workflow**:
+1. Generate DPO pairs (dpo-rlvr-generation skill)
+2. Score all pairs with multi-dimensional scorer (this skill)
+3. Filter by quality margin ≥3.0
+4. Audit length bias ≤70%
+5. Only then proceed to training
+
 ### RLVR Verifiability
 
 ```python
@@ -224,3 +266,5 @@ Key functions:
 8. **Integration** - Use training_metrics library functions
 9. **DPO pairs** - Chosen ≥9.0, Rejected ≤6.0, gap ≥0.15
 10. **RLVR** - Math/coding 90%+ verifiable, general 80%+
+11. **DPO scoring REQUIRED** - Every pair must have chosen_score, rejected_score, margin before training
+12. **Length bias audit** - ≤70% of pairs where chosen is longer (prevents "longer = better" shortcut)

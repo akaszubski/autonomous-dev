@@ -78,10 +78,12 @@ Execute current pipeline stage with quality checks:
 
 #### Stage 7: Generate (7_generate)
 - Generate DPO pairs using `training_metrics.validate_dpo_pairs()`
+- **REQUIRED**: Score every DPO pair with multi-dimensional quality-scoring skill
+- **REQUIRED**: Add `chosen_score`, `rejected_score`, `margin` fields to every pair
 - Create RLVR traces for verifiable reasoning
 - Generate anti-hallucination examples
 - Augment with synthetic diversity
-- **Checkpoint**: Save generated count, pair quality metrics
+- **Checkpoint**: Save generated count, pair quality metrics, length bias ratio
 
 #### Stage 8: Mix (8_mix)
 - Weighted dataset mixing for optimal ratios
@@ -90,12 +92,45 @@ Execute current pipeline stage with quality checks:
 - Normalize final dataset statistics
 - **Checkpoint**: Save mix ratios, domain distribution
 
+#### Stage 8.5: DPO Length Bias Audit (HARD GATE)
+
+**FORBIDDEN**: Proceeding to Stage 9 if DPO data fails any of these checks.
+
+Run BEFORE final validation:
+1. **Length bias ratio**: Count pairs where `len(chosen) > len(rejected)`. If >70%, BLOCK.
+2. **Quality scores present**: Every pair must have `chosen_score`, `rejected_score`, `margin`. If any missing, BLOCK.
+3. **Quality margin**: Average margin must be ≥3.0. If below, BLOCK.
+
+```python
+# Length bias check
+longer_chosen = sum(1 for p in pairs if len(p["chosen"]) > len(p["rejected"]))
+length_bias = longer_chosen / len(pairs)
+if length_bias > 0.70:
+    raise ValueError(f"DPO length bias {length_bias:.0%} > 70% — model will learn 'longer = better'")
+
+# Quality score check
+missing = sum(1 for p in pairs if "chosen_score" not in p)
+if missing > 0:
+    raise ValueError(f"{missing} DPO pairs missing quality scores")
+
+# Margin check
+avg_margin = sum(p["margin"] for p in pairs) / len(pairs)
+if avg_margin < 3.0:
+    raise ValueError(f"Average margin {avg_margin:.1f} < 3.0 minimum")
+```
+
+**Three resolutions if blocked**:
+1. **Regenerate** rejected responses to be longer (verbose but wrong)
+2. **Regenerate** chosen responses to be more concise
+3. **Filter** to balanced subset (keep pairs where rejected ≥ chosen length until ratio ≤0.70)
+
 #### Stage 9: Validate (9_validate)
 - Final validation checks on complete pipeline
 - Verify data quality metrics (IFD, DPO, RLVR)
+- **Verify DPO length bias audit passed (Stage 8.5)**
 - Run `detect_data_poisoning()` for security
 - Generate pipeline summary report
-- **Checkpoint**: Save validation results, pipeline success
+- **Checkpoint**: Save validation results, pipeline success, length bias ratio
 
 ### Phase 3: Reporting
 
@@ -277,6 +312,10 @@ Example checkpoint:
 | 5_decontaminate | N-gram overlap | <0.1 | Remove contaminated |
 | 6_filter | IFD score | ≥0.6 | Filter out low quality |
 | 7_generate | DPO gap | ≥0.15 | Regenerate pairs |
+| 7_generate | Quality scores | Required | Run quality-scoring skill |
+| 8.5_audit | Length bias | ≤0.70 | Regenerate or filter pairs |
+| 8.5_audit | Quality margin | ≥3.0 | Improve chosen or worsen rejected |
+| 8.5_audit | Score completeness | 100% | Score all pairs before training |
 | 9_validate | Poisoning | None | Reject dataset |
 
 ## Security Considerations
@@ -398,7 +437,9 @@ if lib_path.exists():
 2. **Deduplication threshold**: 0.85 similarity for near-duplicate detection
 3. **IFD threshold**: 0.6 minimum for training-ready data
 4. **DPO gap**: ≥0.15 for effective preference learning
-5. **Checkpoint frequency**: After each stage (critical for resume capability)
+5. **DPO length bias**: ≤0.70 (HARD GATE — blocks training if exceeded)
+6. **DPO quality scores**: Required on every pair (chosen_score, rejected_score, margin)
+7. **Checkpoint frequency**: After each stage (critical for resume capability)
 
 ## Summary
 

@@ -26,6 +26,26 @@ Thresholds:
 - KL divergence: ≤0.1
 - Decontamination: ≥0.9
 - Pair count: ≥100
+- Length bias ratio: ≤0.70 (max % pairs where chosen is longer)
+- Quality scores: REQUIRED (chosen_score, rejected_score, margin on every pair)
+- Multi-dimensional scoring: REQUIRED (quality-scoring skill must be applied)
+
+### HARD GATE: Length Bias
+
+**FORBIDDEN**: Training on DPO data where >70% of chosen responses are longer than rejected.
+
+When length bias ratio is 100%, the model learns "longer = better" — a known DPO failure mode. The preference signal must come from quality margin, not length difference.
+
+**Detection**:
+```python
+length_bias = sum(len(c) > len(r) for c, r in pairs) / len(pairs)
+if length_bias > 0.70:
+    raise ValueError(f"Length bias {length_bias:.0%} exceeds 70% threshold")
+```
+
+**Required fields per pair**: `chosen_score`, `rejected_score`, `margin`
+- If these fields are missing, the data is NOT ready for training
+- Run the **quality-scoring** skill to add multi-dimensional scores
 
 ### RLVR (Verifiable Rewards)
 
@@ -45,6 +65,8 @@ Verifiability by domain:
 | KL divergence | ≤0.1 |
 | Decontamination | ≥0.9 |
 | RLVR verifiable | ≥0.8 |
+| Length bias ratio | ≤0.70 |
+| Quality scores | Required on every pair |
 
 ---
 
@@ -73,3 +95,6 @@ Verifiability by domain:
 3. RLVR ≥80% verifiable
 4. Decontaminate ≥0.9
 5. Min 100 pairs
+6. Length bias ≤70% (chosen longer than rejected)
+7. Quality scores REQUIRED on every DPO pair (chosen_score, rejected_score, margin)
+8. Multi-dimensional scoring REQUIRED before training (use quality-scoring skill)
