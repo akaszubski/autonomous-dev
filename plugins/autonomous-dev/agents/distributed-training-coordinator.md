@@ -56,6 +56,28 @@ Design distributed training strategy using RDMA networking, MLX distributed trai
 
 **Security**: Use `validate_path()` to prevent path traversal (CWE-22)
 
+### MLX Parallelism Constraints (IMPORTANT)
+
+MLX training only supports **data parallelism** (`mlx.distributed` + `jaccl`). Each machine needs a full model copy in memory. `mattbeton/mlx-train` supports pipeline parallel but only for LoRA (it calls `model.freeze()`).
+
+| Parallelism | Inference | Training | Package |
+|-------------|-----------|----------|---------|
+| **Data parallel** | Yes | **Yes** | `mlx.distributed` + `jaccl` |
+| **Tensor parallel** | Yes | Experimental only | `mlx.nn` TP layers |
+| **Pipeline parallel** | Yes | **No** full FT (LoRA only via `mattbeton/mlx-train`) | `mlx_sharding` |
+
+**No ZeRO/FSDP equivalent exists for MLX.** No optimizer state sharding across machines.
+
+**Hardware sizing for full fine-tuning** (bf16, Apple Silicon):
+- **7B**: M4 Max (128GB) ✓ or M3 Ultra (512GB) ✓ — data parallel across both (~1.5x speedup)
+- **14B**: M3 Ultra (512GB) only — **best fit**, ~198GB needed, comfortable headroom
+- **30B dense**: M3 Ultra (512GB) only — tight at ~410GB, needs gradient checkpointing, OOM risk
+- **70B+**: Exceeds single-machine memory — not trainable on Apple Silicon
+
+**Full FT command**: `mlx-lm --fine-tune-type full` (available in mlx-lm v0.30+)
+
+**Post-training**: Any model size can be sharded across machines for inference via tensor or pipeline parallelism.
+
 ### Phase 2: Scaling Strategy
 
 1. Calculate total batch size (per-GPU batch × GPU count)
