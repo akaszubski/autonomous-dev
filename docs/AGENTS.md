@@ -228,9 +228,9 @@ These agents execute the main autonomous development workflow.
 
 ---
 
-## Utility Agents (14)
+## Utility Agents (15)
 
-These agents provide specialized functionality for alignment, git operations, project management, and training best practices.
+These agents provide specialized functionality for alignment, git operations, project management, training best practices, and pipeline diagnostics.
 
 ### alignment-validator
 
@@ -324,6 +324,22 @@ These agents provide specialized functionality for alignment, git operations, pr
 **Skills**: mlx-performance, data-distillation, performance-optimization
 **Implementation**: Coordinates multi-node training, validates data distribution, monitors performance
 **Related**: Works with data-quality-validator for end-to-end training pipeline
+
+### postmortem-analyst
+
+**Purpose**: Analyze `/implement` pipeline session logs to identify plugin bugs (Issue #328)
+**Model**: Haiku (Tier 1 - cost optimized for log analysis and classification)
+**Skills**: github-workflow, error-handling-patterns
+**Tools**: Read, Bash, Grep (log and filesystem access)
+**Execution**: Utility agent for pipeline diagnostics and bug detection
+**Features**:
+  - Reads session telemetry using session_telemetry_reader.py library
+  - Classifies findings into plugin bugs vs user code issues
+  - Detects duplicate issues via GitHub API
+  - Auto-files GitHub issues for actionable plugin bugs
+  - Generates postmortem summary reports
+**Input**: Optional date parameter (YYYY-MM-DD) and dry-run mode
+**Output**: Structured postmortem report with findings, bug count, and filed issues
 
 ---
 

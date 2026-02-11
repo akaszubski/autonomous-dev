@@ -6,16 +6,16 @@ Complete technical architecture for the autonomous-dev plugin, including agents,
 
 ## Agents
 
-23 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
+24 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
 
-**Active Agents** (24 total):
+**Active Agents** (25 total):
 - **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (16): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, realign-curator, researcher, setup-wizard, sync-validator, test-coverage-auditor
+- **Utility** (17): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, experiment-critic, postmortem-analyst, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, realign-curator, researcher, setup-wizard, sync-validator, test-coverage-auditor
 
 **Key Features**:
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
-- 8 pipeline agents used in `/implement`, 15 utility agents for specialized tasks
+- 8 pipeline agents used in `/implement`, 16 utility agents for specialized tasks
 
 ---
 
@@ -67,7 +67,7 @@ Reusable Python libraries for security, validation, automation, and more. See [d
 
 **Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
 
-**Key Libraries** (156 total):
+**Key Libraries** (162 total):
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
 - **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
