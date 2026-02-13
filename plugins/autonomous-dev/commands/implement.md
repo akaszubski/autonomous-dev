@@ -543,35 +543,89 @@ model: "sonnet"
 
 **This applies to ALL 8 agents in the full pipeline when running in batch mode.**
 
-**STEP B4: Git Automation (Issue #258)**
+**STEP B4: Batch Finalization — Auto-Commit, Merge, Cleanup (Issue #333)**
 
-After ALL features in batch are processed, trigger git automation if enabled:
+After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
 
-```bash
-# Trigger git automation for batch completion
-if [ "$AUTO_GIT_ENABLED" = "true" ]; then
-  FORCE_GIT_TRIGGER=true python3 ~/.claude/hooks/unified_git_automation.py 2>/dev/null || true
-fi
-```
+1. **Commit all changes** in the worktree:
+   ```bash
+   cd $WORKTREE_PATH && git add -A && git commit -m "feat: batch implementation
+
+   - Feature 1 description
+   - Feature 2 description
+
+   Closes #N1
+   Closes #N2
+
+   Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+   ```
+
+2. **Merge to master** from the main repo:
+   ```bash
+   cd /path/to/main/repo && git merge --no-ff <worktree-branch> -m "Merge batch: feature summaries"
+   ```
+
+3. **Cleanup worktree** after successful merge:
+   ```bash
+   rm -rf .worktrees/$BATCH_ID && git worktree prune
+   ```
+
+4. **Clean up pipeline state**:
+   ```bash
+   rm -f /tmp/implement_pipeline_state.json
+   ```
+
+**On merge conflict**: DO NOT force-merge. Report conflicting files and leave worktree intact for manual resolution. Provide manual merge instructions.
+
+**On success**: Push to remote:
+   ```bash
+   git push origin master
+   ```
 
 **STEP B5: Batch Summary**
 
+Show results based on STEP B4 outcome:
+
+**If finalization succeeded:**
 ```
 ========================================
 BATCH COMPLETE
 ========================================
 
-Worktree: .worktrees/$BATCH_ID
+Worktree: .worktrees/$BATCH_ID (MERGED AND REMOVED)
 Total features: N
 Completed successfully: M
 Failed: (N - M)
 
-To merge to main:
-  cd .worktrees/$BATCH_ID
-  git checkout main && git merge $BATCH_ID
+Git Operations:
+  - Committed: [commit SHA]
+  - Merged to master: YES
+  - Worktree cleanup: YES
+  - Pushed to remote: YES
 
-To discard:
-  git worktree remove .worktrees/$BATCH_ID
+========================================
+```
+
+**If finalization failed (conflicts):**
+```
+========================================
+BATCH COMPLETE (WITH CONFLICTS)
+========================================
+
+Worktree: .worktrees/$BATCH_ID (LEFT FOR MANUAL RESOLUTION)
+
+Conflicts in:
+  - path/to/file1.py
+  - path/to/file2.py
+
+Manual merge required:
+  cd .worktrees/$BATCH_ID
+  git add -A && git commit -m "batch changes"
+  cd /path/to/main/repo
+  git merge <worktree-branch>
+  # Resolve conflicts...
+  git commit
+  rm -rf .worktrees/$BATCH_ID && git worktree prune
 ========================================
 ```
 

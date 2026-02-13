@@ -252,6 +252,17 @@
   - Skills: data-distillation, preference-data-quality, mlx-performance
   - Library: training_metrics.py (IFD scoring, DPO validation, RLVR assessment)
   - Realigns training best practices agents and skills for production LLM development
+- **Batch git finalization for auto-commit, merge, and cleanup** (Issues #333-334)
+  - New library: batch_git_finalize.py for post-batch git operations
+  - Orchestrates commit_batch_changes(): Auto-stage, build semantic commit messages, include issue closures
+  - Orchestrates cleanup_worktree(): Safe worktree removal with validation
+  - Orchestrates batch_git_finalize(): Full pipeline coordination with error handling
+  - Semantic commit messages with feature lists and "Closes #N" references
+  - Co-Authored-By attribution for Claude Opus 4.6
+  - Robust error handling with detailed error messages
+  - Safe worktree cleanup: Verify clean working state, git prune, delete directory
+  - Security: Absolute path handling, cwd parameter (no os.chdir), environment propagation
+  - Library: plugins/autonomous-dev/lib/batch_git_finalize.py
 
 ### Fixed
 - Batch processing respects AUTO_GIT_ENABLED from .env in worktree contexts (Issue #312)
