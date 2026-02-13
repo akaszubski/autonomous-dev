@@ -4,7 +4,7 @@ version: 2.0.0
 type: knowledge
 description: IFD scoring, quality filtering, training mix assembly, score-based selection
 keywords: [ifd, kenlm, distillation, deduplication, training-mix, curation, quality-scoring]
-auto_activate: true
+auto_activate: false
 ---
 
 # Data Distillation & Curation

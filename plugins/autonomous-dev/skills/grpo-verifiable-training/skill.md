@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Group Relative Policy Optimization for math/code verification training. Uses group-based advantage calculation without critic model, ideal for verifiable tasks with objective correctness.
 keywords: [grpo, group relative policy, verifiable training, math verification, code verification, deepseek-r1, advantage calculation, critic-free rl]
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash, Write]
 ---
 

@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Standardized library design patterns for autonomous-dev including two-tier design, progressive enhancement, non-blocking enhancements, and security-first architecture. Use when creating or refactoring Python libraries.
 keywords: library, module, two-tier, progressive enhancement, cli, docstring, api, reusability, separation of concerns, graceful degradation, security validation, CWE-22, CWE-59, CWE-117
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 

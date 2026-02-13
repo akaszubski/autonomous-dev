@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: API integration patterns for autonomous-dev including subprocess safety, GitHub CLI integration, retry logic, authentication, rate limiting, and timeout handling. Use when integrating external APIs or CLI tools.
 keywords: api, subprocess, github, gh cli, retry, authentication, rate limiting, timeout, command injection, CWE-78, integration
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 

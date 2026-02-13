@@ -19,7 +19,7 @@ keywords:
   - github actions
   - pr automation
   - issue automation
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash]
 
 ---

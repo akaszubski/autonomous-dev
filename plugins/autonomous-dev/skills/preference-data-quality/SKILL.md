@@ -4,7 +4,7 @@ version: 2.0.0
 type: knowledge
 description: DPO quality scoring, length bias detection, RLVR verification, preference pair validation
 keywords: [dpo, rlvr, preference, verifiable, length-bias, quality-gap]
-auto_activate: true
+auto_activate: false
 ---
 
 # Preference Data Quality

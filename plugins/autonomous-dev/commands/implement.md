@@ -266,6 +266,26 @@ ALL tests MUST show **0 failures, 0 errors** before moving to STEP 6. This is NO
 
 **Only when pytest output shows `X passed, 0 failed` (or all failures are marked as skipped) may you proceed.**
 
+**COVERAGE REGRESSION CHECK** (after tests pass):
+
+After all tests pass, run coverage and check for regression:
+```bash
+pytest tests/ --cov=plugins --cov-report=term-missing -q 2>&1 | tail -5
+```
+
+Read the TOTAL coverage percentage. Then check:
+1. If `.claude/local/coverage_baseline.json` exists: current coverage MUST be >= baseline - 0.5%
+2. If no baseline: note current coverage (first run establishes baseline)
+3. If coverage improved: update the baseline
+
+**SKIP RATE CHECK**:
+Count skipped tests from pytest output (shown as "X skipped").
+- ≤5% skipped: OK
+- 5-10% skipped: WARNING — note in summary
+- >10% skipped: Fix skipped tests before proceeding (fix imports, delete dead tests, add reason=)
+
+**HARD GATE**: Do NOT declare done until tests show 0 failures.
+
 ---
 
 ### STEP 6: Parallel Validation (3 Agents Simultaneously)

@@ -4,7 +4,7 @@ version: 2.1.0
 type: knowledge
 description: Scientific method for validating claims from books, papers, or theories. Enforces pre-registration, power analysis, statistical rigor, Bayesian methods, sensitivity analysis, bias prevention, and evidence-based acceptance/rejection.
 keywords: scientific method, hypothesis, validation, experiment, p-value, sample size, bias, out-of-sample, backtest, evidence, claims, power analysis, Bayesian, sensitivity
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash, Write]
 ---
 

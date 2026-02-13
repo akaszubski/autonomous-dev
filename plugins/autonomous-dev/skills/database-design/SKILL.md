@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Database schema design, migrations, query optimization, and ORM patterns. Use when designing database schemas, writing migrations, optimizing queries, or working with ORMs like SQLAlchemy or Django ORM.
 keywords: database, schema, migration, query, sql, orm, sqlalchemy, django orm, postgres, mysql, index, transaction
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Write, Edit, Grep, Glob]
 ---
 
