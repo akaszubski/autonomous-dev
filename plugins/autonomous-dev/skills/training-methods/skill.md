@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: 8 stable training methods with data formats, use cases, and backend support. Comprehensive guide to SFT/LoRA, DPO, ORPO, GRPO, CPO, RLVR, Abliteration, and Activation Steering for model training and alignment.
 keywords: [sft, lora, dpo, orpo, grpo, cpo, rlvr, abliteration, steering, training, alignment, fine-tuning, preference, optimization]
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 
@@ -448,13 +448,14 @@ This skill uses progressive disclosure to prevent context bloat:
 - Axolotl - Training framework (all methods)
 - Unsloth - Efficient training (LoRA, DPO)
 
-### Full Fine-Tuning Hyperparameters (Proven)
+### Full Fine-Tuning Hyperparameters
 
-| Phase | Method | LR | Batch | Epochs | Notes |
-|-------|--------|-----|-------|--------|-------|
-| SFT | `--method full-ft` | 1e-5 | 2 | 1 (1M+) / 3 (35K) | `--grad-checkpoint` for 32B |
-| RLVR | `--method grpo` | — | 2 | 1 | After SFT |
-| DPO | `--method dpo` | 5e-6 | 2 | 1 | After RLVR, lower LR than SFT |
+For hardware-specific batch sizes, memory requirements, gradient checkpointing, and learning rate scaling, see **mlx-performance** skill.
+
+**Method-specific guidelines** (hardware-agnostic):
+- **SFT**: LR 1e-5, 1 epoch (1M+ data) or 3 epochs (35K data)
+- **RLVR**: After SFT, 1 epoch, verifiable rewards
+- **DPO**: After RLVR, LR 5e-6 (lower than SFT), 1 epoch — most fragile phase
 
 ---
 

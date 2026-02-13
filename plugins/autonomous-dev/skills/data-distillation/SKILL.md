@@ -115,9 +115,8 @@ At 1M+ examples, full FT outperforms LoRA. Use `realign train --method full-ft`.
 ### Key Research Findings
 
 - **Quality > Quantity**: 5-10K top-scored examples > 100K unfiltered
-- **LoRA matches Full FT** under 100K examples (research consensus)
-- **Full FT wins** only with 1M+ examples
-- **DPO saturates** at 5-20K pairs for LoRA; **scales up for 1M+ full FT** (240K pairs effective)
+- **LoRA vs Full FT thresholds**: See **mlx-performance** skill for model size feasibility
+- **DPO saturates** at 5-20K pairs for LoRA; scales to 240K for 1M+ full FT
 - **70% general + 30% domain** prevents catastrophic forgetting
 - **1 epoch SFT for 1M+, 3 epochs for 35K** — more data = fewer epochs needed
 - **Dedup before counting** — always over-select to hit targets after dedup
@@ -132,14 +131,9 @@ Phase 3: DPO (10-240K, 1 epoch) → Preference optimization (last, most fragile)
 
 ### Production CLI
 
-**Always use `realign train`** — wraps mlx-lm with format conversion, config, and metrics:
+**Always use `realign train`** — wraps mlx-lm with format conversion, config, and metrics.
 
-```bash
-realign train --method full-ft --fine-tune-type full \
-  --model ~/Models/qwen3-32b-base \
-  --data train.jsonl --output models/sft \
-  --batch-size 2 --learning-rate 1e-5 --epochs 1
-```
+For complete training configurations, hardware-specific flags, and batch size guidance, see **mlx-performance** and **training-operations** skills.
 
 ---
 

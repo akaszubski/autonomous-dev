@@ -1,5 +1,21 @@
 ## [Unreleased]
 
+### Changed
+- **Reduce auto-activate token overhead for training skills** (Issue #335)
+  - Changed 4 training skills from auto_activate: true to false:
+    - training-operations (Run management, monitoring, crash recovery)
+    - training-methods (8 stable training methods reference guide)
+    - dpo-rlvr-generation (DPO preference pairs and RLVR verification)
+    - anti-hallucination-training (Calibration and refusal training)
+  - Rationale: These are specialized knowledge skills activated only on specific keywords, not general auto-activation
+  - Impact: Auto-activate skill count reduced from 19 to 15 (skills still available, just not loaded upfront)
+  - Reduces context bloat from loading unused training knowledge during non-training workflows
+  - Training workflows explicitly use keywords to activate skills as needed
+  - Updated plugins/autonomous-dev/skills/training-operations/SKILL.md
+  - Updated plugins/autonomous-dev/skills/training-methods/SKILL.md
+  - Updated plugins/autonomous-dev/skills/dpo-rlvr-generation/SKILL.md
+  - Updated plugins/autonomous-dev/skills/anti-hallucination-training/SKILL.md
+
 ### Fixed
 
 - **Worktree context safety fixes (Issues #313-316)**

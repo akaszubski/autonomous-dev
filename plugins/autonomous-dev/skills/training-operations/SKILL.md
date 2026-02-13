@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Training run management, monitoring, crash recovery, hardware-specific configs for MLX fine-tuning
 keywords: [training, operations, monitoring, recovery, checkpoint, mlx, fine-tuning]
-auto_activate: true
+auto_activate: false
 ---
 
 # Training Operations

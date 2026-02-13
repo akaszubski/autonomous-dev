@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Generate DPO preference pairs and RLVR verification data from SFT datasets
 keywords: [dpo, rlvr, preference pairs, verification, chosen, rejected, reward, data generation]
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash, Write]
 ---
 

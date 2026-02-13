@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Data generation for calibration and refusal training to reduce hallucinations. Covers refusal examples, confidence calibration, and uncertainty expression.
 keywords: [anti-hallucination, calibration, refusal, confidence, uncertainty, truthfulqa, data generation]
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash, Write]
 ---
 
