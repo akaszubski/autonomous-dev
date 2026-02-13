@@ -66,12 +66,13 @@ Score chosen/rejected independently:
 | Aggressive (risky) | gap ≥ 0.15 | Keeps only 5-10% — usually too harsh |
 | **Relaxed (recommended)** | ratio > 8x filter only | Keeps ~91% — removes only worst offenders |
 
-### DPO Saturation
+### DPO Saturation (Scale-Dependent)
 
-- DPO saturates at **5-20K pairs** (research consensus)
-- Beyond 20K: diminishing returns, risk of reward hacking
+- **LoRA / <100K SFT**: DPO saturates at **5-20K pairs** (research consensus)
+- **Full FT / 1M+ SFT**: DPO scales to **240K+ pairs** — more data helps when baking into weights
+- Beyond saturation point: diminishing returns, risk of reward hacking
 - Select top pairs by `quality_gap` score, not random sampling
-- 10K quality-filtered pairs > 50K unfiltered
+- 10K quality-filtered pairs > 50K unfiltered (for LoRA)
 
 ### RLVR (Verifiable Rewards)
 
@@ -106,7 +107,8 @@ Always normalize to a single format before assembling training mix.
 | Length ratio | ≤ 8x | Filter above if gap < 0.03 |
 | Chosen score | ≥ 0.25 | Filter below |
 | Length bias ratio | ≤ 0.70 | HARD GATE — block training |
-| DPO total | 5-20K max | Cap (saturation point) |
+| DPO total (LoRA) | 5-20K max | Cap (saturation point) |
+| DPO total (Full FT 1M+) | 240K+ | Scales with data volume |
 | KL divergence | ≤ 0.1 | Monitor during training |
 | Decontamination | ≥ 0.9 | Filter below |
 | RLVR verifiable | ≥ 0.80 | Filter below |
@@ -139,7 +141,7 @@ Always normalize to a single format before assembling training mix.
 2. KL ≤0.1
 3. RLVR ≥80% verifiable
 4. Decontaminate ≥0.9
-5. **DPO saturates at 5-20K pairs** — don't use more
+5. **DPO saturates at 5-20K pairs** for LoRA; **scales to 240K+ for 1M+ full FT**
 6. **Length bias ≤70%** (chosen longer than rejected) — HARD GATE
 7. Quality scores REQUIRED on every DPO pair (chosen_score, rejected_score, margin)
 8. Multi-dimensional scoring REQUIRED before training (use quality-scoring skill)

@@ -9,9 +9,9 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Overview
 
-9 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
+27 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
 
-**Active Agents**: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator, data-curator
+**Active Agents**: advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, doc-master, experiment-critic, implementer, issue-creator, planner, postmortem-analyst, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, researcher-local, reviewer, security-auditor, setup-wizard, sync-validator, test-coverage-auditor, test-master
 
 ---
 
@@ -57,9 +57,9 @@ Maximum depth for security and complex analysis:
 
 **Target**: Under 3,000 tokens per agent
 **Last Audit**: 2026-01-01
-**Total Agents**: 21
+**Total Agents**: 27
 **Total Tokens**: 27,274
-**Average**: 1,298 tokens/agent
+**Average**: 1,010 tokens/agent
 
 ### Agents by Token Count
 
@@ -95,9 +95,17 @@ Maximum depth for security and complex analysis:
 
 ---
 
-## Core Workflow Agents (8 active + 1 utility)
+## Archived Agents (Issue #331)
 
-These agents execute the main autonomous development workflow.
+1 agent has been archived and moved to `plugins/autonomous-dev/agents/archived/`:
+
+- **orchestrator**: Meta-agent for workflow coordination (consolidated into unified /implement command)
+
+---
+
+## Core Workflow Agents (8 active + 19 utility)
+
+These agents execute the main autonomous development workflow and provide specialized functionality.
 
 ### researcher-local
 
@@ -228,7 +236,7 @@ These agents execute the main autonomous development workflow.
 
 ---
 
-## Utility Agents (15)
+## Utility Agents (19)
 
 These agents provide specialized functionality for alignment, git operations, project management, training best practices, and pipeline diagnostics.
 

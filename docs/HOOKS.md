@@ -1746,6 +1746,12 @@ Hooks that run after every turn/response completes to provide non-blocking quali
 **Lifecycle**: Stop (must exit 0, non-blocking, informational only)
 **Trigger**: After every Claude Code turn/response completes
 
+### implementation_quality_gate.py
+
+**Purpose**: Validates implementation quality during /implement pipeline
+**Lifecycle**: PreCommit (blocking)
+**Exit Code**: EXIT_SUCCESS (0) on pass, EXIT_FAILURE (1) on quality violations
+
 ### stop_quality_gate.py
 
 **Purpose**: End-of-turn quality gates with automatic tool detection

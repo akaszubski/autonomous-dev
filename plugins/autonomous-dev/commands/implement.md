@@ -7,7 +7,7 @@ allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch]
 
 # /implement - Unified Smart Implementation
 
-Consolidates `/auto-implement`, `/implement`, and `/batch-implement` into a single smart command.
+Smart code implementation with full pipeline, quick, and batch modes.
 
 ## Modes
 
@@ -43,6 +43,13 @@ Consolidates `/auto-implement`, `/implement`, and `/batch-implement` into a sing
 ## Implementation
 
 **You (Claude) are the coordinator for this workflow.**
+
+**COORDINATOR FORBIDDEN LIST** (violations = pipeline failure):
+- ❌ Skipping any STEP (even under context pressure or time constraints)
+- ❌ Summarizing agent output instead of passing full results to next agent
+- ❌ Declaring "good enough" on failing tests (STEP 5 HARD GATE is absolute)
+- ❌ Running STEP 6 (validation) before STEP 5 (test gate) passes
+- ❌ Combining or parallelizing sequential steps (e.g., implementer + reviewer)
 
 ARGUMENTS: {{ARGUMENTS}}
 
@@ -142,10 +149,10 @@ Use the Task tool with these parameters:
 - **description**: `"Search codebase for [feature name]"`
 - **prompt**: Search codebase for patterns related to [user's feature]. Find existing patterns, files to update, architecture notes, similar implementations. Output JSON.
 
-#### Task Tool Call 2: Web Research (using general-purpose)
+#### Task Tool Call 2: Web Research (using researcher)
 
 Use the Task tool with these parameters:
-- **subagent_type**: `"general-purpose"`
+- **subagent_type**: `"researcher"`
 - **model**: `"sonnet"`
 - **description**: `"Research best practices for [feature name]"`
 - **prompt**: "You are a web researcher. You MUST use the WebSearch tool to search the web. Search for best practices and standards for: [user's feature description]. Use WebSearch to find: industry best practices (2024-2025), recommended libraries, security considerations (OWASP), common pitfalls. IMPORTANT: Actually call WebSearch - do not answer from memory. Output JSON with best_practices, recommended_libraries, security_considerations, common_pitfalls, and include source URLs."
@@ -161,7 +168,7 @@ Use the Task tool with these parameters:
 | Agent | Expected | If 0 tool uses |
 |-------|----------|----------------|
 | researcher-local | 10-30 tool uses | Acceptable if codebase is small |
-| web research (general-purpose) | **1+ tool uses** | ❌ **FAIL - web search didn't happen** |
+| web research (researcher) | **1+ tool uses** | ❌ **FAIL - web search didn't happen** |
 
 **If web research shows 0 tool uses**: Retry the web research agent.
 
@@ -193,7 +200,7 @@ Include: File structure, dependencies, integration points, edge cases, security 
 
 Output: Step-by-step implementation plan with file-by-file breakdown."
 
-model: "sonnet"
+model: "opus"
 ```
 
 ---
@@ -213,7 +220,7 @@ prompt: "Write comprehensive tests for: [user's feature description].
 
 Output: Comprehensive test files with unit tests, integration tests, edge case coverage."
 
-model: "sonnet"
+model: "opus"
 ```
 
 ---
@@ -232,10 +239,20 @@ prompt: "Implement production-quality code for: [user's feature description].
 **Implementation Plan**: [Paste planner output]
 **Tests to Pass**: [Paste test-master output summary]
 
-Output: Production-quality code following the architecture plan."
+Output: Production-quality code following the architecture plan.
 
-model: "sonnet"
+CRITICAL: 'Implement' means write WORKING code that performs the actual operation. Do NOT replace stubs with NotImplementedError. Do NOT add placeholders. The feature must actually WORK end-to-end when you're done."
+
+model: "opus"
 ```
+
+**HARD GATE: 3 Implementation Quality Principles**
+
+After the implementer completes, verify against 3 principles (enforced by `implementation_quality_gate.py` hook):
+
+1. **Real Implementation**: No `NotImplementedError`, `pass` placeholders, or warning stubs
+2. **Test-Driven**: ALL tests pass (run `pytest --tb=short -q` — 0 failures required)
+3. **Complete Work**: Blockers documented with `TODO(blocked: reason)`, no silent stubs
 
 **After implementer completes**, YOU (the coordinator) MUST run tests and resolve ALL failures before STEP 6:
 
@@ -254,13 +271,6 @@ ALL tests MUST show **0 failures, 0 errors** before moving to STEP 6. This is NO
 1. **Fix it** - Debug and fix the code or test until it passes
 2. **Mark it as not implemented** - Add `@pytest.mark.skip(reason="Not yet implemented: [description]")` with a clear reason
 3. **Make it work** - Adjust the test expectations to match correct behavior
-
-**You are FORBIDDEN from:**
-- ❌ Saying "X% passing is good enough" and proceeding
-- ❌ Describing failures as a "solid foundation"
-- ❌ Categorizing failures as "expected" without fixing or skipping them
-- ❌ Proceeding to STEP 6 with ANY test failures or errors
-- ❌ Blaming infrastructure (SQLite, mocks, etc.) without resolving
 
 **Run `pytest --tb=short -q` and verify the output shows 0 failures. If not, loop back and resolve EVERY failure.**
 
@@ -287,7 +297,7 @@ model: "sonnet"
 subagent_type: "security-auditor"
 description: "Security scan [feature name]"
 prompt: "Scan implementation in: [list files]. Check for hardcoded secrets, SQL injection, XSS, insecure dependencies, OWASP Top 10. Output: Security PASS/FAIL."
-model: "haiku"
+model: "opus"
 ```
 
 #### Validator 3: Doc-Master
@@ -367,13 +377,21 @@ Follow existing patterns. Make tests pass if they exist."
 model: "sonnet"
 ```
 
-After completion, report:
+After implementer completes, YOU (the coordinator) MUST run tests:
+
+```bash
+pytest --tb=short -q
+```
+
+⚠️ **HARD GATE** (same as full pipeline): ALL tests MUST show 0 failures before reporting completion. If any fail: fix, skip with `@pytest.mark.skip(reason="...")`, or adjust expectations. Do NOT skip this step.
+
+After tests pass, report:
 
 ```
 ✅ Quick implementation complete!
 
 📁 Files changed: [list]
-🧪 Tests: Run `pytest` to verify
+🧪 Tests: [X passed, 0 failed]
 
 Consider running `/implement [feature]` (without --quick) for full pipeline.
 ```
@@ -455,164 +473,16 @@ Found N features in [file]:
 Starting batch processing in worktree: .worktrees/$BATCH_ID
 ```
 
-**STEP B3: Process Each Feature (Auto-Continuation Loop)**
+**STEP B3: Process Each Feature**
 
 **CRITICAL**: Batch must auto-continue through ALL features without manual intervention.
 
-Execute this loop until all features are processed:
+For each feature in the list:
 
-```bash
-# Process all features with auto-continuation
-while true; do
-    # Load current batch state
-    STATE_FILE=".worktrees/$BATCH_ID/.claude/batch_state.json"
-
-    # Get next pending feature using batch_state_manager API
-    NEXT_FEATURE=$(python3 -c "
-import sys
-from pathlib import Path
-
-# Add lib to path
-project_root = Path.cwd()
-lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
-sys.path.insert(0, str(lib_path))
-
-from batch_state_manager import load_batch_state, get_next_pending_feature
-
-state = load_batch_state('$STATE_FILE')
-next_feat = get_next_pending_feature(state)
-print(next_feat if next_feat else '')
-")
-
-    # Exit loop if no more features
-    if [ -z "$NEXT_FEATURE" ]; then
-        echo "All features processed. Exiting batch loop."
-        break
-    fi
-
-    # Get current feature index and total for progress tracking
-    FEATURE_INDEX=$(python3 -c "
-import sys
-from pathlib import Path
-
-project_root = Path.cwd()
-lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
-sys.path.insert(0, str(lib_path))
-
-from batch_state_manager import load_batch_state
-
-state = load_batch_state('$STATE_FILE')
-print(state.current_index)
-")
-
-    TOTAL_FEATURES=$(python3 -c "
-import sys
-from pathlib import Path
-
-project_root = Path.cwd()
-lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
-sys.path.insert(0, str(lib_path))
-
-from batch_state_manager import load_batch_state
-
-state = load_batch_state('$STATE_FILE')
-print(state.total_features)
-")
-
-    # Display progress
-    echo ""
-    echo "=========================================="
-    echo "Batch Progress: Feature $((FEATURE_INDEX + 1))/$TOTAL_FEATURES"
-    echo "Processing: $NEXT_FEATURE"
-    echo "=========================================="
-    echo ""
-
-    # Invoke full pipeline (STEPS 1-8) with BATCH CONTEXT
-    # CRITICAL: Include BATCH CONTEXT in ALL agent prompts (see section below)
-    #
-    # Execute full 8-agent pipeline for this feature:
-    # 1. researcher-local
-    # 2. researcher-web
-    # 3. planner
-    # 4. test-master
-    # 5. implementer
-    # 6. reviewer
-    # 7. security-auditor
-    # 8. doc-master
-    #
-    # All agents MUST receive BATCH CONTEXT (worktree path) in their prompts
-
-    # Track whether feature succeeded or failed
-    FEATURE_SUCCESS=true
-    ERROR_MESSAGE=""
-
-    # Execute pipeline (replace with actual pipeline invocation)
-    # For now, this is pseudocode showing the error handling pattern
-    if ! invoke_full_pipeline_for_feature "$NEXT_FEATURE" "$WORKTREE_PATH"; then
-        FEATURE_SUCCESS=false
-        ERROR_MESSAGE="Pipeline failed for Feature $((FEATURE_INDEX + 1))"
-    fi
-
-    # Update batch progress based on success/failure
-    if [ "$FEATURE_SUCCESS" = true ]; then
-        # Feature succeeded - mark as completed
-        python3 -c "
-import sys
-from pathlib import Path
-
-project_root = Path.cwd()
-lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
-sys.path.insert(0, str(lib_path))
-
-from batch_state_manager import update_batch_progress
-
-update_batch_progress(
-    '$STATE_FILE',
-    $FEATURE_INDEX,
-    'completed',
-    context_token_delta=5000  # Estimate tokens used
-)
-print('Feature $((FEATURE_INDEX + 1)) completed successfully')
-"
-    else
-        # Feature failed - mark as failed and continue to next
-        python3 -c "
-import sys
-from pathlib import Path
-
-project_root = Path.cwd()
-lib_path = project_root / 'plugins' / 'autonomous-dev' / 'lib'
-sys.path.insert(0, str(lib_path))
-
-from batch_state_manager import update_batch_progress
-
-update_batch_progress(
-    '$STATE_FILE',
-    $FEATURE_INDEX,
-    'failed',
-    context_token_delta=5000,  # Estimate tokens used
-    error_message='$ERROR_MESSAGE'
-)
-print('⚠️ Feature $((FEATURE_INDEX + 1)) failed: $ERROR_MESSAGE')
-print('Continuing to next feature...')
-"
-    fi
-
-    # Loop continues to next feature automatically
-done
-```
-
-**Key Implementation Points**:
-
-1. **Loop APIs** (already implemented in `batch_state_manager.py`):
-   - `get_next_pending_feature(state)` - Returns next feature or None when complete
-   - `update_batch_progress()` - Updates state after each feature
-
-2. **Error Handling**: Failed features are recorded but batch continues
-
-3. **Infinite Loop Prevention**: Explicit None check from `get_next_pending_feature()`
-
-4. **Resume Support**: Same loop pattern works for both initial run and resume
+1. Display progress: `Feature M of N: [feature description]`
+2. Execute the **full pipeline (STEPS 1-8)** for this feature, with BATCH CONTEXT prepended to ALL agent prompts
+3. If a feature fails, log the failure and continue to the next feature
+4. After each feature, run `/clear` equivalent (context management)
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 
@@ -815,30 +685,16 @@ BATCH_RETRY_ENABLED=true
 
 ---
 
-## Migration from Old Commands
-
-| Old Command | New Command |
-|-------------|-------------|
-| `/auto-implement "feature"` | `/implement "feature"` |
-| `/implement "feature"` | `/implement --quick "feature"` |
-| `/batch-implement file.txt` | `/implement --batch file.txt` |
-| `/batch-implement --issues 1 2 3` | `/implement --issues 1 2 3` |
-| `/batch-implement --resume id` | `/implement --resume id` |
-
-The old commands still work via deprecation shims but show a notice.
-
----
-
 ## Technical Details
 
 **Agents Used** (full pipeline):
 1. researcher-local (Haiku) - Codebase patterns
-2. researcher-web (Sonnet) - Best practices
-3. planner (Sonnet) - Implementation plan
-4. test-master (Sonnet) - TDD tests
-5. implementer (Sonnet) - Production code
+2. researcher (Sonnet) - Web best practices
+3. planner (Opus) - Implementation plan
+4. test-master (Opus) - TDD tests
+5. implementer (Opus) - Production code
 6. reviewer (Sonnet) - Quality gate
-7. security-auditor (Haiku) - Vulnerability scan
+7. security-auditor (Opus) - Vulnerability scan
 8. doc-master (Haiku) - Documentation
 
 **Libraries**:

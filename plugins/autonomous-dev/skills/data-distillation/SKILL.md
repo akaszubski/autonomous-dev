@@ -92,21 +92,53 @@ def top_scored(examples, score_key, n):
 | Calibration | 6% | Anti-hallucination ("I don't know" responses) |
 | Uncensored | 3% | Reduce refusals |
 
+### 1M+ Full FT Mix (for baking behavior into weights)
+
+At 1M+ examples, full FT outperforms LoRA. Use `realign train --method full-ft`.
+
+| Domain | Target | Actual (post-dedup) | Source |
+|--------|--------|---------------------|--------|
+| General | 1.2M (over-select) | ~595K (62%) | dolci_sft_scored — **loses ~19% to dedup** |
+| Math | 100K | ~57K (6%) | math_qwen3_scored |
+| Coding | 69K | ~69K (7%) | coding_qwen3_scored |
+| Tool Use | 90K | ~71K (7.4%) | tool_use_qwen3_scored |
+| Finance | 151K combined | ~149K (16%) | finance_sft + curated + books |
+| Calibration | all available | ~12K (1.3%) | Domain calibration files |
+
+**Key lessons from 1M assembly**:
+- **Over-select general by ~20%** — dolci has ~19% internal dedup rate
+- **Uncensored data may overlap with tool_use** — verify before including (100% overlap found in practice)
+- **DPO scales with full FT**: 240K pairs used (not capped at 5-20K — saturation guidance applies to LoRA only)
+- **RLVR**: ~25K verifiable examples across math/coding/tool_use/finance
+- Final mix lands at ~62% general / 38% domain (close to 70/30 target)
+
 ### Key Research Findings
 
 - **Quality > Quantity**: 5-10K top-scored examples > 100K unfiltered
 - **LoRA matches Full FT** under 100K examples (research consensus)
 - **Full FT wins** only with 1M+ examples
-- **DPO saturates** at 5-20K pairs — beyond this, diminishing returns
+- **DPO saturates** at 5-20K pairs for LoRA; **scales up for 1M+ full FT** (240K pairs effective)
 - **70% general + 30% domain** prevents catastrophic forgetting
-- **3 epochs SFT, 1 epoch DPO/RLVR** is standard practice
+- **1 epoch SFT for 1M+, 3 epochs for 35K** — more data = fewer epochs needed
+- **Dedup before counting** — always over-select to hit targets after dedup
 
 ### Training Phases (Order Matters)
 
 ```
-Phase 1: SFT (35K, 3 epochs) → Learn domain knowledge + general capability
-Phase 2: RLVR (10K, 1 epoch) → Verifiable reward alignment
-Phase 3: DPO (10K, 1 epoch) → Preference optimization (last, most fragile)
+Phase 1: SFT (35K-1M, 1-3 epochs) → Learn domain knowledge + general capability
+Phase 2: RLVR (10-25K, 1 epoch) → Verifiable reward alignment
+Phase 3: DPO (10-240K, 1 epoch) → Preference optimization (last, most fragile)
+```
+
+### Production CLI
+
+**Always use `realign train`** — wraps mlx-lm with format conversion, config, and metrics:
+
+```bash
+realign train --method full-ft --fine-tune-type full \
+  --model ~/Models/qwen3-32b-base \
+  --data train.jsonl --output models/sft \
+  --batch-size 2 --learning-rate 1e-5 --epochs 1
 ```
 
 ---
@@ -134,6 +166,7 @@ Phase 3: DPO (10K, 1 epoch) → Preference optimization (last, most fragile)
 | IFD-distilled finance (18K) | `data/2_processed/ifd_distilled/` |
 | Top-quality mix (55K) | `data/3_training_ready/qwen3_30b_top_quality/` |
 | Full mix (307K) | `data/3_training_ready/qwen3_30b_full_mix/` |
+| **1M full FT mix (1.2M)** | `data/3_training_ready/qwen3_32b_1m_full/` |
 
 ---
 
@@ -144,6 +177,23 @@ Phase 3: DPO (10K, 1 epoch) → Preference optimization (last, most fragile)
 - SSH to M3 Ultra: user is `andrewkaszubski` at `10.55.0.2` — NOT `akaszubski`
 - Both machines need `.venv/bin/python` — system python doesn't have MLX
 - RLVR schema varies by domain — always normalize before mixing (`problem/answer` vs `verification_question/expected_verification`)
+
+### Training Data Validation (BEFORE Launch)
+
+Check sequence length distribution BEFORE training, not after seeing truncation warnings:
+```bash
+# Check token length distribution
+python -c "
+import json
+lens = [len(json.loads(l).get('text','').split()) for l in open('train.jsonl')]
+over = sum(1 for l in lens if l > 4096)
+print(f'{over}/{len(lens)} ({100*over/len(lens):.0f}%) exceed 4096 tokens')
+"
+```
+
+- If **>30% of sequences exceed `max_seq_length`**: pre-truncate or increase `max_seq_length`
+- Current dataset has many sequences 10K-30K tokens being truncated to 4096 — significant data loss
+- Truncation silently discards training signal — always check BEFORE starting
 
 ---
 
@@ -173,5 +223,8 @@ Phase 3: DPO (10K, 1 epoch) → Preference optimization (last, most fragile)
 3. DPO length bias is real — always check if 100% chosen > rejected length
 4. Multi-domain mix (70/30 general/domain) prevents catastrophic forgetting
 5. Calibration data (5-6%) is critical for anti-hallucination
-6. 35K quality examples is sufficient for LoRA or Full FT — don't chase volume
-7. Pipeline: IFD → Quality Score → Top-N Select → Mix → Split → Train
+6. 35K sufficient for LoRA; **1M+ needed for full FT to outperform LoRA**
+7. Pipeline: IFD → Quality Score → Top-N Select → Mix → Dedup → Split → Train
+8. **Over-select general by ~20%** to compensate for dedup losses
+9. **Verify uncensored data isn't a subset** of another domain (tool_use overlap found)
+10. **Use `realign train`** CLI — wraps mlx-lm with config/format handling

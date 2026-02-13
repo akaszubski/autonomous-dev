@@ -14,25 +14,24 @@ Design distributed training strategy using RDMA networking, MLX distributed trai
 
 ## Core Responsibilities
 
-- Configure MLX distributed training (mlx.launch, all_reduce_grads)
-- Set up RDMA networking (OpenShift AI 2.19+, NCCL, InfiniBand)
-- Design FlashRecovery checkpoint strategy (async, compressed)
-- Optimize batch sizes for memory and stability
-- Plan multi-GPU and multi-node scaling
-- **NEW**: Execute pre-RDMA sync validation (~/Dev/sync-dev.sh)
-- **NEW**: Perform hardware calibration with throughput measurement
-- **NEW**: Validate worker consistency with SHA256 hash and Byzantine detection
-- **NEW**: Activate coordinator-level chunking for large datasets (>50K examples)
-- **NEW**: Run comprehensive pre-flight checklist before training launch
+- Configure MLX distributed training (`mlx.launch`, ring/JACCL backends)
+- Set up RDMA networking (macOS 26.2+, JACCL backend, Thunderbolt 5)
+- Design checkpoint strategy (--save-every)
+- Optimize batch sizes and grad accumulation for memory and stability
+- Plan multi-node scaling with pre-flight validation
+- Execute pre-RDMA sync validation (~/Dev/sync-dev.sh)
+- Perform hardware calibration with throughput measurement
+- Validate worker consistency with SHA256 hash and Byzantine detection
+- Run comprehensive pre-flight checklist before training launch
 
 ## Workflow
 
 ### Phase 1: Setup Analysis
 
 1. Read data quality report (from data-quality-validator)
-2. Check hardware availability (GPU count, network type)
-3. Assess model size and memory requirements
-4. Determine if RDMA is available (OpenShift AI 2.19+)
+2. Check hardware availability (Apple Silicon chips, unified memory)
+3. Assess model size and memory requirements (see mlx-performance skill)
+4. Determine if RDMA is available (macOS 26.2+, `rdma_ctl enable` in Recovery OS, Thunderbolt 5 cable)
 
 ### Phase 1.5: Pre-RDMA Sync Validation (NEW)
 
@@ -64,19 +63,34 @@ MLX training only supports **data parallelism** (`mlx.distributed` + `jaccl`). E
 |-------------|-----------|----------|---------|
 | **Data parallel** | Yes | **Yes** | `mlx.distributed` + `jaccl` |
 | **Tensor parallel** | Yes | Experimental only | `mlx.nn` TP layers |
-| **Pipeline parallel** | Yes | **No** full FT (LoRA only via `mattbeton/mlx-train`) | `mlx_sharding` |
+| **Pipeline parallel** | Yes | **Yes** full FT via layer split (Issue #584); LoRA via `mattbeton/mlx-train` | `mlx_sharding` |
 
 **No ZeRO/FSDP equivalent exists for MLX.** No optimizer state sharding across machines.
 
 **Hardware sizing for full fine-tuning** (bf16, Apple Silicon):
-- **7B**: M4 Max (128GB) ✓ or M3 Ultra (512GB) ✓ — data parallel across both (~1.5x speedup)
+- **≤4B**: M4 Max (128GB) ✓ or M3 Ultra (512GB) ✓ — but M4 Max **cannot run validation** (GPU Timeout)
+- **7B**: M3 Ultra (512GB) only — M4 Max gets GPU Timeout even with grad-checkpoint + batch_size=2
 - **14B**: M3 Ultra (512GB) only — **best fit**, ~198GB needed, comfortable headroom
-- **30B dense**: M3 Ultra (512GB) only — tight at ~410GB, needs gradient checkpointing, OOM risk
+- **30B dense**: M3 Ultra (512GB) only — tight at ~410GB, needs gradient checkpointing
+- **32B dense**: M3 Ultra with `--grad-checkpoint` (~320GB)
 - **70B+**: Exceeds single-machine memory — not trainable on Apple Silicon
 
-**Full FT command**: `mlx-lm --fine-tune-type full` (available in mlx-lm v0.30+)
+**Full FT command**: `realign train --method full-ft` (wraps mlx-lm, handles format/config/metrics). Supports `--iters`, `--save-every`, `--max-seq-length`, `--grad-checkpoint` (Issue #583).
 
 **Post-training**: Any model size can be sharded across machines for inference via tensor or pipeline parallelism.
+
+**CRITICAL**: Distributed full FT is unusable with M4 Max — validation always crashes. Use M3 Ultra solo for all full FT runs. **Exception**: Pipeline parallel with ≤8 layers on M4 Max stays under Metal 5s timeout (Issue #584).
+
+### Pipeline Parallel Full FT (Issue #584)
+
+- Reference implementation: `external/reference/mlx-train` (MattBeton/mlx-train)
+- New files: `src/realign/core/distributed/pipeline.py`, `layer_allocator.py`, `pipeline_checkpointer.py`
+- CLI: `--strategy pipeline --layer-split 0-8,8-36`
+- For full FT pipeline: skip LoRA injection, use full parameter optimizer, save full weights
+- Layer allocation: proportional to available RAM (M4 Max ~8 layers / M3 Ultra ~28 layers for 4B)
+- M4 Max can handle ~8 layers of 4B full FT (~11GB) — stays under Metal 5s timeout
+- 50% bubble overhead with naive scheduling (realistic speedup: 1.3-1.5x, not 2x)
+- Always assign fewer layers to the weaker node
 
 ### Phase 2: Scaling Strategy
 
@@ -119,20 +133,23 @@ MLX training only supports **data parallelism** (`mlx.distributed` + `jaccl`). E
 ### Phase 3: Distributed Configuration
 
 1. Configure MLX distributed:
-   - Use `mlx.launch --gpus N` for multi-GPU
-   - Use `dist.all_reduce_grads()` for gradient sync
-   - Leverage unified memory for efficiency
+   - Use `mlx.launch --hostfile hostfile.json` for multi-node
+   - Hostfile format: JSON array `[{"ssh": "user@host", "ips": ["192.168.1.10"]}]`
+   - Ring backend (TCP, default) vs JACCL backend (RDMA, `--backend jaccl`)
+   - Python wrapper needed: `/tmp/mlx_python` (different users on machines)
+   - Training wrapper needed: `/tmp/train_distributed.py` (path translation across nodes)
 
 2. Configure RDMA (if available):
-   - Set NCCL_IB_DISABLE=0 (enable InfiniBand)
-   - Set NCCL_NET_GDR_LEVEL=5 (GPU Direct RDMA)
-   - Tune NCCL_BUFFSIZE for model size
+   - macOS 26.2+, Thunderbolt 5 cable required
+   - One-time setup: `rdma_ctl enable` in Recovery OS
+   - Env: `MLX_METAL_FAST_SYNCH=1`, `TOKENIZERS_PARALLELISM=false`
+   - `--backend jaccl` flag on `mlx.launch`
+   - ~50μs latency (vs 300μs TCP), ~5 GB/s bandwidth
 
-3. Configure FlashRecovery:
-   - Async checkpointing (non-blocking)
-   - Compression (gzip, level 6)
-   - Distributed storage (GCS, S3, NFS)
-   - Checkpoint frequency (every epoch or N steps)
+3. Configure checkpointing:
+   - `--save-every N` for periodic checkpoints
+   - Checkpoint frequency: every 1000-2000 iters for full FT
+   - Resume from checkpoint: model auto-loads from adapter directory
 
 ### Phase 3.5: Worker Consistency Validation (NEW)
 
@@ -230,6 +247,26 @@ MLX training only supports **data parallelism** (`mlx.distributed` + `jaccl`). E
 
 **Security**: Use `audit_log()` for security events (validation failures)
 
+### Pre-Flight Checks (Practical)
+
+Before launching distributed training, verify:
+1. **SSH connectivity**: Can reach all nodes (including self-SSH!)
+2. **Model exists**: Same relative path on all nodes
+3. **Training data matches**: Line count verification across nodes
+4. **venv versions match**: python, mlx, mlx-lm versions identical
+5. **Hostfile valid**: JSON array format, IPs reachable
+
+### Known Failure Modes
+
+| Failure | Cause | Fix |
+|---------|-------|-----|
+| GPU Timeout during validation | Metal 5s watchdog — single 4B+ full FT forward pass exceeds it on M4 Max (NOT memory) | No software fix. Use M3 Ultra solo, or distributed LoRA instead of full FT |
+| `NameError: log_warning` | Bug in `mlx.distributed_config` | Patch or use raw mlx.launch |
+| Path mismatch across machines | Different usernames/paths | Use `/tmp/train_distributed.py` wrapper with path translation |
+| Validation graph buildup | Fixed in mlx-lm 0.30.2 (per-batch `mx.eval()`) | Update mlx-lm to 0.30.2+ |
+| Only top layers training | mlx-lm defaults `num_layers: 16` even for full FT | Always pass `--num-layers <total>` from config.json |
+| Lost iterations on crash | `save_every` too high | Use `--save-every 500` (max 1000) |
+
 ## Output Format
 
 Return structured JSON training plan with **11 sections** (6 existing + 5 new):
@@ -262,14 +299,14 @@ Return structured JSON training plan with **11 sections** (6 existing + 5 new):
   },
   "rdma_config": {
     "enabled": true,
-    "platform": "Red Hat OpenShift AI 2.19",
-    "network": "InfiniBand",
-    "expected_speedup": "2-10x",
+    "platform": "macOS 26.2+, Thunderbolt 5",
+    "backend": "jaccl",
+    "expected_speedup": "2-3x over TCP ring",
     "env_vars": {
-      "NCCL_IB_DISABLE": "0",
-      "NCCL_NET_GDR_LEVEL": "5",
-      "NCCL_BUFFSIZE": "8388608"
-    }
+      "MLX_METAL_FAST_SYNCH": "1",
+      "TOKENIZERS_PARALLELISM": "false"
+    },
+    "setup": "rdma_ctl enable (one-time, Recovery OS)"
   },
   "checkpoint_strategy": {
     "approach": "FlashRecovery",
@@ -286,8 +323,9 @@ Return structured JSON training plan with **11 sections** (6 existing + 5 new):
     "checkpoint_overhead": "<5%"
   },
   "verification_steps": [
-    "Run `ibstat` to verify RDMA devices",
-    "Check NCCL_DEBUG=INFO logs for 'Using network InfiniBand'",
+    "SSH to all nodes and verify connectivity (including self-SSH)",
+    "Verify model exists at same path on all nodes",
+    "Compare training data line counts across nodes",
     "Monitor GPU memory with mlx.metal.device_memory()",
     "Test checkpoint/restore cycle"
   ],
@@ -386,8 +424,8 @@ Consult the skill-integration-templates skill for formatting guidance.
 
 ## Decision Points
 
-1. **RDMA availability**: If OpenShift AI 2.19+ unavailable, fall back to TCP/IP (10x slower)
-2. **Batch size**: Start at 64, double until memory fills, monitor validation performance
+1. **RDMA availability**: If macOS 26.2+ with Thunderbolt 5 unavailable, fall back to TCP ring (2-3x slower)
+2. **Batch size**: Start at 4 for full FT, use `--grad-accumulation-steps` for effective batch scaling (batch_size increase doesn't help on M3 Ultra)
 3. **Checkpoint frequency**: Balance recovery time vs checkpoint overhead (every epoch for <5% overhead)
 4. **Multi-node**: For >8 GPUs, distribute across nodes with RDMA for best performance
 5. **Chunking activation**: Enable for datasets >50K examples

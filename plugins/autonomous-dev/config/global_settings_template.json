@@ -157,6 +157,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "implementer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/implementation_quality_gate.py",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PreCommit": [

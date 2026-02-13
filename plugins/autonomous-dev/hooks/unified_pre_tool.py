@@ -140,21 +140,53 @@ CODE_EXTENSIONS = {
     '.kt', '.scala', '.sh', '.bash', '.zsh', '.vue', '.svelte',
 }
 
-# Patterns that indicate significant code additions
-SIGNIFICANT_PATTERNS = [
-    (r'\bdef\s+\w+\s*\(', 'Python function'),
-    (r'\basync\s+def\s+\w+\s*\(', 'Python async function'),
-    (r'\bclass\s+\w+', 'Python/JS class'),
-    (r'\bfunction\s+\w+\s*\(', 'JavaScript function'),
-    (r'\bconst\s+\w+\s*=\s*(?:async\s*)?\(.*?\)\s*=>', 'Arrow function'),
-    (r'\bexport\s+(?:default\s+)?(?:function|class|const)', 'JS export'),
-    (r'\bfunc\s+(?:\(\w+\s+\*?\w+\)\s+)?\w+\s*\(', 'Go function'),
-    (r'\bfn\s+\w+\s*[<(]', 'Rust function'),
-    (r'\bimpl\s+', 'Rust impl block'),
-    # Error handling / conditional imports (ad-hoc implementation patterns)
-    (r'\btry:\s*\n\s+(?:from|import)\s+', 'Conditional import (try/except)'),
-    (r'\bif\s+\w+.*:\s*\n(?:\s+.*\n){3,}else:', 'Multi-branch conditional'),
-]
+# Language-specific pattern groups for code significance detection
+PATTERN_GROUPS = {
+    'python': {
+        'extensions': {'.py'},
+        'patterns': [
+            (r'\bdef\s+\w+\s*\(', 'Python function'),
+            (r'\basync\s+def\s+\w+\s*\(', 'Python async function'),
+            (r'\bclass\s+\w+', 'Python class'),
+        ]
+    },
+    'javascript': {
+        'extensions': {'.js', '.ts', '.jsx', '.tsx', '.vue', '.svelte'},
+        'patterns': [
+            (r'\bfunction\s+\w+\s*\(', 'JavaScript function'),
+            (r'\basync\s+function\s+\w+\s*\(', 'JavaScript async function'),
+            (r'\bconst\s+\w+\s*=\s*(?:async\s*)?\(.*?\)\s*=>', 'Arrow function'),
+            (r'\bexport\s+(?:default\s+)?(?:function|class|const)', 'JS export'),
+            (r'\bclass\s+\w+', 'JavaScript class'),
+        ]
+    },
+    'shell': {
+        'extensions': {'.sh', '.bash', '.zsh'},
+        'patterns': [
+            (r'\bfunction\s+\w+', 'Shell function'),
+        ]
+    },
+    'go': {
+        'extensions': {'.go'},
+        'patterns': [
+            (r'\bfunc\s+(?:\(\w+\s+\*?\w+\)\s+)?\w+\s*\(', 'Go function'),
+        ]
+    },
+    'rust': {
+        'extensions': {'.rs'},
+        'patterns': [
+            (r'\bfn\s+\w+\s*[<(]', 'Rust function'),
+            (r'\bimpl\s+', 'Rust impl block'),
+        ]
+    },
+    'universal': {
+        'extensions': None,  # None means applies to ALL code extensions
+        'patterns': [
+            (r'\btry:\s*\n\s+(?:from|import)\s+', 'Conditional import (try/except)'),
+            (r'\bif\s+\w+.*:\s*\n(?:\s+.*\n){3,}else:', 'Multi-branch conditional'),
+        ]
+    }
+}
 
 SIGNIFICANT_LINE_THRESHOLD = 5
 
@@ -316,24 +348,64 @@ def _is_exempt_path(file_path: str) -> bool:
     return False
 
 
-def _has_significant_additions(old_string: str, new_string: str) -> tuple:
-    """Check if the edit adds significant code (new functions, classes, >10 lines)."""
+def _has_significant_additions(old_string: str, new_string: str, file_path: str = "") -> tuple:
+    """Check if the edit adds significant code (new functions, classes, >5 lines)."""
     import re
     old_string = old_string or ""
     new_string = new_string or ""
-    for pattern, desc in SIGNIFICANT_PATTERNS:
+
+    file_ext = Path(file_path).suffix.lower() if file_path else ""
+
+    # Collect applicable patterns
+    applicable_patterns = []
+    for group_name, group_data in PATTERN_GROUPS.items():
+        extensions = group_data['extensions']
+        if extensions is None:  # universal
+            applicable_patterns.extend(group_data['patterns'])
+        elif not file_ext:  # no file path = backward compat, use all
+            applicable_patterns.extend(group_data['patterns'])
+        elif file_ext in extensions:
+            applicable_patterns.extend(group_data['patterns'])
+
+    for pattern, desc in applicable_patterns:
         old_matches = len(re.findall(pattern, old_string, re.MULTILINE))
         new_matches = len(re.findall(pattern, new_string, re.MULTILINE))
         if new_matches > old_matches:
             match = re.search(pattern, new_string)
             if match:
                 return True, f"New {desc} detected", match.group(0)[:60]
+
     old_lines = len(old_string.strip().split('\n')) if old_string.strip() else 0
     new_lines = len(new_string.strip().split('\n')) if new_string.strip() else 0
     added = max(0, new_lines - old_lines)
     if added >= SIGNIFICANT_LINE_THRESHOLD:
         return True, f"Significant addition ({added} new lines)", f"+{added} lines"
     return False, "", ""
+
+
+def _extract_bash_file_writes(command: str) -> list:
+    """Extract file paths being written to by Bash command."""
+    import re
+    file_paths = []
+
+    # Redirection (>, >>) — skip stderr redirects (2>, 2>>)
+    redirect_pattern = r'(?<![0-9])[>]{1,2}\s+([^\s;&|]+)'
+    for match in re.finditer(redirect_pattern, command):
+        fp = match.group(1).strip()
+        if fp not in {'/dev/null', '/dev/stderr', '/dev/stdout', '&1', '&2'}:
+            file_paths.append(fp)
+
+    # tee command
+    tee_pattern = r'\btee\s+(?:-a\s+)?([^\s;&|]+)'
+    for match in re.finditer(tee_pattern, command):
+        file_paths.append(match.group(1).strip())
+
+    # Heredoc redirect
+    heredoc_pattern = r'<<\s*[\'"]?\w+[\'"]?\s*[>]{1,2}\s+([^\s;&|]+)'
+    for match in re.finditer(heredoc_pattern, command):
+        file_paths.append(match.group(1).strip())
+
+    return file_paths
 
 
 def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
@@ -382,8 +454,8 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     except Exception:
         pass  # If state file is unreadable, fall through to normal enforcement
 
-    # Only check Edit and Write tools
-    if tool_name not in ("Edit", "Write"):
+    # Only check Edit, Write, and Bash tools
+    if tool_name not in ("Edit", "Write", "Bash"):
         return ("allow", f"Tool '{tool_name}' not subject to workflow enforcement")
 
     # Get enforcement level (default: block - use /implement for significant changes)
@@ -402,10 +474,44 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     if tool_name == "Edit":
         old_string = tool_input.get("old_string", "")
         new_string = tool_input.get("new_string", "")
-        is_significant, reason, details = _has_significant_additions(old_string, new_string)
-    else:  # Write
+        is_significant, reason, details = _has_significant_additions(old_string, new_string, file_path)
+    elif tool_name == "Write":
         content = tool_input.get("content", "")
-        is_significant, reason, details = _has_significant_additions("", content)
+        is_significant, reason, details = _has_significant_additions("", content, file_path)
+    elif tool_name == "Bash":
+        command = tool_input.get("command", "")
+        if not command:
+            return ("allow", "No command to check")
+        target_files = _extract_bash_file_writes(command)
+        if not target_files:
+            return ("allow", "No file writes detected in Bash command")
+        # Check each target file for code file enforcement
+        for fp in target_files:
+            if _is_exempt_path(fp):
+                continue
+            if Path(fp).suffix.lower() not in CODE_EXTENSIONS:
+                continue
+            # Code file write detected via Bash
+            file_name = Path(fp).name
+            suggestion = (
+                f"\n\nUse /implement for this change:\n"
+                f"- /implement \"description\"\n"
+                f"- /implement --quick \"description\" (skip full pipeline)\n"
+                f"- /implement #<issue-number>"
+            )
+            if level == "warn":
+                import sys as _sys
+                _sys.stderr.write(f"WARNING: Bash file write to code file: {file_name}\n")
+                _sys.stderr.flush()
+                return ("allow", f"Bash file write detected ({file_name}), allowed at WARN level")
+            elif level == "suggest":
+                return ("allow", f"Bash file write to code file {file_name}.{suggestion}")
+            elif level == "block":
+                return ("deny", f"WORKFLOW ENFORCEMENT: Bash file write to code file {file_name}. "
+                        f"Significant code changes require /implement workflow.{suggestion}")
+        return ("allow", "Bash command writes only to non-code/exempt files")
+    else:
+        return ("allow", f"Tool '{tool_name}' allowed")
 
     if not is_significant:
         return ("allow", "Minor edit, no significant code additions detected")

@@ -60,7 +60,9 @@ Execute current pipeline stage with quality checks:
 - Fuzzy deduplication using MinHash/LSH
 - Remove near-duplicates (similarity threshold: 0.85)
 - Preserve diversity in deduplication
-- **Checkpoint**: Save kept/filtered counts, duplicate rate
+- **Over-select by ~20%** for general domain to compensate for dedup losses (dolci loses ~19%)
+- **Check cross-domain overlap**: Uncensored data may be a complete subset of tool_use (100% overlap found in practice). Verify before including separate uncensored sources.
+- **Checkpoint**: Save kept/filtered counts, duplicate rate, cross-domain overlap %
 
 #### Stage 5: Decontaminate (5_decontaminate)
 - Remove benchmark contamination (MMLU, HumanEval, GSM8K, etc.)

@@ -43,11 +43,15 @@ Implement code following the architecture plan. No explicit output format requir
 - If tests fail, fix them immediately before moving on
 - Only stop when `pytest` shows 0 failures
 
-**CRITICAL - Resolving test failures (you MUST do one of these for EACH failure)**:
-- **Fix it**: Debug and fix the code or test until it passes
-- **Skip it**: Add `@pytest.mark.skip(reason="Not yet implemented: [description]")` if the feature isn't ready
-- **Adjust it**: Update test expectations to match correct behavior if the test is wrong
-- NEVER leave failing tests unresolved. NEVER say "X% is good enough". NEVER proceed with failures.
+### 3 Implementation Quality Principles
+
+Your work is evaluated against 3 principles (scored 0-10, threshold 7+):
+
+1. **Real Implementation** (7+): Write working code that performs the actual operation. No `NotImplementedError`, `pass` placeholders, or warning-only stubs.
+2. **Test-Driven** (7+): ALL tests must pass (0 failures). For each failing test: fix it, skip it with `@pytest.mark.skip(reason="...")`, or adjust expectations.
+3. **Complete Work** (7+): If genuinely blocked, document with `TODO(blocked: specific reason)`. Never silently stub.
+
+**The test**: Can a user actually USE this feature after your changes? If no, you haven't implemented it.
 
 ## Quality Standards
 

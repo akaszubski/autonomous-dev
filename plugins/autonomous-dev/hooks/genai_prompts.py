@@ -220,6 +220,46 @@ Benefits:
 - Explains reasoning for transparency
 """
 
+IMPLEMENTATION_QUALITY_PROMPT = """Analyze this git diff and score the implementation against 3 quality principles (0-10 each).
+
+Git diff:
+{diff}
+
+Score these 3 principles:
+1. principle_1_real_implementation: Is this real working code? Or stubs/placeholders (NotImplementedError, pass, return None)?
+   - 0-3: Mostly stubs, NotImplementedError, or placeholder code
+   - 4-6: Mix of real code and stubs
+   - 7-10: Real working implementation that performs actual operations
+
+2. principle_2_test_driven: Do tests pass? Are tests meaningful (not trivial assert True)?
+   - 0-3: Trivial tests (assert True) or no tests
+   - 4-6: Some test failures or weak coverage
+   - 7-10: All tests pass (100% or valid skips), meaningful assertions
+
+3. principle_3_complete_work: Is work complete? Blockers documented with TODO(blocked: reason)?
+   - 0-3: Silent stubs, TODO without blocker documentation
+   - 4-6: Some incomplete work without clear blocker docs
+   - 7-10: Complete work, or blockers properly documented with TODO(blocked: specific reason)
+
+Return ONLY valid JSON with exactly these 3 keys:
+{{
+  "principle_1_real_implementation": <score>,
+  "principle_2_test_driven": <score>,
+  "principle_3_complete_work": <score>
+}}"""
+
+"""
+Purpose: Score implementation quality against 3 intent-based principles
+Used by: implementation_quality_gate.py
+Expected output: JSON with 3 principle scores (0-10 each)
+Context: Replaces 14 enumerated FORBIDDEN rules with 3 principles
+Benefits:
+- Intent-based evaluation (understands purpose, not just patterns)
+- Scores 0-10 with threshold of 7+ for pass
+- Covers stubs, test quality, and work completeness
+- Graceful fallback to heuristics if GenAI unavailable
+"""
+
 # ============================================================================
 # Prompt Management & Configuration
 # ============================================================================
@@ -253,6 +293,7 @@ GENAI_FEATURES = {
     "docs_validate": "GENAI_DOCS_VALIDATE",
     "doc_autofix": "GENAI_DOC_AUTOFIX",
     "file_organization": "GENAI_FILE_ORGANIZATION",
+    "implementation_quality": "GENAI_IMPLEMENTATION_QUALITY",
 }
 
 
@@ -271,6 +312,7 @@ def get_all_prompts():
         "description_validation": DESCRIPTION_VALIDATION_PROMPT,
         "doc_generation": DOC_GENERATION_PROMPT,
         "file_organization": FILE_ORGANIZATION_PROMPT,
+        "implementation_quality": IMPLEMENTATION_QUALITY_PROMPT,
     }
 
 

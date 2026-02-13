@@ -39,6 +39,17 @@
   - Security: Defaults to false (secure failure mode), audit logged, invalid values fail-safe
   - Configuration via .env: RALPH_AUTO_CONTINUE=true (or false)
   - Example workflows documented: Interactive vs autonomous batches
+- **Coverage regression gate for test quality enforcement** (Issue #332)
+  - New library: coverage_baseline.py for persistent coverage tracking
+  - Stores baseline in .claude/local/coverage_baseline.json with timestamp
+  - Detects regressions with 0.5% tolerance threshold per /implement STEP 5
+  - skip_rate validation: OK (≤5%), WARN (5-10%), BLOCK (>10%) - prevents premature test skipping
+  - Four key functions: load_baseline(), save_baseline(), check_coverage_regression(), check_skip_rate()
+  - Integrated into /implement command STEP 5 quality gates for test-driven principle enforcement
+  - First run establishes baseline; subsequent runs enforce minimum coverage preservation
+  - Enables data collection for team test coverage trends and regression prevention
+  - Security: CWE-20, CWE-22 compliant
+  - Library: plugins/autonomous-dev/lib/coverage_baseline.py
 - **Agents respect AUTO_GIT_PR=false with graceful degradation** (Issue #318)
   - Enhanced auto_implement_git_integration.py with user-visible notifications
   - When AUTO_GIT_PR=false, agents skip PR creation but continue with push/commit

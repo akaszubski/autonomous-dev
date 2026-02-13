@@ -125,6 +125,7 @@
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.py",
+        "plugins/autonomous-dev/hooks/implementation_quality_gate.py",
         "plugins/autonomous-dev/hooks/github_issue_manager.py",
         "plugins/autonomous-dev/hooks/health_check.py",
         "plugins/autonomous-dev/hooks/log_agent_completion.py",
@@ -639,7 +640,8 @@
         "plugins/autonomous-dev/skills/training-methods/docs/backend-support.md",
         "plugins/autonomous-dev/skills/training-methods/docs/data-formats.md",
         "plugins/autonomous-dev/skills/training-methods/docs/method-comparison.md",
-        "plugins/autonomous-dev/skills/training-methods/skill.md"
+        "plugins/autonomous-dev/skills/training-methods/skill.md",
+        "plugins/autonomous-dev/skills/training-operations/SKILL.md"
       ]
     }
   },
