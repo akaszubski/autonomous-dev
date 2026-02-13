@@ -196,6 +196,7 @@
         "plugins/autonomous-dev/lib/auto_implement_pipeline.py",
         "plugins/autonomous-dev/lib/auto_inject_memory.py",
         "plugins/autonomous-dev/lib/auto_install_deps.py",
+        "plugins/autonomous-dev/lib/batch_git_finalize.py",
         "plugins/autonomous-dev/lib/batch_issue_closer.py",
         "plugins/autonomous-dev/lib/batch_orchestrator.py",
         "plugins/autonomous-dev/lib/batch_resume_helper.py",

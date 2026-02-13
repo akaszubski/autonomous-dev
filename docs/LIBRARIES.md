@@ -68,6 +68,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 55. **workflow_violation_logger.py** - Audit logging for workflow violations with JSON Lines format, CWE-117 prevention, log rotation, thread safety (v1.0.0, Issue #250)
 56. **training_metrics.py** - Tulu3 multi-dimensional scoring and DPO preference generation for LLM training quality assessment (v1.0.0, Issue #279)
 57. **coverage_baseline.py** - Coverage baseline storage and regression detection for test quality gates (v1.0.0, Issue #332)
+58. **batch_git_finalize.py** - Batch git finalization with auto-commit, merge, and worktree cleanup (v1.0.0, Issues #333-334)
 
 
 
