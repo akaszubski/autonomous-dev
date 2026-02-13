@@ -4,7 +4,7 @@ version: 3.0.0
 type: knowledge
 description: MLX distributed training, RDMA, hardware constraints, full fine-tuning feasibility, parallelism matrix
 keywords: [mlx, rdma, distributed, batch, performance, realign, full-finetune, apple-silicon]
-auto_activate: true
+auto_activate: false
 ---
 
 # MLX Performance

@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Multi-dimensional data assessment for training quality evaluation
 keywords: [quality, scoring, assessment, IFD, factuality, reasoning]
-auto_activate: true
+auto_activate: false
 ---
 
 # Quality Scoring

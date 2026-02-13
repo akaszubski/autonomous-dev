@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: State persistence patterns for autonomous-dev including JSON persistence, atomic writes, file locking, crash recovery, and state versioning. Use when implementing stateful libraries or features requiring persistent state.
 keywords: state, persistence, JSON, atomic, file locking, crash recovery, state versioning, batch state, user state, checkpoint, session tracking
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 

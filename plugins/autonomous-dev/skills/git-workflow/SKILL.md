@@ -15,7 +15,7 @@ keywords:
   - commit message
   - commit patterns
   - workflow
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash]
 ---
 

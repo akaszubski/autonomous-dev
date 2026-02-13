@@ -114,7 +114,6 @@
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.py",
-        "plugins/autonomous-dev/hooks/implementation_quality_gate.py",
         "plugins/autonomous-dev/hooks/github_issue_manager.py",
         "plugins/autonomous-dev/hooks/health_check.py",
         "plugins/autonomous-dev/hooks/log_agent_completion.py",
@@ -214,7 +213,6 @@
         "plugins/autonomous-dev/lib/conflict_resolver.py",
         "plugins/autonomous-dev/lib/context_skill_injector.py",
         "plugins/autonomous-dev/lib/copy_system.py",
-        "plugins/autonomous-dev/lib/coverage_baseline.py",
         "plugins/autonomous-dev/lib/distributed_training_validator.py",
         "plugins/autonomous-dev/lib/doc_master_auto_apply.py",
         "plugins/autonomous-dev/lib/doc_update_risk_classifier.py",
@@ -502,8 +500,8 @@
         "plugins/autonomous-dev/skills/quality-scoring/docs/quality-dimensions.md",
         "plugins/autonomous-dev/skills/quality-scoring/docs/quality-scorers.md",
         "plugins/autonomous-dev/skills/quality-scoring/docs/training-thresholds.md",
-        "plugins/autonomous-dev/skills/realign-domain-workflows/SKILL.md",
         "plugins/autonomous-dev/skills/realign-meta-framework/SKILL.md",
+        "plugins/autonomous-dev/skills/realign-domain-workflows/SKILL.md",
         "plugins/autonomous-dev/skills/research-patterns/SKILL.md",
         "plugins/autonomous-dev/skills/research-patterns/docs/detailed-guide-1.md",
         "plugins/autonomous-dev/skills/research-patterns/docs/detailed-guide-2.md",
@@ -559,8 +557,7 @@
         "plugins/autonomous-dev/skills/training-methods/docs/backend-support.md",
         "plugins/autonomous-dev/skills/training-methods/docs/data-formats.md",
         "plugins/autonomous-dev/skills/training-methods/docs/method-comparison.md",
-        "plugins/autonomous-dev/skills/training-methods/skill.md",
-        "plugins/autonomous-dev/skills/training-operations/SKILL.md"
+        "plugins/autonomous-dev/skills/training-methods/skill.md"
       ]
     }
   },

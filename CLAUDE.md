@@ -5,7 +5,7 @@ Plugin for autonomous development in Claude Code. AI agents, skills, automation 
 ## Project Overview
 
 Autonomous development plugin that provides:
-- **9-agent SDLC pipeline**: researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master → data-curator
+- **8-agent SDLC pipeline**: researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master
 - **Batch processing**: Process multiple features/issues with worktree isolation
 - **Git automation**: AUTO_GIT_ENABLED for commit/push workflows
 
@@ -63,9 +63,9 @@ Update state after completing significant work. State survives `/clear` operatio
 
 ### Agents
 
-27 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
+16 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
 
-Key agents: researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, data-curator, distributed-training-coordinator.
+Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, data-curator. See agents/archived/ for 11 archived agents.
 
 ## Detailed Guides
 
@@ -84,6 +84,6 @@ Key agents: researcher-local, planner, test-master, implementer, reviewer, secur
 
 ## Component Counts
 
-27 agents, 44 skills, 28 active commands, 160 libraries, 84 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+16 agents, 36 skills, 28 active commands, 160 libraries, 84 hooks. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
 **Last Updated**: 2026-02-14

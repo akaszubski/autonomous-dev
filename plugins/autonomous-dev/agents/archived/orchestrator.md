@@ -1,3 +1,7 @@
+> **ARCHIVED**: This agent is no longer actively used by any command.
+> Archived on 2026-02-14 as part of Issue #331 (token overhead reduction).
+> To restore: move back to agents/ and add to install_manifest.json.
+
 ---
 name: orchestrator
 description: Master coordinator - validates PROJECT.md alignment and coordinates specialist agents

@@ -4,7 +4,7 @@ version: 1.1.0
 type: knowledge
 description: Documentation consistency enforcement - prevents drift between README.md and actual codebase state. Auto-activates when updating docs, committing changes, or working with skills/agents/commands.
 keywords: readme, documentation, commit, sync, update, skill, agent, command, count, marketplace, consistency, drift
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 
