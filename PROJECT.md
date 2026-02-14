@@ -131,7 +131,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 | Agents | 25 | Specialized AI assistants (8 pipeline + 17 utility) |
 | Skills | 32 | Progressive disclosure knowledge packages |
 | Commands | 21 | Active slash commands (5 archived: align-claude, align-project, align-project-retrofit, sync-dev, update-plugin) |
-| Hooks | 72 | Automation and enforcement |
+| Hooks | 17 | Active automation and enforcement (61 archived) |
 | Libraries | 155 | Python utilities for security, validation, automation |
 
 ### Agent Pipeline
@@ -155,24 +155,24 @@ Git Operations (commit, push, PR)
 ```
 
 **Model Tiers:**
-- **Haiku** (8 agents): Fast pattern matching — researcher-local, reviewer, doc-master, commit-message-generator, alignment-validator, project-progress-tracker, sync-validator, pr-description-generator
-- **Sonnet** (13 agents): Balanced reasoning — researcher, implementer, test-master, planner, issue-creator, setup-wizard, project-bootstrapper, brownfield-analyzer, quality-validator, alignment-analyzer, project-status-analyzer, data-quality-validator, distributed-training-coordinator
-- **Opus** (2 agents): Deep analysis — security-auditor, advisor
+- **Haiku** (10 agents): Fast pattern matching — researcher-local, researcher, doc-master, commit-message-generator, data-curator, data-quality-validator, issue-creator, quality-validator, sync-validator, test-coverage-auditor
+- **Sonnet** (3 agents): Balanced reasoning — distributed-training-coordinator, reviewer, security-auditor
+- **Opus** (3 agents): Deep analysis — implementer, planner, test-master
 
-**Agent Categories** (25 total):
+**Agent Categories** (16 total):
 - **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (17): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, data-quality-validator, distributed-training-coordinator, experiment-critic, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
+- **Utility** (8): commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, quality-validator, researcher, sync-validator, test-coverage-auditor
 
 ### Repository Structure
 
 ```
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
-│   ├── agents/                 # 23 AI agents
-│   ├── commands/               # 21 active commands (5 archived)
-│   ├── hooks/                  # 72 automation hooks
-│   ├── skills/                 # 29 skill packages
-│   ├── lib/                    # 154 Python libraries
+│   ├── agents/                 # 16 active agents (13 archived)
+│   ├── commands/               # 23 active commands (5 archived)
+│   ├── hooks/                  # 17 active hooks (61 archived)
+│   ├── skills/                 # 38 skill packages (2 archived)
+│   ├── lib/                    # 136 Python libraries
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
 ├── tests/                      # Test suite
@@ -199,7 +199,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does:**
 - Downloads all plugin components
-- Installs global infrastructure (~60 hooks, ~75 libs)
+- Installs global infrastructure (~17 hooks, ~136 libs)
 - Installs project components (commands, agents, config)
 - Non-blocking: Missing components don't block workflow
 

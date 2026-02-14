@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Enforces project file organization standards from CLAUDE.md/PROJECT.md - auto-fix mode
 category: enforcement
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read, Write, Edit, Grep, Glob]
 keywords:
   - file
