@@ -6,16 +6,12 @@ Complete technical architecture for the autonomous-dev plugin, including agents,
 
 ## Agents
 
-27 specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details.
-
-**Active Agents** (27 total):
-- **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (19): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, experiment-critic, postmortem-analyst, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, researcher, setup-wizard, sync-validator, test-coverage-auditor
+Specialized agents with skill integration for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for complete details. See [CLAUDE.md](../CLAUDE.md) for current counts.
 
 **Key Features**:
 - Native skill integration (Issue #143): Agents declare skills via `skills:` frontmatter field - Claude Code 2.0 auto-loads skills when agent spawned
 - Parallel validation: reviewer + security-auditor + doc-master (60% faster)
-- 8 pipeline agents used in `/implement`, 16 utility agents for specialized tasks
+- Pipeline agents used in `/implement`, utility agents for specialized tasks
 
 ---
 
@@ -43,14 +39,14 @@ Agent model assignments optimized for cost-performance balance (8 active agents)
 
 ## Skills
 
-Specialized skill packages using progressive disclosure to prevent context bloat. See [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for complete list.
+Specialized skill packages using progressive disclosure to prevent context bloat. See [CLAUDE.md](../CLAUDE.md) for current counts.
 
 **How It Works**:
 - Agents declare skills in `skills:` frontmatter field, auto-loaded when spawned
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**44 Active Skills** (v1.0.0):
+**Active Skills**:
 - **Core**: python-standards, testing-guide, error-handling-patterns, code-review
 - **Automation**: git-workflow, batch-processing, performance-optimization
 - **Security**: security-patterns, mcp-security, sandboxing
@@ -58,7 +54,6 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - **Integration**: skill-integration-templates, agent-output-formats
 - **LLM Training Realignment** (7): realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow, grpo-verifiable-training
 - **Data & Training** (4): training-methods, training-operations, dpo-rlvr-generation, anti-hallucination-training
-- **See**: [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) for full list
 
 ---
 
@@ -68,7 +63,7 @@ Reusable Python libraries for security, validation, automation, and more. See [d
 
 **Design Pattern**: Progressive enhancement, two-tier design (core logic + CLI), non-blocking enhancements
 
-**Key Libraries** (159 total):
+**Key Libraries**:
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
 - **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
@@ -86,7 +81,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 
 **Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
 
-**17 Active Hooks** (61 archived):
+**Active Hooks**:
 - **PreToolUse**: unified_pre_tool.py (MCP security, auto-approval, sandboxing)
 - **PrePromptSubmit**: unified_prompt_validator.py (workflow enforcement)
 - **PostToolUse**: auto_format.py, auto_test.py, security_scan.py, auto_fix_docs.py
@@ -122,7 +117,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 
 ## Performance Optimization
 
-**10 Phases Complete** (see [docs/PERFORMANCE-HISTORY.md](docs/PERFORMANCE-HISTORY.md)):
+**10 Phases Complete**:
 
 - **Phase 4**: Haiku model for researcher (3-5 min saved)
 - **Phase 5**: Prompt simplification (2-4 min saved)
@@ -189,7 +184,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 
 **Related Documentation**:
 - [docs/AGENTS.md](docs/AGENTS.md) - Complete agent reference
-- [docs/SKILLS-AGENTS-INTEGRATION.md](docs/SKILLS-AGENTS-INTEGRATION.md) - Skills catalog
+
 - [docs/LIBRARIES.md](docs/LIBRARIES.md) - Library API documentation
 - [docs/HOOKS.md](docs/HOOKS.md) - Hook reference
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md) - Performance benchmarks

@@ -6,9 +6,9 @@ Transform feature implementation into an automated, quality-enforced workflow. O
 
 [![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Pipeline](https://img.shields.io/badge/pipeline-8_agents-green.svg)](docs/AGENTS.md)
-[![Skills](https://img.shields.io/badge/skills-38-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
-[![Hooks](https://img.shields.io/badge/hooks-73-purple.svg)](docs/HOOKS.md)
-[![Commands](https://img.shields.io/badge/commands-21-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
+[![Skills](https://img.shields.io/badge/skills-39-orange.svg)](docs/ARCHITECTURE-OVERVIEW.md)
+[![Hooks](https://img.shields.io/badge/hooks-17_active-purple.svg)](docs/HOOKS.md)
+[![Commands](https://img.shields.io/badge/commands-25-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
 
 ---
 
@@ -155,25 +155,24 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  9 Pipeline Agents  │  39 Skills  │  84 Hooks  │  159 Libraries │
+│  8 Pipeline Agents  │  39 Skills  │  17 Hooks  │  140 Libraries │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Agent Architecture
 
-**9 Pipeline Agents** (invoked via Task tool):
+**8 Pipeline Agents** (invoked via Task tool):
 1. **researcher-local** (Haiku) - Searches codebase for existing patterns
-2. **researcher-web** (Sonnet) - Researches best practices and security considerations
+2. **researcher** (Sonnet) - Researches best practices and security considerations
 3. **planner** (Sonnet) - Designs implementation architecture
 4. **test-master** (Sonnet) - Writes comprehensive tests BEFORE implementation (TDD)
 5. **implementer** (Sonnet) - Writes production-quality code to make tests pass
 6. **reviewer** (Sonnet) - Reviews code quality, patterns, and coverage
 7. **security-auditor** (Haiku) - Scans for OWASP vulnerabilities
 8. **doc-master** (Haiku) - Updates documentation to match code changes
-9. **data-curator** (Haiku) - Orchestrates A-grade data pipeline for LLM training
 
-**Utility Agents** (invoked via Task tool):
-- alignment-validator, commit-message-generator, issue-creator, pr-description-generator, data-quality-validator, distributed-training-coordinator, and more
+**Utility Agents** (8 more):
+- commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, issue-creator, quality-validator, sync-validator, test-coverage-auditor
 
 **How Agents Work**:
 - Agents are markdown prompts (not Python files)
@@ -191,7 +190,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ---
 
-## 73 Automation Hooks
+## 17 Active Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 
@@ -205,9 +204,9 @@ Hooks run automatically at key moments to enforce quality without manual interve
 
 **Key Hooks**:
 - **unified_pre_tool.py**: 4-layer security (84% reduction in permission prompts)
-- **ralph_loop_enforcer.py**: Self-correcting agent execution with 5 validation strategies
-- **pre_commit_gate.py**: 100% test pass requirement (no bypass)
-- **enforce_pipeline_order.py**: Prevents skipping research/planning/tests
+- **stop_quality_gate.py**: End-of-turn quality checks (pytest, ruff, mypy)
+- **enforce_tdd.py**: TDD workflow enforcement (tests before code)
+- **enforce_orchestrator.py**: PROJECT.md alignment validation
 - **unified_session_tracker.py**: Session state persistence across `/clear` operations
 
 **Hook Exit Code Semantics**:
@@ -503,8 +502,8 @@ Layer 4: Batch Approver        → Caches user consent for identical operations
 | [CLAUDE.md](CLAUDE.md) | Project instructions and quick reference |
 | [Architecture](docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
 | [Agents](docs/AGENTS.md) | 8-agent pipeline + utility agents |
-| [Hooks](docs/HOOKS.md) | 73 automation hooks reference |
-| [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) | 38 skills and agent integration |
+| [Hooks](docs/HOOKS.md) | 17 active automation hooks reference |
+| [Skills](docs/ARCHITECTURE-OVERVIEW.md) | 39 skills and agent integration |
 | [Workflow Discipline](docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Git Automation](docs/GIT-AUTOMATION.md) | Zero manual git operations |
