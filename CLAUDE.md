@@ -44,6 +44,7 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 | `/create-issue` | GitHub issue with research |
 | `/audit-claude` | Validate this file |
 | `/health-check` | Validate plugin integrity |
+| `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
 | `/mem-search` | Search claude-mem persistent memory (optional) |
 
 ## Session Continuity
@@ -84,6 +85,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-16 agents, 40 skills, 25 active commands, 160 libraries, 17 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+16 agents, 40 skills, 26 active commands, 160 libraries, 17 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
 **Last Updated**: 2026-02-14

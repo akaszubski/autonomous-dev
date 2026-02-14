@@ -70,6 +70,7 @@
         "plugins/autonomous-dev/commands/postmortem.md",
         "plugins/autonomous-dev/commands/research.md",
         "plugins/autonomous-dev/commands/review.md",
+        "plugins/autonomous-dev/commands/scaffold-genai-uat.md",
         "plugins/autonomous-dev/commands/security-scan.md",
         "plugins/autonomous-dev/commands/setup.md",
         "plugins/autonomous-dev/commands/status.md",

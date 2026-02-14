@@ -263,7 +263,63 @@ pytest --cov=src --cov-report=term-missing
 
 ---
 
-### 10. CI/CD Integration
+### 10. GenAI UAT Testing (LLM-as-Judge)
+
+Use LLM-powered tests to catch semantic drift that traditional assertions can't detect.
+
+**When to use GenAI tests**:
+- Documentation ↔ code consistency (counts, paths, component lists)
+- Cross-reference congruence (two files that should agree but might drift)
+- Security posture (secrets scan, exit code patterns, path traversal)
+- Architecture validation (hook patterns, command structure, agent coverage)
+
+**Setup** (`tests/genai/conftest.py`):
+```python
+# OpenRouter-backed client with response caching (24h TTL)
+# Two fixtures: genai (Gemini Flash, cheap) and genai_smart (Haiku 4.5, complex)
+# Requires: OPENROUTER_API_KEY env var + --genai pytest flag
+# Cost: ~$0.02 per full test run with caching
+```
+
+**The Judge Pattern** (core assertion):
+```python
+pytestmark = [pytest.mark.genai]
+
+def test_agents_documented_in_claude_md(self, genai):
+    agents_on_disk = list_agents()
+    claude_md = Path("CLAUDE.md").read_text()
+    result = genai.judge(
+        question="Does CLAUDE.md document all active agents?",
+        context=f"Agents on disk: {agents_on_disk}\nCLAUDE.md:\n{claude_md[:3000]}",
+        criteria="All active agents should be referenced. Score by coverage %."
+    )
+    assert result["score"] >= 5, f"Gap: {result['reasoning']}"
+```
+
+**The Congruence Pattern** (most valuable — cross-reference two sources):
+```python
+def test_implement_and_implementer_share_forbidden_list(self, genai):
+    implement_content = Path("commands/implement.md").read_text()
+    implementer_content = Path("agents/implementer.md").read_text()
+    result = genai.judge(
+        question="Do these files have matching FORBIDDEN behavior lists?",
+        context=f"implement.md:\n{implement_content[:5000]}\nimplementer.md:\n{implementer_content[:5000]}",
+        criteria="Both should define same enforcement gates. Score 10=identical, 0=contradictory."
+    )
+    assert result["score"] >= 5
+```
+
+**Scaffold for any repo**: `/scaffold-genai-uat` generates tests/genai/ with portable client + universal tests + project-specific congruence tests discovered via GenAI.
+
+**Run**: `pytest tests/genai/ --genai` (explicit opt-in, no surprise API costs)
+
+**Where to put GenAI tests**: `tests/genai/` (auto-skipped without `--genai` flag)
+
+**See**: `docs/genai-uat-testing.md` for complete setup guide and test patterns
+
+---
+
+### 11. CI/CD Integration
 
 Automated testing in pre-push hooks and GitHub Actions.
 
@@ -295,6 +351,7 @@ pytest tests/ || exit 1
 | Regression Testing | Bug prevention | `docs/regression-testing.md` |
 | Test Organization | Directory structure | `docs/test-organization-best-practices.md` |
 | Pytest Fixtures | Setup/teardown patterns | `docs/pytest-fixtures-coverage.md` |
+| GenAI UAT Testing | LLM-as-judge validation | `docs/genai-uat-testing.md` |
 | CI/CD Integration | Automated testing | `docs/ci-cd-integration.md` |
 
 ### Test Tier Quick Reference
@@ -307,6 +364,7 @@ pytest tests/ || exit 1
 | **3 (Progression)** | `regression/progression/` | - | TDD red phase |
 | **Unit** | `unit/` | <1s | Isolated functions |
 | **Integration** | `integration/` | <30s | Multi-component |
+| **GenAI UAT** | `genai/` | <2min | LLM-as-judge (opt-in) |
 
 ---
 
@@ -317,7 +375,7 @@ pytest tests/ || exit 1
 | **Unit** | Fast (ms) | Pure functions, deterministic logic | 90%+ |
 | **Integration** | Medium (sec) | Component interactions, workflows | 70%+ |
 | **UAT** | Slow (min) | End-to-end scenarios, critical paths | Key flows |
-| **GenAI Validation** | Slow (min) | Architecture validation, design review | As needed |
+| **GenAI UAT** | Slow (min) | Architecture, doc drift, congruence, security | As needed |
 
 ---
 

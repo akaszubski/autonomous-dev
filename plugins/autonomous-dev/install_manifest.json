@@ -14,6 +14,7 @@
     "plan",
     "research",
     "review",
+    "scaffold-genai-uat",
     "security-scan",
     "setup",
     "status",
@@ -278,7 +279,11 @@
         "plugins/autonomous-dev/templates/settings.granular-bash.json",
         "plugins/autonomous-dev/templates/settings.local.json",
         "plugins/autonomous-dev/templates/settings.permission-batching.json",
-        "plugins/autonomous-dev/templates/settings.strict-mode.json"
+        "plugins/autonomous-dev/templates/settings.strict-mode.json",
+        "plugins/autonomous-dev/templates/genai-uat/conftest.py",
+        "plugins/autonomous-dev/templates/genai-uat/test_doc_completeness.py",
+        "plugins/autonomous-dev/templates/genai-uat/test_security_posture.py",
+        "plugins/autonomous-dev/templates/genai-uat/test_config_audit.py"
       ]
     },
     "skills": {
