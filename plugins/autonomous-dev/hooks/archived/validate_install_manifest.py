@@ -45,7 +45,7 @@ if not is_running_under_uv():
     from pathlib import Path
     import sys
     hook_dir = Path(__file__).parent
-    lib_path = hook_dir.parent / "lib"
+    lib_path = hook_dir.parent.parent / "lib"
     if lib_path.exists():
         sys.path.insert(0, str(lib_path))
 

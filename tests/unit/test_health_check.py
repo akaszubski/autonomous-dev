@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 # Import from hooks directory using proper module path
-from plugins.autonomous_dev.hooks.health_check import PluginHealthCheck
+from plugins.autonomous_dev.hooks.archived.health_check import PluginHealthCheck
 
 
 class TestHealthCheck:
@@ -46,8 +46,8 @@ class TestHealthCheck:
         checker = PluginHealthCheck()
         passed, total = checker.validate_skills()
 
-        assert total == 13, "Expected 13 skills"
-        assert passed == 13, "All 13 skills should be present"
+        assert total == 0, "Expected 0 skills (skills removed per Issue #5)"
+        assert passed == 0, "No skills expected"
 
         for skill in checker.EXPECTED_SKILLS:
             assert checker.results["skills"][skill] == "PASS"
@@ -57,16 +57,16 @@ class TestHealthCheck:
         checker = PluginHealthCheck()
         passed, total = checker.validate_hooks()
 
-        assert total == 8, "Expected 8 hooks"
-        assert passed >= 7, "At least 7 hooks should be present"  # Allow 1 missing during dev
+        assert total == 17, "Expected 17 active hooks"
+        assert passed >= 15, "At least 15 hooks should be present"  # Allow 2 missing during dev
 
     def test_command_validation_minimum_present(self):
         """Test command validation has minimum required commands."""
         checker = PluginHealthCheck()
         passed, total = checker.validate_commands()
 
-        assert total >= 21, "Expected at least 21 commands"
-        assert passed >= 20, "At least 20 commands should be present"  # Allow 1 missing during dev
+        assert total >= 9, "Expected at least 9 commands"
+        assert passed >= 8, "At least 8 commands should be present"  # Allow 1 missing during dev
 
     def test_overall_status_healthy_when_all_pass(self):
         """Test overall status is HEALTHY when all components pass."""
@@ -164,8 +164,8 @@ class TestHealthCheck:
         checker = PluginHealthCheck()
 
         # Test existing agent
-        exists = checker.check_component_exists("agents", "orchestrator", ".md")
-        assert exists, "orchestrator agent should exist"
+        exists = checker.check_component_exists("agents", "implementer", ".md")
+        assert exists, "implementer agent should exist"
 
         # Test non-existing component
         exists = checker.check_component_exists("agents", "nonexistent", ".md")

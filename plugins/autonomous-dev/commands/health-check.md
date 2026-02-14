@@ -8,7 +8,7 @@ allowed-tools: [Read, Bash, Grep, Glob]
 ## Implementation
 
 ```bash
-PYTHONPATH=. python "$(dirname "$0")/../hooks/health_check.py"
+PYTHONPATH=. python "$(dirname "$0")/../hooks/archived/health_check.py"
 ```
 
 # Health Check - Plugin Component Validation

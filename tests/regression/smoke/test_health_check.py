@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 # Import from hooks directory using proper module path
-from plugins.autonomous_dev.hooks.health_check import PluginHealthCheck
+from plugins.autonomous_dev.hooks.archived.health_check import PluginHealthCheck
 
 
 class TestHealthCheck:

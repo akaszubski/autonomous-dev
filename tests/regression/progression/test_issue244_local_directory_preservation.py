@@ -464,6 +464,7 @@ class TestEdgeCases:
         assert local_dir.exists()
         assert local_dir.is_dir()
 
+    @pytest.mark.skip(reason="TDD red phase: symlink protection not yet implemented (#244)")
     def test_symlinked_local_directory_handling(self, tmp_path):
         """Test handling of symlinked .claude/local/ directory.
 

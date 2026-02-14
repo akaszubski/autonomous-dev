@@ -7,6 +7,12 @@ internal: true
 
 # BATCH FILE MODE
 
+## Implementation
+
+Invoke the implementer agent to process each feature in the batch file sequentially with worktree isolation.
+
+## Process
+
 Process multiple features from a file with automatic worktree isolation.
 
 **STEP B1: Create Worktree**

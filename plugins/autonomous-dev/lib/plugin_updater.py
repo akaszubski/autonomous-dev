@@ -56,7 +56,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # Import with fallback for both dev (plugins/) and installed (.claude/lib/) environments
 try:

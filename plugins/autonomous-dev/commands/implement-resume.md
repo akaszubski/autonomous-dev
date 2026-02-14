@@ -7,6 +7,12 @@ internal: true
 
 # RESUME MODE
 
+## Implementation
+
+Invoke the implementer agent to resume the interrupted batch from the last checkpoint.
+
+## Process
+
 Resume an interrupted batch from checkpoint.
 
 **STEP R1: Find Batch State**

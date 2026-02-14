@@ -11,7 +11,7 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from plugins.autonomous_dev.hooks.github_issue_manager import GitHubIssueManager
+from plugins.autonomous_dev.hooks.archived.github_issue_manager import GitHubIssueManager
 
 
 class TestGitHubIssueManager:

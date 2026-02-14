@@ -169,7 +169,7 @@ Git Operations (commit, push, PR)
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
 │   ├── agents/                 # 16 active agents (13 archived)
-│   ├── commands/               # 23 active commands (5 archived)
+│   ├── commands/               # 25 active commands (5 archived)
 │   ├── hooks/                  # 17 active hooks (61 archived)
 │   ├── skills/                 # 38 skill packages (2 archived)
 │   ├── lib/                    # 136 Python libraries

@@ -32,7 +32,7 @@ from pathlib import Path
 from subprocess import TimeoutExpired
 
 # Import exit codes
-sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lib"))
 try:
     from hook_exit_codes import EXIT_SUCCESS, EXIT_WARNING
 except ImportError:

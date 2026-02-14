@@ -536,7 +536,7 @@ class TestAlignmentValidation:
         """
         project_root = Path(__file__).parent.parent.parent
         # Run from plugin source, not installed copy (which is gitignored)
-        validator_script = project_root / "plugins" / "autonomous-dev" / "hooks" / "validate_claude_alignment.py"
+        validator_script = project_root / "plugins" / "autonomous-dev" / "hooks" / "archived" / "validate_claude_alignment.py"
 
         # This will FAIL if alignment broken
         assert validator_script.exists(), "validate_claude_alignment.py not found"

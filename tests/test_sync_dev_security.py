@@ -47,7 +47,7 @@ class TestPathValidationSymlinks:
             # This should call the actual validation function
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent))
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -83,7 +83,7 @@ class TestPathValidationSymlinks:
             target_dir.mkdir()
 
             # Act: Validate path that goes through symlink
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -115,7 +115,7 @@ class TestPathValidationSymlinks:
             install_dir.mkdir()
 
             # Act: Validate regular directory
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -150,7 +150,7 @@ class TestPathValidationTraversal:
             malicious_path = str(plugins_dir / ".." / ".." / "sensitive")
 
             # Act: Attempt to use traversal path
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -181,7 +181,7 @@ class TestPathValidationTraversal:
             outside_dir.mkdir()
 
             # Act: Attempt to use outside path
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -211,7 +211,7 @@ class TestPathValidationTraversal:
             sneaky_path = str(plugins_dir / "foo" / ".." / ".." / ".." / "etc")
 
             # Act: Attempt validation
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -429,7 +429,7 @@ class TestEdgeCasesSymlinksAndPaths:
             symlink_plugin.symlink_to(real_plugin)
 
             # Act: Validate symlink to valid location
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -459,7 +459,7 @@ class TestEdgeCasesSymlinksAndPaths:
             file_path.write_text("not a directory")
 
             # Act: Validate file path
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -486,7 +486,7 @@ class TestEdgeCasesSymlinksAndPaths:
             plugins_dir.mkdir(parents=True)
 
             # Act: Validate config without installPath
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -514,7 +514,7 @@ class TestEdgeCasesSymlinksAndPaths:
             plugins_dir.mkdir(parents=True)
 
             # Act: Validate empty installPath
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -541,7 +541,7 @@ class TestEdgeCasesSymlinksAndPaths:
             plugins_dir.mkdir(parents=True)
 
             # Act: Validate null installPath
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -575,7 +575,7 @@ class TestJSONParsingExceptions:
             config_file.write_text("{invalid json,}")
 
             # Act: Attempt to parse
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -595,7 +595,7 @@ class TestJSONParsingExceptions:
             config_file.write_text('{"plugins": {"key": "value",}}')
 
             # Act: Attempt to parse
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -616,7 +616,7 @@ class TestJSONParsingExceptions:
             config_file.chmod(0o000)  # No permissions
 
             # Act: Attempt to read
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -634,7 +634,7 @@ class TestJSONParsingExceptions:
         # This tests that we don't use catch-all except Exception
         # Instead we should catch JSONDecodeError, PermissionError, etc. separately
 
-        from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+        from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
         # Test 1: JSON decode error
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -685,7 +685,7 @@ class TestPathValidationIntegration:
             install_dir.mkdir()
 
             # Act: Run full validation
-            from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+            from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
             with patch('pathlib.Path.home') as mock_home:
                 mock_home.return_value = Path(tmpdir)
@@ -726,7 +726,7 @@ class TestPathValidationIntegration:
             "../../sensitive",  # Relative traversal
         ]
 
-        from plugins.autonomous_dev.hooks.sync_to_installed import find_installed_plugin_path
+        from plugins.autonomous_dev.hooks.archived.sync_to_installed import find_installed_plugin_path
 
         for attack_path in attack_vectors:
             with tempfile.TemporaryDirectory() as tmpdir:

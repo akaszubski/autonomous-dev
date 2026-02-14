@@ -62,8 +62,8 @@ class TestFilesystemComponentCounts:
         """Test counting command files excludes archived directory."""
         project_root = _get_project_root()
         counts = _count_filesystem_components(project_root)
-        assert counts["commands"] == 23, (
-            f"Expected 23 command files (excluding archived), found {counts['commands']}"
+        assert counts["commands"] == 25, (
+            f"Expected 25 command files (excluding archived), found {counts['commands']}"
         )
 
     def test_count_agents(self):
@@ -94,15 +94,15 @@ class TestFilesystemComponentCounts:
         """Test counting library files excludes test files and __init__."""
         project_root = _get_project_root()
         counts = _count_filesystem_components(project_root)
-        assert counts["libraries"] == 136, (
-            f"Expected 136 library files, found {counts['libraries']}"
+        assert counts["libraries"] == 137, (
+            f"Expected 137 library files, found {counts['libraries']}"
         )
 
 
 class TestClaudeMdComponentCounts:
     """Test CLAUDE.md Component Counts section has correct counts.
 
-    CLAUDE.md uses inline format: '16 agents, 38 skills, 23 active commands, 136 libraries, 17 active hooks'
+    CLAUDE.md uses inline format: '16 agents, 38 skills, 23 active commands, 137 libraries, 17 active hooks'
     """
 
     def _parse_claude_md_counts(self) -> Dict[str, int]:
@@ -146,12 +146,12 @@ class TestClaudeMdComponentCounts:
     def test_claude_md_commands_count(self):
         """Test CLAUDE.md has correct commands count."""
         counts = self._parse_claude_md_counts()
-        assert counts.get("commands") == 23, f"Expected 23 commands, found {counts.get('commands')}"
+        assert counts.get("commands") == 25, f"Expected 25 commands, found {counts.get('commands')}"
 
     def test_claude_md_libraries_count(self):
         """Test CLAUDE.md has correct libraries count."""
         counts = self._parse_claude_md_counts()
-        assert counts.get("libraries") == 136, f"Expected 136 libraries, found {counts.get('libraries')}"
+        assert counts.get("libraries") == 137, f"Expected 137 libraries, found {counts.get('libraries')}"
 
     def test_claude_md_hooks_count(self):
         """Test CLAUDE.md has correct hooks count."""
@@ -259,7 +259,7 @@ class TestNoStaleCountsInDocs:
         content = readme.read_text()
 
         stale_patterns = [
-            (r'\b69\s+[Ll]ibraries?\b', "69 Libraries should be 136"),
+            (r'\b69\s+[Ll]ibraries?\b', "69 Libraries should be 137"),
             (r'\b64\s+[Hh]ooks?\b', "64 Hooks should be 17"),
             (r'\b62\s+[Hh]ooks?\b', "62 Hooks should be 17"),
             (r'\b9\s+[Cc]ommands?\b', "9 commands should be 23"),

@@ -36,7 +36,7 @@ def is_running_under_uv() -> bool:
 
 # Add lib to path for error_messages module (only if not running under UV)
 if not is_running_under_uv():
-    sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'lib'))
 
 from error_messages import ErrorMessage, ErrorCode
 
@@ -75,18 +75,23 @@ class PluginHealthCheck:
     # Core hooks - Issue #144 consolidated 51 hooks into unified hooks
     # Issue #147: Updated to match actual hooks after consolidation
     EXPECTED_HOOKS = [
+        "auto_fix_docs.py",
         "auto_format.py",
         "auto_test.py",
-        "enforce_file_organization.py",
-        "enforce_pipeline_complete.py",
+        "batch_permission_approver.py",
+        "enforce_orchestrator.py",
         "enforce_tdd.py",
+        "genai_prompts.py",
+        "genai_utils.py",
         "security_scan.py",
+        "setup.py",
+        "stop_quality_gate.py",
         "unified_pre_tool.py",
         "unified_prompt_validator.py",
         "unified_session_tracker.py",
-        "validate_claude_alignment.py",
         "validate_command_file_ops.py",
         "validate_project_alignment.py",
+        "validate_session_quality.py",
     ]
 
     EXPECTED_COMMANDS = [

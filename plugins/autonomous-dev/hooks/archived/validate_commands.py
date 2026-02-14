@@ -81,10 +81,10 @@ def main():
     """Validate all commands in commands/"""
 
     # Find commands directory relative to this script
-    # Script is at: plugins/autonomous-dev/hooks/validate_commands.py
+    # Script is at: plugins/autonomous-dev/hooks/archived/validate_commands.py
     # Commands are at: plugins/autonomous-dev/commands/
     script_dir = Path(__file__).parent
-    plugin_dir = script_dir.parent
+    plugin_dir = script_dir.parent.parent
     commands_dir = plugin_dir / "commands"
 
     if not commands_dir.exists():

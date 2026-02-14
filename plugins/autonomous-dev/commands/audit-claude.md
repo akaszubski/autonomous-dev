@@ -78,7 +78,7 @@ Required Items:
   ...
 
 Forbidden Content:
-  Line 45-89: Architecture details (move to docs/ARCHITECTURE.md)
+  Line 45-89: Architecture details (move to docs/ARCHITECTURE-OVERVIEW.md)
   Line 102-108: Code block > 5 lines (shorten or move to docs/)
 
 Stats:
@@ -87,7 +87,7 @@ Stats:
 
 Suggested Actions:
   1. Add pointer to .claude/PROJECT.md
-  2. move to docs/ARCHITECTURE.md
+  2. move to docs/ARCHITECTURE-OVERVIEW.md
   3. reduce from 142 to <100 lines
 ```
 

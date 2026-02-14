@@ -338,6 +338,7 @@ class TestBrokenReferenceRemoval:
             exclude_dirs = {
                 "__pycache__",
                 ".git",
+                ".worktrees",
                 "node_modules",
                 ".pytest_cache",
                 "venv",
@@ -359,12 +360,14 @@ class TestBrokenReferenceRemoval:
                 if any(excluded in file_path.parts for excluded in exclude_dirs):
                     continue
 
-                # Skip binary files
+                # Skip directories and binary files
+                if not file_path.is_file():
+                    continue
                 try:
                     content = file_path.read_text()
                     if re.search(pattern, content):
                         matching_files.append(file_path)
-                except (UnicodeDecodeError, PermissionError):
+                except (UnicodeDecodeError, PermissionError, IsADirectoryError):
                     continue
 
         return matching_files
