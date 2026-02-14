@@ -6,7 +6,7 @@ Transform feature implementation into an automated, quality-enforced workflow. O
 
 [![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Pipeline](https://img.shields.io/badge/pipeline-8_agents-green.svg)](docs/AGENTS.md)
-[![Skills](https://img.shields.io/badge/skills-40-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
+[![Skills](https://img.shields.io/badge/skills-38-orange.svg)](docs/SKILLS-AGENTS-INTEGRATION.md)
 [![Hooks](https://img.shields.io/badge/hooks-73-purple.svg)](docs/HOOKS.md)
 [![Commands](https://img.shields.io/badge/commands-21-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
 
@@ -351,6 +351,19 @@ Optimized: [auth, email, tests]  # Tests run after implementation
 
 ---
 
+## GitHub Actions Integration
+
+Automate PR reviews and issue implementation with Claude directly in your GitHub workflow.
+
+| Workflow | Trigger | What It Does |
+|----------|---------|--------------|
+| **Claude Code Review** | PR opened/updated, `@claude` comment | Automated code review against project conventions |
+| **Claude Issue Implementation** | Issue labeled `claude-implement` | Reads issue, implements solution, opens PR |
+
+See [docs/GITHUB-ACTIONS.md](docs/GITHUB-ACTIONS.md) for setup and configuration.
+
+---
+
 ## Advanced Features
 
 ### Ralph Loop: Self-Correcting Agent Execution
@@ -418,7 +431,7 @@ Session state survives `/clear` operations:
 
 ### UV Script Execution
 
-All 73 hooks use UV for reproducible execution:
+All 17 hooks use UV for reproducible execution:
 
 **Features**:
 - PEP 723 metadata blocks (inline dependencies)
@@ -491,7 +504,7 @@ Layer 4: Batch Approver        → Caches user consent for identical operations
 | [Architecture](docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
 | [Agents](docs/AGENTS.md) | 8-agent pipeline + utility agents |
 | [Hooks](docs/HOOKS.md) | 73 automation hooks reference |
-| [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) | 32 skills and agent integration |
+| [Skills](docs/SKILLS-AGENTS-INTEGRATION.md) | 38 skills and agent integration |
 | [Workflow Discipline](docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Git Automation](docs/GIT-AUTOMATION.md) | Zero manual git operations |

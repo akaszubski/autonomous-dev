@@ -34,11 +34,11 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add hooks/archived directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "hooks" / "archived"))
 
 # This import will FAIL until validate_command_frontmatter_flags.py is created
-from plugins.autonomous_dev.hooks.validate_command_frontmatter_flags import (
+from validate_command_frontmatter_flags import (
     extract_frontmatter,
     extract_flags_from_body,
     remove_code_blocks,

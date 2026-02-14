@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: Standardized patterns for how agents discover, reference, and compose skills using progressive disclosure architecture
 keywords: skill, skills, progressive disclosure, skill discovery, skill composition, agent integration, skill reference
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 
@@ -84,7 +84,7 @@ Skills auto-activate when task keywords match skill keywords:
 ---
 name: testing-guide
 keywords: test, testing, pytest, tdd, coverage, fixture
-auto_activate: true
+auto_activate: false
 ---
 ```
 

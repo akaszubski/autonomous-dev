@@ -4,7 +4,7 @@ version: 1.0.0
 type: knowledge
 description: PROJECT.md alignment patterns and validation strategies
 keywords: project, alignment, goals, scope, constraints, architecture
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 

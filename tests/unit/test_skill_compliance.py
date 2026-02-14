@@ -24,10 +24,10 @@ REQUIRED_FIELDS = ["name", "description", "keywords"]
 
 
 def get_all_skill_paths() -> List[Path]:
-    """Get all skill directories."""
+    """Get all skill directories (excluding archived)."""
     if not SKILLS_DIR.exists():
         return []
-    return [p for p in SKILLS_DIR.iterdir() if p.is_dir()]
+    return [p for p in SKILLS_DIR.iterdir() if p.is_dir() and p.name != "archived"]
 
 
 def get_skill_file(skill_path: Path) -> Optional[Path]:

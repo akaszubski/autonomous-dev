@@ -10,7 +10,7 @@ keywords:
   - integration-patterns
   - skill-section
   - agent-action-verbs
-auto_activate: true
+auto_activate: false
 allowed-tools: [Read]
 ---
 
