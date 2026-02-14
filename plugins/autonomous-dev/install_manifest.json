@@ -51,11 +51,6 @@
       "files": [
         "plugins/autonomous-dev/commands/advise.md",
         "plugins/autonomous-dev/commands/align.md",
-        "plugins/autonomous-dev/commands/archived/align-claude.md",
-        "plugins/autonomous-dev/commands/archived/align-project-retrofit.md",
-        "plugins/autonomous-dev/commands/archived/align-project.md",
-        "plugins/autonomous-dev/commands/archived/sync-dev.md",
-        "plugins/autonomous-dev/commands/archived/update-plugin.md",
         "plugins/autonomous-dev/commands/audit-claude.md",
         "plugins/autonomous-dev/commands/audit-tests.md",
         "plugins/autonomous-dev/commands/audit.md",
