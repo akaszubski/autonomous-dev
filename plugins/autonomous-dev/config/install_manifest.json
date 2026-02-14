@@ -1,6 +1,6 @@
 {
-  "version": "3.44.0",
-  "generated": "2025-12-24",
+  "version": "3.50.0",
+  "generated": "2026-02-14",
   "description": "File manifest for autonomous-dev plugin installation",
   "base_url": "https://raw.githubusercontent.com/akaszubski/autonomous-dev/master",
   "commands": [
@@ -273,7 +273,6 @@
         "plugins/autonomous-dev/config/doc_change_registry.json",
         "plugins/autonomous-dev/config/global_settings_template.json",
         "plugins/autonomous-dev/config/install_manifest.json",
-        "plugins/autonomous-dev/config/installation_manifest.json",
         "plugins/autonomous-dev/config/research_rate_limits.json",
         "plugins/autonomous-dev/config/sandbox_policy.json"
       ]

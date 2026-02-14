@@ -1,6 +1,6 @@
 {
   "description": "Permission Batching Configuration - Reduce approval prompts by 80%",
-  "version": "3.44.0",
+  "version": "3.50.0",
   "notes": [
     "Uses 'ask' permission level for fine-grained control",
     "Auto-approves reads, batches writes for user confirmation",

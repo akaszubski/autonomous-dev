@@ -1,6 +1,6 @@
 {
   "description": "Autonomous Dev - Full auto-approval with layered security (RECOMMENDED)",
-  "version": "3.44.0",
+  "version": "3.50.0",
   "notes": [
     "Layer 1: Native permissions block provides zero-latency auto-approval",
     "Layer 2: PreToolUse hook provides enhanced security validation",
