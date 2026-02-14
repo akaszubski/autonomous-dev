@@ -84,6 +84,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-16 agents, 39 skills, 25 active commands, 140 libraries, 17 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+16 agents, 40 skills, 25 active commands, 160 libraries, 17 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
 **Last Updated**: 2026-02-14

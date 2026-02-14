@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2026-01-27
-**Version**: v3.44.0
+**Last Updated**: 2026-02-14
+**Version**: v3.50.0
 
 ---
 
@@ -124,16 +124,6 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - **Hooks = enforcement** (quality gates, always active, blocking)
 - **Agents = intelligence** (expert assistance, conditionally invoked, advisory)
 
-### Current Components (v3.44.0)
-
-| Component | Count | Purpose |
-|-----------|-------|---------|
-| Agents | 25 | Specialized AI assistants (8 pipeline + 17 utility) |
-| Skills | 32 | Progressive disclosure knowledge packages |
-| Commands | 21 | Active slash commands (5 archived: align-claude, align-project, align-project-retrofit, sync-dev, update-plugin) |
-| Hooks | 17 | Active automation and enforcement (61 archived) |
-| Libraries | 155 | Python utilities for security, validation, automation |
-
 ### Agent Pipeline
 
 ```
@@ -155,29 +145,21 @@ Git Operations (commit, push, PR)
 ```
 
 **Model Tiers:**
-- **Haiku** (10 agents): Fast pattern matching — researcher-local, researcher, doc-master, commit-message-generator, data-curator, data-quality-validator, issue-creator, quality-validator, sync-validator, test-coverage-auditor
-- **Sonnet** (3 agents): Balanced reasoning — distributed-training-coordinator, reviewer, security-auditor
-- **Opus** (3 agents): Deep analysis — implementer, planner, test-master
-
-**Agent Categories** (16 total):
-- **Pipeline** (8): researcher-local, planner, test-master, implementer, reviewer, security-auditor, doc-master, issue-creator
-- **Utility** (8): commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, quality-validator, researcher, sync-validator, test-coverage-auditor
-
 ### Repository Structure
 
 ```
 autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
-│   ├── agents/                 # 16 active agents (13 archived)
-│   ├── commands/               # 25 active commands (5 archived)
-│   ├── hooks/                  # 17 active hooks (61 archived)
-│   ├── skills/                 # 38 skill packages (2 archived)
-│   ├── lib/                    # 136 Python libraries
+│   ├── agents/                 # Pipeline + utility agents
+│   ├── commands/               # Slash commands
+│   ├── hooks/                  # Automation hooks
+│   ├── skills/                 # Skill packages
+│   ├── lib/                    # Python libraries
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
 ├── tests/                      # Test suite
 ├── .claude/                    # Installed plugin (symlink)
-├── CLAUDE.md                   # Development instructions
+├── CLAUDE.md                   # Development instructions (component counts live here)
 ├── PROJECT.md                  # This file (alignment gatekeeper)
 └── README.md                   # User-facing overview
 ```
@@ -199,7 +181,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **What install.sh does:**
 - Downloads all plugin components
-- Installs global infrastructure (~17 hooks, ~136 libs)
+- Installs global infrastructure (hooks, libs)
 - Installs project components (commands, agents, config)
 - Non-blocking: Missing components don't block workflow
 

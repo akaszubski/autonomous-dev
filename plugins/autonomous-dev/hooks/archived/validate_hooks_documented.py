@@ -58,9 +58,12 @@ def get_documented_hooks(hooks_md: Path) -> set[str]:
         return set()
 
     content = hooks_md.read_text()
-    # Match "### hook_name.py" or "### hook_name"
-    pattern = r'^###\s+([a-z_]+)(?:\.py)?'
-    matches = re.findall(pattern, content, re.MULTILINE)
+    # Match "### hook_name.py" or "### hook_name" headings
+    heading_pattern = r'^###\s+([a-z_]+)(?:\.py)?'
+    matches = re.findall(heading_pattern, content, re.MULTILINE)
+    # Also match "**hook_name.py**" in table rows (compact format)
+    table_pattern = r'\*\*([a-z_]+)\.py\*\*'
+    matches.extend(re.findall(table_pattern, content))
     return set(matches)
 
 

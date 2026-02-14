@@ -514,9 +514,9 @@ bash install.sh
 |-------|-------------|
 | [CLAUDE.md](../../CLAUDE.md) | Project instructions and quick reference |
 | [Architecture](../../docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
-| [Agents](../../docs/AGENTS.md) | 22 specialized agents and their roles |
-| [Hooks](../../docs/HOOKS.md) | 66 automation hooks reference |
-| [Skills](../../docs/SKILLS-AGENTS-INTEGRATION.md) | 28 skills and agent integration |
+| [Agents](../../docs/AGENTS.md) | Agent pipeline and utility agents |
+| [Hooks](../../docs/HOOKS.md) | Automation hooks reference |
+| [Skills](../../docs/ARCHITECTURE-OVERVIEW.md) | Skills and agent integration |
 | [Workflow Discipline](../../docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](../../docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Git Automation](../../docs/GIT-AUTOMATION.md) | Zero manual git operations |

@@ -361,7 +361,7 @@ All 8 active agents reference relevant skills via `skills:` frontmatter (Issue #
 3. Claude loads full SKILL.md content only when relevant
 4. Context stays efficient while providing specialized knowledge
 
-**See Also**: [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) for complete mapping table.
+**See Also**: [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) for skills overview.
 
 ---
 
@@ -382,6 +382,6 @@ Three agents execute in parallel during Step 5 of /implement:
 ## See Also
 
 - [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Overall system architecture
-- [SKILLS-AGENTS-INTEGRATION.md](SKILLS-AGENTS-INTEGRATION.md) - Agent-skill mapping
+- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) - Skills and agent integration
 - [commands/implement.md](/plugins/autonomous-dev/commands/implement.md) - Workflow coordination
 - [agents/](/plugins/autonomous-dev/agents/) - Individual agent prompts
