@@ -408,10 +408,12 @@ class TestInstallSyncIntegrity:
             manifest = plugins_dir / "config" / "install_manifest.json"
             data = json.loads(manifest.read_text())
 
-            # Command deprecation shims are allowed (they redirect to new commands)
-            ALLOWED_ARCHIVED = {
-                "commands/archived/sync-dev.md",  # Redirects to /sync --env
-                "commands/archived/update-plugin.md",  # Redirects to /sync --marketplace
+            # Archived commands/skills are allowed — manifest sync hook auto-includes
+            # all files on disk. Command shims redirect to new commands; skill shims
+            # are needed for backward compatibility.
+            ALLOWED_ARCHIVED_PREFIXES = {
+                "commands/archived/",
+                "skills/archived/",
             }
 
             archived_refs = []
@@ -419,8 +421,8 @@ class TestInstallSyncIntegrity:
             for component_name, component in data.get("components", {}).items():
                 for file_path in component.get("files", []):
                     if "archived" in file_path.lower():
-                        # Check if this is an allowed deprecation shim
-                        is_allowed = any(allowed in file_path for allowed in ALLOWED_ARCHIVED)
+                        # Check if this is an allowed archived path
+                        is_allowed = any(prefix in file_path for prefix in ALLOWED_ARCHIVED_PREFIXES)
                         if not is_allowed:
                             archived_refs.append(file_path)
 
