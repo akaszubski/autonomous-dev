@@ -1,3 +1,6 @@
+# GenAI test cache
+tests/genai/.genai_cache/
+
 # Python
 venv/
 *.pyc
