@@ -406,3 +406,33 @@ class TestEnforcementCongruence:
             "Score 10 = clean sequence, deduct 2 per gap or duplicate.",
         )
         assert result["score"] >= 5, f"STEP sequence issues: {result['reasoning']}"
+
+    def test_docs_no_hardcoded_counts(self, genai):
+        """README.md and CLAUDE.md should not have hardcoded component counts that drift."""
+        readme = (PROJECT_ROOT / "README.md").read_text()
+        claude_md = (PROJECT_ROOT / "CLAUDE.md").read_text()
+
+        # Count actual components on disk
+        agents = len([f for f in (PLUGIN_ROOT / "agents").glob("*.md")
+                      if "archived" not in str(f) and f.stem != "README"])
+        commands = len(list((PLUGIN_ROOT / "commands").glob("*.md")))
+        hooks = len([f for f in (PLUGIN_ROOT / "hooks").glob("*.py")
+                     if f.stem != "__init__" and "archived" not in str(f)])
+
+        # Find hardcoded counts in README (excluding badges, code blocks)
+        count_refs = re.findall(r'\b(\d+)\s+(?:active\s+)?(?:hook|agent|skill|command|librari)', readme, re.I)
+
+        result = genai.judge(
+            question="Do README.md and CLAUDE.md avoid brittle hardcoded component counts?",
+            context=f"**Actual counts:** agents={agents}, commands={commands}, hooks={hooks}\n\n"
+            f"**Hardcoded count references in README:** {count_refs}\n\n"
+            f"**CLAUDE.md Component Counts line:** "
+            f"{[l for l in claude_md.splitlines() if 'agents' in l and 'skills' in l and 'commands' in l]}\n\n"
+            f"Note: CLAUDE.md is allowed ONE canonical counts line (validated by smoke tests). "
+            f"README should NOT duplicate counts — they drift.",
+            criteria="README.md should avoid hardcoded component counts (they go stale). "
+            "Descriptive labels ('Pipeline Agents', 'Active Hooks') are fine. "
+            "CLAUDE.md may have ONE counts line (it's validated by automated tests). "
+            "Score 10 = no brittle counts in README, deduct 2 per hardcoded count found.",
+        )
+        assert result["score"] >= 5, f"Hardcoded counts in docs: {result['reasoning']}"

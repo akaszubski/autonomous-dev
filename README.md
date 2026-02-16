@@ -6,9 +6,9 @@ Transform feature implementation into an automated, quality-enforced workflow. O
 
 [![Version](https://img.shields.io/badge/version-3.50.0-blue.svg)](plugins/autonomous-dev/VERSION)
 [![Pipeline](https://img.shields.io/badge/pipeline-8_agents-green.svg)](docs/AGENTS.md)
-[![Skills](https://img.shields.io/badge/skills-40-orange.svg)](docs/ARCHITECTURE-OVERVIEW.md)
-[![Hooks](https://img.shields.io/badge/hooks-17_active-purple.svg)](docs/HOOKS.md)
-[![Commands](https://img.shields.io/badge/commands-25-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
+[![Skills](https://img.shields.io/badge/skills-active-orange.svg)](docs/ARCHITECTURE-OVERVIEW.md)
+[![Hooks](https://img.shields.io/badge/hooks-active-purple.svg)](docs/HOOKS.md)
+[![Commands](https://img.shields.io/badge/commands-active-blue.svg)](docs/ARCHITECTURE-OVERVIEW.md)
 
 ---
 
@@ -133,6 +133,8 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 | `/health-check` | Validate all plugin components (agents, hooks, commands) |
 | `/sync` | Update plugin from marketplace |
 | `/worktree` | Manage git worktrees for isolated development |
+| `/improve` | Analyze sessions for drift, test gaps, doc staleness |
+| `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
 
 ---
 
@@ -155,7 +157,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 │                     (commit → push → PR → close issue)           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  8 Pipeline Agents  │  40 Skills  │  17 Hooks  │  160 Libraries │
+│  8 Pipeline Agents  │  Skills  │  Hooks  │  Libraries │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -190,7 +192,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ---
 
-## 17 Active Automation Hooks
+## Active Automation Hooks
 
 Hooks run automatically at key moments to enforce quality without manual intervention:
 
@@ -430,7 +432,7 @@ Session state survives `/clear` operations:
 
 ### UV Script Execution
 
-All 17 hooks use UV for reproducible execution:
+All hooks use UV for reproducible execution:
 
 **Features**:
 - PEP 723 metadata blocks (inline dependencies)
@@ -502,8 +504,8 @@ Layer 4: Batch Approver        → Caches user consent for identical operations
 | [CLAUDE.md](CLAUDE.md) | Project instructions and quick reference |
 | [Architecture](docs/ARCHITECTURE-OVERVIEW.md) | Technical architecture deep-dive |
 | [Agents](docs/AGENTS.md) | 8-agent pipeline + utility agents |
-| [Hooks](docs/HOOKS.md) | 17 active automation hooks reference |
-| [Skills](docs/ARCHITECTURE-OVERVIEW.md) | 39 skills and agent integration |
+| [Hooks](docs/HOOKS.md) | Active automation hooks reference |
+| [Skills](docs/ARCHITECTURE-OVERVIEW.md) | Skills and agent integration |
 | [Workflow Discipline](docs/WORKFLOW-DISCIPLINE.md) | Why pipelines beat direct implementation |
 | [Performance](docs/PERFORMANCE.md) | Benchmarks and optimization history |
 | [Git Automation](docs/GIT-AUTOMATION.md) | Zero manual git operations |

@@ -52,7 +52,12 @@ Keep documentation synchronized with code changes. Auto-update README.md and CLA
    - CLAUDE.md: Update counts, commands, agents
    - CHANGELOG: Add entry under Unreleased section
 
-3. **Validate**
+3. **Validate with GenAI Tests**
+   - Run GenAI congruence tests to catch semantic drift:
+     ```bash
+     GENAI_TESTS=true pytest tests/genai/test_congruence.py -v --tb=short -q 2>&1 | tail -20
+     ```
+   - If any GenAI test fails, fix the drift before declaring docs complete
    - Check all cross-references still work
    - Ensure examples are still valid
    - Verify file paths are correct
@@ -115,6 +120,24 @@ When validating or syncing docs/research/ files, check:
 **Note**: Consult **documentation-guide** skill for complete CHANGELOG format standards (see `changelog-format.md`).
 
 Follow Keep a Changelog (keepachangelog.com) with semantic versioning. Use standard categories: Added, Changed, Fixed, Deprecated, Removed, Security.
+
+## HARD GATE: No Hardcoded Counts in README
+
+**FORBIDDEN** — Do NOT write hardcoded component counts into README.md:
+- ❌ "18 Active Automation Hooks"
+- ❌ "40 Skills"
+- ❌ Badge: `hooks-18_active`
+- ❌ Table: `│ 40 Skills │ 18 Hooks │`
+
+**REQUIRED** — Use descriptive labels instead:
+- ✅ "Active Automation Hooks"
+- ✅ "Skills"
+- ✅ Badge: `hooks-active`
+- ✅ Table: `│ Skills │ Hooks │`
+
+**WHY**: Hardcoded counts in multiple files go stale every time a component is added/removed. CLAUDE.md has ONE canonical counts line validated by automated smoke tests. README should NOT duplicate it.
+
+**Exception**: CLAUDE.md `## Component Counts` line is the single source of truth for counts, validated by `test_dynamic_component_counts.py`.
 
 ## Quality Standards
 

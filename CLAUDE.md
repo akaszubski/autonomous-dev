@@ -86,7 +86,7 @@ Update state after completing significant work. State survives `/clear` operatio
 
 17 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
 
-Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, data-curator, continuous-improvement-analyst. See agents/archived/ for 12 archived agents.
+Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, data-curator, continuous-improvement-analyst. See agents/archived/ for 13 archived agents.
 
 ## Detailed Guides
 
