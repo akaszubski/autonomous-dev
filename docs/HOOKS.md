@@ -42,13 +42,12 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 | Hook | Purpose | Key Env Vars |
 |------|---------|--------------|
 | **unified_pre_tool.py** | 4-layer permission validation (sandbox → MCP security → agent auth → batch approval). 84% reduction in permission prompts. | SANDBOX_ENABLED, MCP_AUTO_APPROVE |
-| **batch_permission_approver.py** | Classify operations as SAFE/BOUNDARY/SENSITIVE, auto-approve safe ones | — |
 
 **unified_pre_tool.py 4-Layer Architecture**:
 - **Layer 0 (Sandbox)**: Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
 - **Layer 1 (MCP Security)**: Path traversal (CWE-22), injection (CWE-78), SSRF (CWE-918)
 - **Layer 2 (Agent Auth)**: Pipeline agent detection, authorized agent verification
-- **Layer 3 (Batch Approver)**: User consent caching, audit logging
+- **Layer 3 (Batch Approver)**: User consent caching, audit logging (merged into unified_pre_tool.py per Issue #348)
 
 See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 

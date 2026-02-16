@@ -18,6 +18,25 @@
 
 ### Fixed
 
+- **Hook registration pipeline gap fix (Issue #348)**
+  - Fixed hook orphan registration bug where newly created hooks weren't registered in settings templates
+  - Root cause: hooks added to disk but settings registration missed, causing hooks to never execute
+  - Examples of potential breakage: session_activity_logger.py created but never wired to PostToolUse
+  - Solution: Added comprehensive regression test suite (test_issue_348_hook_settings_sync.py) with 7 test classes:
+    - TestActiveHooksRegistered: Verifies no orphan hooks on disk without settings registration
+    - TestSettingsReferencesResolve: Ensures settings never reference non-existent or archived hooks
+    - TestManifestSync: Validates install_manifest.json stays in sync with actual hook files
+    - TestHookSyntaxValid: Verifies all hooks have valid Python syntax
+    - TestArchivedNotReferenced: Prevents archived hooks from being imported by active code
+    - TestSessionActivityLoggerWiring: Specific validation for critical hook wiring (Issue #348 original)
+    - TestCriticalHookEventPlacement: Validates critical hooks in correct lifecycle events
+  - Enforcement: Added HARD GATE section to implementer.md requiring hook registration in 3 places (settings, manifest, tests)
+  - Added STEP 5.5 to implement.md command for hook registration verification
+  - Archived batch_permission_approver.py (functionality merged into unified_pre_tool.py Layer 3)
+  - Updated docs/HOOKS.md to remove stale batch_permission_approver.py reference
+  - Result: 17 active hooks (down from 18), 62 archived hooks
+  - Prevents future #336-#344 style breakage where archived hooks remain referenced
+
 - **Worktree context safety fixes (Issues #313-316)**
   - Fixed 28+ worktree context breaking patterns across 10 files
   - Issue #313: Path resolution bugs - Replaced hardcoded relative paths with get_project_root() (6 files)

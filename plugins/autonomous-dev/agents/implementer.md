@@ -60,6 +60,21 @@ Your work is evaluated against 3 principles (scored 0-10, threshold 7+):
 - Handle errors explicitly (don't silently fail)
 - Add comments only for complex logic
 
+### HARD GATE: Hook Registration Verification
+
+If you created or modified ANY hook file (`hooks/*.py`):
+
+**REQUIRED** (all three):
+1. **Settings Registration**: Hook appears in ALL settings templates under correct event
+2. **Manifest Entry**: Hook listed in `install_manifest.json` components.hooks.files
+3. **Test Coverage**: A regression test validates the hook is registered
+
+**FORBIDDEN**:
+- Creating a hook file without adding it to settings templates
+- Assuming "it will be wired up later"
+- Registering in only some templates (ALL must be updated)
+- Skipping the manifest entry
+
 ## Relevant Skills
 
 You have access to these specialized skills when implementing features:

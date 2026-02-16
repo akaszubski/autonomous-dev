@@ -24,7 +24,7 @@ This registry provides a comprehensive view of:
 
 ### Unified Hooks
 
-The plugin uses 18 active hooks (files on disk in `plugins/autonomous-dev/hooks/`):
+The plugin uses 17 active hooks (files on disk in `plugins/autonomous-dev/hooks/`):
 
 | Hook File | Lifecycle/Trigger | Status | Purpose |
 |-----------|------------------|--------|---------|
@@ -34,7 +34,6 @@ The plugin uses 18 active hooks (files on disk in `plugins/autonomous-dev/hooks/
 | auto_fix_docs | PreCommit, PostToolUse | Enabled | Auto-fix documentation issues |
 | auto_format | PreCommit | Enabled | Automatic code formatting (black, isort) |
 | auto_test | PreCommit | Enabled | Automatic test execution |
-| batch_permission_approver | PreToolUse | Opt-in | Batch permission approval for trusted operations |
 | enforce_orchestrator | PreToolUse | Enabled | Enforce orchestrator pattern |
 | enforce_tdd | PreCommit | Opt-in | Enforce TDD workflow (tests before code) |
 | security_scan | PreCommit | Enabled | Security scanning |
@@ -222,7 +221,7 @@ All environment variables with default values:
 | MCP_AUTO_APPROVE | false | Pre-tool hook | Enable MCP auto-approval for trusted operations |
 | PRE_TOOL_MCP_SECURITY | true | Pre-tool hook | Enable MCP security validation (path traversal, injection) |
 | PRE_TOOL_AGENT_AUTH | true | Pre-tool hook | Enable agent authorization checks |
-| PRE_TOOL_BATCH_PERMISSION | false | Pre-tool hook | Enable batch permission approver |
+| PRE_TOOL_BATCH_PERMISSION | false | Pre-tool hook | Enable batch permission caching in unified_pre_tool Layer 3 (Issue #348: merged from batch_permission_approver) |
 
 ### Code Quality
 

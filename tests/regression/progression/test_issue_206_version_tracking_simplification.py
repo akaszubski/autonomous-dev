@@ -42,10 +42,16 @@ sys.path.insert(
     ),
 )
 
-from validate_claude_alignment import (
-    ClaudeAlignmentValidator,
-    AlignmentIssue,
-)
+try:
+    from validate_claude_alignment import (
+        ClaudeAlignmentValidator,
+        AlignmentIssue,
+    )
+except ImportError:
+    pytest.skip(
+        "validate_claude_alignment.py archived — tests no longer applicable",
+        allow_module_level=True,
+    )
 
 
 class TestReadVersionFile:

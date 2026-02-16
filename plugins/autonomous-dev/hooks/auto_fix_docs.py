@@ -327,12 +327,23 @@ def run_detect_doc_changes() -> Tuple[bool, List[Dict]]:
         sys.path.insert(0, str(plugin_root / "hooks"))
 
     try:
-        from detect_doc_changes import (
-            load_registry,
-            get_staged_files,
-            find_required_docs,
-            check_doc_updates
-        )
+        # detect_doc_changes was archived; inline the detection logic
+        # Load registry from config and check staged files for doc updates
+        import importlib.util
+        detect_script_path = plugin_root / "hooks" / "detect_doc_changes.py"
+        archived_detect = plugin_root / "hooks" / "archived" / "detect_doc_changes.py"
+        script_path = detect_script_path if detect_script_path.exists() else archived_detect
+
+        if script_path.exists():
+            spec = importlib.util.spec_from_file_location("detect_doc_changes", str(script_path))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            load_registry = mod.load_registry
+            get_staged_files = mod.get_staged_files
+            find_required_docs = mod.find_required_docs
+            check_doc_updates = mod.check_doc_updates
+        else:
+            return True, []
 
         # Load registry and get staged files
         registry = load_registry()

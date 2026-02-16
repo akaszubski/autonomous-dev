@@ -18,7 +18,7 @@ Parse the ARGUMENTS for optional flags:
 - `--security`: Security-focused audit only
 - `--docs`: Documentation alignment only
 - `--code`: Code quality scan only
-- `--claude`: CLAUDE.md structure validation (runs `audit_claude_structure.py`)
+- `--claude`: CLAUDE.md structure validation (runs `validate_project_alignment.py`)
 - `--tests`: Test coverage analysis (invokes test-coverage-auditor agent with AST analysis)
 - `--genai`: GenAI UAT test audit — retrofit or expand LLM-as-judge tests
 

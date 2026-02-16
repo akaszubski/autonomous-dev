@@ -153,7 +153,7 @@ Checking README alignment...
 Phase 3: Hooks Review
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Reviewing 45 hooks for inflation...
-⚠ validate_claude_alignment.py duplicates alignment_fixer.py logic
+⚠ validate_project_alignment.py duplicates alignment_fixer.py logic
 ⚠ 3 hooks reference archived commands
 
 Phase 4: Resolution

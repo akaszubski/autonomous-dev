@@ -52,13 +52,14 @@
     ]
   },
   "hooks": {
-    "PreToolUse": [
+    "PostToolUse": [
       {
         "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "python plugins/autonomous-dev/hooks/batch_permission_approver.py"
+            "command": "python3 plugins/autonomous-dev/hooks/session_activity_logger.py",
+            "timeout": 5
           }
         ]
       }

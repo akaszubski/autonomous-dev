@@ -67,7 +67,6 @@
         "plugins/autonomous-dev/hooks/auto_fix_docs.py",
         "plugins/autonomous-dev/hooks/auto_format.py",
         "plugins/autonomous-dev/hooks/auto_test.py",
-        "plugins/autonomous-dev/hooks/batch_permission_approver.py",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
         "plugins/autonomous-dev/hooks/genai_prompts.py",

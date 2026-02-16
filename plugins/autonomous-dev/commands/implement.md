@@ -147,7 +147,7 @@ Tests MUST be written BEFORE implementation. Call **test-master** (opus) with pl
 
 Call **implementer** (opus) with planner output + test summary. CRITICAL: Must write WORKING code, no `NotImplementedError` or placeholders.
 
-**HARD GATE: 3 Quality Principles** (enforced by `implementation_quality_gate.py`):
+**HARD GATE: 3 Quality Principles** (enforced by `stop_quality_gate.py`):
 1. **Real Implementation**: No stubs, no `pass` placeholders
 2. **Test-Driven**: ALL tests pass (`pytest --tb=short -q` — 0 failures)
 3. **Complete Work**: Blockers use `TODO(blocked: reason)`, no silent stubs
@@ -166,6 +166,19 @@ pytest tests/ --cov=plugins --cov-report=term-missing -q 2>&1 | tail -5
 Coverage must be >= baseline - 0.5% (see `.claude/local/coverage_baseline.json`). Skip rate >10% must be fixed.
 
 **Optional**: `python plugins/autonomous-dev/lib/step5_quality_gate.py` for machine-readable pass/fail.
+
+---
+
+### STEP 5.5: Hook Registration Check
+
+If ANY hook file was created or modified in this implementation, verify:
+1. Hook appears in ALL `plugins/autonomous-dev/templates/settings.*.json` under correct event
+2. Hook appears in `plugins/autonomous-dev/config/global_settings_template.json`
+3. Hook listed in `plugins/autonomous-dev/config/install_manifest.json`
+
+**HARD GATE**: Do NOT proceed to STEP 6 if any hook is unregistered. Fix it first.
+
+Skip this step if no hooks were created or modified.
 
 ---
 
@@ -197,7 +210,7 @@ After completion, run `pytest --tb=short -q`. **HARD GATE**: 0 failures required
 
 **Git Automation** (Issue #258): If `AUTO_GIT_ENABLED=true`, run:
 ```bash
-FORCE_GIT_TRIGGER=true python3 ~/.claude/hooks/unified_git_automation.py 2>/dev/null || true
+git add -A && git commit -m "auto: implementation complete" 2>/dev/null || true
 ```
 
 ---

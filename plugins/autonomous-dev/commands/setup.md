@@ -233,7 +233,7 @@ Then:
 
 **Automatic Hooks Mode**:
 - Hooks are configured automatically in settings.local.json
-- Post-edit formatting via unified_post_tool.py
+- Post-edit formatting via auto_format.py
 - Pre-tool-use validation via unified_pre_tool.py
 - See `.claude/settings.local.json` for full hook configuration
 
@@ -414,7 +414,7 @@ Full restart required after setup:
    ├── Step 3: Hook configuration
    │   └── Optional settings.local.json creation
    │
-   └── Step 4: health_check.py
+   └── Step 4: validate installation
        └── Validate installation
 ```
 

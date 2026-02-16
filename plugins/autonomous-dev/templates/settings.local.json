@@ -67,6 +67,16 @@
             "command": "python .claude/hooks/auto_format.py"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 plugins/autonomous-dev/hooks/session_activity_logger.py",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreCommit": [
