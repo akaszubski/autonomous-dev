@@ -34,6 +34,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import time
+
 
 def main():
     """Log tool call activity to structured JSONL."""
@@ -42,6 +44,7 @@ def main():
         sys.exit(0)
 
     try:
+        _start = time.monotonic()
         # Read hook input from stdin
         raw = sys.stdin.read().strip()
         if not raw:
@@ -70,6 +73,8 @@ def main():
             "output_summary": output_summary,
             "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
             "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+            "duration_ms": round((time.monotonic() - _start) * 1000),
+            "success": output_summary.get("success", True),
         }
 
         # Write to log file

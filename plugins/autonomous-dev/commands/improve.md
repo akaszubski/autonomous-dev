@@ -57,6 +57,7 @@ Provide the agent with:
 1. The log content (or summary if very large)
 2. Current state of known congruence pairs (implement.md ↔ implementer.md, manifest ↔ disk, policy ↔ hooks)
 3. Recent git changes: `git log --oneline -20`
+4. PROJECT.md goals: Read `.claude/PROJECT.md` and include the GOALS section so the analyst can tag findings as `[ALIGNED]` or `[TANGENTIAL]`
 
 ### STEP 3: Report Findings
 

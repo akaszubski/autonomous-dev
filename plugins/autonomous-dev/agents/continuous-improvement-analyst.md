@@ -37,6 +37,18 @@ Analyze `.claude/logs/activity/*.jsonl` session logs to detect recurring problem
 - Changes to file A without updating file B (known pairs: implement.md ↔ implementer.md, policy ↔ hook code, manifest ↔ disk)
 - New components added without manifest/doc updates
 
+### 6. PROJECT.md Alignment
+
+Compare each finding against `.claude/PROJECT.md` GOALS to assess relevance:
+
+1. Read `.claude/PROJECT.md` and extract the GOALS section
+2. For each finding, determine if it directly supports a stated goal
+3. Tag findings:
+   - `[ALIGNED]` — Finding directly serves a PROJECT.md goal (e.g., test drift blocks "tests stay in sync")
+   - `[TANGENTIAL]` — Finding is valid but not directly tied to a stated goal
+4. Sort report: aligned findings first, tangential findings second
+5. In the Issue Candidates table, add an "Alignment" column
+
 ## Input
 
 Session logs at `.claude/logs/activity/*.jsonl` with entries like:
@@ -81,10 +93,10 @@ Session logs at `.claude/logs/activity/*.jsonl` with entries like:
 - [OPTIMIZE] {pattern observed} could be improved by {suggestion}
 
 ### Issue Candidates
-| # | Title | Severity | Labels |
-|---|-------|----------|--------|
-| 1 | {title} | critical | continuous-improvement, bug |
-| 2 | {title} | warning | continuous-improvement, docs |
+| # | Title | Severity | Alignment | Labels |
+|---|-------|----------|-----------|--------|
+| 1 | {title} | critical | ALIGNED | continuous-improvement, bug |
+| 2 | {title} | warning | TANGENTIAL | continuous-improvement, docs |
 ```
 
 ## GitHub Issue Filing

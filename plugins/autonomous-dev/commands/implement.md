@@ -59,9 +59,11 @@ ARGUMENTS: {{ARGUMENTS}}
 
 Parse ARGUMENTS: `--quick` → QUICK MODE, `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, else → FULL PIPELINE.
 
+Also check for `--no-cache` flag. If present, skip STEP 1.5 (research cache check) and always run fresh research in STEP 2.
+
 Before routing, activate pipeline state:
 ```bash
-echo '{"session_start": "'$(date -u +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'"}' > /tmp/implement_pipeline_state.json
+echo '{"session_start": "'$(date +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'"}' > /tmp/implement_pipeline_state.json
 ```
 
 ---
@@ -78,6 +80,31 @@ Read `.claude/PROJECT.md`. Check feature against GOALS, SCOPE, CONSTRAINTS. If n
 
 ---
 
+### STEP 1.5: Check Research Cache
+
+Before invoking researchers, check if recent research exists for this topic:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from research_persistence import check_cache, load_cached_research
+cached = check_cache('FEATURE_TOPIC', max_age_days=7)
+if cached:
+    data = load_cached_research('FEATURE_TOPIC')
+    print('CACHE_HIT')
+    print(data.get('content', ''))
+else:
+    print('CACHE_MISS')
+"
+```
+
+- **CACHE_HIT** (< 7 days old): Load cached research. Log: `"Research cache hit for <topic> — skipping STEP 2"`. Pass cached findings directly to STEP 3 (planner). Skip STEP 2 entirely.
+- **CACHE_MISS**: Proceed to STEP 2 as normal.
+
+**Note**: Cache TTL is 7 days for /implement (shorter than /create-issue's 24h because implementation needs fresher context). If the user passes `--no-cache`, skip this step.
+
+---
+
 ### STEP 2: Parallel Research
 
 Invoke TWO agents in PARALLEL (single response, both Task calls at once):
@@ -86,6 +113,21 @@ Invoke TWO agents in PARALLEL (single response, both Task calls at once):
 2. **researcher** (sonnet): Web research for best practices, libraries, security (OWASP), pitfalls. MUST use WebSearch tool. Output JSON with source URLs.
 
 **Validation**: If web researcher shows 0 tool uses, retry it. Then merge both outputs for planner.
+
+**Persist research**: After merging outputs, save research for future sessions:
+
+```bash
+python3 -c "
+import sys, json; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from research_persistence import save_merged_research
+local_json = json.loads('''LOCAL_RESEARCH_JSON''')
+web_json = json.loads('''WEB_RESEARCH_JSON''')
+path = save_merged_research('FEATURE_TOPIC', local_json, web_json)
+print(f'Research saved: {path}')
+"
+```
+
+This persists both local and web research to `docs/research/` so future `/implement` runs on the same topic get a cache hit in STEP 1.5. The coordinator MUST substitute the actual researcher agent JSON outputs for `LOCAL_RESEARCH_JSON` and `WEB_RESEARCH_JSON`, and the feature description for `FEATURE_TOPIC`.
 
 ---
 
@@ -190,6 +232,6 @@ See [implement-resume.md](implement-resume.md) for resuming interrupted batches 
 
 **Agents**: researcher-local (Haiku), researcher (Sonnet), planner (Opus), test-master (Opus), implementer (Opus), reviewer (Sonnet), security-auditor (Opus), doc-master (Haiku).
 
-**Libraries**: `batch_orchestrator.py`, `batch_state_manager.py`, `path_utils.py`
+**Libraries**: `batch_orchestrator.py`, `batch_state_manager.py`, `path_utils.py`, `research_persistence.py`
 
 **Issue**: #203 | **Version**: 3.47.0
