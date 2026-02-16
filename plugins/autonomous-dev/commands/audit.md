@@ -1,7 +1,7 @@
 ---
 name: audit
 description: Comprehensive quality audit - code quality, documentation, coverage, security
-argument-hint: Optional flags - --quick, --security, --docs, --code, --claude, --tests
+argument-hint: Optional flags - --quick, --security, --docs, --code, --claude, --tests, --genai
 allowed-tools: [Task, Read, Grep, Glob]
 ---
 
@@ -20,6 +20,7 @@ Parse the ARGUMENTS for optional flags:
 - `--code`: Code quality scan only
 - `--claude`: CLAUDE.md structure validation (runs `audit_claude_structure.py`)
 - `--tests`: Test coverage analysis (invokes test-coverage-auditor agent with AST analysis)
+- `--genai`: GenAI UAT test audit — retrofit or expand LLM-as-judge tests
 
 If no flags provided, run full audit (all categories).
 
@@ -30,6 +31,38 @@ Invoke the doc-master agent to validate documentation consistency (component cou
 Invoke the test-coverage-auditor agent to analyze test coverage (module coverage, gaps, uncovered code).
 
 Invoke the security-auditor agent to scan for vulnerabilities (hardcoded secrets, shell=True, path traversal, OWASP checks).
+
+### --genai flag: GenAI UAT Retrofit & Audit
+
+When `--genai` is passed (or as part of full audit), perform GenAI test analysis:
+
+**STEP 1: Detect GenAI infrastructure**
+Check if `tests/genai/conftest.py` exists.
+
+- **If missing**: Run `/scaffold-genai-uat` to bootstrap the infrastructure (conftest.py, doc tests, congruence tests). Then continue to STEP 2.
+- **If exists**: Proceed to STEP 2.
+
+**STEP 2: Discover functional test gaps**
+Use an Explore agent to scan the codebase and identify what SHOULD have GenAI functional tests but doesn't:
+
+| Scan For | Test Category | Example Test |
+|----------|--------------|--------------|
+| API routes (`**/routes/*.py`, `**/views.py`) | API quality | Error messages helpful, schemas consistent |
+| Config files (`**/config*.py`, `**/*_config.py`) | Config sanity | Defaults reasonable, ranges valid |
+| Schema/model files (`**/schemas/*.py`, `**/models.py`) | Schema quality | Types sensible, required fields present |
+| Business logic (`**/engine*.py`, `**/service*.py`) | Domain correctness | Rules make sense, edge cases handled |
+| Validators (`**/valid*.py`) | Validation quality | Error messages clear, rules complete |
+
+**STEP 3: Generate functional tests**
+For each gap found, invoke test-master agent to write GenAI functional tests in `tests/genai/test_<category>.py`. Tests must use the hybrid pattern:
+1. Deterministic extraction (grep/regex/AST)
+2. GenAI semantic judgment via `genai.judge()`
+
+**STEP 4: Run and validate**
+```bash
+GENAI_TESTS=true pytest tests/genai/ -v --no-cov 2>&1 | tail -20
+```
+Report: total tests, pass/fail, any flaky tests that need threshold tuning.
 
 Use the doc-master agent to compile all findings into a report at `docs/sessions/AUDIT_REPORT_<timestamp>.md`
 
@@ -43,6 +76,7 @@ Use the doc-master agent to compile all findings into a report at `docs/sessions
 | Documentation | doc-master | Component counts, cross-refs, drift |
 | Test Coverage | test-coverage-auditor | Module coverage, gaps |
 | Security | security-auditor | Secrets, shell=True, path traversal |
+| GenAI UAT | test-master | Functional semantic tests, config/API/domain validation |
 
 **Time**:
 - Full audit: 5-10 minutes
@@ -75,6 +109,9 @@ Use the doc-master agent to compile all findings into a report at `docs/sessions
 # Test coverage analysis (replaces /audit-tests)
 /audit --tests
 /audit --tests --layer unit
+
+# GenAI UAT retrofit - scaffold + generate functional tests
+/audit --genai
 ```
 
 ---
