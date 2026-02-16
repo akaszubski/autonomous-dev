@@ -72,6 +72,12 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 |------|---------|--------------|
 | **unified_session_tracker.py** | Session logging, pipeline tracking, progress updates | TRACK_SESSIONS, TRACK_PIPELINE |
 
+### PostToolUse
+
+| Hook | Purpose | Key Env Vars |
+|------|---------|--------------|
+| **session_activity_logger.py** | Structured JSONL activity logging for continuous improvement analysis. Non-blocking. | — |
+
 ### Stop
 
 | Hook | Purpose | Key Env Vars |

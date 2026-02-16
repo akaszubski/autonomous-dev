@@ -155,7 +155,7 @@ class GenAIClient:
 
 Respond with JSON: {{"pass": true/false, "score": 0-10, "reasoning": "brief explanation"}}"""
 
-        response = self.ask(prompt, max_tokens=256)
+        response = self.ask(prompt, max_tokens=512)
 
         try:
             return _extract_json_from_response(response)

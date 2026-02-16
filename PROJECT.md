@@ -51,6 +51,9 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - Batch processing with crash recovery (`/implement --batch`, `--issues`, `--resume`)
 - Automated git operations (commit, push, PR creation)
 - MCP security validation and tool auto-approval
+- Continuous improvement (session analysis, drift detection, auto-filed issues)
+- GenAI intent testing (LLM-as-judge validation of architecture and alignment)
+- Training pipeline utilities (data curation, quality validation, distributed training coordination)
 
 **OUT of Scope** (Features we avoid):
 

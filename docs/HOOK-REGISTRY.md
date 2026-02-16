@@ -1,6 +1,6 @@
 # Hook Registry
 
-**Last Updated: 2026-01-09**
+**Last Updated: 2026-02-16**
 
 Quick-reference guide for all hooks in the autonomous-dev plugin, including activation status, trigger points, and controlling environment variables.
 
@@ -24,20 +24,28 @@ This registry provides a comprehensive view of:
 
 ### Unified Hooks
 
-The plugin uses 10 unified hooks that consolidate related functionality:
+The plugin uses 18 active hooks (files on disk in `plugins/autonomous-dev/hooks/`):
 
-| Hook Name | Lifecycle/Trigger | Status | Key Env Vars | Purpose |
-|-----------|------------------|--------|--------------|---------|
-| unified_pre_tool | PreToolUse | Enabled | SANDBOX_ENABLED, PRE_TOOL_MCP_SECURITY | 4-layer permission validation (sandbox, MCP security, agent auth, batch approval) |
-| unified_post_tool | PostToolUse | Enabled | CAPTURE_TOOL_ERRORS (default: true) | Tool error capture and logging |
-| unified_git_automation | SubagentStop (doc-master) | Opt-in (default: false) | AUTO_GIT_ENABLED, AUTO_GIT_PUSH, AUTO_GIT_PR | Automatic commit/push/PR after pipeline completes |
-| unified_session_tracker | SubagentStop | Enabled | TRACK_SESSIONS (default: true), TRACK_PIPELINE | Track agent execution and pipeline state |
-| unified_doc_validator | PreCommit | Enabled | VALIDATE_PROJECT_ALIGNMENT, VALIDATE_CLAUDE_ALIGNMENT | Validate documentation alignment (consolidated validators) |
-| unified_doc_auto_fix | PreCommit, PostToolUse | Enabled | AUTO_FIX_DOCS (default: true), AUTO_UPDATE_DOCS | Auto-fix documentation issues |
-| unified_prompt_validator | UserPromptSubmit | Enabled | ENFORCE_WORKFLOW, QUALITY_NUDGE_ENABLED | Validate user prompts and provide quality nudges |
-| unified_structure_enforcer | PreCommit | Enabled | ENFORCE_FILE_ORGANIZATION, ENFORCE_BLOAT_PREVENTION | Enforce project structure rules |
-| unified_code_quality | PreCommit | Enabled | AUTO_FORMAT (default: true), AUTO_TEST, SECURITY_SCAN | Run formatters, tests, and security scans |
-| unified_manifest_sync | PreCommit | Enabled | VALIDATE_MANIFEST, AUTO_UPDATE_MANIFEST | Sync and validate plugin manifest (consolidated validators) |
+| Hook File | Lifecycle/Trigger | Status | Purpose |
+|-----------|------------------|--------|---------|
+| unified_pre_tool | PreToolUse | Enabled | 4-layer permission validation (sandbox, MCP security, agent auth, batch approval) |
+| unified_prompt_validator | UserPromptSubmit | Enabled | Validate user prompts and provide quality nudges |
+| unified_session_tracker | SubagentStop | Enabled | Track agent execution and pipeline state |
+| auto_fix_docs | PreCommit, PostToolUse | Enabled | Auto-fix documentation issues |
+| auto_format | PreCommit | Enabled | Automatic code formatting (black, isort) |
+| auto_test | PreCommit | Enabled | Automatic test execution |
+| batch_permission_approver | PreToolUse | Opt-in | Batch permission approval for trusted operations |
+| enforce_orchestrator | PreToolUse | Enabled | Enforce orchestrator pattern |
+| enforce_tdd | PreCommit | Opt-in | Enforce TDD workflow (tests before code) |
+| security_scan | PreCommit | Enabled | Security scanning |
+| stop_quality_gate | Stop | Enabled | Quality checks after each turn |
+| validate_command_file_ops | PreToolUse | Enabled | Validate command file operations |
+| validate_project_alignment | PreCommit | Enabled | Validate PROJECT.md alignment |
+| validate_session_quality | Stop | Enabled | Validate session quality and completeness |
+| session_activity_logger | PostToolUse | Enabled | Structured JSONL activity logging for continuous improvement |
+| genai_utils | Utility | Library | GenAI utilities for OpenRouter API calls |
+| genai_prompts | Utility | Library | Prompt templates for GenAI validation |
+| setup | Utility | Command | Setup wizard for PROJECT.md creation |
 
 ---
 

@@ -18,6 +18,28 @@ Write tests FIRST (TDD red phase) based on the implementation plan. Tests should
 **Integration Tests**: Test components working together
 **Edge Cases**: Invalid inputs, boundary conditions, error handling
 
+## HARD GATE: No Hardcoded Counts or Brittle Assertions
+
+**FORBIDDEN** — The following patterns create tests that break whenever components are added/removed:
+
+- `assert len(agents) == 16` — hardcoded component counts
+- `assert agent_count == 20` — exact count expectations
+- `assert hooks == ["hook_a", "hook_b"]` — hardcoded file lists
+- `assert version == "3.50.0"` — pinned version strings (unless testing version logic with fixtures)
+- Any assertion that would fail if a new agent/command/hook/lib is added
+
+**REQUIRED** — Use these patterns instead:
+
+- **Dynamic discovery**: `agents = list(agents_dir.glob("*.md"))` then assert properties, not count
+- **Minimum thresholds**: `assert len(agents) >= 8` (pipeline needs at least 8)
+- **Structural checks**: `assert "implementer.md" in agent_names` (specific file exists)
+- **Relationship checks**: `assert all(a in manifest for a in agents_on_disk)` (manifest matches disk)
+- **GenAI intent tests**: For semantic validation ("do agents serve the pipeline?"), delegate to `tests/genai/`
+
+**Key test**: "Will this test break if someone adds a new agent tomorrow?" If yes, rewrite it.
+
+**Reference**: `tests/regression/smoke/test_dynamic_component_counts.py` — the gold standard for dynamic component testing.
+
 ## Workflow
 
 1. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement

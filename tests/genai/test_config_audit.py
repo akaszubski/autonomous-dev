@@ -30,7 +30,7 @@ class TestConfigAudit:
             version_sources["VERSION"] = version_file.read_text().strip()
 
         for manifest in PROJECT_ROOT.glob("**/manifest*.json"):
-            if "archived" in str(manifest) or "node_modules" in str(manifest):
+            if any(x in str(manifest) for x in ["archived", "node_modules", ".genai_cache", "artifacts"]):
                 continue
             try:
                 data = json.loads(manifest.read_text())

@@ -73,6 +73,25 @@ Four-layer testing pyramid from fast unit tests to comprehensive GenAI validatio
 
 **See**: `docs/testing-layers.md` for detailed layer descriptions and examples
 
+### Anti-Pattern: Hardcoded Count Assertions
+
+**NEVER** write tests with hardcoded component counts. These break every time a component is added/removed.
+
+```python
+# BAD — breaks when agent added/removed
+assert len(agents) == 16
+assert hook_count == 17
+
+# GOOD — survives component changes
+assert len(agents) >= 8, "Pipeline needs at least 8 agents"
+assert "implementer.md" in agent_names, "Core agent missing"
+assert all(a in manifest for a in agents_on_disk), "Manifest out of sync"
+```
+
+**Rule**: Use dynamic discovery (glob filesystem), minimum thresholds, or structural checks. For semantic validation ("do agents serve the pipeline?"), use GenAI tests in `tests/genai/`.
+
+**Reference**: `tests/regression/smoke/test_dynamic_component_counts.py`
+
 ---
 
 ### 3. Testing Workflow & Hybrid Approach

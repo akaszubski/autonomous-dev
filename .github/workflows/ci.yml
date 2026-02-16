@@ -56,6 +56,37 @@ jobs:
             python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
           fi
 
+  # Stage 1.5: GenAI intent validation (semantic, drift-proof)
+  genai-validation:
+    name: GenAI Intent Tests
+    runs-on: ubuntu-latest
+    needs: smoke
+    if: ${{ vars.OPENROUTER_API_KEY != '' || secrets.OPENROUTER_API_KEY != '' }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest openai pyyaml
+
+      - name: Run GenAI intent tests
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GENAI_TESTS: 'true'
+        run: |
+          echo "Running GenAI intent validation tests..."
+          python -m pytest tests/genai/ -v --tb=short -o "addopts="
+
   # Stage 2: Full test suite (only if smoke passes)
   test:
     name: Full Test Suite
@@ -97,7 +128,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [smoke, test]
+    needs: [smoke, genai-validation, test]
     if: always()
 
     steps:
