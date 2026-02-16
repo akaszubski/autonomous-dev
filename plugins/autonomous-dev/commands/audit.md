@@ -1,7 +1,7 @@
 ---
 name: audit
 description: Comprehensive quality audit - code quality, documentation, coverage, security
-argument-hint: Optional flags - --quick, --security, --docs, --code
+argument-hint: Optional flags - --quick, --security, --docs, --code, --claude, --tests
 allowed-tools: [Task, Read, Grep, Glob]
 ---
 
@@ -18,6 +18,8 @@ Parse the ARGUMENTS for optional flags:
 - `--security`: Security-focused audit only
 - `--docs`: Documentation alignment only
 - `--code`: Code quality scan only
+- `--claude`: CLAUDE.md structure validation (runs `audit_claude_structure.py`)
+- `--tests`: Test coverage analysis (invokes test-coverage-auditor agent with AST analysis)
 
 If no flags provided, run full audit (all categories).
 
@@ -66,6 +68,13 @@ Use the doc-master agent to compile all findings into a report at `docs/sessions
 
 # Code quality scan only
 /audit --code
+
+# CLAUDE.md structure validation (replaces /audit-claude)
+/audit --claude
+
+# Test coverage analysis (replaces /audit-tests)
+/audit --tests
+/audit --tests --layer unit
 ```
 
 ---

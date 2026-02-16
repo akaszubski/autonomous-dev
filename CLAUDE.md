@@ -39,32 +39,18 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 
 | Command | Purpose |
 |---------|---------|
-| `/implement` | Code changes (full pipeline, --quick, --batch) |
-| `/implement-batch` | Batch processing mode for /implement |
-| `/implement-resume` | Resume mode for /implement |
-| `/plan` | Architecture and implementation planning |
-| `/research` | Research patterns and best practices |
-| `/review` | Code quality review and feedback |
-| `/test` | Run automated tests (unit + integration + UAT) |
-| `/test-feature` | TDD test generation for a feature |
-| `/sync` | Update plugin (--github, --env, --all, --uninstall) |
-| `/create-issue` | GitHub issue with automated research |
-| `/improve` | Analyze sessions for improvement opportunities |
-| `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
-| `/audit` | Comprehensive quality audit |
-| `/audit-claude` | Validate this file |
-| `/audit-tests` | AST-based test coverage analysis |
-| `/health-check` | Validate plugin integrity |
-| `/security-scan` | Security vulnerability scan |
-| `/status` | View PROJECT.md goal progress |
-| `/postmortem` | Analyze pipeline failures, file bug issues |
-| `/advise` | Critical thinking analysis |
-| `/align` | Unified alignment (--project, --docs, --retrofit) |
+| `/implement` | Code changes (full pipeline, --quick, --batch, --issues, --resume) |
+| `/create-issue` | GitHub issue with automated research (--quick) |
+| `/align` | Alignment check (--project, --docs, --retrofit) |
+| `/audit` | Quality audit (--quick, --security, --docs, --code, --claude, --tests) |
 | `/setup` | Interactive setup wizard |
-| `/update-docs` | Documentation synchronization |
-| `/update-plugin` | Update plugin with version detection and rollback |
-| `/pipeline-status` | Show agent pipeline execution status |
-| `/worktree` | Manage git worktrees (--list, --status, --merge) |
+| `/sync` | Update plugin (--github, --env, --marketplace, --all, --uninstall) |
+| `/health-check` | Validate plugin integrity |
+| `/advise` | Critical thinking analysis |
+| `/worktree` | Git worktrees (--list, --status, --merge, --discard) |
+| `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
+| `/status` | View PROJECT.md goal progress |
+| `/improve` | Session analysis and improvement detection |
 | `/mem-search` | Search claude-mem persistent memory (optional) |
 
 ## Session Continuity
@@ -105,6 +91,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-17 agents, 40 skills, 27 active commands, 160 libraries, 18 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+17 agents, 40 skills, 15 active commands (12 archived), 160 libraries, 18 active hooks (61 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
 **Last Updated**: 2026-02-16
