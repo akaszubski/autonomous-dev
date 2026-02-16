@@ -21,7 +21,10 @@ Log location: .claude/logs/activity/{date}.jsonl
 Logs are gitignored (local-only).
 
 Environment Variables:
-    ACTIVITY_LOGGING=true/false (default: true)
+    ACTIVITY_LOGGING=true/false/debug (default: true)
+        true  = compact summaries (file paths, content_length, truncated commands)
+        debug = full raw stdin (complete tool_input + tool_output from Claude Code)
+        false = disabled
     CLAUDE_SESSION_ID - Session identifier (provided by Claude Code)
 
 Exit codes:
@@ -39,8 +42,9 @@ import time
 
 def main():
     """Log tool call activity to structured JSONL."""
-    # Opt-out check
-    if os.environ.get("ACTIVITY_LOGGING", "true").lower() == "false":
+    # Opt-out check: false=off, true=summary, debug=full raw stdin
+    log_level = os.environ.get("ACTIVITY_LOGGING", "true").lower()
+    if log_level == "false":
         sys.exit(0)
 
     try:
@@ -59,23 +63,32 @@ def main():
         tool_input = hook_input.get("tool_input", {})
         tool_output = hook_input.get("tool_output", {})
 
-        # Build compact input summary (never log full file content)
-        input_summary = _summarize_input(tool_name, tool_input)
-
-        # Build output summary
-        output_summary = _summarize_output(tool_output)
-
-        # Build log entry
-        entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "tool": tool_name,
-            "input_summary": input_summary,
-            "output_summary": output_summary,
-            "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
-            "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
-            "duration_ms": round((time.monotonic() - _start) * 1000),
-            "success": output_summary.get("success", True),
-        }
+        if log_level == "debug":
+            # Debug mode: log full raw stdin (tool_input + tool_output)
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "tool": tool_name,
+                "tool_input": tool_input,
+                "tool_output": tool_output if isinstance(tool_output, dict) else {"raw": str(tool_output)[:5000]},
+                "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+                "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+                "duration_ms": round((time.monotonic() - _start) * 1000),
+                "debug": True,
+            }
+        else:
+            # Normal mode: compact summaries only
+            input_summary = _summarize_input(tool_name, tool_input)
+            output_summary = _summarize_output(tool_output)
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "tool": tool_name,
+                "input_summary": input_summary,
+                "output_summary": output_summary,
+                "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+                "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+                "duration_ms": round((time.monotonic() - _start) * 1000),
+                "success": output_summary.get("success", True),
+            }
 
         # Write to log file
         log_dir = _find_log_dir()
