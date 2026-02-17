@@ -25,13 +25,45 @@ Relevant Skills:
     - library-design-patterns: Standardized design patterns
 """
 
+import json
+import logging
+import os
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .security_utils import audit_log, validate_path
-from .codebase_analyzer import AnalysisReport
+try:
+    from .security_utils import audit_log, validate_path
+    from .codebase_analyzer import AnalysisReport
+except ImportError:
+    # Fallback for standalone imports (e.g., during testing without package context)
+    from security_utils import audit_log, validate_path  # type: ignore[no-redef]
+    from codebase_analyzer import AnalysisReport  # type: ignore[no-redef]
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# GenAI imports (graceful degradation if unavailable)
+# ============================================================================
+
+# Add hooks directory to path so genai_utils and genai_prompts are importable.
+_hooks_path = Path(__file__).parent.parent / "hooks"
+if _hooks_path.exists() and str(_hooks_path) not in sys.path:
+    sys.path.insert(0, str(_hooks_path))
+
+try:
+    from genai_utils import GenAIAnalyzer, should_use_genai
+    from genai_prompts import TWELVE_FACTOR_ASSESSMENT_PROMPT, GOALS_EXTRACTION_PROMPT
+    _GENAI_AVAILABLE = True
+except ImportError:
+    _GENAI_AVAILABLE = False
+    GenAIAnalyzer = None  # type: ignore[assignment]
+    should_use_genai = None  # type: ignore[assignment]
+    TWELVE_FACTOR_ASSESSMENT_PROMPT = ""  # type: ignore[assignment]
+    GOALS_EXTRACTION_PROMPT = ""  # type: ignore[assignment]
 
 
 class Severity(Enum):
@@ -361,6 +393,146 @@ class AlignmentAssessor:
             source_files=list(set(source_files))  # Deduplicate
         )
 
+    def _assess_twelve_factor_genai(self, analysis: AnalysisReport) -> Optional[TwelveFactorScore]:
+        """Attempt GenAI-based 12-Factor scoring.
+
+        Uses Claude Haiku (via GenAIAnalyzer) to intelligently score each of
+        the 12 factors based on codebase analysis context. Returns None to
+        signal that the heuristic path should run instead.
+
+        This method never raises exceptions - all failures result in None.
+
+        Args:
+            analysis: Codebase analysis results
+
+        Returns:
+            TwelveFactorScore if GenAI succeeds with valid JSON, None for fallback
+        """
+        if not _GENAI_AVAILABLE:
+            return None
+
+        flag_value = os.environ.get("GENAI_ALIGNMENT", "true").lower()
+        if flag_value == "false":
+            return None
+
+        try:
+            # Build summary context from analysis
+            has_git = (self.project_root / ".git").is_dir()
+            has_env = any(f for f in analysis.structure.config_files if ".env" in f.lower())
+            has_ci = any(
+                f for f in analysis.structure.config_files
+                if "ci" in f.lower() or "github" in f.lower()
+            )
+            has_docker = any(
+                f for f in analysis.structure.config_files if "docker" in f.lower()
+            )
+            has_web_framework = analysis.tech_stack.framework in [
+                "flask", "django", "fastapi", "express", "rails", "spring"
+            ]
+            deps_list = list(analysis.tech_stack.dependencies)[:10]
+            deps_sample = ", ".join(deps_list) if deps_list else "none detected"
+            config_files_str = ", ".join(analysis.structure.config_files[:10]) or "none"
+
+            analyzer = GenAIAnalyzer(max_tokens=400, timeout=10)
+            response = analyzer.analyze(
+                TWELVE_FACTOR_ASSESSMENT_PROMPT,
+                primary_language=analysis.tech_stack.primary_language or "unknown",
+                framework=analysis.tech_stack.framework or "none",
+                package_manager=analysis.tech_stack.package_manager or "none",
+                has_git=str(has_git),
+                has_env=str(has_env),
+                has_ci=str(has_ci),
+                has_docker=str(has_docker),
+                dependencies_sample=deps_sample,
+                config_files=config_files_str,
+                total_files=str(analysis.structure.total_files),
+                test_files=str(analysis.structure.test_files),
+                has_web_framework=str(has_web_framework),
+            )
+
+            if response is None:
+                return None
+
+            # Parse JSON response with 12 factor scores
+            # Strip markdown fences if present
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                lines = cleaned.split("\n")
+                cleaned = "\n".join(lines[1:-1]) if len(lines) > 2 else cleaned
+
+            scores = json.loads(cleaned)
+
+            # Validate all 12 required factors are present
+            required_factors = {
+                "codebase", "dependencies", "config", "backing_services",
+                "build_release_run", "processes", "port_binding", "concurrency",
+                "disposability", "dev_prod_parity", "logs", "admin_processes"
+            }
+            if not required_factors.issubset(scores.keys()):
+                missing = required_factors - set(scores.keys())
+                logger.debug("GenAI 12-factor response missing factors: %s", missing)
+                return None
+
+            # Validate all scores are integers in range 1-10
+            validated_factors = {}
+            for factor in required_factors:
+                score = scores[factor]
+                if not isinstance(score, (int, float)):
+                    return None
+                validated_factors[factor] = max(1, min(10, int(score)))
+
+            return TwelveFactorScore(factors=validated_factors)
+
+        except Exception as exc:
+            logger.debug("GenAI 12-factor assessment failed, using heuristic: %s", exc)
+            return None
+
+    def _extract_goals_genai(self, readme_content: str) -> Optional[str]:
+        """Attempt GenAI-based goals extraction from README content.
+
+        Uses Claude Haiku to read the full README and synthesize meaningful
+        bullet-point goals. Returns None to signal that the heading-search
+        fallback should run instead.
+
+        This method never raises exceptions - all failures result in None.
+
+        Args:
+            readme_content: Full README.md text content
+
+        Returns:
+            Markdown bullet-point goals string if GenAI succeeds, None for fallback
+        """
+        if not _GENAI_AVAILABLE:
+            return None
+
+        flag_value = os.environ.get("GENAI_ALIGNMENT", "true").lower()
+        if flag_value == "false":
+            return None
+
+        try:
+            # Cap README content to avoid very large API requests
+            capped_content = readme_content[:4000] if len(readme_content) > 4000 else readme_content
+
+            analyzer = GenAIAnalyzer(max_tokens=300, timeout=10)
+            response = analyzer.analyze(
+                GOALS_EXTRACTION_PROMPT,
+                readme_content=capped_content,
+            )
+
+            if response is None:
+                return None
+
+            # Validate response contains at least one bullet point
+            stripped = response.strip()
+            if not stripped or "-" not in stripped:
+                return None
+
+            return f"*Synthesized from README.md by GenAI*\n\n{stripped}"
+
+        except Exception as exc:
+            logger.debug("GenAI goals extraction failed, using heuristic: %s", exc)
+            return None
+
     def calculate_twelve_factor_score(self, analysis: AnalysisReport) -> TwelveFactorScore:
         """Calculate 12-Factor App compliance score.
 
@@ -376,6 +548,11 @@ class AlignmentAssessor:
         Returns:
             12-Factor compliance scoring
         """
+        # Try GenAI-first scoring (semantic understanding beats keyword heuristics)
+        genai_score = self._assess_twelve_factor_genai(analysis)
+        if genai_score is not None:
+            return genai_score
+
         factors = {}
 
         # I. Codebase - Single codebase in version control
@@ -600,7 +777,13 @@ class AlignmentAssessor:
         if readme_path.exists():
             try:
                 content = readme_path.read_text(encoding="utf-8")
-                # Look for common goal-related sections
+
+                # Try GenAI-first extraction (synthesizes meaningful goals from full README)
+                genai_goals = self._extract_goals_genai(content)
+                if genai_goals is not None:
+                    return genai_goals
+
+                # Fallback: Look for common goal-related sections
                 for marker in ["## Goals", "## Purpose", "## Objectives"]:
                     if marker in content:
                         # Extract section content (simplified)

@@ -47,10 +47,36 @@ Relevant Skills:
 from enum import Enum
 from typing import NamedTuple, List, Dict, Any, Optional
 import re
+import os
+import sys
 import logging
+from pathlib import Path
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# GenAI imports (graceful degradation if unavailable)
+# ============================================================================
+
+# Add hooks directory to path so genai_utils and genai_prompts are importable.
+# This is the canonical location for these utilities in the autonomous-dev plugin.
+_hooks_path = Path(__file__).parent.parent / "hooks"
+if _hooks_path.exists() and str(_hooks_path) not in sys.path:
+    sys.path.insert(0, str(_hooks_path))
+
+try:
+    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_prompts import SCOPE_ASSESSMENT_PROMPT
+    _GENAI_AVAILABLE = True
+except ImportError:
+    # GenAI utilities unavailable (anthropic SDK not installed, or hooks not on path).
+    # Scope detection falls back to pattern heuristics transparently.
+    _GENAI_AVAILABLE = False
+    GenAIAnalyzer = None  # type: ignore[assignment]
+    parse_classification_response = None  # type: ignore[assignment]
+    should_use_genai = None  # type: ignore[assignment]
+    SCOPE_ASSESSMENT_PROMPT = ""  # type: ignore[assignment]
 
 
 # ============================================================================
@@ -153,6 +179,80 @@ class IssueScopeDetector:
     CONJUNCTION_PATTERN = r'\b(and|or|plus|\+|,)\b'
 
     @classmethod
+    def _detect_genai(cls, text: str) -> "Optional[ScopeDetection]":
+        """Attempt GenAI-based scope detection.
+
+        Uses Claude Haiku (via GenAIAnalyzer) to semantically classify scope as
+        FOCUSED/BROAD/VERY_BROAD. Returns None to signal that the heuristic
+        path should run instead.
+
+        This method never raises exceptions - all failures result in None (fallback).
+
+        Args:
+            text: Issue text (capped at 2000 chars internally)
+
+        Returns:
+            ScopeDetection if GenAI succeeds, None to trigger heuristic fallback
+
+        Example:
+            >>> result = IssueScopeDetector._detect_genai("Add rate limiting and timeout")
+            >>> if result is None:
+            ...     # GenAI unavailable or disabled, use heuristic
+            ...     pass
+        """
+        # Check module-level availability flag (set at import time)
+        if not _GENAI_AVAILABLE:
+            return None
+
+        # Check feature flag env var (default: enabled)
+        flag_value = os.environ.get("GENAI_SCOPE", "true").lower()
+        if flag_value == "false":
+            return None
+
+        try:
+            # Cap text length to avoid large API requests
+            capped_text = text[:2000] if len(text) > 2000 else text
+
+            # Initialize analyzer with Haiku-optimized settings
+            analyzer = GenAIAnalyzer(max_tokens=150, timeout=5)
+
+            # Call GenAI with the scope assessment prompt
+            response = analyzer.analyze(
+                SCOPE_ASSESSMENT_PROMPT,
+                issue_text=capped_text,
+            )
+
+            if response is None:
+                return None
+
+            # Parse the classification response
+            label = parse_classification_response(response, ["FOCUSED", "BROAD", "VERY_BROAD"])
+            if label is None:
+                return None
+
+            # Map label to ScopeLevel
+            level_map = {
+                "FOCUSED": ScopeLevel.FOCUSED,
+                "BROAD": ScopeLevel.BROAD,
+                "VERY_BROAD": ScopeLevel.VERY_BROAD,
+            }
+            level = level_map[label]
+
+            # GenAI classifications use fixed high confidence and clear reasoning
+            reasoning = f"GenAI classification: {label} (Haiku semantic analysis)"
+
+            return cls._create_detection(
+                level=level,
+                reasoning=reasoning,
+                indicators={"genai_scope": label},
+                suggested_splits=[],
+            )
+
+        except Exception as exc:
+            logger.debug("GenAI scope detection failed, using heuristic: %s", exc)
+            return None
+
+    @classmethod
     def detect(
         cls,
         issue_title: str,
@@ -199,6 +299,30 @@ class IssueScopeDetector:
         if len(combined_text) > 10000:
             logger.warning(f"Issue text exceeds 10000 chars ({len(combined_text)}), truncating")
             combined_text = combined_text[:10000]
+
+        # Try GenAI-first classification (semantic understanding beats keyword matching)
+        genai_result = cls._detect_genai(combined_text)
+        if genai_result is not None:
+            # For broad/very_broad results, generate split suggestions using heuristics
+            if genai_result.level in (ScopeLevel.BROAD, ScopeLevel.VERY_BROAD):
+                providers = cls._detect_multiple_providers(combined_text)
+                components = cls._detect_multiple_components(combined_text)
+                features = cls._detect_multiple_features(combined_text)
+                heuristic_indicators = {
+                    "providers": providers,
+                    "components": components,
+                    "features": features,
+                    "broad_patterns": [],
+                    "conjunction_count": cls._count_conjunctions(combined_text),
+                }
+                suggested_splits = cls.suggest_splits(issue_title, heuristic_indicators)
+                return cls._create_detection(
+                    level=genai_result.level,
+                    reasoning=genai_result.reasoning,
+                    indicators={**genai_result.indicators, **heuristic_indicators},
+                    suggested_splits=suggested_splits,
+                )
+            return genai_result
 
         # Perform analysis
         providers = cls._detect_multiple_providers(combined_text)

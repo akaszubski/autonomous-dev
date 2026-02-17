@@ -44,12 +44,34 @@ Design Patterns:
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+
+# ============================================================================
+# GenAI imports (graceful degradation if unavailable)
+# ============================================================================
+
+# Add hooks directory to path so genai_utils and genai_prompts are importable.
+_hooks_path = Path(__file__).parent.parent / "hooks"
+if _hooks_path.exists() and str(_hooks_path) not in sys.path:
+    sys.path.insert(0, str(_hooks_path))
+
+try:
+    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_prompts import FEATURE_COMPLETION_PROMPT
+    _GENAI_AVAILABLE = True
+except ImportError:
+    _GENAI_AVAILABLE = False
+    GenAIAnalyzer = None  # type: ignore[assignment]
+    parse_classification_response = None  # type: ignore[assignment]
+    should_use_genai = None  # type: ignore[assignment]
+    FEATURE_COMPLETION_PROMPT = ""  # type: ignore[assignment]
 
 
 # ==============================================================================
@@ -114,6 +136,66 @@ class FeatureCompletionDetector:
 
         if not self.project_root.is_dir():
             raise ValueError(f"Project root is not a directory: {self.project_root}")
+
+    def _check_genai(self, feature: str, heuristic_evidence: List[str]) -> Optional[CompletionCheck]:
+        """Use GenAI to semantically assess feature completion.
+
+        Args:
+            feature: Feature description
+            heuristic_evidence: Evidence gathered by heuristic methods
+
+        Returns:
+            CompletionCheck if GenAI succeeds, None otherwise
+        """
+        if not _GENAI_AVAILABLE:
+            return None
+        if should_use_genai is None or not should_use_genai("completion"):
+            return None
+
+        try:
+            evidence_text = "\n".join(heuristic_evidence) if heuristic_evidence else "No heuristic evidence found."
+            prompt = FEATURE_COMPLETION_PROMPT.format(
+                feature=feature[:2000],
+                evidence=evidence_text[:3000],
+            )
+            analyzer = GenAIAnalyzer(max_tokens=200, timeout=5)
+            response = analyzer.analyze(prompt)
+            if not response:
+                return None
+
+            label = parse_classification_response(
+                response, ["IMPLEMENTED", "NOT_IMPLEMENTED", "PARTIAL"]
+            )
+            if not label:
+                return None
+
+            # Extract explanation (second line if present)
+            lines = response.strip().split("\n")
+            explanation = lines[1].strip() if len(lines) > 1 else ""
+
+            if label == "IMPLEMENTED":
+                return CompletionCheck(
+                    feature=feature,
+                    likely_complete=True,
+                    evidence=heuristic_evidence + [f"GenAI semantic analysis: IMPLEMENTED. {explanation}"],
+                    confidence="high",
+                )
+            elif label == "PARTIAL":
+                return CompletionCheck(
+                    feature=feature,
+                    likely_complete=True,
+                    evidence=heuristic_evidence + [f"GenAI semantic analysis: PARTIAL. {explanation}"],
+                    confidence="medium",
+                )
+            else:  # NOT_IMPLEMENTED
+                return CompletionCheck(
+                    feature=feature,
+                    likely_complete=False,
+                    evidence=heuristic_evidence + [f"GenAI semantic analysis: NOT_IMPLEMENTED. {explanation}"],
+                    confidence="high",
+                )
+        except Exception:
+            return None
 
     def check_feature(self, feature: str) -> CompletionCheck:
         """Check if a feature is likely complete.
@@ -185,6 +267,11 @@ class FeatureCompletionDetector:
         if git_evidence:
             evidence.extend(git_evidence)
             confidence_score += len(git_evidence)
+
+        # 4. Try GenAI semantic analysis (overrides heuristic scoring if available)
+        genai_result = self._check_genai(feature, evidence)
+        if genai_result is not None:
+            return genai_result
 
         # Determine if likely complete based on evidence
         likely_complete = confidence_score >= 3

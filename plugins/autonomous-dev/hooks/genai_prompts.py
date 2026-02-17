@@ -220,6 +220,174 @@ Benefits:
 - Explains reasoning for transparency
 """
 
+# ============================================================================
+# Complexity Assessment - complexity_assessor.py
+# ============================================================================
+
+COMPLEXITY_CLASSIFICATION_PROMPT = """Classify the complexity of this development feature request.
+
+Feature request:
+{feature_description}
+
+Complexity categories:
+- SIMPLE: Minor changes with low risk (typos, docs, formatting, config tweaks, small renames)
+  Examples:
+    "Fix typo in JWT error message" → SIMPLE
+    "Update README introduction paragraph" → SIMPLE
+    "Rename variable user_id to userId for consistency" → SIMPLE
+- STANDARD: Moderate feature work (bug fixes, small features, refactoring, API additions)
+  Examples:
+    "Add pagination to the user list endpoint" → STANDARD
+    "Fix race condition in task queue processor" → STANDARD
+    "Add email validation to registration form" → STANDARD
+- COMPLEX: High-risk or high-complexity work (auth, security, migrations, major APIs, multi-system)
+  Examples:
+    "Implement OAuth2 with JWT refresh token rotation" → COMPLEX
+    "Add database migration for user roles schema" → COMPLEX
+    "Integrate third-party payment gateway with webhook handling" → COMPLEX
+
+Respond with ONLY one word: SIMPLE, STANDARD, or COMPLEX"""
+
+"""
+Purpose: Classify feature complexity for pipeline scaling (agent count and time estimation)
+Used by: complexity_assessor.py (hybrid GenAI path)
+Expected output: One of [SIMPLE, STANDARD, COMPLEX]
+Context: Semantic understanding enables accurate classification even for ambiguous requests
+Key advantage: "Fix typo in JWT error message" → SIMPLE (not COMPLEX due to JWT keyword)
+"""
+
+# ============================================================================
+# Alignment Assessment - alignment_assessor.py
+# ============================================================================
+
+TWELVE_FACTOR_ASSESSMENT_PROMPT = """You are a 12-Factor App methodology expert. Score a codebase against all 12 factors.
+
+Codebase analysis summary:
+- Primary language: {primary_language}
+- Framework: {framework}
+- Package manager: {package_manager}
+- Has git (.git directory): {has_git}
+- Has .env file: {has_env}
+- Has CI config: {has_ci}
+- Has Docker config: {has_docker}
+- Dependencies (sample): {dependencies_sample}
+- Config files detected: {config_files}
+- Total files: {total_files}
+- Test files: {test_files}
+- Has web framework: {has_web_framework}
+
+Score each of the 12 factors from 1 to 10:
+1. codebase - Single codebase in version control, multiple deploys
+2. dependencies - Explicitly declared and isolated dependencies
+3. config - Store config in the environment (not code)
+4. backing_services - Treat backing services as attached resources
+5. build_release_run - Strictly separate build, release, and run stages
+6. processes - Execute app as stateless processes
+7. port_binding - Export services via port binding
+8. concurrency - Scale out via the process model
+9. disposability - Maximize robustness with fast startup and graceful shutdown
+10. dev_prod_parity - Keep development, staging, and production similar
+11. logs - Treat logs as event streams
+12. admin_processes - Run admin/management tasks as one-off processes
+
+Scoring guide:
+- 10: Full compliance with the factor
+- 7-9: Partial compliance or strong indicators
+- 4-6: Minimal compliance or weak indicators
+- 1-3: Non-compliant or no evidence
+
+Important: Vary scores based on actual evidence. Do NOT default all ambiguous factors to 7.
+Use 5 for truly unknown/neutral factors, not 7.
+
+Return ONLY valid JSON with exactly these 12 keys (integer values 1-10):
+{{
+  "codebase": <score>,
+  "dependencies": <score>,
+  "config": <score>,
+  "backing_services": <score>,
+  "build_release_run": <score>,
+  "processes": <score>,
+  "port_binding": <score>,
+  "concurrency": <score>,
+  "disposability": <score>,
+  "dev_prod_parity": <score>,
+  "logs": <score>,
+  "admin_processes": <score>
+}}"""
+
+"""
+Purpose: Score codebase against all 12 factors of the 12-Factor App methodology
+Used by: alignment_assessor.py (_assess_twelve_factor_genai method)
+Expected output: JSON with 12 factor scores (integer 1-10 each)
+Context: Replaces hardcoded 7/10 defaults with intelligent analysis
+Feature flag: GENAI_ALIGNMENT
+Key advantage: GenAI understands semantic context, not just keyword presence
+"""
+
+GOALS_EXTRACTION_PROMPT = """You are a technical writer analyzing a project README. Extract and synthesize the core goals of this project.
+
+README content:
+{readme_content}
+
+Task: Read the entire README and synthesize 3-5 clear, specific bullet-point goals that describe what this project aims to achieve.
+
+Guidelines:
+- Each goal should be concrete and action-oriented (e.g., "Provide X to enable Y")
+- Focus on what the project DOES, not just what it IS
+- Capture the primary value propositions and objectives
+- Be specific, not generic (avoid "improve performance" without context)
+- If the README has a Goals/Purpose/Objectives section, use it as the primary source
+- If not, synthesize goals from the overall description and features
+
+Format your response as a markdown list (3-5 bullet points). Example:
+- Enable developers to X by providing Y
+- Automate Z process reducing manual effort from hours to minutes
+- Support N use cases including A, B, and C
+
+Return ONLY the bullet-point list, no preamble or explanation."""
+
+"""
+Purpose: Extract and synthesize meaningful project goals from README content
+Used by: alignment_assessor.py (_extract_goals_genai method)
+Expected output: Markdown bullet-point list of 3-5 project goals
+Context: Replaces heading-search heuristic with semantic understanding
+Feature flag: GENAI_ALIGNMENT
+Key advantage: Works even when README lacks explicit Goals/Purpose/Objectives heading
+"""
+
+SCOPE_ASSESSMENT_PROMPT = """Classify the scope of this issue or feature request.
+
+Issue or feature request:
+{issue_text}
+
+Scope categories:
+- FOCUSED: A single, atomic change covering one provider/component/feature (< 30 min to implement)
+  Examples:
+    "Add rate limiting and timeout to HTTP requests" → FOCUSED
+    "Fix bug in user login validation" → FOCUSED
+    "Add unit tests for PaymentService" → FOCUSED
+- BROAD: Multiple components, providers, or features that should be split into separate issues
+  Examples:
+    "Add caching to API responses and update the database schema" → BROAD
+    "Refactor auth module and add new user endpoints" → BROAD
+    "Implement SSH logging and REST API result download" → BROAD
+- VERY_BROAD: Many providers/components or system-wide changes that must be split
+  Examples:
+    "Redesign entire auth system and migrate database and add new API endpoints" → VERY_BROAD
+    "Replace all mock implementations with real SSH, API, and database integrations" → VERY_BROAD
+    "Complete end-to-end system overhaul with authentication, storage, and UI" → VERY_BROAD
+
+Respond with ONLY one word: FOCUSED, BROAD, or VERY_BROAD"""
+
+"""
+Purpose: Classify issue scope for granularity enforcement (one issue = one session < 30 min)
+Used by: issue_scope_detector.py and scope_detector.py (hybrid GenAI path)
+Expected output: One of [FOCUSED, BROAD, VERY_BROAD]
+Context: Semantic understanding enables accurate scope detection even when conjunction counting fails
+Key advantage: "Add rate limiting and timeout" → FOCUSED (not BROAD due to two actions)
+Feature flag: GENAI_SCOPE
+"""
+
 IMPLEMENTATION_QUALITY_PROMPT = """Analyze this git diff and score the implementation against 3 quality principles (0-10 each).
 
 Git diff:
@@ -280,6 +448,34 @@ if not is_running_under_uv():
         sys.path.insert(0, str(lib_path))
 
 
+FEATURE_COMPLETION_PROMPT = """You are a software project analyst. Determine if a requested feature is ALREADY IMPLEMENTED in the codebase based on the evidence provided.
+
+Requested feature:
+{feature}
+
+Evidence from codebase:
+{evidence}
+
+Consider:
+1. Semantic equivalence: "form validation" and "registration input validation" may describe the same feature
+2. Partial implementation: If core functionality exists but minor aspects are missing, still count as IMPLEMENTED
+3. Different naming: The feature may exist under a different name or in a different location
+4. Related but distinct: Similar features that serve different purposes should NOT count
+
+Respond with ONLY one of:
+- IMPLEMENTED — Feature is already present (semantically equivalent functionality exists)
+- NOT_IMPLEMENTED — Feature is not present or only trivially related
+- PARTIAL — Core exists but significant functionality is missing
+
+Then on a new line, provide a brief explanation (1 sentence)."""
+
+"""
+Purpose: Determine if a feature is already implemented via semantic analysis of codebase evidence
+Used by: feature_completion_detector.py
+Expected output: One of [IMPLEMENTED, NOT_IMPLEMENTED, PARTIAL] followed by explanation
+Variables: {feature}, {evidence}
+"""
+
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 100
 DEFAULT_TIMEOUT = 5  # seconds
@@ -294,6 +490,10 @@ GENAI_FEATURES = {
     "doc_autofix": "GENAI_DOC_AUTOFIX",
     "file_organization": "GENAI_FILE_ORGANIZATION",
     "implementation_quality": "GENAI_IMPLEMENTATION_QUALITY",
+    "complexity": "GENAI_COMPLEXITY",
+    "scope": "GENAI_SCOPE",
+    "alignment": "GENAI_ALIGNMENT",
+    "completion": "GENAI_COMPLETION",
 }
 
 
@@ -313,6 +513,11 @@ def get_all_prompts():
         "doc_generation": DOC_GENERATION_PROMPT,
         "file_organization": FILE_ORGANIZATION_PROMPT,
         "implementation_quality": IMPLEMENTATION_QUALITY_PROMPT,
+        "complexity_classification": COMPLEXITY_CLASSIFICATION_PROMPT,
+        "scope_assessment": SCOPE_ASSESSMENT_PROMPT,
+        "twelve_factor_assessment": TWELVE_FACTOR_ASSESSMENT_PROMPT,
+        "goals_extraction": GOALS_EXTRACTION_PROMPT,
+        "feature_completion": FEATURE_COMPLETION_PROMPT,
     }
 
 

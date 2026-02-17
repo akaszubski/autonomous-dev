@@ -32,9 +32,35 @@ from enum import Enum
 from typing import NamedTuple, Optional, Dict, Any, List
 import re
 import logging
+import os
+import sys
+from pathlib import Path
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# GenAI imports (graceful degradation if unavailable)
+# ============================================================================
+
+# Add hooks directory to path so genai_utils and genai_prompts are importable.
+# This is the canonical location for these utilities in the autonomous-dev plugin.
+_hooks_path = Path(__file__).parent.parent / "hooks"
+if _hooks_path.exists() and str(_hooks_path) not in sys.path:
+    sys.path.insert(0, str(_hooks_path))
+
+try:
+    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_prompts import COMPLEXITY_CLASSIFICATION_PROMPT
+    _GENAI_AVAILABLE = True
+except ImportError:
+    # GenAI utilities unavailable (anthropic SDK not installed, or hooks not on path).
+    # Complexity assessment falls back to keyword heuristics transparently.
+    _GENAI_AVAILABLE = False
+    GenAIAnalyzer = None  # type: ignore[assignment]
+    parse_classification_response = None  # type: ignore[assignment]
+    should_use_genai = None  # type: ignore[assignment]
+    COMPLEXITY_CLASSIFICATION_PROMPT = ""  # type: ignore[assignment]
 
 
 # ============================================================================
@@ -115,6 +141,78 @@ class ComplexityAssessor:
     }
 
     @classmethod
+    def _assess_genai(cls, text: str) -> Optional["ComplexityAssessment"]:
+        """Attempt GenAI-based complexity classification.
+
+        Uses Claude Haiku (via GenAIAnalyzer) to semantically classify complexity.
+        Returns None to signal that the heuristic path should run instead.
+
+        This method never raises exceptions - all failures result in None (fallback).
+
+        Args:
+            text: Feature description text (capped at 2000 chars internally)
+
+        Returns:
+            ComplexityAssessment if GenAI succeeds, None to trigger heuristic fallback
+
+        Example:
+            >>> result = ComplexityAssessor._assess_genai("Fix typo in README")
+            >>> if result is None:
+            ...     # GenAI unavailable or disabled, use heuristic
+            ...     pass
+        """
+        # Check module-level availability flag (set at import time)
+        if not _GENAI_AVAILABLE:
+            return None
+
+        # Check feature flag env var (default: enabled)
+        flag_value = os.environ.get("GENAI_COMPLEXITY", "true").lower()
+        if flag_value == "false":
+            return None
+
+        try:
+            # Cap text length to avoid large API requests
+            capped_text = text[:2000] if len(text) > 2000 else text
+
+            # Initialize analyzer with Haiku-optimized settings
+            analyzer = GenAIAnalyzer(max_tokens=150, timeout=5)
+
+            # Call GenAI with the complexity classification prompt
+            response = analyzer.analyze(
+                COMPLEXITY_CLASSIFICATION_PROMPT,
+                feature_description=capped_text,
+            )
+
+            if response is None:
+                return None
+
+            # Parse the classification response
+            label = parse_classification_response(response, ["SIMPLE", "STANDARD", "COMPLEX"])
+            if label is None:
+                return None
+
+            # Map label to ComplexityLevel
+            level_map = {
+                "SIMPLE": ComplexityLevel.SIMPLE,
+                "STANDARD": ComplexityLevel.STANDARD,
+                "COMPLEX": ComplexityLevel.COMPLEX,
+            }
+            level = level_map[label]
+
+            # GenAI classifications use fixed high confidence and clear reasoning
+            reasoning = f"GenAI classification: {label} (Haiku semantic analysis)"
+
+            return cls._create_assessment(
+                level=level,
+                confidence=0.9,
+                reasoning=reasoning,
+            )
+
+        except Exception as exc:
+            logger.debug("GenAI complexity assessment failed, using heuristic: %s", exc)
+            return None
+
+    @classmethod
     def assess(
         cls,
         feature_description: str,
@@ -175,6 +273,11 @@ class ComplexityAssessor:
                 combined_text = f"{title} {body} {body}"  # Duplicate body for higher weight
             elif title:
                 combined_text = f"{title} {feature_description}"
+
+        # Try GenAI-first classification (semantic understanding beats keyword matching)
+        genai_result = cls._assess_genai(combined_text)
+        if genai_result is not None:
+            return genai_result
 
         # Perform analysis
         keyword_analysis = cls._analyze_keywords(combined_text)
