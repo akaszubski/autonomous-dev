@@ -1,0 +1,31 @@
+{
+  "default": {
+    "hard_fail": 4,
+    "soft_fail": 6,
+    "pass": 7
+  },
+  "categories": {
+    "security": {
+      "hard_fail": 6,
+      "soft_fail": 8,
+      "pass": 9
+    },
+    "congruence": {
+      "hard_fail": 3,
+      "soft_fail": 5,
+      "pass": 6
+    },
+    "architecture": {
+      "hard_fail": 4,
+      "soft_fail": 6,
+      "pass": 7
+    },
+    "documentation": {
+      "hard_fail": 3,
+      "soft_fail": 5,
+      "pass": 6
+    }
+  },
+  "accumulation_threshold": 0.33,
+  "strict_mode": false
+}

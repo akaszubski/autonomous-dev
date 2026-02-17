@@ -86,6 +86,7 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 | Sandboxing | [docs/SANDBOXING.md](docs/SANDBOXING.md) |
 | Libraries | [docs/LIBRARIES.md](docs/LIBRARIES.md) |
 | Performance | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
+| Testing strategy | [docs/TESTING-STRATEGY.md](docs/TESTING-STRATEGY.md) |
 | claude-mem integration | [docs/CLAUDE-MEM-INTEGRATION.md](docs/CLAUDE-MEM-INTEGRATION.md) |
 | Troubleshooting | [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) |
 

@@ -201,23 +201,27 @@ Git Operations (commit, push, PR)
 - **Sonnet**: Balanced — reviewer, researcher (web)
 - **Haiku**: Fast/cheap — researcher-local, doc-master
 
-### Two-Layer Testing
+### Diamond Testing Model
+
+Six-layer testing strategy — deterministic hard floor (bottom), semantic acceptance criteria (top), generated/probabilistic middle:
 
 ```
-Traditional Tests (fast, deterministic, CI gate)
-├── Smoke tests (regression/smoke/) — critical path, <5s
-├── Unit tests (unit/) — pure functions, mocked
-├── Progression tests (regression/progression/) — issue-specific regression prevention
-└── Integration tests — component interactions
-
-GenAI Intent Tests (semantic, drift-proof, scheduled)
-├── Architecture — do components match docs?
-├── Congruence — do file pairs agree?
-├── Security — secrets, exit codes, path traversal
-└── Hook coverage — do hooks follow patterns?
+     /  Acceptance Criteria  \     Human-defined, LLM-as-judge evaluated
+    / LLM-as-Judge Eval Layer \    Probabilistic, ~85% human agreement
+   / Integration & Contract    \   Generated from acceptance criteria
+   \ Property-Based Invariants /   "Hook must always exit", manifest sync
+    \ Deterministic Unit Tests/    Regression locks (smoke, unit, progression)
+     \  Type System / Lints  /     Hard floor, zero tolerance
 ```
 
-**Principle**: Traditional tests validate *behavior*. GenAI tests validate *intent and alignment*. GenAI tests replace brittle hardcoded assertions (agent count = 16) with semantic checks ("are all agents documented?").
+**Key layers**:
+- **Bottom (deterministic)**: Lints, type checks, unit tests, smoke tests — CI gate, every commit
+- **Middle (generated)**: Integration tests, property invariants — generated from acceptance criteria
+- **Top (semantic)**: `tests/genai/` LLM-as-judge + acceptance criteria — validate intent, not implementation
+
+**Principle**: Traditional tests lock in *behavior* (regression prevention). GenAI tests validate *intent and alignment* (drift detection). Acceptance criteria define *done* (specification). Each layer serves a different purpose — unit tests are regression locks, not specifications.
+
+See [docs/TESTING-STRATEGY.md](docs/TESTING-STRATEGY.md) for full model with data citations.
 
 ### Repository Structure
 
