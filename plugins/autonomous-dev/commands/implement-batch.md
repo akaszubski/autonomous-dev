@@ -150,10 +150,18 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
 
 **On merge conflict**: DO NOT force-merge. Report conflicting files and leave worktree intact for manual resolution. Provide manual merge instructions.
 
-**On success**: Push to remote:
+**On success**: Push to remote and close issues:
    ```bash
    git push origin master
    ```
+
+   **Close GitHub issues** (batch issues mode only): For each successfully implemented issue, close it with a reference to the commit:
+   ```bash
+   COMMIT_SHA=$(git rev-parse --short HEAD)
+   gh issue close <number> -c "Implemented in $COMMIT_SHA" 2>/dev/null || echo "Warning: Could not close issue #<number> (gh CLI may not be available)"
+   ```
+
+   **HARD GATE**: The coordinator MUST close all successfully implemented issues. Skipping this step is a pipeline completeness violation. If `gh` CLI is unavailable, log a warning but do not fail the batch.
 
 **STEP B5: Batch Summary**
 
@@ -175,6 +183,7 @@ Git Operations:
   - Merged to master: YES
   - Worktree cleanup: YES
   - Pushed to remote: YES
+  - Issues closed: #N1, #N2, ...
 
 ========================================
 ```

@@ -1,0 +1,138 @@
+{
+  "_description": "Known model intent bypass patterns detected by continuous-improvement-analyst. Each pattern has detection rules and the HARD GATE that should prevent it.",
+  "patterns": [
+    {
+      "id": "test_gate_bypass",
+      "name": "Test gate bypass",
+      "description": "Model declares partial test results 'good enough' and proceeds to validation",
+      "issue": "#206",
+      "hard_gate": "STEP 5 test gate in implement.md",
+      "detection": {
+        "type": "log_pattern",
+        "indicators": [
+          "Test failures > 0 when STEP 6 agents invoked",
+          "Coordinator output contains: 'good enough', 'solid foundation', 'most tests pass', 'acceptable coverage'"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "anti_stubbing",
+      "name": "Stub as implementation",
+      "description": "Model replaces broken code with NotImplementedError or pass placeholders",
+      "issue": "#310",
+      "hard_gate": "No Stubs HARD GATE in implementer.md",
+      "detection": {
+        "type": "file_content",
+        "indicators": [
+          "New files contain 'raise NotImplementedError'",
+          "New files contain 'pass  # TODO'",
+          "New files contain 'raise NotImplemented'"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "hook_registration_skip",
+      "name": "Hook registration skip",
+      "description": "Hook file created but not registered in settings templates or manifest",
+      "issue": "#348",
+      "hard_gate": "STEP 5.5 hook registration check in implement.md",
+      "detection": {
+        "type": "congruence",
+        "indicators": [
+          "Hook .py file written but settings templates not modified",
+          "Hook .py file written but install_manifest.json not modified"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "missing_terminal_actions",
+      "name": "Missing terminal actions",
+      "description": "Pipeline completes without push or issue close",
+      "issue": "#353",
+      "hard_gate": "STEP B4/STEP 8 in implement.md",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "Pipeline mode=batch-issues but no 'gh issue close' in logs",
+          "Pipeline mode=batch but no 'git push' in logs",
+          "AUTO_GIT_PUSH=true but no push action logged"
+        ]
+      },
+      "severity": "warning"
+    },
+    {
+      "id": "context_compression",
+      "name": "Context compression",
+      "description": "Coordinator passes summarized output to next agent instead of full results",
+      "issue": null,
+      "hard_gate": "COORDINATOR FORBIDDEN LIST in implement.md",
+      "detection": {
+        "type": "agent_io",
+        "indicators": [
+          "Agent Task prompt significantly shorter than previous agent output (>80% reduction)",
+          "Phrases in coordinator: 'in summary', 'the key points are', 'briefly'"
+        ]
+      },
+      "severity": "warning"
+    },
+    {
+      "id": "step_skipping",
+      "name": "Pipeline step skipping",
+      "description": "One or more pipeline steps not executed without explicit user override",
+      "issue": null,
+      "hard_gate": "COORDINATOR FORBIDDEN LIST in implement.md",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "Full pipeline mode but fewer than 8 agent invocations",
+          "Expected agent type not found in session logs",
+          "STEP numbers not sequential in log timeline"
+        ]
+      },
+      "severity": "critical"
+    }
+  ],
+  "expected_end_states": {
+    "full_pipeline": {
+      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master"],
+      "required_actions": ["test_run", "git_commit"],
+      "conditional_actions": {
+        "git_push": "AUTO_GIT_PUSH=true",
+        "issue_close": "feature references GitHub issue"
+      }
+    },
+    "quick": {
+      "required_agents": ["implementer"],
+      "required_actions": ["test_run"],
+      "conditional_actions": {
+        "git_commit": "AUTO_GIT_ENABLED=true",
+        "git_push": "AUTO_GIT_PUSH=true"
+      }
+    },
+    "batch-issues": {
+      "required_agents": ["implementer"],
+      "required_actions": ["test_run", "git_commit", "git_push", "issue_close"],
+      "conditional_actions": {}
+    },
+    "batch": {
+      "required_agents": ["implementer"],
+      "required_actions": ["test_run", "git_commit", "git_push"],
+      "conditional_actions": {}
+    }
+  },
+  "softened_language_indicators": [
+    "good enough",
+    "solid foundation",
+    "most tests pass",
+    "acceptable coverage",
+    "we can address later",
+    "minor issue",
+    "not critical",
+    "works for now",
+    "close enough",
+    "partial success"
+  ]
+}

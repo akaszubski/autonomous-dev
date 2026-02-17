@@ -37,7 +37,49 @@ Analyze `.claude/logs/activity/*.jsonl` session logs to detect recurring problem
 - Changes to file A without updating file B (known pairs: implement.md ↔ implementer.md, policy ↔ hook code, manifest ↔ disk)
 - New components added without manifest/doc updates
 
-### 6. PROJECT.md Alignment
+### 6. Pipeline Completeness (End-State Validation)
+
+Check whether pipeline runs completed all expected terminal actions for their mode.
+
+**How to detect**:
+1. Read `plugins/autonomous-dev/config/known_bypass_patterns.json` → `expected_end_states`
+2. Identify pipeline mode from logs (look for `pipeline_state` action or `implement_pipeline_state.json` writes)
+3. Check which `pipeline_action` types appear in the session: `git_commit`, `git_push`, `issue_close`, `test_run`, `agent_invocation`
+4. Compare against expected actions for that mode
+5. Flag any missing required actions as `[INCOMPLETE]` findings
+
+**Expected end-states by mode**:
+- **batch-issues**: Must have `git_commit` + `git_push` + `issue_close` for each issue
+- **batch**: Must have `git_commit` + `git_push`
+- **full pipeline**: Must have `test_run` + `git_commit`, conditionally `git_push` + `issue_close`
+- **quick**: Must have `test_run`, conditionally `git_commit`
+
+### 7. Model Intent Bypass Detection
+
+Detect when the model itself cuts corners or bypasses pipeline intent. These are the most dangerous failures because they appear "successful" — the model completes the pipeline but produces inadequate results.
+
+**How to detect**:
+1. Read `plugins/autonomous-dev/config/known_bypass_patterns.json` → `patterns`
+2. For each pattern, check the detection indicators against session logs:
+   - **log_pattern**: Search for indicator strings in Bash command outputs and agent descriptions
+   - **file_content**: Check recently written files for forbidden patterns (`NotImplementedError`, `pass # TODO`)
+   - **congruence**: Verify that paired files were both modified (e.g., hook file + settings template)
+   - **pipeline_completeness**: Count agent invocations, verify all expected agents ran
+   - **agent_io**: Compare Task prompt lengths to detect context compression
+3. Check for **softened language** in coordinator tool calls — search for phrases from `softened_language_indicators`
+4. Flag each detected bypass as `[BYPASS]` with severity from the pattern definition
+
+**Known patterns** (from `known_bypass_patterns.json`):
+- `test_gate_bypass`: Partial test results accepted (#206)
+- `anti_stubbing`: NotImplementedError as "implementation" (#310)
+- `hook_registration_skip`: Hook file without settings registration (#348)
+- `missing_terminal_actions`: No push/close after batch (#353)
+- `context_compression`: Summarized agent output passed to next agent
+- `step_skipping`: Pipeline steps not executed
+
+**Novel bypass detection**: If you detect a pattern NOT in `known_bypass_patterns.json`, flag it as `[NEW-BYPASS]` and recommend adding it to the registry. This closes the feedback loop — each new bypass discovered becomes a known pattern for future detection.
+
+### 8. PROJECT.md Alignment
 
 Compare each finding against `.claude/PROJECT.md` GOALS to assess relevance:
 
@@ -83,6 +125,19 @@ Session logs at `.claude/logs/activity/*.jsonl` with entries like:
 - [BYPASS] Hook enforcement gap: {description}
   - Evidence: {log entries}
   - Suggested fix: {action}
+- [BYPASS] Model intent bypass: {pattern_name} — {description}
+  - Pattern ID: {id} (from known_bypass_patterns.json)
+  - Evidence: {log entries}
+  - HARD GATE that should prevent this: {hard_gate}
+- [NEW-BYPASS] Novel bypass detected: {description}
+  - Evidence: {log entries}
+  - Recommended: Add to known_bypass_patterns.json
+
+### Pipeline Completeness
+- [INCOMPLETE] Missing terminal action: {action} (expected for {mode} mode)
+  - Pipeline mode: {mode}
+  - Actions completed: {list}
+  - Actions missing: {list}
 
 ### Warnings
 - [DRIFT] {file_a} modified without updating {file_b}

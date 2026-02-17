@@ -121,12 +121,25 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
         cmd = tool_input.get("command", "")
         # Truncate long commands
         summary["command"] = cmd[:200] if len(cmd) > 200 else cmd
+        # Detect pipeline terminal actions
+        if "git push" in cmd:
+            summary["pipeline_action"] = "git_push"
+        elif "gh issue close" in cmd:
+            summary["pipeline_action"] = "issue_close"
+        elif "git commit" in cmd:
+            summary["pipeline_action"] = "git_commit"
+        elif "pytest" in cmd:
+            summary["pipeline_action"] = "test_run"
+        elif "implement_pipeline_state" in cmd:
+            summary["pipeline_action"] = "pipeline_state"
     elif tool_name in ("Glob", "Grep"):
         summary["pattern"] = tool_input.get("pattern", "")
         summary["path"] = tool_input.get("path", "")
     elif tool_name == "Task":
         summary["description"] = tool_input.get("description", "")
         summary["subagent_type"] = tool_input.get("subagent_type", "")
+        # Track agent invocations for pipeline completeness
+        summary["pipeline_action"] = "agent_invocation"
     else:
         # Generic: include keys but not values
         summary["keys"] = list(tool_input.keys())[:5]

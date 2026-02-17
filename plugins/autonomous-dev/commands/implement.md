@@ -256,9 +256,22 @@ Invoke THREE agents in PARALLEL (single response):
 
 Verify all 8 agents ran (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master). If any missing, invoke NOW.
 
-### STEP 8: Report Completion
+### STEP 8: Report and Finalize
 
-Report: pipeline summary (1-line per agent), files changed, tests, security PASS/FAIL, docs updated. Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
+Report: pipeline summary (1-line per agent), files changed, tests, security PASS/FAIL, docs updated.
+
+**Git push** (if `AUTO_GIT_PUSH=true`):
+```bash
+git push origin $(git branch --show-current) 2>/dev/null || echo "Warning: Push failed"
+```
+
+**Close GitHub issue** (if feature references an issue number like `#123` or `issue #123`):
+```bash
+COMMIT_SHA=$(git rev-parse --short HEAD)
+gh issue close <number> -c "Implemented in $COMMIT_SHA" 2>/dev/null || echo "Warning: Could not close issue"
+```
+
+Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
 
 ---
 
