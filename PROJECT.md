@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2026-02-14
-**Version**: v3.50.0
+**Last Updated**: 2026-02-17
+**Version**: v3.51.0
 
 ---
 
@@ -20,9 +20,11 @@ autonomous-dev provides **macro alignment with micro flexibility**:
 
 ```
 research → plan → test → implement → review → security → docs → commit
+                                                                    ↓
+                                              session logs → analysis → issues
 ```
 
-Every step. Every feature. Documentation, tests, and code stay in sync automatically.
+Every step. Every feature. Documentation, tests, and code stay in sync automatically. The system learns from its own sessions and files issues for what it finds.
 
 ```bash
 /implement "issue #72"
@@ -36,6 +38,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - Professional quality enforced via hooks (can't skip or bypass)
 - Speed via AI — Each step accelerated, not eliminated
 - PROJECT.md is the gatekeeper — Work blocked if not aligned
+- Continuous improvement — System learns from sessions, detects drift, auto-files issues
 
 ---
 
@@ -51,8 +54,10 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - Batch processing with crash recovery (`/implement --batch`, `--issues`, `--resume`)
 - Automated git operations (commit, push, PR creation)
 - MCP security validation and tool auto-approval
-- Continuous improvement (session analysis, drift detection, auto-filed issues)
-- GenAI intent testing (LLM-as-judge validation of architecture and alignment)
+- Continuous improvement (session activity logging → drift detection → auto-filed issues)
+- GenAI intent testing (LLM-as-judge validation of architecture, congruence, and alignment)
+- Hook-settings bidirectional sync enforcement (hooks ↔ settings templates ↔ manifest)
+- HARD GATE enforcement patterns for pipeline quality (test gate, anti-stubbing, hook registration)
 - Training pipeline utilities (data curation, quality validation, distributed training coordination)
 
 **OUT of Scope** (Features we avoid):
@@ -83,6 +88,22 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - "We should also handle X, Y, Z" (scope creep)
 - "Let's create a framework for..." (over-abstraction)
 
+### Enforcement Patterns
+
+**HARD GATE pattern** — Proven through #206 (test gate), #310 (anti-stubbing), #348 (hook registration):
+
+Advisory text ("please ensure...") gets ignored under context pressure. What works:
+1. **Explicit FORBIDDEN list** — Name the specific bad behaviors
+2. **Required actions** — Name the specific resolution options (fix, skip with reason, adjust)
+3. **Gate position** — Place between work step and validation step (can't proceed until gate passes)
+
+**Operational wiring rule** — Every infrastructure component (hook, agent, command) must have:
+1. **Registration** — Listed in all relevant settings templates and manifests
+2. **Wiring test** — Regression test verifying registration, syntax, and no archived references
+3. **Documentation** — Entry in the appropriate registry doc
+
+**Archived code rule** — Active code must never import or reference archived components. Archived code lives in `*/archived/` directories and is dead code. If active code needs archived functionality, it must be restored to active status first.
+
 ### Technical Requirements
 
 - **Primary**: Markdown (agent/skill/command definitions)
@@ -109,23 +130,43 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 
 ## ARCHITECTURE
 
-### Dual-Layer System
+### Three-Layer System
 
 **Layer 1: Hook-Based Enforcement** (Automatic, 100% Reliable)
-- Git-level pre-commit hooks validate ALL quality gates
+- Hooks run on every tool call, commit, and prompt submission
 - Enforces: PROJECT.md alignment, security, tests, docs, file organization
-- Blocks commits if violations detected
-- **Guaranteed execution** — hooks run on every commit
+- Blocks operations if violations detected
+- **Guaranteed execution** — hooks fire on every event, no opt-out
 
 **Layer 2: Agent-Based Intelligence** (User-Invoked, AI-Enhanced)
 - User invokes `/implement` for AI assistance
-- Claude coordinates specialist agents
+- Claude coordinates specialist agents through the 8-step pipeline
 - Provides intelligent guidance and implementation help
 - **Conditional execution** — Claude decides which agents based on complexity
 
-**Key Distinction:**
+**Layer 3: Continuous Improvement Loop** (Post-Session, Self-Correcting)
+- `session_activity_logger.py` (PostToolUse hook) logs every tool call as structured JSONL
+- `continuous-improvement-analyst` agent reads logs and detects: workflow bypasses, test drift, doc staleness, hook false positives, congruence violations
+- `/improve` command triggers analysis and optionally auto-files GitHub issues
+- **Asynchronous** — runs post-session, never blocks active work
+
+**Key Distinctions:**
 - **Hooks = enforcement** (quality gates, always active, blocking)
 - **Agents = intelligence** (expert assistance, conditionally invoked, advisory)
+- **Continuous improvement = learning** (post-hoc analysis, drift detection, issue filing)
+
+### Hook Lifecycle Events
+
+Four event types drive Layer 1 enforcement:
+
+| Event | When | Purpose |
+|-------|------|---------|
+| **PreToolUse** | Before any tool executes | MCP security, workflow enforcement, tool auto-approval |
+| **PostToolUse** | After any tool executes | Activity logging, quality gate checks |
+| **UserPromptSubmit** | When user sends a message | Session state, prompt validation |
+| **SubagentStop** | When a subagent completes | Pipeline orchestration |
+
+Each hook in settings templates binds to one event via the `matcher` field (tool name or `*` for all).
 
 ### Agent Pipeline
 
@@ -134,20 +175,50 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
      ↓
 PROJECT.md Alignment Check (blocks if misaligned)
      ↓
-┌──────────┬──────────┬────────────┬─────────────┐
-│ Research │ Planning │ TDD Tests  │ Implementation│
-│ (Haiku)  │ (Sonnet) │ (Sonnet)   │ (Sonnet)     │
-└──────────┴──────────┴────────────┴─────────────┘
+┌───────────────┬───────────────┐
+│ Research-Local │ Research-Web  │  ← Parallel research
+│ (Haiku)        │ (Haiku)       │
+└───────────────┴───────────────┘
+     ↓
+Planning (Opus)
+     ↓
+TDD Tests (Opus)
+     ↓
+Implementation (Opus) → HARD GATE: 0 test failures
+     ↓                → HARD GATE: No stubs/placeholders
+     ↓                → HARD GATE: Hook registration verified
      ↓
 ┌──────────┬────────────┬───────────┐
 │ Review   │ Security   │ Docs      │  ← Parallel validation
-│ (Haiku)  │ (Opus)     │ (Haiku)   │
+│ (Sonnet) │ (Opus)     │ (Haiku)   │
 └──────────┴────────────┴───────────┘
      ↓
 Git Operations (commit, push, PR)
 ```
 
 **Model Tiers:**
+- **Opus**: Complex reasoning — planner, test-master, implementer, security-auditor
+- **Sonnet**: Balanced — reviewer, researcher (web)
+- **Haiku**: Fast/cheap — researcher-local, doc-master
+
+### Two-Layer Testing
+
+```
+Traditional Tests (fast, deterministic, CI gate)
+├── Smoke tests (regression/smoke/) — critical path, <5s
+├── Unit tests (unit/) — pure functions, mocked
+├── Progression tests (regression/progression/) — issue-specific regression prevention
+└── Integration tests — component interactions
+
+GenAI Intent Tests (semantic, drift-proof, scheduled)
+├── Architecture — do components match docs?
+├── Congruence — do file pairs agree?
+├── Security — secrets, exit codes, path traversal
+└── Hook coverage — do hooks follow patterns?
+```
+
+**Principle**: Traditional tests validate *behavior*. GenAI tests validate *intent and alignment*. GenAI tests replace brittle hardcoded assertions (agent count = 16) with semantic checks ("are all agents documented?").
+
 ### Repository Structure
 
 ```
@@ -155,12 +226,16 @@ autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
 │   ├── agents/                 # Pipeline + utility agents
 │   ├── commands/               # Slash commands
-│   ├── hooks/                  # Automation hooks
+│   ├── hooks/                  # Automation hooks (17 active, 62 archived)
 │   ├── skills/                 # Skill packages
 │   ├── lib/                    # Python libraries
+│   ├── templates/              # Settings templates (7 project, 1 global)
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
-├── tests/                      # Test suite
+├── tests/                      # Test suite (~9,700 tests)
+│   ├── unit/                   # Unit tests
+│   ├── regression/             # Smoke + progression regression tests
+│   └── genai/                  # GenAI intent tests (LLM-as-judge)
 ├── .claude/                    # Installed plugin (symlink)
 ├── CLAUDE.md                   # Development instructions (component counts live here)
 ├── PROJECT.md                  # This file (alignment gatekeeper)
