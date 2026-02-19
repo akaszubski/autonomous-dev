@@ -380,3 +380,19 @@ This skill should be updated when:
 
 **Last Updated**: 2025-11-16 (Phase 8.8 - Initial creation)
 **Version**: 1.0.0
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Storing state without a defined schema or version field
+- Direct file writes without atomic operations (write-then-rename pattern)
+- State files without backup/recovery mechanism
+- Unbounded state growth (MUST have cleanup/rotation strategy)
+
+**REQUIRED**:
+- All state files MUST include a schema version for migration support
+- State mutations MUST be atomic (no partial writes on failure)
+- State MUST be recoverable from corruption (fallback to defaults)
+- All state access MUST go through a single module (no scattered file reads)

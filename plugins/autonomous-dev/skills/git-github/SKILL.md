@@ -268,3 +268,19 @@ git commit               # Complete merge
 5. **Link issues** - Always connect PRs to issues
 6. **Git hooks** - Automate quality checks
 7. **Delete merged branches** - Keep repository clean
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Force-pushing to main/master without explicit approval
+- Committing secrets, API keys, or credentials (use `.env` files)
+- Merge commits with failing CI checks
+- PRs without linked issues or description
+
+**REQUIRED**:
+- All PRs MUST have a description explaining the "why"
+- Branch names MUST follow `type/issue-description` pattern
+- Commits MUST use conventional commit format (`feat:`, `fix:`, `docs:`, etc.)
+- All PRs MUST pass CI before merge

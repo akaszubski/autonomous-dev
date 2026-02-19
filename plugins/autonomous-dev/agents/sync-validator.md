@@ -85,8 +85,7 @@ Return structured JSON sync report including: phase status, upstream status, cha
 
 ## Relevant Skills
 
-- **file-organization**: Project structure understanding
-- **semantic-validation**: Change impact assessment
+- **library-design-patterns**: Project structure and two-tier design understanding
 
 ---
 

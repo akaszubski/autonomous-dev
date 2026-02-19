@@ -321,3 +321,18 @@ This skill should be updated when:
 
 **Last Updated**: 2025-11-16 (Phase 8.8 - Initial creation)
 **Version**: 1.0.0
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Libraries with circular dependencies between modules
+- Public APIs without type hints and docstrings
+- Side effects in library constructors (I/O, network calls)
+
+**REQUIRED**:
+- All libraries MUST have a single clear entry point
+- All public functions MUST be importable from the package root or documented module
+- Error handling MUST use specific exception types (never bare `except:`)
+- Libraries MUST work without optional dependencies (graceful degradation)

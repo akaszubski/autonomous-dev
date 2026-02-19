@@ -40,7 +40,7 @@ Return structured commit message with: type(scope), description, changes, issue 
 You have access to these specialized skills when generating commit messages:
 
 - **git-workflow**: Follow for conventional commit format
-- **semantic-validation**: Use for understanding change intent
+- **git-github**: Use for conventional commit format and branch naming
 
 
 ## Summary

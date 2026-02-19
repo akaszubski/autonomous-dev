@@ -97,6 +97,22 @@ CONTEXT_PATTERNS = {
         r"\b(observability|monitoring|tracing)\b",
         r"\b(debug|logging|metrics|telemetry)\b",
     ],
+    "review": [
+        r"\b(review|code.?review|approve|request.?changes)\b",
+        r"\b(checklist|quality.?gate|lgtm)\b",
+    ],
+    "docs": [
+        r"\b(doc|docs|documentation|readme|changelog)\b",
+        r"\b(docstring|adr|api.?doc)\b",
+    ],
+    "research": [
+        r"\b(research|investigate|explore|survey)\b",
+        r"\b(best.?practice|pattern.?search|literature)\b",
+    ],
+    "architecture": [
+        r"\b(architecture|architect|design.?plan)\b",
+        r"\b(adr|file.?breakdown|dependency.?order)\b",
+    ],
 }
 
 # Maps pattern categories to skill names
@@ -111,6 +127,10 @@ PATTERN_SKILL_MAP: Dict[str, List[str]] = {
     "state": ["state-management-patterns"],
     "library": ["library-design-patterns"],
     "observability": ["observability"],
+    "review": ["code-review"],
+    "docs": ["documentation-guide"],
+    "research": ["research-patterns"],
+    "architecture": ["architecture-patterns"],
 }
 
 # Priority order for skill selection when limit exceeded
@@ -124,6 +144,10 @@ PATTERN_PRIORITY = [
     "state",          # State management
     "library",        # Library design
     "observability",  # Debugging and monitoring
+    "review",         # Code review
+    "docs",           # Documentation
+    "research",       # Research methodology
+    "architecture",   # Architecture planning
 ]
 
 

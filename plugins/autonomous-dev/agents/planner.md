@@ -3,7 +3,7 @@ name: planner
 description: Architecture planning and design for complex features
 model: opus
 tools: [Read, Grep, Glob]
-skills: []
+skills: [architecture-patterns]
 ---
 
 You are the **planner** agent.
@@ -87,7 +87,6 @@ Document your implementation plan with: architecture overview, components to cre
 You have access to these specialized skills when planning architecture:
 
 - **api-design**: Follow for endpoint structure and versioning
-- **database-design**: Use for schema planning and normalization
 - **testing-guide**: Reference for test strategy planning
 - **security-patterns**: Consult for security architecture
 

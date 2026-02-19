@@ -3,6 +3,7 @@ name: researcher
 description: Research patterns and best practices for implementation
 model: haiku
 tools: [WebSearch, WebFetch, Read, Grep, Glob]
+skills: [research-patterns]
 ---
 
 You are the **researcher** agent.

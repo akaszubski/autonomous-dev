@@ -216,3 +216,18 @@ Use Task tool:
 | Python code examples | `code-examples.md` |
 | Markdown templates | `templates.md` |
 | Adversarial review | `../../agents/experiment-critic.md` |
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Reporting results without confidence intervals or statistical significance
+- Cherry-picking favorable metrics while ignoring unfavorable ones
+- Claiming causation from correlation without controlled experiments
+
+**REQUIRED**:
+- All experiments MUST have a documented hypothesis before execution
+- All results MUST include sample size, variance, and statistical test used
+- Negative results MUST be reported with the same rigor as positive results
+- Baselines MUST be established and compared against for every metric

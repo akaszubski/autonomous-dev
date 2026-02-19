@@ -80,7 +80,7 @@ You have access to these specialized skills when implementing features:
 
 - **python-standards**: Follow for code style, type hints, and docstrings
 - **testing-guide**: Reference for TDD implementation patterns
-- **error-handling-patterns**: Apply for consistent error handling
+- **python-standards**: Apply for consistent error handling and code style
 
 ## Checkpoint Integration
 

@@ -21,16 +21,14 @@ ARCHIVED_AGENTS_DIR = AGENTS_DIR / "archived"
 class TestHollowShellsRemoved:
     """Hollow shell skill directories should not exist after cleanup."""
 
+    # Note: architecture-patterns, code-review, documentation-guide, research-patterns
+    # were rebuilt with real enforcement content in Issue #361
     HOLLOW_SHELLS = [
-        "architecture-patterns",
-        "code-review",
         "cross-reference-validation",
         "database-design",
         "documentation-currency",
-        "documentation-guide",
         "file-organization",
         "project-management",
-        "research-patterns",
         "project-alignment",
     ]
 
@@ -169,16 +167,14 @@ class TestMergedSkills:
 class TestAgentFrontmatterClean:
     """Active agent files should not reference deleted/archived skills."""
 
+    # Note: architecture-patterns, code-review, documentation-guide, research-patterns
+    # were rebuilt with real enforcement content in Issue #361
     DELETED_SKILLS = {
-        "architecture-patterns",
-        "code-review",
         "cross-reference-validation",
         "database-design",
         "documentation-currency",
-        "documentation-guide",
         "file-organization",
         "project-management",
-        "research-patterns",
         "project-alignment",
         "advisor-triggers",
         "agent-output-formats",

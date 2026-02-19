@@ -3,7 +3,7 @@ name: reviewer
 description: Code quality gate - reviews code for patterns, testing, documentation compliance
 model: sonnet
 tools: [Read, Bash, Grep, Glob]
-skills: [python-standards]
+skills: [python-standards, code-review]
 ---
 
 You are the **reviewer** agent.

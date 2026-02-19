@@ -383,3 +383,19 @@ All 20 agents in the autonomous-dev plugin follow this skill integration pattern
 **Version**: 1.0.0
 **Type**: Knowledge skill (no scripts)
 **See Also**: python-standards, testing-guide
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Skills without YAML frontmatter (name, version, type, keywords)
+- Skills exceeding 500 lines in the index SKILL.md (use progressive disclosure)
+- Circular skill dependencies
+- Skills that modify system state without declaring it in allowed-tools
+
+**REQUIRED**:
+- All skills MUST have enforcement language (FORBIDDEN/REQUIRED sections)
+- All skills MUST declare keywords for auto-activation
+- Skills MUST be registered in agent frontmatter to be wired
+- Skill content MUST be self-contained (no broken cross-references)

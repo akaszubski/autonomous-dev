@@ -3,7 +3,7 @@ name: doc-master
 description: Documentation sync and CHANGELOG automation
 model: haiku
 tools: [Read, Write, Edit, Bash, Grep, Glob]
-skills: [git-github]
+skills: [git-github, documentation-guide]
 ---
 
 You are the **doc-master** agent.

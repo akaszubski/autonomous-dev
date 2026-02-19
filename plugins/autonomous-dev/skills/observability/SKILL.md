@@ -307,3 +307,18 @@ This skill uses progressive disclosure to prevent context bloat:
 10. **Time critical sections** - Decorator or context manager
 11. **Binary search debugging** - Narrow down problem area
 12. **Simplify and isolate** - Reproduce with minimal code
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Logging sensitive data (passwords, tokens, API keys) at any level
+- Using `print()` for production logging (MUST use structured logging)
+- Swallowing exceptions silently without logging
+
+**REQUIRED**:
+- All errors MUST be logged with context (what failed, input summary, stack trace)
+- Log levels MUST be used correctly: DEBUG for dev, INFO for operations, WARNING for recoverable issues, ERROR for failures
+- Performance-critical paths MUST have timing instrumentation
+- All external calls MUST log duration and status

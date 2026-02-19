@@ -293,3 +293,19 @@ This skill uses progressive disclosure to prevent context bloat:
 8. **Rate limit**: Prevent abuse
 9. **Document thoroughly**: OpenAPI/Swagger
 10. **Test idempotency**: Safe retries for POST/PUT/DELETE
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Exposing internal IDs or database schema in API responses
+- Returning 200 for error conditions (use proper HTTP status codes)
+- APIs without versioning (MUST use URL path versioning like `/v1/`)
+- Endpoints that accept unbounded input without pagination or limits
+
+**REQUIRED**:
+- All endpoints MUST have consistent error response format (`{error, message, code}`)
+- All collection endpoints MUST support pagination
+- All mutations MUST be idempotent or explicitly documented as non-idempotent
+- Rate limiting MUST be documented in API specification

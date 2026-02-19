@@ -207,3 +207,19 @@ pytest --cov=src --cov-fail-under=80    # Coverage
 
 - **testing-guide** - Testing patterns and TDD methodology
 - **error-handling-patterns** - Error handling best practices
+
+---
+
+## Hard Rules
+
+**FORBIDDEN**:
+- Public functions without type hints on parameters and return values
+- Bare `except:` or `except Exception:` without re-raising or specific handling
+- Mutable default arguments (`def f(items=[])`)
+- Using `os.path` when `pathlib.Path` is available
+
+**REQUIRED**:
+- All public APIs MUST have Google-style docstrings with Args/Returns/Raises
+- All code MUST pass black formatting (100 char line length)
+- Imports MUST be sorted with isort (profile=black)
+- Keyword-only arguments MUST be used for functions with 2+ optional parameters

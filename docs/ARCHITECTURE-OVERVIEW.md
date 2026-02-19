@@ -46,13 +46,13 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**Active Skills** (15 total):
-- **Core**: python-standards, testing-guide, api-design
-- **Security**: security-patterns, observability
-- **Integration**: skill-integration, library-design-patterns, quality-scoring
-- **Architecture & Patterns**: api-integration-patterns, state-management-patterns
-- **LLM Training**: anti-hallucination-training, dpo-rlvr-generation, grpo-verifiable-training, training-methods
-- **Data & Validation**: scientific-validation
+**Active Skills** (16 total):
+- **Core**: python-standards, testing-guide, api-design, documentation-guide
+- **Code Quality**: code-review, quality-scoring
+- **Security & Observability**: security-patterns, observability
+- **Integration & Design**: skill-integration, library-design-patterns, api-integration-patterns, state-management-patterns, architecture-patterns
+- **Workflow & Research**: git-github, research-patterns
+- **Validation**: scientific-validation
 
 ---
 
