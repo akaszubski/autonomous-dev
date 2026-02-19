@@ -85,6 +85,18 @@ CONTEXT_PATTERNS = {
         r"\b(class|def|async.?def|decorator)\b",
         r"\b(import|from\s+\w+\s+import)\b",
     ],
+    "state": [
+        r"\b(state|persist|persistence|session)\b",
+        r"\b(cache|store|storage|checkpoint)\b",
+    ],
+    "library": [
+        r"\b(library|lib|design.?pattern|abstraction)\b",
+        r"\b(interface|abstract|factory|singleton)\b",
+    ],
+    "observability": [
+        r"\b(observability|monitoring|tracing)\b",
+        r"\b(debug|logging|metrics|telemetry)\b",
+    ],
 }
 
 # Maps pattern categories to skill names
@@ -92,20 +104,26 @@ CONTEXT_PATTERNS = {
 PATTERN_SKILL_MAP: Dict[str, List[str]] = {
     "security": ["security-patterns"],
     "api": ["api-design", "api-integration-patterns"],
-    "database": ["database-design"],
-    "git": ["git-workflow"],
+    "database": [],
+    "git": ["git-github"],
     "testing": ["testing-guide"],
     "python": ["python-standards"],
+    "state": ["state-management-patterns"],
+    "library": ["library-design-patterns"],
+    "observability": ["observability"],
 }
 
 # Priority order for skill selection when limit exceeded
 PATTERN_PRIORITY = [
-    "security",  # Security always first
-    "testing",   # Tests are fundamental
-    "api",       # API patterns common
-    "database",  # Data layer
-    "python",    # Language specifics
-    "git",       # Operations
+    "security",       # Security always first
+    "testing",        # Tests are fundamental
+    "api",            # API patterns common
+    "database",       # Data layer
+    "python",         # Language specifics
+    "git",            # Operations
+    "state",          # State management
+    "library",        # Library design
+    "observability",  # Debugging and monitoring
 ]
 
 

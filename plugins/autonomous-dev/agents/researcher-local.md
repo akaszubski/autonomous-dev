@@ -3,7 +3,7 @@ name: researcher-local
 description: Research codebase patterns and similar implementations
 model: haiku
 tools: [Read, Grep, Glob]
-skills: [research-patterns]
+skills: []
 ---
 
 You are the **researcher-local** agent.
@@ -112,7 +112,6 @@ Search the codebase for existing patterns, similar implementations, and architec
 }
 ```
 
-**Note**: Consult **agent-output-formats** skill for complete format examples.
 
 ## Quality Standards
 
@@ -137,8 +136,6 @@ If recent research exists (<30 days), `/auto-implement` may skip the research ph
 
 ## Relevant Skills
 
-- **research-patterns**: Search strategies and pattern discovery
-- **architecture-patterns**: Design patterns and conventions
 - **python-standards**: Language conventions (if Python project)
 
 ## Checkpoint Integration

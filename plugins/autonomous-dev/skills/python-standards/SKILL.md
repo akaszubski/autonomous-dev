@@ -12,8 +12,6 @@ allowed-tools: [Read]
 
 Python code quality standards for autonomous-dev project.
 
-**See:** [code-examples.md](code-examples.md) for complete code examples
-**See:** [templates.md](templates.md) for organization templates
 
 ## When This Activates
 
@@ -56,8 +54,6 @@ def process_file(
     pass
 ```
 
-**See:** [code-examples.md#type-hints](code-examples.md#type-hints) for complete examples
-
 ---
 
 ## Docstrings (Google Style)
@@ -80,8 +76,6 @@ def process_data(data: List[Dict], *, batch_size: int = 32) -> ProcessResult:
     """
 ```
 
-**See:** [code-examples.md#docstrings-google-style](code-examples.md#docstrings-google-style)
-
 ---
 
 ## Error Handling
@@ -100,7 +94,60 @@ raise FileNotFoundError(
 raise FileNotFoundError("File not found")
 ```
 
-**See:** [code-examples.md#error-handling](code-examples.md#error-handling)
+### Exception Hierarchy
+
+Define a project-level exception hierarchy for structured error handling:
+
+```python
+class AppError(Exception):
+    """Base exception for the application."""
+    pass
+
+class ConfigError(AppError):
+    """Configuration loading or validation error."""
+    pass
+
+class ValidationError(AppError):
+    """Input or data validation error."""
+    pass
+
+class ExternalServiceError(AppError):
+    """Error communicating with external service."""
+    pass
+```
+
+**When to use custom vs built-in exceptions:**
+- Use **built-in** (`ValueError`, `TypeError`, `FileNotFoundError`) for standard programming errors
+- Use **custom** exceptions when callers need to catch specific application-level failures
+- Always inherit from a project base exception for catch-all handling
+
+### Error Message Format
+
+Every error message should follow this three-part format:
+
+1. **Context** - What happened and where
+2. **Expected** - What was expected instead
+3. **Docs link** - Where to find more information
+
+```python
+raise ValidationError(
+    f"Invalid config key '{key}' in {config_path}\n"
+    f"Expected one of: {', '.join(valid_keys)}\n"
+    f"See: docs/configuration.md#valid-keys"
+)
+```
+
+### Graceful Degradation
+
+When a non-critical operation fails, log and continue rather than crashing:
+
+```python
+try:
+    optional_result = enhance_with_cache(data)
+except CacheError:
+    logging.warning("Cache unavailable, proceeding without cache")
+    optional_result = None
+```
 
 ---
 
@@ -131,8 +178,6 @@ def train(data: List, *, learning_rate: float = 1e-4):
 config = Path("config.yaml").read_text()
 ```
 
-**See:** [code-examples.md#best-practices](code-examples.md#best-practices)
-
 ---
 
 ## Code Quality Commands
@@ -158,7 +203,7 @@ pytest --cov=src --cov-fail-under=80    # Coverage
 
 ---
 
-## Related Files
+## Related Skills
 
-- [code-examples.md](code-examples.md) - Complete Python code examples
-- [templates.md](templates.md) - File organization templates
+- **testing-guide** - Testing patterns and TDD methodology
+- **error-handling-patterns** - Error handling best practices

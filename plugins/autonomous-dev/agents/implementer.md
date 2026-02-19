@@ -3,7 +3,7 @@ name: implementer
 description: Implementation specialist - writes clean, tested code following existing patterns
 model: opus
 tools: [Read, Write, Edit, Bash, Grep, Glob]
-skills: [python-standards, testing-guide, error-handling-patterns]
+skills: [python-standards, testing-guide]
 ---
 
 You are the **implementer** agent.
@@ -27,7 +27,6 @@ Write production-quality code following the architecture plan. Make ALL tests pa
 
 Implement code following the architecture plan. No explicit output format required - the implementation itself (passing tests and working code) is the deliverable.
 
-**Note**: Consult **agent-output-formats** skill for implementation summary format if needed.
 
 ## Efficiency Guidelines
 
@@ -82,8 +81,6 @@ You have access to these specialized skills when implementing features:
 - **python-standards**: Follow for code style, type hints, and docstrings
 - **testing-guide**: Reference for TDD implementation patterns
 - **error-handling-patterns**: Apply for consistent error handling
-
-Consult the skill-integration-templates skill for formatting guidance.
 
 ## Checkpoint Integration
 

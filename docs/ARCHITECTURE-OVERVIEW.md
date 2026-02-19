@@ -17,7 +17,7 @@ Specialized agents with skill integration for autonomous development. See [docs/
 
 ## Model Tier Strategy
 
-Agent model assignments optimized for cost-performance balance (8 active agents):
+Agent model assignments optimized for cost-performance balance (14 active agents):
 
 **Tier 1 (Haiku)** - Fast, cost-effective for pattern matching
 - researcher-local - Search codebase patterns
@@ -46,14 +46,13 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**Active Skills**:
-- **Core**: python-standards, testing-guide, error-handling-patterns, code-review
-- **Automation**: git-workflow, batch-processing, performance-optimization
-- **Security**: security-patterns, mcp-security, sandboxing
-- **Documentation**: documentation-guide, documentation-currency, cross-reference-validation
-- **Integration**: skill-integration-templates, agent-output-formats
-- **LLM Training Realignment** (7): realign-dpo-workflow, realign-srf-workflow, realign-rlvr-workflow, realign-antihallucination-workflow, realign-persona-workflow, realign-source-workflow, grpo-verifiable-training
-- **Data & Training** (4): training-methods, training-operations, dpo-rlvr-generation, anti-hallucination-training
+**Active Skills** (15 total):
+- **Core**: python-standards, testing-guide, api-design
+- **Security**: security-patterns, observability
+- **Integration**: skill-integration, library-design-patterns, quality-scoring
+- **Architecture & Patterns**: api-integration-patterns, state-management-patterns
+- **LLM Training**: anti-hallucination-training, dpo-rlvr-generation, grpo-verifiable-training, training-methods
+- **Data & Validation**: scientific-validation
 
 ---
 

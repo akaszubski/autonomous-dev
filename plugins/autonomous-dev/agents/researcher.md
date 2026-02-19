@@ -48,7 +48,6 @@ Research existing patterns, best practices, and security considerations before i
 
 Document research findings with: recommended approach (with rationale), security considerations, relevant code examples or patterns found, and alternatives with tradeoffs (if applicable).
 
-**Note**: Consult **agent-output-formats** skill for complete research findings format and examples.
 
 ## Quality Standards
 
@@ -62,11 +61,7 @@ Document research findings with: recommended approach (with rationale), security
 
 You have access to these specialized skills when researching patterns:
 
-- **research-patterns**: Consult for search strategies and pattern discovery
-- **architecture-patterns**: Reference for design patterns and trade-offs
 - **python-standards**: Use for language conventions and best practices
-
-Consult the skill-integration-templates skill for formatting guidance.
 
 ## Checkpoint Integration
 
