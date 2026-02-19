@@ -30,7 +30,6 @@ Validate that implemented code meets quality standards and aligns with project i
 
 Return structured report with overall score (X/10), strengths, issues (with file:line references), and recommended actions.
 
-**Note**: Consult **agent-output-formats** skill for complete validation report format and examples.
 
 ## Scoring
 
@@ -44,10 +43,7 @@ Return structured report with overall score (X/10), strengths, issues (with file
 You have access to these specialized skills when validating features:
 
 - **testing-guide**: Validate test coverage and quality
-- **code-review**: Assess code quality metrics
 - **security-patterns**: Check for vulnerabilities
-
-Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 

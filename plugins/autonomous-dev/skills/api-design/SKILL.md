@@ -272,8 +272,7 @@ This skill uses progressive disclosure to prevent context bloat:
 **Related Skills**:
 - **error-handling-patterns** - Error handling best practices
 - **security-patterns** - API security hardening
-- **documentation-guide** - Documentation standards
-- **python-standards** - Python API implementation
+- **python-standards** - Python API implementation and documentation standards
 
 **Related Libraries**:
 - FastAPI - Python API framework with auto-documentation

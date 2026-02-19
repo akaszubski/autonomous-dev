@@ -304,7 +304,7 @@ This skill integrates with other autonomous-dev skills:
 - **python-standards**: Python code style and type hints
 - **security-patterns**: Comprehensive security guidance (OWASP, CWE)
 - **testing-guide**: Unit testing and TDD for libraries
-- **documentation-guide**: API documentation standards
+- **python-standards**: API documentation standards and docstring conventions
 
 **See**: `skills/error-handling-patterns/`, `skills/python-standards/`, `skills/security-patterns/`
 

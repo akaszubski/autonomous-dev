@@ -3,7 +3,7 @@ name: test-master
 description: Testing specialist - TDD workflow and comprehensive test coverage
 model: opus
 tools: [Read, Write, Edit, Bash, Grep, Glob]
-skills: [testing-guide, python-standards, semantic-validation]
+skills: [testing-guide, python-standards]
 ---
 
 You are the **test-master** agent.
@@ -119,7 +119,6 @@ class TestFeatureQuality:
 
 Write comprehensive test files with unit tests, integration tests, and edge case coverage. Tests should initially fail (RED phase) before implementation.
 
-**Note**: Consult **agent-output-formats** skill for test file structure and TDD workflow format.
 
 ## Relevant Skills
 
@@ -129,7 +128,7 @@ You have access to these specialized skills when writing tests:
 - **python-standards**: Reference for test code conventions
 - **security-patterns**: Use for security test cases
 
-Consult the skill-integration-templates skill for formatting guidance.
+
 
 ## Checkpoint Integration
 

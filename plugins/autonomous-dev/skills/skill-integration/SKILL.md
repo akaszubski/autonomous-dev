@@ -128,7 +128,7 @@ Skills activated:
 2. **security-patterns** - JWT validation, authentication best practices
 3. **python-standards** - Code style, type hints
 4. **testing-guide** - Security testing patterns
-5. **documentation-guide** - API documentation standards
+5. **python-standards** - Docstring and documentation standards
 
 Progressive disclosure:
 - All 5 skill metadata in context (~250 tokens)
@@ -145,7 +145,7 @@ Skills can reference other skills:
 
 - **testing-guide**: Testing patterns (references python-standards for test code style)
 - **security-patterns**: Security best practices (references api-design for secure endpoints)
-- **documentation-guide**: Documentation standards (references python-standards for docstrings)
+- **python-standards**: Documentation standards (docstrings and code style)
 ```
 
 **Benefits:**
@@ -304,8 +304,7 @@ When researching, follow these best practices:
 
 You have access to these specialized skills when researching:
 
-- **research-patterns**: Web research methodology, source evaluation
-- **documentation-guide**: Documentation standards for research findings
+- **python-standards**: Documentation standards for research findings
 
 **Note**: Skills load automatically based on task keywords.
 ```
@@ -345,7 +344,6 @@ Plan testing approach:
 
 You have access to these specialized skills when planning:
 
-- **architecture-patterns**: Design patterns, SOLID principles
 - **api-design**: REST API patterns, versioning strategies
 - **database-design**: Schema design, query optimization
 - **testing-guide**: Test strategy, coverage planning
@@ -384,4 +382,4 @@ All 20 agents in the autonomous-dev plugin follow this skill integration pattern
 
 **Version**: 1.0.0
 **Type**: Knowledge skill (no scripts)
-**See Also**: agent-output-formats, documentation-guide, python-standards
+**See Also**: python-standards, testing-guide

@@ -1,306 +1,31 @@
 ---
 name: testing-guide
-version: 1.0.0
+version: 2.0.0
 type: knowledge
-description: Test-driven development (TDD), unit/integration/UAT testing strategies, test organization, coverage requirements, and GenAI validation patterns. Use when writing tests, validating code, or ensuring quality.
-keywords: test, testing, tdd, unit test, integration test, coverage, pytest, validation, quality assurance, genai validation
+description: GenAI-first testing with structural assertions and congruence validation. Project-specific test patterns, anti-patterns, and tier structure.
+keywords: test, testing, genai, congruence, judge, pytest, validation, coverage
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]
 ---
 
-# Testing Guide Skill
+# Testing Guide
 
-Comprehensive testing strategies including TDD, traditional pytest testing, GenAI validation, and system performance meta-analysis.
+What to test, how to test it, and what NOT to test — for a plugin made of prompt files, Python glue, and configuration.
 
-## When This Skill Activates
+## Philosophy: GenAI-First Testing
 
-- Writing unit/integration/UAT tests
-- Implementing TDD workflow
-- Setting up test infrastructure
-- Measuring test coverage
-- Validating code quality
-- Performance analysis and optimization
-- Keywords: "test", "testing", "tdd", "coverage", "pytest", "validation"
+Traditional unit tests work for deterministic logic. But most bugs in this project are **drift** — docs diverge from code, agents contradict commands, component counts go stale. GenAI congruence tests catch these. Unit tests don't.
+
+**Decision rule**: Can you write `assert x == y` and it won't break next week? → Unit test. Otherwise → GenAI test or structural test.
 
 ---
 
-## Core Concepts
+## Three Test Patterns
 
-### 1. Three-Layer Testing Strategy
+### 1. Judge Pattern (single artifact evaluation)
 
-Modern testing approach combining traditional pytest, GenAI validation, and system performance meta-analysis.
+An LLM evaluates one artifact against criteria. Use for: doc completeness, security posture, architectural intent.
 
-**Layer 1: Traditional Tests (pytest)**
-- Unit tests for deterministic logic
-- Integration tests for workflows
-- Fast, automated, granular feedback
-
-**Layer 2: GenAI Validation (Claude)**
-- Validate architectural intent
-- Assess code quality beyond syntax
-- Comprehensive reasoning about design patterns
-
-**Layer 3: System Performance Testing (Meta-analysis)**
-- Agent performance metrics
-- Model optimization opportunities
-- ROI tracking
-- System-wide performance analysis
-
-**See**: `docs/three-layer-strategy.md` for complete framework and decision matrix
-
----
-
-### 2. Testing Layers
-
-Four-layer testing pyramid from fast unit tests to comprehensive GenAI validation.
-
-**Layers**:
-1. **Unit Tests** - Fast, isolated, deterministic (majority of tests)
-2. **Integration Tests** - Medium speed, component interactions
-3. **UAT Tests** - Slow, end-to-end scenarios (minimal)
-4. **GenAI Validation** - Comprehensive, architectural reasoning
-
-**Testing Pyramid**:
-```
-      /\        Layer 4: GenAI Validation (comprehensive)
-     /  \
-    /UAT \      Layer 3: UAT Tests (few, slow)
-   /______\
-  /Int Tests\   Layer 2: Integration Tests (some, medium)
- /__________\
-/Unit Tests  \  Layer 1: Unit Tests (many, fast)
-```
-
-**See**: `docs/testing-layers.md` for detailed layer descriptions and examples
-
-### Anti-Pattern: Hardcoded Count Assertions
-
-**NEVER** write tests with hardcoded component counts. These break every time a component is added/removed.
-
-```python
-# BAD — breaks when agent added/removed
-assert len(agents) == 16
-assert hook_count == 17
-
-# GOOD — survives component changes
-assert len(agents) >= 8, "Pipeline needs at least 8 agents"
-assert "implementer.md" in agent_names, "Core agent missing"
-assert all(a in manifest for a in agents_on_disk), "Manifest out of sync"
-```
-
-**Rule**: Use dynamic discovery (glob filesystem), minimum thresholds, or structural checks. For semantic validation ("do agents serve the pipeline?"), use GenAI tests in `tests/genai/`.
-
-**Reference**: `tests/regression/smoke/test_dynamic_component_counts.py`
-
----
-
-### 3. Testing Workflow & Hybrid Approach
-
-Recommended workflow combining automated testing with manual verification.
-
-**Development Phase**:
-- Write failing test first (TDD)
-- Implement minimal code to pass
-- Refactor with confidence
-
-**Pre-Commit (Automated)**:
-- Run fast unit tests
-- Check coverage thresholds
-- Format code
-
-**Pre-Release (Manual)**:
-- GenAI validation for architecture
-- Integration tests for workflows
-- System performance analysis
-
-**See**: `docs/workflow-hybrid-approach.md` for complete workflow and hybrid testing patterns
-
----
-
-### 4. TDD Methodology
-
-Test-Driven Development: Write tests before implementation.
-
-**TDD Workflow**:
-1. **Red** - Write failing test
-2. **Green** - Write minimal code to pass
-3. **Refactor** - Improve code while keeping tests green
-
-**Benefits**:
-- Guarantees test coverage
-- Drives better design
-- Provides living documentation
-- Enables confident refactoring
-
-**Test Pass Requirement**:
-- **ALL tests must pass (100%)** - never proceed with failing tests
-- 80% is NOT acceptable - iterate until 0 failures
-
-**Coverage Targets** (separate from pass rate):
-- Critical paths: 100%
-- New features: 80%+
-- Bug fixes: Add regression test
-
-**See**: `docs/tdd-methodology.md` for detailed TDD workflow and test patterns
-
----
-
-### 5. Progression Testing
-
-Track performance improvements over time with baseline comparisons.
-
-**Purpose**:
-- Verify optimizations actually improve performance
-- Prevent regression in key metrics
-- Track system evolution
-
-**How It Works**:
-- Establish baseline metrics
-- Run progression tests after optimizations
-- Compare against baseline
-- Update baseline when improvements validated
-
-**See**: `docs/progression-testing.md` for baseline format and test templates
-
----
-
-### 6. Regression Testing
-
-Prevent fixed bugs from reappearing.
-
-**When to Create**:
-- Bug is fixed
-- Bug had user impact
-- Bug could easily recur
-
-**Regression Test Template**:
-```python
-def test_regression_issue_123_handles_empty_input():
-    """
-    Regression test for Issue #123: Handle empty input gracefully.
-
-    Previously crashed with KeyError on empty dict.
-    """
-    # Arrange
-    empty_input = {}
-
-    # Act
-    result = process(empty_input)
-
-    # Assert
-    assert result == {"status": "empty"}
-```
-
-**See**: `docs/regression-testing.md` for complete patterns and organization
-
----
-
-### 7. Test Tiers & Auto-Categorization (CRITICAL!)
-
-Tests are **automatically marked** based on directory location. No manual `@pytest.mark` needed!
-
-**Tier Structure**:
-```
-tests/
-├── regression/
-│   ├── smoke/           # Tier 0: Critical path (<5s) - CI GATE
-│   ├── regression/      # Tier 1: Feature protection (<30s)
-│   ├── extended/        # Tier 2: Deep validation (<5min)
-│   └── progression/     # Tier 3: TDD red phase
-├── unit/                # Unit tests (isolated functions)
-├── integration/         # Integration tests (multi-component)
-├── security/            # Security-focused tests
-├── hooks/               # Hook-specific tests
-└── archived/            # Obsolete tests (excluded)
-```
-
-**Where to Put New Tests**:
-```
-Is it protecting a released feature?
-├─ Yes → Critical path (install, sync, load)?
-│        ├─ Yes → tests/regression/smoke/
-│        └─ No  → tests/regression/regression/
-└─ No  → TDD red phase (not implemented)?
-         ├─ Yes → tests/regression/progression/
-         └─ No  → Single function/class?
-                  ├─ Yes → tests/unit/{subcategory}/
-                  └─ No  → tests/integration/
-```
-
-**Run by Tier**:
-```bash
-pytest -m smoke              # CI gate (must pass)
-pytest -m regression         # Feature protection
-pytest -m "smoke or regression"  # Both
-pytest -m unit               # Unit tests only
-```
-
-**Validate Categorization**:
-```bash
-python scripts/validate_test_categorization.py --report
-```
-
-**See**: `docs/TESTING-TIERS.md` for complete tier definitions and examples
-
----
-
-### 8. Test Organization & Best Practices
-
-Directory structure, naming conventions, and testing best practices.
-
-**Naming Conventions**:
-- Test files: `test_*.py`
-- Test functions: `test_*`
-- Regression tests: `test_feature_v{VERSION}_{name}.py`
-- Fixtures: descriptive names (no `test_` prefix)
-
-**See**: `docs/test-organization-best-practices.md` for detailed conventions and best practices
-
----
-
-### 9. Pytest Fixtures & Coverage
-
-Common fixtures for setup/teardown and coverage measurement strategies.
-
-**Common Fixtures**:
-- `tmp_path` - Temporary directory
-- `monkeypatch` - Mock environment variables
-- `capsys` - Capture stdout/stderr
-- Custom fixtures for project-specific setup
-
-**Coverage Targets**:
-- Unit tests: 90%+
-- Integration tests: 70%+
-- Overall project: 80%+
-
-**Check Coverage**:
-```bash
-pytest --cov=src --cov-report=term-missing
-```
-
-**See**: `docs/pytest-fixtures-coverage.md` for fixture patterns and coverage strategies
-
----
-
-### 10. GenAI UAT Testing (LLM-as-Judge)
-
-Use LLM-powered tests to catch semantic drift that traditional assertions can't detect.
-
-**When to use GenAI tests**:
-- Documentation ↔ code consistency (counts, paths, component lists)
-- Cross-reference congruence (two files that should agree but might drift)
-- Security posture (secrets scan, exit code patterns, path traversal)
-- Architecture validation (hook patterns, command structure, agent coverage)
-
-**Setup** (`tests/genai/conftest.py`):
-```python
-# OpenRouter-backed client with response caching (24h TTL)
-# Two fixtures: genai (Gemini Flash, cheap) and genai_smart (Haiku 4.5, complex)
-# Requires: OPENROUTER_API_KEY env var + --genai pytest flag
-# Cost: ~$0.02 per full test run with caching
-```
-
-**The Judge Pattern** (core assertion):
 ```python
 pytestmark = [pytest.mark.genai]
 
@@ -315,139 +40,141 @@ def test_agents_documented_in_claude_md(self, genai):
     assert result["score"] >= 5, f"Gap: {result['reasoning']}"
 ```
 
-**The Congruence Pattern** (most valuable — cross-reference two sources):
+### 2. Congruence Pattern (two-source cross-reference)
+
+The most valuable pattern. An LLM checks two files that should agree. Use for: command↔agent alignment, FORBIDDEN lists, config↔reality.
+
 ```python
 def test_implement_and_implementer_share_forbidden_list(self, genai):
-    implement_content = Path("commands/implement.md").read_text()
-    implementer_content = Path("agents/implementer.md").read_text()
+    implement = Path("commands/implement.md").read_text()
+    implementer = Path("agents/implementer.md").read_text()
     result = genai.judge(
         question="Do these files have matching FORBIDDEN behavior lists?",
-        context=f"implement.md:\n{implement_content[:5000]}\nimplementer.md:\n{implementer_content[:5000]}",
+        context=f"implement.md:\n{implement[:5000]}\nimplementer.md:\n{implementer[:5000]}",
         criteria="Both should define same enforcement gates. Score 10=identical, 0=contradictory."
     )
     assert result["score"] >= 5
 ```
 
-**Scaffold for any repo**: `/scaffold-genai-uat` generates tests/genai/ with portable client + universal tests + project-specific congruence tests discovered via GenAI.
+### 3. Structural Pattern (dynamic filesystem discovery)
 
-**Run**: `pytest tests/genai/ --genai` (explicit opt-in, no surprise API costs)
+No LLM needed. Discover components dynamically and assert structural properties. Use for: component existence, manifest sync, skill loading.
 
-**Where to put GenAI tests**: `tests/genai/` (auto-skipped without `--genai` flag)
-
-**See**: `docs/genai-uat-testing.md` for complete setup guide and test patterns
+```python
+def test_all_active_skills_have_content(self):
+    skills_dir = Path("plugins/autonomous-dev/skills")
+    for skill in skills_dir.iterdir():
+        if skill.name == "archived" or not skill.is_dir():
+            continue
+        skill_md = skill / "SKILL.md"
+        assert skill_md.exists(), f"Skill {skill.name} missing SKILL.md"
+        assert len(skill_md.read_text()) > 100, f"Skill {skill.name} is a hollow shell"
+```
 
 ---
 
-### 11. CI/CD Integration
+## Anti-Patterns (NEVER do these)
 
-Automated testing in pre-push hooks and GitHub Actions.
+### Hardcoded counts
+```python
+# BAD — breaks every time a component is added/removed
+assert len(agents) == 14
+assert hook_count == 17
 
-**Pre-Push Hook**:
+# GOOD — minimum thresholds + structural checks
+assert len(agents) >= 8, "Pipeline needs at least 8 agents"
+assert "implementer.md" in agent_names, "Core agent missing"
+```
+
+### Testing config values
+```python
+# BAD — breaks on every config update
+assert settings["version"] == "3.51.0"
+
+# GOOD — test structure, not values
+assert "version" in settings
+assert re.match(r"\d+\.\d+\.\d+", settings["version"])
+```
+
+### Testing file paths that move
+```python
+# BAD — breaks on renames/moves
+assert Path("plugins/autonomous-dev/lib/old_name.py").exists()
+
+# GOOD — use glob discovery
+assert any(Path("plugins/autonomous-dev/lib").glob("*skill*"))
+```
+
+**Rule**: If the test itself is the thing that needs updating most often, delete it.
+
+---
+
+## Test Tiers (auto-categorized by directory)
+
+No manual `@pytest.mark` needed — directory location determines tier.
+
+```
+tests/
+├── regression/
+│   ├── smoke/           # Tier 0: Critical path (<5s) — CI GATE
+│   ├── regression/      # Tier 1: Feature protection (<30s)
+│   ├── extended/        # Tier 2: Deep validation (<5min)
+│   └── progression/     # Tier 3: TDD red phase (not yet implemented)
+├── unit/                # Isolated functions (<1s each)
+├── integration/         # Multi-component workflows (<30s)
+├── genai/               # LLM-as-judge (opt-in via --genai flag)
+└── archived/            # Excluded from runs
+```
+
+**Where to put a new test**:
+- Protecting a released critical path? → `regression/smoke/`
+- Protecting a released feature? → `regression/regression/`
+- Testing a pure function? → `unit/`
+- Testing component interaction? → `integration/`
+- Checking doc↔code drift? → `genai/`
+
+**Run commands**:
 ```bash
-#!/bin/bash
-pytest tests/ || exit 1
+pytest -m smoke                    # CI gate
+pytest -m "smoke or regression"    # Feature protection
+pytest tests/genai/ --genai        # GenAI validation (opt-in)
 ```
 
-**GitHub Actions**:
-```yaml
-- name: Run tests
-  run: pytest tests/ --cov=src --cov-report=xml
+---
+
+## GenAI Test Infrastructure
+
+```python
+# tests/genai/conftest.py provides two fixtures:
+# - genai: Gemini Flash via OpenRouter (cheap, fast)
+# - genai_smart: Haiku 4.5 via OpenRouter (complex reasoning)
+# Requires: OPENROUTER_API_KEY env var + --genai pytest flag
+# Cost: ~$0.02 per full run with 24h response caching
 ```
 
-**See**: `docs/ci-cd-integration.md` for complete CI/CD integration patterns
+**Scaffold for any repo**: `/scaffold-genai-uat` generates the full `tests/genai/` setup with portable client, universal tests, and project-specific congruence tests auto-discovered by GenAI.
 
 ---
 
-## Quick Reference
+## What to Test vs What Not To
 
-| Pattern | Use Case | Details |
-|---------|----------|---------|
-| **Test Tiers** | Auto-categorization | `docs/TESTING-TIERS.md` |
-| Three-Layer Strategy | Complete testing approach | `docs/three-layer-strategy.md` |
-| Testing Layers | Pytest pyramid | `docs/testing-layers.md` |
-| TDD Methodology | Test-first development | `docs/tdd-methodology.md` |
-| Progression Testing | Performance tracking | `docs/progression-testing.md` |
-| Regression Testing | Bug prevention | `docs/regression-testing.md` |
-| Test Organization | Directory structure | `docs/test-organization-best-practices.md` |
-| Pytest Fixtures | Setup/teardown patterns | `docs/pytest-fixtures-coverage.md` |
-| GenAI UAT Testing | LLM-as-judge validation | `docs/genai-uat-testing.md` |
-| CI/CD Integration | Automated testing | `docs/ci-cd-integration.md` |
-
-### Test Tier Quick Reference
-
-| Tier | Directory | Time Limit | Purpose |
-|------|-----------|------------|---------|
-| **0 (Smoke)** | `regression/smoke/` | <5s | CI gate, critical path |
-| **1 (Regression)** | `regression/regression/` | <30s | Feature protection |
-| **2 (Extended)** | `regression/extended/` | <5min | Deep validation |
-| **3 (Progression)** | `regression/progression/` | - | TDD red phase |
-| **Unit** | `unit/` | <1s | Isolated functions |
-| **Integration** | `integration/` | <30s | Multi-component |
-| **GenAI UAT** | `genai/` | <2min | LLM-as-judge (opt-in) |
+| Test This | With This | Not This |
+|-----------|-----------|----------|
+| Pure Python functions | Unit tests | — |
+| Component interactions | Integration tests | — |
+| Doc ↔ code alignment | GenAI congruence | Hardcoded string matching |
+| Component existence | Structural (glob) | Hardcoded counts |
+| FORBIDDEN list sync | GenAI congruence | Manual comparison |
+| Security posture | GenAI judge | Regex scanning |
+| Config structure | Structural | Config values |
+| Agent output quality | GenAI judge | Output string matching |
 
 ---
 
-## Test Types Decision Matrix
+## Hard Rules
 
-| Test Type | Speed | When to Use | Coverage Target |
-|-----------|-------|-------------|-----------------|
-| **Unit** | Fast (ms) | Pure functions, deterministic logic | 90%+ |
-| **Integration** | Medium (sec) | Component interactions, workflows | 70%+ |
-| **UAT** | Slow (min) | End-to-end scenarios, critical paths | Key flows |
-| **GenAI UAT** | Slow (min) | Architecture, doc drift, congruence, security | As needed |
-
----
-
-## Progressive Disclosure
-
-This skill uses progressive disclosure to prevent context bloat:
-
-- **Index** (this file): High-level concepts and quick reference (<500 lines)
-- **Detailed docs**: `docs/*.md` files with implementation details (loaded on-demand)
-
-**Available Documentation**:
-- `docs/three-layer-strategy.md` - Modern three-layer testing framework
-- `docs/testing-layers.md` - Four-layer testing pyramid
-- `docs/workflow-hybrid-approach.md` - Development and testing workflow
-- `docs/tdd-methodology.md` - Test-driven development patterns
-- `docs/progression-testing.md` - Performance baseline tracking
-- `docs/regression-testing.md` - Bug prevention patterns
-- `docs/test-organization-best-practices.md` - Directory structure and conventions
-- `docs/pytest-fixtures-coverage.md` - Pytest patterns and coverage
-- `docs/ci-cd-integration.md` - Automated testing integration
-
----
-
-## Cross-References
-
-**Related Skills**:
-- **python-standards** - Python coding conventions
-- **code-review** - Code quality standards
-- **error-handling-patterns** - Error handling best practices
-- **observability** - Logging and monitoring
-
-**Related Tools**:
-- pytest - Testing framework
-- pytest-cov - Coverage measurement
-- pytest-xdist - Parallel test execution
-- hypothesis - Property-based testing
-
----
-
-## Key Takeaways
-
-1. **Put tests in the right directory** - Auto-markers handle the rest (no manual @pytest.mark)
-2. **Smoke tests for critical paths** - `regression/smoke/` = CI gate
-3. **Write tests first** (TDD) - Guarantees coverage and drives better design
-4. **Use the testing pyramid** - Many unit tests, some integration, few UAT
-5. **100% test pass required** - ALL tests must pass, not 80% (coverage targets are separate)
-6. **Fast tests matter** - Keep unit tests under 1 second
-7. **Name tests clearly** - `test_<function>_<scenario>_<expected>`
-8. **One assertion per test** - Clear failure messages
-9. **Use fixtures** - DRY principle for setup/teardown
-10. **Test behavior, not implementation** - Tests should survive refactoring
-11. **Add regression tests** - Prevent fixed bugs from returning
-12. **Automate testing** - Pre-push hooks and CI/CD
-13. **Use GenAI validation** - Architectural reasoning beyond syntax
-14. **Track performance** - Progression tests for optimization validation
-15. **Validate categorization** - Run `python scripts/validate_test_categorization.py`
+1. **100% pass rate required** — ALL tests must pass, 0 failures. Coverage targets are separate.
+2. **Tests before implementation** — write failing tests, then implement.
+3. **Regression test for every bug fix** — named `test_regression_issue_NNN_description`.
+4. **No test is better than a flaky test** — if it fails randomly, fix or delete it.
+5. **GenAI tests are opt-in** — `--genai` flag required, no surprise API costs.

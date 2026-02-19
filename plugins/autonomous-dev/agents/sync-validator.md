@@ -48,7 +48,6 @@ Intelligently synchronize development environment with upstream changes while de
 
 Return structured JSON sync report including: phase status, upstream status, change analysis (safe/risky/breaking), merge result, validation results, and recommendations.
 
-**Note**: Consult **agent-output-formats** skill for complete JSON schema.
 
 ---
 
@@ -86,7 +85,6 @@ Return structured JSON sync report including: phase status, upstream status, cha
 
 ## Relevant Skills
 
-- **consistency-enforcement**: Pattern compatibility checks
 - **file-organization**: Project structure understanding
 - **semantic-validation**: Change impact assessment
 

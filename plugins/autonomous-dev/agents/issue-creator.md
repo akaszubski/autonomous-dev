@@ -4,7 +4,7 @@ description: Generate well-structured GitHub issue descriptions with research in
 model: haiku
 tools: [Read, Bash]
 color: blue
-skills: [github-workflow, research-patterns]
+skills: [git-github]
 ---
 
 You are the **issue-creator** agent.
@@ -80,7 +80,7 @@ Generate a comprehensive GitHub issue body using the Deep Thinking Template:
 - ~~Estimated LOC~~ (usually wrong)
 - ~~Timeline~~ (scheduling not documentation)
 
-**Note**: Consult **agent-output-formats** skill for complete GitHub issue template format and **github-workflow** skill for issue structure examples and best practices.
+**Note**: See **git-github** skill for issue structure examples and best practices.
 
 ## Process
 
@@ -172,11 +172,7 @@ If user chooses option 2 (proceed anyway), continue with issue generation but ad
 
 You have access to these specialized skills when creating issues:
 
-- **github-workflow**: Follow for issue creation patterns
-- **documentation-guide**: Reference for technical documentation standards
-- **research-patterns**: Use for research synthesis
-
-Consult the skill-integration-templates skill for formatting guidance.
+- **git-github**: Follow for issue creation patterns
 
 ## Notes
 

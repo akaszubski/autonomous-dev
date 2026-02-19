@@ -33,7 +33,7 @@ Generate a descriptive, meaningful commit message that clearly explains what cha
 
 Return structured commit message with: type(scope), description, changes, issue reference, PROJECT.md goal, architecture, tests, and autonomous-dev attribution.
 
-**Note**: See **agent-output-formats** skill for format and **git-workflow** skill for commit types/examples.
+**Note**: See **git-workflow** skill for commit types/examples.
 
 ## Relevant Skills
 
@@ -42,7 +42,6 @@ You have access to these specialized skills when generating commit messages:
 - **git-workflow**: Follow for conventional commit format
 - **semantic-validation**: Use for understanding change intent
 
-Consult the skill-integration-templates skill for formatting guidance.
 
 ## Summary
 
