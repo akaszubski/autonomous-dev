@@ -379,7 +379,7 @@ def _has_significant_additions(old_string: str, new_string: str, file_path: str 
     new_lines = len(new_string.strip().split('\n')) if new_string.strip() else 0
     added = max(0, new_lines - old_lines)
     if added >= SIGNIFICANT_LINE_THRESHOLD:
-        return True, f"Significant addition ({added} new lines)", f"+{added} lines"
+        return True, "Significant code change detected", f"+{added} lines"
     return False, "", ""
 
 
@@ -406,6 +406,26 @@ def _extract_bash_file_writes(command: str) -> list:
         file_paths.append(match.group(1).strip())
 
     return file_paths
+
+
+def _log_deviation(file_name: str, tool_name: str, reason: str) -> None:
+    """Append deviation to .claude/logs/deviations.jsonl for analytics."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt
+        log_dir = Path(os.getcwd()) / ".claude" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "timestamp": _dt.now().isoformat(),
+            "file": file_name,
+            "tool": tool_name,
+            "reason": reason,
+            "session_id": os.getenv("CLAUDE_SESSION_ID", "unknown"),
+        }
+        with open(log_dir / "deviations.jsonl", "a") as f:
+            f.write(_json.dumps(entry) + "\n")
+    except Exception:
+        pass  # Never fail the hook for logging
 
 
 def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
@@ -458,8 +478,8 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     if tool_name not in ("Edit", "Write", "Bash"):
         return ("allow", f"Tool '{tool_name}' not subject to workflow enforcement")
 
-    # Get enforcement level (default: block - use /implement for significant changes)
-    level = os.getenv("ENFORCEMENT_LEVEL", "block").strip().lower()
+    # Get enforcement level (default: suggest - nudge toward /implement)
+    level = os.getenv("ENFORCEMENT_LEVEL", "suggest").strip().lower()
     if level == "off":
         return ("allow", "Workflow enforcement disabled (level: off)")
 
@@ -493,22 +513,19 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
                 continue
             # Code file write detected via Bash
             file_name = Path(fp).name
-            suggestion = (
-                f"\n\nUse /implement for this change:\n"
-                f"- /implement \"description\"\n"
-                f"- /implement --quick \"description\" (skip full pipeline)\n"
-                f"- /implement #<issue-number>"
-            )
+            tip = "Tip: /implement handles testing, review, and docs automatically."
             if level == "warn":
                 import sys as _sys
                 _sys.stderr.write(f"WARNING: Bash file write to code file: {file_name}\n")
                 _sys.stderr.flush()
+                _log_deviation(file_name, tool_name, "Bash file write to code file")
                 return ("allow", f"Bash file write detected ({file_name}), allowed at WARN level")
             elif level == "suggest":
-                return ("allow", f"Bash file write to code file {file_name}.{suggestion}")
+                _log_deviation(file_name, tool_name, "Bash file write to code file")
+                return ("allow", f"Bash file write to code file {file_name}. {tip}")
             elif level == "block":
                 return ("deny", f"WORKFLOW ENFORCEMENT: Bash file write to code file {file_name}. "
-                        f"Significant code changes require /implement workflow.{suggestion}")
+                        f"Significant code changes require /implement workflow. {tip}")
         return ("allow", "Bash command writes only to non-code/exempt files")
     else:
         return ("allow", f"Tool '{tool_name}' allowed")
@@ -517,25 +534,22 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
         return ("allow", "Minor edit, no significant code additions detected")
 
     file_name = Path(file_path).name if file_path else "unknown"
-    suggestion = (
-        f"\n\nUse /implement for this change:\n"
-        f"- /implement \"description\"\n"
-        f"- /implement --quick \"description\" (skip full pipeline)\n"
-        f"- /implement #<issue-number>"
-    )
+    tip = "Tip: /implement handles testing, review, and docs automatically."
 
     if level == "warn":
         import sys as _sys
-        _sys.stderr.write(f"WARNING: Significant code change outside /implement: {reason} in {file_name}\n")
+        _sys.stderr.write(f"WARNING: {reason} in {file_name}\n")
         _sys.stderr.flush()
-        return ("allow", f"Significant change detected ({reason}), allowed at WARN level")
+        _log_deviation(file_name, tool_name, reason)
+        return ("allow", f"{reason} in {file_name}, allowed at WARN level")
 
     elif level == "suggest":
-        return ("allow", f"Significant change detected: {reason} - {details} in {file_name}.{suggestion}")
+        _log_deviation(file_name, tool_name, reason)
+        return ("allow", f"{reason} in {file_name}. {tip}")
 
     elif level == "block":
-        return ("deny", f"WORKFLOW ENFORCEMENT: {reason} - {details} in {file_name}. "
-                f"Significant code changes require /implement workflow.{suggestion}")
+        return ("deny", f"WORKFLOW ENFORCEMENT: {reason} in {file_name}. "
+                f"Significant code changes require /implement workflow. {tip}")
 
     return ("allow", f"Tool '{tool_name}' allowed")
 

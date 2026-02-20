@@ -19,9 +19,24 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
 ## Critical Rules
 
-**Use `/implement` for all code changes.** Exceptions: docs (.md), config (.json/.yaml), typos (1-2 lines).
+**Use the right command for every action:**
 
-**Use `/clear` after each feature.** Prevents context bloat (50K+ tokens → system fails).
+| Action | Command | Why |
+|--------|---------|-----|
+| Code changes | `/implement "desc"` | Tests, security review, docs |
+| Quick code fix | `/implement --quick "desc"` | Fast test + implement |
+| GitHub issues | `/create-issue "desc"` | Research, dedup, alignment |
+| Quality check | `/audit` | Coverage, security, docs |
+| Alignment | `/align` | PROJECT.md validation |
+| Doc updates | `/align --docs` | Sync docs with code |
+
+**Direct editing is only for**: docs (.md), config (.json/.yaml), typos (1-2 lines).
+
+**Why commands exist**: Each runs specialized agents that catch problems raw actions miss — alignment, testing, security, documentation. Skipping them means skipping quality.
+
+**Run `/improve` after `/implement` sessions.** Detects bypasses, test drift, doc staleness. Use `--auto-file` to create GitHub issues for findings.
+
+**Use `/clear` after each feature.** Prevents context bloat.
 
 **Use `/sync` to update.** Then restart Claude Code (Cmd+Q / Ctrl+Q).
 

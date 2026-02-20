@@ -2,12 +2,18 @@
 
 This project uses the **autonomous-dev** plugin for Claude Code, providing AI-powered development automation.
 
-**Quick Reference**:
-- `/clear` - Clear context after features (CRITICAL for performance)
-- `/auto-implement` - Full development pipeline (research → plan → test → implement → review → security → docs)
-- `/batch-implement` - Process multiple features sequentially
-- `/align` - Check alignment with PROJECT.md goals
-- `/worktree` - Manage git worktrees for isolated feature development
+**Use the right command for every action:**
+
+| Action | Command | Why |
+|--------|---------|-----|
+| Code changes | `/implement "desc"` | Tests, security review, docs |
+| Quick code fix | `/implement --quick "desc"` | Fast test + implement |
+| GitHub issues | `/create-issue "desc"` | Research, dedup, alignment |
+| Quality check | `/audit` | Coverage, security, docs |
+| Alignment | `/align` | PROJECT.md validation |
+| Doc updates | `/align --docs` | Sync docs with code |
+
+**Direct editing is only for**: docs (.md), config (.json/.yaml), typos (1-2 lines).
 
 **Context Management**:
 - Clear context after EACH feature: `/clear`

@@ -4,17 +4,17 @@
 # dependencies = []
 # ///
 """
-Unified Prompt Validator Hook - Dispatcher for UserPromptSubmit Checks
+Unified Prompt Validator Hook - Intent-to-Command Routing
 
 Consolidates UserPromptSubmit hooks:
-- detect_feature_request.py (workflow bypass detection - BLOCKING)
-- quality_workflow_nudge (implementation intent - NON-BLOCKING)
+- Command routing: Detects intent and suggests the right command
+- Bypass blocking: Blocks explicit workflow bypass attempts (gh issue create, skip /create-issue)
 
 Hook: UserPromptSubmit (runs when user submits a prompt)
 
 Environment Variables (opt-in/opt-out):
     ENFORCE_WORKFLOW=true/false (default: true) - Controls bypass blocking
-    QUALITY_NUDGE_ENABLED=true/false (default: true) - Controls quality reminders
+    QUALITY_NUDGE_ENABLED=true/false (default: true) - Controls command routing nudges
 
 Exit codes:
     0: Pass - No issues detected OR nudge shown (non-blocking)
@@ -24,7 +24,7 @@ Usage:
     # As UserPromptSubmit hook (automatic)
     echo '{"userPrompt": "gh issue create"}' | python unified_prompt_validator.py
 
-    # Test quality nudge
+    # Test command routing
     echo '{"userPrompt": "implement auth feature"}' | python unified_prompt_validator.py
 
     # Disable nudges
@@ -36,7 +36,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 # ============================================================================
@@ -89,236 +89,130 @@ QUALITY_NUDGE_ENABLED = os.environ.get("QUALITY_NUDGE_ENABLED", "true").lower() 
 
 
 # ============================================================================
-# Workflow Bypass Detection
+# Intent-to-Command Routing Table
 # ============================================================================
 
-def is_bypass_attempt(user_input: str) -> bool:
-    """
-    Detect if user input is attempting to bypass proper workflow.
-
-    Triggers on patterns that try to skip /create-issue pipeline:
-    - "gh issue create" (direct gh CLI usage)
-    - "skip /create-issue" / "bypass /create-issue" (explicit bypass)
-
-    Does NOT trigger on:
-    - "/create-issue" command itself (that's the CORRECT workflow)
-    - Feature requests like "implement X" (moved to persuasion, not enforcement)
-
-    Args:
-        user_input: User prompt text
-
-    Returns:
-        True if bypass attempt detected, False otherwise
-
-    Example:
-        >>> is_bypass_attempt("gh issue create --title 'bug'")
-        True
-        >>> is_bypass_attempt("/create-issue Add JWT auth")
-        False
-        >>> is_bypass_attempt("skip /create-issue and implement it")
-        True
-    """
-    # Convert to lowercase for matching
-    text = user_input.lower()
-
-    # Explicit bypass language (skip/bypass) - check FIRST
-    # "skip /create-issue" or "bypass /create-issue" are ALWAYS bypass attempts
-    if re.search(r'\b(skip|bypass)\s+/?(create-issue|auto-implement)', text, re.IGNORECASE):
-        return True
-
-    # Check for legitimate /create-issue command (without skip/bypass)
-    # This is the CORRECT workflow and should not be blocked
-    if re.search(r'/create[\s-]issue', text, re.IGNORECASE):
-        return False
-
-    # Direct gh CLI usage to create issues (bypasses research, validation)
-    if re.search(r'\bgh\s+issue\s+create\b', text, re.IGNORECASE):
-        return True
-
-    return False
-
-
-def get_bypass_message(user_input: str) -> str:
-    """
-    Generate blocking message when bypass attempt is detected.
-
-    Args:
-        user_input: User prompt that triggered bypass detection
-
-    Returns:
-        Formatted message explaining why bypass is blocked and correct workflow
-    """
-    preview = user_input[:100] + '...' if len(user_input) > 100 else user_input
-
-    return f"""
-WORKFLOW BYPASS BLOCKED
-
-Detected Pattern: {preview}
-
-You MUST use the correct workflow:
-  /create-issue "description"
-
-Why This Is Blocked:
-- Direct issue creation bypasses duplicate detection
-- Skips research integration (cached for /implement)
-- No PROJECT.md alignment validation
-
-Correct Workflow:
-1. Run: /create-issue "feature description"
-2. Command validates + researches + creates issue
-3. Then use: /implement #<issue-number>
-
-Set ENFORCE_WORKFLOW=false in .env to disable this check.
-"""
-
-
-def check_workflow_bypass(user_input: str) -> Dict[str, any]:
-    """
-    Check for workflow bypass attempts.
-
-    Args:
-        user_input: User prompt text
-
-    Returns:
-        Dict with 'passed' (bool) and 'message' (str)
-    """
-    if not ENFORCE_WORKFLOW:
-        return {'passed': True, 'message': ''}
-
-    if is_bypass_attempt(user_input):
-        return {
-            'passed': False,
-            'message': get_bypass_message(user_input),
-        }
-
-    return {'passed': True, 'message': ''}
-
-
-# ============================================================================
-# Quality Workflow Nudge Detection (Issue #153)
-# ============================================================================
-
-# Implementation intent patterns - detect phrases indicating new code creation
-IMPLEMENTATION_PATTERNS = [
-    # Direct implementation verbs with feature/component targets
-    # Uses (?:\w+\s+)* to match zero or more words before target (e.g., "JWT authentication feature")
-    r'\b(implement|create|add|build|write|develop)\s+(?:a\s+)?(?:new\s+)?'
-    r'(?:\w+\s+)*(feature|function|class|method|module|component|api|endpoint|'
-    r'service|handler|controller|model|interface|code|authentication|system|'
-    r'logic|workflow|validation|integration)',
-    # Feature addition patterns (direct like "add support" or with description)
-    r'\b(add|implement)\s+(?:.*\s+)?(support|functionality|capability)\b',
-    # System modification patterns
-    r'\b(modify|update|change|refactor)\s+.*\s+to\s+(add|support|implement)\b',
+COMMAND_ROUTES: List[Dict] = [
+    # NOTE: Order matters! More specific routes must come before general ones.
+    # /create-issue before /implement (since "create issue" would match implement's "create" verb).
+    {
+        "intent": [
+            r'\bgh\s+issue\s+create\b',
+            r'\b(file|open|create|submit)\s+(?:a\s+)?(?:an\s+)?(?:new\s+)?(?:github\s+)?issue\b',
+        ],
+        "skip": [r'^/create-issue'],
+        "command": "/create-issue",
+        "reason": "includes duplicate detection, research, and PROJECT.md alignment",
+        "block": True,  # gh issue create is blocked, not just suggested
+    },
+    {
+        "intent": [
+            r'\b(check|run|verify)\s+(?:the\s+)?(?:tests?|security|coverage|audit)\b',
+            r'\bpytest\b',
+        ],
+        "skip": [r'^/audit', r'^/test'],
+        "command": "/audit",
+        "reason": "runs comprehensive quality checks (tests, security, coverage, docs)",
+    },
+    {
+        "intent": [
+            r'\b(check|verify|validate)\s+(?:project\s+)?alignment\b',
+            r'PROJECT\.md.*\b(align|check|updat|sync)',
+            r'\balign.*PROJECT\.md',
+            r'\b(check|validate|verify).*PROJECT\.md',
+        ],
+        "skip": [r'^/align'],
+        "command": "/align",
+        "reason": "validates against PROJECT.md goals, scope, and constraints",
+    },
+    {
+        "intent": [
+            r'\b(update|sync|write|fix)\s+(?:the\s+)?(?:docs|documentation|README|CLAUDE)\b',
+        ],
+        "skip": [r'^/align', r'^/update-docs'],
+        "command": "/align --docs",
+        "reason": "synchronizes documentation with codebase automatically",
+    },
+    {
+        "intent": [
+            r'\b(implement|create|add|build|write|develop|fix|patch|refactor|update|modify)\b'
+            r'.*\b(feature|function|class|method|module|component|api|endpoint|service|handler|'
+            r'controller|model|interface|code|authentication|system|logic|workflow|validation|'
+            r'integration|bug|test)\b',
+        ],
+        "skip": [r'^/', r'\?$'],
+        "command": "/implement",
+        "reason": "handles testing, security review, and docs automatically",
+    },
 ]
 
-# Quality nudge message template
-QUALITY_NUDGE_MESSAGE = """
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 Quality Workflow Reminder
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-It looks like you're about to implement a feature.
-
-Before implementing directly, consider the quality workflow:
-
-1. Check PROJECT.md alignment
-   Does this feature serve project GOALS and respect CONSTRAINTS?
-
-2. Search codebase for existing patterns
-   Use Grep/Glob to find similar implementations first.
-
-3. Consider /implement (recommended)
-   Research → Plan → TDD → Implement → Review → Security → Docs
-
-Why /implement works better (production data):
-  - Bug rate: 23% (direct) vs 4% (pipeline)
-  - Security issues: 12% (direct) vs 0.3% (pipeline)
-  - Test coverage: 43% (direct) vs 94% (pipeline)
-
-This is a reminder, not a requirement. Proceed if you prefer direct implementation.
-
-To disable: Set QUALITY_NUDGE_ENABLED=false in .env
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"""
-
-
-def is_implementation_intent(user_input: str) -> bool:
+def detect_command_intent(user_input: str) -> Optional[Dict]:
     """
-    Check if user input indicates implementation intent.
+    Check user input against the command routing table.
 
-    Uses regex patterns to detect phrases like:
-    - "implement X feature"
-    - "add Y function"
-    - "create Z class"
-    - "build new component"
-
-    Does NOT trigger for:
-    - Questions ("How do I implement...?")
-    - Documentation updates
-    - Bug fixes
-    - Reading/searching operations
-    - Already using /implement or /create-issue
+    Returns the first matching route, or None if no match.
 
     Args:
         user_input: User prompt text
 
     Returns:
-        True if implementation intent detected, False otherwise
+        Dict with 'command', 'reason', and optionally 'block', or None
 
     Example:
-        >>> is_implementation_intent("implement JWT authentication feature")
-        True
-        >>> is_implementation_intent("How do I implement this?")
-        False
-        >>> is_implementation_intent("/implement #123")
-        False
+        >>> detect_command_intent("implement JWT authentication feature")
+        {'command': '/implement', 'reason': '...', 'block': False}
+        >>> detect_command_intent("/implement #123")
+        None
+        >>> detect_command_intent("How do I implement this?")
+        None
     """
     if not user_input or not user_input.strip():
-        return False
+        return None
 
-    text = user_input.lower().strip()
+    text = user_input.strip()
 
-    # Skip if already using quality commands
-    if re.search(r'/implement|/create-issue', text, re.IGNORECASE):
-        return False
+    for route in COMMAND_ROUTES:
+        # Check skip patterns first
+        skip = False
+        for skip_pattern in route["skip"]:
+            if re.search(skip_pattern, text, re.IGNORECASE):
+                skip = True
+                break
+        if skip:
+            continue
 
-    # Skip questions (end with ?)
-    if text.rstrip().endswith('?'):
-        return False
+        # Check intent patterns
+        for intent_pattern in route["intent"]:
+            if re.search(intent_pattern, text, re.IGNORECASE):
+                return {
+                    "command": route["command"],
+                    "reason": route["reason"],
+                    "block": route.get("block", False),
+                }
 
-    # Check implementation patterns
-    for pattern in IMPLEMENTATION_PATTERNS:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
-
-    return False
+    return None
 
 
-def detect_implementation_intent(user_input: str) -> Dict[str, any]:
-    """
-    Detect implementation intent and provide quality workflow nudge.
+def _format_nudge(command: str, reason: str) -> str:
+    """Format a concise command suggestion nudge."""
+    return (
+        f'This looks like it needs {command} \u2014 {reason}.\n'
+        f'  {command} "description"\n'
+        f'Proceeding directly is fine for small changes.'
+    )
 
-    This is a NON-BLOCKING check. It never prevents the prompt from
-    being processed. Instead, it provides a helpful reminder about
-    quality workflows.
 
-    Args:
-        user_input: User prompt text
-
-    Returns:
-        Dict with 'nudge' (bool) and 'message' (str)
-    """
-    if not QUALITY_NUDGE_ENABLED:
-        return {'nudge': False, 'message': ''}
-
-    if is_implementation_intent(user_input):
-        return {
-            'nudge': True,
-            'message': QUALITY_NUDGE_MESSAGE,
-        }
-
-    return {'nudge': False, 'message': ''}
+def _format_block(command: str, reason: str, user_input: str) -> str:
+    """Format a blocking message for bypass attempts."""
+    preview = user_input[:100] + '...' if len(user_input) > 100 else user_input
+    return (
+        f'WORKFLOW BYPASS BLOCKED\n\n'
+        f'Detected: {preview}\n\n'
+        f'Use {command} instead \u2014 {reason}.\n'
+        f'  {command} "description"\n\n'
+        f'Set ENFORCE_WORKFLOW=false to disable this check.'
+    )
 
 
 # ============================================================================
@@ -331,7 +225,7 @@ def main() -> int:
 
     Reads stdin for hook input, dispatches checks, outputs result.
     Handles both blocking checks (workflow bypass) and non-blocking
-    nudges (quality workflow reminders).
+    nudges (command routing suggestions).
 
     Returns:
         0 if all checks pass or nudge detected (non-blocking)
@@ -353,37 +247,36 @@ def main() -> int:
     # Extract user prompt
     user_prompt = input_data.get('userPrompt', '')
 
-    # Check for workflow bypass (BLOCKING)
-    workflow_check = check_workflow_bypass(user_prompt)
+    # Detect command intent via routing table
+    route = detect_command_intent(user_prompt)
 
-    if not workflow_check['passed']:
-        # Block: Print error message to stderr and return error code
-        print(workflow_check['message'], file=sys.stderr)
+    if route and route.get("block") and ENFORCE_WORKFLOW:
+        # Block: bypass attempt (e.g. gh issue create)
+        message = _format_block(route["command"], route["reason"], user_prompt)
+        print(message, file=sys.stderr)
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
-                "error": workflow_check['message']
+                "error": message,
             }
         }
         print(json.dumps(output))
         return 2
 
-    # Check for implementation intent (NON-BLOCKING)
-    intent_check = detect_implementation_intent(user_prompt)
-
-    if intent_check['nudge']:
-        # Nudge: Print reminder to stderr but still allow (exit 0)
-        print(intent_check['message'], file=sys.stderr)
+    if route and QUALITY_NUDGE_ENABLED:
+        # Nudge: suggest the right command (non-blocking)
+        message = _format_nudge(route["command"], route["reason"])
+        print(message, file=sys.stderr)
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
-                "nudge": intent_check['message']
+                "nudge": message,
             }
         }
         print(json.dumps(output))
         return 0
 
-    # Pass: All checks succeeded, no nudges
+    # Pass: no routing match
     output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit"
