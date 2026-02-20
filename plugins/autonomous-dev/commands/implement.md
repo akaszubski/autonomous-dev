@@ -63,6 +63,8 @@ ARGUMENTS: {{ARGUMENTS}}
 
 Parse ARGUMENTS: `--quick` → QUICK MODE, `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, `--acceptance-first` → FULL PIPELINE with ACCEPTANCE-FIRST variant, else → FULL PIPELINE.
 
+**Auto-detect batch issues mode**: If no explicit flag is present but ARGUMENTS contains 2+ issue references (e.g. `#621 #620` or `621 620`), auto-route to BATCH ISSUES MODE. This prevents accidentally running multiple issues on main without worktree isolation. A single `#NNN` is full pipeline mode for that issue.
+
 Also check for `--no-cache` flag. If present, skip STEP 1.5 (research cache check) and always run fresh research in STEP 2.
 
 **Acceptance-first mode**: When `--acceptance-first` is present, the pipeline uses the diamond testing model — acceptance tests are written BEFORE implementation (STEP 3.5), and unit tests are generated alongside code (STEP 4 is skipped). Falls back to standard TDD if `tests/genai/conftest.py` doesn't exist.
