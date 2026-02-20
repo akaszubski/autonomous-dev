@@ -216,6 +216,30 @@ def _format_block(command: str, reason: str, user_input: str) -> str:
 
 
 # ============================================================================
+# Activity Logging
+# ============================================================================
+
+def _log_activity(event: str, details: dict) -> None:
+    """Append to shared activity log for full observability."""
+    try:
+        from datetime import datetime, timezone
+        log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "hook": "UserPromptSubmit",
+            "event": event,
+            "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+            **details,
+        }
+        with open(log_dir / f"{date_str}.jsonl", "a") as f:
+            f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    except Exception:
+        pass
+
+
+# ============================================================================
 # Main Hook Entry Point
 # ============================================================================
 
@@ -246,12 +270,18 @@ def main() -> int:
 
     # Extract user prompt
     user_prompt = input_data.get('userPrompt', '')
+    prompt_preview = user_prompt[:200] if user_prompt else ''
 
     # Detect command intent via routing table
     route = detect_command_intent(user_prompt)
 
     if route and route.get("block") and ENFORCE_WORKFLOW:
-        # Block: bypass attempt (e.g. gh issue create)
+        _log_activity("block", {
+            "prompt": prompt_preview,
+            "suggested_command": route["command"],
+            "reason": route["reason"],
+            "decision": "block",
+        })
         message = _format_block(route["command"], route["reason"], user_prompt)
         print(message, file=sys.stderr)
         output = {
@@ -264,7 +294,12 @@ def main() -> int:
         return 2
 
     if route and QUALITY_NUDGE_ENABLED:
-        # Nudge: suggest the right command (non-blocking)
+        _log_activity("nudge", {
+            "prompt": prompt_preview,
+            "suggested_command": route["command"],
+            "reason": route["reason"],
+            "decision": "nudge",
+        })
         message = _format_nudge(route["command"], route["reason"])
         print(message, file=sys.stderr)
         output = {
@@ -277,6 +312,11 @@ def main() -> int:
         return 0
 
     # Pass: no routing match
+    _log_activity("pass", {
+        "prompt": prompt_preview,
+        "decision": "pass",
+        "route_matched": False,
+    })
     output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit"

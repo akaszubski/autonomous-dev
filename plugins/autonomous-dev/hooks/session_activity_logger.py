@@ -148,15 +148,30 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
 
 
 def _summarize_output(tool_output: dict) -> dict:
-    """Create a compact summary of tool output."""
+    """Create a compact summary of tool output including errors."""
     if isinstance(tool_output, str):
-        return {"length": len(tool_output), "success": True}
+        # Check if it looks like an error
+        is_error = any(w in tool_output.lower() for w in ["error", "traceback", "failed", "exception"])
+        summary = {"length": len(tool_output), "success": not is_error}
+        if is_error:
+            summary["error_preview"] = tool_output[:500]
+        return summary
 
     if isinstance(tool_output, dict):
-        return {
-            "success": not tool_output.get("error", False),
+        has_error = tool_output.get("error", False)
+        summary = {
+            "success": not has_error,
             "has_output": bool(tool_output.get("output", "")),
         }
+        if has_error:
+            # Capture error details
+            err = tool_output.get("error", "")
+            if isinstance(err, str):
+                summary["error_preview"] = err[:500]
+            output_text = tool_output.get("output", "")
+            if isinstance(output_text, str) and output_text:
+                summary["output_preview"] = output_text[:500]
+        return summary
 
     return {"success": True}
 

@@ -636,6 +636,41 @@ def combine_decisions(validators_results: List[Tuple[str, str, str]]) -> Tuple[s
         return ("ask", "; ".join(reasons))
 
 
+def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
+    """Log PreToolUse decision to shared activity log."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+        log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        date_str = _dt.now().strftime("%Y-%m-%d")
+
+        # Build a compact summary of what's being done
+        summary = {"tool": tool_name}
+        if tool_name in ("Edit", "Write"):
+            summary["file"] = tool_input.get("file_path", "")
+        elif tool_name == "Bash":
+            cmd = tool_input.get("command", "")
+            summary["command"] = cmd[:200] if len(cmd) > 200 else cmd
+        elif tool_name == "Task":
+            summary["subagent"] = tool_input.get("subagent_type", "")
+            summary["description"] = tool_input.get("description", "")
+
+        entry = {
+            "timestamp": _dt.now(_tz.utc).isoformat(),
+            "hook": "PreToolUse",
+            "decision": decision,
+            "reason": reason[:300],
+            "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+            "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+            **summary,
+        }
+        with open(log_dir / f"{date_str}.jsonl", "a") as f:
+            f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
+    except Exception:
+        pass
+
+
 def output_decision(decision: str, reason: str):
     """Output the hook decision in required format."""
     output = {
@@ -692,6 +727,9 @@ def main():
 
         # Combine all decisions
         final_decision, combined_reason = combine_decisions(validators_results)
+
+        # Log the enforcement decision
+        _log_pretool_activity(tool_name, tool_input, final_decision, combined_reason)
 
         # Output final decision
         output_decision(final_decision, combined_reason)
