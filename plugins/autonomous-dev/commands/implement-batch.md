@@ -236,6 +236,7 @@ Same as BATCH FILE MODE:
 3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see STEP B3)
 4. Git automation (see STEP B4) - triggers at end of batch
 5. Report summary (see STEP B5)
+6. Run continuous improvement analysis (see STEP 9 in implement.md) in background
 
 **CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in STEP B3.
 

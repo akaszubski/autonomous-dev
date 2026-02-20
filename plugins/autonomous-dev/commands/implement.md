@@ -277,11 +277,31 @@ Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
 
 ---
 
+### STEP 9: Continuous Improvement Analysis
+
+After pipeline completes, invoke **continuous-improvement-analyst** (sonnet) in background to analyze this session:
+
+```
+Analyze today's session logs in .claude/logs/activity/ for:
+- Workflow bypasses or hook gaps
+- Test drift (skipped tests, failing tests)
+- Documentation staleness (code changed without doc updates)
+- Pipeline completeness (missing terminal actions)
+- Model intent bypasses (test gate, anti-stubbing, step skipping)
+
+Check known bypass patterns in plugins/autonomous-dev/config/known_bypass_patterns.json.
+Output: critical findings, warnings, suggestions. File GitHub issues for severity >= warning if --auto-file.
+```
+
+This step is NON-BLOCKING — the pipeline result is already reported in STEP 8. If the analyst finds issues, they appear as a follow-up message after the main report.
+
+---
+
 # QUICK MODE
 
 Invoke **implementer** (sonnet) for pre-planned work (docs, config, features with existing tests).
 
-After completion, run `pytest --tb=short -q`. **HARD GATE**: 0 failures required (same rules as STEP 5). Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
+After completion, run `pytest --tb=short -q`. **HARD GATE**: 0 failures required (same rules as STEP 5). Then run STEP 9 (continuous improvement analysis) in background. Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
 
 **Git Automation** (Issue #258): If `AUTO_GIT_ENABLED=true`, run:
 ```bash
