@@ -9,12 +9,13 @@ Session Activity Logger - Structured tool call logging for continuous improvemen
 Logs every tool call as structured JSONL for post-session analysis by the
 continuous-improvement-analyst agent.
 
-Hook: PostToolUse (runs after every tool call)
+Hooks: PostToolUse (after every tool call), Stop (after assistant response)
 
 Captures:
     - Tool name and input summary (NOT full content)
     - Output status (success/error)
     - Active agent context (pipeline step)
+    - Assistant text output (truncated summary)
     - Timestamp and session ID
 
 Log location: .claude/logs/activity/{date}.jsonl
@@ -59,6 +60,45 @@ def main():
         except json.JSONDecodeError:
             sys.exit(0)
 
+        # Detect hook type from input fields
+        hook_event = hook_input.get("hook_event_name", "")
+
+        if hook_event == "Stop":
+            # Stop hook: capture assistant text output
+            message = hook_input.get("last_assistant_message", "")
+            if not message:
+                sys.exit(0)
+            if log_level == "debug":
+                entry = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "hook": "Stop",
+                    "message": message[:10000],
+                    "message_length": len(message),
+                    "session_id": os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown")),
+                    "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+                    "stop_hook_active": hook_input.get("stop_hook_active", False),
+                    "debug": True,
+                }
+            else:
+                entry = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "hook": "Stop",
+                    "message_preview": message[:1000],
+                    "message_length": len(message),
+                    "session_id": os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown")),
+                    "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
+                    "stop_hook_active": hook_input.get("stop_hook_active", False),
+                }
+
+            log_dir = _find_log_dir()
+            log_dir.mkdir(parents=True, exist_ok=True)
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            log_file = log_dir / f"{date_str}.jsonl"
+            with open(log_file, "a") as f:
+                f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+            sys.exit(0)
+
+        # PostToolUse: capture tool call activity
         tool_name = hook_input.get("tool_name", "unknown")
         tool_input = hook_input.get("tool_input", {})
         tool_output = hook_input.get("tool_output", {})
