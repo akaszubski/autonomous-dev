@@ -196,16 +196,16 @@ class TestWorkflowEnforcementNudges:
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
         decision, reason = hook.validate_agent_authorization("Edit", self._make_significant_edit())
-        assert decision == "allow"
+        assert decision == "ask"
         assert "/implement" in reason
 
     def test_write_suggest_nudge(self, monkeypatch):
-        """Write with significant code at suggest level should nudge."""
+        """Write with significant code at suggest level should prompt user."""
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "suggest")
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
         decision, reason = hook.validate_agent_authorization("Write", self._make_significant_write())
-        assert decision == "allow"
+        assert decision == "ask"
         assert "/implement" in reason
 
     def test_edit_block_level_denies(self, monkeypatch):

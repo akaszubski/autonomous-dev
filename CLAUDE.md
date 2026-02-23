@@ -32,6 +32,8 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
 **Direct editing is only for**: docs (.md), config (.json/.yaml), typos (1-2 lines).
 
+**After plan mode approval → use `/implement`**: When you exit plan mode with an approved implementation plan, do NOT start coding directly. Run `/implement --quick "description"` (or full `/implement`) with the plan. The plan IS the input to `/implement`, not a license to bypass it.
+
 **Why commands exist**: Each runs specialized agents that catch problems raw actions miss — alignment, testing, security, documentation. Skipping them means skipping quality.
 
 **Run `/improve` after `/implement` sessions.** Detects bypasses, test drift, doc staleness. Use `--auto-file` to create GitHub issues for findings.
@@ -87,7 +89,7 @@ Update state after completing significant work. State survives `/clear` operatio
 
 14 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
 
-Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst. See agents/archived/ for 17 archived agents.
+Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst. See agents/archived/ for 16 archived agents.
 
 ## Detailed Guides
 
@@ -107,6 +109,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-14 agents, 16 skills, 15 active commands (12 archived), 160 libraries, 17 active hooks (62 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+14 agents (16 archived), 17 skills, 15 active commands, 140 libraries, 17 active hooks (62 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
-**Last Updated**: 2026-02-19
+**Last Updated**: 2026-02-21

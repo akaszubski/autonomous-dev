@@ -189,8 +189,7 @@ class TestValidateAgentAuthorization:
             assert decision == "allow"
 
     def test_block_significant_edit(self):
-        with patch.dict(os.environ, {"PRE_TOOL_AGENT_AUTH": "true", "CLAUDE_AGENT_NAME": "", "ENFORCEMENT_LEVEL": "block"}, clear=False):
-            os.environ.pop("PIPELINE_STATE_FILE", None)
+        with patch.dict(os.environ, {"PRE_TOOL_AGENT_AUTH": "true", "CLAUDE_AGENT_NAME": "", "ENFORCEMENT_LEVEL": "block", "PIPELINE_STATE_FILE": "/nonexistent/state.json"}, clear=False):
             new_code = "def foo():\n    pass\ndef bar():\n    pass\ndef baz():\n    x=1\n    y=2\n    z=3\n"
             decision, reason = upt.validate_agent_authorization(
                 "Edit", {"file_path": "app.py", "old_string": "", "new_string": new_code}
@@ -198,14 +197,13 @@ class TestValidateAgentAuthorization:
             assert decision == "deny"
 
     def test_suggest_level(self):
-        with patch.dict(os.environ, {"PRE_TOOL_AGENT_AUTH": "true", "CLAUDE_AGENT_NAME": "", "ENFORCEMENT_LEVEL": "suggest"}, clear=False):
-            os.environ.pop("PIPELINE_STATE_FILE", None)
+        with patch.dict(os.environ, {"PRE_TOOL_AGENT_AUTH": "true", "CLAUDE_AGENT_NAME": "", "ENFORCEMENT_LEVEL": "suggest", "PIPELINE_STATE_FILE": "/nonexistent/state.json"}, clear=False):
             new_code = "def foo():\n    pass\ndef bar():\n    pass\ndef baz():\n    x=1\n    y=2\n    z=3\n"
             decision, reason = upt.validate_agent_authorization(
                 "Edit", {"file_path": "app.py", "old_string": "", "new_string": new_code}
             )
-            assert decision == "allow"
-            assert "Tip" in reason
+            assert decision == "ask"
+            assert "/implement" in reason
 
     def test_minor_edit_allowed(self):
         with patch.dict(os.environ, {"PRE_TOOL_AGENT_AUTH": "true", "CLAUDE_AGENT_NAME": "", "ENFORCEMENT_LEVEL": "block"}, clear=False):

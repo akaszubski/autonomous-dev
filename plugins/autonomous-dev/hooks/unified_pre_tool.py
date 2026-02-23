@@ -436,7 +436,7 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     Enforcement level controlled by ENFORCEMENT_LEVEL env var:
     - off: always allow
     - warn: allow + log warning (default for backward compat)
-    - suggest: allow + include /implement suggestion in reason
+    - suggest: ask (user-visible prompt) + include /implement suggestion in reason
     - block: deny significant changes outside pipeline
 
     Args:
@@ -522,7 +522,7 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
                 return ("allow", f"Bash file write detected ({file_name}), allowed at WARN level")
             elif level == "suggest":
                 _log_deviation(file_name, tool_name, "Bash file write to code file")
-                return ("allow", f"Bash file write to code file {file_name}. {tip}")
+                return ("ask", f"Bash file write to code file {file_name}. {tip}")
             elif level == "block":
                 return ("deny", f"WORKFLOW ENFORCEMENT: Bash file write to code file {file_name}. "
                         f"Significant code changes require /implement workflow. {tip}")
@@ -545,11 +545,20 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
 
     elif level == "suggest":
         _log_deviation(file_name, tool_name, reason)
-        return ("allow", f"{reason} in {file_name}. {tip}")
+        return ("ask", f"{reason} in {file_name}. "
+                f"Use /implement for this change:\n"
+                f"- /implement \"description\"\n"
+                f"- /implement --quick \"description\" (skip full pipeline)\n"
+                f"- /implement #<issue-number>")
 
     elif level == "block":
         return ("deny", f"WORKFLOW ENFORCEMENT: {reason} in {file_name}. "
-                f"Significant code changes require /implement workflow. {tip}")
+                f"Significant code changes require /implement workflow. "
+                f"STOP coding directly and run: /implement --quick \"description\"\n"
+                f"Use /implement for this change:\n"
+                f"- /implement \"description\"\n"
+                f"- /implement --quick \"description\" (skip full pipeline)\n"
+                f"- /implement #<issue-number>")
 
     return ("allow", f"Tool '{tool_name}' allowed")
 
