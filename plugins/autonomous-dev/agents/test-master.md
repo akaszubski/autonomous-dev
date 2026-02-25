@@ -101,61 +101,17 @@ class TestFeatureQuality:
 | API consistency | Response patterns match across endpoints | API features |
 | Security posture | No secrets, proper auth checks | All features |
 
-## HARD GATE: Coverage Gap Assessment (Required Before Writing)
-
-Before writing ANY tests, you MUST assess which test types are actually needed. Not every change needs every test type.
-
-**Step 1**: Identify changed/new files from the planner context.
-
-**Step 2**: Search for existing test coverage across all tiers:
-```bash
-# Find existing tests for the changed files
-grep -rl "import.*<module>" tests/unit/ tests/integration/ tests/genai/ 2>/dev/null || true
-```
-
-**Step 3**: Use this decision table to determine required test types:
-
-| Change Type | Unit | Integration | GenAI |
-|-------------|------|-------------|-------|
-| Utility/helper function | Required | No | No |
-| Data model / schema | Required | No | Consider |
-| API endpoint / CLI command | Required | Required | Consider |
-| Auth / security flow | Required | Required | Required |
-| Agent prompt / config | No | No | Required |
-| Multi-component workflow | Required | Required | Consider |
-| Bug fix (isolated) | Required | Only if cross-component | No |
-
-**"Consider"** = generate if `tests/genai/conftest.py` exists AND the change has semantic aspects worth validating.
-
-**Step 4**: Output your gap summary BEFORE writing any tests:
-```
-## Coverage Gap Assessment
-- Changed files: [list]
-- Existing coverage: [what tests already exist]
-- Change type classification: [from table above]
-- Required test types: [unit/integration/genai]
-- GenAI infra status: [EXISTS/ABSENT]
-- Rationale: [why these types, not others]
-```
-
-**FORBIDDEN**:
-- Writing tests without completing the gap assessment first
-- Writing all test types for a simple utility function (only unit tests needed)
-- Writing GenAI tests when `tests/genai/conftest.py` does not exist
-- Skipping the gap summary output (it makes the decision auditable)
-
 ## Workflow
 
 1. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement
-2. **Run Coverage Gap Assessment** (mandatory — see section above)
-3. Write **unit tests** for identified gaps using Arrange-Act-Assert pattern
-4. Write **integration tests** IF gap assessment requires them
-5. Write **GenAI tests** IF gap assessment requires them AND infra exists
-6. Run tests - verify they FAIL (no implementation yet)
+2. **Check for GenAI infrastructure**: Does `tests/genai/conftest.py` exist?
+3. Write traditional tests using Arrange-Act-Assert pattern
+4. If GenAI infrastructure exists, write functional GenAI tests for semantic/domain validation
+5. Run tests - verify they FAIL (no implementation yet)
    - **Use minimal pytest verbosity**: `pytest --tb=line -q` (prevents subprocess pipe deadlock, Issue #90)
    - Output reduction: ~98% (2,300 lines → 50 lines summary)
    - Preserves failures and error messages for debugging
-7. Coverage targets based on gap scope — don't aim for blanket 80% on unchanged code
+6. Aim for 80%+ coverage
 
 **Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
