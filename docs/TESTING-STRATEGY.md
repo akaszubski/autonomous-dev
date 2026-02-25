@@ -49,7 +49,9 @@ autonomous-dev uses a **diamond testing model** — not the traditional testing 
 
 **Role in diamond**: Regression locks, not specifications. These ensure implemented behavior doesn't change, but they don't define what "correct" means. Agent-generated unit tests lock in the implementation after acceptance criteria are satisfied.
 
-**HARD GATE**: `test_dynamic_component_counts.py` is the gold standard — uses `glob()` discovery, minimum thresholds, structural checks. No hardcoded counts (`assert len(agents) == 16` is FORBIDDEN).
+**HARD GATES**:
+- `test_dynamic_component_counts.py` — Uses `glob()` discovery, minimum thresholds, structural checks. No hardcoded counts (`assert len(agents) == 16` is FORBIDDEN).
+- **Coverage Gap Assessment** (test-master) — Before writing ANY tests, classify change type and generate gap summary showing which test types are required. Prevents over/under-testing. See [test-master.md](/plugins/autonomous-dev/agents/test-master.md) for details.
 
 ### Layer 3: Property-Based Invariants
 
@@ -209,14 +211,36 @@ Define acceptance criteria → Implement + generate unit tests → Validate all 
 
 ---
 
+## Coverage Gap Assessment (HARD GATE)
+
+**Before writing ANY tests**, the test-master agent must run a coverage gap assessment:
+
+1. **Classify the change** — Into one of 8 categories (utility, data model, API/CLI, auth/security, agent prompt, UI, multi-component workflow, bug fix)
+2. **Check GenAI infrastructure** — Does `tests/genai/conftest.py` exist?
+3. **Output gap summary** — Shows which test types are required, which are optional, which to skip and why
+4. **Follow the classification table** — Each change type has a prescribed set of required test types
+
+**Why**: Prevents over-testing (writing 200 unit tests for a pure helper function) and under-testing (writing only GenAI tests for an auth change). Ensures right-sized test coverage per change type.
+
+**FORBIDDEN behaviors**:
+- Writing ANY test file before outputting the gap summary
+- Generating integration tests for a pure utility change
+- Generating GenAI tests when infrastructure doesn't exist
+- Generating only GenAI tests for changes that need unit tests (auth, API, data model)
+- Skipping ALL test types (every change needs at least one type)
+
+**Reference**: See [test-master.md](/plugins/autonomous-dev/agents/test-master.md) lines 44-102 for detailed decision table and HARD GATE rules.
+
+---
+
 ## Decision Framework: When to Write Which Test
 
 | Question | Test Type |
 |----------|-----------|
-| "Does this function return the right value?" | Unit test (Layer 2) |
-| "Does output satisfy an invariant across all inputs?" | Property test (Layer 3) |
-| "Do these components work together?" | Integration test (Layer 4) |
-| "Does the code match the documented architecture?" | GenAI congruence test (Layer 5) |
+| "Does this function return the right value?" | Unit test (Layer 2) — after gap assessment |
+| "Does output satisfy an invariant across all inputs?" | Property test (Layer 3) — after gap assessment |
+| "Do these components work together?" | Integration test (Layer 4) — after gap assessment |
+| "Does the code match the documented architecture?" | GenAI congruence test (Layer 5) — if gap assessment allows |
 | "Does this feature satisfy the user's requirement?" | Acceptance test (Layer 6) |
 | "Is this code formatted correctly?" | Lint/type check (Layer 1) |
 

@@ -111,4 +111,4 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 14 agents (16 archived), 17 skills, 15 active commands, 140 libraries, 17 active hooks (62 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
-**Last Updated**: 2026-02-21
+**Last Updated**: 2026-02-25

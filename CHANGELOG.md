@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+### Added
+
+- **Coverage Gap Assessment HARD GATE in test-master** (Issue #?)
+  - Mandatory assessment runs before writing ANY tests to prevent over-testing or under-testing changes
+  - Classification table maps change type → required test types (unit, integration, GenAI)
+  - GenAI infrastructure detection: checks if `tests/genai/conftest.py` exists
+  - Gap summary output before test writing (FORBIDDEN to skip this step)
+  - Prevents 6 common testing anti-patterns: hardcoded counts, missing integration tests, incorrect GenAI coverage, GenAI-only for auth changes, skipping all test types
+  - Test validation: `tests/genai/test_coverage_gap_gate_quality.py`, `tests/unit/agents/test_test_master_coverage_gap_gate.py`
+  - Enhanced implement.md STEP 4 to pass file list and GenAI infra status to test-master
+  - Enables right-sized testing: only required test types per change category
+
 ### Changed
 - **Reduce auto-activate token overhead for training skills** (Issue #335)
   - Changed 4 training skills from auto_activate: true to false:

@@ -41,6 +41,65 @@ Write tests FIRST (TDD red phase) based on the implementation plan. Tests should
 
 **Reference**: `tests/regression/smoke/test_dynamic_component_counts.py` — the gold standard for dynamic component testing.
 
+## HARD GATE: Coverage Gap Assessment (Run FIRST)
+
+Before writing ANY tests, classify the change and determine which test types are needed.
+
+### Step 1: Classify the Change
+
+Review the planner output and file list. Classify into ONE primary category:
+
+| Change Type | Examples | Unit | Integration | GenAI (if infra exists) |
+|-------------|----------|------|-------------|------------------------|
+| Utility/helper | Pure function, string parser, math logic | REQUIRED | skip | skip |
+| Data model | Schema, ORM model, serializer | REQUIRED | REQUIRED | Consider (schema sanity) |
+| API/CLI endpoint | Route handler, CLI command | REQUIRED | REQUIRED | Consider (error quality, API consistency) |
+| Auth/security | Login, token, permissions, secrets | REQUIRED | REQUIRED | REQUIRED (security posture) |
+| Agent prompt/config | .md agent file, config .json | skip | skip | REQUIRED (semantic validation) |
+| UI component | Frontend view, template, form logic | REQUIRED | REQUIRED | Consider (UX consistency) |
+| Multi-component workflow | Pipeline, orchestrator, cross-module | REQUIRED | REQUIRED | Consider (cross-file consistency) |
+| Bug fix | Targeted fix to existing code | REQUIRED (regression) | skip | skip |
+
+"Consider" means: generate IF `tests/genai/conftest.py` exists AND the change has semantic aspects worth judging. If unsure, skip.
+
+### Step 2: Check GenAI Infrastructure
+
+The coordinator (STEP 4) will tell you whether GenAI infra exists. If not provided, check yourself:
+```bash
+test -f tests/genai/conftest.py && echo "GENAI_INFRA=EXISTS" || echo "GENAI_INFRA=ABSENT"
+```
+
+When GenAI infra = ABSENT, treat ALL "REQUIRED" and "Consider" GenAI cells as "skip".
+
+### Step 3: Output Gap Summary (MANDATORY)
+
+Before writing any test file, output this summary block:
+
+```
+## Coverage Gap Assessment
+- **Change type**: [category from table]
+- **Files changed**: [list from planner/STEP 4 context]
+- **GenAI infra**: EXISTS / ABSENT
+- **Test plan**:
+  - Unit tests: YES / skip (reason)
+  - Integration tests: YES / skip (reason)
+  - GenAI tests: YES / skip (reason)
+- **Rationale**: [1-2 sentences on why this coverage is sufficient]
+```
+
+**FORBIDDEN**:
+- Writing ANY test file before outputting the gap summary
+- Generating integration tests for a pure utility change
+- Generating GenAI tests when `tests/genai/conftest.py` does not exist
+- Generating only GenAI tests for a change that needs unit tests (auth, API, data model)
+- Skipping ALL test types (every change needs at least one type)
+
+**REQUIRED**:
+- Output the gap summary before any test writing
+- Follow the decision table classification
+- State explicit skip reasons for each skipped test type
+- Auth/security changes MUST produce all three types (when GenAI infra exists)
+
 ## GenAI Functional Tests
 
 **Detection**: Check if `tests/genai/conftest.py` exists. If yes, the repo has LLM-as-judge infrastructure — write GenAI functional tests alongside traditional tests.
@@ -103,15 +162,15 @@ class TestFeatureQuality:
 
 ## Workflow
 
-1. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement
-2. **Check for GenAI infrastructure**: Does `tests/genai/conftest.py` exist?
-3. Write traditional tests using Arrange-Act-Assert pattern
-4. If GenAI infrastructure exists, write functional GenAI tests for semantic/domain validation
+1. **Run Coverage Gap Assessment** (HARD GATE above): Classify change, check GenAI infra, output gap summary
+2. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement
+3. Write traditional tests (unit and/or integration per gap summary) using Arrange-Act-Assert pattern
+4. If gap summary says GenAI = YES, write functional GenAI tests for semantic/domain validation
 5. Run tests - verify they FAIL (no implementation yet)
    - **Use minimal pytest verbosity**: `pytest --tb=line -q` (prevents subprocess pipe deadlock, Issue #90)
    - Output reduction: ~98% (2,300 lines → 50 lines summary)
    - Preserves failures and error messages for debugging
-6. Aim for 80%+ coverage
+6. Coverage targets based on gap scope — don't aim for blanket 80% on unchanged code
 
 **Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
