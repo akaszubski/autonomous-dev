@@ -2054,6 +2054,11 @@ All errors gracefully degrade:
 - **Purpose**: Check if state file exists
 - **Returns**: True if state file exists, False otherwise
 
+#### `__repr__() -> str`
+- **Purpose**: Return developer-friendly string representation
+- **Returns**: String in format `ClassName(state_file=/path)` if state_file exists, otherwise `ClassName()`
+- **Example**: `BatchStateManager(state_file=/tmp/batch_state.json)`
+
 #### `_validate_state_path(path: Path) -> Path`
 - **Purpose**: Validate state file path for security
 - **Security**:

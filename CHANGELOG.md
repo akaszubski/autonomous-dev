@@ -2,6 +2,11 @@
 
 ### Added
 
+- **StateManager.__repr__() method** (Issue #220 enhancement)
+  - Added `__repr__()` to StateManager ABC for developer-friendly string representation
+  - Returns format: `ClassName(state_file=/path)` if state_file exists, otherwise `ClassName()`
+  - Updated module docstring and LIBRARIES.md documentation
+
 - **Coverage Gap Assessment HARD GATE in test-master** (Issue #?)
   - Mandatory assessment runs before writing ANY tests to prevent over-testing or under-testing changes
   - Classification table maps change type → required test types (unit, integration, GenAI)

@@ -27,7 +27,7 @@ Security Requirements:
 Design Pattern:
     Abstract Base Class with Template Method pattern
     - Abstract methods: load_state(), save_state(), cleanup_state()
-    - Concrete methods: exists(), _validate_state_path(), _atomic_write(),
+    - Concrete methods: exists(), __repr__(), _validate_state_path(), _atomic_write(),
                        _get_file_lock(), _audit_operation()
 
 Usage:
@@ -89,7 +89,7 @@ class StateManager(ABC, Generic[T]):
 
     Provides common functionality for all state managers including:
     - Abstract methods for load/save/cleanup operations
-    - Concrete helper methods for security, atomicity, and auditing
+    - Concrete helper methods for security, atomicity, auditing, and representation
     - Thread-safe file locking
     - Atomic writes with temp file + rename pattern
     - Path validation (CWE-22, CWE-59)
@@ -175,6 +175,19 @@ class StateManager(ABC, Generic[T]):
         if hasattr(self, 'state_file'):
             return Path(self.state_file).exists()  # type: ignore[attr-defined]
         return False
+
+    def __repr__(self) -> str:
+        """Return developer-friendly string representation.
+
+        Returns:
+            String in format ``ClassName(state_file=/path)`` if a
+            ``state_file`` attribute exists, otherwise ``ClassName()``.
+        """
+        cls_name = self.__class__.__name__
+        state_file = getattr(self, "state_file", None)
+        if state_file is not None:
+            return f"{cls_name}(state_file={state_file!r})"
+        return f"{cls_name}()"
 
     def _validate_state_path(self, path: Path) -> Path:
         """Validate state file path for security.
