@@ -29,10 +29,10 @@ Check that all 4 hook layers produced log entries:
 **Finding**: If any layer has zero entries, flag as `[HOOK-GAP]` critical. A missing layer means a hook is not registered or silently failing.
 
 ### 2. Pipeline Completeness
-**Rule**: "8-step pipeline, every step, every feature" (PROJECT.md)
+**Rule**: "9-step pipeline, every step, every feature" (PROJECT.md)
 
 When `/implement` ran (full pipeline mode), verify all expected agents were invoked:
-- researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master
+- researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
 
 Cross-reference `known_bypass_patterns.json` → `expected_end_states` for the pipeline mode.
 

@@ -2,6 +2,15 @@
 
 ### Added
 
+- **Per-Issue Agent Count HARD GATE in batch mode** (Issue #363)
+  - Prevents progressive shortcutting where later issues in batch run fewer agents than earlier issues
+  - After each issue completes, coordinator MUST verify all 9 required agents ran: researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
+  - Display enumerated ✓/✗ status for each agent before advancing to next issue
+  - BLOCKED if any agent missing — must complete missing agents first
+  - Added to implement-batch.md STEP B3 point 4
+  - Added `batch_progressive_shortcutting` to known_bypass_patterns.json
+  - Prevents Issue #362 regression: Issues 1-2 full pipeline, Issues 3+ reduced agents
+
 - **StateManager.__repr__() method** (Issue #220 enhancement)
   - Added `__repr__()` to StateManager ABC for developer-friendly string representation
   - Returns format: `ClassName(state_file=/path)` if state_file exists, otherwise `ClassName()`

@@ -1,7 +1,7 @@
 # Batch Feature Processing
 
-**Last Updated**: 2026-01-28
-**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218), Command consolidation v3.47.0 (Issue #203), Quality persistence enforcement added v1.0.0 (Issue #254), **Auto-continuation loop added v3.50.0 (Issue #285)**
+**Last Updated**: 2026-02-26
+**Version**: Enhanced in v3.24.0, Simplified in v3.32.0 (Issue #88), Automatic retry added v3.33.0 (Issue #89), Consent bypass added v3.35.0 (Issue #96), Git automation added v3.36.0 (Issue #93), Dependency analysis added v3.44.0 (Issue #157), State persistence fix v3.45.0, Deprecated context clearing functions removed v3.46.0 (Issue #218), Command consolidation v3.47.0 (Issue #203), Quality persistence enforcement added v1.0.0 (Issue #254), Auto-continuation loop added v3.50.0 (Issue #285), **Per-issue agent count HARD GATE added (Issue #363)**
 **Command**: `/implement --batch`, `/implement --issues`, `/implement --resume`
 
 > **NEW in v3.50.0 (Issue #285)**: Batch now auto-continues through all features in a single invocation. Manual `/implement --resume` is only needed if the batch is interrupted, not between features.
@@ -62,6 +62,112 @@ Continue a batch that was interrupted:
 **Requirements**:
 - gh CLI v2.0+ installed
 - One-time authentication: `gh auth login`
+
+---
+
+## Pipeline Completeness Verification (NEW in Issue #363)
+
+**Per-issue agent count verification prevents progressive shortcutting in batch mode**
+
+### Overview
+
+In batch processing, the model must run ALL 9 required agents for EVERY feature/issue, not progressively reduce agents on later issues. This HARD GATE prevents Issue #362 regression where Issues 1-2 receive full pipeline while Issues 3+ receive only 2-3 agents.
+
+**Required agents** (9 total, no exceptions):
+1. researcher-local
+2. researcher
+3. planner
+4. test-master
+5. implementer
+6. reviewer
+7. security-auditor
+8. doc-master
+9. continuous-improvement-analyst
+
+### How It Works
+
+After each issue completes in batch mode:
+
+**STEP B3 Point 4: Per-Issue Agent Count Verification**
+
+1. **Count verification**: Count distinct `subagent_type` values in Task tool invocations for the current issue
+2. **Enumerate each agent**: Display status for all 9 agents (✓ ran, ✗ did not run)
+3. **Display verification result**:
+   ```
+   Issue #N agent verification:
+     researcher-local:              ✓
+     researcher:                    ✓
+     planner:                       ✓
+     test-master:                   ✓
+     implementer:                   ✓
+     reviewer:                      ✓
+     security-auditor:              ✓
+     doc-master:                    ✓
+     continuous-improvement-analyst: ✓
+   Result: 9/9 PASS
+   ```
+
+4. **Block if incomplete**: If any agent is MISSING, STOP. Do NOT advance to next issue.
+   ```
+   Issue #N agent verification:
+     researcher-local:              ✓
+     researcher:                    ✓
+     planner:                       ✓
+     test-master:                   ✗ MISSING
+     implementer:                   ✓
+     reviewer:                      ✓
+     security-auditor:              ✓
+     doc-master:                    ✓
+     continuous-improvement-analyst: ✓
+   Result: 8/9 FAIL — missing: test-master
+
+   BLOCKED: Cannot advance to next issue without test-master.
+   Complete missing agents for Issue #N first, then re-verify.
+   ```
+
+5. **Only after all 9 verified**: Proceed to next issue
+
+### FORBIDDEN Behaviors
+
+- ❌ Advancing to next issue with fewer than 9 agents verified
+- ❌ Self-reporting agent completion without enumerating each agent by name
+- ❌ Claiming an agent "was not needed" for this issue (ALL 9 are required, no exceptions)
+- ❌ Combining multiple issues into a single agent invocation to "save time"
+- ❌ Counting the coordinator's own reasoning as an agent invocation
+
+### Why This Gate Exists
+
+Issue #362/#363 showed the model progressively shortcuts later issues in batch mode:
+- **Issues 1-2**: Full pipeline (9 agents)
+- **Issues 3-5**: Partial pipeline (2-3 agents)
+- **Issues 6+**: Skipped (coordinator "final review")
+
+This gate is **fail-closed**: If you cannot verify an agent ran, it did not run.
+
+### Detection in Continuous Improvement Analysis
+
+The `continuous-improvement-analyst` agent detects this bypass pattern via the `batch_progressive_shortcutting` detector in `known_bypass_patterns.json`:
+
+**Pattern**: `batch_progressive_shortcutting` (Issue #363)
+- **Detection**: Issue N+1 has fewer agent invocations than Issue N in same batch
+- **Indicators**:
+  - Later issues missing researcher, reviewer, or security-auditor agents
+  - Batch session has fewer than 9 × num_issues total agent invocations
+- **Severity**: Critical
+
+### Implementation
+
+The verification is enforced at STEP B3 point 4 in `plugins/autonomous-dev/commands/implement-batch.md`:
+
+```markdown
+**HARD GATE: Per-Issue Agent Count Verification**
+
+After each issue's pipeline completes, BEFORE advancing to the next issue,
+verify ALL required agents ran for this issue.
+...
+```
+
+See `implement-batch.md` STEP B3 for complete enforcement logic.
 
 ---
 

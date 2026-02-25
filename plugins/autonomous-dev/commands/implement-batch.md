@@ -75,7 +75,41 @@ For each feature in the list:
 1. Display progress: `Feature M of N: [feature description]`
 2. Execute the **full pipeline (STEPS 1-8)** for this feature, with BATCH CONTEXT prepended to ALL agent prompts
 3. If a feature fails, log the failure and continue to the next feature
-4. After each feature, run `/clear` equivalent (context management)
+4. **HARD GATE: Per-Issue Agent Count Verification**
+
+   After each issue's pipeline completes, BEFORE advancing to the next issue, verify ALL required agents ran for this issue.
+
+   **Required agents** (9 total): researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
+
+   **Verification method**: Count the Task tool invocations with distinct `subagent_type` values for the current issue. The coordinator MUST enumerate which agents actually ran.
+
+   **Display after each issue**:
+   ```
+   Issue #N agent verification:
+     researcher-local: ✓/✗
+     researcher:       ✓/✗
+     planner:          ✓/✗
+     test-master:      ✓/✗
+     implementer:      ✓/✗
+     reviewer:         ✓/✗
+     security-auditor: ✓/✗
+     doc-master:       ✓/✗
+     continuous-improvement-analyst: ✓/✗
+   Result: 9/9 PASS | X/9 FAIL — missing: [list]
+   ```
+
+   **If any agent is MISSING**: BLOCK. Do NOT advance to the next issue. Complete the missing agents for this issue first. Then re-verify.
+
+   **FORBIDDEN** (violations = batch failure):
+   - ❌ Advancing to the next issue with fewer than 9 agents verified
+   - ❌ Self-reporting agent completion without enumerating each agent by name
+   - ❌ Claiming an agent "was not needed" for this issue (ALL 9 are required, no exceptions)
+   - ❌ Combining multiple issues into a single agent invocation to "save time"
+   - ❌ Counting the coordinator's own reasoning as an agent invocation
+
+   **Why this gate exists**: Without per-issue verification, the model progressively shortcuts later issues (Issue #362/#363). Issues 1-2 get full pipeline; issues 3+ get 2-3 agents. This gate is fail-closed: if you cannot verify an agent ran, it did not run.
+
+5. After each feature, run `/clear` equivalent (context management)
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 
@@ -234,6 +268,7 @@ Same as BATCH FILE MODE:
 1. Create worktree (see STEP B1)
 2. Store absolute worktree path in `WORKTREE_PATH` variable
 3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see STEP B3)
+   **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the 9-agent verification before the next issue starts.
 4. Git automation (see STEP B4) - triggers at end of batch
 5. Report summary (see STEP B5)
 6. Run continuous improvement analysis (see STEP 9 in implement.md) in background

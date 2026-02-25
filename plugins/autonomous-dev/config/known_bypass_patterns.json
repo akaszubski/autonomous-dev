@@ -190,6 +190,22 @@
         ]
       },
       "severity": "critical"
+    },
+    {
+      "id": "batch_progressive_shortcutting",
+      "name": "Batch progressive shortcutting",
+      "description": "Model runs full pipeline for early issues but progressively reduces agents for later issues in batch mode",
+      "issue": "#363",
+      "hard_gate": "STEP B3 point 4 Per-Issue Agent Count HARD GATE in implement-batch.md",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "Issue N+1 has fewer agent invocations than issue N in same batch",
+          "Later issues in batch missing researcher, reviewer, or security-auditor agents",
+          "Batch session has fewer than 9 * num_issues total agent invocations"
+        ]
+      },
+      "severity": "critical"
     }
   ],
   "expected_end_states": {
@@ -202,12 +218,12 @@
       }
     },
     "batch-issues": {
-      "required_agents": ["implementer"],
+      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
       "required_actions": ["test_run", "git_commit", "git_push", "issue_close"],
       "conditional_actions": {}
     },
     "batch": {
-      "required_agents": ["implementer"],
+      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
       "required_actions": ["test_run", "git_commit", "git_push"],
       "conditional_actions": {}
     }
