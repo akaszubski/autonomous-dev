@@ -86,7 +86,12 @@ This is the complete 8-agent SDLC workflow. Execute steps IN ORDER.
 
 ### STEP 1: Validate PROJECT.md Alignment
 
-Read `.claude/PROJECT.md`. Check feature against GOALS, SCOPE, CONSTRAINTS. If not aligned, BLOCK with reason and options (modify feature, update PROJECT.md, or don't implement). If aligned, proceed.
+**HARD GATE**: Check for `.claude/PROJECT.md` in the current working directory. If it does NOT exist, BLOCK immediately:
+- Output: "PROJECT.md not found. Run `/setup` or `/align --retrofit` to create one for this repo. Cannot proceed without project alignment."
+- Do NOT fall back to reading PROJECT.md from other locations (plugin source, parent dirs, etc.)
+- Do NOT continue the pipeline without it
+
+If it exists, read it and check the feature against GOALS, SCOPE, CONSTRAINTS. If not aligned, BLOCK with reason and options (modify feature, update PROJECT.md, or don't implement). If aligned, proceed.
 
 ---
 
