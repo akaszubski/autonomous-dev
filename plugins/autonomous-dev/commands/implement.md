@@ -1,13 +1,15 @@
 ---
 name: implement
-description: "Smart code implementation with three modes (full pipeline, quick, batch)"
-argument-hint: "<feature> | --quick <feature> | --batch <file> | --issues <nums> | --resume <id>"
+description: "Smart code implementation with full pipeline and batch modes"
+argument-hint: "<feature> | --batch <file> | --issues <nums> | --resume <id>"
 allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch]
 ---
 
 # /implement - Unified Smart Implementation
 
-Smart code implementation with full pipeline, quick, and batch modes.
+Smart code implementation with full pipeline and batch modes.
+
+**Quick mode has been removed.** It was used as a bypass to skip research, planning, testing, review, security, and docs. All code changes go through the full pipeline. No exceptions.
 
 ## Modes
 
@@ -15,7 +17,6 @@ Smart code implementation with full pipeline, quick, and batch modes.
 |------|------|------|-------------|
 | **Full Pipeline** | (default) | 15-25 min | Research → Plan → Test → Implement → Review → Security → Docs |
 | **Acceptance-First** | `--acceptance-first` | 20-30 min | Research → Plan → Acceptance Tests → Implement + Unit Tests → Review → Security → Docs |
-| **Quick** | `--quick` | 2-5 min | Implementer agent only (for pre-planned work) |
 | **Batch File** | `--batch <file>` | 20-30 min/feature | Process features from file with auto-worktree |
 | **Batch Issues** | `--issues <nums>` | 20-30 min/feature | Process GitHub issues with auto-worktree |
 | **Resume** | `--resume <id>` | Continues | Resume interrupted batch from checkpoint |
@@ -28,9 +29,6 @@ Smart code implementation with full pipeline, quick, and batch modes.
 
 # Acceptance-first mode (diamond testing model) - acceptance tests before implementation
 /implement --acceptance-first add user authentication with JWT
-
-# Quick mode - for pre-planned work or docs
-/implement --quick fix typo in README
 
 # Batch from file - multiple features with auto-worktree isolation
 /implement --batch features.txt
@@ -63,7 +61,9 @@ ARGUMENTS: {{ARGUMENTS}}
 
 ### STEP 0: Parse Mode and Route
 
-Parse ARGUMENTS: `--quick` → QUICK MODE, `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, `--acceptance-first` → FULL PIPELINE with ACCEPTANCE-FIRST variant, else → FULL PIPELINE.
+Parse ARGUMENTS: `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, `--acceptance-first` → FULL PIPELINE with ACCEPTANCE-FIRST variant, else → FULL PIPELINE.
+
+**If `--quick` is passed**: Reject it. Output: "Quick mode has been removed. All code changes go through the full pipeline. Running full pipeline instead." Then proceed with FULL PIPELINE.
 
 **Auto-detect batch issues mode**: If no explicit flag is present but ARGUMENTS contains 2+ issue references (e.g. `#621 #620` or `621 620`), auto-route to BATCH ISSUES MODE. This prevents accidentally running multiple issues on main without worktree isolation. A single `#NNN` is full pipeline mode for that issue.
 
@@ -295,19 +295,6 @@ gh issue close <number> -c "Implemented in $COMMIT_SHA" 2>/dev/null || echo "War
 This step is NON-BLOCKING on results — the pipeline result is already reported in STEP 8. However, **launching** the analyst is mandatory. You do not need to wait for the analyst to finish, but you MUST invoke it.
 
 After launching the analyst, cleanup: `rm -f /tmp/implement_pipeline_state.json`
-
----
-
-# QUICK MODE
-
-Invoke **implementer** (sonnet) for pre-planned work (docs, config, features with existing tests).
-
-After completion, run `pytest --tb=short -q`. **HARD GATE**: 0 failures required (same rules as STEP 5). Then run STEP 9 (continuous improvement analysis) in background. Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
-
-**Git Automation** (Issue #258): If `AUTO_GIT_ENABLED=true`, run:
-```bash
-git add -A && git commit -m "auto: implementation complete" 2>/dev/null || true
-```
 
 ---
 

@@ -24,7 +24,7 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 | Action | Command | Why |
 |--------|---------|-----|
 | Code changes | `/implement "desc"` | Tests, security review, docs |
-| Quick code fix | `/implement --quick "desc"` | Fast test + implement |
+| Any code change | `/implement "desc"` | Full pipeline always |
 | GitHub issues | `/create-issue "desc"` | Research, dedup, alignment |
 | Quality check | `/audit` | Coverage, security, docs |
 | Alignment | `/align` | PROJECT.md validation |
@@ -34,7 +34,7 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
 **NEVER direct-edit without `/implement`**: `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` — these are functional infrastructure, not documentation. Always use `/implement` even though they're `.md` files.
 
-**After plan mode approval → use `/implement`**: When you exit plan mode with an approved implementation plan, do NOT start coding directly. Run `/implement --quick "description"` (or full `/implement`) with the plan. The plan IS the input to `/implement`, not a license to bypass it.
+**After plan mode approval → use `/implement`**: When you exit plan mode with an approved implementation plan, do NOT start coding directly. Run `/implement "description"` with the plan. The plan IS the input to `/implement`, not a license to bypass it.
 
 **Why commands exist**: Each runs specialized agents that catch problems raw actions miss — alignment, testing, security, documentation. Skipping them means skipping quality.
 
@@ -58,7 +58,7 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 
 | Command | Purpose |
 |---------|---------|
-| `/implement` | Code changes (full pipeline, --quick, --batch, --issues, --resume) |
+| `/implement` | Code changes (full pipeline, --batch, --issues, --resume) |
 | `/create-issue` | GitHub issue with automated research (--quick) |
 | `/align` | Alignment check (--project, --docs, --retrofit) |
 | `/audit` | Quality audit (--quick, --security, --docs, --code, --claude, --tests) |
