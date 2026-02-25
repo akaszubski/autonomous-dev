@@ -7,7 +7,7 @@ allowed-tools: [Task, Read, Bash, Glob, Grep]
 
 # Continuous Improvement Analysis
 
-Analyze session activity logs to detect workflow issues, test drift, doc staleness, and improvement opportunities.
+Analyze session activity logs to test whether autonomous-dev's automation is working correctly — hooks firing, pipeline executing, HARD GATEs enforcing.
 
 ## Usage
 
@@ -27,7 +27,7 @@ Analyze session activity logs to detect workflow issues, test drift, doc stalene
 
 ## Arguments
 
-- `--auto-file`: Create GitHub issues for detected problems (default: report only)
+- `--auto-file`: Create GitHub issues in `akaszubski/autonomous-dev` for detected problems (default: report only)
 - `--session <id>`: Analyze a specific session ID
 - `--date YYYY-MM-DD`: Analyze a specific date (default: today)
 
@@ -45,54 +45,71 @@ ls -la .claude/logs/activity/*.jsonl 2>/dev/null
 If `--date` specified, load that date's log. Otherwise load today's.
 If `--session` specified, filter entries to that session ID.
 
-If no logs found, report: "No activity logs found. The session_activity_logger hook must be active to generate logs. Check that your settings include the PostToolUse hook."
+If no logs found, report: "No activity logs found. The session_activity_logger hook must be active to generate logs. Check that your settings include all 4 hook layers (UserPromptSubmit, PreToolUse, PostToolUse, Stop)."
 
-### STEP 2: Analyze with Continuous Improvement Agent
+### STEP 2: Gather Ground Truth Context
 
-Launch the `continuous-improvement-analyst` agent (Task tool, subagent_type: general-purpose) with:
-- The loaded log data
-- Instructions to analyze for: workflow bypasses, test drift, doc staleness, hook false positives, congruence violations
+Read autonomous-dev's source-of-truth documents to provide to the analyst:
 
-Provide the agent with:
-1. The log content (or summary if very large)
-2. Current state of known congruence pairs (implement.md ↔ implementer.md, manifest ↔ disk, policy ↔ hooks)
-3. Recent git changes: `git log --oneline -20`
-4. PROJECT.md goals: Read `.claude/PROJECT.md` and include the GOALS section so the analyst can tag findings as `[ALIGNED]` or `[TANGENTIAL]`
+1. **PROJECT.md**: Read `.claude/PROJECT.md` (or locate via `plugins/autonomous-dev/`) — extract GOALS and enforcement sections
+2. **CLAUDE.md**: Read `CLAUDE.md` — extract Critical Rules section
+3. **Known bypass patterns**: Read `plugins/autonomous-dev/config/known_bypass_patterns.json`
+4. **Recent git history**: `git log --oneline -20`
 
-### STEP 3: Report Findings
+### STEP 3: Analyze with Continuous Improvement Agent
+
+Launch the `continuous-improvement-analyst` agent (Task tool, subagent_type: continuous-improvement-analyst) with:
+
+1. **All 4 hook layer entries** from the logs:
+   - `UserPromptSubmit` — command routing, workflow nudges
+   - `PreToolUse` — tool validation, security checks
+   - `PostToolUse` — error detection, activity logging
+   - `Stop` — assistant output capture, session summary
+2. **PROJECT.md** GOALS and enforcement sections
+3. **CLAUDE.md** Critical Rules
+4. **known_bypass_patterns.json** content
+5. Instructions to run all 7 quality checks and cite specific rules for each finding
+
+### STEP 4: Report Findings
 
 Present the analysis report to the user with:
-- Critical findings (broken enforcement, security issues)
-- Warnings (doc drift, test drift)
+- Critical findings (broken enforcement, hook gaps, HARD GATE violations)
+- Warnings (error handling gaps, command routing bypasses)
 - Suggestions (optimization opportunities)
 - Issue candidates (ready to file)
 
-### STEP 4: Auto-File Issues (if --auto-file)
+### STEP 5: Auto-File Issues (if --auto-file)
 
 If `--auto-file` flag is set:
 
-1. Check for duplicate issues:
+1. Check for duplicate issues in **autonomous-dev repo** (not current repo):
    ```bash
-   gh issue list --label continuous-improvement --state open
+   gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state open
    ```
 
 2. For each non-duplicate finding with severity >= warning:
    ```bash
-   gh issue create \
+   gh issue create -R akaszubski/autonomous-dev \
      --title "[CI-{severity}] {title}" \
-     --label "continuous-improvement" \
-     --body "{evidence + suggested fix}"
+     --label "continuous-improvement,auto-improvement" \
+     --body "{evidence + rule violated + suggested fix}"
    ```
 
 3. Report filed issues with URLs.
+
+**Important**: Issues always go to `akaszubski/autonomous-dev` regardless of which repo this session ran in. The findings are about the automation tooling, not the user's project.
 
 ## What It Detects
 
 | Category | Example | Severity |
 |----------|---------|----------|
-| Workflow bypass | Hook exempt_path bug | Critical |
-| Test drift | Tests skipped that previously passed | Warning |
-| Doc staleness | Agent changed, CLAUDE.md not updated | Warning |
-| Hook false positive | Hook blocks legitimate pattern 5+ times | Warning |
+| Hook gap | Missing hook layer (no PreToolUse entries) | Critical |
+| HARD GATE violation | Test failures when STEP 6 invoked | Critical |
+| Known bypass | Pattern from known_bypass_patterns.json matched | Critical/Warning |
+| Novel bypass | Automation circumvented in new way | Critical |
+| Command bypass | Nudge fired but raw action taken | Warning |
+| Error dropped | PostToolUse error not addressed | Warning |
+| Softened language | Stop hook declares success despite errors | Warning |
+| Pipeline incomplete | Missing agents or terminal actions | Warning |
 | Congruence violation | implement.md updated, implementer.md not | Warning |
 | Optimization | Same file read 10+ times in session | Info |

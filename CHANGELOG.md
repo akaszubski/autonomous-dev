@@ -13,6 +13,19 @@
   - Enables right-sized testing: only required test types per change category
 
 ### Changed
+
+- **STEP 9 Continuous Improvement Analysis — Mandatory Enforcement (Issue #625)**
+  - Upgraded STEP 9 from advisory to HARD GATE with explicit FORBIDDEN list
+  - Moved pipeline cleanup (`rm -f /tmp/implement_pipeline_state.json`) from STEP 8 to STEP 9 post-analyst launch
+  - FORBIDDEN behaviors: skipping STEP 9, cleaning state before analyst launch, inlining analysis (must invoke agent)
+  - Impact: All `/implement` modes now guarantee continuous-improvement-analyst execution (full pipeline, quick, batch)
+  - Analyzer mission evolved: tests automation itself (PROJECT.md + CLAUDE.md ground truth), not just user work
+  - Analyzer now evaluates: hook execution (4 layers), pipeline completeness, HARD GATE enforcement, command routing, error handling, known/novel bypass detection
+  - Updated implement.md COORDINATOR FORBIDDEN LIST (added 2 items), STEP 5 note, STEP 9 section
+  - Updated QUICK MODE to enforce STEP 9 + cleanup pattern (previously had no structured improvement check)
+  - Updated continuous-improvement-analyst.md mission and 7 quality checks (hook completeness, pipeline completeness, HARD GATE enforcement, command routing, error handling, bypass patterns, novel detection)
+  - Rationale: Automation quality requires continuous verification; advisor-only messaging gets ignored under context pressure
+
 - **Reduce auto-activate token overhead for training skills** (Issue #335)
   - Changed 4 training skills from auto_activate: true to false:
     - training-operations (Run management, monitoring, crash recovery)

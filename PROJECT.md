@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2026-02-17
-**Version**: v3.51.0
+**Last Updated**: 2026-02-21
+**Version**: v3.52.0
 
 ---
 
@@ -145,9 +145,9 @@ Advisory text ("please ensure...") gets ignored under context pressure. What wor
 - **Conditional execution** — Claude decides which agents based on complexity
 
 **Layer 3: Continuous Improvement Loop** (Post-Session, Self-Correcting)
-- `session_activity_logger.py` (PostToolUse hook) logs every tool call as structured JSONL
-- `continuous-improvement-analyst` agent reads logs and detects: workflow bypasses, test drift, doc staleness, hook false positives, congruence violations
-- `/improve` command triggers analysis and optionally auto-files GitHub issues
+- All 4 hook layers log structured JSONL to `.claude/logs/activity/`: UserPromptSubmit (command routing), PreToolUse (security), PostToolUse (activity), Stop (output capture)
+- `continuous-improvement-analyst` agent evaluates logs against PROJECT.md + CLAUDE.md to test automation quality: hook execution, pipeline completeness, HARD GATE enforcement, command routing, error handling, known/novel bypass detection
+- `/improve` command triggers analysis; `--auto-file` creates issues in `akaszubski/autonomous-dev` with label `auto-improvement`
 - **Asynchronous** — runs post-session, never blocks active work
 
 **Key Distinctions:**
@@ -236,7 +236,7 @@ autonomous-dev/
 │   ├── templates/              # Settings templates (7 project, 1 global)
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
-├── tests/                      # Test suite (~9,700 tests)
+├── tests/                      # Test suite (~10,300 tests)
 │   ├── unit/                   # Unit tests
 │   ├── regression/             # Smoke + progression regression tests
 │   └── genai/                  # GenAI intent tests (LLM-as-judge)

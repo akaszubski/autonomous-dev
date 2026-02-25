@@ -54,6 +54,8 @@ Smart code implementation with full pipeline, quick, and batch modes.
 - ❌ Declaring "good enough" on failing tests (STEP 5 HARD GATE is absolute)
 - ❌ Running STEP 6 (validation) before STEP 5 (test gate) passes
 - ❌ Combining or parallelizing sequential steps (e.g., implementer + reviewer)
+- ❌ Treating STEP 8 as the final step (STEP 9 is mandatory)
+- ❌ Cleaning up pipeline state before STEP 9 launches
 
 ARGUMENTS: {{ARGUMENTS}}
 
@@ -261,7 +263,7 @@ Invoke THREE agents in PARALLEL (single response):
 
 ### STEP 7: Final Verification
 
-Verify all 8 agents ran (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master). If any missing, invoke NOW.
+Verify all 8 pipeline agents ran (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master). If any missing, invoke NOW. Note: continuous-improvement-analyst runs in STEP 9 post-report — do NOT skip it.
 
 ### STEP 8: Report and Finalize
 
@@ -278,27 +280,21 @@ COMMIT_SHA=$(git rev-parse --short HEAD)
 gh issue close <number> -c "Implemented in $COMMIT_SHA" 2>/dev/null || echo "Warning: Could not close issue"
 ```
 
-Then cleanup: `rm -f /tmp/implement_pipeline_state.json`
-
 ---
 
-### STEP 9: Continuous Improvement Analysis
+### STEP 9: Continuous Improvement Analysis — HARD GATE
 
-After pipeline completes, invoke **continuous-improvement-analyst** (sonnet) in background to analyze this session:
+**FORBIDDEN** (violations = pipeline failure):
+- ❌ Skipping STEP 9 for any reason (time pressure, context limits, "already reported")
+- ❌ Cleaning up pipeline state (`implement_pipeline_state.json`) before launching the analyst
+- ❌ Inlining the analysis yourself instead of invoking the **continuous-improvement-analyst** agent
+- ❌ Treating STEP 8 as the final step — STEP 9 is mandatory
 
-```
-Analyze today's session logs in .claude/logs/activity/ for:
-- Workflow bypasses or hook gaps
-- Test drift (skipped tests, failing tests)
-- Documentation staleness (code changed without doc updates)
-- Pipeline completeness (missing terminal actions)
-- Model intent bypasses (test gate, anti-stubbing, step skipping)
+**REQUIRED**: Launch the **continuous-improvement-analyst** (sonnet) agent using the Task tool with `run_in_background: true`. The analyst examines session logs in `.claude/logs/activity/` for workflow bypasses, test drift, documentation staleness, pipeline completeness, and model intent bypasses. It checks known bypass patterns in `plugins/autonomous-dev/config/known_bypass_patterns.json` and outputs critical findings, warnings, and suggestions.
 
-Check known bypass patterns in plugins/autonomous-dev/config/known_bypass_patterns.json.
-Output: critical findings, warnings, suggestions. File GitHub issues for severity >= warning if --auto-file.
-```
+This step is NON-BLOCKING on results — the pipeline result is already reported in STEP 8. However, **launching** the analyst is mandatory. You do not need to wait for the analyst to finish, but you MUST invoke it.
 
-This step is NON-BLOCKING — the pipeline result is already reported in STEP 8. If the analyst finds issues, they appear as a follow-up message after the main report.
+After launching the analyst, cleanup: `rm -f /tmp/implement_pipeline_state.json`
 
 ---
 
