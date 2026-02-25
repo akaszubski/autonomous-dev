@@ -5,7 +5,7 @@ Plugin for autonomous development in Claude Code. AI agents, skills, automation 
 ## Project Overview
 
 Autonomous development plugin that provides:
-- **8-agent SDLC pipeline**: researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master
+- **9-step SDLC pipeline**: researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master → continuous-improvement-analyst
 - **Batch processing**: Process multiple features/issues with worktree isolation
 - **Git automation**: AUTO_GIT_ENABLED for commit/push workflows
 
