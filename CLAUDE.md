@@ -30,7 +30,9 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 | Alignment | `/align` | PROJECT.md validation |
 | Doc updates | `/align --docs` | Sync docs with code |
 
-**Direct editing is only for**: docs (.md), config (.json/.yaml), typos (1-2 lines).
+**Direct editing is only for**: user-facing docs (README.md, CHANGELOG.md, docs/*.md), config (.json/.yaml), typos (1-2 lines).
+
+**NEVER direct-edit without `/implement`**: `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` — these are functional infrastructure, not documentation. Always use `/implement` even though they're `.md` files.
 
 **After plan mode approval → use `/implement`**: When you exit plan mode with an approved implementation plan, do NOT start coding directly. Run `/implement --quick "description"` (or full `/implement`) with the plan. The plan IS the input to `/implement`, not a license to bypass it.
 
