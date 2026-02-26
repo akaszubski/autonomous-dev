@@ -88,9 +88,9 @@ TEMPLATE_SETTINGS = {
             "Bash(ls:*)",
             "Bash(cat:*)",
             "Bash(gh:*)",
-            "Read(**)",
-            "Write(**)",
-            "Edit(**)",
+            "Read",
+            "Write",
+            "Edit",
             "Glob",
             "Grep",
             "Task",
@@ -124,7 +124,7 @@ BROKEN_USER_SETTINGS = {
     "permissions": {
         "allow": [
             "Bash(:*)",  # BROKEN - overly permissive wildcard
-            "Read(**)"
+            "Read"
         ],
         "deny": []
     },
@@ -150,8 +150,8 @@ VALID_USER_SETTINGS = {
             "Bash(git:*)",
             "Bash(python:*)",
             "Bash(custom-tool:*)",  # User addition
-            "Read(**)",
-            "Write(**)"
+            "Read",
+            "Write"
         ],
         "deny": [
             "Bash(sudo:*)",
@@ -325,7 +325,7 @@ class TestConfigureGlobalSettings:
             assert pattern in fixed_settings["permissions"]["allow"], f"Safe pattern {pattern} should be added"
 
         # Verify user's valid patterns preserved (Read(**)
-        assert "Read(**)" in fixed_settings["permissions"]["allow"]
+        assert "Read" in fixed_settings["permissions"]["allow"]
 
         # Verify JSON output indicates fix
         assert result["success"] is True

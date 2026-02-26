@@ -110,9 +110,9 @@ def settings_clean():
                 "Bash(git:*)",
                 "Bash(pytest:*)",
                 "Bash(python:*)",
-                "Read(**)",
-                "Write(**)",
-                "Edit(**)",
+                "Read",
+                "Write",
+                "Edit",
             ],
             "deny": [
                 "Bash(rm:-rf*)",
@@ -138,8 +138,8 @@ def settings_with_wildcard():
         "permissions": {
             "allow": [
                 "Bash(*)",  # NEEDS FIX
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": []
         },
@@ -159,8 +159,8 @@ def settings_missing_deny():
             "allow": [
                 "Bash(git:*)",
                 "Bash(pytest:*)",
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ]
             # Missing "deny" key
         },
@@ -182,8 +182,8 @@ def settings_with_customizations():
                 "Bash(docker:*)",  # User custom - preserve
                 "Bash(make:*)",  # User custom - preserve
                 "Bash(cargo:*)",  # User custom - preserve
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": []  # Will be populated
         },

@@ -70,8 +70,8 @@ def settings_with_bash_wildcard():
         "permissions": {
             "allow": [
                 "Bash(*)",  # SECURITY ISSUE - too permissive
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": []
         },
@@ -90,8 +90,8 @@ def settings_with_colon_wildcard():
         "permissions": {
             "allow": [
                 "Bash(:*)",  # WARNING - less specific than needed
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": [
                 "Bash(rm:-rf*)",
@@ -110,8 +110,8 @@ def settings_missing_deny_list():
             "allow": [
                 "Bash(git:*)",
                 "Bash(pytest:*)",
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ]
             # Missing "deny" key
         }
@@ -126,8 +126,8 @@ def settings_empty_deny_list():
         "permissions": {
             "allow": [
                 "Bash(git:*)",
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": []  # Empty - should have comprehensive blocks
         }
@@ -144,9 +144,9 @@ def valid_settings():
                 "Bash(git:*)",
                 "Bash(pytest:*)",
                 "Bash(python:*)",
-                "Read(**)",
-                "Write(**)",
-                "Edit(**)",
+                "Read",
+                "Write",
+                "Edit",
             ],
             "deny": [
                 "Bash(rm:-rf*)",
@@ -176,8 +176,8 @@ def settings_with_user_customizations():
                 "Bash(git:*)",  # Valid - preserve
                 "Bash(docker:*)",  # User custom - preserve
                 "Bash(make:*)",  # User custom - preserve
-                "Read(**)",
-                "Write(**)",
+                "Read",
+                "Write",
             ],
             "deny": []  # Will be populated
         },
@@ -356,7 +356,7 @@ class TestValidatePermissionPatterns:
                 "allow": [
                     "Bash(*)",  # Issue 1: wildcard
                     "Bash(:*)",  # Issue 2: colon wildcard
-                    "Read(**)",
+                    "Read",
                 ],
                 "deny": []  # Issue 3: empty deny list
             }
@@ -393,7 +393,7 @@ class TestDetectOutdatedPatterns:
                     "Bash(git:*)",  # In SAFE_COMMAND_PATTERNS - OK
                     "Bash(obsolete-command:*)",  # NOT in SAFE_COMMAND_PATTERNS
                     "Bash(old-tool:*)",  # NOT in SAFE_COMMAND_PATTERNS
-                    "Read(**)",  # In SAFE_COMMAND_PATTERNS - OK
+                    "Read",  # In SAFE_COMMAND_PATTERNS - OK
                 ],
                 "deny": []
             }
@@ -405,7 +405,7 @@ class TestDetectOutdatedPatterns:
         assert "Bash(obsolete-command:*)" in outdated
         assert "Bash(old-tool:*)" in outdated
         assert "Bash(git:*)" not in outdated
-        assert "Read(**)" not in outdated
+        assert "Read" not in outdated
 
     def test_no_outdated_patterns_in_valid_settings(self, valid_settings):
         """Test valid settings returns empty outdated list.
@@ -458,8 +458,8 @@ class TestFixPermissionPatterns:
         assert "Bash(python:*)" in fixed_settings["permissions"]["allow"]
 
         # Other patterns preserved
-        assert "Read(**)" in fixed_settings["permissions"]["allow"]
-        assert "Write(**)" in fixed_settings["permissions"]["allow"]
+        assert "Read" in fixed_settings["permissions"]["allow"]
+        assert "Write" in fixed_settings["permissions"]["allow"]
 
     def test_preserve_user_hooks(self, settings_with_user_customizations):
         """Test that user hooks are preserved after fix.
@@ -571,8 +571,8 @@ class TestFixPermissionPatterns:
             "permissions": {
                 "allow": [
                     "Bash(*)",
-                    "Read(**)",
-                    "Write(**)",
+                    "Read",
+                    "Write",
                 ],
                 "deny": []
             }
@@ -586,8 +586,8 @@ class TestFixPermissionPatterns:
         assert len(allow_list) == len(set(allow_list))
 
         # File operations should be present
-        assert "Read(**)" in allow_list
-        assert "Write(**)" in allow_list
+        assert "Read" in allow_list
+        assert "Write" in allow_list
 
 
 # =============================================================================

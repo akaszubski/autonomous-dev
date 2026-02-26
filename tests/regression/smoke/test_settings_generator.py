@@ -281,11 +281,11 @@ def test_build_command_patterns_includes_read_write_permissions(temp_plugin_dir)
     patterns = generator.build_command_patterns()
 
     # File operation patterns
-    assert "Read(**)" in patterns
-    assert "Write(**)" in patterns
-    assert "Edit(**)" in patterns
-    assert "Glob(**)" in patterns
-    assert "Grep(**)" in patterns
+    assert "Read" in patterns
+    assert "Write" in patterns
+    assert "Edit" in patterns
+    assert "Glob" in patterns
+    assert "Grep" in patterns
 
 
 def test_build_command_patterns_no_wildcards_at_all(temp_plugin_dir):
@@ -433,15 +433,17 @@ def test_build_command_patterns_validates_pattern_syntax(temp_plugin_dir):
 
     patterns = generator.build_command_patterns()
 
-    # All patterns should match expected format
+    # All patterns should match expected format:
+    # - Bare tool names: "Read", "Write", "Edit", "Glob", "Grep"
+    # - Parameterized patterns: "Bash(git:*)", "Read(./.env)"
+    bare_tools = {"Read", "Write", "Edit", "Glob", "Grep"}
     valid_prefixes = ["Bash(", "Read(", "Write(", "Edit(", "Glob(", "Grep("]
 
     for pattern in patterns:
-        # Check it has a valid prefix
+        if pattern in bare_tools:
+            continue  # Bare tool names are valid (Issue #365)
         has_valid_prefix = any(pattern.startswith(prefix) for prefix in valid_prefixes)
         assert has_valid_prefix, f"Invalid pattern format: {pattern}"
-
-        # Check it ends with )
         assert pattern.endswith(")"), f"Pattern doesn't end with ): {pattern}"
 
 
@@ -592,8 +594,8 @@ def test_build_deny_list_no_overlap_with_safe_patterns(temp_plugin_dir):
         "Bash(git:log)",
         "Bash(pytest:*)",
         "Bash(python:*)",
-        "Read(**)",
-        "Write(**)",
+        "Read",
+        "Write",
     ]
 
     for safe in safe_patterns:
@@ -631,8 +633,8 @@ def test_generate_settings_includes_all_safe_patterns(temp_plugin_dir):
     expected_patterns = [
         "Bash(git:*)",
         "Bash(pytest:*)",
-        "Read(**)",
-        "Write(**)",
+        "Read",
+        "Write",
     ]
 
     for pattern in expected_patterns:

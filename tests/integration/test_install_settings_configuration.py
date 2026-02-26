@@ -77,9 +77,9 @@ except ImportError:
 # These are the MINIMUM required patterns - actual template may have more
 REQUIRED_ALLOW_PATTERNS = [
     # File operations
-    "Read(**)",
-    "Write(**)",
-    "Edit(**)",
+    "Read",
+    "Write",
+    "Edit",
     "Glob",
     "Grep",
 
@@ -471,8 +471,8 @@ class TestInstallSettingsConfiguration:
                     "Bash(:*)",  # BROKEN - should be removed
                     "Bash(custom-tool:*)",  # USER CUSTOM - should be preserved
                     "Bash(git:*)",
-                    "Read(**)",
-                    "Write(**)"
+                    "Read",
+                    "Write"
                 ],
                 "deny": [
                     "Bash(custom-dangerous:*)"  # USER CUSTOM - should be preserved
