@@ -1,10 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Read(**)",
-      "Write(**)",
-      "Edit(**)",
-      "Glob(**)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
       "Grep(**)",
       "Bash(git:*)",
       "Bash(python:*)",

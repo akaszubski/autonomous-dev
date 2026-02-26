@@ -4,9 +4,9 @@
   "permissions": {
     "allow": [
       "Bash(:*)",
-      "Read(**)",
-      "Write(**)",
-      "Edit(**)",
+      "Read",
+      "Write",
+      "Edit",
       "Glob",
       "Grep",
       "NotebookEdit",

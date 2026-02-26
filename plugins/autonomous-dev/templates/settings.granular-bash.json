@@ -9,9 +9,9 @@
   ],
   "permissions": {
     "allow": [
-      "Read(**)",
-      "Write(**)",
-      "Edit(**)",
+      "Read",
+      "Write",
+      "Edit",
       "Glob",
       "Grep",
       "Task",

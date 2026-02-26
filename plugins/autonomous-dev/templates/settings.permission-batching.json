@@ -14,7 +14,7 @@
   },
   "permissions": {
     "allow": [
-      "Read(**)",
+      "Read",
       "Grep",
       "Glob",
       "Task",
@@ -41,8 +41,8 @@
       "Bash(eval:*)"
     ],
     "ask": [
-      "Write(**)",
-      "Edit(**)",
+      "Write",
+      "Edit",
       "Bash(:*)",
       "Bash(git push:*)",
       "Bash(git push --force:*)",

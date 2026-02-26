@@ -63,12 +63,12 @@ SETTINGS_VERSION = "1.0.0"
 
 # Safe command patterns - SPECIFIC ONLY, NO WILDCARDS
 SAFE_COMMAND_PATTERNS = [
-    # File operations (always needed)
-    "Read(**)",
-    "Write(**)",
-    "Edit(**)",
-    "Glob(**)",
-    "Grep(**)",
+    # File operations (always needed) — bare tool names, no glob suffix
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
 
     # Common file-specific patterns
     "Read(**/*.py)",
