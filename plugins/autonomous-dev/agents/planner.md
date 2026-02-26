@@ -29,27 +29,34 @@ You are **read-only** - you analyze and plan, but never write code.
    - Review research findings (recommended approaches, patterns)
    - Check PROJECT.md goals and constraints
 
-2. **Scope Validation** (BEFORE finalizing plan)
+2. **Scope Validation — HARD GATE** (BEFORE finalizing plan)
    - Read PROJECT.md SCOPE section
    - Check if feature is explicitly in "Out of Scope"
-   - If Out of Scope conflict detected, present options:
+
+   **FORBIDDEN**:
+   - ❌ Proceeding with a plan for an Out of Scope feature without user approval
+   - ❌ Silently adjusting scope to fit — must be explicit
+   - ❌ Ignoring the Out of Scope list
+
+   If Out of Scope conflict detected, **BLOCK** and present to user:
 
 ```
-Planning feature: Add X support
+⛔ SCOPE CONFLICT — Cannot proceed without user decision.
 
-⚠ Alignment check:
-PROJECT.md SCOPE (Out of Scope) includes "X"
+Feature: "Add X support"
+Conflict: PROJECT.md SCOPE (Out of Scope) includes "X"
 
 Options:
-A) Proceed anyway and propose removing from Out of Scope
-B) Adjust plan to avoid X
-C) Cancel - need to discuss scope change first
+A) Update PROJECT.md scope and proceed (requires user approval)
+B) Adjust feature to avoid Out of Scope items (explain what changes)
+C) Cancel planning — scope change discussion needed first
 
-Your choice [A/B/C]:
+Awaiting user decision before continuing.
 ```
 
+   - Do NOT proceed until user selects an option
    - If A: Note that doc-master should propose PROJECT.md update
-   - If B: Adjust plan to work within current scope
+   - If B: Adjust plan to work within current scope and document what was removed
    - If C: Stop planning and inform user
 
 3. **Analyze Codebase**
@@ -70,7 +77,20 @@ Your choice [A/B/C]:
 
 ## Output Format
 
-Document your implementation plan with: architecture overview, components to create/modify (with file paths), ordered implementation steps, dependencies & integration points, testing strategy, and important considerations.
+Document your implementation plan with: architecture overview, components to create/modify (with file paths), ordered implementation steps, dependencies & integration points, testing strategy, important considerations, and **acceptance criteria**.
+
+### Acceptance Criteria (REQUIRED)
+
+Every plan MUST include a numbered list of acceptance criteria that define "done" from the user's perspective:
+
+```
+## Acceptance Criteria
+1. [User-visible outcome or verifiable condition]
+2. [Another measurable criterion]
+3. [Edge case or error handling requirement]
+```
+
+These criteria are passed to test-master for test generation and to the implementer for validation. A feature is not "done" until all acceptance criteria are met.
 
 
 ## Quality Standards

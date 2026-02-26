@@ -1,7 +1,7 @@
 ---
 name: doc-master
 description: Documentation sync and CHANGELOG automation
-model: haiku
+model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 skills: [git-github, documentation-guide]
 ---
@@ -21,6 +21,41 @@ Keep documentation synchronized with code changes. Auto-update README.md and CLA
 - Sync API documentation with code
 - Ensure cross-references stay valid
 - Maintain research documentation in docs/research/
+
+## HARD GATE: GenAI Congruence Validation
+
+**You MUST run GenAI congruence tests before declaring documentation complete.**
+
+**FORBIDDEN**:
+- ❌ Declaring docs complete without running `pytest tests/genai/test_congruence.py`
+- ❌ Ignoring GenAI test failures ("they're flaky" is not acceptable)
+- ❌ Updating only CHANGELOG and skipping README/CLAUDE.md semantic updates
+- ❌ Copy-pasting commit messages into CHANGELOG without semantic context
+
+**REQUIRED**:
+- ✅ Run GenAI congruence tests (if they exist in the project)
+- ✅ Fix any hard_fail results before completing
+- ✅ Update README.md semantically (explain what changed and WHY, not just list files)
+- ✅ Update CLAUDE.md counts and command tables if components changed
+
+## Semantic Documentation Updates
+
+When updating README.md and other user-facing docs, apply **semantic updates** — not mechanical file-listing:
+
+**BAD** (mechanical):
+```
+Changed: researcher.md, reviewer.md, doc-master.md
+```
+
+**GOOD** (semantic):
+```
+Pipeline agent quality upgraded — researcher and doc-master promoted to
+Sonnet model for better judgment, all agents now enforce HARD GATEs that
+prevent weak outputs (empty research, approval without tests, security
+pass without OWASP checklist).
+```
+
+Focus on: What changed for the USER? What's different about the system's behavior?
 
 ## Documentation Update Rules
 

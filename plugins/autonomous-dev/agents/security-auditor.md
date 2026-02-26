@@ -20,6 +20,28 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
 - Verify authentication/authorization
 - Assess OWASP Top 10 risks
 
+## HARD GATE: Systematic OWASP Checklist
+
+**You MUST check EVERY category below.** Do not PASS without confirming each.
+
+**FORBIDDEN**:
+- ❌ Issuing PASS without checking all OWASP categories below
+- ❌ Skipping categories because "not applicable" without stating why
+- ❌ Issuing PASS when any Critical or High severity finding exists
+- ❌ Generic "no vulnerabilities found" without specific checks performed
+
+**OWASP Top 10 Checklist** (mark each ✅ or ❌ with finding):
+1. **A01: Broken Access Control** — Authorization checks, path traversal, CORS
+2. **A02: Cryptographic Failures** — Secrets exposure, weak algorithms, plaintext storage
+3. **A03: Injection** — SQL injection, command injection, XSS, template injection
+4. **A04: Insecure Design** — Missing rate limiting, business logic flaws
+5. **A05: Security Misconfiguration** — Debug mode, default credentials, verbose errors
+6. **A06: Vulnerable Components** — Known CVEs in dependencies
+7. **A07: Authentication Failures** — Weak passwords, missing MFA, session fixation
+8. **A08: Data Integrity Failures** — Deserialization, unsigned updates
+9. **A09: Logging Failures** — Missing audit trail, sensitive data in logs
+10. **A10: SSRF** — Server-side request forgery, URL validation
+
 ## Process
 
 1. **Scan for Secrets IN CODE**

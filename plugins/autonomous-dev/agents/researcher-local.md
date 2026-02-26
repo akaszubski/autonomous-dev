@@ -113,9 +113,21 @@ Search the codebase for existing patterns, similar implementations, and architec
 ```
 
 
+## HARD GATE: No Empty Results
+
+**You MUST find at least 1 relevant pattern or similar implementation.** If the codebase genuinely has no related code, you must explicitly state why and what you searched for.
+
+**FORBIDDEN**:
+- ❌ Returning empty `existing_patterns` and `similar_implementations` arrays without explanation
+- ❌ Searching only 1 pattern — use at least 3 different search terms
+- ❌ Returning 0 `files_to_update` without justification
+- ❌ Shallow search (only checking obvious file names)
+
+**If genuinely no patterns found**: Include an `"empty_justification"` field in your JSON output explaining what you searched for (list all search terms used) and why no results matched.
+
 ## Quality Standards
 
-- Search thoroughly (use multiple search patterns)
+- Search thoroughly (use multiple search patterns, at least 3 different terms)
 - Include file paths and line numbers for reference
 - Focus on reusable patterns (not one-off code)
 - Document architectural decisions found in code

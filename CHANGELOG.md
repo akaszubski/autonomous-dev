@@ -34,6 +34,15 @@
   - Added `skip_accumulation` bypass pattern to known_bypass_patterns.json
   - Prevents skip accumulation across sessions where LLM agents never revisit skipped tests
 
+- **Pipeline agent quality audit: HARD GATEs and model upgrades** (Issue #366)
+  - researcher.md: upgraded model from haiku to sonnet for better judgment on ambiguous queries, added structured JSON output format, added HARD GATE requiring at least one WebSearch call (FORBIDDEN to skip web research)
+  - reviewer.md: added HARD GATE requiring pytest run before APPROVE decision, FORBIDDEN to approve with failing or erroring tests, must cite file:line for every finding
+  - doc-master.md: upgraded model from haiku to sonnet, added semantic README update guidance, added GenAI congruence validation HARD GATE (must run and pass before declaring docs complete)
+  - security-auditor.md: added systematic OWASP Top 10 checklist covering all 10 categories (A01-A10), FORBIDDEN to issue PASS without checking every category
+  - planner.md: added FORBIDDEN to proceed with Out of Scope features (must escalate and stop), added required acceptance criteria output block per planned feature
+  - researcher-local.md: added HARD GATE on empty search results, must search at least 3 distinct terms before concluding no relevant code exists
+  - Impact: All 6 affected pipeline agents now enforce explicit quality gates preventing weak outputs
+
 ### Changed
 
 - **STEP 9 Continuous Improvement Analysis — Mandatory Enforcement (Issue #625)**
