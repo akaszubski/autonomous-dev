@@ -26,6 +26,14 @@
   - Enhanced implement.md STEP 4 to pass file list and GenAI infra status to test-master
   - Enables right-sized testing: only required test types per change category
 
+- **Testing Pipeline Redesign: GenAI-Native Testing** (Issue #364)
+  - Replaced TDD RED phase with specification-driven testing approach
+  - Added property-based testing via `hypothesis` as 4th test pattern in test-master and testing-guide
+  - **Zero-skip HARD GATE**: `@pytest.mark.skip` is no longer an acceptable resolution for failing tests
+  - Only 2 options for failing tests: Fix it or Adjust expectations (skip removed)
+  - Added `skip_accumulation` bypass pattern to known_bypass_patterns.json
+  - Prevents skip accumulation across sessions where LLM agents never revisit skipped tests
+
 ### Changed
 
 - **STEP 9 Continuous Improvement Analysis — Mandatory Enforcement (Issue #625)**

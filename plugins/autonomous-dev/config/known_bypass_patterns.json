@@ -192,6 +192,22 @@
       "severity": "critical"
     },
     {
+      "id": "skip_accumulation",
+      "name": "Skip accumulation across sessions",
+      "description": "Model adds @pytest.mark.skip to failing tests instead of fixing them, accumulating skipped tests across sessions that are never resolved",
+      "issue": "#364",
+      "hard_gate": "No New Skips HARD GATE in implementer.md and implement.md STEP 5",
+      "detection": {
+        "type": "file_content",
+        "indicators": [
+          "New @pytest.mark.skip additions in committed test files",
+          "Skip count increases between sessions",
+          "Tests marked 'TDD RED phase - implementation pending' persist across multiple sessions"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
       "id": "batch_progressive_shortcutting",
       "name": "Batch progressive shortcutting",
       "description": "Model runs full pipeline for early issues but progressively reduces agents for later issues in batch mode",

@@ -71,6 +71,29 @@ def test_all_active_skills_have_content(self):
         assert len(skill_md.read_text()) > 100, f"Skill {skill.name} is a hollow shell"
 ```
 
+### 4. Property-Based Pattern (hypothesis invariants)
+
+Define properties that must always hold, instead of testing specific examples. Catches 23-37% more bugs than example-based tests. Use for: pure functions, serialization, data transformations, parsers.
+
+```python
+from hypothesis import given, strategies as st
+
+@given(st.lists(st.integers()))
+def test_sort_preserves_elements(arr):
+    """Invariant: sorting never loses or adds elements."""
+    result = sorted(arr)
+    assert set(result) == set(arr)
+    assert len(result) == len(arr)
+
+@given(st.dictionaries(st.text(min_size=1), st.text()))
+def test_config_roundtrip(config):
+    """Invariant: serialize → deserialize = identity."""
+    assert json.loads(json.dumps(config)) == config
+```
+
+**When to use**: Pure functions, roundtrips, idempotent operations, parsers.
+**When NOT to use**: Agent prompts (use GenAI judge), filesystem checks (use structural).
+
 ---
 
 ## Anti-Patterns (NEVER do these)
@@ -119,7 +142,7 @@ tests/
 │   ├── smoke/           # Tier 0: Critical path (<5s) — CI GATE
 │   ├── regression/      # Tier 1: Feature protection (<30s)
 │   ├── extended/        # Tier 2: Deep validation (<5min)
-│   └── progression/     # Tier 3: TDD red phase (not yet implemented)
+│   └── progression/     # Tier 3: Forward-looking tests (next milestone)
 ├── unit/                # Isolated functions (<1s each)
 ├── integration/         # Multi-component workflows (<30s)
 ├── genai/               # LLM-as-judge (opt-in via --genai flag)
@@ -174,7 +197,9 @@ pytest tests/genai/ --genai        # GenAI validation (opt-in)
 ## Hard Rules
 
 1. **100% pass rate required** — ALL tests must pass, 0 failures. Coverage targets are separate.
-2. **Tests before implementation** — write failing tests, then implement.
-3. **Regression test for every bug fix** — named `test_regression_issue_NNN_description`.
-4. **No test is better than a flaky test** — if it fails randomly, fix or delete it.
-5. **GenAI tests are opt-in** — `--genai` flag required, no surprise API costs.
+2. **Specification-driven** — tests define the contract; implementation satisfies it.
+3. **0 new skips** — `@pytest.mark.skip` is forbidden for new code. Fix it or adjust expectations.
+4. **Regression test for every bug fix** — named `test_regression_issue_NNN_description`.
+5. **No test is better than a flaky test** — if it fails randomly, fix or delete it.
+6. **GenAI tests are opt-in** — `--genai` flag required, no surprise API costs.
+7. **Property over example** — prefer `hypothesis` invariants over hardcoded input/output pairs where applicable.

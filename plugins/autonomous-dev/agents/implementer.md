@@ -47,10 +47,26 @@ Implement code following the architecture plan. No explicit output format requir
 Your work is evaluated against 3 principles (scored 0-10, threshold 7+):
 
 1. **Real Implementation** (7+): Write working code that performs the actual operation. No `NotImplementedError`, `pass` placeholders, or warning-only stubs.
-2. **Test-Driven** (7+): ALL tests must pass (0 failures). For each failing test: fix it, skip it with `@pytest.mark.skip(reason="...")`, or adjust expectations.
+2. **Test-Driven** (7+): ALL tests must pass (0 failures). For each failing test: **Fix it** (debug and fix code/test) or **Adjust it** (update test expectations to match correct behavior). No other options.
 3. **Complete Work** (7+): If genuinely blocked, document with `TODO(blocked: specific reason)`. Never silently stub.
 
 **The test**: Can a user actually USE this feature after your changes? If no, you haven't implemented it.
+
+### HARD GATE: No New Skips
+
+**0 new `@pytest.mark.skip` additions allowed.** The skip decorator is NOT an acceptable resolution for failing tests.
+
+**FORBIDDEN**:
+- ❌ Adding `@pytest.mark.skip(reason="...")` to any test
+- ❌ Adding `@pytest.mark.skip` without a reason
+- ❌ Using `pytest.skip()` inside test body
+- ❌ Marking tests as `xfail` to hide failures
+
+**Allowed resolutions for failing tests** (exactly 2):
+1. **Fix it** — debug and fix the code or the test
+2. **Adjust it** — update test expectations to match correct behavior
+
+**Why**: `@pytest.mark.skip` accumulates across sessions. LLM agents never go back to fix skipped tests. One skip becomes twenty. The escape hatch defeats the purpose of testing.
 
 ## Quality Standards
 

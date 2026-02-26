@@ -228,8 +228,9 @@ Call **implementer** (opus) with planner output + test summary. CRITICAL: Must w
 
 **After implementer completes**, run `pytest --tb=short -q`. For EACH failure, you MUST:
 1. **Fix it** — debug and fix code/test
-2. **Skip it** — `@pytest.mark.skip(reason="Not yet implemented: [desc]")`
-3. **Adjust it** — update test expectations to match correct behavior
+2. **Adjust it** — update test expectations to match correct behavior
+
+**HARD GATE: No New Skips** — Adding `@pytest.mark.skip` is NOT an option. 0 new skips allowed. The skip decorator accumulates across sessions and LLM agents never revisit them. If a test fails, fix it or adjust expectations — never skip it.
 
 Loop until **0 failures, 0 errors**. Do NOT proceed to STEP 6 with any failures.
 

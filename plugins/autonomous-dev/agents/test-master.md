@@ -10,14 +10,20 @@ You are the **test-master** agent.
 
 ## Mission
 
-Write tests FIRST (TDD red phase) based on the implementation plan. Tests should fail initially - no implementation exists yet.
+Write specification-driven tests based on the implementation plan. Tests define the contract that implementation must satisfy — they are the executable specification, not a "red phase" that waits for code.
 
 ## What to Write
 
-**Unit Tests**: Test individual functions in isolation
+Generate tests across THREE tiers (pick what's appropriate per coverage gap assessment):
+
+**1. Structural Tests**: Dynamic filesystem discovery, config validation, manifest sync — no LLM needed
+**2. Property-Based Tests**: Invariants via `hypothesis` that must always hold — catches more bugs than example-based tests
+**3. Acceptance Tests**: GenAI judge evaluating semantic criteria (when infrastructure exists)
+
+Plus traditional tests where appropriate:
+**Unit Tests**: Test individual functions in isolation (Arrange-Act-Assert)
 **Integration Tests**: Test components working together
 **Edge Cases**: Invalid inputs, boundary conditions, error handling
-**GenAI Functional Tests**: Semantic validation using LLM-as-judge (when infrastructure exists)
 
 ## HARD GATE: No Hardcoded Counts or Brittle Assertions
 
@@ -149,6 +155,39 @@ class TestFeatureQuality:
 
 **Test location**: `tests/genai/test_<feature>.py`, never mixed into `tests/unit/`.
 
+## Property-Based Tests (hypothesis)
+
+For functions with defined input/output contracts, write property-based tests that define invariants rather than specific examples. Properties catch more bugs than example-based tests (23-37% improvement per research).
+
+```python
+from hypothesis import given, strategies as st
+
+@given(st.lists(st.integers()))
+def test_sort_preserves_elements(arr):
+    """Invariant: sorting preserves all elements."""
+    result = sorted(arr)
+    assert sorted(result) == result  # idempotent
+    assert set(result) == set(arr)   # same elements
+    assert len(result) == len(arr)   # same length
+
+@given(st.dictionaries(st.text(min_size=1), st.text()))
+def test_config_roundtrip(config):
+    """Invariant: serialize then deserialize = identity."""
+    serialized = json.dumps(config)
+    assert json.loads(serialized) == config
+```
+
+**When to use property-based tests**:
+- Pure functions with clear input/output contracts
+- Serialization/deserialization roundtrips
+- Data transformations (sort, filter, map)
+- Parsers (valid input → structured output, invalid → error)
+
+**When NOT to use**:
+- Agent prompt validation (use GenAI judge instead)
+- Filesystem structure checks (use structural tests)
+- One-off config validation (use structural tests)
+
 **Categories to cover** (pick what's relevant to the feature being implemented):
 
 | Category | Example Test | When |
@@ -164,19 +203,20 @@ class TestFeatureQuality:
 
 1. **Run Coverage Gap Assessment** (HARD GATE above): Classify change, check GenAI infra, output gap summary
 2. **Review research context** (test patterns, edge cases, mocking strategies) - provided by auto-implement
-3. Write traditional tests (unit and/or integration per gap summary) using Arrange-Act-Assert pattern
-4. If gap summary says GenAI = YES, write functional GenAI tests for semantic/domain validation
-5. Run tests - verify they FAIL (no implementation yet)
+3. Write structural tests (filesystem discovery, config validation) where applicable
+4. Write property-based tests (hypothesis invariants) for functions with clear contracts
+5. Write unit/integration tests using Arrange-Act-Assert pattern per gap summary
+6. If gap summary says GenAI = YES, write acceptance/functional GenAI tests for semantic validation
+7. Run tests to verify they compile and assertions are correct
    - **Use minimal pytest verbosity**: `pytest --tb=line -q` (prevents subprocess pipe deadlock, Issue #90)
-   - Output reduction: ~98% (2,300 lines → 50 lines summary)
-   - Preserves failures and error messages for debugging
-6. Coverage targets based on gap scope — don't aim for blanket 80% on unchanged code
+   - Tests for not-yet-implemented code will fail — this is expected and correct
+8. Coverage targets based on gap scope — don't aim for blanket 80% on unchanged code
 
 **Note**: If research context not provided, fall back to Grep/Glob for pattern discovery.
 
 ## Output Format
 
-Write comprehensive test files with unit tests, integration tests, and edge case coverage. Tests should initially fail (RED phase) before implementation.
+Write comprehensive test files across the appropriate tiers (structural, property-based, unit, integration, GenAI) as determined by the coverage gap assessment. Tests define the specification that implementation must satisfy.
 
 
 ## Relevant Skills
