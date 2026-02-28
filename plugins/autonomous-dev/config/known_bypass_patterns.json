@@ -222,9 +222,95 @@
         ]
       },
       "severity": "critical"
+    },
+    {
+      "id": "sequential_step_parallelized",
+      "name": "Sequential steps incorrectly parallelized",
+      "description": "Pipeline steps that must be sequential (e.g., test-master → implementer) were launched in the same message window",
+      "issue": "#367",
+      "hard_gate": "COORDINATOR FORBIDDEN LIST in implement.md: 'Combining or parallelizing sequential steps'",
+      "detection": {
+        "type": "agent_io",
+        "indicators": [
+          "test-master and implementer launched within 5 seconds of each other",
+          "planner and implementer launched within 5 seconds",
+          "implementer and reviewer launched within 5 seconds"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "parallel_step_serialized",
+      "name": "Parallel steps unnecessarily serialized",
+      "description": "Pipeline steps that should run in parallel (e.g., both researchers) were run sequentially",
+      "issue": "#367",
+      "hard_gate": null,
+      "detection": {
+        "type": "agent_io",
+        "indicators": [
+          "researcher-local and researcher launched more than 30 seconds apart",
+          "reviewer, security-auditor, doc-master launched more than 30 seconds apart"
+        ]
+      },
+      "severity": "info"
+    },
+    {
+      "id": "context_dropping",
+      "name": "Context dropping between agents",
+      "description": "Agent prompt word count is less than 20% of prior agent result word count, suggesting coordinator summarized instead of passing full results",
+      "issue": "#367",
+      "hard_gate": "COORDINATOR FORBIDDEN LIST in implement.md: 'Summarizing agent output instead of passing full results'",
+      "detection": {
+        "type": "agent_io",
+        "indicators": [
+          "Agent prompt_word_count / prior agent result_word_count < 0.2",
+          "Coordinator output contains summarization phrases: 'in summary', 'key points are', 'briefly'"
+        ]
+      },
+      "severity": "warning"
+    },
+    {
+      "id": "hard_gate_ordering_bypass",
+      "name": "Hard gate ordering bypass",
+      "description": "STEP 6 validation agents (reviewer, security-auditor, doc-master) launched before STEP 5 test gate passed",
+      "issue": "#367",
+      "hard_gate": "STEP 5 test gate HARD GATE + COORDINATOR FORBIDDEN LIST: 'Running STEP 6 before STEP 5 passes'",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "STEP 6 agent timestamps earlier than any successful test_run timestamp",
+          "No test_run entries but STEP 6 agents present",
+          "test_run with success=false followed by STEP 6 agent invocations"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "reviewer_blocking_ignored",
+      "name": "Reviewer BLOCKING issues ignored",
+      "description": "Reviewer agent returned BLOCKING issues but no subsequent fix commits were made",
+      "issue": "#367",
+      "hard_gate": "Reviewer BLOCKING requires fix before proceeding",
+      "detection": {
+        "type": "log_pattern",
+        "indicators": [
+          "Reviewer result contains 'BLOCKING' but no subsequent Edit/Write tool calls to the flagged files",
+          "Reviewer result contains 'APPROVAL: NO' but pipeline proceeded to doc-master",
+          "Security-auditor result contains 'FAIL' but no subsequent fix"
+        ]
+      },
+      "severity": "critical"
     }
   ],
   "expected_end_states": {
+    "quick": {
+      "required_agents": ["implementer"],
+      "required_actions": ["test_run"],
+      "conditional_actions": {
+        "git_commit": "AUTO_GIT_ENABLED=true",
+        "git_push": "AUTO_GIT_PUSH=true"
+      }
+    },
     "full_pipeline": {
       "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
       "required_actions": ["test_run", "git_commit"],

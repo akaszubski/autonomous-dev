@@ -43,6 +43,24 @@
   - researcher-local.md: added HARD GATE on empty search results, must search at least 3 distinct terms before concluding no relevant code exists
   - Impact: All 6 affected pipeline agents now enforce explicit quality gates preventing weak outputs
 
+- **Intent-level pipeline validation added to continuous-improvement-analyst** (Issue #367)
+  - New library: `pipeline_intent_validator.py` — validates pipeline step ordering, hard gate enforcement, context passing, and parallelization via JSONL session logs
+  - Continuous-improvement-analyst quality check #8: Runs pipeline intent validator against session logs to detect coordinator-level violations:
+    - Step ordering violations (e.g., implementer before planner) → `[INTENT-VIOLATION]` CRITICAL
+    - Hard gate ordering bypass (STEP 6 agents before STEP 5 pytest passes) → `[BYPASS]` CRITICAL
+    - Context dropping (agent prompt < 20% of prior result word count) → `[INTENT-VIOLATION]` WARNING
+    - Parallelization violations (sequential steps launched together) → `[INTENT-VIOLATION]` CRITICAL
+    - Parallelization suggestions (parallel steps unnecessarily serialized) → `[OPTIMIZE]` INFO
+  - Added 5 new patterns to `known_bypass_patterns.json`:
+    - `sequential_step_parallelized`: test-master and implementer launched within 5 seconds
+    - `parallel_step_serialized`: researchers or STEP 6 agents >30s apart
+    - `context_dropping`: Agent prompt word count < 20% of prior result (coordinator summarization)
+    - `hard_gate_ordering_bypass`: STEP 6 agents before STEP 5 pytest passes
+    - `reviewer_blocking_ignored`: Reviewer BLOCKING issues not fixed before proceeding
+  - Session logger now captures prompt_word_count and result_word_count for quantitative context analysis
+  - Updated continuous-improvement-analyst.md with complete quality check #8 specification
+  - Impact: Coordinator-level intent violations now detectable in quality audits (previously only structural checks)
+
 ### Changed
 
 - **STEP 9 Continuous Improvement Analysis — Mandatory Enforcement (Issue #625)**

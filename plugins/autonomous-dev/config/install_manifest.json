@@ -186,6 +186,7 @@
         "plugins/autonomous-dev/lib/pause_controller.py",
         "plugins/autonomous-dev/lib/performance_profiler.py",
         "plugins/autonomous-dev/lib/permission_classifier.py",
+        "plugins/autonomous-dev/lib/pipeline_intent_validator.py",
         "plugins/autonomous-dev/lib/plugin_updater.py",
         "plugins/autonomous-dev/lib/pool_config.py",
         "plugins/autonomous-dev/lib/pr_automation.py",
@@ -240,10 +241,7 @@
         "plugins/autonomous-dev/lib/workflow_violation_logger.py",
         "plugins/autonomous-dev/lib/worktree_command.py",
         "plugins/autonomous-dev/lib/worktree_conflict_integration.py",
-        "plugins/autonomous-dev/lib/worktree_manager.py",
-        "plugins/autonomous-dev/lib/batch_git_finalize.py",
-        "plugins/autonomous-dev/lib/coverage_baseline.py",
-        "plugins/autonomous-dev/lib/step5_quality_gate.py"
+        "plugins/autonomous-dev/lib/worktree_manager.py"
       ]
     },
     "config": {

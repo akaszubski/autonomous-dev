@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2026-01-19 (Issue #255 - Added workflow_violation_logger.py, doc_change_registry lib/** pattern)
+**Last Updated**: 2026-02-28 (Issue #367 - Added pipeline_intent_validator.py)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (57)
+### Core Libraries (58)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -69,6 +69,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 56. **training_metrics.py** - Tulu3 multi-dimensional scoring and DPO preference generation for LLM training quality assessment (v1.0.0, Issue #279)
 57. **coverage_baseline.py** - Coverage baseline storage and regression detection for test quality gates (v1.0.0, Issue #332)
 58. **batch_git_finalize.py** - Batch git finalization with auto-commit, merge, and worktree cleanup (v1.0.0, Issues #333-334)
+59. **pipeline_intent_validator.py** - Intent-level pipeline validation via JSONL session logs for coordinator-level violations (Issue #367)
 
 
 

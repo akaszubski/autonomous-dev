@@ -119,6 +119,7 @@ def main():
             # Normal mode: compact summaries only
             input_summary = _summarize_input(tool_name, tool_input)
             output_summary = _summarize_output(tool_output)
+            output_summary = _add_result_word_count(tool_name, tool_output, output_summary)
             entry = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "tool": tool_name,
@@ -180,6 +181,9 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
         summary["subagent_type"] = tool_input.get("subagent_type", "")
         # Track agent invocations for pipeline completeness
         summary["pipeline_action"] = "agent_invocation"
+        # Word count for intent validation (Issue #367)
+        prompt_text = tool_input.get("prompt", "")
+        summary["prompt_word_count"] = len(prompt_text.split()) if isinstance(prompt_text, str) else 0
     else:
         # Generic: include keys but not values
         summary["keys"] = list(tool_input.keys())[:5]
@@ -214,6 +218,18 @@ def _summarize_output(tool_output: dict) -> dict:
         return summary
 
     return {"success": True}
+
+
+def _add_result_word_count(tool_name: str, tool_output: dict, summary: dict) -> dict:
+    """Add result_word_count for Task tool outputs (Issue #367)."""
+    if tool_name == "Task":
+        output_text = ""
+        if isinstance(tool_output, dict):
+            output_text = str(tool_output.get("output", ""))
+        elif isinstance(tool_output, str):
+            output_text = tool_output
+        summary["result_word_count"] = len(output_text.split()) if output_text else 0
+    return summary
 
 
 def _find_log_dir() -> Path:

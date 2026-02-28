@@ -15,7 +15,7 @@ Evaluate whether autonomous-dev's automation tooling is working correctly by ana
 **Ground truth**: autonomous-dev's PROJECT.md (pipeline, enforcement, architecture) + CLAUDE.md (operational rules)
 **Issues filed to**: Always `akaszubski/autonomous-dev`, labeled `auto-improvement`
 
-## The 7 Quality Checks
+## The 8 Quality Checks
 
 ### 1. Hook Execution Completeness
 **Rule**: "hooks fire on every event, no opt-out" (PROJECT.md)
@@ -87,6 +87,35 @@ Look for behavior that circumvents automation intent but doesn't match any known
 - Pipeline completing "successfully" but with minimal actual work
 
 **Finding**: Flag as `[NEW-BYPASS]` with recommendation to add to `known_bypass_patterns.json`.
+
+### 8. Intent-Level Pipeline Validation
+**Rule**: "Every step. Every feature." (PROJECT.md) + COORDINATOR FORBIDDEN LIST (implement.md)
+
+Run the pipeline intent validator against session logs to detect coordinator-level violations that structural checks miss:
+
+```bash
+python3 -c "
+import sys, json; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_intent_validator import validate_pipeline_intent
+from pathlib import Path
+findings = validate_pipeline_intent(Path('.claude/logs/activity/DATE.jsonl'), session_id='SESSION_ID')
+for f in findings:
+    print(json.dumps({'type': f.finding_type, 'severity': f.severity, 'pattern': f.pattern_id, 'desc': f.description, 'evidence': f.evidence}))
+"
+```
+
+**What it detects:**
+- **Step ordering violations**: Agents ran out of canonical order (e.g., implementer before planner) → `[INTENT-VIOLATION]` CRITICAL
+- **Hard gate ordering bypass**: STEP 6 agents launched before STEP 5 pytest passed → `[BYPASS]` CRITICAL
+- **Context dropping**: Agent prompt word count < 20% of prior agent result (coordinator summarized output) → `[INTENT-VIOLATION]` WARNING
+  - Distinct from `context_compression` pattern (which uses phrase matching): this uses quantitative word count ratios
+- **Parallelization violations**: Sequential steps parallelized (test-master + implementer in same window) → `[INTENT-VIOLATION]` CRITICAL
+- **Parallelization suggestions**: Parallel steps serialized (both researchers >30s apart) → `[OPTIMIZE]` INFO
+
+**Finding**: Map each validator finding to output format:
+- `severity == "CRITICAL"` → `[BYPASS]` or `[INTENT-VIOLATION]` with specific pattern_id
+- `severity == "WARNING"` → `[INTENT-VIOLATION]` with evidence
+- `severity == "INFO"` → `[OPTIMIZE]` suggestion
 
 ## Stop Hook Analysis
 
