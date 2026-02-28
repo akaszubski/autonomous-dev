@@ -138,7 +138,11 @@ COMMAND_ROUTES: List[Dict] = [
             r'\b(implement|create|add|build|write|develop|fix|patch|refactor|update|modify)\b'
             r'.*\b(feature|function|class|method|module|component|api|endpoint|service|handler|'
             r'controller|model|interface|code|authentication|system|logic|workflow|validation|'
-            r'integration|bug|test)\b',
+            r'integration|bug|test|app|application|tool|project|product|ui|frontend|backend|'
+            r'page|screen|view|dashboard|wizard|dialog|widget|library|framework|database|'
+            r'schema|migration|script)\b',
+            r"(?:let'?s|we should|how do we|can we|I want to|I need to|we need to|we could)\s+"
+            r"\b(implement|create|add|build|write|develop|fix|patch|refactor|update|modify)\b",
         ],
         "skip": [r'^/', r'\?$'],
         "command": "/implement",

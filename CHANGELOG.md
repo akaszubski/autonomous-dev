@@ -43,6 +43,21 @@
   - researcher-local.md: added HARD GATE on empty search results, must search at least 3 distinct terms before concluding no relevant code exists
   - Impact: All 6 affected pipeline agents now enforce explicit quality gates preventing weak outputs
 
+- **Conversational Feature Request Detection in Prompt Validator** (Issue #368)
+  - Expanded prompt validator to catch conversational phrasing (e.g., "how do we develop an app", "let's build a dashboard", "can we create a migration script")
+  - Extended noun list in /implement route: app, application, tool, project, product, ui, frontend, backend, page, screen, view, dashboard, wizard, dialog, widget, library, framework, database, schema, migration, script
+  - Added new pattern for conversational openers: "let's", "we should", "how do we", "can we", "I want to", "I need to", "we need to", "we could" followed by action verb
+  - Prevents conversational feature requests from being missed by prompt routing
+  - Test coverage: 2 new test classes in test_command_routing.py (12 parametrized tests for conversational phrasing + expanded nouns)
+
+- **Repo-Aware CI Analyst Calibration** (Issue #369)
+  - Continuous-improvement-analyst now calibrates expectations based on registered hooks in consumer repos
+  - When analyzing a consumer repo (not autonomous-dev itself), only flags missing hook layers that have corresponding hooks in the repo's settings.json
+  - Updated analyst to read target repo's settings.json and extract registered hooks for context
+  - Updated /improve command to pass registered hooks context to the analyst
+  - Enables accurate quality analysis for repos with non-standard hook configurations (e.g., enterprise repos with limited hook set)
+  - Impact: Consumer repos no longer get false positive [HOOK-GAP] findings for intentionally-disabled hooks
+
 - **Intent-level pipeline validation added to continuous-improvement-analyst** (Issue #367)
   - New library: `pipeline_intent_validator.py` — validates pipeline step ordering, hard gate enforcement, context passing, and parallelization via JSONL session logs
   - Continuous-improvement-analyst quality check #8: Runs pipeline intent validator against session logs to detect coordinator-level violations:

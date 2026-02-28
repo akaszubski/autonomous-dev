@@ -26,7 +26,9 @@ Check that all 4 hook layers produced log entries:
 - `PostToolUse` — error detection, activity logging
 - `Stop` — assistant output capture, session summary
 
-**Finding**: If any layer has zero entries, flag as `[HOOK-GAP]` critical. A missing layer means a hook is not registered or silently failing.
+**Repo-aware calibration**: If `registered_hooks` context is provided, only check for hook layers that correspond to registered hooks. Consumer repos using autonomous-dev may not have all 4 hook layers registered. Only flag missing layers that have corresponding hooks in the repo's settings.json.
+
+**Finding**: If any layer has zero entries (and that layer is registered in the target repo), flag as `[HOOK-GAP]` critical. A missing layer means a hook is not registered or silently failing.
 
 ### 2. Pipeline Completeness
 **Rule**: "9-step pipeline, every step, every feature" (PROJECT.md)
@@ -35,6 +37,8 @@ When `/implement` ran (full pipeline mode), verify all expected agents were invo
 - researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
 
 Cross-reference `known_bypass_patterns.json` → `expected_end_states` for the pipeline mode.
+
+**Repo-aware calibration**: If this analysis is running on a consumer repo (not autonomous-dev itself), calibrate expectations based on the repo's registered hooks and actual pipeline usage. A consumer repo may legitimately run fewer agents.
 
 **Finding**: Missing agents → `[INCOMPLETE]` with list of what ran vs what should have.
 

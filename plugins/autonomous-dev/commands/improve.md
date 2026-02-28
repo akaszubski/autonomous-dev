@@ -55,6 +55,10 @@ Read autonomous-dev's source-of-truth documents to provide to the analyst:
 2. **CLAUDE.md**: Read `CLAUDE.md` — extract Critical Rules section
 3. **Known bypass patterns**: Read `plugins/autonomous-dev/config/known_bypass_patterns.json`
 4. **Recent git history**: `git log --oneline -20`
+5. **Repo context (registered hooks)**: Read the target repo's settings.json to calibrate expectations:
+   ```bash
+   cat .claude/settings.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); hooks=d.get('hooks',{}); print(json.dumps({k: [h.get('command','') for h in v] if isinstance(v,list) else v for k,v in hooks.items()}))" 2>/dev/null || echo "{}"
+   ```
 
 ### STEP 3: Analyze with Continuous Improvement Agent
 
@@ -68,7 +72,8 @@ Launch the `continuous-improvement-analyst` agent (Task tool, subagent_type: con
 2. **PROJECT.md** GOALS and enforcement sections
 3. **CLAUDE.md** Critical Rules
 4. **known_bypass_patterns.json** content
-5. Instructions to run all 7 quality checks and cite specific rules for each finding
+5. **Registered hooks context** from Step 2.5 (so the analyst can calibrate for consumer repos)
+6. Instructions to run all 7 quality checks and cite specific rules for each finding
 
 ### STEP 4: Report Findings
 

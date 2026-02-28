@@ -351,3 +351,79 @@ class TestMainHookIntegration:
     def test_no_match_returns_0(self):
         """Non-matching prompt should return exit code 0."""
         assert self._run_main("hello world") == 0
+
+
+# ============================================================================
+# Issue #368: Conversational Feature Request Detection
+# ============================================================================
+
+class TestConversationalImplementDetection:
+    """Test conversational phrasing routes to /implement (Issue #368)."""
+
+    @pytest.mark.parametrize("prompt", [
+        "how do we develop an app",
+        "let's build a dashboard",
+        "we should add a wizard to the project",
+        "can we create a migration script",
+        "I want to build a frontend for this",
+        "let's develop a backend service",
+        "we need to create a database schema",
+    ])
+    def test_conversational_phrasing_routes_to_implement(self, prompt: str):
+        """Conversational prompts with action verbs + nouns should match /implement."""
+        result = detect_command_intent(prompt)
+        assert result is not None, f"Expected /implement match for: {prompt!r}"
+        assert result["command"] == "/implement"
+
+    @pytest.mark.parametrize("prompt", [
+        "how do we develop an app?",
+        "can we create a migration script?",
+        "should we build a frontend?",
+    ])
+    def test_question_mark_still_skips(self, prompt: str):
+        """Prompts ending with ? should NOT match even with conversational phrasing."""
+        result = detect_command_intent(prompt)
+        assert result is None, f"Should NOT match for question: {prompt!r}"
+
+    @pytest.mark.parametrize("prompt", [
+        "let's discuss the app architecture",
+        "we should review the dashboard design",
+        "can we talk about the migration plan",
+    ])
+    def test_non_action_verbs_do_not_match(self, prompt: str):
+        """Non-action verbs like discuss/review/talk should NOT match /implement."""
+        result = detect_command_intent(prompt)
+        assert result is None, f"Should NOT match for non-action: {prompt!r}"
+
+
+class TestExpandedNounList:
+    """Test new nouns in /implement route (Issue #368)."""
+
+    @pytest.mark.parametrize("prompt,noun", [
+        ("build an app", "app"),
+        ("create an application", "application"),
+        ("develop a tool", "tool"),
+        ("build a project scaffold", "project"),
+        ("create a product page", "product"),
+        ("build a ui component", "ui"),
+        ("create a frontend", "frontend"),
+        ("implement the backend", "backend"),
+        ("build a page layout", "page"),
+        ("create a screen", "screen"),
+        ("add a view", "view"),
+        ("create a dashboard", "dashboard"),
+        ("build a wizard", "wizard"),
+        ("add a dialog box", "dialog"),
+        ("create a widget", "widget"),
+        ("build a library", "library"),
+        ("create a framework", "framework"),
+        ("build a database", "database"),
+        ("add a schema", "schema"),
+        ("create a migration", "migration"),
+        ("write a script", "script"),
+    ])
+    def test_expanded_noun_matches_implement(self, prompt: str, noun: str):
+        """Each new noun should trigger /implement route."""
+        result = detect_command_intent(prompt)
+        assert result is not None, f"Noun {noun!r} not matched in: {prompt!r}"
+        assert result["command"] == "/implement"
