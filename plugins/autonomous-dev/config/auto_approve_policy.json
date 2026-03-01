@@ -167,7 +167,9 @@
       "TodoWrite",
       "EnterPlanMode",
       "ExitPlanMode",
+      "Agent",
       "AgentOutputTool",
+      "EnterWorktree",
       "KillShell",
       "LSP"
     ]
