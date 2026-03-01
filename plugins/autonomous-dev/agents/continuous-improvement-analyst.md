@@ -233,6 +233,40 @@ gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state open
 ```
 Skip any finding that matches an existing open issue title.
 
+## MANDATORY: File Issues
+
+After generating the `## Issues to File` section, you MUST actually create each issue using `gh issue create`. Do NOT just output the section — execute it.
+
+For each issue in `## Issues to File`:
+```bash
+gh issue create -R akaszubski/autonomous-dev \
+  --title "{Issue Title}" \
+  --label "auto-improvement" \
+  --body "$(cat <<'EOF'
+## Problem
+{description with evidence from logs}
+
+## Rule Violated
+{quote from PROJECT.md or CLAUDE.md}
+
+## Evidence
+{relevant log entries}
+
+## Suggested Fix
+{actionable recommendation}
+
+---
+*Filed automatically by continuous-improvement-analyst*
+EOF
+)"
+```
+
+**Rules**:
+- Only file for severity >= warning (skip info/optimize suggestions)
+- Always deduplicate first — if a matching open issue exists, skip and note "Skipped: duplicate of #{number}"
+- Log each created issue number in your output: `✓ Filed #XXX: {title}`
+- If `gh` fails (auth, network), log the error and include the issue body in output so it can be filed manually
+
 ## PROJECT.md Alignment
 
 Compare each finding against `.claude/PROJECT.md` GOALS:

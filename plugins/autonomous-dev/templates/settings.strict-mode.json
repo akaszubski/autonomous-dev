@@ -1,6 +1,6 @@
 {
   "description": "Strict Mode Configuration - Vibe coding with strict enforcement",
-  "customInstructions": "STRICT MODE ACTIVE: When user requests a feature using natural language (e.g., 'implement X', 'add Y', 'create Z'), you MUST automatically invoke the /auto-implement command with their request. Do not just respond conversationally - actually run the command. Example: User says 'add Redis caching' → You run: /auto-implement 'add Redis caching'. This ensures orchestrator validates PROJECT.md alignment before any work begins.",
+  "customInstructions": "STRICT MODE ACTIVE: When user requests a feature using natural language (e.g., 'implement X', 'add Y', 'create Z'), you MUST automatically invoke the /auto-implement command with their request. Do not just respond conversationally - actually run the command. Example: User says 'add Redis caching' \u2192 You run: /auto-implement 'add Redis caching'. This ensures orchestrator validates PROJECT.md alignment before any work begins.",
   "permissions": {
     "allow": [
       "Bash(:*)",
@@ -22,7 +22,14 @@
       "SlashCommand",
       "EnterPlanMode",
       "AgentOutputTool",
-      "mcp__"
+      "mcp__",
+      "Agent",
+      "EnterWorktree",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "TaskStop"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -54,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '⭐ STRICT MODE ENABLED\\n- PROJECT.md alignment REQUIRED before any feature work\\n- All SDLC steps enforced (Research → Plan → Test → Implement → Review → Security → Docs)\\n- Auto-orchestration active: \"implement X\" triggers full pipeline\\n- File organization enforced: src/, docs/, tests/, scripts/\\n'"
+            "command": "echo '\u2b50 STRICT MODE ENABLED\\n- PROJECT.md alignment REQUIRED before any feature work\\n- All SDLC steps enforced (Research \u2192 Plan \u2192 Test \u2192 Implement \u2192 Review \u2192 Security \u2192 Docs)\\n- Auto-orchestration active: \"implement X\" triggers full pipeline\\n- File organization enforced: src/, docs/, tests/, scripts/\\n'"
           }
         ]
       },
@@ -71,7 +78,10 @@
     "PostToolUse": [
       {
         "matcher": {
-          "tools": ["Write", "Edit"]
+          "tools": [
+            "Write",
+            "Edit"
+          ]
         },
         "hooks": [
           {

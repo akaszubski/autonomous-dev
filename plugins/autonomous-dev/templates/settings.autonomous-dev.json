@@ -28,7 +28,14 @@
       "SlashCommand",
       "EnterPlanMode",
       "AgentOutputTool",
-      "mcp__"
+      "mcp__",
+      "Agent",
+      "EnterWorktree",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "TaskStop"
     ],
     "deny": [
       "Read(./.env)",
@@ -96,7 +103,10 @@
     "PostToolUse": [
       {
         "matcher": {
-          "tools": ["Write", "Edit"]
+          "tools": [
+            "Write",
+            "Edit"
+          ]
         },
         "hooks": [
           {

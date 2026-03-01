@@ -11,7 +11,18 @@
       "WebFetch",
       "WebSearch",
       "TodoWrite",
-      "NotebookEdit"
+      "NotebookEdit",
+      "Agent",
+      "AskUserQuestion",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "EnterWorktree",
+      "Skill",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "TaskStop"
     ],
     "deny": [
       "Read(./.env)",
@@ -71,7 +82,10 @@
     "PostToolUse": [
       {
         "matcher": {
-          "tools": ["Write", "Edit"]
+          "tools": [
+            "Write",
+            "Edit"
+          ]
         },
         "hooks": [
           {

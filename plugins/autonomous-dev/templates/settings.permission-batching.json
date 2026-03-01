@@ -20,7 +20,22 @@
       "Task",
       "WebSearch",
       "TodoWrite",
-      "mcp__"
+      "mcp__",
+      "Write",
+      "Edit",
+      "Agent",
+      "AskUserQuestion",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "EnterWorktree",
+      "Skill",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "TaskStop",
+      "WebFetch",
+      "NotebookEdit"
     ],
     "deny": [
       "Read(~/.ssh/**)",
