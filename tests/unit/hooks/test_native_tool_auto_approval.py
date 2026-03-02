@@ -52,36 +52,25 @@ def clean_env(monkeypatch):
 # 1. Native tools bypass MCP security
 # ---------------------------------------------------------------------------
 
-NATIVE_TOOLS = [
-    "Read", "Write", "Edit", "Bash", "Glob", "Grep",
-    "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop",
-    "NotebookEdit", "WebFetch", "WebSearch", "AskUserQuestion", "Skill",
-    "EnterPlanMode", "ExitPlanMode",
-]
+POLICY_FILE = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "config" / "auto_approve_policy.json"
 
-# Extra native tools in the set but not in the user's original list
-EXTRA_NATIVE_TOOLS = ["SlashCommand", "BashOutput", "TodoWrite", "AgentOutputTool", "KillShell", "LSP"]
+def _load_policy_always_allowed() -> list[str]:
+    """Load always_allowed tools from the policy file (source of truth)."""
+    with open(POLICY_FILE) as f:
+        policy = json.load(f)
+    return policy["tools"]["always_allowed"]
+
+POLICY_ALWAYS_ALLOWED = _load_policy_always_allowed()
 
 
 class TestNativeToolsMCPBypass:
     """Every native tool should be auto-approved by validate_mcp_security."""
 
-    @pytest.mark.parametrize("tool_name", NATIVE_TOOLS)
+    @pytest.mark.parametrize("tool_name", sorted(hook.NATIVE_TOOLS))
     def test_native_tool_bypasses_mcp_security(self, tool_name: str):
         decision, reason = hook.validate_mcp_security(tool_name, {})
         assert decision == "allow"
         assert "Native tool" in reason
-
-    @pytest.mark.parametrize("tool_name", EXTRA_NATIVE_TOOLS)
-    def test_extra_native_tool_bypasses_mcp_security(self, tool_name: str):
-        decision, reason = hook.validate_mcp_security(tool_name, {})
-        assert decision == "allow"
-        assert "Native tool" in reason
-
-    def test_native_tools_set_completeness(self):
-        """All tools listed in NATIVE_TOOLS constant exist in the hook module."""
-        all_expected = set(NATIVE_TOOLS + EXTRA_NATIVE_TOOLS)
-        assert all_expected.issubset(hook.NATIVE_TOOLS)
 
     def test_native_tool_with_arbitrary_input(self):
         """Native tools bypass regardless of tool_input content."""
@@ -95,6 +84,38 @@ class TestNativeToolsMCPBypass:
     def test_native_tool_reason_includes_tool_name(self):
         decision, reason = hook.validate_mcp_security("Glob", {"pattern": "**/*"})
         assert "Glob" in reason
+
+
+class TestPolicyAndHookSync:
+    """REGRESSION: Policy file and NATIVE_TOOLS must stay in sync.
+
+    This is the critical test. Every time we've had auto-approval bugs,
+    it's because a tool was added to one place but not the other.
+    """
+
+    def test_policy_always_allowed_subset_of_native_tools(self):
+        """Every tool in policy always_allowed MUST be in hook NATIVE_TOOLS.
+
+        This is the exact regression that has bitten us 4+ times:
+        tool added to policy file but not to NATIVE_TOOLS set in the hook.
+        """
+        missing = set(POLICY_ALWAYS_ALLOWED) - hook.NATIVE_TOOLS
+        assert missing == set(), (
+            f"Tools in policy always_allowed but MISSING from hook NATIVE_TOOLS: {missing}\n"
+            f"Fix: add {missing} to NATIVE_TOOLS in unified_pre_tool.py"
+        )
+
+    def test_native_tools_subset_of_policy(self):
+        """Every tool in hook NATIVE_TOOLS SHOULD be in policy always_allowed.
+
+        Warns about tools in the hook but not the policy (less critical but
+        indicates drift).
+        """
+        missing = hook.NATIVE_TOOLS - set(POLICY_ALWAYS_ALLOWED)
+        assert missing == set(), (
+            f"Tools in hook NATIVE_TOOLS but MISSING from policy always_allowed: {missing}\n"
+            f"Fix: add {missing} to always_allowed in auto_approve_policy.json"
+        )
 
 
 # ---------------------------------------------------------------------------

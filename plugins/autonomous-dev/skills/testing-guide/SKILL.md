@@ -56,7 +56,24 @@ def test_implement_and_implementer_share_forbidden_list(self, genai):
     assert result["score"] >= 5
 ```
 
-### 3. Structural Pattern (dynamic filesystem discovery)
+### 3. Cross-Validation Pattern (two sources that must match)
+
+No LLM needed. When two configs/files must stay in sync, read both and compare directly. Catches the #1 recurring bug class: adding something to one place but not the other.
+
+```python
+def test_policy_and_hook_in_sync(self):
+    """Policy always_allowed and hook NATIVE_TOOLS must be identical."""
+    policy_tools = set(json.load(open(POLICY_FILE))["tools"]["always_allowed"])
+    hook_tools = hook.NATIVE_TOOLS
+    # Check BOTH directions
+    assert policy_tools - hook_tools == set(), f"In policy not hook: {policy_tools - hook_tools}"
+    assert hook_tools - policy_tools == set(), f"In hook not policy: {hook_tools - policy_tools}"
+```
+
+**When to use**: Any time two files define overlapping data — permissions↔hook, manifest↔disk, config↔worktree copy, command frontmatter↔policy.
+**Key principle**: Read both sources dynamically. Never hardcode expected values in the test itself.
+
+### 4. Structural Pattern (dynamic filesystem discovery)
 
 No LLM needed. Discover components dynamically and assert structural properties. Use for: component existence, manifest sync, skill loading.
 
@@ -71,7 +88,7 @@ def test_all_active_skills_have_content(self):
         assert len(skill_md.read_text()) > 100, f"Skill {skill.name} is a hollow shell"
 ```
 
-### 4. Property-Based Pattern (hypothesis invariants)
+### 5. Property-Based Pattern (hypothesis invariants)
 
 Define properties that must always hold, instead of testing specific examples. Catches 23-37% more bugs than example-based tests. Use for: pure functions, serialization, data transformations, parsers.
 
@@ -108,6 +125,28 @@ assert hook_count == 17
 assert len(agents) >= 8, "Pipeline needs at least 8 agents"
 assert "implementer.md" in agent_names, "Core agent missing"
 ```
+
+### Hardcoded intermediary lists (the worst anti-pattern)
+```python
+# BAD — test has its OWN copy of expected data, drifts from both real sources
+VALID_TOOLS = {"Read", "Write", "Edit"}  # stale copy in test
+EXPECTED_COMMANDS = {"implement.md": {"Read", "Write"}}  # another stale copy
+assert actual_tools == VALID_TOOLS  # passes even when BOTH sources are wrong
+
+# GOOD — cross-validate real sources directly against each other
+policy_tools = set(json.load(open(POLICY_FILE))["tools"]["always_allowed"])
+hook_tools = hook.NATIVE_TOOLS
+assert policy_tools == hook_tools, f"Drift: policy-only={policy_tools - hook_tools}"
+
+# BEST — add GenAI test to catch gaps in BOTH sources
+result = genai.judge(
+    question="Are any known tools missing from this list?",
+    context=json.dumps(sorted(hook_tools)),
+    criteria="Check against known Claude Code native tools..."
+)
+```
+
+**Rule**: When two configs must stay in sync, read both dynamically and compare. Never create a third copy in the test — that's three things that can drift instead of two.
 
 ### Testing config values
 ```python
@@ -186,6 +225,7 @@ pytest tests/genai/ --genai        # GenAI validation (opt-in)
 | Pure Python functions | Unit tests | — |
 | Component interactions | Integration tests | — |
 | Doc ↔ code alignment | GenAI congruence | Hardcoded string matching |
+| Two configs in sync | Cross-validation | Hardcoded intermediary list |
 | Component existence | Structural (glob) | Hardcoded counts |
 | FORBIDDEN list sync | GenAI congruence | Manual comparison |
 | Security posture | GenAI judge | Regex scanning |

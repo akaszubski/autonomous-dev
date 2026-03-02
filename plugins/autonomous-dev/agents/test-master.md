@@ -45,6 +45,21 @@ Plus traditional tests where appropriate:
 
 **Key test**: "Will this test break if someone adds a new agent tomorrow?" If yes, rewrite it.
 
+**ALSO FORBIDDEN** — Hardcoded intermediary lists in tests:
+
+```python
+# BAD — test has its own copy of expected data that drifts from BOTH sources
+EXPECTED_TOOLS = {"Read", "Write", "Edit"}  # stale copy in test file
+assert hook.NATIVE_TOOLS == EXPECTED_TOOLS  # passes until both drift
+
+# GOOD — cross-validate the actual sources against each other
+policy_tools = json.load(open(POLICY_FILE))["tools"]["always_allowed"]
+hook_tools = hook.NATIVE_TOOLS
+assert set(policy_tools) == hook_tools  # catches drift between real sources
+```
+
+When two files/configs must stay in sync, NEVER create a third hardcoded copy in the test. Read both sources dynamically and compare them directly. Add a GenAI test for "is anything missing from both?"
+
 **Reference**: `tests/regression/smoke/test_dynamic_component_counts.py` — the gold standard for dynamic component testing.
 
 ## HARD GATE: Coverage Gap Assessment (Run FIRST)
