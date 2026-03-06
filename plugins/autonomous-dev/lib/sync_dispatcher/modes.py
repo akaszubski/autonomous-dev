@@ -33,9 +33,70 @@ except ImportError:
 # Import models
 from .models import SyncResult
 
+# Import settings merger for settings.json hook sync
+try:
+    from plugins.autonomous_dev.lib.settings_merger import SettingsMerger
+except ImportError:
+    try:
+        from settings_merger import SettingsMerger  # type: ignore
+    except ImportError:
+        SettingsMerger = None  # type: ignore
+
 # TYPE_CHECKING pattern prevents circular imports
 if TYPE_CHECKING:
     from .dispatcher import SyncDispatcher
+
+
+def _merge_settings_hooks(
+    dispatcher: "SyncDispatcher",
+    template_path: Path,
+) -> int:
+    """Merge settings template hooks into repo settings.json.
+
+    Ensures hooks (PreToolUse, UserPromptSubmit, etc.) from the template
+    are present in the repo's settings.json without overwriting user's
+    custom permissions.
+
+    Args:
+        dispatcher: SyncDispatcher instance
+        template_path: Path to settings template (e.g., settings.local.json)
+
+    Returns:
+        Number of hook events added/updated, or 0 if merge skipped/failed.
+    """
+    if SettingsMerger is None:
+        audit_log("settings_merge", "merger_unavailable", {
+            "reason": "SettingsMerger not importable"
+        })
+        return 0
+
+    user_settings_path = dispatcher.project_path / ".claude" / "settings.json"
+    if not template_path.exists():
+        return 0
+
+    try:
+        merger = SettingsMerger(str(dispatcher.project_path))
+        result = merger.merge_settings(
+            template_path=template_path,
+            user_path=user_settings_path,
+            write_result=True,
+        )
+        if result.success:
+            hooks_added = result.details.get("hooks_added", 0) if result.details else 0
+            audit_log("settings_merge", "success", {
+                "template": str(template_path),
+                "target": str(user_settings_path),
+                "hooks_added": hooks_added,
+            })
+            return hooks_added
+        else:
+            audit_log("settings_merge", "merge_failed", {
+                "error": result.message,
+            })
+            return 0
+    except Exception as e:
+        audit_log("settings_merge", "exception", {"error": str(e)})
+        return 0
 
 
 def dispatch_environment(dispatcher: "SyncDispatcher") -> SyncResult:
@@ -158,12 +219,17 @@ def dispatch_marketplace(dispatcher: "SyncDispatcher") -> SyncResult:
                 hooks_src, hooks_dst, pattern="*.py", description="hook files"
             )
 
+        # Merge settings.json hooks from template (Issue #373)
+        template_path = marketplace_dir / "templates" / "settings.local.json"
+        hooks_merged = _merge_settings_hooks(dispatcher, template_path)
+
         return SyncResult(
             success=True,
             mode=SyncMode.MARKETPLACE,
-            message=f"Marketplace sync completed: {files_updated} files updated",
+            message=f"Marketplace sync completed: {files_updated} files updated, {hooks_merged} hook events merged",
             details={
                 "files_updated": files_updated,
+                "hooks_merged": hooks_merged,
                 "source": str(marketplace_dir),
                 "commands": len(list(commands_dst.rglob("*.md")))
                 if commands_dst.exists()
@@ -281,12 +347,17 @@ def dispatch_plugin_dev(dispatcher: "SyncDispatcher") -> SyncResult:
                 description="script files", delete_orphans=True
             )
 
+        # Merge settings.json hooks from template (Issue #373)
+        template_path = plugin_dir / "templates" / "settings.local.json"
+        hooks_merged = _merge_settings_hooks(dispatcher, template_path)
+
         return SyncResult(
             success=True,
             mode=SyncMode.PLUGIN_DEV,
-            message=f"Plugin dev sync completed: {files_updated} files updated",
+            message=f"Plugin dev sync completed: {files_updated} files updated, {hooks_merged} hook events merged",
             details={
                 "files_updated": files_updated,
+                "hooks_merged": hooks_merged,
                 "source": str(plugin_dir),
             },
         )
