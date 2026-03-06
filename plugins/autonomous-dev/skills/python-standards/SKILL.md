@@ -2,7 +2,7 @@
 name: python-standards
 version: 1.1.0
 type: knowledge
-description: Python code quality standards (PEP 8, type hints, docstrings). Use when writing Python code.
+description: "Python code quality standards covering PEP 8, Black formatting, type hints, Google-style docstrings, and error handling. Use when writing or reviewing Python code. TRIGGER when: python, formatting, type hints, docstrings, PEP 8, black, isort. DO NOT TRIGGER when: non-Python files, markdown, config, shell scripts."
 keywords: python, pep8, type hints, docstrings, black, isort, formatting
 auto_activate: true
 allowed-tools: [Read]

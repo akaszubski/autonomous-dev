@@ -2,7 +2,7 @@
 name: security-patterns
 version: 1.1.0
 type: knowledge
-description: Security best practices, API key management, input validation. Use when handling secrets, user input, or security-sensitive code.
+description: "Security best practices covering API key management, input validation, injection prevention, and OWASP patterns. Use when handling secrets, user input, or security-sensitive code. TRIGGER when: security, API key, secret, input validation, injection, OWASP. DO NOT TRIGGER when: non-security code, styling, documentation, test scaffolding."
 keywords: security, api key, secret, validation, injection, owasp
 auto_activate: true
 allowed-tools: [Read]

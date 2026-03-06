@@ -2,7 +2,7 @@
 name: research-patterns
 version: 1.0.0
 type: knowledge
-description: Enforcement skill for consistent research methodology
+description: "4-phase research methodology: codebase recon, targeted web search, deep source analysis, and evidence synthesis. Use when investigating patterns, evaluating libraries, or analyzing best practices. TRIGGER when: research, investigate, evaluate options, compare libraries. DO NOT TRIGGER when: implementation tasks, bug fixes, routine code changes."
 keywords: [research, sources, evidence, methodology, codebase-recon]
 auto_activate: true
 allowed-tools: [WebSearch, WebFetch, Read, Grep, Glob]

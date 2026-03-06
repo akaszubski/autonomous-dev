@@ -2,7 +2,7 @@
 name: state-management-patterns
 version: 1.0.0
 type: knowledge
-description: State persistence patterns for autonomous-dev including JSON persistence, atomic writes, file locking, crash recovery, and state versioning. Use when implementing stateful libraries or features requiring persistent state.
+description: "JSON persistence, atomic writes, file locking, crash recovery, and state versioning patterns. Use when implementing stateful libraries or features requiring persistent state. TRIGGER when: state persistence, atomic write, file locking, crash recovery, checkpoint. DO NOT TRIGGER when: stateless utilities, pure functions, config reads, documentation."
 keywords: state, persistence, JSON, atomic, file locking, crash recovery, state versioning, batch state, user state, checkpoint, session tracking
 auto_activate: false
 allowed-tools: [Read]

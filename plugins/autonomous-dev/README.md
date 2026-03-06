@@ -14,8 +14,9 @@ Stop writing buggy code. Start shipping production-ready features with autonomou
 # Install
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
-# Restart Claude Code (REQUIRED)
-# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux), wait 5 seconds, reopen
+# First install: Restart Claude Code (Cmd+Q / Ctrl+Q), wait 5 seconds, reopen
+# Subsequent updates: run /reload-plugins (reloads commands, agents, skills)
+# Note: /reload-plugins does NOT reload hooks or settings — use full restart for those
 
 # Verify installation
 /health-check
@@ -79,9 +80,10 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 
 **After installation:**
 ```bash
-# REQUIRED: Fully quit and restart Claude Code
-# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
-# Wait 5 seconds before reopening
+# First install: Fully quit and restart Claude Code
+# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux), wait 5 seconds before reopening
+# Subsequent updates: run /reload-plugins (reloads commands, agents, skills)
+# Note: /reload-plugins does NOT reload hooks or settings — use full restart for those
 
 # Verify
 /health-check
@@ -97,7 +99,8 @@ cd autonomous-dev
 # Run installation script
 bash install.sh
 
-# Restart Claude Code
+# First install: Restart Claude Code (Cmd+Q / Ctrl+Q)
+# Subsequent updates: /reload-plugins (does NOT reload hooks/settings)
 ```
 
 ### Uninstallation
@@ -387,10 +390,10 @@ SANDBOX_PROFILE=development
 
 | Problem | Solution |
 |---------|----------|
-| Commands not appearing after install | Fully quit Claude Code (Cmd+Q / Ctrl+Q), wait 5s, reopen |
+| Commands not appearing after install | Run `/reload-plugins`, or fully quit Claude Code (Cmd+Q / Ctrl+Q) if hooks/settings changed |
 | ModuleNotFoundError: autonomous_dev | Create symlink: `cd plugins && ln -s autonomous-dev autonomous_dev` |
 | Context budget exceeded | Run `/clear` after each feature |
-| Plugin changes not visible | Run `/sync --plugin-dev` then restart |
+| Plugin changes not visible | Run `/sync --plugin-dev` then `/reload-plugins` (or full restart if hooks/settings changed) |
 | Hooks not running | Check `~/.claude/settings.json` for hook configuration |
 
 ### Installation Verification
@@ -433,7 +436,7 @@ grep "Do NOT fetch" .claude/commands/sync.md
 # Re-sync if missing
 /sync --plugin-dev
 
-# Restart Claude Code (REQUIRED)
+# Run /reload-plugins (or full restart if hooks/settings changed)
 ```
 
 ### Getting Help

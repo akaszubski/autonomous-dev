@@ -2,7 +2,7 @@
 name: observability
 version: 1.0.0
 type: knowledge
-description: Structured logging, debugging techniques (pdb/ipdb), profiling (cProfile/line_profiler), stack traces, performance monitoring, and metrics. Use when adding logging, debugging issues, or optimizing performance.
+description: "Structured logging, debugging (pdb/ipdb), profiling (cProfile/line_profiler), and performance monitoring. Use when adding logging, debugging issues, or optimizing performance. TRIGGER when: logging, debug, profiling, performance monitoring, metrics, stack trace. DO NOT TRIGGER when: feature implementation, testing, documentation, config changes."
 keywords: logging, debug, profiling, performance, monitoring, metrics, pdb, cProfile, observability, tracing
 auto_activate: false
 allowed-tools: [Read, Grep, Glob, Bash]

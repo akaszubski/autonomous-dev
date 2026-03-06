@@ -2,7 +2,7 @@
 name: api-design
 version: 1.0.0
 type: knowledge
-description: REST API design best practices, versioning strategies, error handling, pagination, and OpenAPI documentation. Use when designing or implementing REST APIs, HTTP endpoints, or API documentation.
+description: "REST API design best practices covering versioning, error handling, pagination, and OpenAPI documentation. Use when designing or implementing REST APIs or HTTP endpoints. TRIGGER when: API design, REST endpoint, HTTP route, OpenAPI, swagger, pagination. DO NOT TRIGGER when: internal library code, CLI tools, non-HTTP interfaces."
 keywords: api, rest, endpoint, http, json, openapi, swagger, versioning, pagination, api design
 auto_activate: false
 allowed-tools: [Read]

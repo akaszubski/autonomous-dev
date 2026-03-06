@@ -2,7 +2,7 @@
 name: architecture-patterns
 version: 1.0.0
 type: knowledge
-description: Enforcement skill for consistent architectural planning
+description: "File-by-file architecture planning with ADR format, dependency ordering, and testability gates. Use when designing system architecture or creating ADRs. TRIGGER when: architecture plan, system design, ADR, file breakdown, component design. DO NOT TRIGGER when: simple config edits, single-file bug fixes, documentation-only changes."
 keywords: [architecture, planning, design, adr, file-breakdown, dependencies]
 auto_activate: true
 allowed-tools: [Read, Grep, Glob]

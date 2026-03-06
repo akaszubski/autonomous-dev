@@ -2,6 +2,16 @@
 
 ### Added
 
+- **Agent Teams evaluation: keep worktrees for batch processing** (Issue #390)
+  - Evaluated Claude Code's Agent Teams feature as potential replacement for worktree-based batch processing
+  - Decision: **Keep worktrees** as primary mechanism due to 3 critical blockers
+  - Blocker 1: Agent Teams has no file-level locking (shared filesystem, last write wins) — can't handle concurrent writes to overlapping files
+  - Blocker 2: No session resumption — interrupts lose teammates, no equivalent to `/implement --resume` worktree recovery
+  - Blocker 3: One team per session — can't run parallel batches; worktrees allow multiple concurrent sessions
+  - Identified appropriate Agent Teams use cases: research phases, code review, architecture analysis (read-only operations)
+  - Comparison matrix: Worktrees score 6/8, Agent Teams score 2/8 on reliability metrics
+  - Full evaluation with decision rationale in docs/evaluations/issue_390_agent_teams_evaluation.md
+
 - **Adopt /reload-plugins command in documentation** (Issue #391)
   - Updated 8 documentation files with context-aware reload guidance
   - CLAUDE.md: Added `/reload-plugins` to installation instructions and `/sync` command docs
@@ -12,8 +22,14 @@
   - docs/WORKFLOW-DISCIPLINE.md: Added reload context to agent coordination section
   - docs/GIT-AUTOMATION.md: Updated git+plugin workflow
   - install.sh: Added post-install instructions mentioning `/reload-plugins`
-  - Ensures users know `/reload-plugins` is available for command/agent/skill changes (requires full restart for hook/settings changes)
-  - Test coverage: `test_reload_plugins_docs.py` validates all 8 files mention `/reload-plugins` and provide context
+
+- **HTTP Hooks evaluation: keep command hooks as primary mechanism** (Issue #392)
+  - Evaluated Claude Code's HTTP hooks feature (v2.1.69+) as potential replacement for command-based hooks
+  - Decision: **Keep command hooks as primary** due to enforcement and filesystem requirements
+  - Analysis shows command hooks win 7 of 10 comparison dimensions (blocking, latency, filesystem access, failure mode)
+  - HTTP hooks identified as suitable supplementary mechanism for notifications, CI/CD triggers, remote audit logging, and dashboard updates
+  - Security analysis: HTTP hooks lack HMAC verification and fail-open on timeout, making them unsuitable for blocking enforcement policies
+  - Full evaluation with decision tree, comparison matrix, and security best practices in docs/evaluations/issue_392_http_hooks_evaluation.md
 
 - **Per-Issue Agent Count HARD GATE in batch mode** (Issue #363)
   - Prevents progressive shortcutting where later issues in batch run fewer agents than earlier issues

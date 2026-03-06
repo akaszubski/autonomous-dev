@@ -35,8 +35,9 @@ Pick the installation tier that matches your workflow:
 # 2. Install plugin
 /plugin install autonomous-dev
 
-# 3. Exit and restart Claude Code (REQUIRED!)
-# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+# 3. First install: Restart Claude Code (Cmd+Q / Ctrl+Q)
+#    Future updates: /reload-plugins (reloads commands/agents/skills)
+#    Note: /reload-plugins does NOT reload hooks or settings
 ```
 
 **Done!** All commands immediately work.
@@ -134,7 +135,8 @@ git commit --no-verify  # Skip hooks for this commit
 **Disable hooks permanently**:
 ```bash
 rm .claude/settings.local.json
-# Restart Claude Code
+# Full restart required for settings changes (Cmd+Q / Ctrl+Q)
+# /reload-plugins does NOT reload settings
 ```
 
 ### Upgrading from Standard
@@ -286,8 +288,8 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 ### Basic Tier Issues
 
 **"Commands don't work after install"**:
-- Did you restart Claude Code? (Required!)
-- Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+- Run `/reload-plugins` to reload commands/agents/skills
+- If first install or hooks/settings changed: full restart (Cmd+Q / Ctrl+Q)
 - Verify: `/plugin list` shows autonomous-dev
 
 **"Want automation but don't know where to start"**:
@@ -308,7 +310,7 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 **"Too much automation, want control back"**:
 - Downgrade to [Basic Tier](#basic-tier)
 - Remove: `.claude/settings.local.json`
-- Restart Claude Code
+- Full restart required for settings changes (Cmd+Q / Ctrl+Q); /reload-plugins does NOT reload settings
 
 ### Team Tier Issues
 
@@ -342,7 +344,8 @@ echo "GITHUB_TOKEN=ghp_your_token_here" > .env
 ```bash
 /setup
 # Choose: "Automatic Hooks"
-# Restart Claude Code
+# Full restart required for hook changes (Cmd+Q / Ctrl+Q)
+# /reload-plugins does NOT reload hooks
 ```
 
 ### Standard → Team
@@ -376,7 +379,8 @@ rm .env  # Remove GitHub token
 # Remove automation
 rm .claude/settings.local.json
 
-# Restart Claude Code
+# Full restart required for settings changes (Cmd+Q / Ctrl+Q)
+# /reload-plugins does NOT reload settings
 # Commands still work, no automatic hooks
 ```
 

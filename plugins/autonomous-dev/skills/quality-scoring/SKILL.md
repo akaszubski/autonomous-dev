@@ -2,7 +2,7 @@
 name: Quality Scoring
 version: 1.0.0
 type: knowledge
-description: Multi-dimensional data assessment for training quality evaluation
+description: "Multi-dimensional data assessment for training quality evaluation including IFD scoring, factuality, and reasoning validation. Use when scoring training data or evaluating dataset quality. TRIGGER when: quality scoring, data assessment, IFD, factuality, training data quality. DO NOT TRIGGER when: code quality, test coverage, documentation, non-data tasks."
 keywords: [quality, scoring, assessment, IFD, factuality, reasoning]
 auto_activate: false
 ---
