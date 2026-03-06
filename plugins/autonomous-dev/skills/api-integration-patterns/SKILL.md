@@ -2,7 +2,7 @@
 name: api-integration-patterns
 version: 1.0.0
 type: knowledge
-description: API integration patterns for autonomous-dev including subprocess safety, GitHub CLI integration, retry logic, authentication, rate limiting, and timeout handling. Use when integrating external APIs or CLI tools.
+description: "Subprocess safety, GitHub CLI integration, retry logic, authentication, rate limiting, and timeout handling. Use when integrating external APIs or CLI tools. TRIGGER when: subprocess, gh cli, API call, retry logic, rate limiting, authentication. DO NOT TRIGGER when: internal function calls, pure Python logic, config file edits."
 keywords: api, subprocess, github, gh cli, retry, authentication, rate limiting, timeout, command injection, CWE-78, integration
 auto_activate: false
 allowed-tools: [Read]

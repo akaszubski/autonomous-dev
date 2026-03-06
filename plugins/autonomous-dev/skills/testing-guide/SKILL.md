@@ -2,7 +2,7 @@
 name: testing-guide
 version: 2.0.0
 type: knowledge
-description: GenAI-first testing with structural assertions and congruence validation. Project-specific test patterns, anti-patterns, and tier structure.
+description: "GenAI-first testing with structural assertions, congruence validation, and tier-based test structure. Use when writing tests, setting up test infrastructure, or validating coverage. TRIGGER when: test, pytest, coverage, TDD, test patterns, congruence, validation. DO NOT TRIGGER when: production code implementation, documentation, config-only changes."
 keywords: test, testing, genai, congruence, judge, pytest, validation, coverage
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]

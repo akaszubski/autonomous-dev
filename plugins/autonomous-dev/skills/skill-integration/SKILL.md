@@ -2,7 +2,7 @@
 name: skill-integration
 version: 1.0.0
 type: knowledge
-description: Standardized patterns for how agents discover, reference, and compose skills using progressive disclosure architecture
+description: "Patterns for agent skill discovery, referencing, and composition using progressive disclosure architecture. Use when building agents, composing skills, or optimizing context usage. TRIGGER when: skill discovery, agent integration, skill composition, progressive disclosure. DO NOT TRIGGER when: implementing features, writing tests, documentation-only changes."
 keywords: skill, skills, progressive disclosure, skill discovery, skill composition, agent integration, skill reference
 auto_activate: false
 allowed-tools: [Read]

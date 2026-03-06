@@ -501,7 +501,8 @@ tail -f .claude/logs/audit.jsonl | jq .
 
 ### Reset Circuit Breaker
 
-Restart Claude Code to reset circuit breaker:
+A full restart of Claude Code is required to reset the circuit breaker. `/reload-plugins` will NOT reset it because the circuit breaker state lives in the hook runtime (hooks are not reloaded by `/reload-plugins`).
+
 ```bash
 # macOS
 Cmd+Q  # Fully quit Claude Code

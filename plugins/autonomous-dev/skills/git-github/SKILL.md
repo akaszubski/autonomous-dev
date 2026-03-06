@@ -2,7 +2,7 @@
 name: git-github
 version: 1.0.0
 type: knowledge
-description: Git workflow and GitHub collaboration patterns including conventional commits, branch naming, PR workflow, and gh CLI usage
+description: "Git workflow and GitHub collaboration patterns including conventional commits, branch naming, PR workflow, and gh CLI usage. Use when creating commits, branches, or pull requests. TRIGGER when: git commit, branch, PR, pull request, merge, gh cli. DO NOT TRIGGER when: code implementation, testing, documentation without git operations."
 keywords: git, github, commit, branch, pr, pull request, merge, issue, gh, conventional commits
 auto_activate: false
 allowed-tools: [Read, Bash]

@@ -15,7 +15,7 @@ Autonomous development plugin that provides:
 /plugin install akaszubski/autonomous-dev
 ```
 
-Then restart Claude Code (Cmd+Q / Ctrl+Q).
+Then run `/reload-plugins` to load commands, agents, and skills. For first-time installs or if hooks/settings changed, do a full restart (Cmd+Q / Ctrl+Q) instead.
 
 ## Critical Rules
 
@@ -42,7 +42,7 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q).
 
 **Use `/clear` after each feature.** Prevents context bloat.
 
-**Use `/sync` to update.** Then restart Claude Code (Cmd+Q / Ctrl+Q).
+**Use `/sync` to update.** Then run `/reload-plugins` to pick up changes to commands, agents, and skills. If hooks or settings changed, do a full restart (Cmd+Q / Ctrl+Q) instead.
 
 ## Code Navigation
 

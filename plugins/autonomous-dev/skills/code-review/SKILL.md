@@ -2,7 +2,7 @@
 name: code-review
 version: 1.0.0
 type: knowledge
-description: Enforcement skill for consistent, thorough code reviews
+description: "10-point code review checklist covering correctness, tests, error handling, type hints, naming, security, and performance. Use when reviewing PRs or evaluating code quality. TRIGGER when: code review, PR review, review checklist, code quality check. DO NOT TRIGGER when: writing new code, debugging, refactoring without review context."
 keywords: [review, approve, request-changes, code-quality, checklist]
 auto_activate: true
 allowed-tools: [Read, Grep, Glob, Bash]

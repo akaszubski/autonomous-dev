@@ -9,11 +9,11 @@
 
 | Problem | Solution |
 |---------|----------|
-| Commands not appearing | Restart Claude Code (Cmd+Q / Ctrl+Q) |
+| Commands not appearing | Run `/reload-plugins` to reload commands/agents/skills. If hooks or settings changed, do a full restart (Cmd+Q / Ctrl+Q) instead |
 | ModuleNotFoundError | Create symlink (see below) |
 | Hook not running | Check `~/.claude/settings.json` |
 | Context exceeded | Run `/clear` |
-| Plugin changes not visible | Run `/sync --plugin-dev` then restart |
+| Plugin changes not visible | Run `/sync --plugin-dev` then `/reload-plugins` (or full restart if hooks/settings changed) |
 
 ---
 
@@ -27,16 +27,18 @@
 
 **Solution**:
 ```bash
+# Option A: Run /reload-plugins (reloads commands, agents, skills — ~5 seconds)
+/reload-plugins
+
+# Option B: Full restart (required if hooks or settings changed)
 # 1. Fully quit Claude Code
 #    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
-
 # 2. Verify process is dead
 ps aux | grep -i claude | grep -v grep
 # Should return nothing
-
 # 3. Wait 5 seconds, then reopen Claude Code
 
-# 4. Verify commands appear
+# Verify commands appear
 /health-check
 ```
 
@@ -53,7 +55,7 @@ ls -la ~/.claude/lib/ | wc -l      # Should be ~69 libs
 # 2. Re-run installation
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
-# 3. Restart Claude Code
+# 3. Run /reload-plugins (or full restart if hooks/settings changed)
 ```
 
 ### "How do I uninstall?"
@@ -115,8 +117,9 @@ vim plugins/autonomous-dev/agents/implementer.md
 # 2. Sync to installed location
 /sync --plugin-dev
 
-# 3. REQUIRED: Restart Claude Code
-#    Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux)
+# 3. Reload or restart:
+#    Changed commands/agents/skills → /reload-plugins (~5 seconds)
+#    Changed hooks/settings/.env/Python libs → Full restart (Cmd+Q / Ctrl+Q)
 
 # 4. Test changes
 /health-check
@@ -258,8 +261,7 @@ grep "Do NOT fetch" .claude/commands/sync.md
 # 2. If directive is missing or incorrect, re-sync
 /sync --plugin-dev
 
-# 3. Restart Claude Code to ensure command is reloaded
-# Press Cmd+Q (Mac) or Ctrl+Q (Windows/Linux), wait 5 seconds, reopen
+# 3. Run /reload-plugins to reload commands (or full restart if hooks/settings changed)
 
 # 4. Test the command again
 /sync --github

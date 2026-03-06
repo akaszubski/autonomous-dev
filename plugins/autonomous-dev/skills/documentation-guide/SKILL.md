@@ -2,7 +2,7 @@
 name: documentation-guide
 version: 1.0.0
 type: knowledge
-description: Enforcement skill for consistent documentation standards
+description: "Documentation standards enforcing Keep a Changelog format, README structure, ADR templates, and Google-style docstrings. Use when writing CHANGELOG entries, updating READMEs, or documenting APIs. TRIGGER when: changelog, readme, documentation, docstring, ADR, API docs. DO NOT TRIGGER when: code-only changes, test files, config updates without API changes."
 keywords: [docs, documentation, changelog, readme, docstring, adr]
 auto_activate: true
 allowed-tools: [Read, Write, Edit, Grep, Glob]

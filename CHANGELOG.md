@@ -2,6 +2,35 @@
 
 ### Added
 
+- **Agent Teams evaluation: keep worktrees for batch processing** (Issue #390)
+  - Evaluated Claude Code's Agent Teams feature as potential replacement for worktree-based batch processing
+  - Decision: **Keep worktrees** as primary mechanism due to 3 critical blockers
+  - Blocker 1: Agent Teams has no file-level locking (shared filesystem, last write wins) — can't handle concurrent writes to overlapping files
+  - Blocker 2: No session resumption — interrupts lose teammates, no equivalent to `/implement --resume` worktree recovery
+  - Blocker 3: One team per session — can't run parallel batches; worktrees allow multiple concurrent sessions
+  - Identified appropriate Agent Teams use cases: research phases, code review, architecture analysis (read-only operations)
+  - Comparison matrix: Worktrees score 6/8, Agent Teams score 2/8 on reliability metrics
+  - Full evaluation with decision rationale in docs/evaluations/issue_390_agent_teams_evaluation.md
+
+- **Adopt /reload-plugins command in documentation** (Issue #391)
+  - Updated 8 documentation files with context-aware reload guidance
+  - CLAUDE.md: Added `/reload-plugins` to installation instructions and `/sync` command docs
+  - plugins/autonomous-dev/README.md: Added guidance distinguishing `/reload-plugins` from full restart scenarios
+  - plugins/autonomous-dev/docs/TROUBLESHOOTING.md: Added troubleshooting section explaining when to use `/reload-plugins` vs. full restart
+  - Root README.md: Updated installation and setup sections
+  - CONTRIBUTING.md: Updated development workflow guidance
+  - docs/WORKFLOW-DISCIPLINE.md: Added reload context to agent coordination section
+  - docs/GIT-AUTOMATION.md: Updated git+plugin workflow
+  - install.sh: Added post-install instructions mentioning `/reload-plugins`
+
+- **HTTP Hooks evaluation: keep command hooks as primary mechanism** (Issue #392)
+  - Evaluated Claude Code's HTTP hooks feature (v2.1.69+) as potential replacement for command-based hooks
+  - Decision: **Keep command hooks as primary** due to enforcement and filesystem requirements
+  - Analysis shows command hooks win 7 of 10 comparison dimensions (blocking, latency, filesystem access, failure mode)
+  - HTTP hooks identified as suitable supplementary mechanism for notifications, CI/CD triggers, remote audit logging, and dashboard updates
+  - Security analysis: HTTP hooks lack HMAC verification and fail-open on timeout, making them unsuitable for blocking enforcement policies
+  - Full evaluation with decision tree, comparison matrix, and security best practices in docs/evaluations/issue_392_http_hooks_evaluation.md
+
 - **Per-Issue Agent Count HARD GATE in batch mode** (Issue #363)
   - Prevents progressive shortcutting where later issues in batch run fewer agents than earlier issues
   - After each issue completes, coordinator MUST verify all 9 required agents ran: researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
@@ -75,6 +104,32 @@
   - Session logger now captures prompt_word_count and result_word_count for quantitative context analysis
   - Updated continuous-improvement-analyst.md with complete quality check #8 specification
   - Impact: Coordinator-level intent violations now detectable in quality audits (previously only structural checks)
+
+- **Skill Evaluation Framework: LLM-as-Judge for Skills** (Issue #389)
+  - New library: `skill_evaluator.py` (295 lines) — Evaluates skill quality, guides accuracy, and completeness via LLM-as-judge
+  - `BenchmarkStore` class: Tracks baseline scores in JSON for regression detection (save/load/get/update baseline methods)
+  - `SkillEvaluator` class: Evaluates skills with 4 methods:
+    - `evaluate_skill()` — Single-prompt skill evaluation with score and timestamp
+    - `evaluate_skill_batch()` — Multi-prompt batch evaluation (returns list of scored results)
+    - `compare_variants()` — A/B test two skill variants with paired comparison (minimum 10 prompts for statistical validity, returns winner/mean scores/margin)
+    - `check_regression()` — Detect skill quality degradation vs baseline (configurable threshold, default 10%)
+  - GenAI tests: 20+ tests in `tests/genai/skills/`:
+    - `test_skill_evals.py` (10 tests) — Skill evaluation across 4 domains: code standards, documentation, security, architecture
+    - `test_skill_ab_testing.py` (10 tests) — A/B testing framework and statistical methodology validation
+  - Unit tests: 17 tests in `tests/unit/lib/test_skill_evaluator.py`
+    - BenchmarkStore load/save/persistence, JSON serialization, cache behavior
+    - Baseline tracking with timestamps, default structure generation
+  - Documentation: Added to `docs/TESTING-STRATEGY.md` (Layer 5: LLM-as-Judge section) and `docs/LIBRARIES.md` (entry #60)
+  - Workflow: Enable nightly skill quality regression detection in CI, variant comparison before shipping skill updates
+  - Performance: ~30 seconds per skill (single evaluation), ~2 minutes for 10-prompt batch (with caching)
+
+- **Skill Description Optimization** (Issue #388)
+  - Updated all 16 active SKILL.md description fields to follow structured pattern
+  - New format: Concrete capabilities → "Use when" triggers → "TRIGGER when" keywords → "DO NOT TRIGGER when" exclusions
+  - Example: `"PEP 8, Black formatting, type hints, docstrings. Use when writing/reviewing Python code. TRIGGER when: python, formatting, type hints, PEP 8, black. DO NOT TRIGGER when: non-Python files, markdown, shell scripts."`
+  - Benefits: LLM skill selector can now make precise routing decisions vs generic skill descriptions
+  - Impact: Improved skill activation accuracy, reduced context bloat from inappropriate skill loading
+  - Coverage: api-design, api-integration-patterns, architecture-patterns, code-review, documentation-guide, git-github, library-design-patterns, observability, python-standards, quality-scoring, research-patterns, scientific-validation, security-patterns, skill-integration, state-management-patterns, testing-guide
 
 ### Changed
 

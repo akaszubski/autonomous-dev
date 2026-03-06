@@ -82,7 +82,9 @@ Every `/implement` command validates:
 # Install (30 seconds)
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
-# Restart Claude Code (Cmd+Q / Ctrl+Q), then:
+# First install: Restart Claude Code (Cmd+Q / Ctrl+Q)
+# Subsequent updates: /reload-plugins (reloads commands, agents, skills)
+# Note: /reload-plugins does NOT reload hooks or settings — use full restart for those
 /setup  # Guided PROJECT.md creation
 ```
 

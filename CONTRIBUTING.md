@@ -256,13 +256,13 @@ The repo has pre-commit hooks that run automatically:
 
 ## Development Tips
 
-### Restart Claude Code After Changes
+### Reload After Changes
 
-Claude Code caches commands at startup. After modifying commands:
+Claude Code caches commands, agents, and skills at startup. After making changes, pick the right reload method:
 
-1. Fully quit Claude Code (`Cmd+Q` / `Ctrl+Q`)
-2. Wait 5 seconds
-3. Restart Claude Code
+**Changed commands, agents, or skills** → Run `/reload-plugins` (~5 seconds, no restart needed)
+
+**Changed hooks, settings.json, .env, or Python libs** → Full restart required (Cmd+Q / Ctrl+Q, wait 5 seconds, reopen). `/reload-plugins` does NOT reload hooks or settings.
 
 ### Sync Plugin to .claude/
 
