@@ -24,7 +24,7 @@ NATIVE_TOOLS = {
     "AskUserQuestion", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
     "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell",
     "LSP", "WebFetch", "WebSearch",
-    "Agent", "EnterWorktree",
+    "Agent", "EnterWorktree", "ToolSearch",
 }
 
 # Tools that are always required in every template's allow list.
@@ -36,6 +36,7 @@ REQUIRED_ALLOW_TOOLS = {
     "Agent", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "EnterWorktree",
     "Skill", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite",
     "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop", "Task",
+    "ToolSearch",
 }
 
 # Templates that intentionally use granular Bash (not blanket)

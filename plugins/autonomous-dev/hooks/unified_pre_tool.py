@@ -254,7 +254,7 @@ NATIVE_TOOLS = {
     "AskUserQuestion", "Skill", "SlashCommand", "BashOutput", "NotebookEdit",
     "TodoWrite", "EnterPlanMode", "ExitPlanMode", "AgentOutputTool", "KillShell",
     "LSP", "WebFetch", "WebSearch",
-    "Agent", "EnterWorktree",
+    "Agent", "EnterWorktree", "ToolSearch",
 }
 
 

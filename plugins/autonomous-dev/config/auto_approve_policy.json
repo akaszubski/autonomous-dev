@@ -171,7 +171,8 @@
       "AgentOutputTool",
       "EnterWorktree",
       "KillShell",
-      "LSP"
+      "LSP",
+      "ToolSearch"
     ]
   }
 }

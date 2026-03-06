@@ -28,6 +28,7 @@
       "EnterPlanMode",
       "ExitPlanMode",
       "EnterWorktree",
+      "ToolSearch",
       "Skill",
       "TaskCreate",
       "TaskUpdate",

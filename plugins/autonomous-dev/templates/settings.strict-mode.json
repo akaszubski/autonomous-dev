@@ -25,6 +25,7 @@
       "mcp__",
       "Agent",
       "EnterWorktree",
+      "ToolSearch",
       "TaskCreate",
       "TaskUpdate",
       "TaskList",

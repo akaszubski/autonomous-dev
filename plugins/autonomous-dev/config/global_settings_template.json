@@ -29,6 +29,7 @@
       "AgentOutputTool",
       "Agent",
       "EnterWorktree",
+      "ToolSearch",
       "TaskStop",
       "mcp__*"
     ],
