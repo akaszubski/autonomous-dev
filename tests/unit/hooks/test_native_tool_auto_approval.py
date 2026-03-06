@@ -341,3 +341,161 @@ class TestCombineDecisions:
         ]
         decision, reason = hook.combine_decisions(results)
         assert decision == "ask"
+
+
+# ---------------------------------------------------------------------------
+# 5. Native tool fast-path bypass in main() (Issue: permission prompts)
+# ---------------------------------------------------------------------------
+
+def _run_main_with_tool(tool_name: str, tool_input: Dict | None = None) -> Tuple[str, str]:
+    """Run main() with a mocked tool invocation and capture the output decision.
+
+    Mocks sys.stdin with JSON input, captures stdout, and handles sys.exit(0).
+
+    Args:
+        tool_name: Name of the tool to simulate.
+        tool_input: Optional tool_input dict (defaults to empty dict).
+
+    Returns:
+        Tuple of (permissionDecision, permissionDecisionReason).
+    """
+    import io
+
+    input_json = json.dumps({"tool_name": tool_name, "tool_input": tool_input or {}})
+    captured = io.StringIO()
+    with patch("sys.stdin", io.StringIO(input_json)), \
+         patch("sys.stdout", captured), \
+         pytest.raises(SystemExit):
+        hook.main()
+    raw = captured.getvalue().strip()
+    output = json.loads(raw)
+    decision = output["hookSpecificOutput"]["permissionDecision"]
+    reason = output["hookSpecificOutput"]["permissionDecisionReason"]
+    return decision, reason
+
+
+class TestNativeToolMainBypass:
+    """Regression tests: native tools must get 'allow' from main() via fast-path,
+    bypassing ALL validator layers.
+
+    Bug: native tools like Edit/Write were routed through validate_agent_authorization
+    which returned 'ask' or 'deny' for significant code changes outside the pipeline.
+    Fix: early return in main() for tools in NATIVE_TOOLS before any validators run.
+    """
+
+    @pytest.mark.parametrize("tool_name", sorted(hook.NATIVE_TOOLS))
+    def test_native_tool_returns_allow_from_main(self, tool_name: str):
+        """Every native tool must receive 'allow' from main(), regardless of env config."""
+        decision, reason = _run_main_with_tool(tool_name)
+        assert decision == "allow", (
+            f"Native tool '{tool_name}' got '{decision}' from main() instead of 'allow'.\n"
+            f"Reason: {reason}"
+        )
+
+    def test_native_tool_skips_all_validators(self):
+        """When main() processes a native tool, none of the 4 validators should be called."""
+        with patch.object(hook, "validate_sandbox_layer", wraps=hook.validate_sandbox_layer) as mock_sandbox, \
+             patch.object(hook, "validate_mcp_security", wraps=hook.validate_mcp_security) as mock_mcp, \
+             patch.object(hook, "validate_agent_authorization", wraps=hook.validate_agent_authorization) as mock_auth, \
+             patch.object(hook, "validate_batch_permission", wraps=hook.validate_batch_permission) as mock_batch:
+            _run_main_with_tool("Read", {"file_path": "/some/file.py"})
+            mock_sandbox.assert_not_called()
+            mock_mcp.assert_not_called()
+            mock_auth.assert_not_called()
+            mock_batch.assert_not_called()
+
+    def test_mcp_tool_still_runs_validators(self):
+        """Non-native (MCP) tools must still route through validator layers."""
+        with patch.object(hook, "validate_sandbox_layer", return_value=("allow", "ok")) as mock_sandbox, \
+             patch.object(hook, "validate_mcp_security", return_value=("allow", "ok")) as mock_mcp, \
+             patch.object(hook, "validate_agent_authorization", return_value=("allow", "ok")) as mock_auth, \
+             patch.object(hook, "validate_batch_permission", return_value=("allow", "ok")) as mock_batch:
+            _run_main_with_tool("mcp__github__create_issue", {"title": "test"})
+            mock_sandbox.assert_called_once()
+            mock_mcp.assert_called_once()
+            mock_auth.assert_called_once()
+            mock_batch.assert_called_once()
+
+    def test_native_tool_allow_despite_suggest_enforcement(self, monkeypatch):
+        """Native Edit with significant code change must get 'allow' even at suggest level.
+
+        Before the fix, this would return 'ask' because validate_agent_authorization
+        detects the significant code change and suggests /implement.
+        """
+        monkeypatch.setenv("ENFORCEMENT_LEVEL", "suggest")
+        monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        tool_input = {
+            "file_path": "/project/src/main.py",
+            "old_string": "pass",
+            "new_string": (
+                "def new_feature(data: list) -> dict:\n"
+                "    result = {}\n"
+                "    for item in data:\n"
+                "        result[item] = process(item)\n"
+                "    return result\n"
+                "    # extra line\n"
+                "    # more lines\n"
+            ),
+        }
+        decision, reason = _run_main_with_tool("Edit", tool_input)
+        assert decision == "allow", (
+            f"Native Edit got '{decision}' instead of 'allow' at suggest level.\n"
+            f"Reason: {reason}\n"
+            f"The fast-path should bypass validate_agent_authorization entirely."
+        )
+
+    def test_native_tool_allow_despite_block_enforcement(self, monkeypatch):
+        """Native Edit with significant code change must get 'allow' even at block level.
+
+        Before the fix, this would return 'deny' because validate_agent_authorization
+        blocks significant code changes outside the pipeline at block level.
+        """
+        monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
+        monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        tool_input = {
+            "file_path": "/project/src/handler.py",
+            "old_string": "pass",
+            "new_string": (
+                "class RequestHandler:\n"
+                "    def handle(self, request):\n"
+                "        data = request.json()\n"
+                "        result = self.process(data)\n"
+                "        return Response(result)\n"
+                "    def process(self, data):\n"
+                "        return data\n"
+            ),
+        }
+        decision, reason = _run_main_with_tool("Edit", tool_input)
+        assert decision == "allow", (
+            f"Native Edit got '{decision}' instead of 'allow' at block level.\n"
+            f"Reason: {reason}\n"
+            f"The fast-path should bypass validate_agent_authorization entirely."
+        )
+
+    def test_native_tool_bypass_reason_format(self):
+        """The fast-path reason should contain the tool name and 'Native tool'."""
+        decision, reason = _run_main_with_tool("Bash", {"command": "ls"})
+        assert "Native tool" in reason, (
+            f"Expected 'Native tool' in reason, got: {reason}"
+        )
+        assert "Bash" in reason, (
+            f"Expected tool name 'Bash' in reason, got: {reason}"
+        )
+
+    @pytest.mark.parametrize("tool_name", ["Write", "Edit", "Bash"])
+    def test_write_tools_bypass_despite_enforcement(self, tool_name: str, monkeypatch):
+        """Write-capable native tools must bypass even with block enforcement active.
+
+        These are the tools most likely to trigger workflow enforcement nudges,
+        so they are the critical regression case.
+        """
+        monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
+        monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        decision, reason = _run_main_with_tool(tool_name, {})
+        assert decision == "allow", (
+            f"Write-capable native tool '{tool_name}' got '{decision}' at block level.\n"
+            f"Reason: {reason}"
+        )

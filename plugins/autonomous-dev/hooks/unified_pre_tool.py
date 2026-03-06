@@ -12,7 +12,14 @@ This hook consolidates four PreToolUse validators into a single dispatcher:
 2. Agent Authorization (enforce_implementation_workflow.py) - Pipeline agent detection
 3. Batch Permission Approver (batch_permission_approver.py) - Permission batching
 
+Native Tool Fast Path:
+- Native Claude Code tools (Read, Write, Edit, Bash, Task, etc.) bypass all 4 validation layers
+- These tools are governed by settings.json permissions, not by this hook
+- This avoids unwanted permission prompts for built-in tools
+- See NATIVE_TOOLS set below for complete list
+
 Decision Logic:
+- If tool is native → skip all layers, return "allow" (settings.json governs)
 - If ANY validator returns "deny" → output "deny" (block operation)
 - If ALL validators return "allow" → output "allow" (approve operation)
 - Otherwise → output "ask" (prompt user)
@@ -714,6 +721,18 @@ def main():
         if not tool_name:
             # No tool name - ask user
             output_decision("ask", "No tool name provided")
+            sys.exit(0)
+
+        # =================================================================
+        # FAST PATH: Native tools skip ALL hook layers.
+        # Hooks run BEFORE settings.json — returning "ask" here overrides
+        # settings.json "allow" rules. Native tools are governed by
+        # settings.json, not by this hook.
+        # =================================================================
+        if tool_name in NATIVE_TOOLS:
+            reason = f"Native tool '{tool_name}' - hook bypass (settings.json governs)"
+            _log_pretool_activity(tool_name, tool_input, "allow", reason)
+            output_decision("allow", reason)
             sys.exit(0)
 
         # Run all validators in sequence (Layer 0 → Layer 1 → Layer 2 → Layer 3)

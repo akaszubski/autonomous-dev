@@ -207,6 +207,10 @@ When you run /implement, watch for:
 
 ## How It Works
 
+### Fast Path for Native Tools
+
+Native Claude Code tools (Read, Write, Edit, Bash, Task, Glob, Grep, etc.) skip all 4 validation layers. These tools are governed by settings.json permissions instead, preventing unwanted permission prompts for standard tools. Only MCP/external tools go through the full 4-layer validation.
+
 ### 4-Layer Permission Architecture
 
 **Layer 0 - Sandbox Enforcer** (NEW in v4.0.0, Issue #171):
@@ -230,6 +234,18 @@ When you run /implement, watch for:
 
 ### Decision Flow
 
+Native tools (Read, Write, Edit, Bash, Task, etc.) bypass all layers:
+```
+Tool call: Read with file_path="README.md"
+    |
+    v
+Fast Path Check: Is tool native? YES
+    |
+    v
+Return: Allow (settings.json governs)
+```
+
+External/MCP tools go through 4-layer validation:
 ```
 Tool call: Bash with "cat README.md"
     |
@@ -536,16 +552,23 @@ Previously, security validation was split across multiple independent hooks:
 
 **Current Unified Architecture**:
 
-All security validation is now handled by `unified_pre_tool.py` with 4 explicit layers:
+All security validation is now handled by `unified_pre_tool.py` with:
 
-1. **Layer 1: Sandbox Enforcer** - Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
-2. **Layer 2: MCP Security Validator** - Path traversal, injection, SSRF prevention
-3. **Layer 3: Agent Authorization** - Pipeline agent detection and whitelist checking
-4. **Layer 4: Batch Permission Approver** - User consent caching and circuit breaker
+**Native Tool Fast Path** (v4.1.0+):
+- Built-in Claude Code tools (Read, Write, Edit, Bash, Task, etc.) skip all layers
+- Governed by settings.json permissions instead
+- Eliminates unwanted permission prompts for standard tools
+
+**4 Explicit Layers** (for MCP/external tools only):
+1. **Layer 0: Sandbox Enforcer** - Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
+2. **Layer 1: MCP Security Validator** - Path traversal, injection, SSRF prevention
+3. **Layer 2: Agent Authorization** - Pipeline agent detection and whitelist checking
+4. **Layer 3: Batch Permission Approver** - User consent caching and circuit breaker
 
 **Benefits of Consolidation**:
 - Single entry point for all pre-tool validation
 - Consistent validation order with clear layer boundaries
+- Native tool fast path prevents permission-prompt pollution
 - Easier to maintain, audit, and extend
 - Better defense-in-depth with explicit layers
 

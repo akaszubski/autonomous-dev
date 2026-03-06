@@ -41,9 +41,14 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 | Hook | Purpose | Key Env Vars |
 |------|---------|--------------|
-| **unified_pre_tool.py** | 4-layer permission validation (sandbox → MCP security → agent auth → batch approval). 84% reduction in permission prompts. | SANDBOX_ENABLED, MCP_AUTO_APPROVE |
+| **unified_pre_tool.py** | Native tool fast path + 4-layer permission validation (sandbox → MCP security → agent auth → batch approval). 84% reduction in permission prompts. | SANDBOX_ENABLED, MCP_AUTO_APPROVE |
 
-**unified_pre_tool.py 4-Layer Architecture**:
+**unified_pre_tool.py Native Tool Fast Path** (v4.1.0+):
+- Native Claude Code tools (Read, Write, Edit, Bash, Task, etc.) skip all validation layers
+- Governed by settings.json permissions instead
+- Eliminates unwanted permission prompts for standard tools
+
+**unified_pre_tool.py 4-Layer Architecture** (for MCP/external tools):
 - **Layer 0 (Sandbox)**: Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
 - **Layer 1 (MCP Security)**: Path traversal (CWE-22), injection (CWE-78), SSRF (CWE-918)
 - **Layer 2 (Agent Auth)**: Pipeline agent detection, authorized agent verification

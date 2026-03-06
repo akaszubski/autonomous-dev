@@ -81,7 +81,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 **Key Features**: Dispatcher pattern (env var control), graceful degradation (non-blocking), backward compatible
 
 **Active Hooks**:
-- **PreToolUse**: unified_pre_tool.py (MCP security, auto-approval, sandboxing)
+- **PreToolUse**: unified_pre_tool.py (4-layer validation: Sandbox → MCP Security → Agent Auth → Batch Permission; native tools bypass all layers)
 - **PrePromptSubmit**: unified_prompt_validator.py (workflow enforcement)
 - **PostToolUse**: auto_format.py, auto_test.py, security_scan.py, auto_fix_docs.py
 - **PreCommit**: validate_project_alignment.py, enforce_orchestrator.py, enforce_tdd.py, validate_session_quality.py
@@ -140,17 +140,22 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 
 **Multi-Layer Defense**:
 
-1. **MCP Security** (v3.37.0+): Permission-based validation
+1. **Native Tool Fast Path** (v4.1.0+): Built-in tools bypass validation
+   - Native Claude Code tools (Read, Write, Bash, Task, etc.) skip all validation layers
+   - Governed by settings.json permissions instead
+   - Prevents permission prompts for standard tools
+
+2. **MCP Security** (v3.37.0+): Permission-based validation
    - Path traversal prevention (CWE-22)
    - Command injection blocking (CWE-78)
    - SSRF prevention (CWE-918)
 
-2. **Sandboxing** (v4.0.0+): Command classification
+3. **Sandboxing** (v4.0.0+): Command classification
    - Safe commands auto-approved
    - Blocked patterns denied
    - Shell injection detection
 
-3. **Auto-Approval** (v3.40.0+): Batch permission caching
+4. **Auto-Approval** (v3.40.0+): Batch permission caching
    - Reduces prompts from 50+ to 8-10 (84% reduction)
    - 4-layer permission architecture
 
