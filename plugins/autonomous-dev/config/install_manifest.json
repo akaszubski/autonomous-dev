@@ -211,6 +211,7 @@
         "plugins/autonomous-dev/lib/session_tracker.py",
         "plugins/autonomous-dev/lib/settings_generator.py",
         "plugins/autonomous-dev/lib/settings_merger.py",
+        "plugins/autonomous-dev/lib/skill_evaluator.py",
         "plugins/autonomous-dev/lib/skill_loader.py",
         "plugins/autonomous-dev/lib/staging_manager.py",
         "plugins/autonomous-dev/lib/status_tracker.py",
@@ -272,6 +273,7 @@
     "skills": {
       "target": ".claude/skills",
       "files": [
+        "plugins/autonomous-dev/skills/DESCRIPTION_PATTERN.md",
         "plugins/autonomous-dev/skills/api-design/SKILL.md",
         "plugins/autonomous-dev/skills/api-integration-patterns/SKILL.md",
         "plugins/autonomous-dev/skills/architecture-patterns/SKILL.md",

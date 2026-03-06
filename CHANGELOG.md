@@ -2,6 +2,19 @@
 
 ### Added
 
+- **Adopt /reload-plugins command in documentation** (Issue #391)
+  - Updated 8 documentation files with context-aware reload guidance
+  - CLAUDE.md: Added `/reload-plugins` to installation instructions and `/sync` command docs
+  - plugins/autonomous-dev/README.md: Added guidance distinguishing `/reload-plugins` from full restart scenarios
+  - plugins/autonomous-dev/docs/TROUBLESHOOTING.md: Added troubleshooting section explaining when to use `/reload-plugins` vs. full restart
+  - Root README.md: Updated installation and setup sections
+  - CONTRIBUTING.md: Updated development workflow guidance
+  - docs/WORKFLOW-DISCIPLINE.md: Added reload context to agent coordination section
+  - docs/GIT-AUTOMATION.md: Updated git+plugin workflow
+  - install.sh: Added post-install instructions mentioning `/reload-plugins`
+  - Ensures users know `/reload-plugins` is available for command/agent/skill changes (requires full restart for hook/settings changes)
+  - Test coverage: `test_reload_plugins_docs.py` validates all 8 files mention `/reload-plugins` and provide context
+
 - **Per-Issue Agent Count HARD GATE in batch mode** (Issue #363)
   - Prevents progressive shortcutting where later issues in batch run fewer agents than earlier issues
   - After each issue completes, coordinator MUST verify all 9 required agents ran: researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
@@ -75,6 +88,32 @@
   - Session logger now captures prompt_word_count and result_word_count for quantitative context analysis
   - Updated continuous-improvement-analyst.md with complete quality check #8 specification
   - Impact: Coordinator-level intent violations now detectable in quality audits (previously only structural checks)
+
+- **Skill Evaluation Framework: LLM-as-Judge for Skills** (Issue #389)
+  - New library: `skill_evaluator.py` (295 lines) — Evaluates skill quality, guides accuracy, and completeness via LLM-as-judge
+  - `BenchmarkStore` class: Tracks baseline scores in JSON for regression detection (save/load/get/update baseline methods)
+  - `SkillEvaluator` class: Evaluates skills with 4 methods:
+    - `evaluate_skill()` — Single-prompt skill evaluation with score and timestamp
+    - `evaluate_skill_batch()` — Multi-prompt batch evaluation (returns list of scored results)
+    - `compare_variants()` — A/B test two skill variants with paired comparison (minimum 10 prompts for statistical validity, returns winner/mean scores/margin)
+    - `check_regression()` — Detect skill quality degradation vs baseline (configurable threshold, default 10%)
+  - GenAI tests: 20+ tests in `tests/genai/skills/`:
+    - `test_skill_evals.py` (10 tests) — Skill evaluation across 4 domains: code standards, documentation, security, architecture
+    - `test_skill_ab_testing.py` (10 tests) — A/B testing framework and statistical methodology validation
+  - Unit tests: 17 tests in `tests/unit/lib/test_skill_evaluator.py`
+    - BenchmarkStore load/save/persistence, JSON serialization, cache behavior
+    - Baseline tracking with timestamps, default structure generation
+  - Documentation: Added to `docs/TESTING-STRATEGY.md` (Layer 5: LLM-as-Judge section) and `docs/LIBRARIES.md` (entry #60)
+  - Workflow: Enable nightly skill quality regression detection in CI, variant comparison before shipping skill updates
+  - Performance: ~30 seconds per skill (single evaluation), ~2 minutes for 10-prompt batch (with caching)
+
+- **Skill Description Optimization** (Issue #388)
+  - Updated all 16 active SKILL.md description fields to follow structured pattern
+  - New format: Concrete capabilities → "Use when" triggers → "TRIGGER when" keywords → "DO NOT TRIGGER when" exclusions
+  - Example: `"PEP 8, Black formatting, type hints, docstrings. Use when writing/reviewing Python code. TRIGGER when: python, formatting, type hints, PEP 8, black. DO NOT TRIGGER when: non-Python files, markdown, shell scripts."`
+  - Benefits: LLM skill selector can now make precise routing decisions vs generic skill descriptions
+  - Impact: Improved skill activation accuracy, reduced context bloat from inappropriate skill loading
+  - Coverage: api-design, api-integration-patterns, architecture-patterns, code-review, documentation-guide, git-github, library-design-patterns, observability, python-standards, quality-scoring, research-patterns, scientific-validation, security-patterns, skill-integration, state-management-patterns, testing-guide
 
 ### Changed
 
