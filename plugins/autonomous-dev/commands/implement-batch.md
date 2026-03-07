@@ -85,7 +85,9 @@ For each feature in the list:
 
    After each issue's pipeline completes, BEFORE advancing to the next issue, verify ALL required agents ran for this issue.
 
-   **Required agents** (9 total): researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
+   **Required agents** (mode-conditional):
+   - **Default mode** (acceptance-first): 8 agents — researcher-local, researcher, planner, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
+   - **TDD-first mode** (`--tdd-first`): 9 agents — add test-master
 
    **Verification method**: Count the Task tool invocations with distinct `subagent_type` values for the current issue. The coordinator MUST enumerate which agents actually ran.
 
@@ -95,21 +97,21 @@ For each feature in the list:
      researcher-local: ✓/✗
      researcher:       ✓/✗
      planner:          ✓/✗
-     test-master:      ✓/✗
+     test-master:      ✓/✗ (--tdd-first mode only)
      implementer:      ✓/✗
      reviewer:         ✓/✗
      security-auditor: ✓/✗
      doc-master:       ✓/✗
      continuous-improvement-analyst: ✓/✗
-   Result: 9/9 PASS | X/9 FAIL — missing: [list]
+   Result: 8/8 PASS (default) | 9/9 PASS (--tdd-first) | X/N FAIL — missing: [list]
    ```
 
    **If any agent is MISSING**: BLOCK. Do NOT advance to the next issue. Complete the missing agents for this issue first. Then re-verify.
 
    **FORBIDDEN** (violations = batch failure):
-   - ❌ Advancing to the next issue with fewer than 9 agents verified
+   - ❌ Advancing to the next issue with fewer than the required agents verified for the current mode
    - ❌ Self-reporting agent completion without enumerating each agent by name
-   - ❌ Claiming an agent "was not needed" for this issue (ALL 9 are required, no exceptions)
+   - ❌ Claiming an agent "was not needed" for this issue (all required agents for the current mode must run, no exceptions)
    - ❌ Combining multiple issues into a single agent invocation to "save time"
    - ❌ Counting the coordinator's own reasoning as an agent invocation
 
@@ -135,7 +137,7 @@ For each feature in the list:
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 
-When invoking agents in batch mode (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master), you MUST include this context block at the start of EVERY agent prompt:
+When invoking agents in batch mode (researcher-local, researcher-web, planner, implementer, reviewer, security-auditor, doc-master — plus test-master if `--tdd-first`), you MUST include this context block at the start of EVERY agent prompt:
 
 ```
 **BATCH CONTEXT** (CRITICAL - Operating in worktree):
@@ -170,7 +172,7 @@ Output: Production-quality code following the architecture plan."
 model: "sonnet"
 ```
 
-**This applies to ALL 8 agents in the full pipeline when running in batch mode.**
+**This applies to ALL pipeline agents when running in batch mode (7 in default acceptance-first mode, 8 in `--tdd-first` mode).**
 
 **STEP B4: Batch Finalization -- Auto-Commit, Merge, Cleanup (Issue #333)**
 
@@ -313,7 +315,7 @@ Same as BATCH FILE MODE:
 
    **CRITICAL**: Each issue gets a NEW `create_pipeline()` call. Do NOT reuse pipeline state across issues. Create a new pipeline, run the separate pipeline for that issue, then clear/cleanup before starting the next.
 
-   **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the 9-agent verification before the next issue starts.
+   **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the mode-appropriate agent verification (8 in default mode, 9 in `--tdd-first` mode) before the next issue starts.
    **Background agent drain is MANDATORY** — see STEP B3 point 5 HARD GATE. STEP 9 runs in foreground during batch. Max 2 concurrent background agents.
 4. Git automation (see STEP B4) - triggers at end of batch
 5. Report summary (see STEP B5)

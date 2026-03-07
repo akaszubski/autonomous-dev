@@ -153,6 +153,19 @@
 
 ### Changed
 
+- **Make acceptance-first testing the default `/implement` mode** (Issue #404)
+  - Changed default testing paradigm from TDD-first (RED → GREEN → REFACTOR) to acceptance-first (write spec, validate acceptance, implement)
+  - Added `--tdd-first` flag for users who prefer legacy TDD-first pipeline
+  - Acceptance-first now runs by default: STEP 3.5 (Acceptance tests) → STEP 4 (Implementation) → STEP 5 (TDD validation only if needed)
+  - TDD-first now requires explicit flag: `/implement "desc" --tdd-first` to revert to traditional test-first workflow
+  - Updated `/implement` command documentation (implement.md: STEP 0, STEP 3.5, STEP 4, STEP 5, STEP 7, Technical Details)
+  - Updated test-master agent (test-master.md: description, mission note, step responsibilities)
+  - Updated implementer agent (implementer.md: step 4b, acceptance test expectations)
+  - Updated PROJECT.md constraints to reflect new default testing mode
+  - Updated docs/TESTING-STRATEGY.md with migration guide and new acceptance-first workflow patterns
+  - Impact: All `/implement` modes (single, quick, batch) default to acceptance-first; TDD users can opt-in with flag
+  - Rationale: Acceptance-first prevents over-testing and aligns with specification-driven development philosophy
+
 - **STEP 9 Continuous Improvement Analysis — Mandatory Enforcement (Issue #625)**
   - Upgraded STEP 9 from advisory to HARD GATE with explicit FORBIDDEN list
   - Moved pipeline cleanup (`rm -f /tmp/implement_pipeline_state.json`) from STEP 8 to STEP 9 post-analyst launch

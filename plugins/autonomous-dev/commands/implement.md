@@ -15,8 +15,8 @@ Smart code implementation with full pipeline and batch modes.
 
 | Mode | Flag | Time | Description |
 |------|------|------|-------------|
-| **Full Pipeline** | (default) | 15-25 min | Research → Plan → Test → Implement → Review → Security → Docs |
-| **Acceptance-First** | `--acceptance-first` | 20-30 min | Research → Plan → Acceptance Tests → Implement + Unit Tests → Review → Security → Docs |
+| **Full Pipeline** | (default) | 20-30 min | Research → Plan → Acceptance Tests → Implement + Unit Tests → Review → Security → Docs |
+| **TDD-First** | `--tdd-first` | 15-25 min | Research → Plan → Unit Tests → Implement → Review → Security → Docs (legacy TDD mode) |
 | **Batch File** | `--batch <file>` | 20-30 min/feature | Process features from file with auto-worktree |
 | **Batch Issues** | `--issues <nums>` | 20-30 min/feature | Process GitHub issues with auto-worktree |
 | **Resume** | `--resume <id>` | Continues | Resume interrupted batch from checkpoint |
@@ -24,10 +24,13 @@ Smart code implementation with full pipeline and batch modes.
 ## Usage
 
 ```bash
-# Full pipeline (default) - recommended for new features
+# Full pipeline (default) - acceptance-first mode (diamond testing model)
 /implement add user authentication with JWT
 
-# Acceptance-first mode (diamond testing model) - acceptance tests before implementation
+# TDD-first mode - traditional TDD (unit tests before implementation)
+/implement --tdd-first add user authentication with JWT
+
+# --acceptance-first is still accepted but is now the default (no-op)
 /implement --acceptance-first add user authentication with JWT
 
 # Batch from file - multiple features with auto-worktree isolation
@@ -61,7 +64,7 @@ ARGUMENTS: {{ARGUMENTS}}
 
 ### STEP 0: Parse Mode and Route
 
-Parse ARGUMENTS: `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, `--acceptance-first` → FULL PIPELINE with ACCEPTANCE-FIRST variant, else → FULL PIPELINE.
+Parse ARGUMENTS: `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE, `--resume` → RESUME MODE, `--tdd-first` → FULL PIPELINE with TDD-FIRST variant, `--acceptance-first` → recognized but no-op (same as default), else → FULL PIPELINE (acceptance-first is default).
 
 **If `--quick` is passed**: Reject it. Output: "Quick mode has been removed. All code changes go through the full pipeline. Running full pipeline instead." Then proceed with FULL PIPELINE.
 
@@ -69,7 +72,7 @@ Parse ARGUMENTS: `--batch` → BATCH FILE MODE, `--issues` → BATCH ISSUES MODE
 
 Also check for `--no-cache` flag. If present, skip STEP 1.5 (research cache check) and always run fresh research in STEP 2.
 
-**Acceptance-first mode**: When `--acceptance-first` is present, the pipeline uses the diamond testing model — acceptance tests are written BEFORE implementation (STEP 3.5), and unit tests are generated alongside code (STEP 4 is skipped). Falls back to standard TDD if `tests/genai/conftest.py` doesn't exist.
+**Acceptance-first mode** (now default): The pipeline uses the diamond testing model — acceptance tests are written BEFORE implementation (STEP 3.5), and unit tests are generated alongside code (STEP 4 is skipped). Use `--tdd-first` to opt in to the legacy TDD mode where test-master writes unit tests before implementation. Falls back to TDD-first if `tests/genai/conftest.py` doesn't exist.
 
 Before routing, activate pipeline state:
 ```bash
@@ -90,7 +93,7 @@ echo '{"session_start": "'$(date +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'", "run_
 
 # FULL PIPELINE MODE (Default)
 
-This is the complete 8-agent SDLC workflow. Execute steps IN ORDER.
+This is the complete SDLC workflow. Default mode uses acceptance-first testing (7 agents). TDD-first mode (`--tdd-first`) adds test-master (8 agents). Execute steps IN ORDER.
 
 ---
 
@@ -162,9 +165,9 @@ Call **planner** (opus) with merged research. Include codebase context + externa
 
 ---
 
-### STEP 3.5: Generate Acceptance Tests (Acceptance-First Mode Only)
+### STEP 3.5: Generate Acceptance Tests (Default Mode)
 
-**Skip this step if `--acceptance-first` was NOT specified.**
+**Skip this step if `--tdd-first` was specified.**
 
 Before writing unit tests, generate GenAI acceptance tests from the planner output. These define "done" from the user's perspective.
 
@@ -214,14 +217,14 @@ These tests will be validated in STEP 5 HARD GATE alongside unit tests.
 
 ### STEP 4: Invoke Test-Master Agent (TDD)
 
-**Standard mode**: Tests MUST be written BEFORE implementation. Call **test-master** (opus) with:
+**TDD-first mode** (when `--tdd-first` is specified): Tests MUST be written BEFORE implementation. Call **test-master** (opus) with:
 1. **Planner output** (architecture, components, interfaces)
 2. **File list** — all files to be created or modified (from planner output)
 3. **GenAI infra check** — run `test -f tests/genai/conftest.py && echo "GENAI_INFRA=EXISTS" || echo "GENAI_INFRA=ABSENT"` and include the result
 
 Test-master will run a coverage gap assessment first, then write only the test types appropriate for the change. Output: gap summary + targeted test files (unit, integration, and/or GenAI as determined).
 
-**Acceptance-first mode**: Skip this step. Unit tests will be generated by the implementer alongside the code in STEP 5. The acceptance tests from STEP 3.5 serve as the specification; unit tests serve as regression locks.
+**Default mode** (acceptance-first): Skip this step. Unit tests will be generated by the implementer alongside the code in STEP 5. The acceptance tests from STEP 3.5 serve as the specification; unit tests serve as regression locks.
 
 ---
 
@@ -229,7 +232,9 @@ Test-master will run a coverage gap assessment first, then write only the test t
 
 Call **implementer** (opus) with planner output + test summary. CRITICAL: Must write WORKING code, no `NotImplementedError` or placeholders.
 
-**Acceptance-first mode**: Also pass the acceptance test file from STEP 3.5. The implementer MUST generate unit tests alongside code (since test-master was skipped). Acceptance tests define "done"; unit tests lock in behavior.
+**Default mode** (acceptance-first): Pass the acceptance test file from STEP 3.5. The implementer MUST generate unit tests alongside code (since test-master was skipped in default mode). Acceptance tests define "done"; unit tests lock in behavior.
+
+**TDD-first mode**: Pass planner output + test summary from test-master (STEP 4).
 
 **HARD GATE: 3 Quality Principles** (enforced by `stop_quality_gate.py`):
 1. **Real Implementation**: No stubs, no `pass` placeholders
@@ -279,7 +284,7 @@ Invoke THREE agents in PARALLEL (single response):
 
 ### STEP 7: Final Verification
 
-Verify all 8 pipeline agents ran (researcher-local, researcher-web, planner, test-master, implementer, reviewer, security-auditor, doc-master). If any missing, invoke NOW. Note: continuous-improvement-analyst runs in STEP 9 post-report — do NOT skip it.
+Verify all required pipeline agents ran. **Default mode** (acceptance-first): 7 agents (researcher-local, researcher-web, planner, implementer, reviewer, security-auditor, doc-master). **TDD-first mode**: 8 agents (add test-master). If any required agent for the current mode is missing, invoke NOW. Note: continuous-improvement-analyst runs in STEP 9 post-report — do NOT skip it.
 
 ### STEP 8: Report and Finalize
 
@@ -371,7 +376,7 @@ See [implement-resume.md](implement-resume.md) for resuming interrupted batches 
 
 ## Technical Details
 
-**Agents**: researcher-local (Haiku), researcher (Sonnet), planner (Opus), test-master (Opus), implementer (Opus), reviewer (Sonnet), security-auditor (Opus), doc-master (Haiku).
+**Agents**: researcher-local (Haiku), researcher (Sonnet), planner (Opus), test-master (Opus, `--tdd-first` mode only), implementer (Opus), reviewer (Sonnet), security-auditor (Opus), doc-master (Haiku). In the default acceptance-first mode, test-master is skipped (7 agents). In `--tdd-first` mode, all 8 agents run.
 
 **Libraries**: `batch_orchestrator.py`, `batch_state_manager.py`, `path_utils.py`, `research_persistence.py`
 

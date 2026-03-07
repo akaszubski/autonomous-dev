@@ -67,7 +67,7 @@ Every `/implement` command validates:
 | Without Pipeline | With `/implement` |
 |-----------------|-------------------|
 | Manual scope review | **Automatic PROJECT.md alignment validation** |
-| Tests written after (or never) | **TDD enforced — tests first, always** |
+| Tests written after (or never) | **Specification-driven tests first, always** |
 | Security checked manually | **OWASP scan on every feature** |
 | Docs updated "later" | **Doc-master syncs on every feature** |
 | Hope-based quality | **Hook-enforced quality gates** |
@@ -102,8 +102,8 @@ autonomous-dev orchestrates **8 specialized AI agents** in sequence:
 STEP 1: Alignment     → Validates against PROJECT.md goals
 STEP 2: Research      → Finds existing patterns in your codebase
 STEP 3: Planning      → Designs the architecture
-STEP 4: TDD Tests     → Writes failing tests FIRST
-STEP 5: Implementation → Makes tests pass
+STEP 4: Acceptance Tests → Writes specification-driven tests (acceptance-first default)
+STEP 5: Implementation → Implements code with regression tests
 STEP 6: Parallel Validation (3 agents simultaneously):
         ├── Code Review    → Checks quality and patterns
         ├── Security Audit → Scans for OWASP vulnerabilities
@@ -168,8 +168,8 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 1. **researcher-local** (Haiku) - Searches codebase for existing patterns
 2. **researcher** (Sonnet) - Researches best practices and security considerations
 3. **planner** (Opus) - Designs implementation architecture
-4. **test-master** (Opus) - Writes comprehensive tests BEFORE implementation (TDD)
-5. **implementer** (Opus) - Writes production-quality code to make tests pass
+4. **test-master** (Opus) - Writes comprehensive tests (optional `--tdd-first` mode)
+5. **implementer** (Opus) - Writes production-quality code with acceptance + regression tests
 6. **reviewer** (Sonnet) - Reviews code quality, patterns, and coverage
 7. **security-auditor** (Opus) - Scans for OWASP vulnerabilities
 8. **doc-master** (Haiku) - Updates documentation to match code changes
@@ -208,7 +208,7 @@ Hooks run automatically at key moments to enforce quality without manual interve
 **Key Hooks**:
 - **unified_pre_tool.py**: 4-layer security (84% reduction in permission prompts)
 - **stop_quality_gate.py**: End-of-turn quality checks (pytest, ruff, mypy)
-- **enforce_tdd.py**: TDD workflow enforcement (tests before code)
+- **enforce_tdd.py**: Test-first workflow enforcement (specification/acceptance tests before implementation)
 - **enforce_orchestrator.py**: PROJECT.md alignment validation
 - **unified_session_tracker.py**: Session state persistence across `/clear` operations
 
@@ -269,7 +269,7 @@ autonomous-dev enforces its own quality standards. When the plugin detects it's 
 | Gate | Standard | autonomous-dev |
 |------|----------|-----------------|
 | Test Coverage | 70% | **80%** |
-| TDD Requirement | Suggested | **Required** |
+| Test-First Requirement | Suggested | **Required** |
 | Pre-commit Checks | Optional | **Mandatory** |
 | Documentation Sync | Auto-checked | **Strictly enforced** |
 
@@ -531,7 +531,7 @@ Layer 4: Batch Approver        → Caches user consent for identical operations
 Quality should be automatic, not optional. autonomous-dev makes the right thing the easy thing:
 
 - **Research** happens automatically before implementation
-- **Tests** are written first (TDD enforced)
+- **Tests** are written first (specification-driven, acceptance-first default)
 - **Security** is scanned on every feature
 - **Documentation** stays in sync automatically
 - **Git operations** are orchestrated end-to-end

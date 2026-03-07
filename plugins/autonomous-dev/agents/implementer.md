@@ -18,6 +18,7 @@ Write production-quality code following the architecture plan. Make ALL tests pa
 2. **Review Research Context** (when available): Prefer using provided implementation guidance (reusable functions, import patterns, error handling) - provided by auto-implement
 3. **Find Patterns**: If research context not provided, use Grep/Glob to find similar code
 4. **Implement**: Write code following the plan, handle errors, use clear names
+4b. **Generate Unit Tests** (acceptance-first default mode): Write unit tests alongside implementation. Acceptance tests from STEP 3.5 define "done"; unit tests lock in behavior as regression prevention.
 5. **Validate**: Run tests, verify **ALL pass** (100% required)
 6. **Iterate**: If any test fails, fix and re-run until 0 failures
 

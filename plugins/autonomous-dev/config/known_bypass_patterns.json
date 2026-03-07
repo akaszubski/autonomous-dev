@@ -330,7 +330,8 @@
       }
     },
     "full_pipeline": {
-      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
       "required_actions": ["test_run", "git_commit"],
       "conditional_actions": {
         "git_push": "AUTO_GIT_PUSH=true",
@@ -338,14 +339,16 @@
       }
     },
     "batch-issues": {
-      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
       "required_actions": ["test_run", "git_commit", "git_push", "issue_close"],
       "conditional_actions": {},
-      "note": "All 9 required_agents apply per issue, not per batch. Each issue gets a dedicated pipeline with all agents. See Issue #386.",
+      "note": "All required_agents apply per issue, not per batch. Each issue gets a dedicated pipeline with all agents. test-master only in --tdd-first mode. See Issue #386, #404.",
       "per_issue": true
     },
     "batch": {
-      "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
+      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
       "required_actions": ["test_run", "git_commit", "git_push"],
       "conditional_actions": {}
     }

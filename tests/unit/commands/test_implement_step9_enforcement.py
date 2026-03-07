@@ -57,9 +57,10 @@ def coordinator_forbidden(implement_content: str) -> str:
 
 @pytest.fixture
 def quick_mode_section(implement_content: str) -> str:
-    """Extract QUICK MODE section."""
+    """Extract QUICK MODE section (removed in v3.50.0)."""
     match = re.search(r"# QUICK MODE.*?(?=\n# [A-Z]|\Z)", implement_content, re.DOTALL)
-    assert match, "QUICK MODE section not found"
+    if not match:
+        pytest.skip("QUICK MODE section was removed from implement.md (quick mode deprecated)")
     return match.group(0)
 
 

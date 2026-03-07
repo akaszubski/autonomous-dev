@@ -15,11 +15,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "plugins/autonomous-dev/config/known_bypass_patterns.json"
 BATCH_CMD_PATH = PROJECT_ROOT / "plugins/autonomous-dev/commands/implement-batch.md"
 
-EXPECTED_NINE_AGENTS = [
+EXPECTED_DEFAULT_AGENTS = [
     "researcher-local",
     "researcher",
     "planner",
-    "test-master",
     "implementer",
     "reviewer",
     "security-auditor",
@@ -160,14 +159,14 @@ class TestBatchExpectedEndStates:
             "This is needed to validate that each issue in a batch gets the full pipeline."
         )
 
-    def test_batch_issues_requires_nine_agents(self, end_states: dict):
-        """batch-issues expected end state must list all 9 required agents."""
+    def test_batch_issues_requires_default_agents(self, end_states: dict):
+        """batch-issues expected end state must list all default required agents."""
         batch_issues = end_states.get("batch-issues", {})
         required_agents = batch_issues.get("required_agents", [])
-        for agent in EXPECTED_NINE_AGENTS:
+        for agent in EXPECTED_DEFAULT_AGENTS:
             assert agent in required_agents, (
                 f"Agent '{agent}' missing from batch-issues required_agents. "
-                f"All 9 pipeline agents must be required per issue."
+                f"All default pipeline agents must be required per issue."
             )
 
     def test_batch_issues_expected_end_state_per_issue(self, end_states: dict):

@@ -34,7 +34,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 > "I speak requirements and Claude Code delivers a first grade software engineering outcome in minutes by following all the necessary steps that would need to be taken in top level software engineering but so much quicker with the use of AI and validation"
 
 **Key Points:**
-- All SDLC steps required — Research → Plan → TDD → Implement → Review → Security → Docs (no shortcuts)
+- All SDLC steps required — Research → Plan → Acceptance Tests → Implement → Review → Security → Docs (no shortcuts, diamond testing model)
 - Professional quality enforced via hooks (can't skip or bypass)
 - Speed via AI — Each step accelerated, not eliminated
 - PROJECT.md is the gatekeeper — Work blocked if not aligned
@@ -122,7 +122,7 @@ Advisory text ("please ensure...") gets ignored under context pressure. What wor
 ### Security Requirements
 
 - No hardcoded secrets (enforced by security_scan.py)
-- TDD mandatory (tests before implementation)
+- Acceptance-first testing mandatory (acceptance tests before implementation, unit tests alongside code; use `--tdd-first` for traditional TDD)
 - Tool restrictions per agent (principle of least privilege)
 - 80% minimum test coverage
 - MCP security validation (path traversal, injection prevention)
@@ -183,7 +183,7 @@ PROJECT.md Alignment Check (blocks if misaligned)
      ↓
 Planning (Opus)
      ↓
-TDD Tests (Opus)
+Acceptance Tests (Coordinator)  ← Default mode (--tdd-first: TDD Tests via Opus)
      ↓
 Implementation (Opus) → HARD GATE: 0 test failures
      ↓                → HARD GATE: No stubs/placeholders

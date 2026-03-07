@@ -100,7 +100,9 @@ Unified hooks using dispatcher pattern for quality enforcement. See [docs/HOOKS.
 3. **Research**: researcher agent finds patterns (Haiku model)
 4. **Planning**: planner agent creates architecture plan
 5. **Pause Control** (v3.45.0): Optional human-in-the-loop after planning
-6. **TDD Tests**: test-master writes failing tests FIRST
+6. **Acceptance Tests** (Issue #404, default): test-master writes specification-driven acceptance tests
+   - Default mode: validation-first approach (specification → acceptance tests → implementation)
+   - Optional `--tdd-first` flag reverts to legacy TDD-first (failing unit tests first)
 7. **Implementation**: implementer makes tests pass
 8. **Parallel Validation** (3 agents simultaneously):
    - reviewer checks code quality

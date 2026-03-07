@@ -191,9 +191,10 @@ Define acceptance criteria → Implement + generate unit tests → Validate all 
 
 ## Migration Path
 
-### Current State (v3.51.0)
+### Current State (v3.52.0)
 - Two-layer testing: Traditional (deterministic) + GenAI (semantic)
-- TDD-first pipeline (test-master writes tests before implementation)
+- Acceptance-first pipeline (acceptance tests before implementation, unit tests alongside code) — default since Issue #404
+- TDD-first pipeline available via `--tdd-first` flag (test-master writes tests before implementation)
 - Binary pass/fail on all tests
 
 ### Target State
@@ -206,8 +207,9 @@ Define acceptance criteria → Implement + generate unit tests → Validate all 
 1. **Document diamond model** (this file) — Issue #352 ✅
 2. **Add soft-failure thresholds** — Issue #351 ✅
 3. **Add acceptance-first pipeline mode** — Issue #350 ✅
-4. **Codify property-based invariants** — future issue
-5. **Retire brittle hardcoded tests** — ongoing
+4. **Make acceptance-first the default mode** — Issue #404 ✅
+5. **Codify property-based invariants** — future issue
+6. **Retire brittle hardcoded tests** — ongoing
 
 ---
 

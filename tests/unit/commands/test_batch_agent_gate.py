@@ -15,11 +15,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "plugins/autonomous-dev/config/known_bypass_patterns.json"
 BATCH_CMD_PATH = PROJECT_ROOT / "plugins/autonomous-dev/commands/implement-batch.md"
 
-EXPECTED_NINE_AGENTS = [
+EXPECTED_DEFAULT_AGENTS = [
     "researcher-local",
     "researcher",
     "planner",
-    "test-master",
     "implementer",
     "reviewer",
     "security-auditor",
@@ -57,18 +56,25 @@ class TestKnownBypassPatternsJson:
         assert pattern["severity"] == "critical"
 
     def test_batch_issues_required_agents_complete(self, config: dict):
-        """batch-issues end state must require all 9 pipeline agents."""
+        """batch-issues end state must require all default pipeline agents."""
         agents = config["expected_end_states"]["batch-issues"]["required_agents"]
-        for agent in EXPECTED_NINE_AGENTS:
+        for agent in EXPECTED_DEFAULT_AGENTS:
             assert agent in agents, f"Missing agent in batch-issues: {agent}"
-        assert len(agents) >= len(EXPECTED_NINE_AGENTS)
+        assert len(agents) >= len(EXPECTED_DEFAULT_AGENTS)
+
+    def test_batch_issues_has_optional_tdd_first_agents(self, config: dict):
+        """batch-issues should have test-master as optional in --tdd-first mode."""
+        end_state = config["expected_end_states"]["batch-issues"]
+        optional = end_state.get("optional_agents_by_mode", {})
+        assert "--tdd-first" in optional, "Missing --tdd-first optional agents"
+        assert "test-master" in optional["--tdd-first"]
 
     def test_batch_required_agents_complete(self, config: dict):
-        """batch end state must require all 9 pipeline agents."""
+        """batch end state must require all default pipeline agents."""
         agents = config["expected_end_states"]["batch"]["required_agents"]
-        for agent in EXPECTED_NINE_AGENTS:
+        for agent in EXPECTED_DEFAULT_AGENTS:
             assert agent in agents, f"Missing agent in batch: {agent}"
-        assert len(agents) >= len(EXPECTED_NINE_AGENTS)
+        assert len(agents) >= len(EXPECTED_DEFAULT_AGENTS)
 
 
 class TestImplementBatchHardGate:
@@ -87,4 +93,4 @@ class TestImplementBatchHardGate:
         """implement-batch.md must contain FORBIDDEN list for batch agent verification."""
         assert "FORBIDDEN" in content
         # Should forbid skipping agents for later issues
-        assert "Advancing to the next issue with fewer than 9 agents" in content
+        assert "Advancing to the next issue with fewer than" in content
