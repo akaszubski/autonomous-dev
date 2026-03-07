@@ -2,6 +2,16 @@
 
 ### Added
 
+- **Batch pipeline fidelity: per-issue dedicated pipeline tracking** (Issue #386)
+  - Prevents coordinator from grouping multiple batch issues into a single pipeline pass
+  - Coordinator MUST run 9-agent pipeline per issue (not per batch) in `/implement --batch-issues` mode
+  - Added detection pattern `batch_group_pipeline` to known_bypass_patterns.json with CRITICAL severity
+  - Detection indicators: Total agent count < 9 per issue, multiple test files in same time window, combined issue processing
+  - Updated implement-batch.md STEP B3 with per-issue pipeline state tracking and mandatory agent count verification
+  - Added `per_issue: true` note to expected_end_states in known_bypass_patterns.json clarifying 9 agents apply per issue
+  - Test coverage: 10 regression tests validating pattern detection, severity levels, and issue isolation requirements
+  - Prevents batch mode regression where Issue #1-2 get full pipeline, Issue #3+ get shortened pipeline (Issue #363)
+
 - **Agent Teams evaluation: keep worktrees for batch processing** (Issue #390)
   - Evaluated Claude Code's Agent Teams feature as potential replacement for worktree-based batch processing
   - Decision: **Keep worktrees** as primary mechanism due to 3 critical blockers
@@ -98,6 +108,16 @@
   - Added 5 new patterns to `known_bypass_patterns.json`:
     - `sequential_step_parallelized`: test-master and implementer launched within 5 seconds
     - `parallel_step_serialized`: researchers or STEP 6 agents >30s apart
+
+- **Pipeline state machine for /implement command** (Issue #402)
+  - New library: `pipeline_state.py` — Pipeline state tracker with gate enforcement (stdlib only, zero dependencies)
+  - Tracks 13-step pipeline progression: ALIGNMENT, RESEARCH_CACHE, RESEARCH, PLAN, ACCEPTANCE_TESTS, TDD_TESTS, IMPLEMENT, HOOK_CHECK, VALIDATE, VERIFY, REPORT, CONGRUENCE, CI_ANALYSIS
+  - Enforces gate conditions (HARD GATE violations block advancement; CHECKPOINT violations show warnings)
+  - Persists state to JSON for resumable pipelines and session analysis
+  - Methods: create_pipeline(), advance(), complete_step(), skip_step(), can_advance(), get_trace(), load_pipeline(), save_pipeline()
+  - Step validation: Prevents out-of-order execution, enforces required status before advancement, tracks all transitions
+  - Enables continuous-improvement-analyst to validate coordinator state machine adherence
+  - Test coverage: 27 tests covering creation, serialization, step advancement, gate enforcement, trace/reporting, cleanup, and edge cases
     - `context_dropping`: Agent prompt word count < 20% of prior result (coordinator summarization)
     - `hard_gate_ordering_bypass`: STEP 6 agents before STEP 5 pytest passes
     - `reviewer_blocking_ignored`: Reviewer BLOCKING issues not fixed before proceeding
@@ -161,6 +181,16 @@
   - Updated plugins/autonomous-dev/skills/anti-hallucination-training/SKILL.md
 
 ### Fixed
+
+- **Pre-existing test failure cleanup (Issue #403)**
+  - Removed 34 obsolete tests from Phase 4 and Phase 5 pipeline stub files that were never implemented
+  - Deleted test_pipeline_phase4_model_optimization.py (15 tests for unimplemented model optimization)
+  - Deleted test_pipeline_phase5_prompt_simplification.py (19 tests for unimplemented prompt simplification)
+  - Created test_agent_quality_regression.py with 5 new regression tests extracted from deleted files
+  - Fixed pipeline_controller.py: Added proper context manager semantics and signal handlers
+  - Created pipeline_state.py library: State machine tracker for pipeline progression
+  - Net result: Eliminated 29 pre-existing test failures, added 5 regression tests covering core quality gates
+  - Impact: Test suite now passes cleanly, improving developer experience and CI/CD reliability
 
 - **Hook registration pipeline gap fix (Issue #348)**
   - Fixed hook orphan registration bug where newly created hooks weren't registered in settings templates

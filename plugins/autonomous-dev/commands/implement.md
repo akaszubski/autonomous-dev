@@ -73,8 +73,18 @@ Also check for `--no-cache` flag. If present, skip STEP 1.5 (research cache chec
 
 Before routing, activate pipeline state:
 ```bash
-echo '{"session_start": "'$(date +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'"}' > /tmp/implement_pipeline_state.json
+RUN_ID="$(date +%Y%m%d-%H%M%S)"
+python3 -c "
+import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import create_pipeline, save_pipeline
+state = create_pipeline('$RUN_ID', 'FEATURE_DESC', mode='$mode')
+save_pipeline(state)
+print(f'Pipeline {state.run_id} initialized with {len(state.steps)} steps')
+"
+echo '{"session_start": "'$(date +%Y-%m-%dT%H:%M:%S)'", "mode": "'$mode'", "run_id": "'$RUN_ID'"}' > /tmp/implement_pipeline_state.json
 ```
+
+**Note**: Store `RUN_ID` and pass it to subsequent steps for pipeline state tracking.
 
 ---
 
@@ -321,7 +331,15 @@ pytest tests/unit/test_documentation_congruence.py --tb=short -q
 
 This step is NON-BLOCKING on results — the pipeline result is already reported in STEP 8. However, **launching** the analyst is mandatory. You do not need to wait for the analyst to finish, but you MUST invoke it.
 
-After launching the analyst, cleanup: `rm -f /tmp/implement_pipeline_state.json`
+After launching the analyst, cleanup:
+```bash
+rm -f /tmp/implement_pipeline_state.json
+python3 -c "
+import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import cleanup_pipeline
+cleanup_pipeline('RUN_ID')
+" 2>/dev/null || true
+```
 
 ---
 

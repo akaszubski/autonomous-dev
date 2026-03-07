@@ -188,6 +188,7 @@
         "plugins/autonomous-dev/lib/performance_profiler.py",
         "plugins/autonomous-dev/lib/permission_classifier.py",
         "plugins/autonomous-dev/lib/pipeline_intent_validator.py",
+        "plugins/autonomous-dev/lib/pipeline_state.py",
         "plugins/autonomous-dev/lib/plugin_updater.py",
         "plugins/autonomous-dev/lib/pool_config.py",
         "plugins/autonomous-dev/lib/pr_automation.py",

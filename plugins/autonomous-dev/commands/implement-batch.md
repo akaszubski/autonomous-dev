@@ -290,6 +290,29 @@ Same as BATCH FILE MODE:
 1. Create worktree (see STEP B1)
 2. Store absolute worktree path in `WORKTREE_PATH` variable
 3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see STEP B3)
+
+   **Per-Issue Pipeline State**: For each issue, create a FRESH pipeline state:
+   ```bash
+   ISSUE_RUN_ID="issue-${ISSUE_NUMBER}-$(date +%Y%m%d-%H%M%S)"
+   python3 -c "
+   import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+   from pipeline_state import create_pipeline, save_pipeline
+   state = create_pipeline('$ISSUE_RUN_ID', 'Issue #$ISSUE_NUMBER: $ISSUE_TITLE', mode='batch')
+   save_pipeline(state)
+   "
+   ```
+
+   After each issue's pipeline completes, cleanup the per-issue pipeline state between issues:
+   ```bash
+   python3 -c "
+   import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+   from pipeline_state import cleanup_pipeline
+   cleanup_pipeline('$ISSUE_RUN_ID')
+   " 2>/dev/null || true
+   ```
+
+   **CRITICAL**: Each issue gets a NEW `create_pipeline()` call. Do NOT reuse pipeline state across issues. Create a new pipeline, run the separate pipeline for that issue, then clear/cleanup before starting the next.
+
    **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the 9-agent verification before the next issue starts.
    **Background agent drain is MANDATORY** — see STEP B3 point 5 HARD GATE. STEP 9 runs in foreground during batch. Max 2 concurrent background agents.
 4. Git automation (see STEP B4) - triggers at end of batch
