@@ -119,6 +119,80 @@ class TestPolicyAndHookSync:
 
 
 # ---------------------------------------------------------------------------
+# 1b. Native tools in settings templates (deployment regression)
+# ---------------------------------------------------------------------------
+
+TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "templates"
+
+# Tools that MUST be in permissions.allow for worktrees to work without prompts.
+# These are the native tools that Claude Code's permission system checks BEFORE hooks run.
+REQUIRED_PERMISSION_TOOLS = {
+    "Read", "Write", "Edit", "Glob", "Grep", "Bash", "Agent", "Skill",
+    "ToolSearch", "NotebookEdit", "WebSearch", "WebFetch",
+    "EnterPlanMode", "ExitPlanMode", "EnterWorktree", "AskUserQuestion",
+    "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop", "TaskOutput",
+}
+
+
+class TestSettingsTemplatesIncludeNativeTools:
+    """REGRESSION: Settings templates must include native tools in permissions.allow.
+
+    git worktree add checks out COMMITTED files. If settings.json doesn't have
+    a native tool in permissions.allow, worktrees will prompt for permission
+    even though the hook would auto-approve it — because the permission check
+    runs BEFORE hooks.
+
+    This has bitten us 10+ times with ToolSearch specifically.
+    """
+
+    @pytest.fixture
+    def template_files(self):
+        return sorted(TEMPLATES_DIR.glob("settings.*.json"))
+
+    def test_templates_exist(self, template_files):
+        assert len(template_files) >= 1, f"No settings templates found in {TEMPLATES_DIR}"
+
+    def test_all_templates_have_native_tools_in_permissions(self, template_files):
+        """Every settings template must include all required native tools in permissions.allow."""
+        failures = []
+        for template in template_files:
+            with open(template) as f:
+                settings = json.load(f)
+            allow = settings.get("permissions", {}).get("allow", [])
+            allow_set = set(allow)
+            # Bash can be bare "Bash" or granular "Bash(git status)" in allow,
+            # or "Bash(:*)" in ask (permission-batching mode). All count as "handled".
+            ask_list = settings.get("permissions", {}).get("ask", [])
+            has_bash = (
+                "Bash" in allow_set
+                or any(t.startswith("Bash(") for t in allow)
+                or any(t.startswith("Bash") for t in ask_list)
+            )
+            missing = []
+            for tool in sorted(REQUIRED_PERMISSION_TOOLS):
+                if tool == "Bash":
+                    if not has_bash:
+                        missing.append(tool)
+                elif tool not in allow_set:
+                    missing.append(tool)
+            if missing:
+                failures.append(f"  {template.name}: missing {missing}")
+        assert not failures, (
+            f"Settings templates missing native tools in permissions.allow:\n"
+            + "\n".join(failures)
+            + f"\nFix: add missing tools to permissions.allow in each template"
+        )
+
+    def test_native_tools_set_covers_required_permissions(self):
+        """NATIVE_TOOLS in the hook must be a superset of REQUIRED_PERMISSION_TOOLS."""
+        missing = REQUIRED_PERMISSION_TOOLS - hook.NATIVE_TOOLS
+        assert missing == set(), (
+            f"REQUIRED_PERMISSION_TOOLS has tools not in hook NATIVE_TOOLS: {missing}\n"
+            f"Either add to NATIVE_TOOLS or remove from REQUIRED_PERMISSION_TOOLS"
+        )
+
+
+# ---------------------------------------------------------------------------
 # 2. MCP (non-native) tools route through security validation
 # ---------------------------------------------------------------------------
 

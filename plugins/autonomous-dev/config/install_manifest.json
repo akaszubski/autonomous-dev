@@ -179,6 +179,7 @@
         "plugins/autonomous-dev/lib/memory_layer.py",
         "plugins/autonomous-dev/lib/memory_relevance.py",
         "plugins/autonomous-dev/lib/migration_planner.py",
+        "plugins/autonomous-dev/lib/native_tools.py",
         "plugins/autonomous-dev/lib/orchestrator.py",
         "plugins/autonomous-dev/lib/orphan_file_cleaner.py",
         "plugins/autonomous-dev/lib/parallel_validation.py",

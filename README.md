@@ -17,10 +17,10 @@ Transform feature implementation into an automated, quality-enforced workflow. O
 AI coding assistants are powerful, but they drift. They build features you didn't ask for. They ignore your architecture. They forget your constraints.
 
 Without guardrails, you get:
-- **Scope creep** - Features that don't align with project goals
-- **23% bug rate** - Code that wasn't tested first
-- **12% security vulnerabilities** - No automated auditing
-- **67% documentation drift** - Docs that don't match code
+- **Scope creep** — Features that don't align with project goals
+- **Untested code** — No TDD enforcement means bugs ship to production
+- **Security gaps** — No automated OWASP auditing
+- **Documentation drift** — Docs that don't match code
 
 ---
 
@@ -62,28 +62,26 @@ Every `/implement` command validates:
 
 ---
 
-## The Numbers
+## What Changes
 
-| Metric | Without Pipeline | With `/implement` |
-|--------|-----------------|-------------------|
-| Scope alignment | Manual review | **Automatic validation** |
-| Bug rate | 23% | **4%** |
-| Security issues | 12% | **0.3%** |
-| Documentation drift | 67% | **2%** |
-| Test coverage | 43% | **94%** |
-
-**85% of issues caught before commit.**
+| Without Pipeline | With `/implement` |
+|-----------------|-------------------|
+| Manual scope review | **Automatic PROJECT.md alignment validation** |
+| Tests written after (or never) | **TDD enforced — tests first, always** |
+| Security checked manually | **OWASP scan on every feature** |
+| Docs updated "later" | **Doc-master syncs on every feature** |
+| Hope-based quality | **Hook-enforced quality gates** |
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install (30 seconds)
+# Install via bootstrap script (required — sets up global hooks, libs, config)
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 
 # First install: Restart Claude Code (Cmd+Q / Ctrl+Q)
-# Subsequent updates: /reload-plugins (reloads commands, agents, skills)
+# Subsequent updates: /sync then /reload-plugins (reloads commands, agents, skills)
 # Note: /reload-plugins does NOT reload hooks or settings — use full restart for those
 /setup  # Guided PROJECT.md creation
 ```
@@ -130,13 +128,14 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 | `/align` | Validate alignment (project goals, CLAUDE.md, retrofit) |
 | `/create-issue` | Research-backed GitHub issues with duplicate detection |
 | `/advise` | Critical analysis before major decisions |
-| `/audit-tests` | Identify untested code paths |
-| `/audit-claude` | Validate CLAUDE.md structure against best practices |
+| `/audit` | Quality audit (--quick, --security, --docs, --code, --claude, --tests) |
 | `/health-check` | Validate all plugin components (agents, hooks, commands) |
-| `/sync` | Update plugin from marketplace |
-| `/worktree` | Manage git worktrees for isolated development |
+| `/sync` | Update plugin (--github, --env, --marketplace, --all, --uninstall) |
+| `/worktree` | Manage git worktrees (--list, --status, --merge, --discard) |
 | `/improve` | Analyze sessions for drift, test gaps, doc staleness |
 | `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
+| `/status` | View PROJECT.md goal progress with recommendations |
+| `/mem-search` | Search claude-mem persistent memory (optional) |
 
 ---
 
@@ -168,15 +167,15 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 **8 Pipeline Agents** (invoked via Task tool):
 1. **researcher-local** (Haiku) - Searches codebase for existing patterns
 2. **researcher** (Sonnet) - Researches best practices and security considerations
-3. **planner** (Sonnet) - Designs implementation architecture
-4. **test-master** (Sonnet) - Writes comprehensive tests BEFORE implementation (TDD)
-5. **implementer** (Sonnet) - Writes production-quality code to make tests pass
+3. **planner** (Opus) - Designs implementation architecture
+4. **test-master** (Opus) - Writes comprehensive tests BEFORE implementation (TDD)
+5. **implementer** (Opus) - Writes production-quality code to make tests pass
 6. **reviewer** (Sonnet) - Reviews code quality, patterns, and coverage
-7. **security-auditor** (Haiku) - Scans for OWASP vulnerabilities
+7. **security-auditor** (Opus) - Scans for OWASP vulnerabilities
 8. **doc-master** (Haiku) - Updates documentation to match code changes
 
-**Utility Agents** (8 more):
-- commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, issue-creator, quality-validator, sync-validator, test-coverage-auditor
+**Utility Agents** (6 more):
+- commit-message-generator, continuous-improvement-analyst, issue-creator, quality-validator, sync-validator, test-coverage-auditor
 
 **How Agents Work**:
 - Agents are markdown prompts (not Python files)
@@ -186,11 +185,11 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 
 ### Model Tier Strategy (Cost-Optimized)
 
-| Tier | Model | Agents | Cost Savings |
-|------|-------|--------|--------------|
-| **Tier 1** | Haiku | researcher-local, reviewer, doc-master, security-auditor | 40-60% savings |
-| **Tier 2** | Sonnet | implementer, test-master, planner, researcher-web | Balanced cost/quality |
-| **Tier 3** | Opus | (reserved for future complex reasoning tasks) | Deep reasoning when needed |
+| Tier | Model | Agents |
+|------|-------|--------|
+| **Tier 1** | Haiku | researcher-local, doc-master |
+| **Tier 2** | Sonnet | reviewer, researcher (web), continuous-improvement-analyst |
+| **Tier 3** | Opus | planner, test-master, implementer, security-auditor |
 
 ---
 
@@ -203,7 +202,7 @@ Hooks run automatically at key moments to enforce quality without manual interve
 | **PreToolUse** | 4-layer security validation (sandboxing → MCP → agent auth → batch permissions) |
 | **PreCommit** | Blocks commits with failing tests, missing docs, or security issues |
 | **SubagentStop** | Triggers git automation after pipeline completion |
-| **PrePromptSubmit** | Enforces workflow discipline and command validation |
+| **UserPromptSubmit** | Enforces workflow discipline and command validation |
 | **SessionStart** | Restores session state after `/clear` for continuity |
 
 **Key Hooks**:

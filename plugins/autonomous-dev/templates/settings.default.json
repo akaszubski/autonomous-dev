@@ -20,6 +20,7 @@
       "TaskList",
       "TaskGet",
       "TaskStop",
+      "TaskOutput",
       "WebFetch",
       "WebSearch",
       "TodoWrite",

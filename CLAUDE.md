@@ -5,17 +5,18 @@ Plugin for autonomous development in Claude Code. AI agents, skills, automation 
 ## Project Overview
 
 Autonomous development plugin that provides:
-- **9-step SDLC pipeline**: researcher → planner → test-master → implementer → reviewer → security-auditor → doc-master → continuous-improvement-analyst
+- **8-step SDLC pipeline**: alignment → research → plan → test → implement → validate → verify → git
 - **Batch processing**: Process multiple features/issues with worktree isolation
 - **Git automation**: AUTO_GIT_ENABLED for commit/push workflows
 
 ## Installation
 
 ```bash
-/plugin install akaszubski/autonomous-dev
+# Primary install method (sets up global hooks, libs, config)
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-Then run `/reload-plugins` to load commands, agents, and skills. For first-time installs or if hooks/settings changed, do a full restart (Cmd+Q / Ctrl+Q) instead.
+Then restart Claude Code (Cmd+Q / Ctrl+Q). For subsequent updates, run `/sync` then `/reload-plugins`.
 
 ## Critical Rules
 
@@ -74,24 +75,18 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 
 ## Session Continuity
 
-At session start, read `.claude/local/SESSION_STATE.json` for:
-- **Active tasks**: Current work and next steps
-- **Key conventions**: Repo-specific patterns and rules
-- **Recent context**: Files modified, workflows completed
-
-Update state after completing significant work. State survives `/clear` operations.
+The `SessionStart-batch-recovery.sh` hook automatically restores batch state after `/clear` or auto-compact. Session activity is logged to `.claude/logs/activity/` by the `session_activity_logger.py` hook.
 
 ## Project Alignment
 
 - **Goals/Scope**: See [.claude/PROJECT.md](.claude/PROJECT.md)
 - **Operations**: See [.claude/local/OPERATIONS.md](.claude/local/OPERATIONS.md) (repo-specific procedures)
-- **Session State**: See [.claude/local/SESSION_STATE.json](.claude/local/SESSION_STATE.json) (machine-readable context)
 
 ### Agents
 
 14 specialist agents for autonomous development. See [docs/AGENTS.md](docs/AGENTS.md) for details.
 
-Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst. See agents/archived/ for 16 archived agents.
+Key agents: researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst. See agents/archived/ for 15 archived agents.
 
 ## Detailed Guides
 
@@ -111,6 +106,6 @@ Key agents: researcher, planner, test-master, implementer, reviewer, security-au
 
 ## Component Counts
 
-14 agents (16 archived), 17 skills, 15 active commands, 141 libraries, 17 active hooks (62 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
+14 agents (15 archived), 16 skills, 15 active commands, 168 libraries, 21 active hooks (62 archived). See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md).
 
-**Last Updated**: 2026-02-28
+**Last Updated**: 2026-03-07

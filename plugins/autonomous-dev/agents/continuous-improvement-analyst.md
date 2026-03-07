@@ -31,7 +31,7 @@ Check that all 4 hook layers produced log entries:
 **Finding**: If any layer has zero entries (and that layer is registered in the target repo), flag as `[HOOK-GAP]` critical. A missing layer means a hook is not registered or silently failing.
 
 ### 2. Pipeline Completeness
-**Rule**: "9-step pipeline, every step, every feature" (PROJECT.md)
+**Rule**: "8-step pipeline, every step, every feature" (PROJECT.md)
 
 When `/implement` ran (full pipeline mode), verify all expected agents were invoked:
 - researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
@@ -138,23 +138,30 @@ You will receive:
 3. Key sections from autonomous-dev's CLAUDE.md (critical rules, operational expectations)
 4. The `known_bypass_patterns.json` content
 
-Log entry format:
+Log entry format (note: field is `hook` not `hook_type`, and `agent` is usually `main` — Claude Code does not set `CLAUDE_AGENT_NAME` for subagents):
 ```json
 {
   "timestamp": "2026-02-15T14:30:00Z",
-  "hook_type": "PreToolUse|PostToolUse|UserPromptSubmit|Stop",
+  "hook": "PreToolUse|PostToolUse|UserPromptSubmit|Stop",
   "tool": "Write",
   "input_summary": {"file_path": "tests/genai/conftest.py", "content_length": 5200},
   "output_summary": {"success": true},
   "session_id": "abc123",
-  "agent": "implementer"
+  "agent": "main"
 }
+```
+
+**IMPORTANT**: Since `agent` is always `main`, you CANNOT determine which pipeline agent ran from log entries directly. Instead, infer pipeline activity from:
+- **Tool call patterns**: A sequence of Read/Grep calls followed by Write of test files suggests test-master ran
+- **File paths**: Files written to `tests/` = test-master, files written to `src/` or `lib/` = implementer
+- **UserPromptSubmit entries**: Look for `/implement` command invocations
+- **Temporal clustering**: Group tool calls by time gaps (>30s gap = likely different agent)
 ```
 
 ## Analysis Process
 
 1. **Load logs** for the target date/session
-2. **Categorize by hook type**: Group entries by UserPromptSubmit, PreToolUse, PostToolUse, Stop
+2. **Categorize by hook field**: Group entries by `hook` value: UserPromptSubmit, PreToolUse, PostToolUse, Stop
 3. **Check each of the 7 quality areas** against log evidence
 4. **Cross-reference PROJECT.md/CLAUDE.md** rules for each finding — cite the specific rule being violated
 5. **Classify findings** by severity: critical (broken enforcement), warning (drift/gaps), info (suggestion)

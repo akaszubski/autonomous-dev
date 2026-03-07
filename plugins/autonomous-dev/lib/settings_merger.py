@@ -319,12 +319,17 @@ class SettingsMerger:
             # Return None on parse error (caller handles)
             return None
 
+    # Keys whose list values should be unioned (not replaced) during merge.
+    # This prevents sync from clobbering user-added permissions entries.
+    _UNION_LIST_KEYS = {"allow", "deny", "ask"}
+
     def _merge_dicts(self, base: Dict, updates: Dict) -> Dict:
         """Deep merge two dictionaries (updates override base).
 
         This performs a recursive deep merge where:
         - Nested dictionaries are merged recursively
-        - Lists are replaced (not merged)
+        - Permission lists (allow, deny, ask) are unioned to preserve user entries
+        - Other lists are replaced (not merged)
         - Scalar values from updates override base
 
         Args:
@@ -344,6 +349,17 @@ class SettingsMerger:
                     # Skip hooks - they're merged separately with duplicate detection
                     continue
                 merged[key] = self._merge_dicts(merged[key], value)
+            elif (
+                key in self._UNION_LIST_KEYS
+                and isinstance(value, list)
+                and isinstance(merged.get(key), list)
+            ):
+                # Union permission lists — preserve user entries, add missing template entries
+                existing_set = set(merged[key])
+                for item in value:
+                    if item not in existing_set:
+                        merged[key].append(item)
+                        existing_set.add(item)
             else:
                 # Override with update value (lists, scalars, new keys)
                 # But don't override "hooks" key here (handled separately)

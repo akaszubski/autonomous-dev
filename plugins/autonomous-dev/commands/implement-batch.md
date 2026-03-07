@@ -32,9 +32,11 @@ cd .worktrees/$BATCH_ID
 # Store absolute worktree path for agent prompts (CRITICAL!)
 WORKTREE_PATH="$(pwd)"
 
-# Sync settings from parent repo (worktree gets stale copy at creation time)
+# Sync settings, hooks, and config from parent repo (worktree gets stale copy at creation time)
 PARENT_REPO="$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir | sed 's|/.git$||')"
 cp "$PARENT_REPO/.claude/settings.json" "$WORKTREE_PATH/.claude/settings.json" 2>/dev/null || true
+cp -rf "$PARENT_REPO/.claude/hooks/" "$WORKTREE_PATH/.claude/hooks/" 2>/dev/null || true
+cp -rf "$PARENT_REPO/.claude/config/" "$WORKTREE_PATH/.claude/config/" 2>/dev/null || true
 ```
 
 Display:

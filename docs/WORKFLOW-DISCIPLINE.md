@@ -2,20 +2,22 @@
 
 **REQUIRED**: Use `/implement` for all code changes. This is not optional.
 
-Claude MUST use `/implement` for code changes because it catches 85% of issues before commit. The data proves this works.
+Claude MUST use `/implement` for code changes because the pipeline enforces quality at every step.
 
 ---
 
-## Why /implement Produces Better Results (Data-Driven)
+## Why /implement Produces Better Results
 
-**The Data** (from autonomous-dev production metrics):
+**What the pipeline enforces that direct implementation skips:**
 
-| Metric | Direct Implementation | /implement |
-|--------|----------------------|-----------|
-| Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
-| Security issues | 12% (need audit) | 0.3% (caught by auditor) |
-| Documentation drift | 67% (manual sync) | 2% (auto-synced) |
-| Test coverage | 43% (optional) | 94% (required) |
+| Step | Direct Implementation | `/implement` Pipeline |
+|------|----------------------|----------------------|
+| Alignment | None | PROJECT.md validation (blocks misaligned work) |
+| Research | None | Codebase + web research (catches duplicates) |
+| Testing | Optional, after code | TDD enforced (tests BEFORE code) |
+| Security | None | OWASP scan by security-auditor agent |
+| Documentation | Manual, "later" | Auto-synced by doc-master agent |
+| Review | None | Code review by reviewer agent |
 
 **Benefits**: Research catches duplicates, TDD catches bugs, security blocks vulns, docs stay synced.
 
@@ -337,13 +339,14 @@ ENFORCE_WORKFLOW=false  # Disables bypass detection
 
 Hooks don't block direct implementation (Intent detection doesn't work - Issue #141). But `/implement` is still REQUIRED by instruction.
 
-**If you skip `/implement`, you cause**:
-- Higher bug rate (23% vs 4%)
-- Security vulnerabilities (12% vs 0.3%)
-- Documentation drift (67% of changes)
-- Lower test coverage (43% vs 94%)
+**If you skip `/implement`, you skip**:
+- TDD enforcement (tests before code)
+- Security scanning (OWASP audit)
+- Documentation sync (doc-master agent)
+- Code review (reviewer agent)
+- PROJECT.md alignment validation
 
-**The rule**: Use `/implement` for code changes. The data proves it works.
+**The rule**: Use `/implement` for code changes. The pipeline enforces quality at every step.
 
 ---
 
@@ -384,13 +387,6 @@ Claude: Validates alignment → TDD → implements → reviews → documents
 2. **Is this just docs/config/typo?** → If yes, proceed directly
 3. **Am I unsure?** → Use `/implement` (quality-safe default)
 
-**Why This is Required**:
-
-| Metric | Direct Implementation | /implement Pipeline |
-|--------|----------------------|--------------------------|
-| Bug rate | 23% (need hotfixes) | 4% (caught in tests) |
-| Security issues | 12% (need audit) | 0.3% (caught by auditor) |
-| Documentation drift | 67% (manual sync) | 2% (auto-synced) |
-| Test coverage | 43% (optional) | 94% (required) |
+**Why This is Required**: `/implement` runs 8 specialist agents that catch alignment, testing, security, and documentation issues. Direct implementation skips all of them.
 
 **The Rule**: `/implement` is required for code changes. Exceptions are documented above (docs, config, typos only).

@@ -78,7 +78,8 @@
       "TaskUpdate",
       "TaskList",
       "TaskGet",
-      "TaskStop"
+      "TaskStop",
+      "TaskOutput"
     ],
     "ask": [
       "Bash(git add:*)",

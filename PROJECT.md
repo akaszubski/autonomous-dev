@@ -1,7 +1,7 @@
 # Project Context - Autonomous Development Plugin
 
-**Last Updated**: 2026-02-21
-**Version**: v3.52.0
+**Last Updated**: 2026-03-07
+**Version**: v3.50.0
 
 ---
 
@@ -47,7 +47,7 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 **IN Scope** (Features we build):
 
 - Feature request detection and auto-orchestration
-- 8-step pipeline: research → plan → test → implement → review → security → docs → commit
+- 8-step pipeline: alignment → research → plan → test → implement → validate → verify → git
 - PROJECT.md alignment validation before any work begins
 - File organization enforcement (src/, tests/, docs/)
 - Brownfield project support (`/align --retrofit`)
@@ -196,9 +196,9 @@ Implementation (Opus) → HARD GATE: 0 test failures
 Git Operations (commit, push, PR)
 ```
 
-**Model Tiers:**
+**Model Tiers** (from implement.md, the source of truth):
 - **Opus**: Complex reasoning — planner, test-master, implementer, security-auditor
-- **Sonnet**: Balanced — reviewer, researcher (web)
+- **Sonnet**: Balanced — reviewer, researcher (web), continuous-improvement-analyst
 - **Haiku**: Fast/cheap — researcher-local, doc-master
 
 ### Diamond Testing Model
@@ -230,16 +230,19 @@ autonomous-dev/
 ├── plugins/autonomous-dev/     # Plugin source (what users install)
 │   ├── agents/                 # Pipeline + utility agents
 │   ├── commands/               # Slash commands
-│   ├── hooks/                  # Automation hooks (17 active, 62 archived)
+│   ├── hooks/                  # Automation hooks (21 active, 62 archived)
 │   ├── skills/                 # Skill packages
 │   ├── lib/                    # Python libraries
-│   ├── templates/              # Settings templates (7 project, 1 global)
+│   ├── templates/              # Settings templates (6 variants)
 │   └── docs/                   # User documentation
 ├── docs/                       # Developer documentation
-├── tests/                      # Test suite (~10,300 tests)
+├── tests/                      # Test suite (~8,200 runnable, ~10,500 defined)
 │   ├── unit/                   # Unit tests
+│   ├── integration/            # Integration tests
 │   ├── regression/             # Smoke + progression regression tests
-│   └── genai/                  # GenAI intent tests (LLM-as-judge)
+│   ├── security/               # Security-focused tests
+│   ├── hooks/                  # Hook-specific tests
+│   └── genai/                  # GenAI prompt quality tests (LLM-as-judge)
 ├── .claude/                    # Installed plugin (symlink)
 ├── CLAUDE.md                   # Development instructions (component counts live here)
 ├── PROJECT.md                  # This file (alignment gatekeeper)
