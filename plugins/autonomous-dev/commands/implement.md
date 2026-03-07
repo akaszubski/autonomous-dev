@@ -288,6 +288,27 @@ gh issue close <number> -c "Implemented in $COMMIT_SHA" 2>/dev/null || echo "War
 
 ---
 
+### STEP 8.5: Documentation Congruence Validation — HARD GATE
+
+**REQUIRED**: Run the documentation congruence regression tests to verify that documentation matches implementation after this pipeline's changes.
+
+```bash
+pytest tests/unit/test_documentation_congruence.py --tb=short -q
+```
+
+**If tests PASS**: Proceed to STEP 9.
+
+**If tests FAIL**: Invoke **doc-master** (haiku) to fix the congruence failures. Pass the pytest output showing which documents are out of sync. Re-run the congruence tests after doc-master completes. Loop until 0 failures.
+
+**FORBIDDEN** (violations = pipeline failure):
+- ❌ Skipping congruence validation because "docs look fine"
+- ❌ Proceeding to STEP 9 with congruence test failures
+- ❌ Manually editing docs without re-running the congruence tests
+
+**Why this gate exists**: Documentation drift is the #1 source of alignment failures. Code changes in STEPs 5-6 frequently invalidate component counts, agent lists, command tables, and architecture descriptions. This gate catches drift before it ships.
+
+---
+
 ### STEP 9: Continuous Improvement Analysis — HARD GATE
 
 **FORBIDDEN** (violations = pipeline failure):

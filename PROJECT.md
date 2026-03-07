@@ -57,7 +57,8 @@ Every step. Every feature. Documentation, tests, and code stay in sync automatic
 - Continuous improvement (session activity logging → drift detection → auto-filed issues)
 - GenAI intent testing (LLM-as-judge validation of architecture, congruence, and alignment)
 - Hook-settings bidirectional sync enforcement (hooks ↔ settings templates ↔ manifest)
-- HARD GATE enforcement patterns for pipeline quality (test gate, anti-stubbing, hook registration)
+- HARD GATE enforcement patterns for pipeline quality (test gate, anti-stubbing, hook registration, documentation congruence)
+- Alignment validation enforcement (strengthening PROJECT.md scope checks beyond advisory text)
 - Training pipeline utilities (data curation, quality validation, distributed training coordination)
 
 **OUT of Scope** (Features we avoid):

@@ -151,7 +151,18 @@ Log entry format (note: field is `hook` not `hook_type`, and `agent` is usually 
 }
 ```
 
-**IMPORTANT**: Since `agent` is always `main`, you CANNOT determine which pipeline agent ran from log entries directly. Instead, infer pipeline activity from:
+**IMPORTANT**: The `agent` field is always `main`, but pipeline agent identity is available via the `subagent_type` field in `input_summary` for Task tool entries. Look for entries where `tool == "Task"` and `input_summary.pipeline_action == "agent_invocation"` — the `input_summary.subagent_type` field contains the agent name (e.g., `"researcher-local"`, `"planner"`, `"test-master"`, `"implementer"`).
+
+**Use `pipeline_intent_validator` for automated detection**:
+```python
+from pipeline_intent_validator import validate_pipeline_intent, parse_session_logs
+# parse_session_logs extracts PipelineEvent objects with subagent_type from JSONL
+events = parse_session_logs(Path('.claude/logs/activity/DATE.jsonl'), session_id='SESSION_ID')
+# validate_pipeline_intent checks for missing/skipped agents
+findings = validate_pipeline_intent(log_file)
+```
+
+**Fallback heuristics** (when subagent_type is not present in older logs):
 - **Tool call patterns**: A sequence of Read/Grep calls followed by Write of test files suggests test-master ran
 - **File paths**: Files written to `tests/` = test-master, files written to `src/` or `lib/` = implementer
 - **UserPromptSubmit entries**: Look for `/implement` command invocations

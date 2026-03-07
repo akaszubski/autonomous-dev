@@ -115,7 +115,23 @@ For each feature in the list:
 
    **Why this gate exists**: Without per-issue verification, the model progressively shortcuts later issues (Issue #362/#363). Issues 1-2 get full pipeline; issues 3+ get 2-3 agents. This gate is fail-closed: if you cannot verify an agent ran, it did not run.
 
-5. After each feature, run `/clear` equivalent (context management)
+5. **HARD GATE: Background Agent Drain** (Issue #399)
+
+   Before advancing to the next issue, ALL background agents from the current issue MUST complete. Use `TaskOutput` to await each background task.
+
+   **REQUIRED**: STEP 9 (continuous-improvement-analyst) MUST run in **foreground** (`run_in_background: false`) during batch processing. Background agents accumulate across issues and exhaust machine memory.
+
+   **Max concurrent background agents**: 2. If 2 background agents are already running, await one before launching another.
+
+   **FORBIDDEN** (violations = batch failure):
+   - ❌ Launching STEP 9 with `run_in_background: true` during batch processing
+   - ❌ Advancing to next issue while background agents from current issue are still running
+   - ❌ Having more than 2 concurrent background agents at any time during batch
+   - ❌ Fire-and-forget agent launches without tracking the task ID for later drain
+
+   **Why this gate exists**: Without drain, each issue's background agents (STEP 9 continuous-improvement-analyst) persist in memory. Across 7+ issues, this accumulates 7+ agents each holding 80-90K tokens of context, exhausting machine memory and crashing the session (Issue #399).
+
+6. After each feature, run `/clear` equivalent (context management)
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 
@@ -275,9 +291,10 @@ Same as BATCH FILE MODE:
 2. Store absolute worktree path in `WORKTREE_PATH` variable
 3. Process each feature (issue title becomes feature description) - **PASS BATCH CONTEXT to ALL agents** (see STEP B3)
    **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the 9-agent verification before the next issue starts.
+   **Background agent drain is MANDATORY** — see STEP B3 point 5 HARD GATE. STEP 9 runs in foreground during batch. Max 2 concurrent background agents.
 4. Git automation (see STEP B4) - triggers at end of batch
 5. Report summary (see STEP B5)
-6. Run continuous improvement analysis (see STEP 9 in implement.md) in background
+6. Run continuous improvement analysis (see STEP 9 in implement.md) — **in foreground during batch** (not background, per Issue #399)
 
 **CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in STEP B3.
 
