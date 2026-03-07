@@ -27,8 +27,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 import pytest
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add scripts directory to path for imports (directory uses hyphen, not underscore)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "scripts"))
 
 
 class TestPipelineController:
@@ -63,7 +63,7 @@ class TestPipelineController:
 
     def test_controller_initialization(self, mock_session_file):
         """Test controller initializes with session file."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -72,7 +72,7 @@ class TestPipelineController:
 
     def test_controller_creates_pid_file_path(self, mock_session_file, tmp_path):
         """Test controller creates PID file path."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(
             session_file=mock_session_file,
@@ -87,7 +87,7 @@ class TestPipelineController:
 
     def test_start_display_process(self, mock_session_file):
         """Test starting the display subprocess."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -105,7 +105,7 @@ class TestPipelineController:
 
     def test_start_display_writes_pid_file(self, mock_session_file, tmp_path):
         """Test that starting display writes PID to file."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(
             session_file=mock_session_file,
@@ -126,7 +126,7 @@ class TestPipelineController:
 
     def test_start_display_passes_session_file_arg(self, mock_session_file):
         """Test that session file path is passed to subprocess."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -145,7 +145,7 @@ class TestPipelineController:
 
     def test_start_display_detaches_process(self, mock_session_file):
         """Test that display process is detached (doesn't block)."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -160,7 +160,7 @@ class TestPipelineController:
 
     def test_start_display_prevents_duplicate(self, mock_session_file, tmp_path):
         """Test that starting display twice doesn't create duplicate processes."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(
             session_file=mock_session_file,
@@ -185,7 +185,7 @@ class TestPipelineController:
 
     def test_start_display_handles_existing_pid_file(self, mock_session_file, tmp_path):
         """Test handling of stale PID file from previous run."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         # Write stale PID file
         pid_file = tmp_path / "progress_display.pid"
@@ -213,7 +213,7 @@ class TestPipelineController:
 
     def test_stop_display_process(self, mock_session_file):
         """Test stopping the display subprocess."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -231,7 +231,7 @@ class TestPipelineController:
 
     def test_stop_display_sends_sigterm(self, mock_session_file):
         """Test that stop sends SIGTERM for graceful shutdown."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -250,7 +250,7 @@ class TestPipelineController:
 
     def test_stop_display_waits_for_exit(self, mock_session_file):
         """Test that stop waits for process to exit."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -268,7 +268,7 @@ class TestPipelineController:
 
     def test_stop_display_force_kills_after_timeout(self, mock_session_file):
         """Test that stop force-kills if process doesn't exit gracefully."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -288,7 +288,7 @@ class TestPipelineController:
 
     def test_stop_display_removes_pid_file(self, mock_session_file, tmp_path):
         """Test that stopping removes PID file."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         pid_file = tmp_path / "progress_display.pid"
 
@@ -313,7 +313,7 @@ class TestPipelineController:
 
     def test_stop_display_handles_already_stopped(self, mock_session_file):
         """Test that stopping already-stopped process is safe."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -336,7 +336,7 @@ class TestPipelineController:
 
     def test_read_pid_file(self, mock_session_file, tmp_path):
         """Test reading PID from file."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         pid_file = tmp_path / "progress_display.pid"
         pid_file.write_text("12345")
@@ -351,7 +351,7 @@ class TestPipelineController:
 
     def test_read_pid_file_not_found(self, mock_session_file, tmp_path):
         """Test reading PID when file doesn't exist."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(
             session_file=mock_session_file,
@@ -363,7 +363,7 @@ class TestPipelineController:
 
     def test_read_pid_file_invalid_content(self, mock_session_file, tmp_path):
         """Test reading PID file with invalid content."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         pid_file = tmp_path / "progress_display.pid"
         pid_file.write_text("not a number")
@@ -378,7 +378,7 @@ class TestPipelineController:
 
     def test_is_process_running(self, mock_session_file):
         """Test checking if process is running."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -393,7 +393,7 @@ class TestPipelineController:
 
     def test_is_process_running_permission_denied(self, mock_session_file):
         """Test handling permission denied when checking process."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -407,7 +407,7 @@ class TestPipelineController:
 
     def test_cleanup_on_error(self, mock_session_file, tmp_path):
         """Test cleanup when subprocess fails to start."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(
             session_file=mock_session_file,
@@ -424,7 +424,7 @@ class TestPipelineController:
 
     def test_cleanup_on_signal(self, mock_session_file):
         """Test cleanup on signal (SIGTERM, SIGINT)."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -444,7 +444,7 @@ class TestPipelineController:
 
     def test_context_manager_cleanup(self, mock_session_file):
         """Test cleanup using context manager."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         with patch('subprocess.Popen') as mock_popen:
             mock_process = Mock()
@@ -462,7 +462,7 @@ class TestPipelineController:
 
     def test_atexit_cleanup(self, mock_session_file):
         """Test that cleanup is registered with atexit."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         with patch('atexit.register') as mock_register:
             controller = PipelineController(session_file=mock_session_file)
@@ -479,7 +479,7 @@ class TestPipelineController:
 
     def test_register_signal_handlers(self, mock_session_file):
         """Test that signal handlers are registered."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         with patch('signal.signal') as mock_signal:
             controller = PipelineController(session_file=mock_session_file)
@@ -494,7 +494,7 @@ class TestPipelineController:
 
     def test_signal_handler_stops_display(self, mock_session_file):
         """Test that signal handler stops display."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -518,7 +518,7 @@ class TestPipelineController:
 
     def test_start_display_handles_file_not_found(self, mock_session_file):
         """Test handling when progress_display.py is not found."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -528,7 +528,7 @@ class TestPipelineController:
 
     def test_start_display_handles_permission_error(self, mock_session_file):
         """Test handling permission error when starting subprocess."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -538,7 +538,7 @@ class TestPipelineController:
 
     def test_stop_display_handles_process_not_found(self, mock_session_file):
         """Test handling when process disappears before stop."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -558,7 +558,7 @@ class TestPipelineController:
 
     def test_check_display_health(self, mock_session_file):
         """Test checking if display process is healthy."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -578,7 +578,7 @@ class TestPipelineController:
 
     def test_restart_display_if_crashed(self, mock_session_file):
         """Test restarting display if it crashes."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 
@@ -600,7 +600,7 @@ class TestPipelineController:
 
     def test_get_display_status(self, mock_session_file):
         """Test getting display status information."""
-        from plugins.autonomous_dev.scripts.pipeline_controller import PipelineController
+        from pipeline_controller import PipelineController
 
         controller = PipelineController(session_file=mock_session_file)
 

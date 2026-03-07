@@ -49,10 +49,18 @@ class PipelineController:
         # Create PID file path
         if pid_dir is None:
             pid_dir = Path("/tmp")
-        self.pid_file = pid_dir / f"progress_display_{os.getpid()}.pid"
+        self.pid_file = pid_dir / "progress_display.pid"
 
         # Register cleanup on exit
         atexit.register(self.cleanup)
+
+    def __enter__(self) -> "PipelineController":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit context manager - ensure cleanup."""
+        self.cleanup()
 
     def start_display(self, refresh_interval: float = 0.5) -> bool:
         """Start the progress display subprocess.
@@ -94,13 +102,49 @@ class PipelineController:
 
             return True
 
-        except (FileNotFoundError, PermissionError):
+        except (FileNotFoundError, PermissionError, OSError):
             # Re-raise so caller can handle
             raise
         except Exception as e:
             # Other errors - log but don't crash
             print(f"Error starting display: {e}", file=sys.stderr)
             return False
+
+    def read_pid_file(self) -> Optional[int]:
+        """Read PID from the PID file.
+
+        Returns:
+            PID as integer, or None if file doesn't exist or is invalid
+        """
+        if not self.pid_file.exists():
+            return None
+        try:
+            return int(self.pid_file.read_text().strip())
+        except (ValueError, OSError):
+            return None
+
+    def is_process_running(self, pid: int) -> bool:
+        """Check if a process with the given PID is running.
+
+        Args:
+            pid: Process ID to check
+
+        Returns:
+            True if process is running, False otherwise
+        """
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # Process exists but we don't have permission
+            return True
+
+    def register_signal_handlers(self) -> None:
+        """Register signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGTERM, self.handle_signal)
+        signal.signal(signal.SIGINT, self.handle_signal)
 
     def stop_display(self, timeout: int = 5) -> bool:
         """Stop the progress display subprocess.
@@ -190,7 +234,6 @@ class PipelineController:
             frame: Current stack frame
         """
         self.cleanup()
-        sys.exit(0)
 
 
 def main():

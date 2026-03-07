@@ -1,6 +1,6 @@
 # Shared Libraries Reference
 
-**Last Updated**: 2026-02-28 (Issue #367 - Added pipeline_intent_validator.py)
+**Last Updated**: 2026-03-08 (Issue #402 - Added pipeline_state.py)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -9,7 +9,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (58)
+### Core Libraries (60)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -70,8 +70,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 57. **coverage_baseline.py** - Coverage baseline storage and regression detection for test quality gates (v1.0.0, Issue #332)
 58. **batch_git_finalize.py** - Batch git finalization with auto-commit, merge, and worktree cleanup (v1.0.0, Issues #333-334)
 59. **pipeline_intent_validator.py** - Intent-level pipeline validation via JSONL session logs for coordinator-level violations (Issue #367)
-
-
+60. **pipeline_state.py** - Pipeline state tracker with gate enforcement (stdlib only, zero dependencies) (Issue #402)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 

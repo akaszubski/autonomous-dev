@@ -208,6 +208,24 @@
       "severity": "critical"
     },
     {
+      "id": "batch_group_pipeline",
+      "name": "Batch issues grouped into single pipeline",
+      "description": "Coordinator runs a single shared pipeline for all batch issues instead of per-issue dedicated pipelines. All test files for multiple issues written in the same time window. Agent count is 5-7 total, not 9 per issue.",
+      "issue": "#386",
+      "hard_gate": "STEP B3 point 4: Per-Issue Agent Count Verification",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "Batch session has fewer than 9 * num_issues total Agent invocations",
+          "Multiple issues' test files created within the same 60-second window",
+          "A single pipeline pass covers all issues instead of sequential per-issue pipelines",
+          "Total agent count equals a single pipeline (5-9) rather than N pipelines, indicating issues were grouped or combined"
+        ]
+      },
+      "severity": "critical",
+      "remediation": "Process each issue sequentially with a dedicated 9-agent pipeline. Verify agent count per issue before advancing."
+    },
+    {
       "id": "batch_progressive_shortcutting",
       "name": "Batch progressive shortcutting",
       "description": "Model runs full pipeline for early issues but progressively reduces agents for later issues in batch mode",
@@ -322,7 +340,9 @@
     "batch-issues": {
       "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
       "required_actions": ["test_run", "git_commit", "git_push", "issue_close"],
-      "conditional_actions": {}
+      "conditional_actions": {},
+      "note": "All 9 required_agents apply per issue, not per batch. Each issue gets a dedicated pipeline with all agents. See Issue #386.",
+      "per_issue": true
     },
     "batch": {
       "required_agents": ["researcher-local", "researcher", "planner", "test-master", "implementer", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
