@@ -302,39 +302,18 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
                 return ("allow", f"MCP Security: {reason}")
 
         except ImportError:
-            # MCP security validator not available - check auto-approval
-            auto_approve_enabled = os.getenv("MCP_AUTO_APPROVE", "false").lower()
-
-            if auto_approve_enabled == "false":
-                # Auto-approval disabled, no MCP security - ask user
-                return ("ask", "MCP security validator unavailable, auto-approval disabled")
-
-            # Auto-approval enabled - try to use it
-            try:
-                from auto_approval_engine import should_auto_approve
-
-                agent_name = os.getenv("CLAUDE_AGENT_NAME", "main")
-                approved, reason = should_auto_approve(tool_name, tool_input, agent_name)
-
-                if approved:
-                    return ("allow", f"Auto-approved: {reason}")
-                elif "circuit breaker" in reason.lower():
-                    return ("deny", f"Blocked: {reason}")  # Only circuit breaker is hard deny
-                elif "blacklist" in reason.lower() or "injection" in reason.lower() or "security" in reason.lower():
-                    return ("ask", f"Requires approval: {reason}")  # Dangerous but can override
-                else:
-                    return ("ask", f"Not whitelisted: {reason}")
-
-            except ImportError:
-                # Neither validator available but MCP_AUTO_APPROVE=true - allow
-                return ("allow", "MCP security validators unavailable, MCP_AUTO_APPROVE=true - pass through")
+            # MCP security validator not available — default to allow.
+            # Previously this fell through to auto_approval_engine which used
+            # an allow-list (auto_approve_policy.json). That caused recurring
+            # "Not whitelisted" regressions every time Claude Code added new
+            # tools. Default-allow with deny-only-on-security is simpler and
+            # eliminates that entire class of regressions (Issue #401).
+            return ("allow", "MCP security validator unavailable — default allow")
 
     except Exception as e:
-        # Error in validation - allow if MCP_AUTO_APPROVE=true, otherwise ask
-        auto_approve = os.getenv("MCP_AUTO_APPROVE", "false").lower() == "true"
-        if auto_approve:
-            return ("allow", f"MCP security error but MCP_AUTO_APPROVE=true - pass through: {e}")
-        return ("ask", f"MCP security error: {e}")
+        # Error in validation — default to allow (Issue #401).
+        # Security validator errors should not block the user.
+        return ("allow", f"MCP security error — default allow: {e}")
 
 
 def _is_exempt_path(file_path: str) -> bool:

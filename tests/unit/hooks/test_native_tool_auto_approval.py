@@ -227,25 +227,19 @@ class TestMCPToolsSecurityRouting:
         assert decision == "allow"
         assert "disabled" in reason.lower()
 
-    def test_mcp_tool_asks_when_no_validator(self, monkeypatch):
-        """MCP tool with security enabled but no validator available should ask."""
+    def test_mcp_tool_allows_when_no_validator(self, monkeypatch):
+        """MCP tool with no validator available should default to allow (Issue #401)."""
         monkeypatch.setenv("PRE_TOOL_MCP_SECURITY", "true")
         monkeypatch.setenv("MCP_AUTO_APPROVE", "false")
         decision, reason = hook.validate_mcp_security("mcp__unknown__action", {"arg": "val"})
-        assert decision == "ask"
+        assert decision == "allow"
 
     def test_mcp_tool_auto_approve_fallback(self, monkeypatch):
-        """MCP tool with MCP_AUTO_APPROVE=true but no validators should allow."""
+        """MCP tool with no validators should always allow (Issue #401)."""
         monkeypatch.setenv("PRE_TOOL_MCP_SECURITY", "true")
         monkeypatch.setenv("MCP_AUTO_APPROVE", "true")
-        # Neither mcp_security_validator nor auto_approval_engine importable in test env
-        # The code tries mcp_security_validator (ImportError) -> auto_approval_engine (ImportError)
-        # -> falls through to "allow" with "MCP security validators unavailable, MCP_AUTO_APPROVE=true"
         decision, reason = hook.validate_mcp_security("mcp__unknown__action", {})
-        # Could be "allow" (if neither import exists) or "ask" (if auto_approval_engine exists but rejects)
-        # In test env without auto_approval_engine: allow
-        # In test env WITH auto_approval_engine on path (from lib/): may get "ask"
-        assert decision in ("allow", "ask")
+        assert decision == "allow"
 
 
 # ---------------------------------------------------------------------------
