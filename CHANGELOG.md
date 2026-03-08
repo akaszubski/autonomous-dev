@@ -2,13 +2,28 @@
 
 ### Added
 
+- **Continuous-improvement-analyst agent rewrite: two-mode automation QA** (Issue #394)
+  - Refactored from 295 lines to ~100 lines with clearer responsibility separation
+  - **Batch mode** (3-5 tool calls, <30s): Fast per-issue quality check during batch processing
+    - Verifies required agents ran in context provided (no log file parsing)
+    - Flags suspicious agents completing in <10s with zero file reads
+    - Reports findings from context without filing GitHub issues
+  - **Full mode** (10-15 tool calls): Comprehensive post-batch or standalone analysis
+    - Parses session logs with `pipeline_intent_validator` library
+    - Detects HARD GATE violations, missing agents, hook layer failures
+    - Files deduped GitHub issues for actionable findings (severity >= warning)
+  - Mission unchanged: "Is autonomous-dev's automation working correctly?"
+  - Improved signal-to-noise: Batch mode avoids log parsing overhead; Full mode reuses existing validation library
+  - Updated docs/AGENTS.md with two-mode architecture description
+
 - **Batch pipeline fidelity: per-issue dedicated pipeline tracking** (Issue #386)
   - Prevents coordinator from grouping multiple batch issues into a single pipeline pass
-  - Coordinator MUST run 9-agent pipeline per issue (not per batch) in `/implement --batch-issues` mode
+  - Coordinator MUST run full pipeline per issue (not per batch) in `/implement --batch-issues` mode
+  - Required agents: 7 (acceptance-first mode) or 8 (TDD-first mode)
   - Added detection pattern `batch_group_pipeline` to known_bypass_patterns.json with CRITICAL severity
-  - Detection indicators: Total agent count < 9 per issue, multiple test files in same time window, combined issue processing
+  - Detection indicators: Agent count below required threshold per issue, multiple test files in same time window, combined issue processing
   - Updated implement-batch.md STEP B3 with per-issue pipeline state tracking and mandatory agent count verification
-  - Added `per_issue: true` note to expected_end_states in known_bypass_patterns.json clarifying 9 agents apply per issue
+  - Added `per_issue: true` note to expected_end_states in known_bypass_patterns.json clarifying agents apply per issue
   - Test coverage: 10 regression tests validating pattern detection, severity levels, and issue isolation requirements
   - Prevents batch mode regression where Issue #1-2 get full pipeline, Issue #3+ get shortened pipeline (Issue #363)
 
@@ -43,9 +58,12 @@
 
 - **Per-Issue Agent Count HARD GATE in batch mode** (Issue #363)
   - Prevents progressive shortcutting where later issues in batch run fewer agents than earlier issues
-  - After each issue completes, coordinator MUST verify all 9 required agents ran: researcher-local, researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst
-  - Display enumerated ✓/✗ status for each agent before advancing to next issue
-  - BLOCKED if any agent missing — must complete missing agents first
+  - After each issue completes, coordinator MUST verify all required agents ran:
+    - **Acceptance-first mode** (default): 7 agents (researcher-local, researcher, planner, implementer, reviewer, security-auditor, doc-master)
+    - **TDD-first mode**: 8 agents (add test-master)
+  - continuous-improvement-analyst runs post-issue as QA agent to detect bypass patterns; NOT part of core pipeline count
+  - Display enumerated ✓/✗ status for each required agent before advancing to next issue
+  - BLOCKED if any required agent missing — must complete missing agents first
   - Added to implement-batch.md STEP B3 point 4
   - Added `batch_progressive_shortcutting` to known_bypass_patterns.json
   - Prevents Issue #362 regression: Issues 1-2 full pipeline, Issues 3+ reduced agents
@@ -151,7 +169,34 @@
   - Impact: Improved skill activation accuracy, reduced context bloat from inappropriate skill loading
   - Coverage: api-design, api-integration-patterns, architecture-patterns, code-review, documentation-guide, git-github, library-design-patterns, observability, python-standards, quality-scoring, research-patterns, scientific-validation, security-patterns, skill-integration, state-management-patterns, testing-guide
 
+### Fixed
+
+- **Runtime observability: capture Agent and Skill tool invocations** (Issues #380, #408, #411)
+  - Updated `session_activity_logger.py` to capture Agent and Skill tool calls in addition to Task
+  - Claude Code renamed "Task" to "Agent" tool; session logger now handles both for backward compatibility
+  - Added Agent tool summarization in `_summarize_input()`: captures subagent_type, description, prompt_word_count
+  - Added Skill tool summarization in `_summarize_input()`: captures skill name, args, pipeline_action = "skill_load"
+  - Updated `_add_result_word_count()` to measure output length for both Task and Agent tools
+  - Updated `unified_pre_tool.py` PreToolUse logging to capture Agent/Skill identity in activity logs
+  - Updated `pipeline_intent_validator.py` to handle both "Task" and "Agent" tool names with new `AGENT_TOOL_NAMES` constant
+  - Updated `continuous-improvement-analyst.md` with guidance on recognizing Agent/Task/Skill tool entries in session logs
+  - Test coverage: 9 new unit tests validating Agent/Skill/Task tool capture, word counting, and backward compatibility
+  - Impact: Pipeline intent validation now detects all 9 required agents regardless of Claude Code version (pre/post Task→Agent rename)
+  - Fixes: Coordinator-level violations invisible when Task tool renamed to Agent (Issue #380), CI analysis gaps due to skipped Agent invocations (Issue #408, #411)
+
 ### Changed
+
+- **Batch worktree cleanup CWD protection** (Issue #410)
+  - Fixed critical bug where deleting a worktree while shell CWD is inside it bricks the shell session
+  - `cleanup_worktree()` now checks if current working directory is inside the worktree before deletion
+  - If CWD is inside the worktree, automatically changes directory to the main repository first using `os.chdir()`
+  - Returns 3-tuple `(success, error, safe_cwd)` where `safe_cwd` indicates the main repo path (None if CWD was already outside)
+  - Updated implement-batch.md STEP B4 with explicit "cd to main repo BEFORE cleanup" instruction
+  - Added FORBIDDEN rule in STEP B4: "Do NOT delete a worktree directory while your shell CWD is inside it. ALWAYS `cd` to the main repository FIRST."
+  - Unit test: `test_cleanup_from_inside_worktree_changes_cwd()` validates CWD is moved to valid directory after cleanup
+  - Acceptance tests: 4 GenAI-judged criteria validate instruction clarity, FORBIDDEN rule presence, implementation correctness, and post-cleanup shell functionality
+  - Impact: Batch processing is now safe to run with worktrees, even if coordinator CWD is inside the worktree during finalization
+  - Prevents Issue #410 regression: shell becoming unusable after batch cleanup
 
 - **Make acceptance-first testing the default `/implement` mode** (Issue #404)
   - Changed default testing paradigm from TDD-first (RED → GREEN → REFACTOR) to acceptance-first (write spec, validate acceptance, implement)

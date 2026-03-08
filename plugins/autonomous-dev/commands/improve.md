@@ -73,7 +73,7 @@ Launch the `continuous-improvement-analyst` agent (Task tool, subagent_type: con
 3. **CLAUDE.md** Critical Rules
 4. **known_bypass_patterns.json** content
 5. **Registered hooks context** from Step 2.5 (so the analyst can calibrate for consumer repos)
-6. Instructions to run all 7 quality checks and cite specific rules for each finding
+6. Instructions to run in full mode and check for pipeline enforcement, gate integrity, suspicious agents, hook health, and rule bypasses
 
 ### STEP 4: Report Findings
 
@@ -108,13 +108,8 @@ If `--auto-file` flag is set:
 
 | Category | Example | Severity |
 |----------|---------|----------|
-| Hook gap | Missing hook layer (no PreToolUse entries) | Critical |
-| HARD GATE violation | Test failures when STEP 6 invoked | Critical |
-| Known bypass | Pattern from known_bypass_patterns.json matched | Critical/Warning |
-| Novel bypass | Automation circumvented in new way | Critical |
-| Command bypass | Nudge fired but raw action taken | Warning |
-| Error dropped | PostToolUse error not addressed | Warning |
-| Softened language | Stop hook declares success despite errors | Warning |
-| Pipeline incomplete | Missing agents or terminal actions | Warning |
-| Congruence violation | implement.md updated, implementer.md not | Warning |
-| Optimization | Same file read 10+ times in session | Info |
+| Pipeline enforcement | Missing agents from pipeline | Critical |
+| Gate integrity | Test failures when STEP 6 invoked, NotImplementedError stubs | Critical |
+| Suspicious agent | Agent completed in <10s with zero file reads | Warning |
+| Hook health | Missing hook layer, silent failures | Critical |
+| Rule bypass | Raw edits instead of /implement, nudges ignored | Warning |

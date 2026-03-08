@@ -349,6 +349,31 @@ These agents provide specialized functionality for alignment, git operations, pr
 **Input**: Optional date parameter (YYYY-MM-DD) and dry-run mode
 **Output**: Structured postmortem report with findings, bug count, and filed issues
 
+### continuous-improvement-analyst
+
+**Purpose**: QA automation — verify autonomous-dev's pipeline, hooks, and enforcement working correctly (Issue #394)
+**Model**: Sonnet (Tier 2 - balanced reasoning for quality analysis)
+**Skills**: github-workflow, error-handling-patterns
+**Tools**: Read, Bash, Grep (log and filesystem access)
+**Execution**: Two-mode utility agent for automation quality assurance
+**Two-Mode Architecture**:
+  - **Batch mode** (3-5 tool calls, <30s): Fast per-issue check during batch processing
+    - Verifies required agents ran from context provided (no log parsing)
+    - Flags suspicious agents completing in <10s with zero file reads
+    - Reports findings without filing GitHub issues
+  - **Full mode** (10-15 tool calls): Comprehensive post-batch or standalone analysis
+    - Parses session logs using `pipeline_intent_validator` library
+    - Detects HARD GATE violations, missing agents, hook layer failures, rule bypasses
+    - Files deduped GitHub issues for actionable findings (severity >= warning)
+**Detection Coverage**:
+  - Pipeline completeness (all required agents ran)
+  - Gate integrity (test gates passed, no stubs)
+  - Suspicious agents (timing anomalies, zero operations)
+  - Hook health (errors, missing layers, silent failures)
+  - Rule bypasses (steps skipped, raw edits, nudges ignored)
+**Excluded**: Feature code quality, security vulnerabilities, documentation completeness (handled by other agents)
+**Mission**: "Is autonomous-dev's automation working correctly?"
+
 ---
 
 ## Agent-Skill Integration

@@ -87,6 +87,42 @@ class TestSummarizeInput:
         assert result["subagent_type"] == "test-master"
         assert result["pipeline_action"] == "agent_invocation"
 
+    def test_agent_tool(self):
+        """Agent tool must capture subagent_type — fix for issue #380."""
+        result = sal._summarize_input(
+            "Agent",
+            {"description": "research patterns", "subagent_type": "researcher", "prompt": "find auth patterns"},
+        )
+        assert result["subagent_type"] == "researcher"
+        assert result["description"] == "research patterns"
+        assert result["pipeline_action"] == "agent_invocation"
+        assert result["prompt_word_count"] == 3
+
+    def test_agent_tool_empty_prompt(self):
+        """Agent tool with no prompt should have 0 word count."""
+        result = sal._summarize_input("Agent", {"subagent_type": "planner"})
+        assert result["subagent_type"] == "planner"
+        assert result["prompt_word_count"] == 0
+
+    def test_task_tool_still_works(self):
+        """Backward compat: Task tool must still be handled (old Claude Code versions)."""
+        result = sal._summarize_input("Task", {"subagent_type": "test-master", "prompt": "write tests"})
+        assert result["subagent_type"] == "test-master"
+        assert result["pipeline_action"] == "agent_invocation"
+
+    def test_skill_tool(self):
+        """Skill tool must capture skill name and args."""
+        result = sal._summarize_input("Skill", {"skill": "implement", "args": "--quick fix typo"})
+        assert result["skill"] == "implement"
+        assert result["args"] == "--quick fix typo"
+        assert result["pipeline_action"] == "skill_load"
+
+    def test_skill_tool_no_args(self):
+        """Skill tool with no args should capture empty string."""
+        result = sal._summarize_input("Skill", {"skill": "audit"})
+        assert result["skill"] == "audit"
+        assert result["args"] == ""
+
     def test_unknown_tool(self):
         result = sal._summarize_input("CustomTool", {"key1": "val1", "key2": "val2"})
         assert "keys" in result
@@ -136,6 +172,34 @@ class TestSummarizeOutput:
     def test_none_type(self):
         result = sal._summarize_output(None)
         assert result["success"] is True
+
+
+class TestAddResultWordCount:
+    """Test result word count enrichment for Agent/Task tools."""
+
+    def test_agent_tool_dict_output(self):
+        """Agent tool output should have result_word_count added."""
+        summary = sal._add_result_word_count(
+            "Agent", {"output": "three words here"}, {}
+        )
+        assert summary["result_word_count"] == 3
+
+    def test_task_tool_still_works(self):
+        """Backward compat: Task tool should still get word count."""
+        summary = sal._add_result_word_count(
+            "Task", {"output": "two words"}, {}
+        )
+        assert summary["result_word_count"] == 2
+
+    def test_non_agent_tool_unchanged(self):
+        """Non-agent tools should not get result_word_count."""
+        summary = sal._add_result_word_count("Bash", {"output": "hello"}, {})
+        assert "result_word_count" not in summary
+
+    def test_empty_output(self):
+        """Empty output should yield 0 word count."""
+        summary = sal._add_result_word_count("Agent", {"output": ""}, {})
+        assert summary["result_word_count"] == 0
 
 
 class TestFindLogDir:

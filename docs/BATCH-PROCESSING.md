@@ -73,16 +73,19 @@ Continue a batch that was interrupted:
 
 In batch processing, the model must run ALL 9 required agents for EVERY feature/issue, not progressively reduce agents on later issues. This HARD GATE prevents Issue #362 regression where Issues 1-2 receive full pipeline while Issues 3+ receive only 2-3 agents.
 
-**Required agents** (9 total, no exceptions):
-1. researcher-local
-2. researcher
-3. planner
-4. test-master
-5. implementer
-6. reviewer
-7. security-auditor
-8. doc-master
-9. continuous-improvement-analyst
+**Required agents** (7-8 total, depending on mode):
+- **Acceptance-first mode** (default, 7 agents):
+  1. researcher-local
+  2. researcher
+  3. planner
+  4. implementer
+  5. reviewer
+  6. security-auditor
+  7. doc-master
+- **TDD-first mode** (8 agents, add test-master):
+  4. test-master (added in TDD mode)
+
+Note: continuous-improvement-analyst is a separate QA agent that checks if the pipeline worked correctly (runs post-issue in batch mode), but is NOT part of the required core pipeline.
 
 ### How It Works
 
@@ -91,58 +94,61 @@ After each issue completes in batch mode:
 **STEP B3 Point 4: Per-Issue Agent Count Verification**
 
 1. **Count verification**: Count distinct `subagent_type` values in Task tool invocations for the current issue
-2. **Enumerate each agent**: Display status for all 9 agents (✓ ran, ✗ did not run)
-3. **Display verification result**:
+2. **Determine expected count**:
+   - **Acceptance-first mode** (default): 7 agents required
+   - **TDD-first mode**: 8 agents required (7 base + test-master)
+3. **Enumerate each agent**: Display status for all required agents (✓ ran, ✗ did not run)
+4. **Display verification result** (acceptance-first mode example):
    ```
-   Issue #N agent verification:
-     researcher-local:              ✓
-     researcher:                    ✓
-     planner:                       ✓
-     test-master:                   ✓
-     implementer:                   ✓
-     reviewer:                      ✓
-     security-auditor:              ✓
-     doc-master:                    ✓
-     continuous-improvement-analyst: ✓
-   Result: 9/9 PASS
+   Issue #N agent verification (acceptance-first mode):
+     researcher-local:   ✓
+     researcher:         ✓
+     planner:            ✓
+     implementer:        ✓
+     reviewer:           ✓
+     security-auditor:   ✓
+     doc-master:         ✓
+   Result: 7/7 PASS
    ```
 
-4. **Block if incomplete**: If any agent is MISSING, STOP. Do NOT advance to next issue.
+5. **Block if incomplete**: If any required agent is MISSING, STOP. Do NOT advance to next issue.
    ```
-   Issue #N agent verification:
-     researcher-local:              ✓
-     researcher:                    ✓
-     planner:                       ✓
-     test-master:                   ✗ MISSING
-     implementer:                   ✓
-     reviewer:                      ✓
-     security-auditor:              ✓
-     doc-master:                    ✓
-     continuous-improvement-analyst: ✓
-   Result: 8/9 FAIL — missing: test-master
+   Issue #N agent verification (acceptance-first mode):
+     researcher-local:   ✓
+     researcher:         ✓
+     planner:            ✓
+     implementer:        ✓
+     reviewer:           ✗ MISSING
+     security-auditor:   ✓
+     doc-master:         ✓
+   Result: 6/7 FAIL — missing: reviewer
 
-   BLOCKED: Cannot advance to next issue without test-master.
+   BLOCKED: Cannot advance to next issue without reviewer.
    Complete missing agents for Issue #N first, then re-verify.
    ```
 
-5. **Only after all 9 verified**: Proceed to next issue
+6. **Only after all required agents verified**: Proceed to next issue
+7. **Post-issue QA (optional)**: Invoke continuous-improvement-analyst in batch mode to check for suspicious agents or pipeline anomalies
 
 ### FORBIDDEN Behaviors
 
-- ❌ Advancing to next issue with fewer than 9 agents verified
-- ❌ Self-reporting agent completion without enumerating each agent by name
-- ❌ Claiming an agent "was not needed" for this issue (ALL 9 are required, no exceptions)
+- ❌ Advancing to next issue with fewer than required agents verified (7 for acceptance-first, 8 for TDD-first)
+- ❌ Self-reporting agent completion without enumerating each required agent by name
+- ❌ Claiming an agent "was not needed" for this issue (ALL required agents are mandatory, no exceptions)
 - ❌ Combining multiple issues into a single agent invocation to "save time"
 - ❌ Counting the coordinator's own reasoning as an agent invocation
+- ❌ Confusing continuous-improvement-analyst (QA agent) with required core pipeline agents
 
 ### Why This Gate Exists
 
 Issue #362/#363 showed the model progressively shortcuts later issues in batch mode:
-- **Issues 1-2**: Full pipeline (9 agents)
+- **Issues 1-2**: Full pipeline (7-8 agents)
 - **Issues 3-5**: Partial pipeline (2-3 agents)
 - **Issues 6+**: Skipped (coordinator "final review")
 
 This gate is **fail-closed**: If you cannot verify an agent ran, it did not run.
+
+**Important distinction**: continuous-improvement-analyst is a separate QA agent that evaluates whether the pipeline itself worked correctly. It runs AFTER the core pipeline completes (post-issue in batch mode) and helps detect bypass patterns, but is NOT part of the required core pipeline. The core pipeline is 7-8 agents depending on mode.
 
 ### Detection in Continuous Improvement Analysis
 
@@ -151,9 +157,11 @@ The `continuous-improvement-analyst` agent detects this bypass pattern via the `
 **Pattern**: `batch_progressive_shortcutting` (Issue #363)
 - **Detection**: Issue N+1 has fewer agent invocations than Issue N in same batch
 - **Indicators**:
-  - Later issues missing researcher, reviewer, or security-auditor agents
-  - Batch session has fewer than 9 × num_issues total agent invocations
+  - Later issues missing researcher, reviewer, or security-auditor agents (core pipeline agents)
+  - Batch session has fewer than (7 or 8) × num_issues total agent invocations (depending on mode)
+  - Progressive decline: early issues with 7/7 agents, later issues with 3-4 agents
 - **Severity**: Critical
+- **Note**: continuous-improvement-analyst runs post-issue to detect this pattern; it's not counted in the core pipeline agent count
 
 ### Implementation
 
@@ -2131,6 +2139,51 @@ Verified `.gitignore` excludes worktree directories:
 ```
 
 **Validation**: Batch processing worktrees remain isolated and disposable.
+
+#### Worktree Cleanup with CWD Protection (Issue #410)
+
+**Problem**: Deleting a worktree while the shell's current working directory (CWD) is inside the worktree bricks the shell session. The directory gets deleted beneath the active shell process, leaving the shell in a broken state.
+
+**Solution**: `cleanup_worktree()` now checks if CWD is inside the worktree before deletion and automatically changes to the main repository if needed.
+
+```python
+from batch_git_finalize import cleanup_worktree
+from pathlib import Path
+
+worktree_path = Path(".worktrees/batch-20250308-120000")
+
+# Safe to call even if current CWD is inside the worktree
+success, error, safe_cwd = cleanup_worktree(worktree_path)
+
+if success:
+    if safe_cwd:
+        # CWD was moved from worktree to main repo
+        print(f"CWD automatically moved to {safe_cwd}")
+    else:
+        # CWD was already outside the worktree
+        print("Worktree cleaned up, CWD unchanged")
+else:
+    print(f"Cleanup failed: {error}")
+```
+
+**Implementation Details**:
+- Checks if `Path.cwd()` is inside the `worktree_path` before deletion
+- If yes, calls `os.chdir(main_repo)` to move the shell to the main repository
+- Returns tuple `(success, error, safe_cwd)` where `safe_cwd` indicates if CWD was moved (None if already outside)
+- Prevents shell breakage by moving CWD to a valid directory before worktree deletion
+
+**Usage in Batch Finalization** (implement-batch.md STEP B4):
+```bash
+# Change to main repo BEFORE deleting worktree
+cd $PARENT_REPO && rm -rf .worktrees/$BATCH_ID && git worktree prune
+```
+
+**FORBIDDEN** (Issue #410):
+- Do NOT delete a worktree directory while your shell CWD is inside it (cleanup_worktree() handles this automatically, but manual operations must follow the pattern above)
+
+**Test Coverage**:
+- Unit test: `test_cleanup_from_inside_worktree_changes_cwd()` validates CWD is moved to valid directory
+- Acceptance tests: GenAI-judged criteria validate instruction clarity, FORBIDDEN rule presence, and post-cleanup shell functionality
 
 #### Test Results
 

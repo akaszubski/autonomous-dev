@@ -73,13 +73,13 @@ class TestAnalystAgent:
         """Analyst should cover all 5 detection categories with actionable criteria."""
         analyst = ANALYST_PATH.read_text()
 
-        # Deterministic: verify section headers for all categories
+        # Deterministic: verify the 5 check areas are documented
         categories = [
-            "Workflow Bypass",
-            "Test Drift",
-            "Doc Staleness",
-            "Hook False Positive",
-            "Congruence Violation",
+            "Pipeline enforcement",
+            "Gate integrity",
+            "Suspicious agent",
+            "Hook health",
+            "Rule bypass",
         ]
         missing_cats = [c for c in categories if c.lower().replace(" ", "") not in analyst.lower().replace(" ", "")]
         assert not missing_cats, f"Missing detection categories: {missing_cats}"
@@ -119,23 +119,25 @@ class TestAnalystAgent:
         )
         assert result["score"] >= 7, f"Project alignment gap ({result['score']}): {result['reasoning']}"
 
-    def test_congruence_pairs_documented(self, genai):
-        """Known congruence pairs should cover critical relationships."""
+    def test_analyst_has_two_modes(self, genai):
+        """Analyst should have batch mode (fast) and full mode (comprehensive)."""
         analyst = ANALYST_PATH.read_text()
 
-        # Deterministic: extract congruence-related text
-        assert "congruence" in analyst.lower(), "Analyst should document congruence pair checking"
+        # Deterministic: verify both modes are documented
+        assert "batch mode" in analyst.lower(), "Analyst should document batch mode"
+        assert "full mode" in analyst.lower(), "Analyst should document full mode"
 
-        # GenAI: judge whether documented pairs cover critical relationships
+        # GenAI: judge whether the two modes are clearly differentiated
         result = genai.judge(
-            question="Do the documented congruence pairs cover the most critical file relationships?",
+            question="Does the analyst clearly differentiate between batch mode and full mode?",
             context=analyst,
             criteria=(
-                "Known congruence pairs should include at minimum: implement.md <-> implementer.md, "
-                "manifest <-> disk files, policy <-> hook code. Score 7+ if these critical pairs are listed."
+                "Batch mode should be fast (3-5 tool calls, <30s) and not file issues. "
+                "Full mode should be comprehensive with log parsing and issue filing. "
+                "Score 7+ if both modes are clearly defined with different scope."
             ),
         )
-        assert result["score"] >= 7, f"Congruence pairs incomplete ({result['score']}): {result['reasoning']}"
+        assert result["score"] >= 7, f"Mode separation unclear ({result['score']}): {result['reasoning']}"
 
 
 class TestImproveCommand:

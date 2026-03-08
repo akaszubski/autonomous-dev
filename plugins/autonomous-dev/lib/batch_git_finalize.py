@@ -6,6 +6,8 @@ pipeline have been implemented and tested.
 Issue #333: Auto-commit, merge, and cleanup worktrees after batch pipeline.
 """
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -79,23 +81,24 @@ def commit_batch_changes(
     return True, commit_sha, None
 
 
-def cleanup_worktree(worktree_path: Path) -> Tuple[bool, Optional[str]]:
+def cleanup_worktree(worktree_path: Path) -> Tuple[bool, Optional[str], Optional[Path]]:
     """Remove a git worktree and prune stale references.
 
     Args:
         worktree_path: Absolute path to worktree directory.
 
     Returns:
-        (success, error) tuple.
+        (success, error, safe_cwd) tuple. safe_cwd is the main repo path
+        if CWD was inside the worktree and was moved (Issue #410), else None.
     """
     if not worktree_path.exists():
-        return False, f"Worktree not found: {worktree_path}"
+        return False, f"Worktree not found: {worktree_path}", None
 
     # Find the main repo (parent of .worktrees/)
     # Worktree .git file points to main repo
     git_file = worktree_path / ".git"
     if not git_file.exists():
-        return False, f"Not a git worktree: {worktree_path}"
+        return False, f"Not a git worktree: {worktree_path}", None
 
     # Determine main repo path from worktree location
     # Convention: worktrees are in <repo>/.worktrees/<name>
@@ -109,15 +112,29 @@ def cleanup_worktree(worktree_path: Path) -> Tuple[bool, Optional[str]]:
                 # gitdir points to <repo>/.git/worktrees/<name>
                 main_repo = Path(gitdir).parent.parent.parent
         if not (main_repo / ".git").exists():
-            return False, f"Cannot find main repository for worktree: {worktree_path}"
+            return False, f"Cannot find main repository for worktree: {worktree_path}", None
+
+    # Issue #410: Check if CWD is inside the worktree before deletion.
+    # If so, change to main repo to prevent shell breakage.
+    safe_cwd = None
+    try:
+        current_cwd = Path.cwd()
+        worktree_str = str(worktree_path.resolve())
+        cwd_str = str(current_cwd.resolve())
+        if cwd_str.startswith(worktree_str):
+            safe_cwd = main_repo
+            if safe_cwd.exists():
+                os.chdir(safe_cwd)
+    except (OSError, RuntimeError):
+        # If we can't determine CWD, proceed anyway
+        pass
 
     # Remove worktree directory and prune
     # Use rm + prune for compatibility (git worktree remove requires git 2.17+)
-    import shutil
     try:
         shutil.rmtree(worktree_path)
     except OSError as e:
-        return False, f"Failed to remove worktree directory: {e}"
+        return False, f"Failed to remove worktree directory: {e}", safe_cwd
 
     # Prune stale worktree references
     subprocess.run(
@@ -127,7 +144,7 @@ def cleanup_worktree(worktree_path: Path) -> Tuple[bool, Optional[str]]:
         text=True,
     )
 
-    return True, None
+    return True, None, safe_cwd
 
 
 def batch_git_finalize(
@@ -295,8 +312,9 @@ def batch_git_finalize(
 
     # Step 3: Cleanup worktree
     if cleanup:
-        cleanup_ok, cleanup_err = cleanup_worktree(worktree_path)
+        cleanup_ok, cleanup_err, safe_cwd = cleanup_worktree(worktree_path)
         result["worktree_removed"] = cleanup_ok
+        result["safe_cwd"] = str(safe_cwd) if safe_cwd else str(main_repo)
         if not cleanup_ok:
             # Non-fatal: merge succeeded, just warn about cleanup
             result["success"] = True

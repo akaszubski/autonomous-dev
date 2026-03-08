@@ -176,7 +176,7 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
     elif tool_name in ("Glob", "Grep"):
         summary["pattern"] = tool_input.get("pattern", "")
         summary["path"] = tool_input.get("path", "")
-    elif tool_name == "Task":
+    elif tool_name in ("Task", "Agent"):
         summary["description"] = tool_input.get("description", "")
         summary["subagent_type"] = tool_input.get("subagent_type", "")
         # Track agent invocations for pipeline completeness
@@ -184,6 +184,11 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
         # Word count for intent validation (Issue #367)
         prompt_text = tool_input.get("prompt", "")
         summary["prompt_word_count"] = len(prompt_text.split()) if isinstance(prompt_text, str) else 0
+    elif tool_name == "Skill":
+        summary["skill"] = tool_input.get("skill", "")
+        args = tool_input.get("args", "")
+        summary["args"] = str(args)[:200] if args else ""
+        summary["pipeline_action"] = "skill_load"
     else:
         # Generic: include keys but not values
         summary["keys"] = list(tool_input.keys())[:5]
@@ -222,7 +227,7 @@ def _summarize_output(tool_output: dict) -> dict:
 
 def _add_result_word_count(tool_name: str, tool_output: dict, summary: dict) -> dict:
     """Add result_word_count for Task tool outputs (Issue #367)."""
-    if tool_name == "Task":
+    if tool_name in ("Task", "Agent"):
         output_text = ""
         if isinstance(tool_output, dict):
             output_text = str(tool_output.get("output", ""))

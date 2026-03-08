@@ -518,7 +518,7 @@ class TestCleanupWorktree:
         assert worktree_dir.exists()
 
         # Execute (from parent repo, not from within worktree)
-        success, error = cleanup_worktree(worktree_dir)
+        success, error, safe_cwd = cleanup_worktree(worktree_dir)
 
         # Assert
         assert success is True, f"Cleanup failed: {error}"
@@ -532,7 +532,7 @@ class TestCleanupWorktree:
         THEN: Git worktree list is pruned (removes stale references)
         """
         # Execute
-        success, error = cleanup_worktree(worktree_dir)
+        success, error, safe_cwd = cleanup_worktree(worktree_dir)
 
         # Assert
         assert success is True
@@ -557,18 +557,19 @@ class TestCleanupWorktree:
         nonexistent = tmp_path / "does_not_exist"
 
         # Execute
-        success, error = cleanup_worktree(nonexistent)
+        success, error, safe_cwd = cleanup_worktree(nonexistent)
 
         # Assert
         assert success is False
         assert error is not None
+        assert safe_cwd is None
         assert "not found" in error.lower() or "does not exist" in error.lower()
 
     def test_cleanup_from_outside_worktree(self, git_repo: Path, worktree_dir: Path):
         """
         GIVEN: Worktree to be cleaned up
         WHEN: cleanup_worktree called from parent repo (not from within worktree)
-        THEN: Successfully removes worktree
+        THEN: Successfully removes worktree, safe_cwd is None (no CWD change needed)
         """
         # Execute from parent repo directory
         original_cwd = Path.cwd()
@@ -577,10 +578,47 @@ class TestCleanupWorktree:
 
             os.chdir(git_repo)
 
-            success, error = cleanup_worktree(worktree_dir)
+            success, error, safe_cwd = cleanup_worktree(worktree_dir)
 
             assert success is True, f"Should succeed from outside worktree: {error}"
             assert not worktree_dir.exists()
+            assert safe_cwd is None, "safe_cwd should be None when CWD is outside worktree"
+        finally:
+            os.chdir(original_cwd)
+
+    def test_cleanup_from_inside_worktree_changes_cwd(self, git_repo: Path, worktree_dir: Path):
+        """
+        Issue #410 regression test.
+
+        GIVEN: CWD is inside the worktree
+        WHEN: cleanup_worktree is called
+        THEN: CWD is moved to main repo before deletion, safe_cwd is set
+        """
+        import os
+
+        original_cwd = Path.cwd()
+        try:
+            # Simulate CWD inside the worktree (the bug scenario)
+            os.chdir(worktree_dir)
+            assert str(Path.cwd().resolve()).startswith(str(worktree_dir.resolve()))
+
+            success, error, safe_cwd = cleanup_worktree(worktree_dir)
+
+            # Assert cleanup succeeded
+            assert success is True, f"Cleanup from inside worktree failed: {error}"
+            assert error is None
+            assert not worktree_dir.exists()
+
+            # Assert CWD was moved to a valid directory (not inside deleted worktree)
+            current = Path.cwd()
+            assert current.exists(), f"CWD {current} should exist after cleanup"
+            assert not str(current.resolve()).startswith(str(worktree_dir.resolve())), \
+                f"CWD should not be inside deleted worktree"
+
+            # Assert safe_cwd is the main repo
+            assert safe_cwd is not None, "safe_cwd should be set when CWD was inside worktree"
+            assert safe_cwd.resolve() == git_repo.resolve(), \
+                f"safe_cwd should be main repo, got {safe_cwd}"
         finally:
             os.chdir(original_cwd)
 

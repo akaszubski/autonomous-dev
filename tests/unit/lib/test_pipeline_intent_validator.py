@@ -185,6 +185,78 @@ class TestParseSessionLogs:
         assert events[0].pipeline_action == "test_run"
 
 
+class TestParseAgentToolName:
+    """Tests for Agent tool name handling (fix for issue #380)."""
+
+    def test_parses_agent_tool_entries(self, tmp_path):
+        """Agent tool entries (new Claude Code name) should be parsed into PipelineEvent."""
+        log_file = tmp_path / "agent.jsonl"
+        # Use "Agent" tool name instead of "Task"
+        entry = {
+            "timestamp": "2026-03-08T10:00:00+00:00",
+            "tool": "Agent",
+            "input_summary": {
+                "description": "Research patterns",
+                "subagent_type": "researcher",
+                "pipeline_action": "agent_invocation",
+                "prompt_word_count": 500,
+            },
+            "output_summary": {"success": True, "result_word_count": 2000},
+            "session_id": "test-session",
+            "agent": "main",
+        }
+        log_file.write_text(json.dumps(entry) + "\n")
+        events = parse_session_logs(log_file)
+        assert len(events) == 1, "#380: Agent tool should be parsed"
+        assert events[0].subagent_type == "researcher"
+        assert events[0].tool == "Agent"
+
+    def test_mixed_task_and_agent_tools(self, tmp_path):
+        """Both Task (old) and Agent (new) tool names should be parsed."""
+        log_file = tmp_path / "mixed.jsonl"
+        task_entry = {
+            "timestamp": "2026-02-28T10:00:00+00:00",
+            "tool": "Task",
+            "input_summary": {"subagent_type": "planner", "pipeline_action": "agent_invocation"},
+            "output_summary": {"success": True},
+            "session_id": "test-session",
+            "agent": "main",
+        }
+        agent_entry = {
+            "timestamp": "2026-03-08T10:00:00+00:00",
+            "tool": "Agent",
+            "input_summary": {"subagent_type": "implementer", "pipeline_action": "agent_invocation"},
+            "output_summary": {"success": True},
+            "session_id": "test-session",
+            "agent": "main",
+        }
+        log_file.write_text(json.dumps(task_entry) + "\n" + json.dumps(agent_entry) + "\n")
+        events = parse_session_logs(log_file)
+        assert len(events) == 2, "#380: both Task and Agent should be parsed"
+        assert events[0].subagent_type == "planner"
+        assert events[1].subagent_type == "implementer"
+
+    def test_step_ordering_with_agent_tool(self):
+        """Step ordering validation should work with Agent tool events."""
+        base = datetime(2026, 3, 8, 10, 0, 0)
+        events = [
+            _make_event(subagent_type="implementer", tool="Agent", timestamp=base.isoformat()),
+            _make_event(subagent_type="planner", tool="Agent", timestamp=(base + timedelta(minutes=2)).isoformat()),
+        ]
+        findings = validate_step_ordering(events)
+        assert len(findings) >= 1, "#380: ordering violation should be detected with Agent tool"
+
+    def test_context_dropping_with_agent_tool(self):
+        """Context dropping detection should work with Agent tool events."""
+        base = datetime(2026, 3, 8, 10, 0, 0)
+        events = [
+            _make_event(subagent_type="researcher", tool="Agent", timestamp=base.isoformat(), result_word_count=2000),
+            _make_event(subagent_type="planner", tool="Agent", timestamp=(base + timedelta(minutes=2)).isoformat(), prompt_word_count=50),
+        ]
+        findings = detect_context_dropping(events)
+        assert len(findings) >= 1, "#380: context dropping should be detected with Agent tool"
+
+
 class TestValidateStepOrdering:
     """Tests for validate_step_ordering function."""
 

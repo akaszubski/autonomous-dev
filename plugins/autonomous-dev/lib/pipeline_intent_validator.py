@@ -20,6 +20,11 @@ from pathlib import Path
 from typing import List, Optional
 
 
+# Tool names for agent invocations — Claude Code renamed "Task" to "Agent"
+# but old logs still use "Task". Accept both for backward compatibility.
+AGENT_TOOL_NAMES = {"Task", "Agent"}
+
+
 @dataclass
 class PipelineEvent:
     """A pipeline-relevant event from session logs."""
@@ -130,7 +135,7 @@ def parse_session_logs(
         pipeline_action = input_summary.get("pipeline_action", "")
 
         # Include Task (agent invocations) and Bash test_run events
-        if tool == "Task" and pipeline_action == "agent_invocation":
+        if tool in AGENT_TOOL_NAMES and pipeline_action == "agent_invocation":
             events.append(PipelineEvent(
                 timestamp=entry.get("timestamp", ""),
                 tool=tool,
@@ -191,7 +196,7 @@ def validate_step_ordering(events: List[PipelineEvent]) -> List[Finding]:
     # Filter to agent invocations with known step assignments
     agent_events = [
         e for e in events
-        if e.tool == "Task" and e.subagent_type in STEP_ORDER
+        if e.tool in AGENT_TOOL_NAMES and e.subagent_type in STEP_ORDER
     ]
 
     # Need at least 2 agents to check ordering
@@ -320,7 +325,7 @@ def detect_context_dropping(
     findings: List[Finding] = []
 
     # Filter to agent invocations only
-    agent_events = [e for e in events if e.tool == "Task" and e.subagent_type]
+    agent_events = [e for e in events if e.tool in AGENT_TOOL_NAMES and e.subagent_type]
 
     for i in range(1, len(agent_events)):
         prev = agent_events[i - 1]
@@ -362,7 +367,7 @@ def detect_parallelization_violations(events: List[PipelineEvent]) -> List[Findi
     """
     findings: List[Finding] = []
 
-    agent_events = [e for e in events if e.tool == "Task" and e.subagent_type]
+    agent_events = [e for e in events if e.tool in AGENT_TOOL_NAMES and e.subagent_type]
 
     # Build lookup: agent_type → earliest timestamp
     agent_timestamps: dict[str, str] = {}

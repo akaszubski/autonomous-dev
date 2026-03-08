@@ -550,6 +550,10 @@ install_hook_files() {
         return 1
     fi
 
+    # Ensure hooks are executable
+    find "$hook_target_dir" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || true
+    find "$hook_target_dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
+
     log_success "Installed ${installed} hook file(s) to ~/.claude/hooks/"
     return 0
 }

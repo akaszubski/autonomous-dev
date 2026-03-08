@@ -6,14 +6,14 @@
 
 ## Current Batch Architecture
 
-The autonomous-dev plugin uses git worktrees for batch processing via `/implement --batch`. Each issue in a batch gets its own worktree -- a separate filesystem copy of the repository created by `git worktree add`. The pipeline processes issues sequentially through the full 9-agent SDLC pipeline (researcher, planner, test-master, implementer, reviewer, security-auditor, doc-master, continuous-improvement-analyst).
+The autonomous-dev plugin uses git worktrees for batch processing via `/implement --batch`. Each issue in a batch gets its own worktree -- a separate filesystem copy of the repository created by `git worktree add`. The pipeline processes issues sequentially through the SDLC pipeline (acceptance-first mode: researcher-local, researcher, planner, implementer, reviewer, security-auditor, doc-master; TDD-first mode adds test-master). Post-issue, continuous-improvement-analyst runs as a QA agent to verify the pipeline worked correctly.
 
 Key properties of the current approach:
 
 - **Full filesystem isolation**: Each worktree is an independent copies of the repo. Changes in one worktree cannot affect another.
 - **Crash recovery**: If a batch run fails mid-way, state persists in the worktree. `/implement --resume` picks up where it left off.
 - **Parallel batches**: Multiple worktree-based batches can run simultaneously in separate terminal sessions.
-- **HARD GATE enforcement**: Each issue passes through all 9 agents with explicit quality gates. No issue can skip steps.
+- **HARD GATE enforcement**: Each issue passes through all required agents (7-8 depending on mode) with explicit quality gates. No issue can skip steps.
 
 ## Agent Teams Capabilities
 
@@ -33,7 +33,7 @@ Claude Code's Agent Teams feature (introduced in 2025) enables parallel sub-agen
 | Session resumption | Yes (`/implement --resume`) | No (teammates lost on interruption) | Worktrees |
 | Parallel batches | Yes (multiple worktrees) | No (one team per session) | Worktrees |
 | Crash recovery | Reliable (state persists in worktree) | Unreliable (teammates vanish on crash) | Worktrees |
-| Enforcement gates | Per-issue HARD GATE (9 agents) | Implicit task completion | Worktrees |
+| Enforcement gates | Per-issue HARD GATE (7-8 agents) | Implicit task completion | Worktrees |
 | Speed | Sequential (~1x) | Parallel (~3x faster) | Agent Teams |
 | Setup complexity | Medium (git worktree paths) | Low (natural language) | Agent Teams |
 | Token cost | Lower (sequential, no coordination overhead) | ~3-4x higher (parallel agents + coordination) | Worktrees |

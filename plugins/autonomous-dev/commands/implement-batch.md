@@ -198,8 +198,13 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
 
 3. **Cleanup worktree** after successful merge:
    ```bash
-   rm -rf .worktrees/$BATCH_ID && git worktree prune
+   # CRITICAL (Issue #410): Change CWD back to main repo BEFORE deleting worktree.
+   # Deleting the worktree while CWD is inside it bricks the shell session.
+   cd $PARENT_REPO && rm -rf .worktrees/$BATCH_ID && git worktree prune
    ```
+
+   **FORBIDDEN** (Issue #410):
+   - ❌ Deleting a worktree directory while your shell CWD is inside it. ALWAYS `cd` to the main repository FIRST, then delete.
 
 4. **Clean up pipeline state**:
    ```bash
@@ -317,9 +322,39 @@ Same as BATCH FILE MODE:
 
    **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the mode-appropriate agent verification (8 in default mode, 9 in `--tdd-first` mode) before the next issue starts.
    **Background agent drain is MANDATORY** — see STEP B3 point 5 HARD GATE. STEP 9 runs in foreground during batch. Max 2 concurrent background agents.
+
+   **Per-issue STEP 9 (Batch Mode CI)**: After each issue's pipeline completes (and passes the agent verification gate), invoke the continuous-improvement-analyst in **batch mode** — a fast, lightweight check (3-5 tool calls, <30 seconds). Pass the agent verification results as context:
+
+   ```
+   subagent_type: "continuous-improvement-analyst"
+   description: "CI batch check for Issue #N"
+   prompt: "BATCH MODE (per-issue analysis).
+   Agents that ran for Issue #N: [list from verification step with ✓/✗]
+   Agent timings: [list agent name + duration + tool use count if available]
+   Errors observed: [any errors from implementer/reviewer/security-auditor]
+   Provide a short findings list only. Do NOT file issues — defer to post-batch."
+   ```
+
+   This replaces the previous heavy per-issue CI analysis. Full analysis happens once post-batch.
+
 4. Git automation (see STEP B4) - triggers at end of batch
 5. Report summary (see STEP B5)
-6. Run continuous improvement analysis (see STEP 9 in implement.md) — **in foreground during batch** (not background, per Issue #399)
+
+**STEP B3.5: Post-Batch Full CI Analysis**
+
+After ALL issues are processed but BEFORE git finalization (STEP B4), run the continuous-improvement-analyst **once** in full mode:
+
+```
+subagent_type: "continuous-improvement-analyst"
+description: "Post-batch CI analysis"
+prompt: "FULL MODE (post-batch analysis).
+Batch contained N issues: [list issue numbers and titles]
+Per-issue findings: [aggregate per-issue batch mode results]
+Parse session logs for cross-issue patterns. File issues for significant findings.
+Session date: YYYY-MM-DD"
+```
+
+This single comprehensive analysis replaces N heavy per-issue analyses. It detects cross-issue patterns (progressive shortcutting, recurring bypasses) that per-issue checks cannot see.
 
 **CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in STEP B3.
 

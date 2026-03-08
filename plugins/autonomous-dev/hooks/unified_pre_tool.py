@@ -648,9 +648,11 @@ def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reaso
         elif tool_name == "Bash":
             cmd = tool_input.get("command", "")
             summary["command"] = cmd[:200] if len(cmd) > 200 else cmd
-        elif tool_name == "Task":
+        elif tool_name in ("Task", "Agent"):
             summary["subagent"] = tool_input.get("subagent_type", "")
             summary["description"] = tool_input.get("description", "")
+        elif tool_name == "Skill":
+            summary["skill"] = tool_input.get("skill", "")
 
         entry = {
             "timestamp": _dt.now(_tz.utc).isoformat(),
