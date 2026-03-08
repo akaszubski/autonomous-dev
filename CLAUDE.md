@@ -39,7 +39,7 @@ Then restart Claude Code (Cmd+Q / Ctrl+Q). For subsequent updates, run `/sync` t
 
 **Why commands exist**: Each runs specialized agents that catch problems raw actions miss — alignment, testing, security, documentation. Skipping them means skipping quality.
 
-**Run `/improve` after `/implement` sessions.** Detects bypasses, test drift, doc staleness. Use `--auto-file` to create GitHub issues for findings.
+**Run `/improve` after `/implement` sessions.** Detects pipeline bypasses, gate violations, suspicious agents, hook failures. Use `--auto-file` to create GitHub issues for findings.
 
 **Use `/clear` after each feature.** Prevents context bloat.
 
@@ -70,7 +70,7 @@ Use Grep/Glob for: text patterns, file names, comments/strings.
 | `/worktree` | Git worktrees (--list, --status, --merge, --discard) |
 | `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
 | `/status` | View PROJECT.md goal progress |
-| `/improve` | Session analysis and improvement detection |
+| `/improve` | Automation health analysis — pipeline enforcement, bypasses |
 | `/mem-search` | Search claude-mem persistent memory (optional) |
 
 ## Session Continuity

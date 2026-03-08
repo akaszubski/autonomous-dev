@@ -132,7 +132,7 @@ STEP 7: Git Automation → Commit, push, PR, close issue
 | `/health-check` | Validate all plugin components (agents, hooks, commands) |
 | `/sync` | Update plugin (--github, --env, --marketplace, --all, --uninstall) |
 | `/worktree` | Manage git worktrees (--list, --status, --merge, --discard) |
-| `/improve` | Analyze sessions for drift, test gaps, doc staleness |
+| `/improve` | Analyze sessions for pipeline enforcement, bypasses, automation health |
 | `/scaffold-genai-uat` | Scaffold LLM-as-judge tests into any repo |
 | `/status` | View PROJECT.md goal progress with recommendations |
 | `/mem-search` | Search claude-mem persistent memory (optional) |
