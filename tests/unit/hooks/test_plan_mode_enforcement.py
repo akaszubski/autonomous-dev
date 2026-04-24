@@ -346,3 +346,82 @@ class TestPlanModeEnforcementBackwardCompat:
             result = _check_plan_mode_enforcement("/implement --skip-review add auth")
         assert result == 0
         assert not marker.exists()
+
+
+def _make_wrapped_prompt(cmd: str, args: str = "") -> str:
+    """Build a Claude Code XML-wrapped slash-command prompt string."""
+    return (
+        f"<command-message>{cmd.lstrip('/')}</command-message>\n"
+        f"<command-name>{cmd}</command-name>\n"
+        f"<command-args>{args}</command-args>"
+    )
+
+
+class TestWrappedCommandForm:
+    """Tests for XML-wrapped slash-command support (Issue #922).
+
+    Claude Code wraps slash-commands in XML before delivering them to
+    UserPromptSubmit hooks. Both the skip-review escape hatch and the
+    normal critique_done gate must recognise the wrapped form.
+    """
+
+    def test_wrapped_skip_review_escapes_plan_exited(self, tmp_path: Path):
+        """Wrapped /implement --skip-review consumes marker at plan_exited stage."""
+        marker = _write_marker(tmp_path, stage="plan_exited")
+        prompt = _make_wrapped_prompt("/implement", '--skip-review "add auth"')
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 0
+        assert not marker.exists()
+
+    def test_wrapped_skip_review_escapes_critique_done(self, tmp_path: Path):
+        """Wrapped /implement --skip-review consumes marker at critique_done stage."""
+        marker = _write_marker(tmp_path, stage="critique_done")
+        prompt = _make_wrapped_prompt("/implement", '--skip-review "add auth"')
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 0
+        assert not marker.exists()
+
+    def test_wrapped_implement_allowed_at_critique_done(self, tmp_path: Path):
+        """Wrapped /implement (no --skip-review) passes at critique_done stage.
+
+        This is the happy-path regression lock: proves the plan -> plan-critic
+        PROCEED -> /implement flow works end-to-end via the wrapped form.
+        """
+        marker = _write_marker(tmp_path, stage="critique_done")
+        prompt = _make_wrapped_prompt("/implement", '"add auth feature"')
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 0
+        assert not marker.exists()
+
+    def test_wrapped_create_issue_allowed_at_critique_done(self, tmp_path: Path):
+        """Wrapped /create-issue consumes marker at critique_done stage."""
+        marker = _write_marker(tmp_path, stage="critique_done")
+        prompt = _make_wrapped_prompt("/create-issue", '"Add feature X"')
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 0
+        assert not marker.exists()
+
+    def test_wrapped_plan_to_issues_allowed_at_critique_done(self, tmp_path: Path):
+        """Wrapped /plan-to-issues consumes marker at critique_done stage."""
+        marker = _write_marker(tmp_path, stage="critique_done")
+        prompt = _make_wrapped_prompt("/plan-to-issues")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 0
+        assert not marker.exists()
+
+    def test_wrapped_implement_without_skip_review_blocks_at_plan_exited(self, tmp_path: Path):
+        """Wrapped /implement without --skip-review is blocked at plan_exited stage.
+
+        Wrapping must not accidentally open an escape bypass at the wrong stage.
+        """
+        marker = _write_marker(tmp_path, stage="plan_exited")
+        prompt = _make_wrapped_prompt("/implement", "description")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_mode_enforcement(prompt)
+        assert result == 2
+        assert marker.exists()

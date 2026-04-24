@@ -253,6 +253,24 @@ def _log_activity(event: str, details: dict) -> None:
 # ============================================================================
 
 
+def _extract_wrapped_command(text: str) -> Optional[tuple[str, str]]:
+    """Parse Claude Code's XML-wrapped slash-command form.
+
+    Claude Code wraps slash-commands before delivering them to UserPromptSubmit
+    hooks as: <command-name>/cmd</command-name><command-args>...</command-args>.
+    This helper extracts the command name (slash optional) and args string.
+
+    Returns (command_name_without_slash, args_str) if the wrapped form is
+    present, otherwise None. Issue #922.
+    """
+    name_match = re.search(r"<command-name>/?([\w-]+)</command-name>", text)
+    if not name_match:
+        return None
+    args_match = re.search(r"<command-args>(.*?)</command-args>", text, re.DOTALL)
+    args = args_match.group(1) if args_match else ""
+    return name_match.group(1), args
+
+
 def _check_plan_mode_enforcement(user_prompt: str) -> Optional[int]:
     """
     Enforce staged plan-exit pipeline after plan mode exit.
@@ -310,7 +328,16 @@ def _check_plan_mode_enforcement(user_prompt: str) -> Optional[int]:
             return None
 
         # /implement --skip-review consumes marker at any stage (escape hatch)
-        if re.match(r"^/implement\b.*--skip-review\b", text):
+        # Handles both bare string form (programmatic / direct) and Claude Code's
+        # XML-wrapped form (normal user path). Issue #922.
+        wrapped = _extract_wrapped_command(text)
+        is_skip_review = (
+            re.match(r"^/implement\b.*--skip-review\b", text)
+            or (wrapped is not None
+                and wrapped[0] == "implement"
+                and "--skip-review" in wrapped[1].split())
+        )
+        if is_skip_review:
             marker_path.unlink(missing_ok=True)
             return 0
 
@@ -339,8 +366,14 @@ def _check_plan_mode_enforcement(user_prompt: str) -> Optional[int]:
             return 2
 
         # stage == "critique_done"
-        # Allow /implement, /create-issue, /plan-to-issues -- consume marker
-        if re.match(r"^/(implement|create-issue|plan-to-issues)\b", text):
+        # Allow /implement, /create-issue, /plan-to-issues (both bare and wrapped)
+        # Issue #922: wrapped-form support added so normal post-plan-critic flow works.
+        allowed = {"implement", "create-issue", "plan-to-issues"}
+        is_allowed_command = (
+            re.match(r"^/(implement|create-issue|plan-to-issues)\b", text)
+            or (wrapped is not None and wrapped[0] in allowed)
+        )
+        if is_allowed_command:
             marker_path.unlink(missing_ok=True)
             return 0
 
