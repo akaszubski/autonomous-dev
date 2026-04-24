@@ -239,6 +239,12 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
         summary["subagent_type"] = tool_input.get("subagent_type", "")
         # Track agent invocations for pipeline completeness
         summary["pipeline_action"] = "agent_invocation"
+        # Issue #906 / #882: detect background agent launch so the validator can
+        # skip step_ordering checks for asynchronous agents (e.g., doc-master).
+        # Only add the field when true; omitting it keeps legacy log format clean
+        # and the parser defaults to False for backward compatibility.
+        if tool_input.get("run_in_background"):
+            summary["is_background"] = True
         # Word count for intent validation (Issue #367)
         prompt_text = tool_input.get("prompt", "")
         summary["prompt_word_count"] = len(prompt_text.split()) if isinstance(prompt_text, str) else 0

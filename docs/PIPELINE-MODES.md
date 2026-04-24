@@ -36,17 +36,17 @@ covers:
 | plan-critic | opus | ✓ | ✓ | ✓ (1 round) | ✗ | ✓ per issue |
 | test-master | opus | ✗ | ✓ | ✗ | ✗ | ✓ (TDD issues) |
 | implementer | opus / sonnet | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
-| spec-validator | opus | ✓ | ✓ | ✓ | ✗ | ✓ per issue |
+| spec-validator | opus | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | reviewer | sonnet | ✓ | ✓ | ✗ | ✓ (bundled with docs) | ✓ per issue |
-| security-auditor | sonnet | ✓ | ✓ | ✗ | ✗ | ✓ per issue |
+| security-auditor | sonnet | ✓ | ✓ | ✗ | ✓ (conditional) | ✓ per issue |
 | doc-master | sonnet | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | continuous-improvement-analyst | sonnet | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ post-batch |
 
 **Minimum agents per mode:**
 - Full (default, acceptance-first): 8 — researcher-local, researcher, planner, plan-critic, implementer, spec-validator, reviewer, security-auditor, doc-master (+CI analyst bg)
 - `--tdd-first`: 9 — adds test-master before implementer
-- `--light`: 4 — planner, plan-critic, implementer, doc-master (+CI analyst bg)
-- `--fix`: 4 — implementer, reviewer+docs bundled, CI analyst bg
+- `--light`: 5 — planner, plan-critic, implementer, spec-validator, doc-master (+CI analyst bg)
+- `--fix`: 5 (6 if security-sensitive) — implementer, spec-validator (F3.5), reviewer+docs bundled, CI analyst bg; +security-auditor when Security-Sensitivity Detection flags files
 - `--batch` / `--issues`: full pipeline per issue + 1 post-batch CI analyst
 
 **Research skip** (full mode only): If the feature description names a specific file path AND a specific modification instruction AND does NOT reference security-sensitive files or keywords (hooks, auth, secrets, tokens, SSO, OAuth, etc.), STEP 4 (research) is skipped. Research is NEVER skipped when touching `hooks/*.py`, `lib/*security*`, `lib/*auth*`, `*.env*`, `config/auto_approve_policy.json`, or migrations.
@@ -97,11 +97,12 @@ L5  Report and finalize + CI analyst bg
 ## Fix Pipeline Sequence
 
 ```
-F1  Alignment check
-F2  Test context (read failing tests, locate fixtures)
-F3  Fix implementation (implementer) — regression test REQUIRED
-F4  Review + docs (bundled)
-F5  CI analysis (bg)
+F1    Alignment check
+F2    Test context (read failing tests, locate fixtures)
+F3    Fix implementation (implementer) — regression test REQUIRED
+F3.5  Spec-blind validation HARD GATE (spec-validator)
+F4    Review + docs (bundled) + security-auditor if Security-Sensitivity Detection flags files
+F5    CI analysis (bg)
 ```
 
 The fix pipeline is minimal because the user is reacting to a known failure. It DOES enforce the regression test gate (any fix must add a test that would have caught the bug).
@@ -137,6 +138,116 @@ If the pipeline is interrupted (auto-compact, crash, user `/clear`):
 ```
 
 The `run_id` is printed at STEP 0. Pipeline state is at `/tmp/implement_pipeline_state.json` (per-session) and `~/.claude/pipeline_state/{run_id}.json` (persistent). `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
+
+## Session-ID Propagation Contract
+
+**Added**: Issue #904 (ROOT-CAUSE consolidation of #898 subshell propagation,
+#902 remediation false-positive, #875 cross-pipeline isolation).
+
+### Fallback Chain — `env → sentinel → 'unknown'`
+
+Every coordinator subshell that needs the current pipeline session id MUST
+resolve it with this three-step fallback. The chain is implemented inline
+in `commands/implement.md` at each `python3 -c "..."` heredoc that reads
+`CLAUDE_SESSION_ID`:
+
+1. **Environment variable** — `os.environ.get('CLAUDE_SESSION_ID')`
+   - Primary source. Claude Code sets this in-process before the coordinator
+     runs. This is the only step that works for the very first command in
+     a fresh pipeline.
+2. **Sentinel file** — `/tmp/implement_pipeline_state.json` → `state['session_id']`
+   - Written by STEP 0 immediately after the env var is read. Provides a
+     recovery path when a subshell loses the env var (nested heredocs, pipe
+     subshells, `xargs` trampolines, worktree re-entry on `--resume`).
+   - **TTL guard (3600s)**: the sentinel is only trusted when its mtime is
+     within the last hour. Older sentinels from crashed prior pipelines are
+     NOT merged — this prevents cross-pipeline bleed (#875).
+3. **Literal `'unknown'`** — preserved legacy sentinel.
+   - Returned only when both env and sentinel are unavailable. This is a
+     legitimate first-boot case (hooks that fire BEFORE STEP 0 writes the
+     sentinel) — not an error path. Downstream code treats `'unknown'` as
+     a first-class session id that stores state in its own file.
+
+### Why `'unknown'` is Preserved
+
+Removing `'unknown'` would break the in-flight-boot case documented in
+Issues #738 and #777: the coordinator can record some agent completions
+under `session_id='unknown'` BEFORE the coordinator's STEP 0 has written
+the sentinel. `get_completed_agents()` then MERGES the 'unknown' state into
+the primary session's completions so no agent work is lost.
+
+The merge is now gated by the staleness TTL (`STALE_UNKNOWN_TTL_SECONDS =
+3600` in `pipeline_completion_state.py`). An 'unknown' state file whose
+mtime is older than 3600s is treated as contamination from a crashed prior
+pipeline and ignored. Fresh 'unknown' state (mtime < 3600s) is still merged
+— preserving the in-flight behavior from #738 / #777.
+
+### Validator Grouping — `(session_id, batch_issue_number)`
+
+`validate_step_ordering()` in `pipeline_intent_validator.py` groups agent
+events by the tuple `(session_id, batch_issue_number)` before checking
+sequential-pair ordering. The tuple key ensures that two independent
+pipeline runs writing to the same daily JSONL file never cross-contaminate
+each other's ordering checks (#875).
+
+Non-batch events with an empty `session_id` and `batch_issue_number=0`
+still group under the single key `('', 0)` — behavior is unchanged for
+legacy single-session logs. The per-issue isolation added in #680 is
+preserved because different `batch_issue_number` values still produce
+distinct groups even within the same `session_id`.
+
+### Remediation Flag — `is_remediation=True`
+
+`record_agent_completion(..., is_remediation=True)` marks a completion as
+part of a remediation cycle (e.g., reviewer re-run after BLOCKING findings
+from security-auditor). Events flagged as remediation are SKIPPED by the
+duplicate-agent ordering check in `_validate_step_ordering_for_group()`,
+which prevents #902's false CRITICAL: "reviewer ran before reviewer".
+
+The flag is persisted in the completion state JSON as:
+
+```json
+{"completions": {"0": {"reviewer": {"success": true, "remediation": true}}}}
+```
+
+Legacy plain-bool entries continue to work unchanged (`{"reviewer": true}`
+still reads as success). See `_completion_is_success()` in
+`pipeline_completion_state.py` for the dual-shape reader.
+
+### Background Agent Flag — `is_background=True` (Issue #906 / #882)
+
+`PipelineEvent.is_background` marks activity-log events that originate from
+agents launched with `run_in_background=true` (e.g., the continuous-improvement
+analyst at STEP 15, or doc-master in parallel-validation mode).
+
+**Why it matters for ordering checks**: A background agent's JSONL timestamp
+reflects when the coordinator dispatched it, not when the agent actually
+finished. In practice this means doc-master's log entry can appear *before*
+foreground agents (reviewer, security-auditor) even though it ran concurrently
+or after them. Without the exemption, `_validate_step_ordering_for_group()`
+would emit a false CRITICAL `step_ordering` finding:
+"doc-master ran before reviewer" when in fact both ran in STEP 10 and the
+ordering was intentionally parallel.
+
+**How it works**:
+
+1. `session_activity_logger.py` writes `is_background: true` into the
+   `input_summary` dict of any Agent/Task log entry that has
+   `tool_input.run_in_background=true`. The field is absent (falsy) for
+   foreground agents — clean log format.
+2. `_parse_single_log()` in `pipeline_intent_validator.py` reads
+   `input_summary.is_background` and sets `PipelineEvent.is_background`
+   accordingly. Missing field defaults to `False` for backward compatibility
+   with logs that pre-date this feature.
+3. `_validate_step_ordering_for_group()` filters `is_background=True` events
+   out of both `first_events` and `second_events` before performing any
+   sequential-pair timestamp comparison. Background events are therefore
+   invisible to step-ordering checks — only foreground agent events
+   participate.
+
+**What is still enforced**: Background agents are not exempt from *other*
+validator checks (context-dropping, hard-gate ordering, minimum agent count).
+The exemption is narrow: sequential *timestamp* ordering only.
 
 ## Related
 

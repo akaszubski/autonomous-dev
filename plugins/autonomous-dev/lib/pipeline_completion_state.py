@@ -26,6 +26,15 @@ from typing import Optional
 # Issue #802
 SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 
+# Staleness TTL for the 'unknown' session-id fallback merge.
+# When the primary-session lookup in get_completed_agents() falls back to
+# reading the 'unknown' state file (for the Issue #738/#777 in-flight boot
+# case where the coordinator initialized state before CLAUDE_SESSION_ID was
+# known), the merge ONLY applies if the 'unknown' state file's mtime is
+# within this window. Older 'unknown' state from crashed/stale prior runs
+# must not contaminate a fresh pipeline. Issue #875 / Issue #904.
+STALE_UNKNOWN_TTL_SECONDS = 3600
+
 
 def _check_file_bypass() -> bool:
     """Check and consume the file-based bypass for the agent completeness gate.
@@ -146,6 +155,7 @@ def record_agent_completion(
     *,
     issue_number: int = 0,
     success: bool = True,
+    is_remediation: bool = False,
 ) -> None:
     """Record that an agent has completed for a given session and issue.
 
@@ -154,13 +164,108 @@ def record_agent_completion(
         agent_type: The agent type (e.g., "researcher-local", "planner").
         issue_number: The issue number (0 for non-batch).
         success: Whether the agent completed successfully.
+        is_remediation: When True, this completion is part of a remediation
+            pass (e.g., reviewer re-run after BLOCKING findings). The stored
+            entry is marked so the intent validator can skip duplicate-agent
+            ordering findings for remediation events. Issue #902 / Issue #904.
+
+    Notes:
+        Backwards compatible: existing callers that do not pass
+        ``is_remediation`` continue to work — the stored value is the plain
+        boolean ``success`` (legacy shape). When ``is_remediation=True`` is
+        passed, the stored value becomes a dict ``{"success": <bool>,
+        "remediation": True}``. All readers in this module tolerate both
+        shapes (see ``_completion_is_success``).
     """
     state = _ensure_state(session_id)
     completions = state.setdefault("completions", {})
     issue_key = str(issue_number)
     issue_completions = completions.setdefault(issue_key, {})
-    issue_completions[agent_type] = success
+    if is_remediation:
+        # Store as dict so the remediation flag persists alongside success.
+        issue_completions[agent_type] = {
+            "success": bool(success),
+            "remediation": True,
+        }
+    else:
+        # Preserve legacy plain-bool shape for backwards compatibility.
+        issue_completions[agent_type] = success
     _write_state(session_id, state)
+
+
+def _completion_is_success(entry) -> bool:
+    """Interpret a stored completion entry as a success boolean.
+
+    Completion entries may be stored as:
+      - ``bool`` (legacy shape — ``True`` means success).
+      - ``dict`` with a ``"success"`` key (Issue #902 / #904 remediation shape).
+
+    Any other type is treated as non-success (fail-safe).
+
+    Args:
+        entry: Value read from ``completions[issue_key][agent_type]``.
+
+    Returns:
+        True when the entry represents a successful completion.
+    """
+    if isinstance(entry, bool):
+        return entry
+    if isinstance(entry, dict):
+        return bool(entry.get("success", False))
+    return False
+
+
+def is_remediation_completion(
+    session_id: str,
+    agent_type: str,
+    *,
+    issue_number: int = 0,
+) -> bool:
+    """Check whether a recorded completion was flagged as remediation.
+
+    Reads both the primary session state and the 'unknown' fallback state
+    (respecting the TTL in ``STALE_UNKNOWN_TTL_SECONDS``) so the result is
+    consistent with ``get_completed_agents``. Returns False when no matching
+    completion exists or the recorded entry has no remediation flag.
+
+    Args:
+        session_id: The pipeline session identifier.
+        agent_type: The agent type (e.g., "reviewer").
+        issue_number: The issue number (0 for non-batch).
+
+    Returns:
+        True if the completion entry exists and has ``remediation=True``.
+
+    Issues: #902, #904.
+    """
+    def _read(sid: str) -> dict:
+        state = _read_state(sid)
+        if not state:
+            return {}
+        completions = state.get("completions", {})
+        issue_completions = completions.get(str(issue_number), {})
+        return issue_completions if isinstance(issue_completions, dict) else {}
+
+    primary = _read(session_id)
+    entry = primary.get(agent_type)
+    if isinstance(entry, dict) and entry.get("remediation") is True:
+        return True
+
+    # Check unknown-session fallback (with TTL guard) for completeness.
+    if session_id != "unknown":
+        path = _state_file_path("unknown")
+        try:
+            if path.exists():
+                mtime = path.stat().st_mtime
+                if time.time() - mtime <= STALE_UNKNOWN_TTL_SECONDS:
+                    fallback = _read("unknown")
+                    f_entry = fallback.get(agent_type)
+                    if isinstance(f_entry, dict) and f_entry.get("remediation") is True:
+                        return True
+        except OSError:
+            pass
+
+    return False
 
 
 def get_completed_agents(
@@ -176,6 +281,12 @@ def get_completed_agents(
     written under session_id='unknown' but the hook reads with the real session
     ID. Issue #738.
 
+    Staleness guard (Issue #875 / #904): the 'unknown'-session merge is
+    skipped when the 'unknown' state file's mtime is older than
+    ``STALE_UNKNOWN_TTL_SECONDS``. This prevents cross-pipeline contamination
+    from a crashed / abandoned prior run whose state file still lingers in
+    ``/tmp/`` — the old 'unknown' state must not bleed into a fresh session.
+
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
@@ -183,36 +294,61 @@ def get_completed_agents(
     Returns:
         Set of agent type strings that completed successfully.
     """
-    result = set()
+    result: set[str] = set()
     state = _read_state(session_id)
     if state:
         completions = state.get("completions", {})
         issue_key = str(issue_number)
         issue_completions = completions.get(issue_key, {})
-        result = {k for k, v in issue_completions.items() if v}
+        if isinstance(issue_completions, dict):
+            result = {
+                k for k, v in issue_completions.items()
+                if _completion_is_success(v)
+            }
 
     # Merge completions from the 'unknown' session. The coordinator may have
     # recorded some agent completions before CLAUDE_SESSION_ID was available,
     # writing them under session_id='unknown'. We MERGE (not fallback) because
     # the primary session may have SOME completions but be MISSING agents that
     # were recorded under 'unknown'. Issues #738, #777.
+    #
+    # Staleness guard (Issue #875 / #904): skip merge if 'unknown' state is
+    # older than STALE_UNKNOWN_TTL_SECONDS — prevents contamination from a
+    # crashed / abandoned prior pipeline whose /tmp state file survived.
     if session_id != "unknown":
+        path = _state_file_path("unknown")
+        try:
+            if path.exists():
+                mtime = path.stat().st_mtime
+                if time.time() - mtime > STALE_UNKNOWN_TTL_SECONDS:
+                    # Stale 'unknown' state — do NOT merge.
+                    return result
+            else:
+                return result
+        except OSError:
+            # Fail-safe: if stat fails we can't verify freshness, skip merge.
+            return result
+
         fallback_state = _read_state("unknown")
         if fallback_state:
             completions = fallback_state.get("completions", {})
             issue_key = str(issue_number)
             issue_completions = completions.get(issue_key, {})
-            fallback_result = {k for k, v in issue_completions.items() if v}
-            if fallback_result - result:
-                import logging
-                logging.getLogger("pipeline_completion_state").info(
-                    "Merging completions from session_id='unknown' (%s) into "
-                    "primary session_id=%r (%s). Issues #738, #777.",
-                    fallback_result - result,
-                    session_id,
-                    result,
-                )
-                result |= fallback_result
+            if isinstance(issue_completions, dict):
+                fallback_result = {
+                    k for k, v in issue_completions.items()
+                    if _completion_is_success(v)
+                }
+                if fallback_result - result:
+                    import logging
+                    logging.getLogger("pipeline_completion_state").info(
+                        "Merging completions from session_id='unknown' (%s) into "
+                        "primary session_id=%r (%s). Issues #738, #777.",
+                        fallback_result - result,
+                        session_id,
+                        result,
+                    )
+                    result |= fallback_result
 
     return result
 
@@ -404,7 +540,9 @@ def verify_batch_cia_completions(session_id: str) -> tuple[bool, list[int], list
             if not isinstance(issue_completions, dict):
                 continue
 
-            if issue_completions.get("continuous-improvement-analyst"):
+            if _completion_is_success(
+                issue_completions.get("continuous-improvement-analyst")
+            ):
                 issues_with_cia.append(issue_num)
             else:
                 issues_missing_cia.append(issue_num)
@@ -517,7 +655,7 @@ def verify_batch_doc_master_completions(session_id: str) -> tuple[bool, list[int
             if not isinstance(issue_completions, dict):
                 continue
 
-            if issue_completions.get("doc-master"):
+            if _completion_is_success(issue_completions.get("doc-master")):
                 # Doc-master completed — now check verdict if present
                 verdict = issue_completions.get("doc-master-verdict")
                 if verdict is None:

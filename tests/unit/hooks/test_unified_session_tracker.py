@@ -659,3 +659,37 @@ class TestStatusPriority:
         assert agent_status_arg == "success", (
             f"Expected 'success' for clean output with no env var, got '{agent_status_arg}'."
         )
+
+
+class TestIssue907MultiTurnWordCount:
+    """AC2 regression lock: _count_words_in_transcript helper (#872/#907)."""
+
+    def test_word_count_reads_full_transcript_when_path_valid(self, tmp_path: Path) -> None:
+        """AC2: Multi-turn transcript aggregation (#872)."""
+        transcript = tmp_path / "transcript.jsonl"
+        # Build 3 assistant entries with known word counts
+        lines = [
+            '{"type": "user", "message": {"content": "prompt"}}',  # ignored
+            # 20 words in list-of-blocks form
+            '{"type": "assistant", "message": {"content": [{"type": "text", "text": "' + " ".join(["word"] * 20) + '"}]}}',
+            # 30 words in str-content legacy form
+            '{"type": "assistant", "message": {"content": "' + " ".join(["word"] * 30) + '"}}',
+            # 40 words, list-of-blocks with mixed content types (tool_use + text)
+            '{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "X"}, {"type": "text", "text": "' + " ".join(["word"] * 40) + '"}]}}',
+        ]
+        transcript.write_text("\n".join(lines))
+        from unified_session_tracker import _count_words_in_transcript
+        assert _count_words_in_transcript(transcript) == 90  # 20 + 30 + 40
+
+    def test_word_count_handles_legacy_str_content(self, tmp_path: Path) -> None:
+        """AC2: Legacy str-content case (critic finding 1)."""
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"type": "assistant", "message": {"content": "hello world foo bar"}}')
+        from unified_session_tracker import _count_words_in_transcript
+        assert _count_words_in_transcript(transcript) == 4
+
+    def test_word_count_fallback_on_missing_transcript(self, tmp_path: Path) -> None:
+        """AC2: Missing transcript returns 0 (graceful fallback)."""
+        missing = tmp_path / "does_not_exist.jsonl"
+        from unified_session_tracker import _count_words_in_transcript
+        assert _count_words_in_transcript(missing) == 0

@@ -44,6 +44,17 @@ class PipelineEvent:
     batch_issue_number: int = 0
     session_id: str = ""
     pipeline_mode: str = ""
+    # Issue #902 / #904: events flagged as part of a remediation cycle
+    # (e.g., reviewer re-invoked after BLOCKING findings) are excluded from
+    # duplicate-agent ordering findings. The flag is populated from the
+    # log entry's ``input_summary.remediation`` field when present.
+    remediation: bool = False
+    # Issue #906 / #882: background agent events (e.g., doc-master launched via
+    # run_in_background=true) must not trigger step_ordering findings when they
+    # "appear" out of order in the log. Sequential ordering checks skip them.
+    # Populated from input_summary.is_background; defaults to False for backward
+    # compatibility with logs that pre-date this field.
+    is_background: bool = False
 
 
 @dataclass
@@ -287,6 +298,23 @@ def _parse_single_log(
         if not isinstance(pipeline_mode, str):
             pipeline_mode = ""
 
+        # Extract remediation flag from input_summary (Issue #902 / #904).
+        # Remediation events (e.g., reviewer re-run after BLOCKING findings)
+        # must not trigger duplicate-agent ordering findings.
+        remediation_flag = False
+        if isinstance(input_summary, dict):
+            raw_remediation = input_summary.get("remediation", False)
+            remediation_flag = bool(raw_remediation)
+
+        # Extract is_background flag from input_summary (Issue #906 / #882).
+        # Background agent events (e.g., doc-master launched via run_in_background=true)
+        # must not trigger step_ordering findings when they appear out of order.
+        # Defaults to False for backward compatibility with pre-#906 logs.
+        is_background_flag = False
+        if isinstance(input_summary, dict):
+            raw_is_background = input_summary.get("is_background", False)
+            is_background_flag = bool(raw_is_background)
+
         # Detect raw Bash pytest commands (Bug #620): PreToolUse Bash entries
         # where the command contains "pytest" but pipeline_action is not set.
         # Normalise these as test_run events so hard-gate ordering can find them.
@@ -314,6 +342,8 @@ def _parse_single_log(
                 batch_issue_number=batch_issue_number,
                 session_id=entry.get("session_id", ""),
                 pipeline_mode=pipeline_mode,
+                remediation=remediation_flag,
+                is_background=is_background_flag,
             ))
         elif tool == "Bash" and pipeline_action == "test_run":
             events.append(PipelineEvent(
@@ -504,8 +534,24 @@ def _validate_step_ordering_for_group(
         if step6_are_parallel and (first_type, second_type) in STEP6_PAIRS:
             continue
 
-        first_events = [e for e in agent_events if e.subagent_type == first_type]
-        second_events = [e for e in agent_events if e.subagent_type == second_type]
+        # Exclude remediation events when looking at "the agent's first run"
+        # timestamps. Remediation events (e.g. reviewer re-run after BLOCKING
+        # findings) are legitimate repeat invocations — they must not be
+        # compared against their own original completion and flagged as a
+        # duplicate-agent ordering violation. Issue #902 / #904.
+        # Also exclude background agent events (Issue #906 / #882): agents
+        # launched with run_in_background=true (e.g., doc-master) complete
+        # asynchronously and their log timestamps do not reflect their actual
+        # sequential position in the pipeline. Comparing them would produce
+        # spurious step_ordering findings.
+        first_events = [
+            e for e in agent_events
+            if e.subagent_type == first_type and not e.remediation and not e.is_background
+        ]
+        second_events = [
+            e for e in agent_events
+            if e.subagent_type == second_type and not e.remediation and not e.is_background
+        ]
 
         if not first_events or not second_events:
             continue
@@ -559,26 +605,29 @@ def validate_step_ordering(events: List[PipelineEvent]) -> List[Finding]:
     # The pipeline coordinator (implement.md STEP 7) is responsible for mode-specific agent
     # inclusion. Post-hoc log validation must not second-guess mode selection. (#518)
 
-    # When batch events are present, group by batch_issue_number and check
-    # ordering within each group independently. This prevents false CRITICALs
-    # when --fix issues (implementer-only) run before full-pipeline issues. (#680)
-    batch_events = [e for e in agent_events if e.batch_issue_number > 0]
-    if batch_events:
-        # Group by batch_issue_number
-        issue_groups: dict[int, List[PipelineEvent]] = {}
-        for e in agent_events:
-            issue_num = e.batch_issue_number if e.batch_issue_number > 0 else 0
-            if issue_num not in issue_groups:
-                issue_groups[issue_num] = []
-            issue_groups[issue_num].append(e)
+    # Group by (session_id, batch_issue_number) to isolate independent
+    # pipeline runs and batch issues. The tuple key prevents cross-pipeline
+    # contamination that previously arose when two simultaneous pipelines
+    # wrote into the same log file with overlapping batch_issue_numbers or
+    # both used batch_issue_number=0 (Issue #875 / Issue #904).
+    #
+    # Non-batch events with session_id='' and batch_issue_number=0 still
+    # group together under the single key ('', 0) — behavior unchanged for
+    # legacy single-session logs. The per-issue isolation added in #680 is
+    # preserved because different batch_issue_number values still produce
+    # distinct groups even within the same session_id.
+    group_key_fn = lambda e: (e.session_id, e.batch_issue_number if e.batch_issue_number > 0 else 0)
+    issue_groups: dict[tuple, List[PipelineEvent]] = {}
+    for e in agent_events:
+        key = group_key_fn(e)
+        if key not in issue_groups:
+            issue_groups[key] = []
+        issue_groups[key].append(e)
 
-        findings: List[Finding] = []
-        for group_events in issue_groups.values():
-            findings.extend(_validate_step_ordering_for_group(group_events, events))
-        return findings
-
-    # Non-batch mode: check all events as a single group
-    return _validate_step_ordering_for_group(agent_events, events)
+    findings: List[Finding] = []
+    for group_events in issue_groups.values():
+        findings.extend(_validate_step_ordering_for_group(group_events, events))
+    return findings
 
 
 def _is_parallel_step10_launch(events: List[PipelineEvent]) -> bool:
