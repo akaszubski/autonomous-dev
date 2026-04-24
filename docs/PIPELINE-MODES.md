@@ -138,6 +138,81 @@ If the pipeline is interrupted (auto-compact, crash, user `/clear`):
 
 The `run_id` is printed at STEP 0. Pipeline state is at `/tmp/implement_pipeline_state.json` (per-session) and `~/.claude/pipeline_state/{run_id}.json` (persistent). `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
 
+## Session-ID Propagation Contract
+
+**Added**: Issue #904 (ROOT-CAUSE consolidation of #898 subshell propagation,
+#902 remediation false-positive, #875 cross-pipeline isolation).
+
+### Fallback Chain — `env → sentinel → 'unknown'`
+
+Every coordinator subshell that needs the current pipeline session id MUST
+resolve it with this three-step fallback. The chain is implemented inline
+in `commands/implement.md` at each `python3 -c "..."` heredoc that reads
+`CLAUDE_SESSION_ID`:
+
+1. **Environment variable** — `os.environ.get('CLAUDE_SESSION_ID')`
+   - Primary source. Claude Code sets this in-process before the coordinator
+     runs. This is the only step that works for the very first command in
+     a fresh pipeline.
+2. **Sentinel file** — `/tmp/implement_pipeline_state.json` → `state['session_id']`
+   - Written by STEP 0 immediately after the env var is read. Provides a
+     recovery path when a subshell loses the env var (nested heredocs, pipe
+     subshells, `xargs` trampolines, worktree re-entry on `--resume`).
+   - **TTL guard (3600s)**: the sentinel is only trusted when its mtime is
+     within the last hour. Older sentinels from crashed prior pipelines are
+     NOT merged — this prevents cross-pipeline bleed (#875).
+3. **Literal `'unknown'`** — preserved legacy sentinel.
+   - Returned only when both env and sentinel are unavailable. This is a
+     legitimate first-boot case (hooks that fire BEFORE STEP 0 writes the
+     sentinel) — not an error path. Downstream code treats `'unknown'` as
+     a first-class session id that stores state in its own file.
+
+### Why `'unknown'` is Preserved
+
+Removing `'unknown'` would break the in-flight-boot case documented in
+Issues #738 and #777: the coordinator can record some agent completions
+under `session_id='unknown'` BEFORE the coordinator's STEP 0 has written
+the sentinel. `get_completed_agents()` then MERGES the 'unknown' state into
+the primary session's completions so no agent work is lost.
+
+The merge is now gated by the staleness TTL (`STALE_UNKNOWN_TTL_SECONDS =
+3600` in `pipeline_completion_state.py`). An 'unknown' state file whose
+mtime is older than 3600s is treated as contamination from a crashed prior
+pipeline and ignored. Fresh 'unknown' state (mtime < 3600s) is still merged
+— preserving the in-flight behavior from #738 / #777.
+
+### Validator Grouping — `(session_id, batch_issue_number)`
+
+`validate_step_ordering()` in `pipeline_intent_validator.py` groups agent
+events by the tuple `(session_id, batch_issue_number)` before checking
+sequential-pair ordering. The tuple key ensures that two independent
+pipeline runs writing to the same daily JSONL file never cross-contaminate
+each other's ordering checks (#875).
+
+Non-batch events with an empty `session_id` and `batch_issue_number=0`
+still group under the single key `('', 0)` — behavior is unchanged for
+legacy single-session logs. The per-issue isolation added in #680 is
+preserved because different `batch_issue_number` values still produce
+distinct groups even within the same `session_id`.
+
+### Remediation Flag — `is_remediation=True`
+
+`record_agent_completion(..., is_remediation=True)` marks a completion as
+part of a remediation cycle (e.g., reviewer re-run after BLOCKING findings
+from security-auditor). Events flagged as remediation are SKIPPED by the
+duplicate-agent ordering check in `_validate_step_ordering_for_group()`,
+which prevents #902's false CRITICAL: "reviewer ran before reviewer".
+
+The flag is persisted in the completion state JSON as:
+
+```json
+{"completions": {"0": {"reviewer": {"success": true, "remediation": true}}}}
+```
+
+Legacy plain-bool entries continue to work unchanged (`{"reviewer": true}`
+still reads as success). See `_completion_is_success()` in
+`pipeline_completion_state.py` for the dual-shape reader.
+
 ## Related
 
 - [commands/implement.md](../plugins/autonomous-dev/commands/implement.md) — authoritative pipeline definition
