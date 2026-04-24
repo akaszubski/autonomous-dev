@@ -214,6 +214,41 @@ Legacy plain-bool entries continue to work unchanged (`{"reviewer": true}`
 still reads as success). See `_completion_is_success()` in
 `pipeline_completion_state.py` for the dual-shape reader.
 
+### Background Agent Flag — `is_background=True` (Issue #906 / #882)
+
+`PipelineEvent.is_background` marks activity-log events that originate from
+agents launched with `run_in_background=true` (e.g., the continuous-improvement
+analyst at STEP 15, or doc-master in parallel-validation mode).
+
+**Why it matters for ordering checks**: A background agent's JSONL timestamp
+reflects when the coordinator dispatched it, not when the agent actually
+finished. In practice this means doc-master's log entry can appear *before*
+foreground agents (reviewer, security-auditor) even though it ran concurrently
+or after them. Without the exemption, `_validate_step_ordering_for_group()`
+would emit a false CRITICAL `step_ordering` finding:
+"doc-master ran before reviewer" when in fact both ran in STEP 10 and the
+ordering was intentionally parallel.
+
+**How it works**:
+
+1. `session_activity_logger.py` writes `is_background: true` into the
+   `input_summary` dict of any Agent/Task log entry that has
+   `tool_input.run_in_background=true`. The field is absent (falsy) for
+   foreground agents — clean log format.
+2. `_parse_single_log()` in `pipeline_intent_validator.py` reads
+   `input_summary.is_background` and sets `PipelineEvent.is_background`
+   accordingly. Missing field defaults to `False` for backward compatibility
+   with logs that pre-date this feature.
+3. `_validate_step_ordering_for_group()` filters `is_background=True` events
+   out of both `first_events` and `second_events` before performing any
+   sequential-pair timestamp comparison. Background events are therefore
+   invisible to step-ordering checks — only foreground agent events
+   participate.
+
+**What is still enforced**: Background agents are not exempt from *other*
+validator checks (context-dropping, hard-gate ordering, minimum agent count).
+The exemption is narrow: sequential *timestamp* ordering only.
+
 ## Related
 
 - [commands/implement.md](../plugins/autonomous-dev/commands/implement.md) — authoritative pipeline definition

@@ -49,6 +49,12 @@ class PipelineEvent:
     # duplicate-agent ordering findings. The flag is populated from the
     # log entry's ``input_summary.remediation`` field when present.
     remediation: bool = False
+    # Issue #906 / #882: background agent events (e.g., doc-master launched via
+    # run_in_background=true) must not trigger step_ordering findings when they
+    # "appear" out of order in the log. Sequential ordering checks skip them.
+    # Populated from input_summary.is_background; defaults to False for backward
+    # compatibility with logs that pre-date this field.
+    is_background: bool = False
 
 
 @dataclass
@@ -300,6 +306,15 @@ def _parse_single_log(
             raw_remediation = input_summary.get("remediation", False)
             remediation_flag = bool(raw_remediation)
 
+        # Extract is_background flag from input_summary (Issue #906 / #882).
+        # Background agent events (e.g., doc-master launched via run_in_background=true)
+        # must not trigger step_ordering findings when they appear out of order.
+        # Defaults to False for backward compatibility with pre-#906 logs.
+        is_background_flag = False
+        if isinstance(input_summary, dict):
+            raw_is_background = input_summary.get("is_background", False)
+            is_background_flag = bool(raw_is_background)
+
         # Detect raw Bash pytest commands (Bug #620): PreToolUse Bash entries
         # where the command contains "pytest" but pipeline_action is not set.
         # Normalise these as test_run events so hard-gate ordering can find them.
@@ -328,6 +343,7 @@ def _parse_single_log(
                 session_id=entry.get("session_id", ""),
                 pipeline_mode=pipeline_mode,
                 remediation=remediation_flag,
+                is_background=is_background_flag,
             ))
         elif tool == "Bash" and pipeline_action == "test_run":
             events.append(PipelineEvent(
@@ -523,13 +539,18 @@ def _validate_step_ordering_for_group(
         # findings) are legitimate repeat invocations — they must not be
         # compared against their own original completion and flagged as a
         # duplicate-agent ordering violation. Issue #902 / #904.
+        # Also exclude background agent events (Issue #906 / #882): agents
+        # launched with run_in_background=true (e.g., doc-master) complete
+        # asynchronously and their log timestamps do not reflect their actual
+        # sequential position in the pipeline. Comparing them would produce
+        # spurious step_ordering findings.
         first_events = [
             e for e in agent_events
-            if e.subagent_type == first_type and not e.remediation
+            if e.subagent_type == first_type and not e.remediation and not e.is_background
         ]
         second_events = [
             e for e in agent_events
-            if e.subagent_type == second_type and not e.remediation
+            if e.subagent_type == second_type and not e.remediation and not e.is_background
         ]
 
         if not first_events or not second_events:
