@@ -36,17 +36,17 @@ covers:
 | plan-critic | opus | ✓ | ✓ | ✓ (1 round) | ✗ | ✓ per issue |
 | test-master | opus | ✗ | ✓ | ✗ | ✗ | ✓ (TDD issues) |
 | implementer | opus / sonnet | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
-| spec-validator | opus | ✓ | ✓ | ✓ | ✗ | ✓ per issue |
+| spec-validator | opus | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | reviewer | sonnet | ✓ | ✓ | ✗ | ✓ (bundled with docs) | ✓ per issue |
-| security-auditor | sonnet | ✓ | ✓ | ✗ | ✗ | ✓ per issue |
+| security-auditor | sonnet | ✓ | ✓ | ✗ | ✓ (conditional) | ✓ per issue |
 | doc-master | sonnet | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | continuous-improvement-analyst | sonnet | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ post-batch |
 
 **Minimum agents per mode:**
 - Full (default, acceptance-first): 8 — researcher-local, researcher, planner, plan-critic, implementer, spec-validator, reviewer, security-auditor, doc-master (+CI analyst bg)
 - `--tdd-first`: 9 — adds test-master before implementer
-- `--light`: 4 — planner, plan-critic, implementer, doc-master (+CI analyst bg)
-- `--fix`: 4 — implementer, reviewer+docs bundled, CI analyst bg
+- `--light`: 5 — planner, plan-critic, implementer, spec-validator, doc-master (+CI analyst bg)
+- `--fix`: 5 (6 if security-sensitive) — implementer, spec-validator (F3.5), reviewer+docs bundled, CI analyst bg; +security-auditor when Security-Sensitivity Detection flags files
 - `--batch` / `--issues`: full pipeline per issue + 1 post-batch CI analyst
 
 **Research skip** (full mode only): If the feature description names a specific file path AND a specific modification instruction AND does NOT reference security-sensitive files or keywords (hooks, auth, secrets, tokens, SSO, OAuth, etc.), STEP 4 (research) is skipped. Research is NEVER skipped when touching `hooks/*.py`, `lib/*security*`, `lib/*auth*`, `*.env*`, `config/auto_approve_policy.json`, or migrations.
@@ -97,11 +97,12 @@ L5  Report and finalize + CI analyst bg
 ## Fix Pipeline Sequence
 
 ```
-F1  Alignment check
-F2  Test context (read failing tests, locate fixtures)
-F3  Fix implementation (implementer) — regression test REQUIRED
-F4  Review + docs (bundled)
-F5  CI analysis (bg)
+F1    Alignment check
+F2    Test context (read failing tests, locate fixtures)
+F3    Fix implementation (implementer) — regression test REQUIRED
+F3.5  Spec-blind validation HARD GATE (spec-validator)
+F4    Review + docs (bundled) + security-auditor if Security-Sensitivity Detection flags files
+F5    CI analysis (bg)
 ```
 
 The fix pipeline is minimal because the user is reacting to a known failure. It DOES enforce the regression test gate (any fix must add a test that would have caught the bug).
