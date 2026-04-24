@@ -183,6 +183,9 @@ COMPRESSION_CRITICAL_AGENTS = {
 # task-level variation causes different prompt sizes between issues.
 # The real-time hook (unified_pre_tool.py) handles per-invocation enforcement;
 # this post-hoc check catches only severe compression patterns.
+# DEPRECATED (Issue #925): no longer consulted by validate_pipeline_intent. Retained for
+# backward compat with tests/regression/test_issue_757_compression_threshold.py and
+# tests/genai/test_acceptance_compression_*.py. Removal deferred to follow-up issue.
 MAX_PROMPT_SHRINKAGE_RATIO = 0.40
 
 # Minimum prompt word count for security-critical agents
@@ -918,6 +921,9 @@ def detect_ghost_invocations(
     return findings
 
 
+# DEPRECATED (Issue #925): no longer consulted by validate_pipeline_intent. Retained for
+# backward compat with tests/regression/test_issue_757_compression_threshold.py and
+# tests/genai/test_acceptance_compression_*.py. Removal deferred to follow-up issue.
 def detect_progressive_compression(events: List[PipelineEvent], *, agents_dir: Optional[Path] = None) -> List[Finding]:
     """Detect progressive prompt compression across batch issues.
 
@@ -1570,7 +1576,13 @@ def _run_checks_on_events(events: List[PipelineEvent]) -> List[Finding]:
     # Lazy import to avoid circular dependency (agent_output_health imports from this module)
     from agent_output_health import detect_zero_word_completions as _detect_zero_word
     findings.extend(_detect_zero_word(events))
-    findings.extend(detect_progressive_compression(events))
+    # Issue #925: detect_progressive_compression call disabled. The cross-issue
+    # baseline ratio produced 5 false positives (#757 #723 #867 #805 #923)
+    # and is structurally fragile (any small fix after a large fix triggers it).
+    # Spec-compliant downstream-prompt vs upstream-result ratio is now covered
+    # by detect_context_dropping (line 738) once result_word_count is correctly
+    # populated by the PostToolUse fix.
+    # findings.extend(detect_progressive_compression(events))
     findings.extend(detect_minimum_prompt_violation(events))
     findings.extend(detect_doc_verdict_missing(events))
     findings.extend(detect_doc_verdict_shallow(events))

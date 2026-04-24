@@ -323,6 +323,7 @@
         "plugins/autonomous-dev/lib/validation.py",
         "plugins/autonomous-dev/lib/version_detector.py",
         "plugins/autonomous-dev/lib/version_reader.py",
+        "plugins/autonomous-dev/lib/word_count_helpers.py",
         "plugins/autonomous-dev/lib/worker_consistency_validator.py",
         "plugins/autonomous-dev/lib/workflow_coordinator.py",
         "plugins/autonomous-dev/lib/workflow_tracker.py",

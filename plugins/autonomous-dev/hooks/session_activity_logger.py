@@ -334,14 +334,36 @@ def _extract_usage_from_result(tool_output: str) -> dict:
 
 
 def _add_result_word_count(tool_name: str, tool_output: dict, summary: dict) -> dict:
-    """Add result_word_count and token usage for Task/Agent tool outputs (Issue #367, #704)."""
+    """Add result_word_count and token usage for Task/Agent tool outputs (Issue #367, #704, #925)."""
     if tool_name in ("Task", "Agent"):
+        # Lazy import shared helper (Issue #925)
+        import sys as _sys_wch
+        _lib_dir_wch = str(Path(__file__).parent.parent / "lib")
+        if _lib_dir_wch not in _sys_wch.path:
+            _sys_wch.path.insert(0, _lib_dir_wch)
+        from word_count_helpers import count_words_in_content
+
+        # Modern Anthropic schema: toolUseResult uses "content" as list-of-text-blocks (Issue #925)
+        content = tool_output.get("content") if isinstance(tool_output, dict) else None
+        word_count = count_words_in_content(content)
+
+        # Fall back to legacy flat "output" string if content is absent or yields 0 words
         output_text = ""
-        if isinstance(tool_output, dict):
-            output_text = str(tool_output.get("output", ""))
-        elif isinstance(tool_output, str):
-            output_text = tool_output
-        summary["result_word_count"] = len(output_text.split()) if output_text else 0
+        if content is None or word_count == 0:
+            if isinstance(tool_output, dict):
+                output_text = str(tool_output.get("output", ""))
+            elif isinstance(tool_output, str):
+                output_text = tool_output
+            word_count = len(output_text.split()) if output_text else 0
+
+        summary["result_word_count"] = word_count
+
+        # Build output_text for usage extraction (Issue #704)
+        # Prefer the flat-string path; if content is a list-of-blocks, concatenate text blocks.
+        if not output_text and isinstance(content, list):
+            output_text = "\n".join(
+                b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"
+            )
 
         # Extract token usage from <usage> block (Issue #704)
         usage = _extract_usage_from_result(output_text)

@@ -201,6 +201,15 @@ class TestAddResultWordCount:
         summary = sal._add_result_word_count("Agent", {"output": ""}, {})
         assert summary["result_word_count"] == 0
 
+    def test_agent_content_list_with_text_block(self):
+        """Agent tool with content list-of-blocks shape (modern Anthropic schema)."""
+        summary = sal._add_result_word_count(
+            "Agent",
+            {"content": [{"type": "text", "text": "five words for the count"}]},
+            {}
+        )
+        assert summary["result_word_count"] == 5
+
 
 class TestFindLogDir:
     """Test log directory discovery."""

@@ -352,8 +352,13 @@ class TestDetectMinimumPromptViolation:
 class TestIntegration:
     """Integration tests for orchestrator wiring."""
 
-    def test_validate_pipeline_intent_includes_progressive_compression(self, tmp_path):
-        """validate_pipeline_intent() calls detect_progressive_compression()."""
+    def test_validate_pipeline_intent_does_not_call_detect_progressive_compression(self, tmp_path):
+        """validate_pipeline_intent() no longer wires detect_progressive_compression (Issue #925).
+
+        Cross-issue baseline ratio produced 5 false positives (#757 #723 #867 #805 #923).
+        Detection of downstream-prompt vs upstream-result compression is now handled by
+        detect_context_dropping (spec-compliant within-issue ratio).
+        """
         log_file = tmp_path / "batch.jsonl"
         base = datetime(2026, 3, 22, 10, 0, 0)
         lines = []
@@ -378,8 +383,9 @@ class TestIntegration:
         compression_findings = [
             f for f in findings if f.finding_type == "progressive_compression"
         ]
-        assert len(compression_findings) >= 1, (
-            "#544: validate_pipeline_intent should include progressive compression findings"
+        assert len(compression_findings) == 0, (
+            "Issue #925: progressive_compression is no longer wired into validate_pipeline_intent. "
+            "Cross-issue baseline produced 5 prior false-positive closures and has been disabled."
         )
 
     def test_validate_pipeline_intent_includes_minimum_prompt_violation(self, tmp_path):

@@ -346,12 +346,13 @@ def _count_words_in_transcript(transcript_path: "Path | str") -> int:
                 msg = raw_msg if isinstance(raw_msg, dict) else {}
                 content = msg.get("content")
 
-                if isinstance(content, str):
-                    total += len(content.split())
-                elif isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            total += len(block.get("text", "").split())
+                # Delegate to shared helper (Issue #925)
+                import sys as _sys_wc
+                _lib_dir_wc = str(Path(__file__).parent.parent / "lib")
+                if _lib_dir_wc not in _sys_wc.path:
+                    _sys_wc.path.insert(0, _lib_dir_wc)
+                from word_count_helpers import count_words_in_content
+                total += count_words_in_content(content)
         return total
     except Exception:
         return 0
