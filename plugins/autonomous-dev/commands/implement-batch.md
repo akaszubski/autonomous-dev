@@ -254,7 +254,7 @@ Issue #N agent verification:
 
 **CRITICAL - BATCH CONTEXT for ALL Agent Prompts**:
 
-When invoking agents in batch mode (researcher-local, researcher-web, planner, implementer, reviewer, security-auditor, doc-master — plus test-master if `--tdd-first`), you MUST include this context block at the start of EVERY agent prompt:
+When invoking agents in batch mode (researcher-local, researcher-web, planner, plan-critic, implementer, reviewer, security-auditor, doc-master — plus test-master if `--tdd-first`), you MUST include this context block at the start of EVERY agent prompt:
 
 ```
 **BATCH CONTEXT** (CRITICAL - Operating in worktree):

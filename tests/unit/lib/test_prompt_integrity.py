@@ -678,3 +678,33 @@ class TestValidatePromptSlots:
     def test_required_prompt_slots_contains_security_auditor(self) -> None:
         """REQUIRED_PROMPT_SLOTS must include security-auditor."""
         assert "security-auditor" in REQUIRED_PROMPT_SLOTS
+
+
+class TestIssue907ContractLocks:
+    """Lock contracts identified in Issue #907 consolidation."""
+
+    def test_compression_critical_agents_exact_set(self) -> None:
+        """AC1: Strict-equality lock for COMPRESSION_CRITICAL_AGENTS (Issue #871)."""
+        from prompt_integrity import COMPRESSION_CRITICAL_AGENTS
+        expected = {
+            "security-auditor", "reviewer", "researcher-local",
+            "researcher", "implementer", "planner", "doc-master",
+        }
+        assert COMPRESSION_CRITICAL_AGENTS == expected, (
+            f"COMPRESSION_CRITICAL_AGENTS drift detected. "
+            f"Missing: {expected - COMPRESSION_CRITICAL_AGENTS}. "
+            f"Unexpected: {COMPRESSION_CRITICAL_AGENTS - expected}."
+        )
+
+    def test_save_merged_research_signature_arity(self) -> None:
+        """AC4: Lock save_merged_research parameter count + names (Issue #899)."""
+        import inspect
+        from research_persistence import save_merged_research
+        sig = inspect.signature(save_merged_research)
+        params = list(sig.parameters)
+        assert len(params) == 3, (
+            f"save_merged_research signature drift: expected 3 params, got {len(params)}: {params}"
+        )
+        assert params == ["topic", "local_json", "web_json"], (
+            f"save_merged_research parameter names drifted: {params}"
+        )

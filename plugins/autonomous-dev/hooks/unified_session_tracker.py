@@ -308,6 +308,55 @@ def _compute_duration_ms() -> int:
     return 0
 
 
+# Shape mirrors conversation_archiver._extract_metadata (str-content legacy + list-of-blocks modern)
+def _count_words_in_transcript(transcript_path: "Path | str") -> int:
+    """Count total words across all assistant turns in a JSONL transcript.
+
+    Handles both content shapes:
+    - str-content (legacy): ``{"type": "assistant", "message": {"content": "text..."}}``
+    - list-of-blocks (modern): ``{"type": "assistant", "message": {"content": [{"type": "text", "text": "..."}]}}``
+
+    Args:
+        transcript_path: Path to JSONL transcript file.
+
+    Returns:
+        Total word count of all assistant text content, or 0 on any failure.
+    """
+    try:
+        path = Path(transcript_path)
+        if not path.exists():
+            return 0
+
+        total = 0
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    # Malformed JSONL lines skipped (defense in depth against partial writes)
+                    continue
+
+                if entry.get("type") != "assistant":
+                    continue
+
+                raw_msg = entry.get("message", {})
+                msg = raw_msg if isinstance(raw_msg, dict) else {}
+                content = msg.get("content")
+
+                if isinstance(content, str):
+                    total += len(content.split())
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            total += len(block.get("text", "").split())
+        return total
+    except Exception:
+        return 0
+
+
 def _determine_success(output: str) -> bool:
     """Determine success from last_assistant_message content.
 
@@ -798,7 +847,14 @@ def main() -> int:
         duration_ms = _compute_duration_ms()
 
         # Compute word count
-        result_word_count = len(agent_output.split()) if agent_output else 0
+        # Prefer full transcript aggregation to capture multi-turn output (#872/#907)
+        transcript_count = 0
+        if agent_transcript_path:
+            try:
+                transcript_count = _count_words_in_transcript(agent_transcript_path)
+            except Exception:
+                transcript_count = 0
+        result_word_count = transcript_count or (len(agent_output.split()) if agent_output else 0)
 
         # Determine success
         success = _determine_success(agent_output)

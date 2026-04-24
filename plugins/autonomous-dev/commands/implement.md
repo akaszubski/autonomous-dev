@@ -562,7 +562,7 @@ If no matching file with "Verdict: PROCEED" is found, proceed to 5.5b.
 
 - **Rounds**: 1 (single pass, no iterative critique)
 - **Axes**: 3 only — Assumption Audit, Existing Solution Search, Minimalism Pressure
-- **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 3 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure. Output verdict: PROCEED, REVISE, or BLOCKED."
+- **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 3 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure. Output verdict: PROCEED, REVISE, or BLOCKED." (When running under --batch, include the BATCH CONTEXT block (worktree path + issue number) per implement-batch.md STEP B3.)
 
 **Parse verdict from plan-critic output**:
 
