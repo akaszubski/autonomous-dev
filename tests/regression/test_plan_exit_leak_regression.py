@@ -17,10 +17,29 @@ import pytest
 HOOKS_DIR = Path(__file__).resolve().parents[2] / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(HOOKS_DIR))
 
+import unified_pre_tool  # noqa: E402
 from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
     _check_plan_exit_native,
 )
+
+
+@pytest.fixture(autouse=True)
+def _force_in_adev_project(monkeypatch):
+    """Issue #938: existing leak-regression tests assume in-project context.
+
+    The scope guard added by #938 short-circuits the gate when cwd is not an
+    autonomous-dev repo (tmp_path is not). Patch the detector wrapper so
+    these regressions keep exercising the deny paths they were written for.
+    """
+    monkeypatch.setattr(
+        unified_pre_tool, "_is_adev_project_fn", lambda: True
+    )
+    for var in (
+        "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
+        "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 def _write_plan_exited_marker(tmp_path: Path) -> Path:

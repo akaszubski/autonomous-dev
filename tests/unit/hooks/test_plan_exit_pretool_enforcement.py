@@ -19,6 +19,7 @@ import pytest
 HOOKS_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(HOOKS_DIR))
 
+import unified_pre_tool  # noqa: E402
 from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
     _PLAN_EXIT_STALE_MINUTES,
@@ -29,6 +30,26 @@ from unified_pre_tool import (  # noqa: E402
     _check_plan_exit_native,
     _read_plan_exit_marker,
 )
+
+
+@pytest.fixture(autouse=True)
+def _force_in_adev_project(monkeypatch):
+    """Issue #938: existing tests assume in-project context.
+
+    The scope guard added in #938 short-circuits the gate when cwd is not
+    an autonomous-dev repo (tmp_path is not). Patch the detector wrapper
+    to True so legacy enforcement tests keep exercising in-project
+    behavior. Scope/escape variants are covered separately in the
+    TestScopeCheckIntegration class below.
+    """
+    monkeypatch.setattr(
+        unified_pre_tool, "_is_adev_project_fn", lambda: True
+    )
+    for var in (
+        "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
+        "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 def _write_marker(
@@ -187,7 +208,9 @@ class TestPlanExitedNativeTools:
             )
         assert result is not None
         assert result[0] == "deny"
-        assert result[1] == "Run plan-critic or use /implement --skip-review"
+        # Issue #938: deny reason advertises env-var escape hatch.
+        assert result[1] == _PLAN_EXIT_DENY_REASON
+        assert "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW" in _PLAN_EXIT_DENY_REASON
 
     def test_plan_exited_blocks_bash_mkdir(self, tmp_path: Path):
         """AC #6: Bash(mkdir foo) denied at plan_exited (mkdir not on allowlist)."""
@@ -577,3 +600,104 @@ class TestBashAllowlistHelper:
     def test_empty_command(self):
         assert _bash_command_on_allowlist("") is False
         assert _bash_command_on_allowlist("   ") is False
+
+
+# ============================================================================
+# Issue #938: Scope check / escape hatch integration
+# ============================================================================
+
+
+class TestScopeCheckIntegration:
+    """Issue #938: scope check / escape hatch short-circuits enforcement."""
+
+    def test_foreign_project_with_marker_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Foreign project + marker present → gate returns None (silent)."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        # Override the autouse fixture to simulate a foreign project.
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        for var in (
+            "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
+            "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+        ):
+            monkeypatch.delenv(var, raising=False)
+
+        assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
+        assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None
+
+    def test_in_project_with_skip_env_with_marker_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """In-project + SKIP env var + marker → gate returns None (escape wins)."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "1")
+
+        assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
+        assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None
+
+    def test_in_project_with_sentinel_with_marker_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """In-project + sentinel + marker → gate returns None (escape wins)."""
+        _write_marker(tmp_path, stage="plan_exited")  # Creates .claude/
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".claude" / "SKIP_PLAN_REVIEW").write_text("")
+
+        assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
+        assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None
+
+    def test_global_enforcement_in_foreign_project_with_marker_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Foreign project + GLOBAL_ENFORCEMENT=1 + marker → gate fires (deny)."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
+        monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
+
+        result = _check_plan_exit_native("Write", {"file_path": "x.py"})
+        assert result is not None
+        assert result[0] == "deny"
+
+    def test_deny_reason_advertises_env_var(self):
+        """AC #7: deny reason includes AUTONOMOUS_DEV_SKIP_PLAN_REVIEW."""
+        assert "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW" in _PLAN_EXIT_DENY_REASON
+        assert "/implement --skip-review" in _PLAN_EXIT_DENY_REASON
+        assert "plan-critic" in _PLAN_EXIT_DENY_REASON
+
+    def test_deny_system_message_advertises_three_escape_hatches(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """AC #7: deny systemMessage advertises all three escape hatches."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+
+        result = _check_plan_exit_native("Write", {"file_path": "x.py"})
+        assert result is not None
+        _, _, system_msg = result
+        assert "/implement --skip-review" in system_msg
+        assert "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW" in system_msg
+        assert "SKIP_PLAN_REVIEW" in system_msg  # sentinel filename appears
+
+    @pytest.mark.parametrize("truthy", ["1", "true", "TRUE", "yes", "on"])
+    def test_truthy_skip_env_variants_short_circuit(
+        self,
+        truthy: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """All truthy values for SKIP_PLAN_REVIEW short-circuit the gate."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", truthy)
+
+        assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
+        assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None

@@ -233,6 +233,17 @@ for repo in $REMOTE_REPOS; do
     python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --repo "\$HOME/Dev/\$repo" 2>/dev/null && echo "  Synced \$repo settings.json hooks" || echo "  ⚠ \$repo settings hook sync failed"
 done
 
+# Issue #938: Global hook deployment is intentional but scope-aware.
+# When deployed to ~/.claude/hooks, plan_mode_exit_detector.py and
+# unified_pre_tool.py's plan-exit gates check repo_detector.is_autonomous_dev_repo()
+# and silently fall through in foreign projects (no marker, no deny). This
+# replaces pre-#938 behavior where the hooks fired in every project regardless
+# of whether autonomous-dev's pipeline applied.
+#
+# Escape hatches (work in any project, even autonomous-dev itself):
+#   AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1   (env var, cross-session, recommended)
+#   .claude/SKIP_PLAN_REVIEW            (sentinel file, gitignored, local-only)
+#   AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1 (opt-in: re-enable in foreign projects)
 # Also deploy global hooks/lib/config
 echo "  Deploying global (~/.claude)..."
 for subdir in hooks lib config; do

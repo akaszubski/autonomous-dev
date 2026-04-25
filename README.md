@@ -245,6 +245,25 @@ Use `/plan` for changes touching >3 files, >100 lines, or with uncertain approac
 
 The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 5 axes, iterates planner until composite ≥3.0) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
 
+### Plan-exit enforcement is scoped to autonomous-dev projects (since #938)
+
+When deployed user-globally, the plan-exit hooks (`plan_mode_exit_detector.py`,
+`unified_pre_tool.py`) fire only inside autonomous-dev projects (detected via
+`repo_detector.is_autonomous_dev_repo`). In foreign projects they silently no-op.
+
+Three escape hatches exist (any one bypasses):
+
+- **`/implement --skip-review`** — one-shot, plan-only. Best for ad-hoc cases.
+- **`export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1`** — persistent across sessions and
+  shells. Recommended for users who want plan-critic permanently disabled.
+- **`touch .claude/SKIP_PLAN_REVIEW`** — local sentinel file. **Note:** this file
+  is gitignored (covered by `.claude/*`) and is therefore not committed; it is
+  lost on `git clean -fdx` or fresh clone. Use the env var for cross-session
+  persistence.
+
+To re-enable enforcement in foreign projects: `export AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1`.
+The escape hatches above still win over global enforcement.
+
 ### Batch Processing
 
 ```bash

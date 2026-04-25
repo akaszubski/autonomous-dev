@@ -19,6 +19,14 @@ plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done →
 /implement allowed. A systemMessage is output to instruct the model to
 invoke plan-critic before proceeding.
 
+Scope/escape gating (Issue #938):
+- When deployed user-globally (~/.claude/hooks), the hook is silent in foreign
+  projects (no marker, no message) unless AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1.
+- Three escape hatches bypass enforcement (in any project):
+    AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=<truthy>   (env var, cross-session)
+    .claude/SKIP_PLAN_REVIEW                   (sentinel file)
+    /implement --skip-review                   (one-shot, plan-only)
+
 Exit codes:
     0: Always (PostToolUse cannot block)
 """
@@ -31,6 +39,44 @@ from pathlib import Path
 
 
 MARKER_PATH = ".claude/plan_mode_exit.json"
+
+
+# Defensive import of repo_detector (Issue #938).
+# Mirrors unified_pre_tool.py:107-143. Uses importlib.util.spec_from_file_location
+# so the import resolves correctly when this hook runs from ~/.claude/hooks/
+# (user-global) or plugins/autonomous-dev/hooks/ (in-project).
+# Fail-closed: if detector is unavailable, _is_adev_project() returns True.
+_is_adev_project_fn = None
+try:
+    _hook_dir = Path(__file__).resolve().parent
+    _repo_detector_candidates = [
+        _hook_dir.parent / "lib" / "repo_detector.py",            # plugins/autonomous-dev/lib
+        _hook_dir.parents[2] / "lib" / "repo_detector.py",         # fallback
+        Path.home() / ".claude" / "lib" / "repo_detector.py",      # user-global install
+    ]
+    for _rd_path in _repo_detector_candidates:
+        if _rd_path.exists():
+            import importlib.util as _rd_ilu
+            _rd_spec = _rd_ilu.spec_from_file_location("repo_detector", str(_rd_path))
+            if _rd_spec and _rd_spec.loader:
+                _rd_mod = _rd_ilu.module_from_spec(_rd_spec)
+                _rd_spec.loader.exec_module(_rd_mod)
+                _is_adev_project_fn = _rd_mod.is_autonomous_dev_repo
+            break
+except Exception:
+    _is_adev_project_fn = None  # Fail closed (always enforce)
+
+
+def _is_adev_project() -> bool:
+    """Return True if cwd is an autonomous-dev repo. Fail-closed."""
+    if _is_adev_project_fn is None:
+        return True
+    return _is_adev_project_fn()
+
+
+def _truthy(val: str) -> bool:
+    """Recognize common truthy strings ("1", "true", "yes", "on" — case-insensitive)."""
+    return val.strip().lower() in ("1", "true", "yes", "on")
 
 
 def main() -> int:
@@ -52,6 +98,40 @@ def main() -> int:
 
     if tool_name != "ExitPlanMode":
         return 0
+
+    # Issue #938: Scope/escape gates (precedence: escape > scope > default).
+    cwd = Path(os.getcwd())
+    env_skip = _truthy(os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", ""))
+    sentinel = (cwd / ".claude" / "SKIP_PLAN_REVIEW").exists()
+    global_enforce = _truthy(os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", ""))
+    is_adev = _is_adev_project()
+    in_scope = global_enforce or is_adev
+
+    # Gate 1: Escape hatch wins. Warning is only emitted for genuine
+    # autonomous-dev projects so foreign-project bypasses stay silent
+    # (even when GLOBAL_ENFORCEMENT is opted in).
+    if env_skip or sentinel:
+        if is_adev:
+            warning = (
+                "PLAN-CRITIC BYPASS — Plan critique skipped via "
+                + ("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW env var" if env_skip
+                   else ".claude/SKIP_PLAN_REVIEW sentinel")
+                + ". Proceeding without critique. Unset to re-enable."
+            )
+            try:
+                print(json.dumps({
+                    "hookSpecificOutput": {"hookEventName": "PostToolUse"},
+                    "systemMessage": warning,
+                }))
+            except Exception:
+                pass
+        return 0
+
+    # Gate 2: Out of scope — silent no-op.
+    if not in_scope:
+        return 0
+
+    # Gate 3: In scope, no escape — fall through to existing marker-write logic.
 
     # Write marker file
     try:
@@ -84,7 +164,10 @@ def main() -> int:
             "You MUST invoke the plan-critic agent on the plan you just created. "
             "After plan-critic completes with PROCEED verdict, the stage will "
             "automatically advance and you can proceed with /implement or /plan-to-issues.\n\n"
-            "Escape hatch: /implement --skip-review"
+            "Escape hatches (any one):\n"
+            "  - /implement --skip-review                       (one-shot)\n"
+            "  - export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1       (cross-session, recommended)\n"
+            "  - touch .claude/SKIP_PLAN_REVIEW                 (local, gitignored)"
         )
         output = {
             "hookSpecificOutput": {"hookEventName": "PostToolUse"},

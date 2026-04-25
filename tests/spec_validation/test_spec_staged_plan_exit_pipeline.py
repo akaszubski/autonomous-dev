@@ -42,6 +42,8 @@ HOOKS_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev" / "hooks"
 # Add hooks to path for direct import
 sys.path.insert(0, str(HOOKS_DIR))
 
+import plan_mode_exit_detector  # noqa: E402
+import unified_pre_tool  # noqa: E402
 from plan_mode_exit_detector import main as detector_main, MARKER_PATH  # noqa: E402
 from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
@@ -49,6 +51,27 @@ from unified_pre_tool import (  # noqa: E402
     _check_plan_exit_mcp,
 )
 from unified_session_tracker import _advance_plan_mode_stage  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _force_in_adev_project(monkeypatch):
+    """Issue #938: spec tests assume autonomous-dev in-project context.
+
+    The scope guard added by #938 short-circuits the gate in foreign
+    projects (tmp_path is foreign). Patch the detectors so spec
+    acceptance tests keep exercising the in-project pipeline.
+    """
+    monkeypatch.setattr(
+        plan_mode_exit_detector, "_is_adev_project_fn", lambda: True
+    )
+    monkeypatch.setattr(
+        unified_pre_tool, "_is_adev_project_fn", lambda: True
+    )
+    for var in (
+        "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
+        "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 def _write_marker(tmp_path: Path, *, stage: str = "critique_done", include_stage: bool = True) -> Path:

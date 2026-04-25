@@ -13,7 +13,29 @@ import pytest
 HOOKS_DIR = Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(HOOKS_DIR))
 
+import plan_mode_exit_detector
 from plan_mode_exit_detector import main, MARKER_PATH
+
+
+@pytest.fixture(autouse=True)
+def _force_in_adev_project(monkeypatch):
+    """Issue #938: existing tests assume in-project context.
+
+    The scope gate added by Issue #938 means tmp_path (a foreign project)
+    would otherwise short-circuit before writing the marker. Patch the
+    detector wrapper to True so legacy tests keep exercising in-project
+    behavior. Scope/escape variants are covered in
+    test_plan_exit_scope_check.py.
+    """
+    monkeypatch.setattr(
+        plan_mode_exit_detector, "_is_adev_project_fn", lambda: True
+    )
+    # Ensure no escape-hatch env vars leak in from the developer's shell.
+    for var in (
+        "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
+        "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 class TestPlanModeExitDetector:

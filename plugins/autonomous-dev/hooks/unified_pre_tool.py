@@ -579,7 +579,10 @@ _PLAN_EXIT_MCP_READONLY: "frozenset[str]" = frozenset({
 })
 
 # Canonical deny reason (AC #5) — same string for all plan-exit denies.
-_PLAN_EXIT_DENY_REASON = "Run plan-critic or use /implement --skip-review"
+# Issue #938: surfaces all three escape hatches in the canonical reason.
+_PLAN_EXIT_DENY_REASON = (
+    "Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1"
+)
 
 
 def _detect_invocation_context(prompt: str) -> "Optional[str]":
@@ -3660,6 +3663,16 @@ def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple
     """
     import time as _time
 
+    # Issue #938: Scope/escape guard. Precedence: escape > scope > default.
+    if (os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "").strip().lower()
+            in ("1", "true", "yes", "on")):
+        return None
+    if (Path(os.getcwd()) / ".claude" / "SKIP_PLAN_REVIEW").exists():
+        return None
+    if not (os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "").strip().lower()
+            in ("1", "true", "yes", "on") or _is_adev_project()):
+        return None
+
     marker = _read_plan_exit_marker()
     if marker is None:
         return None
@@ -3743,7 +3756,10 @@ def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple
         "plan-critic agent on your plan. After plan-critic completes with "
         "PROCEED verdict, /implement, /create-issue, and /plan-to-issues "
         "will consume the marker and run normally.\n"
-        "Escape hatch: /implement --skip-review"
+        "Escape hatches (any one):\n"
+        "  - /implement --skip-review                       (one-shot)\n"
+        "  - export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1       (cross-session, recommended)\n"
+        "  - touch .claude/SKIP_PLAN_REVIEW                 (local, gitignored)"
     )
     return ("deny", _PLAN_EXIT_DENY_REASON, system_msg)
 
@@ -3764,6 +3780,16 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
         (decision, reason) if gate fires, or None to fall through.
     """
     import time as _time
+
+    # Issue #938: Scope/escape guard. Precedence: escape > scope > default.
+    if (os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "").strip().lower()
+            in ("1", "true", "yes", "on")):
+        return None
+    if (Path(os.getcwd()) / ".claude" / "SKIP_PLAN_REVIEW").exists():
+        return None
+    if not (os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "").strip().lower()
+            in ("1", "true", "yes", "on") or _is_adev_project()):
+        return None
 
     marker = _read_plan_exit_marker()
     if marker is None:
