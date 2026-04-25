@@ -42,12 +42,27 @@ def _write_marker(tmp_path: Path, *, stage: str = "plan_exited", **extra) -> Pat
     return marker_path
 
 
+def _write_verdict(tmp_path, verdict="PROCEED", composite_score=3.5, timestamp=None):
+    """Write .claude/plan_critic_verdict.json under tmp_path."""
+    from datetime import datetime, timezone
+    ts = timestamp or datetime.now(timezone.utc).isoformat()
+    verdict_path = tmp_path / ".claude" / "plan_critic_verdict.json"
+    verdict_path.parent.mkdir(parents=True, exist_ok=True)
+    verdict_path.write_text(json.dumps({
+        "verdict": verdict,
+        "composite_score": composite_score,
+        "timestamp": ts,
+    }))
+    return verdict_path
+
+
 class TestPlanCriticStageAdvance:
     """Tests for _advance_plan_mode_stage()."""
 
     def test_plan_critic_completion_advances_stage(self, tmp_path: Path):
         """Stage should advance from plan_exited to critique_done."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             _advance_plan_mode_stage()
 
@@ -85,6 +100,7 @@ class TestPlanCriticStageAdvance:
     def test_stage_advance_adds_timestamp(self, tmp_path: Path):
         """Advancing from plan_exited should add critique_completed_at timestamp."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             _advance_plan_mode_stage()
 
@@ -114,6 +130,7 @@ class TestPlanCriticStageAdvance:
     def test_advance_returns_suggestion_on_stage_change(self, tmp_path: Path):
         """_advance_plan_mode_stage returns non-None string when advancing plan_exited -> critique_done."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _advance_plan_mode_stage()
 
@@ -123,6 +140,7 @@ class TestPlanCriticStageAdvance:
     def test_suggestion_contains_plan_to_issues(self, tmp_path: Path):
         """Returned suggestion includes /plan-to-issues --quick."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _advance_plan_mode_stage()
 
@@ -131,6 +149,7 @@ class TestPlanCriticStageAdvance:
     def test_suggestion_contains_implement(self, tmp_path: Path):
         """Returned suggestion includes /implement."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _advance_plan_mode_stage()
 
@@ -165,7 +184,105 @@ class TestPlanCriticStageAdvance:
     def test_suggestion_constant_matches_return_value(self, tmp_path: Path):
         """Returned suggestion matches the exported _PLAN_TO_ISSUES_SUGGESTION constant."""
         _write_marker(tmp_path, stage="plan_exited")
+        _write_verdict(tmp_path)
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _advance_plan_mode_stage()
 
         assert result == _PLAN_TO_ISSUES_SUGGESTION
+
+
+class TestPlanCriticVerdictGate:
+    """Tests for verdict-gate behavior added in Issue #927."""
+
+    def test_no_advance_without_verdict_file(self, tmp_path: Path):
+        """plan_exited marker with no verdict file: returns None, marker unchanged."""
+        marker_path = _write_marker(tmp_path, stage="plan_exited")
+        original_data = json.loads(marker_path.read_text())
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is None
+        assert json.loads(marker_path.read_text()) == original_data
+
+    def test_no_advance_on_revise_verdict(self, tmp_path: Path):
+        """REVISE verdict: returns None, marker unchanged, verdict file retained."""
+        marker_path = _write_marker(tmp_path, stage="plan_exited")
+        verdict_path = _write_verdict(tmp_path, verdict="REVISE", composite_score=2.4)
+        original_data = json.loads(marker_path.read_text())
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is None
+        assert json.loads(marker_path.read_text()) == original_data
+        assert verdict_path.exists()
+
+    def test_no_advance_on_blocked_verdict(self, tmp_path: Path):
+        """BLOCKED verdict: returns None, marker unchanged, verdict file retained."""
+        marker_path = _write_marker(tmp_path, stage="plan_exited")
+        verdict_path = _write_verdict(tmp_path, verdict="BLOCKED", composite_score=1.5)
+        original_data = json.loads(marker_path.read_text())
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is None
+        assert json.loads(marker_path.read_text()) == original_data
+        assert verdict_path.exists()
+
+    def test_stale_verdict_ignored(self, tmp_path: Path):
+        """Verdict timestamp older than marker timestamp: returns None, no advance."""
+        from datetime import datetime, timedelta, timezone
+
+        marker_path = _write_marker(tmp_path, stage="plan_exited")
+        original_data = json.loads(marker_path.read_text())
+        # Verdict written 60s before the marker
+        stale_ts = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+        verdict_path = _write_verdict(tmp_path, verdict="PROCEED", timestamp=stale_ts)
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is None
+        assert json.loads(marker_path.read_text()) == original_data
+        assert verdict_path.exists()
+
+    def test_malformed_verdict_returns_none(self, tmp_path: Path):
+        """Malformed verdict JSON: returns None, no exception escapes."""
+        _write_marker(tmp_path, stage="plan_exited")
+        verdict_path = tmp_path / ".claude" / "plan_critic_verdict.json"
+        verdict_path.parent.mkdir(parents=True, exist_ok=True)
+        verdict_path.write_text("not valid json {{")
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()  # MUST NOT raise
+
+        assert result is None
+
+    def test_critique_done_marker_does_not_read_verdict(self, tmp_path: Path):
+        """critique_done marker short-circuits BEFORE verdict-file IO (back-compat)."""
+        _write_marker(tmp_path, stage="critique_done")
+        # Place a REVISE verdict that would block advance if the gate ran;
+        # the short-circuit MUST run first and leave the verdict file untouched.
+        verdict_path = _write_verdict(tmp_path, verdict="REVISE", composite_score=2.0)
+        original_verdict = verdict_path.read_text()
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is None
+        assert verdict_path.exists()
+        assert verdict_path.read_text() == original_verdict
+
+    def test_proceed_verdict_consumed_on_advance(self, tmp_path: Path):
+        """Successful PROCEED advance deletes the verdict file (no replay)."""
+        _write_marker(tmp_path, stage="plan_exited")
+        verdict_path = _write_verdict(tmp_path, verdict="PROCEED", composite_score=3.5)
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _advance_plan_mode_stage()
+
+        assert result is not None
+        assert isinstance(result, str)
+        assert not verdict_path.exists()

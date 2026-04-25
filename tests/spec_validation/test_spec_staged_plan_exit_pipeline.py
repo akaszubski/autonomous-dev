@@ -184,8 +184,8 @@ def test_spec_staged_plan_exit_6c_task_issue_creator_allowed_at_critique_done(tm
 # Criterion 7: stage advances from plan_exited to critique_done
 # --------------------------------------------------------------------------
 
-def test_spec_staged_plan_exit_7_stage_advances_on_plan_critic_completion(tmp_path: Path):
-    """Criterion 7: _advance_plan_mode_stage must change stage from plan_exited to critique_done."""
+def test_spec_staged_plan_exit_7_stage_advances_on_proceed_verdict(tmp_path: Path):
+    """Criterion 7: `_advance_plan_mode_stage` advances stage from `plan_exited` to `critique_done` ONLY when a PROCEED verdict file is present (Issue #927 gate)."""
     marker_path = tmp_path / ".claude" / "plan_mode_exit.json"
     marker_path.parent.mkdir(parents=True, exist_ok=True)
     marker_data = {
@@ -194,6 +194,13 @@ def test_spec_staged_plan_exit_7_stage_advances_on_plan_critic_completion(tmp_pa
         "stage": "plan_exited",
     }
     marker_path.write_text(json.dumps(marker_data, indent=2))
+
+    verdict_path = tmp_path / ".claude" / "plan_critic_verdict.json"
+    verdict_path.write_text(json.dumps({
+        "verdict": "PROCEED",
+        "composite_score": 3.5,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }))
 
     with patch("os.getcwd", return_value=str(tmp_path)):
         _advance_plan_mode_stage()

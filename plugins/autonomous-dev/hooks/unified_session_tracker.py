@@ -783,16 +783,37 @@ def _advance_plan_mode_stage() -> Optional[str]:
         the SubagentStop hook.
     """
     try:
-        marker_path = Path(os.getcwd()) / PLAN_MODE_EXIT_MARKER
+        cwd = Path(os.getcwd())
+        marker_path = cwd / PLAN_MODE_EXIT_MARKER
         if not marker_path.exists():
             return None
         marker_data = json.loads(marker_path.read_text())
-        if marker_data.get("stage") == "plan_exited":
-            marker_data["stage"] = "critique_done"
-            marker_data["critique_completed_at"] = datetime.now(timezone.utc).isoformat()
-            marker_path.write_text(json.dumps(marker_data, indent=2))
-            return _PLAN_TO_ISSUES_SUGGESTION
-        return None
+        if marker_data.get("stage") != "plan_exited":
+            return None  # Back-compat: critique_done (or other) short-circuits BEFORE verdict IO.
+
+        # HARD GATE (Issue #927): only advance to critique_done when plan-critic returned PROCEED.
+        # Verdict file written by plan-critic agent at end of every round.
+        verdict_path = cwd / ".claude" / "plan_critic_verdict.json"
+        if not verdict_path.exists():
+            return None  # No critique yet — do not advance.
+
+        verdict_data = json.loads(verdict_path.read_text())
+        if verdict_data.get("verdict") != "PROCEED":
+            return None  # REVISE or BLOCKED — gate stays closed; verdict file retained.
+
+        # Staleness check: verdict must be at least as recent as the marker.
+        verdict_ts = datetime.fromisoformat(verdict_data["timestamp"])
+        marker_ts = datetime.fromisoformat(marker_data["timestamp"])
+        if verdict_ts < marker_ts:
+            return None  # Stale verdict from a previous plan — ignore.
+
+        # PROCEED accepted — consume verdict file so it cannot replay.
+        verdict_path.unlink(missing_ok=True)
+
+        marker_data["stage"] = "critique_done"
+        marker_data["critique_completed_at"] = datetime.now(timezone.utc).isoformat()
+        marker_path.write_text(json.dumps(marker_data, indent=2))
+        return _PLAN_TO_ISSUES_SUGGESTION
     except Exception:
         return None  # Never crash on stage advance failure
 

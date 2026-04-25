@@ -57,7 +57,7 @@ Deep reasoning for complex synthesis:
 - **implementer**: Code implementation
 - **test-master**: Quality Diamond test generation
 - **spec-validator**: Spec-blind behavioral validation (STEP 8.5) — validates implementation against acceptance criteria without seeing implementation details
-- **plan-critic**: Adversarial plan reviewer — challenges assumptions, detects scope creep, enforces minimalism before implementation begins. Scores each axis on a 1-5 Likert scale; composite mean >=3.0 with no axis below 2 yields PROCEED, <3.0 or any axis at 1 yields REVISE, <2.0 or 2+ axes at 1 yields BLOCKED. Delta tracking added to Scores table from round 2 onward. Budget mode (single-pass) evaluates only 3 axes. (Issue #814, Issue #880)
+- **plan-critic**: Adversarial plan reviewer — challenges assumptions, detects scope creep, enforces minimalism before implementation begins. Scores each axis on a 1-5 Likert scale; composite mean >=3.0 with no axis below 2 yields PROCEED, <3.0 or any axis at 1 yields REVISE, <2.0 or 2+ axes at 1 yields BLOCKED. Delta tracking added to Scores table from round 2 onward. Budget mode (single-pass) evaluates only 3 axes. **Verdict Persistence** (Issue #927): at the end of every critique round (including REVISE and BLOCKED), plan-critic MUST write `.claude/plan_critic_verdict.json` containing `verdict`, `composite_score`, and `timestamp`. This file is the HARD GATE read by `_advance_plan_mode_stage()` in `unified_session_tracker.py` — stage advance from `plan_exited` to `critique_done` only occurs when `verdict == "PROCEED"` and the timestamp is not stale. The verdict file is consumed (deleted) on successful advance. (Issue #814, Issue #880, Issue #927)
 
 ### Rationale
 
