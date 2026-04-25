@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-04-15 (Issue #860 - Added fix_forward.py)
+**Last Updated**: 2026-04-25 (Phase 1 intent_classifier.py added)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -14,7 +14,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (91)
+### Core Libraries (92)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -123,6 +123,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 
 87. **bugfix_detector.py** - Shared detection library for identifying bug-fix commits and features (pure Python, no external dependencies, Issue #737). Three public functions: `is_bugfix_feature(description, labels=None)` checks feature descriptions and optional GitHub issue labels against keyword patterns (`fix`, `bug`, `broken`, `regression`, `crash`, `dedup`, `duplicate`) and label set (`bug`, `fix`, `bugfix`, `regression`, `hotfix`) — used by the implement.md HARD GATE at STEP 8. `is_bugfix_commit(message)` checks whether a git commit message starts with a `fix:`, `bugfix:`, or `hotfix:` prefix (supports conventional commit scopes, e.g., `fix(auth):`) — used by `enforce_regression_test.py` pre-commit hook. `get_test_count(project_root)` scans all `.py` files under `project_root/tests/` for `def test_*` functions and returns the total count — used by the implement.md STEP 1 `BASELINE_TEST_COUNT` capture and the STEP 8 regression test gate.
 86. **blocking_signal_classifier.py** - Three-tier blocking signal classification for implementer adaptive replanning (pure Python, no external dependencies). `classify_blocking_signal(error_output)` inspects raw tool output and returns a `BlockingSignal` dataclass with `signal_type` (`BlockingSignalType.RECOVERABLE`, `STRUCTURAL`, or `NOT_BLOCKING`), `error_name`, `error_detail`, and `suggested_action`. Recoverable signals (ModuleNotFoundError, FileNotFoundError, ImportError, AttributeError, command not found / exit code 127) trigger mini-replan cycles; structural signals (SyntaxError, IndentationError, TabError) indicate the code must be fixed before retrying. `sanitize_error_for_directive(error_output)` truncates to `MAX_DIRECTIVE_ERROR_LENGTH=500` chars and removes newlines, delegating to `failure_classifier.sanitize_error_message` when available. `format_mini_replan_directive(signal, *, cycle)` produces a structured `[MINI-REPLAN cycle N/2]` directive for injection into the implementer prompt, including the error name, detail, suggested action, FORBIDDEN retry clause, and a final-cycle escalation warning when `cycle >= MAX_MINI_REPLAN_CYCLES=2`. Used by the implementer agent HARD GATE (Issue #730). (v1.0.0, Issue #730)
+
+88. **intent_classifier.py** - Semantic intent classifier for user prompts (Phase 1, shadow mode). `IntentClassifier.classify(prompt)` applies a two-stage pipeline: (1) compiled regex of 38 security-keyword stems runs FIRST — any match short-circuits to `IntentClass.SECURITY_CRITICAL` without calling the LLM, defending against OWASP LLM01:2025 prompt injection; (2) if the regex misses, Claude Haiku 4.5 (`claude-haiku-4-5-20251001`, pinned) is called via `genai_utils.GenAIAnalyzer` with a strict JSON-only prompt. Returns `IntentResult` (frozen dataclass): `intent` (one of 9 `IntentClass` values — security_critical, implement, refactor, test, doc, config, typo, status_query, conversation — or `AMBIGUOUS` fail-open sentinel), `confidence`, `regex_hit`, `llm_used`, `fail_open`, `requires_security_audit`, `prompt_length`, `predicted_file_count`, `reasoning`. Any failure path (timeout, SDK unavailable, malformed JSON, intent outside enum, confidence < threshold, NaN/inf confidence, empty/None prompt) returns `IntentResult(intent=AMBIGUOUS, fail_open=True, requires_security_audit=True)`. `IntentClassifier.from_config(path=None)` loads `plugins/autonomous-dev/config/intent_classifier_config.json` (tunable: `model`, `max_tokens`, `timeout_seconds`, `confidence_threshold` default 0.85, `max_prompt_chars`, `security_keywords`, `telemetry.enabled`). Every call appends one 9-field JSONL line to `.claude/logs/activity/{YYYY-MM-DD}.jsonl` (telemetry failures never raise). Consumed by `unified_prompt_validator.py` when `INTENT_CLASSIFIER_ENABLED=true`; default OFF — hook output byte-identical when disabled. Coexists with `genai_prompts.py::INTENT_CLASSIFICATION_PROMPT` (different 5-class scheme, different consumer). 81 test functions in `tests/unit/lib/test_intent_classifier.py`. (v1.0.0, Phase 1)
 
 ### Tracking Libraries (3) - NEW in v3.28.0, ENHANCED in v3.48.0
 

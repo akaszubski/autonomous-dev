@@ -436,7 +436,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 | Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
 | Skills | 19 | Domain knowledge (added: planning-workflow, prompt-engineering) |
 | Hooks | 30 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
-| Libraries | 181 | Python utilities |
+| Libraries | 210 | Python utilities |
 
 ---
 
@@ -474,7 +474,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 - [Commands](plugins/autonomous-dev/commands/) - All 23 commands
 - [Hooks](docs/HOOKS.md) - 30 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
-- [Libraries](docs/LIBRARIES.md) - 181 Python utilities
+- [Libraries](docs/LIBRARIES.md) - 210 Python utilities
 - [Scripts](docs/SCRIPTS.md) - Operational tooling (deploy, validate, benchmark, mine)
 - [Label Taxonomy](docs/LABEL-TAXONOMY.md) - GitHub labels + `[BYPASS]`/`[INCOMPLETE]`/`[ORDERING]` finding tags
 
