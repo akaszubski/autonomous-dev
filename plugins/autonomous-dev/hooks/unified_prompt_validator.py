@@ -88,9 +88,9 @@ if LIB_DIR:
 ENFORCE_WORKFLOW = os.environ.get("ENFORCE_WORKFLOW", "true").lower() == "true"
 QUALITY_NUDGE_ENABLED = os.environ.get("QUALITY_NUDGE_ENABLED", "true").lower() == "true"
 
-# Plan mode enforcement (Issue #358)
-PLAN_MODE_EXIT_MARKER = ".claude/plan_mode_exit.json"
-PLAN_MODE_STALE_MINUTES = 30
+# Plan-mode enforcement was moved to PreToolUse (unified_pre_tool.py) per
+# Issue #926. The marker file format and writer (plan_mode_exit_detector.py)
+# are unchanged; only the enforcement event boundary moved.
 
 
 # ============================================================================
@@ -246,160 +246,6 @@ def _log_activity(event: str, details: dict) -> None:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
     except Exception:
         pass
-
-
-# ============================================================================
-# Plan Mode Enforcement (Issue #358)
-# ============================================================================
-
-
-def _extract_wrapped_command(text: str) -> Optional[tuple[str, str]]:
-    """Parse Claude Code's XML-wrapped slash-command form.
-
-    Claude Code wraps slash-commands before delivering them to UserPromptSubmit
-    hooks as: <command-name>/cmd</command-name><command-args>...</command-args>.
-    This helper extracts the command name (slash optional) and args string.
-
-    Returns (command_name_without_slash, args_str) if the wrapped form is
-    present, otherwise None. Issue #922.
-    """
-    name_match = re.search(r"<command-name>/?([\w-]+)</command-name>", text)
-    if not name_match:
-        return None
-    args_match = re.search(r"<command-args>(.*?)</command-args>", text, re.DOTALL)
-    args = args_match.group(1) if args_match else ""
-    return name_match.group(1), args
-
-
-def _check_plan_mode_enforcement(user_prompt: str) -> Optional[int]:
-    """
-    Enforce staged plan-exit pipeline after plan mode exit.
-
-    Two-stage enforcement:
-    - plan_exited: Plan-critic hasn't run yet. Block everything except
-      questions and /implement --skip-review.
-    - critique_done: Plan-critic completed. Allow /implement, /create-issue,
-      /plan-to-issues (consume marker). Block everything else.
-
-    Old markers without a stage field are treated as critique_done for
-    backward compatibility. Unknown stage values are treated as plan_exited
-    for safety.
-
-    Args:
-        user_prompt: The user's submitted prompt text
-
-    Returns:
-        None if no enforcement needed (pass through)
-        0 if marker consumed by allowed command (pass through after cleanup)
-        2 if prompt is blocked
-    """
-    try:
-        marker_path = Path(os.getcwd()) / PLAN_MODE_EXIT_MARKER
-        if not marker_path.exists():
-            return None
-
-        # Read marker to check staleness and stage
-        try:
-            marker_data = json.loads(marker_path.read_text())
-            marker_ts = datetime.fromisoformat(marker_data.get("timestamp", ""))
-            age_minutes = (datetime.now(timezone.utc) - marker_ts).total_seconds() / 60.0
-            if age_minutes > PLAN_MODE_STALE_MINUTES:
-                marker_path.unlink(missing_ok=True)
-                return None
-        except (json.JSONDecodeError, ValueError, KeyError):
-            # Corrupted marker -- delete and pass through
-            marker_path.unlink(missing_ok=True)
-            return None
-
-        # Determine stage (backward compat: missing stage = critique_done)
-        raw_stage = marker_data.get("stage")
-        if raw_stage is None:
-            stage = "critique_done"
-        elif raw_stage in ("plan_exited", "critique_done"):
-            stage = raw_stage
-        else:
-            # Unknown stage value — treat as plan_exited for safety
-            stage = "plan_exited"
-
-        text = user_prompt.strip()
-
-        # Allow questions through at any stage
-        if text.endswith("?"):
-            return None
-
-        # /implement --skip-review consumes marker at any stage (escape hatch)
-        # Handles both bare string form (programmatic / direct) and Claude Code's
-        # XML-wrapped form (normal user path). Issue #922.
-        wrapped = _extract_wrapped_command(text)
-        is_skip_review = (
-            re.match(r"^/implement\b.*--skip-review\b", text)
-            or (wrapped is not None
-                and wrapped[0] == "implement"
-                and "--skip-review" in wrapped[1].split())
-        )
-        if is_skip_review:
-            marker_path.unlink(missing_ok=True)
-            return 0
-
-        if stage == "plan_exited":
-            # Block everything except questions (handled above) and --skip-review
-            message = (
-                "PLAN MODE EXIT DETECTED — Plan critique required\n\n"
-                "You just exited plan mode. Before proceeding, you MUST run the "
-                "plan-critic agent on your plan.\n\n"
-                "After plan-critic completes with PROCEED verdict, the stage will "
-                "automatically advance and you can use:\n"
-                "  /implement \"description\"  -- to execute the plan\n"
-                "  /create-issue \"description\"  -- to file an issue for later\n"
-                "  /plan-to-issues  -- to convert plan into multiple issues\n\n"
-                "Escape hatch: /implement --skip-review\n\n"
-                "REQUIRED NEXT ACTION: Invoke the plan-critic agent."
-            )
-            print(message, file=sys.stderr)
-            output = {
-                "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
-                    "error": message,
-                }
-            }
-            print(json.dumps(output))
-            return 2
-
-        # stage == "critique_done"
-        # Allow /implement, /create-issue, /plan-to-issues (both bare and wrapped)
-        # Issue #922: wrapped-form support added so normal post-plan-critic flow works.
-        allowed = {"implement", "create-issue", "plan-to-issues"}
-        is_allowed_command = (
-            re.match(r"^/(implement|create-issue|plan-to-issues)\b", text)
-            or (wrapped is not None and wrapped[0] in allowed)
-        )
-        if is_allowed_command:
-            marker_path.unlink(missing_ok=True)
-            return 0
-
-        # Block everything else
-        message = (
-            "PLAN MODE EXIT DETECTED\n\n"
-            "You just exited plan mode. Your next action must use one of:\n"
-            "  /implement \"description\"  -- to execute the plan\n"
-            "  /create-issue \"description\"  -- to file an issue for later\n"
-            "  /plan-to-issues  -- to convert plan into multiple issues\n\n"
-            "Direct editing after plan mode bypasses testing, security review, and docs.\n"
-            "See: CLAUDE.md Critical Rules"
-        )
-        print(message, file=sys.stderr)
-        output = {
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "error": message,
-            }
-        }
-        print(json.dumps(output))
-        return 2
-
-    except Exception:
-        # Never block on enforcement errors
-        return None
 
 
 # ============================================================================
@@ -588,17 +434,10 @@ def main() -> int:
     user_prompt = input_data.get('userPrompt', '')
     prompt_preview = user_prompt[:200] if user_prompt else ''
 
-    # Check plan mode enforcement (Issue #358)
-    plan_mode_result = _check_plan_mode_enforcement(user_prompt)
-    if plan_mode_result is not None:
-        if plan_mode_result == 2:
-            _log_activity("block", {
-                "prompt": prompt_preview,
-                "reason": "plan_mode_exit_enforcement",
-                "decision": "block",
-            })
-            return 2
-        # plan_mode_result == 0: marker consumed, continue normally
+    # Plan-mode enforcement was moved to PreToolUse (unified_pre_tool.py)
+    # per Issue #926. UserPromptSubmit is structurally the wrong event for
+    # this gate because in-turn model tool calls (gh issue create,
+    # Task(implementer)) bypass UserPromptSubmit entirely.
 
     # Detect command intent via routing table
     route = detect_command_intent(user_prompt)

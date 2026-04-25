@@ -1,16 +1,29 @@
 """Spec validation tests for Staged Plan-Exit Pipeline.
 
-Validates acceptance criteria:
+Validates acceptance criteria. Per Issue #926, the enforcement gate moved
+from UserPromptSubmit (unified_prompt_validator.py) to PreToolUse
+(unified_pre_tool.py). The criteria below have been updated accordingly:
+
 1. plan_mode_exit_detector writes "stage": "plan_exited" in the marker file
 2. plan_mode_exit_detector outputs a systemMessage mentioning plan-critic
-3. unified_prompt_validator blocks /implement (without --skip-review) when stage=plan_exited
-4. unified_prompt_validator allows /implement --skip-review at any stage (consumes marker)
-5. unified_prompt_validator allows questions (ending with ?) at any stage
-6. unified_prompt_validator allows /implement, /create-issue, /plan-to-issues when stage=critique_done
-7. unified_session_tracker advances stage from plan_exited to critique_done when plan-critic fires
+3. unified_pre_tool blocks Task(implementer) when stage=plan_exited
+   (was: blocks /implement prompt — slash commands are now observed via
+   their underlying tool calls)
+6. unified_pre_tool allows Task(implementer) and Bash(gh issue create ...)
+   at stage=critique_done, consuming the marker
+   (was: allows /implement / /create-issue / /plan-to-issues prompts)
+7. unified_session_tracker advances stage from plan_exited to critique_done
+   when plan-critic fires
 8. Old markers without stage field treated as critique_done (backward compat)
 9. All existing test patterns still pass (no broken tests from changes)
-10. At least 19 new/modified tests cover the 2-state behavior
+10. At least 19 tests cover the 2-state behavior
+
+REMOVED criteria (per Issue #926):
+- (was 4) `--skip-review` is a slash-command flag, not a tool call. The
+  escape hatch lives at slash-command level (commands/implement.md), not
+  in this hook.
+- (was 5) Questions ending in `?` are user prompts and never reach
+  PreToolUse. The gate observes tool calls only.
 """
 
 import json
@@ -29,9 +42,13 @@ HOOKS_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev" / "hooks"
 # Add hooks to path for direct import
 sys.path.insert(0, str(HOOKS_DIR))
 
-from plan_mode_exit_detector import main as detector_main, MARKER_PATH
-from unified_prompt_validator import _check_plan_mode_enforcement, PLAN_MODE_EXIT_MARKER
-from unified_session_tracker import _advance_plan_mode_stage
+from plan_mode_exit_detector import main as detector_main, MARKER_PATH  # noqa: E402
+from unified_pre_tool import (  # noqa: E402
+    _PLAN_EXIT_MARKER_PATH,
+    _check_plan_exit_native,
+    _check_plan_exit_mcp,
+)
+from unified_session_tracker import _advance_plan_mode_stage  # noqa: E402
 
 
 def _write_marker(tmp_path: Path, *, stage: str = "critique_done", include_stage: bool = True) -> Path:
@@ -45,7 +62,7 @@ def _write_marker(tmp_path: Path, *, stage: str = "critique_done", include_stage
     Returns:
         Path to the created marker file.
     """
-    marker_path = tmp_path / PLAN_MODE_EXIT_MARKER
+    marker_path = tmp_path / _PLAN_EXIT_MARKER_PATH
     marker_path.parent.mkdir(parents=True, exist_ok=True)
     marker_data = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -103,90 +120,64 @@ def test_spec_staged_plan_exit_2_detector_system_message_mentions_plan_critic(tm
 
 
 # --------------------------------------------------------------------------
-# Criterion 3: validator blocks /implement (no --skip-review) at plan_exited
+# Criterion 3 (RETARGETED): PreToolUse blocks Task(implementer) at plan_exited
 # --------------------------------------------------------------------------
 
 def test_spec_staged_plan_exit_3_implement_blocked_at_plan_exited(tmp_path: Path):
-    """Criterion 3: /implement without --skip-review must be blocked at plan_exited stage."""
+    """Criterion 3 (retargeted): Task(implementer) must be blocked at plan_exited.
+
+    Was: prompt /implement blocked at UserPromptSubmit. Now: the underlying
+    tool call Task(implementer) is blocked at PreToolUse. Same semantic
+    outcome — Claude cannot run the implementer subagent before plan-critic.
+    """
     _write_marker(tmp_path, stage="plan_exited")
     with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/implement add authentication feature")
-    assert result == 2, f"Expected block (2), got {result}"
+        result = _check_plan_exit_native(
+            "Task",
+            {"subagent_type": "implementer", "prompt": "implement plan"},
+        )
+    assert result is not None, "Expected deny, got None (pass-through)"
+    assert result[0] == "deny"
 
 
 # --------------------------------------------------------------------------
-# Criterion 4: --skip-review consumes marker at any stage
+# Criterion 6 (RETARGETED): PreToolUse allows Task(implementer) and Bash(gh issue create) at critique_done, consume marker
 # --------------------------------------------------------------------------
 
-def test_spec_staged_plan_exit_4a_skip_review_allowed_at_plan_exited(tmp_path: Path):
-    """Criterion 4a: /implement --skip-review passes and consumes marker at plan_exited."""
-    marker = _write_marker(tmp_path, stage="plan_exited")
-    with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/implement --skip-review add auth")
-    assert result == 0, f"Expected pass (0), got {result}"
-    assert not marker.exists(), "Marker should be consumed (deleted)"
-
-
-def test_spec_staged_plan_exit_4b_skip_review_allowed_at_critique_done(tmp_path: Path):
-    """Criterion 4b: /implement --skip-review passes and consumes marker at critique_done."""
+def test_spec_staged_plan_exit_6a_task_implementer_allowed_at_critique_done(tmp_path: Path):
+    """Criterion 6a (retargeted): Task(implementer) passes and consumes marker at critique_done."""
     marker = _write_marker(tmp_path, stage="critique_done")
     with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/implement --skip-review fix login")
-    assert result == 0, f"Expected pass (0), got {result}"
-    assert not marker.exists(), "Marker should be consumed (deleted)"
-
-
-# --------------------------------------------------------------------------
-# Criterion 5: questions allowed at any stage
-# --------------------------------------------------------------------------
-
-def test_spec_staged_plan_exit_5a_question_allowed_at_plan_exited(tmp_path: Path):
-    """Criterion 5a: Question prompts must pass through at plan_exited stage."""
-    marker = _write_marker(tmp_path, stage="plan_exited")
-    with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("What should I do next?")
-    assert result is None, f"Expected None (pass-through), got {result}"
-    assert marker.exists(), "Marker should NOT be consumed for questions"
-
-
-def test_spec_staged_plan_exit_5b_question_allowed_at_critique_done(tmp_path: Path):
-    """Criterion 5b: Question prompts must pass through at critique_done stage."""
-    marker = _write_marker(tmp_path, stage="critique_done")
-    with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("Can you explain the plan?")
-    assert result is None, f"Expected None (pass-through), got {result}"
-    assert marker.exists(), "Marker should NOT be consumed for questions"
-
-
-# --------------------------------------------------------------------------
-# Criterion 6: /implement, /create-issue, /plan-to-issues allowed at critique_done
-# --------------------------------------------------------------------------
-
-def test_spec_staged_plan_exit_6a_implement_allowed_at_critique_done(tmp_path: Path):
-    """Criterion 6a: /implement must pass and consume marker at critique_done."""
-    marker = _write_marker(tmp_path, stage="critique_done")
-    with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/implement add authentication feature")
-    assert result == 0, f"Expected pass (0), got {result}"
+        result = _check_plan_exit_native(
+            "Task",
+            {"subagent_type": "implementer"},
+        )
+    assert result is None, f"Expected fall-through (None), got {result}"
     assert not marker.exists(), "Marker should be consumed"
 
 
-def test_spec_staged_plan_exit_6b_create_issue_allowed_at_critique_done(tmp_path: Path):
-    """Criterion 6b: /create-issue must pass and consume marker at critique_done."""
+def test_spec_staged_plan_exit_6b_bash_gh_issue_create_allowed_at_critique_done(tmp_path: Path):
+    """Criterion 6b (retargeted): Bash(gh issue create) passes and consumes marker at critique_done."""
     marker = _write_marker(tmp_path, stage="critique_done")
     with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/create-issue authentication feature needed")
-    assert result == 0, f"Expected pass (0), got {result}"
+        result = _check_plan_exit_native(
+            "Bash",
+            {"command": "gh issue create --title 'foo' --body 'bar'"},
+        )
+    assert result is None, f"Expected fall-through (None), got {result}"
     assert not marker.exists(), "Marker should be consumed"
 
 
-def test_spec_staged_plan_exit_6c_plan_to_issues_allowed_at_critique_done(tmp_path: Path):
-    """Criterion 6c: /plan-to-issues must pass and consume marker at critique_done."""
+def test_spec_staged_plan_exit_6c_task_issue_creator_allowed_at_critique_done(tmp_path: Path):
+    """Criterion 6c (retargeted): Task(issue-creator) consumes marker at critique_done."""
     marker = _write_marker(tmp_path, stage="critique_done")
     with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/plan-to-issues")
-    assert result == 0, f"Expected pass (0), got {result}"
-    assert not marker.exists(), "Marker should be consumed"
+        result = _check_plan_exit_native(
+            "Task",
+            {"subagent_type": "issue-creator"},
+        )
+    assert result is None
+    assert not marker.exists()
 
 
 # --------------------------------------------------------------------------
@@ -218,12 +209,17 @@ def test_spec_staged_plan_exit_7_stage_advances_on_plan_critic_completion(tmp_pa
 # --------------------------------------------------------------------------
 
 def test_spec_staged_plan_exit_8_no_stage_field_treated_as_critique_done(tmp_path: Path):
-    """Criterion 8: Marker without 'stage' field must behave as critique_done."""
+    """Criterion 8: Marker without 'stage' field must behave as critique_done.
+
+    PreToolUse retargeting: at critique_done, Task(implementer) passes
+    and consumes the marker. The semantic property (back-compat) is
+    preserved exactly — old markers don't block.
+    """
     marker = _write_marker(tmp_path, include_stage=False)
     with patch("os.getcwd", return_value=str(tmp_path)):
-        result = _check_plan_mode_enforcement("/implement add feature")
-    assert result == 0, (
-        f"Expected pass (0) for stageless marker (backward compat), got {result}"
+        result = _check_plan_exit_native("Task", {"subagent_type": "implementer"})
+    assert result is None, (
+        f"Expected fall-through (None) for stageless marker (back-compat), got {result}"
     )
     assert not marker.exists(), "Marker should be consumed"
 
@@ -233,14 +229,19 @@ def test_spec_staged_plan_exit_8_no_stage_field_treated_as_critique_done(tmp_pat
 # --------------------------------------------------------------------------
 
 def test_spec_staged_plan_exit_9_existing_tests_pass():
-    """Criterion 9: All existing unit tests for the 3 changed test files must pass."""
+    """Criterion 9: All existing unit tests for the changed test files must pass.
+
+    Per Issue #926, test_plan_mode_enforcement.py was deleted (superseded
+    by test_plan_exit_pretool_enforcement.py). This criterion now verifies
+    the new test files pass.
+    """
     test_files = [
         str(PROJECT_ROOT / "tests/unit/hooks/test_plan_mode_exit_detector.py"),
-        str(PROJECT_ROOT / "tests/unit/hooks/test_plan_mode_enforcement.py"),
+        str(PROJECT_ROOT / "tests/unit/hooks/test_plan_exit_pretool_enforcement.py"),
         str(PROJECT_ROOT / "tests/unit/hooks/test_plan_critic_stage_advance.py"),
     ]
     result = subprocess.run(
-        [sys.executable, "-m", "pytest"] + test_files + ["-v", "--tb=short", "-q"],
+        [sys.executable, "-m", "pytest"] + test_files + ["-v", "--tb=short", "-q", "--no-cov"],
         capture_output=True,
         text=True,
         cwd=str(PROJECT_ROOT),
@@ -254,15 +255,18 @@ def test_spec_staged_plan_exit_9_existing_tests_pass():
 
 
 # --------------------------------------------------------------------------
-# Criterion 10: at least 19 new/modified tests cover 2-state behavior
+# Criterion 10: at least 19 tests cover the 2-state staged behavior
 # --------------------------------------------------------------------------
 
 def test_spec_staged_plan_exit_10_minimum_test_count():
-    """Criterion 10: At least 19 tests must cover the 2-state staged behavior."""
-    # Count tests in the 3 test files that relate to staged behavior
+    """Criterion 10: At least 19 tests must cover the 2-state staged behavior.
+
+    Per Issue #926, the count is computed across the new PreToolUse test
+    file plus the unchanged detector and stage-advance test files.
+    """
     test_files = [
         PROJECT_ROOT / "tests/unit/hooks/test_plan_mode_exit_detector.py",
-        PROJECT_ROOT / "tests/unit/hooks/test_plan_mode_enforcement.py",
+        PROJECT_ROOT / "tests/unit/hooks/test_plan_exit_pretool_enforcement.py",
         PROJECT_ROOT / "tests/unit/hooks/test_plan_critic_stage_advance.py",
     ]
 
@@ -270,6 +274,7 @@ def test_spec_staged_plan_exit_10_minimum_test_count():
     stage_keywords = [
         "stage", "plan_exited", "critique_done", "skip_review",
         "plan_critic", "advance", "backward_compat", "system_message",
+        "marker", "consume",
     ]
 
     for test_file in test_files:

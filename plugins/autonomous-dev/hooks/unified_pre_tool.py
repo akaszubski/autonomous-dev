@@ -472,6 +472,115 @@ PROTECTED_INFRA_SEGMENTS = {
     '/skills/': {'.md'},
 }
 
+# ============================================================================
+# Plan-Exit Enforcement (Issue #926)
+#
+# Moved from UserPromptSubmit (unified_prompt_validator.py) to PreToolUse here
+# because UserPromptSubmit does not fire for in-turn tool calls by the model
+# (gh issue create, Task(implementer), etc.). Enforcement at PreToolUse
+# observes every tool call and cannot be bypassed by the model executing the
+# plan in-turn without a user prompt.
+#
+# Marker writer (plan_mode_exit_detector.py) and stage advancer
+# (unified_session_tracker.py) are unchanged — only the *enforcement* event
+# boundary moved.
+# ============================================================================
+
+_PLAN_EXIT_MARKER_PATH = ".claude/plan_mode_exit.json"
+_PLAN_EXIT_STALE_MINUTES = 30
+
+# Bash allowlists for plan_exited stage — read-only inspection only.
+# Command tokenization: `command.split()` + exact match against these sets.
+# Any command with injection metacharacters is rejected before tokenization.
+_PLAN_EXIT_BASH_ALLOWLIST_1TOKEN: "frozenset[str]" = frozenset({
+    "ls", "cat", "head", "tail", "wc", "pwd", "which", "echo",
+    "grep", "rg", "tree", "stat", "file", "date", "whoami", "id", "uname",
+})
+
+_PLAN_EXIT_BASH_ALLOWLIST_2TOKEN: "frozenset[tuple]" = frozenset({
+    ("git", "status"),
+    ("git", "log"),
+    ("git", "diff"),
+    ("git", "show"),
+    ("git", "branch"),
+    ("git", "blame"),
+    ("git", "ls-files"),
+    ("git", "rev-parse"),
+    ("git", "remote"),
+})
+
+_PLAN_EXIT_BASH_ALLOWLIST_3TOKEN: "frozenset[tuple]" = frozenset({
+    ("gh", "issue", "view"),
+    ("gh", "issue", "list"),
+    ("gh", "pr", "view"),
+    ("gh", "pr", "list"),
+    ("gh", "repo", "view"),
+    ("gh", "auth", "status"),
+})
+
+# Injection metacharacter tokens. Checked as raw substrings — NOT via shlex.
+# shlex would silently accept ';' inside single/double-quoted strings, which
+# defeats the purpose of blocking injection. Longer tokens listed first for
+# clarity; all matches are equivalent (any match → reject).
+#
+# A03 BLOCKING fix: '\n' and '\r' are bash command separators (identical to
+# ';'). Without these, str.split() at line ~3601 silently splits multi-line
+# payloads on whitespace, causing the first token to match the 1-token
+# allowlist while subsequent commands execute. Example bypass (now blocked):
+# 'ls\nrm -rf .claude/plan_mode_exit.json'.
+_PLAN_EXIT_INJECTION_TOKENS: "tuple[str, ...]" = (
+    "&&", "||", "$(", "<(", "<<<", "<<",
+    ";", "&", "|", "`", "$", "<", ">",
+    "\n", "\r",  # newline and carriage-return are bash command separators
+)
+
+# Subagents that consume the critique_done marker (allowed terminal actions).
+_PLAN_EXIT_CONSUMER_AGENTS: "frozenset[str]" = frozenset({
+    "issue-creator",
+    "continuous-improvement-analyst",
+    "implementer",
+})
+
+# MCP tools allowed at plan_exited stage — explicit allowlist (AC #21).
+# Structural (regex-based) heuristics are forbidden because they produce
+# false-negatives (e.g., "find_and_replace" contains "find" but is a write).
+# AC #19: mcp__playwright__browser_evaluate MUST NOT be on this list
+# (it executes arbitrary JS in the browser — not read-only).
+_PLAN_EXIT_MCP_READONLY: "frozenset[str]" = frozenset({
+    # Playwright — read-only browser inspection
+    "mcp__playwright__browser_snapshot",
+    "mcp__playwright__browser_take_screenshot",
+    "mcp__playwright__browser_console_messages",
+    "mcp__playwright__browser_network_requests",
+    # HuggingFace — read-only search and lookup
+    "mcp__claude_ai_Hugging_Face__hf_doc_search",
+    "mcp__claude_ai_Hugging_Face__hf_doc_fetch",
+    "mcp__claude_ai_Hugging_Face__hub_repo_search",
+    "mcp__claude_ai_Hugging_Face__paper_search",
+    "mcp__claude_ai_Hugging_Face__space_search",
+    "mcp__claude_ai_Hugging_Face__hf_whoami",
+    "mcp__claude_ai_Hugging_Face__hf_hub_query",
+    "mcp__claude_ai_Hugging_Face__hub_repo_details",
+    # Gmail — read-only
+    "mcp__claude_ai_Gmail__list_drafts",
+    "mcp__claude_ai_Gmail__list_labels",
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__search_threads",
+    # Calendar — read-only
+    "mcp__claude_ai_Google_Calendar__list_calendars",
+    "mcp__claude_ai_Google_Calendar__list_events",
+    "mcp__claude_ai_Google_Calendar__get_event",
+    # Drive — read-only
+    "mcp__claude_ai_Google_Drive__list_recent_files",
+    "mcp__claude_ai_Google_Drive__search_files",
+    "mcp__claude_ai_Google_Drive__read_file_content",
+    "mcp__claude_ai_Google_Drive__get_file_metadata",
+    "mcp__claude_ai_Google_Drive__get_file_permissions",
+})
+
+# Canonical deny reason (AC #5) — same string for all plan-exit denies.
+_PLAN_EXIT_DENY_REASON = "Run plan-critic or use /implement --skip-review"
+
 
 def _detect_invocation_context(prompt: str) -> "Optional[str]":
     """Detect reinvocation context from prompt text or environment.
@@ -3406,6 +3515,283 @@ def _maybe_write_issue_context(tool_input: Dict) -> None:
             pass  # Fail open - don't block Skill invocation on context write failure
 
 
+# ============================================================================
+# Plan-Exit Gate Helpers (Issue #926)
+# ============================================================================
+
+
+def _read_plan_exit_marker() -> "Optional[dict]":
+    """Read the plan-mode-exit marker.
+
+    Returns a dict with normalized 'stage' field, or None if no enforcement
+    should occur. Handles staleness (>30 min auto-deletes and returns None),
+    corruption (deletes and returns None), and missing 'stage' (back-compat:
+    treated as 'critique_done'). Unknown stage values are treated as
+    'plan_exited' (fail-safe).
+
+    Returns:
+        dict with at least 'stage' key (always one of 'plan_exited' or
+        'critique_done'), or None if no marker exists or marker was cleared.
+    """
+    try:
+        marker_path = Path(os.getcwd()) / _PLAN_EXIT_MARKER_PATH
+        if not marker_path.exists():
+            return None
+
+        try:
+            from datetime import datetime as _datetime, timezone as _timezone
+            raw_data = json.loads(marker_path.read_text())
+            marker_ts = _datetime.fromisoformat(raw_data.get("timestamp", ""))
+            age_minutes = (_datetime.now(_timezone.utc) - marker_ts).total_seconds() / 60.0
+            if age_minutes > _PLAN_EXIT_STALE_MINUTES:
+                marker_path.unlink(missing_ok=True)
+                return None
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError):
+            # Corrupted marker or bad timestamp — delete and pass through
+            try:
+                marker_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return None
+
+        # Normalize stage field
+        raw_stage = raw_data.get("stage")
+        if raw_stage is None:
+            # Back-compat: old markers without stage field
+            raw_data["stage"] = "critique_done"
+        elif raw_stage in ("plan_exited", "critique_done"):
+            raw_data["stage"] = raw_stage
+        else:
+            # Unknown stage — fail-safe to plan_exited
+            raw_data["stage"] = "plan_exited"
+
+        return raw_data
+    except Exception:
+        # Never raise from a hook — fail open (no enforcement)
+        return None
+
+
+def _delete_plan_exit_marker() -> None:
+    """Best-effort deletion of the plan-exit marker. Never raises."""
+    try:
+        marker_path = Path(os.getcwd()) / _PLAN_EXIT_MARKER_PATH
+        marker_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _bash_command_on_allowlist(command: str) -> bool:
+    """Check whether a Bash command is on the plan-exit read-only allowlist.
+
+    Returns True iff the command:
+      1. Contains zero injection metacharacters (raw substring check), AND
+      2. Tokenizes via .split() to match a 1-, 2-, or 3-token allowlist entry.
+
+    NOTE: raw substring rejection (not shlex) is intentional. shlex would
+    silently accept ';' inside quoted strings, which defeats injection
+    blocking.
+
+    Args:
+        command: Raw Bash command string.
+
+    Returns:
+        True if allowed (read-only, no injection), False otherwise.
+    """
+    if not command or not isinstance(command, str):
+        return False
+
+    # Reject injection metacharacters (raw substring check)
+    for token in _PLAN_EXIT_INJECTION_TOKENS:
+        if token in command:
+            return False
+
+    parts = command.split()
+    if not parts:
+        return False
+
+    if len(parts) == 1:
+        return parts[0] in _PLAN_EXIT_BASH_ALLOWLIST_1TOKEN
+
+    # Check 3-token allowlist first (more specific)
+    if len(parts) >= 3:
+        three = (parts[0], parts[1], parts[2])
+        if three in _PLAN_EXIT_BASH_ALLOWLIST_3TOKEN:
+            return True
+
+    # Check 2-token allowlist
+    two = (parts[0], parts[1])
+    if two in _PLAN_EXIT_BASH_ALLOWLIST_2TOKEN:
+        return True
+
+    # Check 1-token (e.g., "ls -la" — first token is "ls", 1-token allowlist)
+    if parts[0] in _PLAN_EXIT_BASH_ALLOWLIST_1TOKEN:
+        return True
+
+    return False
+
+
+def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple[str, str, str]]":
+    """Plan-exit gate for native Claude Code tools (Issue #926).
+
+    State matrix:
+      stage=plan_exited:
+        Read/Glob/Grep                           -> None (allow, fall through)
+        Task(plan-critic)                        -> None
+        Bash on allowlist (no injection)         -> None
+        Write/Edit/NotebookEdit                  -> deny
+        Task(other subagent)                     -> deny
+        Bash off allowlist OR with injection     -> deny
+      stage=critique_done:
+        Bash(gh issue create ...)                -> allow + delete marker
+        Task(implementer|issue-creator|          -> allow + delete marker
+            continuous-improvement-analyst)
+        anything else                            -> None (fall through)
+
+    Race mitigation: on tentative deny, sleep 10ms and re-read the marker; if
+    the stage advanced (writer hook fired during call), allow the tool.
+
+    Args:
+        tool_name: Tool being invoked.
+        tool_input: Tool input parameters.
+
+    Returns:
+        (decision, reason, system_message) if gate fires, or None to fall
+        through to later validators/default-allow.
+    """
+    import time as _time
+
+    marker = _read_plan_exit_marker()
+    if marker is None:
+        return None
+
+    stage = marker.get("stage", "plan_exited")
+
+    if stage == "critique_done":
+        # Marker is primed for consumption. Only specific terminal actions
+        # consume it; anything else passes through (fall to later gates).
+        if tool_name == "Bash":
+            command = tool_input.get("command", "") or ""
+            # Detect `gh issue create` — canonical consuming command.
+            # Tolerate leading whitespace and common flag positions.
+            stripped = command.strip()
+            if stripped.startswith("gh issue create") or stripped.startswith("gh  issue  create"):
+                _delete_plan_exit_marker()
+                return None  # Allow — fall through to later validators
+            # Any other Bash at critique_done — fall through (normal enforcement)
+            return None
+
+        if tool_name in AGENT_TOOL_NAMES:
+            subagent = (tool_input.get("subagent_type", "") or "").strip().lower()
+            if subagent in _PLAN_EXIT_CONSUMER_AGENTS:
+                _delete_plan_exit_marker()
+                return None  # Allow — fall through to later validators
+            # Other subagents at critique_done — fall through
+            return None
+
+        # Any other tool at critique_done — fall through
+        return None
+
+    # stage == "plan_exited"
+    # --- Allow list (fall through, no deny) ---
+    if tool_name in ("Read", "Glob", "Grep"):
+        return None
+
+    if tool_name in AGENT_TOOL_NAMES:
+        subagent = (tool_input.get("subagent_type", "") or "").strip().lower()
+        if subagent == "plan-critic":
+            return None
+        # Any other subagent is a deny candidate — apply race mitigation below
+
+    if tool_name == "Bash":
+        command = tool_input.get("command", "") or ""
+        if _bash_command_on_allowlist(command):
+            return None
+        # Off-allowlist or has injection — deny candidate
+
+    # --- Deny candidates ---
+    # Race mitigation: 10ms re-read; if stage advanced, allow.
+    # Belt-and-suspenders: catches any newly added NATIVE_TOOLS that aren't
+    # explicitly handled above.
+    deny_tools = ("Write", "Edit", "NotebookEdit")
+    is_deny_candidate = (
+        tool_name in deny_tools
+        or (tool_name in AGENT_TOOL_NAMES and (tool_input.get("subagent_type", "") or "").strip().lower() != "plan-critic")
+        or (tool_name == "Bash")
+    )
+
+    if not is_deny_candidate:
+        # Any other unclassified tool — fall through (allow)
+        return None
+
+    # Re-read marker after 10ms to catch writer-hook advance
+    try:
+        _time.sleep(0.01)
+    except Exception:
+        pass
+    refreshed = _read_plan_exit_marker()
+    if refreshed is None:
+        # Marker cleared during window — allow
+        return None
+    if refreshed.get("stage") == "critique_done":
+        # Stage advanced — allow (fall through to consume-on-intent logic)
+        return None
+
+    # Build a systemMessage with clear guidance (visible to user).
+    system_msg = (
+        "PLAN MODE EXIT DETECTED — Plan critique required\n"
+        "You just exited plan mode. Before proceeding, you MUST run the "
+        "plan-critic agent on your plan. After plan-critic completes with "
+        "PROCEED verdict, /implement, /create-issue, and /plan-to-issues "
+        "will consume the marker and run normally.\n"
+        "Escape hatch: /implement --skip-review"
+    )
+    return ("deny", _PLAN_EXIT_DENY_REASON, system_msg)
+
+
+def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
+    """Plan-exit gate for MCP (non-native) tools (Issue #926).
+
+    State matrix:
+      stage=plan_exited: deny unless tool_name in _PLAN_EXIT_MCP_READONLY.
+      stage=critique_done: None (fall through — marker consumed by native gate).
+
+    Same 10ms race mitigation as the native gate.
+
+    Args:
+        tool_name: MCP tool name (e.g., "mcp__ms365__send-mail").
+
+    Returns:
+        (decision, reason) if gate fires, or None to fall through.
+    """
+    import time as _time
+
+    marker = _read_plan_exit_marker()
+    if marker is None:
+        return None
+
+    stage = marker.get("stage", "plan_exited")
+    if stage == "critique_done":
+        # MCP tools don't consume the marker; native gate handles consumption.
+        return None
+
+    # stage == "plan_exited"
+    if tool_name in _PLAN_EXIT_MCP_READONLY:
+        return None
+
+    # Deny candidate — race mitigation
+    try:
+        _time.sleep(0.01)
+    except Exception:
+        pass
+    refreshed = _read_plan_exit_marker()
+    if refreshed is None:
+        return None
+    if refreshed.get("stage") == "critique_done":
+        return None
+
+    return ("deny", _PLAN_EXIT_DENY_REASON)
+
+
 def main():
     """Main entry point - dispatch to all validators and combine decisions."""
     try:
@@ -3455,6 +3841,17 @@ def main():
             # that _is_issue_command_active() reads.
             if tool_name == "Skill":
                 _maybe_write_issue_context(tool_input)
+
+            # Plan-Exit Gate (Issue #926): enforce plan-critic workflow on
+            # every tool call. Moved from UserPromptSubmit because in-turn
+            # model tool calls bypass UserPromptSubmit. Marker writer and
+            # stage advancer unchanged — only enforcement event moved.
+            plan_exit_decision = _check_plan_exit_native(tool_name, tool_input)
+            if plan_exit_decision is not None:
+                decision, reason, system_message = plan_exit_decision
+                _log_pretool_activity(tool_name, tool_input, decision, reason)
+                output_decision(decision, reason, system_message=system_message)
+                sys.exit(0)
 
             # Infrastructure protection: block direct edits to agents/, commands/,
             # hooks/, lib/, skills/ unless /implement pipeline is active (Issue #483)
@@ -4092,6 +4489,16 @@ def main():
             reason = "Non-autonomous-dev project - enforcement skipped"
             _log_pretool_activity(tool_name, tool_input, "allow", reason)
             output_decision("allow", reason)
+            sys.exit(0)
+
+        # Plan-Exit Gate for MCP tools (Issue #926): enforce plan-critic
+        # workflow on non-native tool calls (MCP servers). Uses explicit
+        # read-only allowlist (no regex heuristics — AC #21).
+        plan_exit_mcp_decision = _check_plan_exit_mcp(tool_name)
+        if plan_exit_mcp_decision is not None:
+            decision, reason = plan_exit_mcp_decision
+            _log_pretool_activity(tool_name, tool_input, decision, reason)
+            output_decision(decision, reason)
             sys.exit(0)
 
         # Run all validators in sequence (Layer 0 → Layer 1 → Layer 2 → Layer 3)

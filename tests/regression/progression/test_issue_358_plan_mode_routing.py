@@ -83,3 +83,70 @@ class TestIssue358HookRegistration:
         assert "#358" in all_issues, (
             f"Issue #358 not found in known_bypass_patterns.json. Found: {all_issues}"
         )
+
+    def test_plan_exit_enforcement_no_longer_in_userpromptsubmit(self):
+        """Issue #926: Plan-exit enforcement removed from UserPromptSubmit hook.
+
+        Verifies the migration to PreToolUse — neither the gate function
+        nor the constants remain in unified_prompt_validator.py.
+        """
+        validator_path = (
+            PROJECT_ROOT / "plugins/autonomous-dev/hooks/unified_prompt_validator.py"
+        )
+        content = validator_path.read_text()
+        # Function definitions and constants must be absent (only comment refs OK)
+        forbidden = [
+            "def _check_plan_mode_enforcement",
+            "def _extract_wrapped_command",
+            "PLAN_MODE_EXIT_MARKER = ",
+            "PLAN_MODE_STALE_MINUTES = ",
+        ]
+        present = [s for s in forbidden if s in content]
+        assert present == [], (
+            f"Plan-exit enforcement still in unified_prompt_validator.py: {present}. "
+            f"Per Issue #926, enforcement moved to unified_pre_tool.py."
+        )
+
+    def test_sandbox_enforcer_not_imported_in_pretool(self):
+        """Issue #926 (AC #17): SandboxEnforcer NOT used by plan-exit gate.
+
+        Plan-critic flagged Option C (reuse SandboxEnforcer) as structurally
+        wrong: SandboxEnforcer operates only in the MCP/Layer-0 sandbox path,
+        not the NATIVE_TOOLS branch where this enforcement lives. This test
+        prevents accidental reintroduction by ensuring the count of SandboxEnforcer
+        imports stays at exactly 1 (the pre-existing Layer 0 import in
+        `validate_sandbox_layer`). Any additional import would suggest the
+        plan-exit gate is reusing SandboxEnforcer — forbidden by AC #17.
+        """
+        pretool_path = (
+            PROJECT_ROOT / "plugins/autonomous-dev/hooks/unified_pre_tool.py"
+        )
+        content = pretool_path.read_text()
+        # Count import statements (not arbitrary mentions)
+        import_lines = [
+            line for line in content.splitlines()
+            if (("from sandbox_enforcer import" in line)
+                or ("import sandbox_enforcer" in line))
+            and not line.strip().startswith("#")
+        ]
+        assert len(import_lines) <= 1, (
+            f"Multiple SandboxEnforcer imports found ({len(import_lines)}); "
+            f"only the Layer 0 import in validate_sandbox_layer is allowed. "
+            f"Per Issue #926 AC #17, the plan-exit gate must NOT reuse "
+            f"SandboxEnforcer (structural mismatch — SandboxEnforcer operates "
+            f"only on Bash commands in the MCP/Layer-0 path, but plan-exit "
+            f"enforcement lives in the NATIVE_TOOLS branch). "
+            f"Found imports: {import_lines}"
+        )
+
+        # Verify the plan-exit helpers don't reference SandboxEnforcer in any way
+        # (they should use the dedicated _PLAN_EXIT_BASH_ALLOWLIST_* frozensets).
+        # Find the plan-exit helper section
+        plan_exit_section_start = content.find("def _check_plan_exit_native")
+        plan_exit_section_end = content.find("def main():", plan_exit_section_start)
+        if plan_exit_section_start != -1 and plan_exit_section_end != -1:
+            plan_exit_section = content[plan_exit_section_start:plan_exit_section_end]
+            assert "SandboxEnforcer" not in plan_exit_section, (
+                "Plan-exit helper functions must not reference SandboxEnforcer "
+                "(AC #17). Use _PLAN_EXIT_BASH_ALLOWLIST_* frozensets instead."
+            )

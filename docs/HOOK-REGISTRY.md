@@ -48,7 +48,7 @@ The plugin uses 30 active hooks (files on disk in `plugins/autonomous-dev/hooks/
 | validate_project_alignment | PreCommit | Enabled | Validate PROJECT.md alignment |
 | validate_session_quality | Stop | Enabled | Validate session quality and completeness |
 | plan_gate | PreToolUse | Enabled | Pre-implementation planning gate — blocks complex Write/Edit when no valid plan exists in .claude/plans/. Exempts documentation files and simple edits (<100 lines). Validates WHY+SCOPE, Existing Solutions, Minimal Path sections. Escape hatch: SKIP_PLAN_CHECK=1. Fails open. (Issue #814) |
-| plan_mode_exit_detector | PostToolUse | Enabled | Detect ExitPlanMode calls and write marker (`stage: plan_exited`); implements staged plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done → /implement allowed |
+| plan_mode_exit_detector | PostToolUse | Enabled | Detect ExitPlanMode calls and write marker (`stage: plan_exited`); implements staged plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done → /implement allowed. **Per Issue #926, the *enforcement* of this marker moved from UserPromptSubmit to PreToolUse (`unified_pre_tool.py`); marker writer behavior unchanged** |
 | session_activity_logger | PostToolUse | Enabled | Structured JSONL activity logging for continuous improvement |
 | task_completed_handler | TaskCompleted | Enabled | Log task completion events to activity JSONL for pipeline observability |
 | validate_claude_md_size | PreCommit | Enabled | Warn when CLAUDE.md exceeds 200 lines (Anthropic best practice). Non-blocking — always exits 0. |
@@ -80,7 +80,7 @@ Runs after tool execution (non-blocking, informational).
 
 | Hook | Status | Key Env Vars | Purpose |
 |------|--------|--------------|---------|
-| plan_mode_exit_detector | Enabled | — | Detect ExitPlanMode tool calls and write `.claude/plan_mode_exit.json` marker with `stage: plan_exited`; consumed by unified_prompt_validator as part of Staged Plan-Exit Pipeline (plan_exited → critique_done → /implement allowed); stage advanced by unified_session_tracker when plan-critic SubagentStop fires |
+| plan_mode_exit_detector | Enabled | — | Detect ExitPlanMode tool calls and write `.claude/plan_mode_exit.json` marker with `stage: plan_exited`; consumed by `unified_pre_tool.py` PreToolUse plan-exit gate (Issue #926 — moved from `unified_prompt_validator.py` UserPromptSubmit) as part of Staged Plan-Exit Pipeline (plan_exited → critique_done → terminal action consumes marker); stage advanced by unified_session_tracker when plan-critic SubagentStop fires |
 | post_file_move | Enabled | - | Track file moves for documentation updates |
 | auto_update_docs | Enabled | AUTO_UPDATE_DOCS (default: true) | Detect API changes and sync docs |
 | auto_add_to_regression | Opt-in (default: false) | AUTO_ADD_REGRESSION | Auto-create regression tests |
