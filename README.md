@@ -480,6 +480,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 ### Security
 - [Sandboxing](docs/SANDBOXING.md) - Command classification and shell injection detection
+- [MCP Architecture](docs/MCP-ARCHITECTURE.md) - Per-repo `.mcp.json` default, token-bleed prevention, migration helper
 - [MCP Security](docs/MCP-SECURITY.md) - Path traversal, command injection, SSRF prevention
 - [Security Audit](docs/SECURITY.md) - Security scanning architecture
 

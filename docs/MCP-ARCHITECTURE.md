@@ -67,6 +67,84 @@ This document describes the Model Context Protocol (MCP) architecture for autono
 
 ---
 
+## Per-repo vs Global Configuration
+
+**TL;DR**: Default to **per-repo `.mcp.json`**. Use `~/.claude/settings.json` `mcpServers` only for servers you genuinely want available in every project.
+
+### Two Locations for MCP Configuration
+
+| Location | Scope | Read by Claude Code | Recommended for |
+|----------|-------|---------------------|------------------|
+| `~/.claude/settings.json` `mcpServers` | All projects (global) | Yes | Truly universal tools (e.g., a personal note-taking server) |
+| `<repo>/.mcp.json` | Single repo | Yes (preferred) | Project-specific tools (default) |
+
+Claude Code natively reads `.mcp.json` from the project root before falling back to the global config. There is no client-side change required to switch — only authoring conventions and migration tooling.
+
+### Token-Bleed Cost of Global Configuration
+
+Every globally-configured MCP server has its tool definitions injected into every prompt's system context, **regardless of relevance**. A typical MCP server adds 500-2000 tokens of tool descriptions; five global servers cost roughly **5-10K tokens per turn across every project**, even when none of the tools are used.
+
+Concrete check:
+
+```bash
+# How many global MCP servers are silently bleeding into every prompt?
+cat ~/.claude/settings.json | jq '.mcpServers | length'
+```
+
+If the answer is non-zero, those servers are paying tokens in unrelated projects. Move what you can to per-repo `.mcp.json`.
+
+### Secret Leakage Risk
+
+A global `GITHUB_TOKEN` env var configured under `mcpServers` is visible to MCP servers running inside **unrelated repos** — including untrusted third-party clones. Per-repo `.mcp.json` (gitignored when it contains literal secrets) constrains the blast radius.
+
+### Recommended Default
+
+```bash
+# Each repo gets its own .mcp.json with only the servers it needs.
+# /setup Step 1.6 creates this from .mcp/config.template.json.
+ls .mcp.json
+```
+
+### Migration: Global → Per-repo
+
+Use the migration helper (Issue #948) to copy a single named server from `~/.claude/settings.json` `mcpServers` into `<repo>/.mcp.json`. The migration is **non-destructive** — the global entry is preserved unless you remove it manually.
+
+```bash
+# Via install.sh standalone mode:
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) \
+  --migrate-mcp-to-repo "$(pwd)" --server github
+
+# Or via the helper directly:
+python3 plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py \
+  --server github --repo "$(pwd)"
+```
+
+The helper:
+1. Reads the named server from global `mcpServers`
+2. Writes it to `<repo>/.mcp.json` (creating the file or merging into existing servers)
+3. Detects inline secrets via `lib/secret_patterns.py` (Anthropic keys, GitHub PATs, AWS keys, etc.)
+4. If secrets are found, sets file mode `0o600` and appends `.mcp.json` to `.gitignore`
+5. Returns a JSON result for scripted callers
+
+Pure `${VAR}` indirections (e.g., `"GITHUB_TOKEN": "${GITHUB_TOKEN}"`) are NOT treated as secrets — those resolve at runtime from `.env` and are safe to commit.
+
+### Gitignore Guidance
+
+| Your `.mcp.json` contains... | Gitignore status |
+|------|------|
+| Only `${VAR}` placeholders | Safe to commit |
+| Literal API keys / tokens | MUST be gitignored (the migration helper does this automatically) |
+
+If you edit `.mcp.json` by hand and add an inline secret, run:
+
+```bash
+python3 plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py --check-only --repo .
+```
+
+It returns `"secrets_detected": true` when any string in the file matches a known secret pattern.
+
+---
+
 ## Component Details
 
 ### 1. MCP Servers (Tools Layer)

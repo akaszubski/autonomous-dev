@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/plugins/autonomous-dev/hooks/auto_format.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

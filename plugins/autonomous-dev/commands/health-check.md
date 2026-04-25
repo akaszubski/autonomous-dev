@@ -10,7 +10,17 @@ user-invocable: true
 ## Implementation
 
 ```bash
-PYTHONPATH=. python "$(dirname "$0")/../scripts/validate_structure.py"
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+PYTHONPATH="$PROJECT_ROOT/plugins/autonomous-dev/lib:$PYTHONPATH" \
+  python "$PROJECT_ROOT/scripts/validate_structure.py"
+STRUCT_RC=$?
+PYTHONPATH="$PROJECT_ROOT/plugins/autonomous-dev/lib:$PYTHONPATH" \
+  python -m hook_path_validator \
+    --global-settings "$HOME/.claude/settings.json" \
+    --local-settings "$PROJECT_ROOT/.claude/settings.local.json" \
+    --project-root "$PROJECT_ROOT"
+HOOK_RC=$?
+exit $(( STRUCT_RC | HOOK_RC ))
 ```
 
 # Health Check - Plugin Component Validation
@@ -45,6 +55,13 @@ Validates 3 critical component types:
 4. **Marketplace Version** (optional)
    - Detects version differences between marketplace and project plugin
    - Shows available upgrades/downgrades
+
+5. **Hook Path Validation** (Issue #950)
+   - REQUIRED: every `hooks.<event>[].hooks[].command` in `~/.claude/settings.json` and `.claude/settings.local.json` MUST resolve to an existing file
+   - REQUIRED: shell scripts (`.sh`, `.bash`, `.zsh`) MUST have the execute bit set
+   - FORBIDDEN: the same canonical hook path registered in BOTH global and local settings (warning — fires twice)
+   - FORBIDDEN: hook commands referencing undefined environment variables (e.g. `$UNDEFINED_VAR`)
+   - Exit code 1 indicates required action; exit code 0 means all hook paths are healthy
 
 ## Expected Output
 
@@ -133,7 +150,7 @@ Action: Run /sync --marketplace to reinstall
 - Before starting a new feature (validate environment)
 - After plugin updates (ensure compatibility)
 - When debugging plugin issues (identify missing components)
-- To check for marketplace updates
+- When marketplace updates MUST be detected
 
 ## Related Commands
 

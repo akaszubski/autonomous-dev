@@ -45,3 +45,21 @@ python3 ~/.claude/lib/sync_dispatcher.py $ARGUMENTS
 # Uninstall plugin
 /sync --uninstall
 ```
+
+## Post-Sync: Strip duplicate global hooks (Issue #944)
+
+When invoked with `--all` (or after a `--github` sync that updates
+templates), the model SHOULD invoke the migration helper to strip global
+hook duplicates from the local `.claude/settings.json`:
+
+```bash
+python3 plugins/autonomous-dev/scripts/strip_duplicate_hooks.py \
+    --target .claude/settings.json
+```
+
+Parse the JSON result and report `removed_count` to the user (e.g.,
+"Stripped 3 duplicate global hook(s) from .claude/settings.json"). This is
+idempotent — a second run reports `removed_count: 0`.
+
+The helper skips files whose basename is `settings.autonomous-dev.json` or
+that contain `"_autonomous_dev_dogfooding": true` at the top level.

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/this_hook_does_not_exist_950.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

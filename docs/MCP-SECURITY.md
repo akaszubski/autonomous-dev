@@ -10,6 +10,8 @@ covers:
 **Issue**: #95 (MCP Server Security)
 **Agent**: implementer
 
+> **See also**: [MCP-ARCHITECTURE.md → Per-repo vs Global Configuration](./MCP-ARCHITECTURE.md#per-repo-vs-global-configuration) for the recommended `.mcp.json` default and migration helper (Issue #948).
+
 ---
 
 ## DEPRECATION NOTICE (Issue #211)
