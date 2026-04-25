@@ -62,6 +62,8 @@ MANIFEST_FILE="plugins/autonomous-dev/config/install_manifest.json"
 # Parse arguments
 VERBOSE=false
 CLEAN=false
+MIGRATE_MCP_REPO=""    # Issue #948: --migrate-mcp-to-repo <path>
+MIGRATE_MCP_SERVER=""  # Issue #948: --server <name> (paired with above)
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -73,6 +75,14 @@ while [[ $# -gt 0 ]]; do
             CLEAN=true
             shift
             ;;
+        --migrate-mcp-to-repo)
+            MIGRATE_MCP_REPO="$2"
+            shift 2
+            ;;
+        --server)
+            MIGRATE_MCP_SERVER="$2"
+            shift 2
+            ;;
         --help|-h)
             echo "autonomous-dev Plugin Installer"
             echo ""
@@ -81,9 +91,16 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: install.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --verbose, -v   Show detailed output"
-            echo "  --clean         Remove existing staging directory first"
-            echo "  --help, -h      Show this help message"
+            echo "  --verbose, -v                       Show detailed output"
+            echo "  --clean                             Remove existing staging directory first"
+            echo "  --migrate-mcp-to-repo <repo-path>   Standalone: migrate one MCP server"
+            echo "                                      from ~/.claude/settings.json mcpServers"
+            echo "                                      to <repo-path>/.mcp.json (Issue #948)."
+            echo "                                      Requires --server <name>."
+            echo "                                      Skips the normal install flow."
+            echo "  --server <name>                     MCP server name to migrate (key under"
+            echo "                                      mcpServers). Used with --migrate-mcp-to-repo."
+            echo "  --help, -h                          Show this help message"
             echo ""
             echo "After running this script:"
             echo "  1. Restart Claude Code (Cmd+Q / Ctrl+Q)"
@@ -345,6 +362,120 @@ configure_global_settings() {
         local error_msg
         error_msg=$(echo "$result" | python3 -c "import json, sys; data=json.load(sys.stdin); print(data.get('message', 'Unknown error'))" 2>/dev/null || echo "Configuration failed")
         log_warning "Settings configuration: ${error_msg}"
+        return 1
+    fi
+}
+
+# Migrate per-repo settings.json: strip duplicated global hooks (Issue #944)
+# Existing user installs may have ~/.claude/settings.json (or per-repo
+# .claude/settings.json) with hook entries that are also registered in the
+# global settings file. This function calls strip_duplicate_hooks.py to
+# remove the duplicates atomically. Non-blocking — install continues on
+# any failure.
+strip_duplicate_global_hooks() {
+    log_step "Migrating duplicate global hooks (Issue #944)..."
+
+    local script_path="${STAGING_DIR}/files/plugins/autonomous-dev/scripts/strip_duplicate_hooks.py"
+    local home_settings="${HOME}/.claude/settings.json"
+    local repo_settings=".claude/settings.json"
+
+    # Skip if migration script not staged
+    if [[ ! -f "$script_path" ]]; then
+        log_info "strip_duplicate_hooks.py not staged - skipping migration"
+        return 0
+    fi
+
+    local total_removed=0
+    local target
+    for target in "$home_settings" "$repo_settings"; do
+        if [[ ! -f "$target" ]]; then
+            continue
+        fi
+
+        # Run migration (always exits 0, parse JSON for status)
+        local result
+        result=$(python3 "$script_path" --target "$target" 2>/dev/null \
+            || echo '{"success":false,"removed_count":0}')
+
+        local removed
+        removed=$(echo "$result" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print(d.get('removed_count',0))" \
+            2>/dev/null || echo "0")
+
+        if [[ "$removed" != "0" ]]; then
+            log_success "Stripped ${removed} duplicate global hook(s) from ${target}"
+            total_removed=$((total_removed + removed))
+        fi
+    done
+
+    if [[ "$total_removed" == "0" ]]; then
+        log_info "No duplicate global hooks found in settings.json files"
+    fi
+
+    return 0
+}
+
+# Migrate one MCP server from global ~/.claude/settings.json mcpServers
+# to <repo>/.mcp.json (Issue #948). Standalone mode — does NOT run during
+# the normal install flow. Triggered by:
+#   install.sh --migrate-mcp-to-repo <repo-path> --server <name>
+#
+# Both flags are required. The helper script
+# (plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py) is read from the
+# staging directory populated by download_files. Always returns 0 unless
+# the args are missing or the helper script is absent — mirrors the
+# JSON-return contract of strip_duplicate_global_hooks.
+migrate_mcp_to_repo() {
+    if [[ -z "$MIGRATE_MCP_REPO" ]] || [[ -z "$MIGRATE_MCP_SERVER" ]]; then
+        log_error "--migrate-mcp-to-repo requires --server <name>"
+        return 1
+    fi
+
+    local script_path="${STAGING_DIR}/files/plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py"
+
+    # If the staged copy is missing, try the local repo copy (developer flow).
+    if [[ ! -f "$script_path" ]]; then
+        local local_path
+        local_path="$(dirname "$0")/plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py"
+        if [[ -f "$local_path" ]]; then
+            script_path="$local_path"
+        else
+            log_error "migrate helper not found at $script_path"
+            return 1
+        fi
+    fi
+
+    log_step "Migrating MCP server '${MIGRATE_MCP_SERVER}' to ${MIGRATE_MCP_REPO}/.mcp.json (Issue #948)..."
+
+    local result
+    result=$(python3 "$script_path" \
+        --server "$MIGRATE_MCP_SERVER" \
+        --repo "$MIGRATE_MCP_REPO" 2>&1 \
+        || echo '{"success":false,"error":"helper_failed"}')
+
+    local success
+    success=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('success', False))" \
+        2>/dev/null || echo "False")
+
+    local secrets
+    secrets=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('secrets_detected', False))" \
+        2>/dev/null || echo "False")
+
+    local gitignored
+    gitignored=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('gitignored', False))" \
+        2>/dev/null || echo "False")
+
+    if [[ "$success" == "True" ]]; then
+        log_success "Migrated MCP server '${MIGRATE_MCP_SERVER}' to ${MIGRATE_MCP_REPO}/.mcp.json"
+        if [[ "$secrets" == "True" ]]; then
+            log_warning "Inline secrets detected. .gitignore updated: ${gitignored}"
+        fi
+        return 0
+    else
+        log_error "MCP migration failed: ${result}"
         return 1
     fi
 }
@@ -1369,6 +1500,22 @@ main() {
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
 
+    # Issue #948: Standalone MCP migration mode — short-circuit the normal
+    # install flow. This is intentionally NOT mixed with regular installs:
+    # users invoke `install.sh --migrate-mcp-to-repo <path> --server <name>`
+    # explicitly when they want to move servers from global to per-repo.
+    if [[ -n "$MIGRATE_MCP_REPO" ]]; then
+        if ! command -v python3 &> /dev/null; then
+            log_error "Python 3 required for MCP migration"
+            exit 1
+        fi
+        if migrate_mcp_to_repo; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+
     # Check requirements
     check_downloader
 
@@ -1515,6 +1662,9 @@ main() {
     if migrate_hooks_format; then
         hooks_migrated=true
     fi
+
+    # Strip duplicated global hooks from per-repo settings.json (Issue #944)
+    strip_duplicate_global_hooks || true
 
     # Print results
     echo ""

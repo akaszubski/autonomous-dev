@@ -147,6 +147,71 @@ See all options: cat .env  (file is fully documented)
 
 ---
 
+### Step 1.6: Initialize per-repo .mcp.json (Issue #948)
+
+**Why**: Per-repo `.mcp.json` is the recommended default. MCP servers configured globally in `~/.claude/settings.json` mcpServers inject tool definitions into every prompt — even when irrelevant — costing 5-10K tokens per turn for a typical 5-server setup. Per-repo `.mcp.json` scopes servers to where they're actually used.
+
+```bash
+# Step 1.6a: Bootstrap .mcp.json from a reference template if absent
+if [ -f ".mcp.json" ]; then
+  echo "Preserving existing .mcp.json"
+else
+  TEMPLATE_PATH=""
+  for candidate in ".claude/.mcp/config.template.json" ".mcp/config.template.json" "plugins/autonomous-dev/.mcp/config.template.json"; do
+    if [ -f "$candidate" ]; then TEMPLATE_PATH="$candidate"; break; fi
+  done
+  if [ -n "$TEMPLATE_PATH" ]; then
+    cp "$TEMPLATE_PATH" .mcp.json
+    echo "Created .mcp.json from $TEMPLATE_PATH"
+  else
+    echo '{"mcpServers": {}}' > .mcp.json
+    echo "Created .mcp.json placeholder (no template found)"
+  fi
+fi
+
+# Step 1.6b: Auto-gitignore .mcp.json if it contains inline secrets
+HELPER="plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py"
+if [ ! -f "$HELPER" ]; then
+  HELPER=".claude/scripts/migrate_mcp_to_repo.py"
+fi
+HAS_SECRETS="False"
+if [ -f "$HELPER" ]; then
+  HAS_SECRETS=$(python3 "$HELPER" --check-only --repo . 2>/dev/null \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('secrets_detected', False))" 2>/dev/null \
+    || echo "False")
+fi
+
+if [ "$HAS_SECRETS" = "True" ]; then
+  if [ -f ".gitignore" ]; then
+    if ! grep -q '^\.mcp\.json$' .gitignore; then
+      echo ".mcp.json" >> .gitignore
+      echo "Added .mcp.json to .gitignore (contains inline secrets)"
+    fi
+  else
+    echo ".mcp.json" > .gitignore
+    echo "Created .gitignore with .mcp.json"
+  fi
+fi
+```
+
+**After creating `.mcp.json`, surface this note to the user:**
+
+```
+Created .mcp.json with default servers. Edit to add/remove. See
+docs/MCP-ARCHITECTURE.md ("Per-repo vs Global Configuration") for the
+token-bleed cost of global mcpServers and the recommended migration path.
+
+If you have servers in ~/.claude/settings.json mcpServers that you'd
+rather scope to a single repo, run:
+
+  bash install.sh --migrate-mcp-to-repo $(pwd) --server <name>
+  # or:
+  python3 plugins/autonomous-dev/scripts/migrate_mcp_to_repo.py \
+    --server <name> --repo $(pwd)
+```
+
+---
+
 ### Step 2: Detect Project Type
 
 After files are installed, detect the project type and generate PROJECT.md inline. Follow these steps:

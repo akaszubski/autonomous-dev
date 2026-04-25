@@ -29,12 +29,14 @@ See Also:
     - tests/unit/lib/test_settings_merger.py for test cases
 """
 
+import copy
 import json
 import os
+import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # Import security utilities
 try:
@@ -44,6 +46,193 @@ except ImportError:
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
     from security_utils import validate_path, audit_log
+
+# Reuse ValidationIssue dataclass from sync_validator (no new dataclass per Issue #944)
+try:
+    from autonomous_dev.lib.sync_validator import ValidationIssue
+except ImportError:
+    try:
+        from sync_validator import ValidationIssue
+    except ImportError:
+        # Last-resort fallback: define a compatible minimal dataclass.
+        # This branch should not normally be hit because sync_validator.py
+        # is co-located in lib/.
+        @dataclass
+        class ValidationIssue:  # type: ignore[no-redef]
+            """Compatibility shim — see sync_validator.ValidationIssue."""
+            severity: str
+            category: str
+            message: str
+            file_path: Optional[str] = None
+            line_number: Optional[int] = None
+            auto_fixable: bool = False
+            fix_action: Optional[str] = None
+
+
+# Issue #944: Canonical global-hook commands that MUST NOT appear in per-repo
+# settings.json templates (because they're already registered in
+# ~/.claude/settings.json by configure_global_settings.py).
+#
+# These are the exact command strings (post-whitespace-strip). Variants with
+# extra args (e.g., `&& echo ...` suffixes, custom env vars) are NOT
+# considered canonical and are preserved by strip_global_duplicates.
+CANONICAL_GLOBAL_HOOKS: Tuple[str, ...] = (
+    "python3 ~/.claude/hooks/unified_prompt_validator.py",
+    "python3 ~/.claude/hooks/plan_gate.py",
+    "python3 ~/.claude/hooks/plan_mode_exit_detector.py",
+    "python3 ~/.claude/hooks/stop_quality_gate.py",
+    "python3 ~/.claude/hooks/task_completed_handler.py",
+    "python3 ~/.claude/hooks/unified_session_tracker.py",
+    "CONVERSATION_ARCHIVE=true python3 ~/.claude/hooks/conversation_archiver.py",
+)
+
+
+def extract_hook_refs(settings: Dict[str, Any]) -> set:
+    """Extract all hook file references (basename .py only) from settings.
+
+    Walks the settings["hooks"] tree and collects every command string that
+    references a Python hook file. Returns the set of basenames, e.g.
+    {"unified_prompt_validator.py", "plan_gate.py"}.
+
+    Args:
+        settings: Parsed settings.json content (dict).
+
+    Returns:
+        Set of hook filenames (basename only, with .py extension).
+    """
+    refs: set = set()
+    hooks_section = settings.get("hooks", {})
+    if not isinstance(hooks_section, dict):
+        return refs
+
+    pattern = re.compile(r"hooks/(\w+\.py)")
+
+    for _lifecycle, matchers in hooks_section.items():
+        if not isinstance(matchers, list):
+            continue
+        for matcher in matchers:
+            if not isinstance(matcher, dict):
+                continue
+            hook_list = matcher.get("hooks", [])
+            if not isinstance(hook_list, list):
+                continue
+            for hook in hook_list:
+                if not isinstance(hook, dict):
+                    continue
+                command = hook.get("command", "")
+                for match in pattern.finditer(command):
+                    refs.add(match.group(1))
+    return refs
+
+
+def strip_global_duplicates(
+    settings: Dict[str, Any],
+    canonical_hooks: Iterable[str] = CANONICAL_GLOBAL_HOOKS,
+    *,
+    source_label: str = "<unknown>",
+) -> Tuple[Dict[str, Any], List[ValidationIssue]]:
+    """Strip global-hook duplicates from a settings dict.
+
+    Per-repo settings.json files MUST NOT redeclare hooks that are already
+    registered in the user's global ~/.claude/settings.json. This function
+    removes those duplicates by exact-match string comparison on the hook
+    command.
+
+    Args:
+        settings: Parsed settings.json content (dict). NOT mutated — a
+            deep copy is returned.
+        canonical_hooks: Iterable of exact command strings (post-whitespace
+            strip) to remove. Defaults to CANONICAL_GLOBAL_HOOKS.
+        source_label: Identifier (e.g., file path) for ValidationIssue
+            file_path field. Default "<unknown>".
+
+    Returns:
+        Tuple of (modified_settings_deep_copy, [ValidationIssue]).
+        The list is empty when nothing was stripped (idempotent re-call).
+
+    Notes:
+        - Match is exact on the whitespace-stripped command. A command like
+          ``"python3 ~/.claude/hooks/foo.py && echo done"`` is NOT removed
+          when ``"python3 ~/.claude/hooks/foo.py"`` is canonical.
+        - When all hooks in a matcher are removed, the matcher group is
+          removed. When all matcher groups in an event are removed, the
+          event key is removed. When all events are removed, ``"hooks"``
+          itself is removed.
+        - Idempotent: a second call yields ``([], same dict)``.
+    """
+    canonical_set = {c.strip() for c in canonical_hooks}
+    issues: List[ValidationIssue] = []
+
+    result = copy.deepcopy(settings)
+    hooks_section = result.get("hooks")
+
+    if not isinstance(hooks_section, dict):
+        return result, issues
+
+    new_hooks_section: Dict[str, Any] = {}
+
+    for event_name, matchers in hooks_section.items():
+        if not isinstance(matchers, list):
+            # Preserve unknown shapes verbatim.
+            new_hooks_section[event_name] = matchers
+            continue
+
+        kept_matchers: List[Any] = []
+
+        for matcher in matchers:
+            if not isinstance(matcher, dict):
+                kept_matchers.append(matcher)
+                continue
+
+            hook_entries = matcher.get("hooks")
+            if not isinstance(hook_entries, list):
+                # Matcher without "hooks" array — keep as-is.
+                kept_matchers.append(matcher)
+                continue
+
+            kept_hooks: List[Any] = []
+            for entry in hook_entries:
+                if not isinstance(entry, dict):
+                    kept_hooks.append(entry)
+                    continue
+                cmd = entry.get("command", "")
+                if isinstance(cmd, str) and cmd.strip() in canonical_set:
+                    issues.append(
+                        ValidationIssue(
+                            severity="info",
+                            category="hook-dedup",
+                            message=(
+                                f"Stripped global duplicate "
+                                f"{cmd.strip()!r} from {event_name}"
+                            ),
+                            file_path=source_label,
+                            line_number=None,
+                        )
+                    )
+                    continue
+                kept_hooks.append(entry)
+
+            if not kept_hooks:
+                # All hooks in this matcher were canonical duplicates.
+                # Drop the matcher group entirely.
+                continue
+
+            # Preserve all keys on the matcher (e.g., "matcher", custom keys)
+            # but replace "hooks" with the filtered list.
+            new_matcher = {**matcher, "hooks": kept_hooks}
+            kept_matchers.append(new_matcher)
+
+        if kept_matchers:
+            new_hooks_section[event_name] = kept_matchers
+        # else: all matchers for this event were dropped — omit event.
+
+    if new_hooks_section:
+        result["hooks"] = new_hooks_section
+    else:
+        # Entire hooks section is now empty — remove key.
+        result.pop("hooks", None)
+
+    return result, issues
 
 
 # Issue #144: Migration mapping from unified hooks to replaced hooks

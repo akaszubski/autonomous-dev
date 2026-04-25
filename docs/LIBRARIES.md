@@ -14,7 +14,7 @@ This document provides detailed API documentation for shared libraries in `plugi
 
 The autonomous-dev plugin includes shared libraries organized into the following categories:
 
-### Core Libraries (90)
+### Core Libraries (91)
 
 1. **security_utils.py** - Security validation and audit logging
 2. **project_md_updater.py** - Atomic PROJECT.md updates with merge conflict detection
@@ -106,6 +106,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 89. **agent_output_health.py** - Ghost and absent agent output detection library for post-hoc pipeline health assessment (Issues #793, #792).
 
 91. **fix_forward.py** - Opportunistic fix-forward classification for pre-existing test failures (Issue #860). `parse_failing_tests(pytest_output)` parses raw pytest `--tb=no -q` stdout and returns a `set[str]` of failing test IDs (e.g., `"tests/unit/test_foo.py::test_bar"`). `classify_failures(baseline, current)` compares a pre-implementation baseline set against the post-implementation current set and returns a dict with three keys: `"fixed"` (was failing, now passes), `"pre_existing_remaining"` (still failing, in both sets), and `"new_failures"` (newly introduced, only in current). `format_issue_body(test_id, context="")` formats a Markdown GitHub issue body suitable for `gh issue create --body` for auto-filing pre-existing failures with label `pre-existing-failure`. Used by pipeline STEP 1 (baseline capture) and STEP 8 (classification and auto-filing) in `implement.md`, and by the implementer agent for handling pre-existing failures opportunistically. Pure Python, zero external dependencies. 13 unit tests in `tests/unit/test_fix_forward_classification.py` and 31 spec tests in `tests/spec_validation/test_spec_issue860_fix_forward.py`. (v1.0.0, Issue #860)
+
+93. **hook_path_validator.py** - Validates every hook command path declared in `~/.claude/settings.json` (global) and `.claude/settings.local.json` (local) settings files (Issue #950). Walks all `hooks.<event>[].hooks[].command` entries and emits findings for four issue categories: `missing` (script file does not exist), `non_executable` (`.sh`/`.bash`/`.zsh` script lacks execute bit), `duplicate` (same canonical hook path registered in both global and local scopes — causes double-firing), and `unresolved_env` (command references an env var not defined in the current environment). Findings reuse the `ValidationIssue` shape from `sync_validator.py` so downstream tooling (`/health-check`, `/sync`, GitHub Actions reports) can render a single unified shape. CLI: `python -m hook_path_validator --global-settings ~/.claude/settings.json --local-settings .claude/settings.local.json --project-root .`; exit code 1 when any error-severity issue is detected (or any warning under `--strict`), 0 otherwise. 32 tests across `tests/unit/lib/test_hook_path_validator.py` (14 tests) and `tests/integration/test_health_check_hook_validation.py` (4 tests) and `tests/spec_validation/test_spec_issue950_health_check_hook_validation.py` (14 tests). (v1.0.0, Issue #950)
 
 92. **word_count_helpers.py** - Shared word-count helper for Claude Code message-content payloads (Issue #925). `count_words_in_content(content)` handles three input shapes: `str` (splits on whitespace), `list` of `{"type": "text", "text": ...}` blocks (sums words across all text blocks), and `None` (returns 0). Returns 0 for any unrecognised shape and never raises. Used by `hooks/session_activity_logger.py` (`_add_result_word_count`) and `hooks/unified_session_tracker.py` (`_count_words_in_transcript`) to handle both the legacy flat-string `tool_output["output"]` schema and the modern Anthropic Task `toolUseResult` list-of-blocks schema. Created to fix the root cause of 5 prior false-positive compression closures (#757, #723, #867, #805, #923): `_add_result_word_count` was reading only the flat-string key and logging `result_word_count: 0` for all implementer events. Pure Python, zero external dependencies. (v1.0.0, Issue #925)
 
@@ -6218,7 +6220,7 @@ This library is used by both:
 - `docs/TOOL-AUTO-APPROVAL.md` - Usage guide
 ---
 
-## 41. settings_merger.py (432 lines, v3.39.0)
+## 41. settings_merger.py (v3.39.0, extended Issue #944)
 
 **Purpose**: Merge template settings.local.json with user settings while preserving customizations
 
@@ -6324,6 +6326,40 @@ Result of settings merge operation.
 - Lists replaced, not merged (prevents duplicate items)
 - Special handling for hooks: merge by lifecycle event
 - User customizations always preserved
+
+### Module-Level Constants (Issue #944)
+
+#### `CANONICAL_GLOBAL_HOOKS`
+
+```python
+CANONICAL_GLOBAL_HOOKS: Tuple[str, ...]
+```
+
+Tuple of 7 canonical hook command strings that MUST NOT appear in per-repo `settings.json` templates because they are already registered in `~/.claude/settings.json` by `configure_global_settings.py`. Used by `strip_global_duplicates()` as the default canonical set. Variants with extra arguments (custom env vars, `&& echo` suffixes) are not considered canonical and are preserved.
+
+### Module-Level Functions (Issue #944)
+
+#### `extract_hook_refs(settings: Dict[str, Any]) -> set`
+
+Extract all hook file references (Python basenames) from a settings dict. Walks the `settings["hooks"]` tree and collects every `.py` hook filename referenced in a command string.
+
+**Parameters**:
+- `settings` (Dict): Parsed settings.json content.
+
+**Returns**: Set of hook filenames (basename only, with `.py` extension), e.g. `{"unified_prompt_validator.py", "plan_gate.py"}`.
+
+#### `strip_global_duplicates(settings, *, canonical=None, source_label="") -> Tuple[Dict, List[ValidationIssue]]`
+
+Remove canonical global-hook entries from a per-repo settings dict. Returns a filtered copy of the settings and a list of `ValidationIssue` findings (severity `"info"`, category `"hook-dedup"`) for each removed entry.
+
+**Parameters**:
+- `settings` (Dict): Parsed settings dict to filter.
+- `canonical` (Iterable[str] | None): Set of canonical command strings to strip. Defaults to `CANONICAL_GLOBAL_HOOKS` when `None`.
+- `source_label` (str): Label used in `ValidationIssue.file_path` for audit context.
+
+**Returns**: Tuple of `(filtered_settings_dict, list_of_ValidationIssue)`. The original dict is not mutated. Matcher groups whose entire `hooks` array is stripped are removed; lifecycle events left empty are omitted from `filtered_settings["hooks"]`.
+
+**Idempotent**: Running on already-stripped settings returns the same dict with an empty findings list.
 
 ### Integration with sync_dispatcher.py
 
