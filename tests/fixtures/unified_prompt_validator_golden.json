@@ -1,0 +1,62 @@
+[
+  {
+    "prompt": "implement OAuth authentication with JWT tokens",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"nudge\": \"This looks like it needs /implement \\u2014 handles testing, security review, and docs automatically.\\n  /implement \\\"description\\\"\\nProceeding directly is fine for small changes.\"}}\n",
+    "stderr": "This looks like it needs /implement \u2014 handles testing, security review, and docs automatically.\n  /implement \"description\"\nProceeding directly is fine for small changes.\n",
+    "returncode": 0
+  },
+  {
+    "prompt": "fix typo in README.md",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  {
+    "prompt": "what is the current status",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  {
+    "prompt": "/implement #123",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  {
+    "prompt": "refactor the parser module",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"nudge\": \"This looks like it needs /implement \\u2014 handles testing, security review, and docs automatically.\\n  /implement \\\"description\\\"\\nProceeding directly is fine for small changes.\"}}\n",
+    "stderr": "This looks like it needs /implement \u2014 handles testing, security review, and docs automatically.\n  /implement \"description\"\nProceeding directly is fine for small changes.\n",
+    "returncode": 0
+  },
+  {
+    "prompt": "update the changelog",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  {
+    "prompt": "rename my_func to process_data",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  {
+    "prompt": "add tests for the new feature",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"nudge\": \"This looks like it needs /implement \\u2014 handles testing, security review, and docs automatically.\\n  /implement \\\"description\\\"\\nProceeding directly is fine for small changes.\"}}\n",
+    "stderr": "This looks like it needs /implement \u2014 handles testing, security review, and docs automatically.\n  /implement \"description\"\nProceeding directly is fine for small changes.\n",
+    "returncode": 0
+  },
+  {
+    "prompt": "gh issue create test issue",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"error\": \"WORKFLOW BYPASS BLOCKED\\n\\nDetected: gh issue create test issue\\n\\nUse /create-issue instead \\u2014 includes duplicate detection, research, and PROJECT.md alignment.\\n  /create-issue \\\"description\\\"\\n\\nSet ENFORCE_WORKFLOW=false to disable this check.\"}}\n",
+    "stderr": "WORKFLOW BYPASS BLOCKED\n\nDetected: gh issue create test issue\n\nUse /create-issue instead \u2014 includes duplicate detection, research, and PROJECT.md alignment.\n  /create-issue \"description\"\n\nSet ENFORCE_WORKFLOW=false to disable this check.\n",
+    "returncode": 2
+  },
+  {
+    "prompt": "check the project alignment",
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\"}}\n",
+    "stderr": "",
+    "returncode": 0
+  }
+]

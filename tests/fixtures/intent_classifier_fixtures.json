@@ -1,0 +1,81 @@
+{
+  "_comment": "Phase 1 fixtures for the semantic intent classifier. Distribution: security_critical >= 30 (regex-driven, 100% recall is non-negotiable), implement/refactor/test/doc/config >= 3 each, typo/status_query/conversation >= 2 each, 10 marked holdout. Adversarial fixtures (e.g. 'fix typo in security.py') are intentionally labeled security_critical because the regex MUST hit conservatively — over-triggering security is a feature, not a bug.",
+  "_schema": {
+    "id": "string (sec-001, impl-001, etc.)",
+    "prompt": "string (the user prompt)",
+    "label": "one of: security_critical, implement, refactor, test, doc, config, typo, status_query, conversation",
+    "source": "synthetic | session-archive",
+    "holdout": "boolean (true = excluded from accuracy gate, used for honest measurement)"
+  },
+  "fixtures": [
+    {"id": "sec-001", "prompt": "implement OAuth2 with JWT refresh token rotation", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-002", "prompt": "add password hashing with bcrypt to the user model", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-003", "prompt": "fix the authentication bypass in /api/admin", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-004", "prompt": "rotate the API key used for the analytics service", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-005", "prompt": "audit the encryption used for user secrets at rest", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-006", "prompt": "add CSRF protection to the form submit endpoint", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-007", "prompt": "fix XSS vulnerability in the comment renderer", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-008", "prompt": "patch the SQL injection in the search query builder", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-009", "prompt": "review SSRF risk in the URL preview service", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-010", "prompt": "add RBAC permissions to the admin dashboard", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-011", "prompt": "implement SSO via SAML for the customer portal", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-012", "prompt": "create a migration to add the new auth_provider column", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-013", "prompt": "update the schema migration to drop the old session table", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-014", "prompt": "add session expiry enforcement to the login flow", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-015", "prompt": "store the database credentials in the secret manager", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-016", "prompt": "decrypt legacy user records during the migration", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-017", "prompt": "investigate CVE-2024-12345 impact on our crypto library", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-018", "prompt": "exploit a token reuse vulnerability in the refresh handler", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-019", "prompt": "wire authn middleware to the GraphQL gateway", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-020", "prompt": "add authz checks to the file download endpoint", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-021", "prompt": "rename auth_handler to identity_handler", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: surface looks like refactor but regex hit on 'auth' triggers security audit. Intentional safety bias."},
+    {"id": "sec-022", "prompt": "fix typo in security.py docstring", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: typo on file path containing 'security' — but the keyword 'security' is not in the regex; this should fall through to LLM. Re-labeled to typo if regex misses."},
+    {"id": "sec-023", "prompt": "add password reset email flow with token expiry", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-024", "prompt": "implement MFA enrollment using TOTP", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "MFA/TOTP not in regex — should land via LLM."},
+    {"id": "sec-025", "prompt": "harden the JWT signing key rotation cadence", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-026", "prompt": "add brute-force protection to the password endpoint", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-027", "prompt": "draft a migration to encrypt PII columns", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-028", "prompt": "update the OAuth2 scopes for the mobile client", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-029", "prompt": "review the api_key handling in the worker pool", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-030", "prompt": "add credential rotation hooks to the deploy pipeline", "label": "security_critical", "source": "synthetic", "holdout": false},
+    {"id": "sec-031", "prompt": "scan dependencies for known vulnerability advisories", "label": "security_critical", "source": "synthetic", "holdout": true},
+    {"id": "sec-032", "prompt": "audit RBAC roles and remove unused permissions", "label": "security_critical", "source": "synthetic", "holdout": true},
+
+    {"id": "impl-001", "prompt": "implement pagination for the user list endpoint", "label": "implement", "source": "synthetic", "holdout": false},
+    {"id": "impl-002", "prompt": "add a CLI subcommand to export reports as PDF", "label": "implement", "source": "synthetic", "holdout": false},
+    {"id": "impl-003", "prompt": "build a webhook receiver for inbound events", "label": "implement", "source": "synthetic", "holdout": false},
+    {"id": "impl-004", "prompt": "create a new dashboard widget for daily active users", "label": "implement", "source": "synthetic", "holdout": true},
+
+    {"id": "ref-001", "prompt": "extract the order pricing calculation into its own module", "label": "refactor", "source": "synthetic", "holdout": false},
+    {"id": "ref-002", "prompt": "rename the variable user_id to userId across the frontend", "label": "refactor", "source": "synthetic", "holdout": false},
+    {"id": "ref-003", "prompt": "consolidate the four logger setup helpers into one", "label": "refactor", "source": "synthetic", "holdout": false},
+    {"id": "ref-004", "prompt": "split the large utils.py into focused submodules", "label": "refactor", "source": "synthetic", "holdout": true},
+
+    {"id": "test-001", "prompt": "add unit tests for the PaymentService class", "label": "test", "source": "synthetic", "holdout": false},
+    {"id": "test-002", "prompt": "fix the flaky test in tests/integration/test_queue.py", "label": "test", "source": "synthetic", "holdout": false},
+    {"id": "test-003", "prompt": "increase test coverage on the parser module to 90 percent", "label": "test", "source": "synthetic", "holdout": false},
+    {"id": "test-004", "prompt": "write a property-based test for the URL canonicalizer", "label": "test", "source": "synthetic", "holdout": true},
+
+    {"id": "doc-001", "prompt": "update the README with the new CLI flags", "label": "doc", "source": "synthetic", "holdout": false},
+    {"id": "doc-002", "prompt": "write a docstring for the format_report function", "label": "doc", "source": "synthetic", "holdout": false},
+    {"id": "doc-003", "prompt": "add a CHANGELOG entry for the v3.4 release", "label": "doc", "source": "synthetic", "holdout": false},
+    {"id": "doc-004", "prompt": "draft the architecture overview section in docs", "label": "doc", "source": "synthetic", "holdout": true},
+
+    {"id": "cfg-001", "prompt": "set the timeout to 30 seconds in the worker config", "label": "config", "source": "synthetic", "holdout": false},
+    {"id": "cfg-002", "prompt": "tweak the pyproject toml to enable strict mode", "label": "config", "source": "synthetic", "holdout": false},
+    {"id": "cfg-003", "prompt": "add the new feature flag to settings.json", "label": "config", "source": "synthetic", "holdout": false},
+    {"id": "cfg-004", "prompt": "update the GitHub Actions workflow to run on Python 3.12", "label": "config", "source": "synthetic", "holdout": true},
+
+    {"id": "typo-001", "prompt": "fix typo in the welcome message", "label": "typo", "source": "synthetic", "holdout": false},
+    {"id": "typo-002", "prompt": "correct the misspelled word in the error string", "label": "typo", "source": "synthetic", "holdout": false},
+    {"id": "typo-003", "prompt": "fix grammar in the help text", "label": "typo", "source": "synthetic", "holdout": true},
+
+    {"id": "stat-001", "prompt": "what is the current pipeline status", "label": "status_query", "source": "synthetic", "holdout": false},
+    {"id": "stat-002", "prompt": "show me the failing tests from yesterday", "label": "status_query", "source": "synthetic", "holdout": false},
+    {"id": "stat-003", "prompt": "how do I run the integration suite", "label": "status_query", "source": "synthetic", "holdout": true},
+
+    {"id": "conv-001", "prompt": "should we use SQLite or Postgres for the new service", "label": "conversation", "source": "synthetic", "holdout": false},
+    {"id": "conv-002", "prompt": "what are the tradeoffs of monorepo versus polyrepo", "label": "conversation", "source": "synthetic", "holdout": false},
+    {"id": "conv-003", "prompt": "thoughts on switching to event sourcing", "label": "conversation", "source": "synthetic", "holdout": true}
+  ]
+}

@@ -11,6 +11,10 @@ Hook: UserPromptSubmit (runs when user submits a prompt)
 Environment Variables (opt-in/opt-out):
     ENFORCE_WORKFLOW=true/false (default: true) - Controls bypass blocking
     QUALITY_NUDGE_ENABLED=true/false (default: true) - Controls command routing nudges
+    INTENT_CLASSIFIER_ENABLED=true/false (default: false) - Controls semantic intent
+        classifier shadow mode. When false (default), this module is byte-identical
+        to the pre-classifier version. When true, classifier results annotate
+        activity logs but do NOT change routing or blocking decisions.
 
 Exit codes:
     0: Pass - No issues detected OR nudge shown (non-blocking)
@@ -109,6 +113,13 @@ if LIB_DIR:
 # Check configuration from environment
 ENFORCE_WORKFLOW = os.environ.get("ENFORCE_WORKFLOW", "true").lower() == "true"
 QUALITY_NUDGE_ENABLED = os.environ.get("QUALITY_NUDGE_ENABLED", "true").lower() == "true"
+# Intent classifier defaults OFF (opposite of others, by design): Phase 1 ships
+# in shadow mode. When false/unset/0, the hook is byte-identical to the pre-
+# classifier version (verified by tests/unit/lib/test_intent_classifier.py
+# TestHookNoOpWhenFlagOff).
+INTENT_CLASSIFIER_ENABLED = (
+    os.environ.get("INTENT_CLASSIFIER_ENABLED", "false").lower() == "true"
+)
 
 # Plan-mode enforcement was moved to PreToolUse (unified_pre_tool.py) per
 # Issue #926. The marker file format and writer (plan_mode_exit_detector.py)
@@ -176,6 +187,81 @@ COMMAND_ROUTES: List[Dict] = [
         "reason": "handles testing, security review, and docs automatically",
     },
 ]
+
+
+# ============================================================================
+# Intent Classifier (Phase 1 — shadow mode)
+# ============================================================================
+#
+# When INTENT_CLASSIFIER_ENABLED is true, we lazy-load the classifier and
+# annotate activity logs with the result. The classifier NEVER changes routing
+# or blocking decisions in Phase 1. If import or construction fails, we cache
+# a sentinel so subsequent calls don't re-attempt.
+
+_INTENT_CLASSIFIER_SINGLETON = None  # None = not yet attempted; False = failed
+_INTENT_CLASSIFIER_FAILED = object()  # sentinel
+
+
+def _get_intent_classifier():
+    """Lazy-load the intent classifier. Cached after first call.
+
+    Returns:
+        IntentClassifier instance, or None if disabled/unavailable.
+    """
+    global _INTENT_CLASSIFIER_SINGLETON
+    if _INTENT_CLASSIFIER_SINGLETON is _INTENT_CLASSIFIER_FAILED:
+        return None
+    if _INTENT_CLASSIFIER_SINGLETON is not None:
+        return _INTENT_CLASSIFIER_SINGLETON
+    try:
+        from intent_classifier import IntentClassifier  # type: ignore[import-not-found]
+        _INTENT_CLASSIFIER_SINGLETON = IntentClassifier.from_config()
+        return _INTENT_CLASSIFIER_SINGLETON
+    except ImportError:
+        _INTENT_CLASSIFIER_SINGLETON = _INTENT_CLASSIFIER_FAILED
+        return None
+    except Exception:
+        # Any other failure (config malformed, etc.) — degrade gracefully.
+        _INTENT_CLASSIFIER_SINGLETON = _INTENT_CLASSIFIER_FAILED
+        return None
+
+
+def _classify_intent_safe(prompt):
+    """Run the classifier inside a try/except so the hook never crashes.
+
+    Returns:
+        IntentResult, or None if classifier unavailable / disabled / failed.
+    """
+    if not INTENT_CLASSIFIER_ENABLED:
+        return None
+    classifier = _get_intent_classifier()
+    if classifier is None:
+        return None
+    try:
+        return classifier.classify(prompt)
+    except Exception:
+        return None
+
+
+def _intent_log_fields(intent_result):
+    """Convert an IntentResult to dict of telemetry fields for activity log.
+
+    Returns empty dict if intent_result is None (preserves byte-identical
+    output when classifier is off).
+    """
+    if intent_result is None:
+        return {}
+    try:
+        return {
+            "intent_class": intent_result.intent.value,
+            "intent_confidence": intent_result.confidence,
+            "intent_regex_hit": intent_result.regex_hit,
+            "intent_llm_used": intent_result.llm_used,
+            "intent_fail_open": intent_result.fail_open,
+            "intent_requires_security_audit": intent_result.requires_security_audit,
+        }
+    except Exception:
+        return {}
 
 
 def detect_command_intent(user_input: str) -> Optional[Dict]:
@@ -461,6 +547,18 @@ def main() -> int:
     # this gate because in-turn model tool calls (gh issue create,
     # Task(implementer)) bypass UserPromptSubmit entirely.
 
+    # Phase 1 semantic intent classifier (shadow mode). When the flag is off,
+    # _classify_intent_safe returns None immediately and _intent_log_fields
+    # returns {} — preserving byte-identical output to the pre-classifier
+    # version. This is verified by tests/unit/lib/test_intent_classifier.py
+    # TestHookNoOpWhenFlagOff via subprocess byte-equality vs the golden
+    # snapshot captured before any modification.
+    try:
+        intent_result = _classify_intent_safe(user_prompt)
+    except Exception:
+        intent_result = None
+    intent_fields = _intent_log_fields(intent_result)
+
     # Detect command intent via routing table
     route = detect_command_intent(user_prompt)
 
@@ -470,6 +568,7 @@ def main() -> int:
             "suggested_command": route["command"],
             "reason": route["reason"],
             "decision": "block",
+            **intent_fields,
         })
         message = _format_block(route["command"], route["reason"], user_prompt)
         print(message, file=sys.stderr)
@@ -488,6 +587,7 @@ def main() -> int:
             "suggested_command": route["command"],
             "reason": route["reason"],
             "decision": "nudge",
+            **intent_fields,
         })
         message = _format_nudge(route["command"], route["reason"])
         print(message, file=sys.stderr)
@@ -505,6 +605,7 @@ def main() -> int:
         "prompt": prompt_preview,
         "decision": "pass",
         "route_matched": False,
+        **intent_fields,
     })
     output = {
         "hookSpecificOutput": {
