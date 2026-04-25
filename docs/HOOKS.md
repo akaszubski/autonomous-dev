@@ -15,7 +15,7 @@ See [CLAUDE.md](../CLAUDE.md) for current counts. See [HOOK-REGISTRY.md](HOOK-RE
 
 ## Overview
 
-Hooks provide automated quality enforcement, validation, and workflow automation. They use UV single-file scripts (PEP 723) for reproducible execution with zero environment setup.
+Hooks provide automated quality enforcement, validation, and workflow automation. They use standard `python3` shebangs and are designed to degrade gracefully — a hook crash never blocks Claude Code (see [Safe Failure Behavior](#safe-failure-behavior) below).
 
 **Architecture**: Unified dispatcher pattern — consolidated hooks replace individual ones for reduced collision and easier maintenance.
 
@@ -293,19 +293,27 @@ ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
 
 ---
 
-## UV Script Support
+## Safe Failure Behavior
 
-All hooks use UV (PEP 723) for reproducible execution:
+All 24 hooks wrap their `main()` function with `safe_main()` from `plugins/autonomous-dev/lib/hook_safety.py` (Issue #953). This provides two guarantees:
+
+**1. Hook crashes never block Claude Code.**
+If an unhandled exception propagates out of a hook (missing import, runtime bug, etc.), `safe_main()` catches it, prints a `[hook warning] <hook_name>: <ExceptionType>: <message>` line to stderr, and exits with code 0. Claude Code continues normally. Operators can detect failures by scanning stderr for the `[hook warning]` prefix.
+
+**2. `command_registered()` prevents deny-deadlocks.**
+Hooks that issue a `deny` decision directing the user to run a slash command (e.g., `/create-issue`) MUST first call `command_registered("create-issue")` from `hook_safety.py`. If the command is not installed, the deny is downgraded to a warning so the user is not stuck between a blocking hook and a missing command. The lookup fails CLOSED (returns `True`) on any error so the existing security barrier remains active.
+
+**Shebang**: All hooks use `#!/usr/bin/env python3` (not `uv`). A pinned `uv` interpreter was itself a deadlock risk — if `uv` was absent from PATH, the hook never reached the `safe_main` safety net. Standard `python3` resolves via PATH without an external tool dependency.
 
 ```python
-#!/usr/bin/env -S uv run --script --quiet --no-project
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
+
+if __name__ == "__main__":
+    from hook_safety import safe_main
+    safe_main(main)
 ```
 
-Falls back to `sys.path` if UV unavailable. Install UV: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+See `plugins/autonomous-dev/lib/hook_safety.py` for full API documentation.
 
 ---
 

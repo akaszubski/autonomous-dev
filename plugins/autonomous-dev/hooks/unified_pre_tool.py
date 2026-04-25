@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --script --quiet --no-project
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """
 Unified PreToolUse Hook - Consolidated Permission & Security Validation
 
@@ -186,6 +182,22 @@ LIB_DIR = find_lib_directory(Path(__file__))
 if LIB_DIR:
     if not is_running_under_uv():
         sys.path.insert(0, str(LIB_DIR))
+
+# Issue #953: Hook safety helpers — graceful failure on missing deps and
+# slash-command precondition checks. Wrapped in try/except so the hook still
+# loads (with no-op fallbacks) if hook_safety is unavailable.
+try:
+    from hook_safety import command_registered as _hook_command_registered
+    from hook_safety import safe_main as _hook_safe_main
+except ImportError:
+    def _hook_command_registered(_name: str) -> bool:  # fail-CLOSED stub
+        return True
+
+    def _hook_safe_main(fn):  # no-op stub: preserves int return semantics
+        result = fn()
+        if isinstance(result, int):
+            sys.exit(result)
+        sys.exit(0)
 
 
 def load_env():
@@ -4176,24 +4188,46 @@ def main():
                     # Issue #627: Block direct creation of gh issue marker file
                     marker_block = _detect_gh_issue_marker_creation(command)
                     if marker_block:
-                        _log_deviation("gh_issue_marker", tool_name, "gh_issue_marker_creation_blocked")
-                        _log_pretool_activity(tool_name, tool_input, "deny", marker_block)
-                        output_decision(
-                            "deny", marker_block,
-                            system_message="BLOCKED: Use /create-issue to create GitHub issues.",
-                        )
-                        sys.exit(0)
+                        # Issue #953: Downgrade deny → warning when /create-issue
+                        # is not registered. Otherwise the user is wedged.
+                        if not _hook_command_registered("create-issue"):
+                            print(
+                                f"[hook warning] Would block ({marker_block}) but "
+                                f"/create-issue is not registered; allowing direct call. "
+                                f"Re-register: /plugin install autonomous-dev@autonomous-dev",
+                                file=sys.stderr,
+                            )
+                            # Fall through — do not deny.
+                        else:
+                            _log_deviation("gh_issue_marker", tool_name, "gh_issue_marker_creation_blocked")
+                            _log_pretool_activity(tool_name, tool_input, "deny", marker_block)
+                            output_decision(
+                                "deny", marker_block,
+                                system_message="BLOCKED: Use /create-issue to create GitHub issues.",
+                            )
+                            sys.exit(0)
 
                     # Issue #599: Block direct gh issue create outside approved contexts
                     gh_block = _detect_gh_issue_create(command)
                     if gh_block:
-                        _log_deviation("gh_issue_create", tool_name, "gh_issue_create_blocked")
-                        _log_pretool_activity(tool_name, tool_input, "deny", gh_block)
-                        output_decision(
-                            "deny", gh_block,
-                            system_message="BLOCKED: Use /create-issue or /create-issue --quick.",
-                        )
-                        sys.exit(0)
+                        # Issue #953: Downgrade deny → warning when /create-issue
+                        # is not registered. Otherwise the user is wedged.
+                        if not _hook_command_registered("create-issue"):
+                            print(
+                                f"[hook warning] Would block ({gh_block}) but "
+                                f"/create-issue is not registered; allowing direct call. "
+                                f"Re-register: /plugin install autonomous-dev@autonomous-dev",
+                                file=sys.stderr,
+                            )
+                            # Fall through — do not deny.
+                        else:
+                            _log_deviation("gh_issue_create", tool_name, "gh_issue_create_blocked")
+                            _log_pretool_activity(tool_name, tool_input, "deny", gh_block)
+                            output_decision(
+                                "deny", gh_block,
+                                system_message="BLOCKED: Use /create-issue or /create-issue --quick.",
+                            )
+                            sys.exit(0)
 
                     # Issue #557: Block settings.json writes during active pipeline
                     try:
@@ -4569,4 +4603,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    _hook_safe_main(main)

@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --script --quiet --no-project
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env python3
 """
 Conversation Archiver - Archive full conversation transcripts for long-term analytics.
 
@@ -29,6 +25,32 @@ Environment Variables:
 Exit codes:
     0: Always (non-blocking hook)
 """
+
+# Issue #953: Hook safety — wrap main() with safe_main so hook crashes never
+# block Claude Code. The wrap is purely an outer safety net; success-path
+# return codes are preserved (int return → exit code, sys.exit → propagated).
+import sys as _sys_953  # alias to avoid colliding with hook-local sys imports
+from pathlib import Path as _Path_953
+
+_hook_dir_953 = _Path_953(__file__).resolve().parent
+for _candidate_lib_953 in (
+    _hook_dir_953.parent / "lib",                    # plugins/autonomous-dev/lib (dev)
+    _hook_dir_953.parent.parent / "lib",             # ~/.claude/lib (installed)
+    _Path_953.home() / ".claude" / "plugins" / "autonomous-dev" / "lib",  # marketplace
+):
+    if _candidate_lib_953.exists() and str(_candidate_lib_953) not in _sys_953.path:
+        _sys_953.path.insert(0, str(_candidate_lib_953))
+
+try:
+    from hook_safety import safe_main as _safe_main_953
+except ImportError:
+    # Fallback: no-op wrapper so hooks still load if hook_safety is missing.
+    def _safe_main_953(_fn):
+        _result = _fn()
+        if isinstance(_result, int):
+            _sys_953.exit(_result)
+        _sys_953.exit(0)
+
 
 import fcntl
 import json
@@ -492,4 +514,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    _safe_main_953(main)

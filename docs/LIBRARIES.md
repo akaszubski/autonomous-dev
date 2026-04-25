@@ -48,6 +48,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 30. **scope_detector.py** - Scope analysis and complexity detection for issue decomposition (v1.0.0)
 31. **completion_verifier.py** - Pipeline verification with loop-back retry and circuit breaker (v1.0.0)
 32. **hook_exit_codes.py** - Standardized exit code constants and lifecycle constraints for all hooks (v4.0.0+)
+33a. **hook_safety.py** - Hook graceful-failure safety net: `safe_main()` wraps hook `main()` so any unhandled exception exits with code 0 + stderr warning instead of blocking Claude Code; `command_registered()` checks whether a slash command is installed before issuing a deny decision that references it (fail-CLOSED: returns True on lookup error to preserve security barrier) (v1.0.0, Issue #953)
 33. **worktree_manager.py** - Git worktree isolation for safe feature development (v1.0.0, Issue #178)
 34. **complexity_assessor.py** - Automatic complexity assessment for pipeline scaling (v1.0.0, Issue #181)
 35. **pause_controller.py** - File-based pause controls and human input handling for workflows (v1.0.0, Issue #182)
