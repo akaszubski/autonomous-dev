@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-04-12
+**Last Updated**: 2026-04-26
 **For**: Users and developers encountering common issues
 
 ---
@@ -81,6 +81,88 @@ bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/mas
 ```
 
 Creates automatic backup before removal. Rollback available if needed.
+
+---
+
+## Recovery from Broken Hooks
+
+**Symptom**: Every prompt to Claude Code is blocked with hook errors. Common causes are missing hook scripts (deleted or never installed), infinite loops in hook logic, syntax errors in hook commands, or references to libraries that no longer exist on disk. Because hooks fire on every `UserPromptSubmit`, `PreToolUse`, and `Stop` event, even typing a recovery command inside Claude Code is impossible — the hooks block the prompt before it reaches the model.
+
+**Cause**: One or more entries in `~/.claude/settings.json` under the `hooks` block reference a script or command that fails. The historical workaround was `mv ~/.claude ~/.claude.old`, but that loses session state, projects, the archive database, and per-project `.claude/` overrides.
+
+**Three recovery options** — pick the one that matches your situation:
+
+### Option 1: `install.sh --reset-hooks` (recommended)
+
+Strips the entire `hooks` block from `~/.claude/settings.json` while preserving every other top-level key (permissions, mcpServers, env, model, output style). A backup is written to `~/.claude/settings.json.preglobal-hooks-strip` before the in-place rewrite.
+
+```bash
+# From a terminal OUTSIDE Claude Code (since Claude Code is bricked):
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --reset-hooks
+
+# Or, if you have the repo cloned locally:
+bash /path/to/autonomous-dev/install.sh --reset-hooks
+
+# Then restart Claude Code (Cmd+Q / Ctrl+Q) and verify the next prompt works.
+```
+
+Behavior notes:
+- Idempotent: a second invocation with no `hooks` key is a no-op (no backup created).
+- Re-running while a previous backup exists OVERWRITES the backup with the current pre-strip state. If you need to preserve multiple recovery checkpoints, copy `settings.json.preglobal-hooks-strip` to a timestamped name before re-running.
+- Malformed JSON in `settings.json` (unparseable file) causes the helper to refuse — it will not risk overwriting an unparseable file. Fix the JSON syntax manually first, or restore from a backup.
+
+### Option 2: Manual `python3 -c "..."` one-liner
+
+Use this when you can't or don't want to fetch `install.sh` (offline machine, cautious environment, or simply faster). Self-contained — no install required.
+
+```bash
+python3 -c "
+import json, shutil, sys
+from pathlib import Path
+p = Path.home() / '.claude' / 'settings.json'
+if not p.exists():
+    print('settings.json not present — nothing to do'); sys.exit(0)
+data = json.loads(p.read_text())
+if 'hooks' not in data:
+    print('no hooks block to remove — nothing to do'); sys.exit(0)
+backup = p.with_suffix(p.suffix + '.preglobal-hooks-strip')
+shutil.copy2(p, backup)
+removed = list(data['hooks'].keys()) if isinstance(data.get('hooks'), dict) else []
+data.pop('hooks')
+p.write_text(json.dumps(data, indent=2))
+print(f'Stripped {len(removed)} hook event(s); backup: {backup}')
+"
+```
+
+This produces the same result as Option 1 (preserves all other keys, writes the same backup file). Restart Claude Code afterward.
+
+### Option 3: Soft alternative — `disableAllHooks: true`
+
+If you want to disable hooks WITHOUT deleting the configuration (e.g., to debug which hook is failing later), add a single key to `~/.claude/settings.json`:
+
+```json
+{
+  "disableAllHooks": true,
+  "hooks": { ... }
+}
+```
+
+Trade-offs:
+- **Pro**: Reversible — flip back to `false` (or remove the key) once the underlying issue is fixed.
+- **Con**: Cruft remains — the broken hooks entries are still in the file, and you must remember to fix them later.
+- **Pro**: One-line surgical edit — no helper script needed.
+
+For a brick recovery where the user can't even open Claude Code, Option 1 or Option 2 are usually faster. Option 3 is best when hooks are working but a single new hook is suspect, and you want to disable everything for diagnosis without losing the configuration.
+
+### Restoring after recovery
+
+The backup file (`~/.claude/settings.json.preglobal-hooks-strip`) preserves the pre-strip state. If you want to restore the hooks block (e.g., once the broken hook is fixed):
+
+```bash
+cp ~/.claude/settings.json.preglobal-hooks-strip ~/.claude/settings.json
+```
+
+Or merge the `hooks` field back manually if you've made other edits since the strip.
 
 ---
 
@@ -196,6 +278,8 @@ chmod +x ~/.claude/hooks/*.py
 python3 ~/.claude/hooks/auto_format.py
 echo "Exit code: $?"
 ```
+
+If hooks are running but actively blocking every prompt, see [Recovery from Broken Hooks](#recovery-from-broken-hooks).
 
 ### "Feature doesn't align with PROJECT.md"
 

@@ -64,6 +64,7 @@ VERBOSE=false
 CLEAN=false
 MIGRATE_MCP_REPO=""    # Issue #948: --migrate-mcp-to-repo <path>
 MIGRATE_MCP_SERVER=""  # Issue #948: --server <name> (paired with above)
+RESET_HOOKS=false      # Issue #949: --reset-hooks recovery mode
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -83,6 +84,10 @@ while [[ $# -gt 0 ]]; do
             MIGRATE_MCP_SERVER="$2"
             shift 2
             ;;
+        --reset-hooks)
+            RESET_HOOKS=true
+            shift
+            ;;
         --help|-h)
             echo "autonomous-dev Plugin Installer"
             echo ""
@@ -100,6 +105,12 @@ while [[ $# -gt 0 ]]; do
             echo "                                      Skips the normal install flow."
             echo "  --server <name>                     MCP server name to migrate (key under"
             echo "                                      mcpServers). Used with --migrate-mcp-to-repo."
+            echo "  --reset-hooks                       Standalone: strip the hooks block from"
+            echo "                                      ~/.claude/settings.json (Issue #949)."
+            echo "                                      Backs up to settings.json.preglobal-hooks-strip."
+            echo "                                      Preserves permissions, mcpServers, env, model."
+            echo "                                      Use when global hooks brick Claude Code."
+            echo "                                      Skips the normal install flow."
             echo "  --help, -h                          Show this help message"
             echo ""
             echo "After running this script:"
@@ -364,6 +375,78 @@ configure_global_settings() {
         log_warning "Settings configuration: ${error_msg}"
         return 1
     fi
+}
+
+# Recovery mode: strip the entire hooks block from ~/.claude/settings.json
+# Issue #949: When global hooks misbehave (missing scripts, infinite loops,
+# rule errors), every Claude Code prompt is blocked. This function calls
+# reset_global_hooks.py to remove the hooks block atomically while
+# preserving permissions, mcpServers, env, model, etc. Backs up to
+# settings.json.preglobal-hooks-strip. Standalone mode — runs only when
+# --reset-hooks is passed; never as part of a normal install.
+reset_global_hooks() {
+    log_step "Resetting global hooks (Issue #949)..."
+
+    # Resolve script path: developer/local-repo flow first, then staged flow.
+    local script_path=""
+    local local_path
+    local_path="$(dirname "$0")/plugins/autonomous-dev/scripts/reset_global_hooks.py"
+    if [[ -f "$local_path" ]]; then
+        script_path="$local_path"
+    elif [[ -f "${STAGING_DIR}/files/plugins/autonomous-dev/scripts/reset_global_hooks.py" ]]; then
+        script_path="${STAGING_DIR}/files/plugins/autonomous-dev/scripts/reset_global_hooks.py"
+    fi
+
+    if [[ -z "$script_path" ]]; then
+        log_error "reset_global_hooks.py helper not found"
+        log_info "Manual recovery: see plugins/autonomous-dev/docs/TROUBLESHOOTING.md"
+        log_info "  -> Recovery from Broken Hooks (python3 -c '...' one-liner)"
+        return 1
+    fi
+
+    local target="${HOME}/.claude/settings.json"
+
+    local result
+    result=$(python3 "$script_path" --target "$target" 2>&1 \
+        || echo '{"success":false,"stripped":false,"error":"helper_failed","message":"helper failed"}')
+
+    local success
+    success=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" \
+        2>/dev/null || echo "false")
+
+    local stripped
+    stripped=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print('true' if d.get('stripped') else 'false')" \
+        2>/dev/null || echo "false")
+
+    local message
+    message=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('message','') or '')" \
+        2>/dev/null || echo "")
+
+    local backup_path
+    backup_path=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print(d.get('backup_path','') or '')" \
+        2>/dev/null || echo "")
+
+    if [[ "$success" != "true" ]]; then
+        log_error "Reset hooks failed: ${message:-unknown error}"
+        log_info "See plugins/autonomous-dev/docs/TROUBLESHOOTING.md (Recovery from Broken Hooks)"
+        return 1
+    fi
+
+    if [[ "$stripped" == "true" ]]; then
+        log_success "Stripped hooks block from ${target}"
+        if [[ -n "$backup_path" ]]; then
+            log_info "Backup saved: ${backup_path}"
+        fi
+    else
+        log_info "${message:-no hooks block to remove}"
+    fi
+
+    log_info "Restart Claude Code (Cmd+Q / Ctrl+Q) to pick up the change."
+    return 0
 }
 
 # Migrate per-repo settings.json: strip duplicated global hooks (Issue #944)
@@ -1510,6 +1593,22 @@ main() {
             exit 1
         fi
         if migrate_mcp_to_repo; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+
+    # Issue #949: Standalone recovery mode — strip hooks from
+    # ~/.claude/settings.json. Like --migrate-mcp-to-repo, this short-
+    # circuits the normal install flow. Used when global hooks misbehave
+    # and Claude Code refuses to accept any prompt.
+    if [[ "$RESET_HOOKS" == "true" ]]; then
+        if ! command -v python3 &> /dev/null; then
+            log_error "Python 3 required for --reset-hooks"
+            exit 1
+        fi
+        if reset_global_hooks; then
             exit 0
         else
             exit 1
