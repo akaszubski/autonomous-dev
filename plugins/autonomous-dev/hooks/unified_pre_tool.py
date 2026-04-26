@@ -96,6 +96,29 @@ try:
 except Exception:
     _python_write_detector = None  # Fallback: inline regex in _extract_bash_file_writes
 
+# Defensive import of tool_intent (Issue #971) — shell+tool classifier that
+# delegates python -c parsing to python_write_detector. _extract_bash_file_writes
+# is now a thin shim around tool_intent.write_targets when available.
+# Falls back to legacy regex via _extract_bash_file_writes_legacy on import failure.
+_tool_intent = None
+try:
+    _hook_path_ti = Path(__file__).resolve().parent
+    _lib_candidates_ti = [
+        _hook_path_ti.parent / "lib",           # plugins/autonomous-dev/lib
+        _hook_path_ti.parents[2] / "lib",        # fallback
+    ]
+    for _lib_dir_ti in _lib_candidates_ti:
+        _ti_path = _lib_dir_ti / "tool_intent.py"
+        if _ti_path.exists():
+            import importlib.util as _ilu_ti
+            _spec_ti = _ilu_ti.spec_from_file_location("tool_intent", str(_ti_path))
+            if _spec_ti and _spec_ti.loader:
+                _tool_intent = importlib.util.module_from_spec(_spec_ti)
+                _spec_ti.loader.exec_module(_tool_intent)
+            break
+except Exception:
+    _tool_intent = None  # Fallback: _extract_bash_file_writes_legacy retains old behavior
+
 # Module-level agent_type extracted from hook stdin JSON (set in main()).
 # Used by _get_active_agent_name() as primary identity source (Issue #591).
 _agent_type: str = ""
@@ -2252,6 +2275,20 @@ def _detect_settings_json_write(command: str) -> "Optional[str]":
 
     Only blocks during active pipeline. Called separately after pipeline check.
 
+    Issue #971: Primary detection routes through ``_extract_bash_file_writes``
+    (which delegates to ``tool_intent.write_targets``) for AST-accurate
+    classification. The legacy regex duplicate that flagged ``open()`` calls
+    (and produced false positives on ``json.load(open(...))``) is removed.
+
+    A narrow defense-in-depth check is retained for the variable-indirection
+    case (``p='settings.json'; json.dump(d, open(p, 'w'))``) where the AST
+    detector cannot statically resolve the path. This check requires BOTH a
+    settings reference AND a true python write keyword (``json.dump``,
+    ``.write_text``, ``.write_bytes``, ``shutil.``, ``os.rename``,
+    ``os.replace``), or a non-trivial ``.write(`` call. We deliberately do
+    NOT match ``open\\s*\\(`` alone — that was the source of the
+    ``json.load(open(...))`` false positive in the legacy code (Issue #971).
+
     Args:
         command: The Bash command string to inspect.
 
@@ -2264,11 +2301,27 @@ def _detect_settings_json_write(command: str) -> "Optional[str]":
         r'settings\.json',
         r'settings\.local\.json',
     ]
-    # Check redirects, tee, cp/mv targets
+    # Check ALL write targets — the shim covers redirects, tee, cp/mv,
+    # sed -i, dd, tools like rm/touch/chmod, AND python -c snippets via
+    # python_write_detector AST analysis. (Issue #557, #768, #971)
     write_targets = _extract_bash_file_writes(command)
     for target in write_targets:
         for pat in settings_patterns:
             if re.search(pat, target):
+                if re.search(r'\bsed\s+.*-i', command):
+                    return (
+                        f"BLOCKED: In-place edit of settings file during active pipeline. "
+                        f"Settings files are protected during /implement sessions. (Issue #557) "
+                        f"REQUIRED NEXT ACTION: Complete the current /implement pipeline first, "
+                        f"then modify settings. Do NOT write settings during an active pipeline."
+                    )
+                if re.search(r'\bpython3?\s+-c\b', command) or re.search(r'\bpython3?\s+.*?<<', command):
+                    return (
+                        f"BLOCKED: Python -c command writes to settings file during active pipeline. "
+                        f"Settings files are protected during /implement sessions. (Issue #768) "
+                        f"REQUIRED NEXT ACTION: Complete the current /implement pipeline first, "
+                        f"then modify settings. Do NOT write settings during an active pipeline."
+                    )
                 return (
                     f"BLOCKED: Bash write to '{target}' during active pipeline. "
                     f"Settings files are protected during /implement sessions. (Issue #557) "
@@ -2276,45 +2329,46 @@ def _detect_settings_json_write(command: str) -> "Optional[str]":
                     f"then modify settings. Do NOT write settings during an active pipeline."
                 )
 
-    # Also check sed -i and python -c patterns
-    for pat in settings_patterns:
-        if re.search(r'\bsed\s+.*-i.*' + pat, command):
-            return (
-                f"BLOCKED: In-place edit of settings file during active pipeline. "
-                f"Settings files are protected during /implement sessions. (Issue #557) "
-                f"REQUIRED NEXT ACTION: Complete the current /implement pipeline first, "
-                f"then modify settings. Do NOT write settings during an active pipeline."
-            )
-
-    # Detect Python -c inline commands that write to settings files (Issue #768)
-    # Catches variable-based bypasses like: python3 -c "p='settings.json'; json.dump(d, open(p,'w'))"
+    # Defense-in-depth: variable-indirection case for python -c snippets
+    # (Issue #768). The AST detector cannot resolve ``p`` in:
+    #   python3 -c "p='settings.json'; json.dump({}, open(p,'w'))"
+    # so we fall back to a narrow regex check that requires BOTH a settings
+    # reference AND a true write keyword. We deliberately do NOT match
+    # ``open\s*\(`` alone — that was the false-positive trigger removed in
+    # Issue #971 (it flagged read-only ``json.load(open(...))``).
     py_c_patterns = [
         r'python3?\s+-c\s+"([^"]+)"',
         r"python3?\s+-c\s+'([^']+)'",
     ]
+    # Narrow write-keyword patterns: each one is a *true* write operation,
+    # not an ambiguous expression. open(...) is excluded by design.
+    python_write_keywords = [
+        r'\bjson\.dump\s*\(',
+        r'\.write_text\s*\(',
+        r'\.write_bytes\s*\(',
+        r'\bshutil\.(copy|copy2|move|copyfile)\s*\(',
+        r'\bos\.rename\s*\(',
+        r'\bos\.replace\s*\(',
+        # Match .write( only when it follows a variable obtained from open()
+        # in WRITE mode — heuristic: the snippet contains both an open(...,
+        # 'w'/'a'/'wb'/'ab') call AND a .write( call somewhere.
+    ]
     for py_c_pat in py_c_patterns:
         for match in re.finditer(py_c_pat, command):
             snippet = match.group(1)
-            has_settings_ref = any(
-                re.search(pat, snippet) for pat in settings_patterns
-            )
-            if not has_settings_ref:
+            if not any(re.search(p, snippet) for p in settings_patterns):
                 continue
-            # Check for Python write patterns in the snippet
-            python_write_patterns = [
-                r'open\s*\(',         # open() call (could be write mode)
-                r'json\.dump\s*\(',   # json.dump()
-                r'\.write\s*\(',      # .write()
-                r'\.write_text\s*\(', # Path.write_text()
-                r'\.write_bytes\s*\(',# Path.write_bytes()
-                r'shutil\.',          # shutil operations
-                r'os\.rename\s*\(',   # os.rename()
-                r'os\.replace\s*\(',  # os.replace()
-            ]
-            has_write = any(
-                re.search(wp, snippet) for wp in python_write_patterns
-            )
-            if has_write:
+            if any(re.search(wp, snippet) for wp in python_write_keywords):
+                return (
+                    f"BLOCKED: Python -c command writes to settings file during active pipeline. "
+                    f"Settings files are protected during /implement sessions. (Issue #768) "
+                    f"REQUIRED NEXT ACTION: Complete the current /implement pipeline first, "
+                    f"then modify settings. Do NOT write settings during an active pipeline."
+                )
+            # ``f = open(p, 'w'); f.write(x)`` pattern: open() in write mode
+            # AND a separate .write() call. We DO NOT trigger on .write()
+            # alone because that's also how strings/streams are constructed.
+            if re.search(r"open\s*\([^)]*,\s*['\"][wa]", snippet) and re.search(r"\.write\s*\(", snippet):
                 return (
                     f"BLOCKED: Python -c command writes to settings file during active pipeline. "
                     f"Settings files are protected during /implement sessions. (Issue #768) "
@@ -2387,7 +2441,40 @@ def _detect_realign_bypass(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
 
 
 def _extract_bash_file_writes(command: str) -> list:
-    """Extract file paths being written to by Bash command."""
+    """Extract file paths being written to by Bash command.
+
+    Issue #971: This is now a thin compatibility shim that delegates to
+    ``tool_intent.write_targets`` when the tool_intent module is loaded.
+    Falls back to the legacy regex-based implementation if the new
+    classifier is unavailable.
+
+    The shim preserves the public signature (``command: str -> list``) so
+    all 5 existing callers continue to work unchanged. SUSPICIOUS_EXEC_SENTINEL
+    handling is preserved — when present, it is excluded from the returned
+    list (callers that need the sentinel use the dedicated path in
+    ``_check_bash_infra_writes`` which calls ``tool_intent`` directly).
+    """
+    if _tool_intent is None:
+        return _extract_bash_file_writes_legacy(command)
+    try:
+        targets = _tool_intent.write_targets("Bash", {"command": command})
+    except Exception:
+        return _extract_bash_file_writes_legacy(command)
+    # Strip the SUSPICIOUS_EXEC_SENTINEL — historical callers of this
+    # function never saw it, only _check_bash_infra_writes did.
+    if _python_write_detector is not None:
+        sentinel = getattr(_python_write_detector, "SUSPICIOUS_EXEC_SENTINEL", None)
+        if sentinel is not None:
+            targets = [t for t in targets if t != sentinel]
+    return targets
+
+
+def _extract_bash_file_writes_legacy(command: str) -> list:
+    """Legacy regex-based implementation (preserved for fallback).
+
+    Used only when the ``tool_intent`` module fails to load. Returns the
+    same shape (``list`` of file path strings) as the shim.
+    """
     import re
     file_paths = []
 
@@ -3914,6 +4001,12 @@ def main():
             # Threat model: accidental direct edits, not malicious local attacker.
             # CLAUDE_AGENT_NAME is set by Claude Code; env var trust is by design.
             # Fail-closed: if the check itself errors, block the edit (A04 remediation).
+            #
+            # Issue #971: This block is the canonical Edit/Write tool gate.
+            # Tool-name dispatch is sufficient here — no command parsing needed.
+            # The settings.json sub-gate at lines ~3989+ handles the per-pipeline
+            # restriction. Verified correct by Issue #971 plan; no functional
+            # change required, only this clarifying comment.
             if tool_name in ("Write", "Edit"):
                 file_path = tool_input.get("file_path", "")
                 try:

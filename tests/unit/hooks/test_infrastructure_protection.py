@@ -510,3 +510,93 @@ class TestSessionIdFromStdin:
         # Reset to default
         hook._session_id = "unknown"
         assert hook._session_id == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# TestToolIntentMigration — Issue #971
+# ---------------------------------------------------------------------------
+
+
+class TestToolIntentMigration:
+    """Validate that ``_check_bash_infra_writes`` continues to catch existing
+    infrastructure-protection scenarios after the Issue #971 migration.
+
+    These tests confirm:
+    1. The ``_extract_bash_file_writes`` shim returns the same shape as before.
+    2. ``_check_bash_infra_writes`` still blocks each protected-path scenario.
+    3. The fallback path (``_extract_bash_file_writes_legacy``) is preserved
+       and reachable.
+    4. The new ``_tool_intent`` module loads correctly when present.
+    """
+
+    def test_tool_intent_module_loaded(self):
+        """The new tool_intent module should be importable from the hook."""
+        assert hook._tool_intent is not None, (
+            "tool_intent module failed to load — hook will fall back to "
+            "legacy regex implementation. This is allowed but unexpected."
+        )
+
+    def test_legacy_implementation_preserved(self):
+        """The legacy regex implementation must remain callable as fallback."""
+        assert hasattr(hook, "_extract_bash_file_writes_legacy")
+        # Smoke test: legacy still extracts targets from a simple redirect.
+        targets = hook._extract_bash_file_writes_legacy("echo hi > /tmp/x")
+        assert "/tmp/x" in targets
+
+    def test_shim_matches_legacy_for_simple_redirect(self):
+        """The shim must extract the same write targets as the legacy fn for
+        a basic redirect — no behavioural regression on common cases."""
+        cmd = "echo hi > /tmp/output.txt"
+        shim_targets = hook._extract_bash_file_writes(cmd)
+        legacy_targets = hook._extract_bash_file_writes_legacy(cmd)
+        assert "/tmp/output.txt" in shim_targets
+        assert "/tmp/output.txt" in legacy_targets
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_check_bash_infra_writes_blocks_sed_to_protected(self, _mock, monkeypatch):
+        """sed -i to a protected path is still caught post-migration."""
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+        cmd = "sed -i 's/foo/bar/' /home/user/.claude/agents/foo.md"
+        result = hook._check_bash_infra_writes(cmd)
+        assert result is not None, (
+            f"_check_bash_infra_writes failed to block sed -i to protected path. "
+            f"Migration to tool_intent regressed infrastructure protection."
+        )
+        file_name, reason = result
+        assert "foo.md" in file_name
+        assert "BLOCKED" in reason
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_check_bash_infra_writes_blocks_python_dump_to_agent(self, _mock, monkeypatch):
+        """python -c writing to an agent file is still caught post-migration."""
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+        cmd = (
+            'python3 -c "from pathlib import Path; '
+            "Path('/home/user/.claude/agents/foo.md').write_text('x')\""
+        )
+        result = hook._check_bash_infra_writes(cmd)
+        assert result is not None
+        file_name, reason = result
+        assert "foo.md" in file_name
+        assert "BLOCKED" in reason
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_check_bash_infra_writes_passes_python_read_of_agent(self, _mock, monkeypatch):
+        """python -c READING an agent file (json.load / read_text) MUST NOT block.
+
+        This is the canonical Issue #971 false-positive fix — the legacy
+        regex flagged ``open(...)`` indiscriminately.
+        """
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+        cmd = (
+            'python3 -c "from pathlib import Path; '
+            "print(Path('/home/user/.claude/agents/implementer.md').read_text())\""
+        )
+        result = hook._check_bash_infra_writes(cmd)
+        assert result is None, (
+            f"_check_bash_infra_writes incorrectly blocked a READ operation. "
+            f"Issue #971 false-positive regression."
+        )

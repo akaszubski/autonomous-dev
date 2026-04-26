@@ -147,3 +147,52 @@ class TestPythonSettingsBypass:
         result = hook._detect_settings_json_write(cmd)
         assert result is not None
         assert "REQUIRED NEXT ACTION" in result
+
+
+class TestFalsePositiveFix:
+    """Regression tests for the Issue #971 false-positive fix.
+
+    The legacy regex matched ``open\\s*\\(`` indiscriminately, so
+    ``json.load(open('settings.json'))`` was incorrectly blocked. Post-#971
+    the AST-based ``tool_intent`` correctly classifies these as READ.
+
+    These tests document the contract: read-only Python operations on
+    settings.json MUST NOT trigger ``_detect_settings_json_write``.
+    """
+
+    def test_json_load_open_settings_passes(self):
+        """json.load(open('settings.json')) is a READ — must not block."""
+        cmd = """python3 -c "import json; json.load(open('settings.json'))" """
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_json_loads_with_path_read_text_passes(self):
+        """json.loads(Path('settings.json').read_text()) is a READ."""
+        cmd = (
+            "python3 -c \"import json; from pathlib import Path; "
+            "json.loads(Path('settings.json').read_text())\""
+        )
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_open_settings_no_mode_passes(self):
+        """open('settings.json') with no mode = read by default."""
+        cmd = """python3 -c "data = open('settings.json').read()" """
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_open_settings_explicit_r_mode_passes(self):
+        """open('settings.json', 'r') is explicit read mode."""
+        cmd = """python3 -c "f = open('settings.json', 'r'); print(f.read())" """
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_cat_pipe_jq_settings_passes(self):
+        """cat settings.json | jq .foo is a READ pipeline."""
+        cmd = "cat settings.json | jq .hooks"
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_grep_in_settings_passes(self):
+        """grep on settings.json is a READ."""
+        assert hook._detect_settings_json_write("grep hooks settings.json") is None
+
+    def test_bash_dash_c_cat_settings_passes(self):
+        """bash -c "cat settings.json" — nested shell READ must not block."""
+        cmd = 'bash -c "cat settings.json"'
+        assert hook._detect_settings_json_write(cmd) is None

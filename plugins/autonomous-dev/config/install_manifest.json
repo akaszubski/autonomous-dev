@@ -319,6 +319,7 @@
         "plugins/autonomous-dev/lib/tier_registry.py",
         "plugins/autonomous-dev/lib/token_tracker.py",
         "plugins/autonomous-dev/lib/tool_approval_audit.py",
+        "plugins/autonomous-dev/lib/tool_intent.py",
         "plugins/autonomous-dev/lib/tool_validator.py",
         "plugins/autonomous-dev/lib/training_metrics.py",
         "plugins/autonomous-dev/lib/uninstall_orchestrator.py",
