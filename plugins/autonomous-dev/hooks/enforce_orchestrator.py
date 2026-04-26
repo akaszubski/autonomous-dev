@@ -205,6 +205,15 @@ def is_docs_only_commit() -> bool:
 def main():
     """Enforce orchestrator validation in strict mode."""
 
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="PreCommit")
+            sys.exit(0)
+    except ImportError:
+        pass
+
     # Only run on PreCommit
     try:
         data = json.loads(sys.stdin.read())

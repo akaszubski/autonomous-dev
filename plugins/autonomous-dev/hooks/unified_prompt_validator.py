@@ -525,6 +525,16 @@ def main() -> int:
     # Check for compaction recovery before processing prompt
     _check_compaction_recovery()
 
+    # Universal bypass (Issue #969): falls through to allow before any check.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="UserPromptSubmit")
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit"}}))
+            return 0
+    except ImportError:
+        pass
+
     # Read input from stdin
     try:
         input_data = json.loads(sys.stdin.read())

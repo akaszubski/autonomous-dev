@@ -306,6 +306,12 @@ All environment variables with default values:
 | ALLOW_GIT_BYPASS | false | block_git_bypass (PreCommit) | Allow git commit --no-verify for emergency situations (not recommended) |
 | PIPELINE_CLEANUP_PHASE | (unset) | unified_pre_tool (PreToolUse) | Set to `1` or `true` to allow deletion of pipeline state files — escape hatch for authorized STEP 15 / STEP B4 batch cleanup; bypass for pipeline state file deletion guard (Issue #865) |
 
+### Universal Bypass
+
+| Variable | Default | Controls | Description |
+|----------|---------|----------|-------------|
+| `AUTONOMOUS_DEV_BYPASS` | (unset) | All hooks | Set to any truthy value (`1`, `true`, `yes`, `on`) to bypass every hook in the harness. Bypass events logged to `.claude/logs/hook-bypass.jsonl`. Equivalent to `touch .claude/.bypass` file flag. File flag walk: `.claude/.bypass` in cwd or any ancestor (up to 30 levels, symlinks not followed). Last-resort recovery when a hook deadlocks and no per-hook escape hatch is available. (Issue #969) |
+
 ### Hook Extensions
 
 | Variable | Default | Controls | Description |

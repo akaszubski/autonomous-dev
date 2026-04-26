@@ -318,6 +318,18 @@ def main() -> int:
         0 if aligned
         1 if misaligned (blocks commit)
     """
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(
+                hook_name=Path(__file__).name,
+                tool_name="validate_project_alignment",
+            )
+            return 0
+    except ImportError:
+        pass
+
     print("🔍 Validating PROJECT.md alignment (STRICT MODE)...\n")
 
     project_root = get_project_root()

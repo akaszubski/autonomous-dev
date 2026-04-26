@@ -140,6 +140,15 @@ def get_source_files(language: str) -> List[Path]:
 
 def main():
     """Run auto-formatting."""
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="auto_format")
+            return
+    except ImportError:
+        pass
+
     language = detect_language()
 
     if language == "unknown":

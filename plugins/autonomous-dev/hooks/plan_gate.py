@@ -164,6 +164,16 @@ def main() -> int:
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input", {})
 
+        # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+        try:
+            from hook_bypass import is_bypassed, log_bypass_used
+            if is_bypassed():
+                log_bypass_used(hook_name=Path(__file__).name, tool_name=tool_name)
+                _output_decision("allow", "Universal bypass active (#969)")
+                return 0
+        except ImportError:
+            pass
+
         # Only check Write and Edit tools
         if tool_name not in ("Write", "Edit"):
             _output_decision("allow", f"Plan gate: tool {tool_name} not subject to plan check")

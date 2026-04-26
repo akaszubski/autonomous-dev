@@ -118,6 +118,15 @@ def main() -> int:
 
     tool_name = input_data.get("tool_name", "")
 
+    # Universal bypass (Issue #969): falls through to allow with telemetry.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name=tool_name)
+            return 0
+    except ImportError:
+        pass
+
     if tool_name != "ExitPlanMode":
         return 0
 

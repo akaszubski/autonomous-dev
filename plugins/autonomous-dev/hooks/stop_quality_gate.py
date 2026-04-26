@@ -506,6 +506,15 @@ def main() -> int:
     Exit Codes:
         EXIT_SUCCESS (0): Always - informational only.
     """
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="stop_quality_gate")
+            return EXIT_SUCCESS
+    except ImportError:
+        pass
+
     try:
         # Check if quality gate enabled
         if not should_enforce_quality_gate():

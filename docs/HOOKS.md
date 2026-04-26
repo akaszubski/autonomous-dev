@@ -293,6 +293,39 @@ ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
 
 ---
 
+## Universal Hook Bypass (Issue #969)
+
+Every hook honors a universal bypass that can be set from outside Claude Code, so a deadlocked harness cannot prevent recovery.
+
+**Two equivalent signals — either one is sufficient:**
+
+| Signal | Scope | How to set |
+|--------|-------|-----------|
+| `AUTONOMOUS_DEV_BYPASS=1` (env var) | Process-scoped | `AUTONOMOUS_DEV_BYPASS=1 git commit -m "..."` or `export AUTONOMOUS_DEV_BYPASS=1` |
+| `.claude/.bypass` (file flag) | Project-scoped | `touch .claude/.bypass` from the repo root |
+
+When either signal is active, every hook falls through to `allow` and appends one JSONL line to `.claude/logs/hook-bypass.jsonl` for later audit. Telemetry failures never block the bypass itself.
+
+**Truthy env var values**: any non-empty string NOT in `{"0", "false", "no", "off"}` (case-insensitive). Explicitly falsy values do NOT trigger bypass.
+
+**File flag walk**: `.claude/.bypass` is detected in the current directory or any ancestor up to 30 levels; symlinks are not followed.
+
+**Implementation**: `plugins/autonomous-dev/lib/hook_bypass.py` — `is_bypassed(start_dir=None)` and `log_bypass_used(hook_name, tool_name, reason)`. Import pattern in hooks:
+
+```python
+from hook_bypass import is_bypassed, log_bypass_used
+
+def main():
+    if is_bypassed():
+        log_bypass_used(hook_name=__file__, tool_name=tool_name)
+        sys.exit(0)
+    # ... normal enforcement ...
+```
+
+See [TROUBLESHOOTING.md](../plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969) for operator usage.
+
+---
+
 ## Safe Failure Behavior
 
 All 24 hooks wrap their `main()` function with `safe_main()` from `plugins/autonomous-dev/lib/hook_safety.py` (Issue #953). This provides two guarantees:

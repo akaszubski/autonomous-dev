@@ -280,6 +280,15 @@ def scan_directory(directory: Path = Path(".")) -> dict:
 
 def main():
     """Run security scan with GenAI context analysis."""
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="security_scan")
+            sys.exit(0)
+    except ImportError:
+        pass
+
     use_genai = os.environ.get("GENAI_SECURITY_SCAN", "true").lower() == "true"
     genai_status = "🤖 (with GenAI context analysis)" if use_genai else ""
     print(f"🔒 Running security scan... {genai_status}")

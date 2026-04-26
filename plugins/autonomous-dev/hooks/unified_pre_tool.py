@@ -3861,6 +3861,24 @@ def main():
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input", {})
 
+        # =================================================================
+        # UNIVERSAL BYPASS (Issue #969): AUTONOMOUS_DEV_BYPASS=1 OR
+        # .claude/.bypass file in cwd-or-ancestor falls through to allow.
+        # Checked BEFORE any other validation so a deadlocked harness can
+        # always be unstuck by setting either signal from outside.
+        # =================================================================
+        try:
+            from hook_bypass import is_bypassed, log_bypass_used
+            if is_bypassed():
+                log_bypass_used(
+                    hook_name=Path(__file__).name,
+                    tool_name=tool_name,
+                )
+                output_decision("allow", "Universal bypass active (#969)")
+                sys.exit(0)
+        except ImportError:
+            pass  # bypass library unavailable - continue with normal hook logic
+
         if not tool_name:
             # No tool name - ask user
             output_decision("ask", "No tool name provided")

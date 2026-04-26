@@ -658,6 +658,15 @@ def print_manual_intervention_needed(violations: List[Dict]):
 
 def main():
     """Main entry point for hybrid auto-fix + block hook with GenAI support."""
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="auto_fix_docs")
+            return 0
+    except ImportError:
+        pass
+
     use_genai = os.environ.get("GENAI_DOC_AUTOFIX", "true").lower() == "true"
     genai_status = "🤖 (with GenAI smart auto-fixing)" if use_genai else ""
     print(f"🔍 Checking documentation consistency... {genai_status}")

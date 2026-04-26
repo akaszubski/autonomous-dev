@@ -264,6 +264,11 @@ Three escape hatches exist (any one bypasses):
 To re-enable enforcement in foreign projects: `export AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1`.
 The escape hatches above still win over global enforcement.
 
+**Universal hook bypass** (Issue #969): if any hook is blocking and you cannot run
+a slash command to unstick it, set `AUTONOMOUS_DEV_BYPASS=1` or `touch .claude/.bypass`
+— every hook honors this and falls through to allow with a logged audit trail.
+See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969).
+
 ### Batch Processing
 
 ```bash

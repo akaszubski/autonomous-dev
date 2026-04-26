@@ -189,6 +189,18 @@ def validate_command_file_ops(filepath: Path) -> tuple[bool, str]:
 def main():
     """Validate all commands for proper file operation handling."""
 
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(
+                hook_name=Path(__file__).name,
+                tool_name="validate_command_file_ops",
+            )
+            sys.exit(0)
+    except ImportError:
+        pass
+
     # Find commands directory relative to this script
     script_dir = Path(__file__).parent
     plugin_dir = script_dir.parent

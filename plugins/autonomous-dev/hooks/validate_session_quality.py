@@ -296,6 +296,18 @@ def is_lightweight_change() -> bool:
 def main():
     """Validate session quality."""
 
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(
+                hook_name=Path(__file__).name,
+                tool_name="validate_session_quality",
+            )
+            sys.exit(0)
+    except ImportError:
+        pass
+
     # Read hook input
     try:
         data = json.loads(sys.stdin.read())

@@ -5,6 +5,76 @@
 
 ---
 
+## Universal Escape: Unstick Any Blocked Hook (Issue #969)
+
+**When to use**: A hook is blocking your work and you cannot run a slash command
+to bypass it (e.g., the bypass mechanism for that specific hook is itself
+broken, or you are in a project where autonomous-dev is not installed but
+its global hooks fire anyway).
+
+**Two equivalent signals — either one is sufficient.** Both fall through to
+`allow` for every hook in the harness, with a structured bypass event written
+to `.claude/logs/hook-bypass.jsonl` for later audit.
+
+### Option A — Env var (process-scoped, recommended for one-shot use)
+
+```bash
+# Bypass for the next command only (subshell scope):
+AUTONOMOUS_DEV_BYPASS=1 git commit -m "fix: emergency"
+
+# Bypass for the whole shell session:
+export AUTONOMOUS_DEV_BYPASS=1
+# ... do whatever was blocked ...
+unset AUTONOMOUS_DEV_BYPASS    # IMPORTANT: re-enable enforcement when done
+```
+
+Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). Falsy values
+(`0`, `false`, `no`, `off`, empty) do NOT trigger bypass.
+
+### Option B — File flag (project-scoped, persists across sessions)
+
+```bash
+# Create the flag from the project root:
+touch .claude/.bypass
+
+# ... do whatever was blocked ...
+
+# Re-enable enforcement:
+rm .claude/.bypass
+```
+
+The flag is also honored when present in any **ancestor** directory of your
+current working directory (so dropping `.claude/.bypass` at the repo root
+works from any subdirectory). The walk is bounded by 30 levels and does NOT
+follow symlinks.
+
+### What gets logged
+
+Every bypass-allowed hook call appends one JSON line to
+`.claude/logs/hook-bypass.jsonl`:
+
+```json
+{"timestamp": "2026-04-26T12:34:56.789012+00:00", "hook_name": "plan_gate.py", "tool_name": "Write", "reason": "env_or_file"}
+```
+
+If `.claude/logs/` cannot be created (read-only filesystem, permission
+denied), the line is written to stderr prefixed with `[hook-bypass]`. The
+bypass itself never fails on telemetry errors.
+
+### Important caveats
+
+- **The bypass is not a security control.** Anyone with write access to your
+  cwd or env can disable enforcement. Use it as a developer convenience, not
+  a permission boundary.
+- **Re-enable enforcement when done.** A forgotten `export
+  AUTONOMOUS_DEV_BYPASS=1` in your `~/.zshrc` will silently disable every
+  hook for every session.
+- **Coexists with per-hook env vars.** `SKIP_PLAN_CHECK`,
+  `AUTONOMOUS_DEV_SKIP_PLAN_REVIEW`, `MCP_AUTO_APPROVE`, etc. continue to
+  work as additional independent paths.
+
+---
+
 ## Quick Fixes
 
 | Problem | Solution |

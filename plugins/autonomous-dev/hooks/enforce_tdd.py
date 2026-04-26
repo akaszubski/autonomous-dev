@@ -369,6 +369,14 @@ def main() -> int:
     Returns:
         Exit code (0 for success, 2 for block)
     """
+    # Universal bypass (Issue #969): env var or .claude/.bypass falls through.
+    try:
+        from hook_bypass import is_bypassed, log_bypass_used
+        if is_bypassed():
+            log_bypass_used(hook_name=Path(__file__).name, tool_name="PreCommit")
+            return 0
+    except ImportError:
+        pass
 
     # Only run on PreCommit
     try:
