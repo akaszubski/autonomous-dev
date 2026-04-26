@@ -48,7 +48,7 @@ The plugin uses 30 active hooks (files on disk in `plugins/autonomous-dev/hooks/
 | validate_project_alignment | PreCommit | Enabled | Validate PROJECT.md alignment |
 | validate_session_quality | Stop | Enabled | Validate session quality and completeness |
 | plan_gate | PreToolUse | Enabled | Pre-implementation planning gate — blocks complex Write/Edit when no valid plan exists in .claude/plans/. Exempts documentation files and simple edits (<100 lines). Validates WHY+SCOPE, Existing Solutions, Minimal Path sections. Escape hatch: SKIP_PLAN_CHECK=1. Fails open. (Issue #814) |
-| plan_mode_exit_detector | PostToolUse | Enabled | Detect ExitPlanMode calls and write marker (`stage: plan_exited`); implements staged plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done → /implement allowed. **Per Issue #926, the *enforcement* of this marker moved from UserPromptSubmit to PreToolUse (`unified_pre_tool.py`); marker writer behavior unchanged** |
+| plan_mode_exit_detector | PostToolUse | Enabled | Detect ExitPlanMode calls and write marker; implements staged plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done → /implement allowed. **AC#3 fast-path (Issue #937/#970)**: if `.claude/plan_critic_verdict.json` holds a PROCEED verdict at ExitPlanMode time, the marker is born `stage: "critique_done"` (not `"plan_exited"`), the verdict file is consumed, and the user is immediately unblocked. Without a PROCEED verdict the marker is born `stage: "plan_exited"` as before. **Per Issue #926, the *enforcement* of this marker moved from UserPromptSubmit to PreToolUse (`unified_pre_tool.py`); marker writer behavior otherwise unchanged** |
 | session_activity_logger | PostToolUse | Enabled | Structured JSONL activity logging for continuous improvement |
 | task_completed_handler | TaskCompleted | Enabled | Log task completion events to activity JSONL for pipeline observability |
 | validate_claude_md_size | PreCommit | Enabled | Warn when CLAUDE.md exceeds 200 lines (Anthropic best practice). Non-blocking — always exits 0. |
@@ -311,6 +311,12 @@ All environment variables with default values:
 | Variable | Default | Controls | Description |
 |----------|---------|----------|-------------|
 | `AUTONOMOUS_DEV_BYPASS` | (unset) | All hooks | Set to any truthy value (`1`, `true`, `yes`, `on`) to bypass every hook in the harness. Bypass events logged to `.claude/logs/hook-bypass.jsonl`. Equivalent to `touch .claude/.bypass` file flag. File flag walk: `.claude/.bypass` in cwd or any ancestor (up to 30 levels, symlinks not followed). Last-resort recovery when a hook deadlocks and no per-hook escape hatch is available. (Issue #969) |
+
+### Hook Recovery Telemetry
+
+| Variable | Default | Controls | Description |
+|----------|---------|----------|-------------|
+| `HOOK_RECOVERY_DISABLED` | (unset) | `hook_recovery.py` | Set to any truthy value (`1`, `true`, `yes`, `on`) to disable hook recovery telemetry writes to `.claude/logs/hook-recovery.jsonl` and stale-state cleanup via `clear_stale_state()`. Acts as a rollback valve — disables the entire telemetry surface without redeploying. Falsy values (`0`, `false`, `no`, `off`) leave telemetry active. (Issue #970) |
 
 ### Hook Extensions
 

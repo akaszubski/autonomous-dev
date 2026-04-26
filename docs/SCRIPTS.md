@@ -45,6 +45,7 @@ Re-sync dogfood repos after upstream changes without full reinstall.
 | `scripts/validate_component_classifications.py` | Component classifications match registry |
 | `scripts/validate_test_categorization.py` | Tests in correct tier directory (`unit/`, `property/`, `integration/`, etc.) |
 | `scripts/pre-commit-hook-check.sh` | Quick sanity check before committing |
+| `scripts/audit_hook_recovery.py` | CI gate (Issue #970): scans `unified_pre_tool.py` for `output_decision("deny", ...)` sites that lack a paired `log_block_with_recovery(` call in the same function. Default mode (WARN-ONLY) prints findings and exits 0. `--strict` flag (or `AUDIT_HOOK_RECOVERY_STRICT=1` env var) exits 1. Ensures deny-emitting hooks leave structured recovery telemetry for users. |
 | `scripts/audit_tool_intent_coverage.py` | CI gate (Issue #971): every distinct tool name observed in activity logs over the last N days must have a defined classification in `tool_intent.py`. Flags uncovered tool names so new native tools are never silently misclassified. Usage: `python scripts/audit_tool_intent_coverage.py [--days 7] [--strict] [--print-classifications] [--logs-dir path]`. Exit 0 when all observed tools are covered; exit 1 when uncovered tools found and `--strict` is set. Importable as `audit(logs_dir, days, strict=False)`. |
 
 All validators are invoked automatically by the pre-commit hook. You rarely need to run them manually — only when debugging validation failures.

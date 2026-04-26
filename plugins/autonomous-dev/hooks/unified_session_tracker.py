@@ -52,6 +52,14 @@ except ImportError:
         _sys_953.exit(0)
 
 
+# Issue #970: defensive hook_recovery import for telemetry on stage advance.
+try:
+    from hook_recovery import log_block_with_recovery as _log_block_with_recovery_970
+except ImportError:
+    def _log_block_with_recovery_970(**kwargs):
+        return None
+
+
 import json
 import os
 import re
@@ -835,6 +843,19 @@ def _advance_plan_mode_stage() -> Optional[str]:
         marker_data["stage"] = "critique_done"
         marker_data["critique_completed_at"] = datetime.now(timezone.utc).isoformat()
         marker_path.write_text(json.dumps(marker_data, indent=2))
+
+        # Issue #970: telemetry — record successful stage advance for audit.
+        # Telemetry-only; no behavior change. NEVER raises.
+        try:
+            _log_block_with_recovery_970(
+                hook_name="unified_session_tracker.py",
+                tool_name="SubagentStop",
+                block_reason="STAGE_ADVANCE: plan_exited -> critique_done",
+                recovery_hint="Pipeline gate cleared. Run /implement to proceed.",
+            )
+        except Exception:
+            pass
+
         return _PLAN_TO_ISSUES_SUGGESTION
     except Exception:
         return None  # Never crash on stage advance failure

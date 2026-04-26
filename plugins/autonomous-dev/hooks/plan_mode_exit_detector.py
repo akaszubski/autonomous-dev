@@ -177,11 +177,32 @@ def main() -> int:
         elif isinstance(tool_response, str):
             plan_content = tool_response
 
+        # AC#3 (Issue #937, #970): If plan-critic produced a PROCEED verdict
+        # BEFORE ExitPlanMode fires (e.g. critic invoked during plan mode),
+        # the verdict file is sitting at .claude/plan_critic_verdict.json
+        # waiting to be consumed. Without this branch the marker is born at
+        # stage="plan_exited" and the verdict file is left dangling — the
+        # subsequent stage-advance helper short-circuits because the marker
+        # is already past plan_exited by the time it observes critique.
+        # Result: the user is wedged behind the plan-critic gate even though
+        # plan-critic already PROCEEDed.
+        verdict_path = cwd / ".claude" / "plan_critic_verdict.json"
+        proceeded, _verdict_ts = _plan_critic_proceeded(verdict_path)
+        stage_value = "critique_done" if proceeded else "plan_exited"
+
         marker_data = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "session_id": os.environ.get("CLAUDE_SESSION_ID", "unknown"),
-            "stage": "plan_exited",
+            "stage": stage_value,
         }
+
+        if proceeded:
+            marker_data["critique_completed_at"] = datetime.now(timezone.utc).isoformat()
+            # Consume verdict file so it cannot replay against a future plan.
+            try:
+                verdict_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
         # Add plan content if available (truncate to 10K chars)
         if plan_content:
@@ -189,17 +210,23 @@ def main() -> int:
 
         marker_path.write_text(json.dumps(marker_data, indent=2))
 
-        # Output systemMessage to trigger plan-critic (Staged Plan-Exit Pipeline)
-        system_msg = (
-            "PLAN MODE EXITED — Plan critique required before proceeding.\n\n"
-            "You MUST invoke the plan-critic agent on the plan you just created. "
-            "After plan-critic completes with PROCEED verdict, the stage will "
-            "automatically advance and you can proceed with /implement or /plan-to-issues.\n\n"
-            "Escape hatches (any one):\n"
-            "  - /implement --skip-review                       (one-shot)\n"
-            "  - export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1       (cross-session, recommended)\n"
-            "  - touch .claude/SKIP_PLAN_REVIEW                 (local, gitignored)"
-        )
+        # Output systemMessage — branches on whether plan-critic already PROCEEDed.
+        if proceeded:
+            system_msg = (
+                "PLAN MODE EXITED — plan-critic already PROCEEDed; pipeline ready. "
+                "You may now run /implement or /plan-to-issues."
+            )
+        else:
+            system_msg = (
+                "PLAN MODE EXITED — Plan critique required before proceeding.\n\n"
+                "You MUST invoke the plan-critic agent on the plan you just created. "
+                "After plan-critic completes with PROCEED verdict, the stage will "
+                "automatically advance and you can proceed with /implement or /plan-to-issues.\n\n"
+                "Escape hatches (any one):\n"
+                "  - /implement --skip-review                       (one-shot)\n"
+                "  - export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1       (cross-session, recommended)\n"
+                "  - touch .claude/SKIP_PLAN_REVIEW                 (local, gitignored)"
+            )
         output = {
             "hookSpecificOutput": {"hookEventName": "PostToolUse"},
             "systemMessage": system_msg,
@@ -210,6 +237,47 @@ def main() -> int:
         pass
 
     return 0
+
+
+def _plan_critic_proceeded(verdict_path: Path):
+    """Return (True, verdict_ts) iff plan-critic verdict file declares PROCEED.
+
+    AC#3 helper (Issue #937, #970). Reads the verdict JSON file written by
+    plan-critic and validates:
+
+    - File exists and parses as JSON.
+    - ``verdict`` field equals ``"PROCEED"`` (REVISE/BLOCKED → False).
+    - ``timestamp`` field is parseable ISO 8601.
+
+    Staleness checks (e.g. verdict newer than marker) are NOT applied here —
+    when this helper runs from ``main()`` no marker exists yet, so freshness
+    is an inherently future check delegated to ``_advance_plan_mode_stage``
+    in ``unified_session_tracker.py``.
+
+    Args:
+        verdict_path: Absolute path to ``.claude/plan_critic_verdict.json``.
+
+    Returns:
+        Tuple ``(proceeded: bool, verdict_ts: datetime | None)``.
+    """
+    try:
+        if not verdict_path.exists():
+            return (False, None)
+        data = json.loads(verdict_path.read_text())
+        if not isinstance(data, dict):
+            return (False, None)
+        if data.get("verdict") != "PROCEED":
+            return (False, None)
+        ts_raw = data.get("timestamp")
+        if not isinstance(ts_raw, str) or not ts_raw:
+            return (False, None)
+        try:
+            verdict_ts = datetime.fromisoformat(ts_raw)
+        except ValueError:
+            return (False, None)
+        return (True, verdict_ts)
+    except (json.JSONDecodeError, OSError, ValueError):
+        return (False, None)
 
 
 if __name__ == "__main__":

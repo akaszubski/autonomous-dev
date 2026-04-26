@@ -170,6 +170,7 @@
         "plugins/autonomous-dev/lib/hook_bypass.py",
         "plugins/autonomous-dev/lib/hook_exit_codes.py",
         "plugins/autonomous-dev/lib/hook_path_validator.py",
+        "plugins/autonomous-dev/lib/hook_recovery.py",
         "plugins/autonomous-dev/lib/hybrid_validator.py",
         "plugins/autonomous-dev/lib/ideation_engine.py",
         "plugins/autonomous-dev/lib/ideation_report_generator.py",

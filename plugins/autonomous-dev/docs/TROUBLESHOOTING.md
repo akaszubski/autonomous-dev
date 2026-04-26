@@ -5,6 +5,43 @@
 
 ---
 
+## Hook Recovery Telemetry (Issue #970)
+
+When a `unified_pre_tool.py` deny gate blocks a tool call, it now emits a
+structured JSONL row at `.claude/logs/hook-recovery.jsonl` describing what
+was blocked and an actionable recovery hint. Tail this file when you are
+unsure why a tool call was rejected:
+
+```bash
+tail -n 5 .claude/logs/hook-recovery.jsonl | jq .
+```
+
+Each row has the shape:
+
+```json
+{
+  "timestamp": "2026-04-26T...",
+  "hook_name": "unified_pre_tool.py",
+  "tool_name": "Bash",
+  "block_reason": "WORKFLOW ENFORCEMENT: ...",
+  "recovery_hint": "Delegate the change to a pipeline agent...",
+  "session_id": "..."
+}
+```
+
+**Rollback switch**: set `HOOK_RECOVERY_DISABLED=1` to make telemetry a
+no-op without redeploying. The deny decision itself is unaffected — the
+hook gate continues to function normally; only the JSONL log and the
+stale-state cleanup helper are silenced.
+
+**Audit script**: `python scripts/audit_hook_recovery.py` reports any
+literal `output_decision("deny", ...)` site in `unified_pre_tool.py` that
+lacks a paired `log_block_with_recovery()` call. Default mode is WARN-ONLY
+(exit 0); pass `--strict` (or set `AUDIT_HOOK_RECOVERY_STRICT=1`) to make
+unjustified deny sites fail CI.
+
+---
+
 ## Universal Escape: Unstick Any Blocked Hook (Issue #969)
 
 **When to use**: A hook is blocking your work and you cannot run a slash command

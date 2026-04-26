@@ -119,6 +119,38 @@ try:
 except Exception:
     _tool_intent = None  # Fallback: _extract_bash_file_writes_legacy retains old behavior
 
+# Defensive import of hook_recovery (Issue #970).
+# Telemetry-only. If unavailable, log_block_with_recovery becomes a no-op so
+# the hook gate continues to function unchanged.
+try:
+    _hook_path_hr = Path(__file__).resolve().parent
+    _lib_candidates_hr = [
+        _hook_path_hr.parent / "lib",           # plugins/autonomous-dev/lib
+        _hook_path_hr.parents[2] / "lib",        # fallback
+        Path.home() / ".claude" / "lib",        # user-global install
+    ]
+    _hr_loaded = False
+    for _lib_dir_hr in _lib_candidates_hr:
+        _hr_path = _lib_dir_hr / "hook_recovery.py"
+        if _hr_path.exists():
+            import importlib.util as _ilu_hr
+            _spec_hr = _ilu_hr.spec_from_file_location("hook_recovery", str(_hr_path))
+            if _spec_hr and _spec_hr.loader:
+                _hook_recovery_mod = importlib.util.module_from_spec(_spec_hr)
+                _spec_hr.loader.exec_module(_hook_recovery_mod)
+                log_block_with_recovery = _hook_recovery_mod.log_block_with_recovery
+                is_recovery_disabled = _hook_recovery_mod.is_recovery_disabled
+                _hr_loaded = True
+            break
+    if not _hr_loaded:
+        raise ImportError("hook_recovery.py not found in any candidate location")
+except Exception:
+    def log_block_with_recovery(**kwargs):  # type: ignore[no-redef]
+        return None
+
+    def is_recovery_disabled() -> bool:  # type: ignore[no-redef]
+        return False
+
 # Module-level agent_type extracted from hook stdin JSON (set in main()).
 # Used by _get_active_agent_name() as primary identity source (Issue #591).
 _agent_type: str = ""
@@ -1277,10 +1309,31 @@ def _is_pipeline_active() -> bool:
     # Check agent name (Issue #591: prefer stdin agent_type over env var)
     agent_name = _get_active_agent_name()
     if agent_name in PIPELINE_AGENTS:
-        # Touch state file to keep mtime current during active pipeline (Issue #636)
-        pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json")
+        # Issue #941: refresh mtime ONLY when this session OWNS the state file.
+        # Previously this was unconditional (Issue #636) which let concurrent
+        # sessions inadvertently keep a foreign session's stale state alive.
+        # Preserves #636: the owning session keeps its own mtime fresh.
+        # Fixes #941: a parallel pipeline run does not refresh another
+        # session's sentinel.
+        pipeline_state_file = os.getenv(
+            "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        )
         try:
-            Path(pipeline_state_file).touch()
+            current_sid = os.environ.get("CLAUDE_SESSION_ID", "")
+            should_touch = True  # default: preserve #636 if we cannot read state
+            state_path = Path(pipeline_state_file)
+            if state_path.exists():
+                try:
+                    import json as _json_touch
+                    with open(state_path) as _fh_touch:
+                        _state_for_touch = _json_touch.load(_fh_touch)
+                    state_sid = _state_for_touch.get("session_id", "") if isinstance(_state_for_touch, dict) else ""
+                    if state_sid and current_sid and state_sid != current_sid:
+                        should_touch = False  # foreign-owned: do not refresh
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass  # Unreadable/corrupt: fall back to touch (preserves #636)
+            if should_touch:
+                Path(pipeline_state_file).touch()
         except OSError:
             pass
         return True
@@ -4290,6 +4343,17 @@ def main():
                             spoof_reason += " [CIRCUMVENTION-ESCALATION]"
                         _log_deviation("env_spoofing", tool_name, "env_var_spoofing_block")
                         _log_pretool_activity(tool_name, tool_input, "deny", spoof_reason)
+                        # Issue #970: recovery telemetry for env-var spoofing block.
+                        log_block_with_recovery(
+                            hook_name="unified_pre_tool.py",
+                            tool_name=tool_name,
+                            block_reason=spoof_reason,
+                            recovery_hint=(
+                                "Remove the protected env-var override from your command. "
+                                "Set the variable in your shell profile if persistence is "
+                                "needed. To bypass enforcement: AUTONOMOUS_DEV_BYPASS=1."
+                            ),
+                        )
                         output_decision(
                             "deny", spoof_reason,
                             system_message="BLOCKED: Protected environment variable cannot be overridden.",
@@ -4558,6 +4622,18 @@ def main():
                             "explicit_implement_coordinator_block_native",
                         )
                         _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                        # Issue #970: recovery telemetry for #528 workflow enforcement.
+                        log_block_with_recovery(
+                            hook_name="unified_pre_tool.py",
+                            tool_name=tool_name,
+                            block_reason=block_reason,
+                            recovery_hint=(
+                                "Delegate the change to a pipeline agent (implementer, "
+                                "test-master, doc-master) via the Task tool. To bypass for "
+                                "an emergency direct-edit: set ENFORCEMENT_LEVEL=off or "
+                                "AUTONOMOUS_DEV_BYPASS=1."
+                            ),
+                        )
                         output_decision(
                             "deny", block_reason,
                             system_message="WORKFLOW ENFORCEMENT: Delegate code changes to pipeline agents.",
@@ -4640,6 +4716,17 @@ def main():
             ext_decision, ext_reason = _run_extensions(tool_name, tool_input)
             if ext_decision == "deny":
                 _log_pretool_activity(tool_name, tool_input, "deny", ext_reason)
+                # Issue #970: emit recovery hint for blocks raised by extensions.
+                log_block_with_recovery(
+                    hook_name="unified_pre_tool.py",
+                    tool_name=tool_name,
+                    block_reason=ext_reason,
+                    recovery_hint=(
+                        "Review the extension that raised this deny. To temporarily disable "
+                        "all hooks: set AUTONOMOUS_DEV_BYPASS=1 or `touch .claude/.bypass`. "
+                        "See docs/TROUBLESHOOTING.md (#970)."
+                    ),
+                )
                 output_decision("deny", ext_reason, system_message=ext_reason)
                 sys.exit(0)
 
