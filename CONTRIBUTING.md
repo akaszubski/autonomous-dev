@@ -163,6 +163,16 @@ autonomous-dev/
 
 4. Document in `docs/LIBRARIES.md`
 
+### Adding a New Hook
+
+Hooks are the load-bearing enforcement layer of the harness. EVERY new hook MUST honour the cross-hook contract: bypass → recoverability → intent classification → telemetry. A hook that violates the contract will deadlock under composition with other hooks.
+
+**Required reading before authoring any new hook**: [`docs/HOOK-COMPOSITION.md`](docs/HOOK-COMPOSITION.md). It contains the full contract, concrete code patterns for each invariant, and the read/write/delete distinction rules.
+
+**CI gate**: [`tests/integration/test_new_hook_contract.py`](tests/integration/test_new_hook_contract.py) walks the AST of every active hook in `plugins/autonomous-dev/hooks/` and reports any deny path that lacks telemetry instrumentation. Phase 1 is warn-only — Phase 2 will fail CI when new hooks land without instrumentation.
+
+When you finish a hook PR, copy the checklist at the bottom of [`docs/HOOK-COMPOSITION.md`](docs/HOOK-COMPOSITION.md) into the PR description.
+
 ---
 
 ## Code Standards

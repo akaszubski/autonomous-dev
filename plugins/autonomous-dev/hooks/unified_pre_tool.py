@@ -151,6 +151,42 @@ except Exception:
     def is_recovery_disabled() -> bool:  # type: ignore[no-redef]
         return False
 
+# Defensive import of hook_telemetry (Issue #972, #942-D capstone).
+# Provides a decorator that emits a structured JSONL row on every "deny"
+# decision flowing through ``output_decision``. Falls back to a no-op
+# decorator if the library is unavailable so the hook continues to
+# function unchanged.
+try:
+    _hook_path_ht = Path(__file__).resolve().parent
+    _lib_candidates_ht = [
+        _hook_path_ht.parent / "lib",           # plugins/autonomous-dev/lib
+        _hook_path_ht.parents[2] / "lib",        # fallback
+        Path.home() / ".claude" / "lib",        # user-global install
+    ]
+    _ht_loaded = False
+    for _lib_dir_ht in _lib_candidates_ht:
+        _ht_path = _lib_dir_ht / "hook_telemetry.py"
+        if _ht_path.exists():
+            import importlib.util as _ilu_ht
+            _spec_ht = _ilu_ht.spec_from_file_location("hook_telemetry", str(_ht_path))
+            if _spec_ht and _spec_ht.loader:
+                _hook_telemetry_mod = importlib.util.module_from_spec(_spec_ht)
+                _spec_ht.loader.exec_module(_hook_telemetry_mod)
+                block_event_decorator = _hook_telemetry_mod.block_event_decorator
+                log_block_event = _hook_telemetry_mod.log_block_event
+                _ht_loaded = True
+            break
+    if not _ht_loaded:
+        raise ImportError("hook_telemetry.py not found in any candidate location")
+except Exception:
+    def block_event_decorator(hook_name):  # type: ignore[no-redef]
+        def _decorator(fn):
+            return fn
+        return _decorator
+
+    def log_block_event(**kwargs):  # type: ignore[no-redef]
+        return None
+
 # Module-level agent_type extracted from hook stdin JSON (set in main()).
 # Used by _get_active_agent_name() as primary identity source (Issue #591).
 _agent_type: str = ""
@@ -2917,6 +2953,7 @@ def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reaso
         pass
 
 
+@block_event_decorator("unified_pre_tool.py")
 def output_decision(decision: str, reason: str, *, system_message: str = ""):
     """Output the hook decision in required format.
 
@@ -2924,6 +2961,12 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
         decision: Permission decision ("allow", "deny", or "ask")
         reason: Human-readable reason for the decision
         system_message: Optional message injected into model context (visible to user)
+
+    Telemetry (Issue #972): when ``decision == "deny"``, the
+    ``block_event_decorator`` appends one structured JSONL row to
+    ``.claude/logs/hook-blocks.jsonl`` so the per-hook block count and
+    deny-reason text can be reconstructed without grepping session
+    transcripts. The decorator is idempotent and never raises.
     """
     output = {
         "hookSpecificOutput": {

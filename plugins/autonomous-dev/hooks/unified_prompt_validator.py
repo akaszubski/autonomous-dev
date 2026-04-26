@@ -106,6 +106,18 @@ if LIB_DIR:
         sys.path.insert(0, str(LIB_DIR))
 
 
+# Defensive import of hook_telemetry (Issue #972, #942-D capstone).
+# Provides log_block_event() so this hook's dict-shape block decision
+# emits a structured JSONL row to .claude/logs/hook-blocks.jsonl. Falls
+# back to a no-op if the library is unavailable so the hook continues to
+# function unchanged.
+try:
+    from hook_telemetry import log_block_event as _log_block_event_972
+except ImportError:
+    def _log_block_event_972(**kwargs):  # type: ignore[no-redef]
+        return None
+
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -580,6 +592,19 @@ def main() -> int:
             "decision": "block",
             **intent_fields,
         })
+        # Telemetry (Issue #972, #942-D capstone): emit a structured row to
+        # .claude/logs/hook-blocks.jsonl so the per-hook block summary
+        # script can categorise these blocks without parsing the activity
+        # log shape. NEVER raises.
+        _log_block_event_972(
+            hook_name="unified_prompt_validator.py",
+            decision_shape="dict",
+            reason=route["reason"],
+            metadata={
+                "suggested_command": route["command"],
+                "prompt_preview": prompt_preview,
+            },
+        )
         message = _format_block(route["command"], route["reason"], user_prompt)
         print(message, file=sys.stderr)
         output = {

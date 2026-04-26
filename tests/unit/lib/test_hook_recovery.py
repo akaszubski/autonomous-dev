@@ -135,7 +135,21 @@ class TestCanUserRecover:
 
 class TestLogBlockWithRecovery:
     def test_log_writes_jsonl_row(self, project_dir, monkeypatch):
+        """As of #972, log_block_with_recovery is a shim that writes to
+        ``.claude/logs/hook-blocks.jsonl`` (the unified telemetry log).
+
+        The legacy field names (``tool_name``, ``recovery_hint``) are
+        preserved inside the ``metadata`` sub-object; the legacy
+        ``block_reason`` becomes the top-level ``reason`` field; the
+        legacy ``timestamp`` becomes the top-level ``ts`` field. The
+        ``decision_shape`` is stamped as ``"legacy_recovery"`` so the
+        summary script can dedup/categorise these entries.
+        """
         monkeypatch.chdir(project_dir)
+        # Suppress DeprecationWarning chatter — the shim emits one per call.
+        import warnings as _w
+        _w.simplefilter("ignore", DeprecationWarning)
+
         hook_recovery.log_block_with_recovery(
             hook_name="unified_pre_tool.py",
             tool_name="Bash",
@@ -143,27 +157,37 @@ class TestLogBlockWithRecovery:
             recovery_hint="Invoke the implementer agent via Task tool.",
             session_id="sess-123",
         )
-        log_path = project_dir / hook_recovery.LOG_FILE_RELATIVE
-        assert log_path.exists()
+        # New canonical location (writes redirected by the shim).
+        log_path = project_dir / ".claude" / "logs" / "hook-blocks.jsonl"
+        assert log_path.exists(), (
+            "Shim must redirect writes to hook-blocks.jsonl per #972"
+        )
         line = log_path.read_text().strip()
         event = json.loads(line)
         assert event["hook_name"] == "unified_pre_tool.py"
-        assert event["tool_name"] == "Bash"
-        assert event["block_reason"].startswith("WORKFLOW ENFORCEMENT")
-        assert "Invoke the implementer agent" in event["recovery_hint"]
+        assert event["decision_shape"] == "legacy_recovery"
+        assert event["reason"].startswith("WORKFLOW ENFORCEMENT")
+        # Legacy fields preserved inside metadata.
+        assert event["metadata"]["tool_name"] == "Bash"
+        assert "Invoke the implementer agent" in event["metadata"]["recovery_hint"]
         assert event["session_id"] == "sess-123"
-        assert "timestamp" in event
+        assert "ts" in event
 
     def test_log_never_raises_on_readonly_fs(self, project_dir, monkeypatch):
-        """When file open fails with OSError, log MUST fall back, not crash."""
+        """When file open fails with OSError, log MUST fall back, not crash.
+
+        After #972, writes go to ``hook-blocks.jsonl`` via the shim.
+        """
         monkeypatch.chdir(project_dir)
-        # Patch Path.open so any call from hook_recovery raises OSError.
+        import warnings as _w
+        _w.simplefilter("ignore", DeprecationWarning)
+        # Patch Path.open so any call to the new log path raises OSError.
         from pathlib import Path as _Path
 
         original_open = _Path.open
 
         def fail_open(self, *args, **kwargs):
-            if str(self).endswith("hook-recovery.jsonl"):
+            if str(self).endswith("hook-blocks.jsonl"):
                 raise OSError("read-only file system")
             return original_open(self, *args, **kwargs)
 
@@ -180,13 +204,21 @@ class TestLogBlockWithRecovery:
     def test_log_falls_back_to_stderr_on_io_failure(
         self, project_dir, monkeypatch
     ):
+        """When the underlying log write fails, the shim emits a stderr line.
+
+        After #972, the prefix is ``[hook-telemetry]`` (delegated to
+        :func:`hook_telemetry.log_block_event`). The reason text is still
+        present so log scrapers can find the event.
+        """
         monkeypatch.chdir(project_dir)
+        import warnings as _w
+        _w.simplefilter("ignore", DeprecationWarning)
         from pathlib import Path as _Path
 
         original_open = _Path.open
 
         def fail_open(self, *args, **kwargs):
-            if str(self).endswith("hook-recovery.jsonl"):
+            if str(self).endswith("hook-blocks.jsonl"):
                 raise OSError("permission denied")
             return original_open(self, *args, **kwargs)
 
@@ -211,7 +243,8 @@ class TestLogBlockWithRecovery:
             recovery_hint="reset",
         )
         joined = "".join(captured)
-        assert "[hook-recovery]" in joined
+        # The new telemetry surface uses [hook-telemetry] as the stderr prefix.
+        assert "[hook-telemetry]" in joined
         assert "boom" in joined
 
     def test_log_disabled_when_env_var_set(

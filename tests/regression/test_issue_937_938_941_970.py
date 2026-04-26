@@ -306,17 +306,25 @@ class TestHookRecoveryModuleApiAndTelemetryShape:
         clear_stale_state, is_recovery_disabled — all callable, none raise on
         introspection.
 
-        AC#2: log_block_with_recovery writes a JSONL row to
-        .claude/logs/hook-recovery.jsonl containing the six required fields:
-        timestamp, hook_name, tool_name, block_reason, recovery_hint, session_id.
+        AC#2 (updated for #972): log_block_with_recovery is now a back-compat
+        shim that delegates to ``hook_telemetry.log_block_event``. Writes go
+        to ``.claude/logs/hook-blocks.jsonl`` (new canonical location).
+        Legacy fields (``tool_name``, ``recovery_hint``) are preserved
+        inside the ``metadata`` sub-object; the legacy ``block_reason`` is
+        the top-level ``reason`` field; the legacy ``timestamp`` is the
+        top-level ``ts`` field. The ``decision_shape`` is stamped as
+        ``"legacy_recovery"`` so the summary script can dedup these rows
+        against a future direct call to ``log_block_event``.
         """
         # --- AC#1: import module from the in-repo plugins lib path. ----------
         # LIB_DIR is already on sys.path at module import time, but we reload
         # to ensure a clean module state (other tests may have set
         # HOOK_RECOVERY_DISABLED in env and cached the result).
         import importlib
+        import warnings
 
         monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+        monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
         if "hook_recovery" in sys.modules:
             hr = importlib.reload(sys.modules["hook_recovery"])
         else:
@@ -345,17 +353,23 @@ class TestHookRecoveryModuleApiAndTelemetryShape:
         # --- AC#2: write a telemetry row and validate its shape. -------------
         monkeypatch.chdir(tmp_path)
 
-        hr.log_block_with_recovery(
-            hook_name="unified_pre_tool.py",
-            tool_name="Bash",
-            block_reason="dangerous rm -rf detected",
-            recovery_hint="re-run with explicit --force flag",
-            session_id="TEST-SESSION-AC2",
-        )
+        # Suppress the DeprecationWarning the shim emits (it's expected and
+        # tested separately in tests/unit/lib/test_hook_telemetry.py).
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            hr.log_block_with_recovery(
+                hook_name="unified_pre_tool.py",
+                tool_name="Bash",
+                block_reason="dangerous rm -rf detected",
+                recovery_hint="re-run with explicit --force flag",
+                session_id="TEST-SESSION-AC2",
+            )
 
-        log_path = tmp_path / hr.LOG_FILE_RELATIVE
+        # Shim now writes to the new canonical location (#972).
+        log_path = tmp_path / ".claude" / "logs" / "hook-blocks.jsonl"
         assert log_path.exists(), (
-            f"AC#2 FAIL: telemetry log not created at {log_path}"
+            f"AC#2 FAIL: telemetry log not created at {log_path} "
+            f"(post-#972, log_block_with_recovery shim writes here)"
         )
 
         lines = [
@@ -372,28 +386,33 @@ class TestHookRecoveryModuleApiAndTelemetryShape:
                 f"AC#2 FAIL: telemetry row is not valid JSON: {lines[0]!r} ({exc})"
             )
 
-        required_fields = {
-            "timestamp",
+        # Post-#972 schema: top-level fields are ts/hook_name/decision_shape/
+        # reason/metadata/session_id/cwd. Legacy fields (tool_name,
+        # recovery_hint) live under metadata.
+        required_top_level = {
+            "ts",
             "hook_name",
-            "tool_name",
-            "block_reason",
-            "recovery_hint",
+            "decision_shape",
+            "reason",
+            "metadata",
             "session_id",
         }
-        missing = required_fields - set(row.keys())
+        missing = required_top_level - set(row.keys())
         assert not missing, (
             f"AC#2 FAIL: telemetry row missing required fields {missing}; "
             f"got keys {sorted(row.keys())}"
         )
 
-        # Field-value sanity (echoes what we passed in).
+        # Field-value sanity (echoes what we passed in via the shim).
         assert row["hook_name"] == "unified_pre_tool.py"
-        assert row["tool_name"] == "Bash"
-        assert row["block_reason"] == "dangerous rm -rf detected"
-        assert row["recovery_hint"] == "re-run with explicit --force flag"
+        assert row["decision_shape"] == "legacy_recovery"
+        assert row["reason"] == "dangerous rm -rf detected"
         assert row["session_id"] == "TEST-SESSION-AC2"
-        # timestamp must be an ISO-8601 string parseable by datetime.
-        ts = row["timestamp"]
+        # Legacy fields preserved inside metadata.
+        assert row["metadata"]["tool_name"] == "Bash"
+        assert row["metadata"]["recovery_hint"] == "re-run with explicit --force flag"
+        # ts must be an ISO-8601 string parseable by datetime.
+        ts = row["ts"]
         assert isinstance(ts, str) and len(ts) > 0
         # fromisoformat handles the timezone-aware ISO string we emit.
         datetime.fromisoformat(ts)

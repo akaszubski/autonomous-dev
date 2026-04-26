@@ -42,6 +42,59 @@ unjustified deny sites fail CI.
 
 ---
 
+## Hook Block Telemetry (Issue #972)
+
+The `hook_recovery.jsonl` log shipped with #970 was the first step. As of
+#972, every deny decision across the harness — `output_decision("deny",
+...)` (tuple), `{"decision": "block"}` (dict), and `sys.exit(2)`
+(exit2) — now writes one structured JSONL row to a single canonical
+location: `.claude/logs/hook-blocks.jsonl`. This lets you reconstruct
+per-hook block counts, category breakdowns (matching the #942 buckets:
+plan-exit, pipeline-state, agent-gates, settings-write), and decision-
+shape distributions WITHOUT grepping individual session transcripts.
+
+**Where**: `.claude/logs/hook-blocks.jsonl`
+
+**Schema** (per row):
+
+```json
+{
+  "ts": "2026-04-26T...",
+  "hook_name": "unified_pre_tool.py",
+  "decision_shape": "tuple",
+  "reason": "WORKFLOW ENFORCEMENT: ...",
+  "metadata": {"tool_name": "Bash", ...},
+  "session_id": "...",
+  "cwd": "/Users/.../repo"
+}
+```
+
+**Triage script**: `python scripts/hook_block_summary.py --last 7d --top 10`
+(also supports `--since <ISO>` and `--json`). Reads BOTH `hook-blocks.jsonl`
+(new) AND `hook-recovery.jsonl` (legacy from #970) for one release cycle so
+historical data is preserved without manual migration. Rows are
+deduplicated by `(timestamp, hook_name, reason)`.
+
+**Rollback switch**: `HOOK_TELEMETRY_DISABLED=1` makes all telemetry a
+no-op. The hook decisions themselves are unaffected — only the JSONL
+log is silenced. The deprecated `HOOK_RECOVERY_DISABLED=1` env var is
+honored as an alias (with a one-time stderr warning) so existing
+rollback procedures continue to work.
+
+**Deprecation timeline for `hook-recovery.jsonl`**:
+
+- Now (Wave 1 — #972): Writes go to `hook-blocks.jsonl`; reads check
+  both files for backwards compatibility.
+- One release cycle later: Summary script will warn when reading the
+  legacy file.
+- Two release cycles later: Legacy file will no longer be read.
+
+**Cross-link**: see [`docs/HOOK-COMPOSITION.md`](../../docs/HOOK-COMPOSITION.md)
+for the full hook-composition contract and the checklist for adding new
+hooks.
+
+---
+
 ## Universal Escape: Unstick Any Blocked Hook (Issue #969)
 
 **When to use**: A hook is blocking your work and you cannot run a slash command

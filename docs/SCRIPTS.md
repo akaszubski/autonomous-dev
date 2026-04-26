@@ -47,8 +47,23 @@ Re-sync dogfood repos after upstream changes without full reinstall.
 | `scripts/pre-commit-hook-check.sh` | Quick sanity check before committing |
 | `scripts/audit_hook_recovery.py` | CI gate (Issue #970): scans `unified_pre_tool.py` for `output_decision("deny", ...)` sites that lack a paired `log_block_with_recovery(` call in the same function. Default mode (WARN-ONLY) prints findings and exits 0. `--strict` flag (or `AUDIT_HOOK_RECOVERY_STRICT=1` env var) exits 1. Ensures deny-emitting hooks leave structured recovery telemetry for users. |
 | `scripts/audit_tool_intent_coverage.py` | CI gate (Issue #971): every distinct tool name observed in activity logs over the last N days must have a defined classification in `tool_intent.py`. Flags uncovered tool names so new native tools are never silently misclassified. Usage: `python scripts/audit_tool_intent_coverage.py [--days 7] [--strict] [--print-classifications] [--logs-dir path]`. Exit 0 when all observed tools are covered; exit 1 when uncovered tools found and `--strict` is set. Importable as `audit(logs_dir, days, strict=False)`. |
+| `scripts/check_doc_links.py` | Stdlib Markdown link validator (Issue #972, ~125 LOC). Replaces the `markdown-link-check` Node dependency. Parses `[text](target)` links in all `docs/*.md` files and reports broken internal links (file not found) and anchors that don't match any heading. Exit 0 when all links resolve; exit 1 on any broken link. Invoked by `tests/integration/test_hook_composition_doc_links.py` as a CI gate. |
 
 All validators are invoked automatically by the pre-commit hook. You rarely need to run them manually — only when debugging validation failures.
+
+---
+
+## Hook Telemetry
+
+### `scripts/hook_block_summary.py` — **Hook block triage**
+
+```bash
+python scripts/hook_block_summary.py                       # summary of all blocks
+python scripts/hook_block_summary.py --last 7d --top 10   # last 7 days, top 10 hooks
+python scripts/hook_block_summary.py --since 2026-04-01 --json  # JSON output
+```
+
+Reads `.claude/logs/hook-blocks.jsonl` (unified telemetry from Issue #972) and, for one release cycle, the legacy `.claude/logs/hook-recovery.jsonl` (from Issue #970). Rows are deduplicated by `(timestamp, hook_name, reason)`. Produces per-hook block counts, category breakdowns, and bypass-usage rates — reproducing the empirical numbers from the #942 triage (verified against `tests/regression/fixtures/942_empirical_numbers.json`). Supports `--last <duration>` (e.g., `7d`, `24h`), `--since <ISO date>`, `--top N`, and `--json` flags. (~280 LOC, Issue #972)
 
 ---
 

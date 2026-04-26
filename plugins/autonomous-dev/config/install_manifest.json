@@ -233,6 +233,7 @@
         "plugins/autonomous-dev/lib/hook_path_validator.py",
         "plugins/autonomous-dev/lib/hook_recovery.py",
         "plugins/autonomous-dev/lib/hook_safety.py",
+        "plugins/autonomous-dev/lib/hook_telemetry.py",
         "plugins/autonomous-dev/lib/hybrid_validator.py",
         "plugins/autonomous-dev/lib/ideation_engine.py",
         "plugins/autonomous-dev/lib/ideation_report_generator.py",

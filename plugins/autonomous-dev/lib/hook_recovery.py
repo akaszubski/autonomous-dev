@@ -110,12 +110,16 @@ def log_block_with_recovery(
     session_id: Optional[str] = None,
     start_dir: Optional[Path] = None,
 ) -> None:
-    """Append one JSONL line recording a hook block + recovery hint.
+    """[DEPRECATED] Record a hook block. Delegates to ``hook_telemetry``.
 
-    Writes to ``.claude/logs/hook-recovery.jsonl`` relative to ``start_dir``
-    (or cwd). Auto-creates the ``.claude/logs/`` directory if missing. On any
-    OSError (read-only FS, permission denied), falls back to writing the JSON
-    line to stderr prefixed with ``[hook-recovery]``.
+    As of Issue #972, this function is a thin shim around
+    :func:`hook_telemetry.log_block_event`. Writes are redirected to
+    ``.claude/logs/hook-blocks.jsonl`` (the new canonical location). The
+    summary script reads both the new and legacy file for one release
+    cycle to preserve historical data without forcing migration.
+
+    Existing call sites continue to work unchanged. New code SHOULD use
+    :func:`hook_telemetry.log_block_event` directly.
 
     This function NEVER raises. Telemetry must never block hook decisions.
 
@@ -127,44 +131,43 @@ def log_block_with_recovery(
         session_id: Optional session id (defaults to ``CLAUDE_SESSION_ID``).
         start_dir: Project root anchor. Defaults to cwd.
     """
-    if is_recovery_disabled():
-        return
+    import warnings as _warnings
 
-    if session_id is None:
-        session_id = os.environ.get("CLAUDE_SESSION_ID", "")
-
-    event: Dict[str, Any] = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "hook_name": hook_name,
-        "tool_name": tool_name,
-        "block_reason": block_reason,
-        "recovery_hint": recovery_hint,
-        "session_id": session_id,
-    }
     try:
-        line = json.dumps(event, ensure_ascii=False)
-    except (TypeError, ValueError):
-        line = json.dumps(
-            {"timestamp": event["timestamp"], "hook_name": hook_name}
+        _warnings.warn(
+            "log_block_with_recovery is deprecated; "
+            "use hook_telemetry.log_block_event instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+    except Exception:
+        # NEVER raise.
+        pass
 
     try:
-        log_path = _resolve_log_path(start_dir)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
-        return
-    except OSError as exc:
+        # Local import keeps hook_recovery importable even when
+        # hook_telemetry is missing (defensive: shim degrades gracefully).
+        from hook_telemetry import log_block_event  # type: ignore[import-not-found]
+
+        log_block_event(
+            hook_name=hook_name,
+            decision_shape="legacy_recovery",
+            reason=block_reason,
+            metadata={
+                "tool_name": tool_name,
+                "recovery_hint": recovery_hint,
+                "session_id": session_id,
+            },
+            session_id=session_id,
+            start_dir=start_dir,
+        )
+    except Exception:
+        # NEVER raise — fall back to the legacy stderr log line shape so
+        # historical log scrapers continue to find at least a marker.
         try:
             sys.stderr.write(
-                f"[hook-recovery] {line} (log_write_failed: {exc})\n"
-            )
-        except Exception:
-            pass
-    except Exception as exc:  # pragma: no cover - last-resort guard
-        try:
-            sys.stderr.write(
-                f"[hook-recovery] {line} (unexpected_error: {exc})\n"
+                f"[hook-recovery] hook={hook_name} tool={tool_name} "
+                f"reason={block_reason} hint={recovery_hint}\n"
             )
         except Exception:
             pass

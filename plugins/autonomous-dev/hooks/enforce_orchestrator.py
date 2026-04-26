@@ -69,6 +69,18 @@ if not is_running_under_uv():
         sys.path.insert(0, str(lib_path))
 
 
+# Defensive import of hook_telemetry (Issue #972, #942-D capstone).
+# Provides log_block_event() so this hook's exit2-shape block decision
+# emits a structured JSONL row to .claude/logs/hook-blocks.jsonl. Falls
+# back to a no-op if the library is unavailable so the hook continues to
+# function unchanged.
+try:
+    from hook_telemetry import log_block_event as _log_block_event_972
+except ImportError:
+    def _log_block_event_972(**kwargs):  # type: ignore[no-redef]
+        return None
+
+
 def is_strict_mode_enabled() -> bool:
     """Check if strict mode is enabled."""
     settings_file = Path(".claude/settings.local.json")
@@ -295,6 +307,16 @@ def main():
     print("=" * 80, file=sys.stderr)
     print(file=sys.stderr)
 
+    # Telemetry (Issue #972, #942-D capstone): record this exit2-shape block
+    # to .claude/logs/hook-blocks.jsonl so the per-hook summary script can
+    # account for orchestrator-validation gates. NEVER raises.
+    _log_block_event_972(
+        hook_name="enforce_orchestrator.py",
+        decision_shape="exit2",
+        reason="ORCHESTRATOR VALIDATION REQUIRED: no orchestrator activity "
+               "found in recent session files or commit message",
+        metadata={"event": "PreCommit"},
+    )
     sys.exit(2)  # Block commit
 
 

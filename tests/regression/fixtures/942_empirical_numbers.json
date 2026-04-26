@@ -1,0 +1,27 @@
+{
+  "_status": "extracted",
+  "_extracted_at": "2026-04-26T00:00:00Z",
+  "_source": "Issue #942 body, 'Empirical Backing' section (session archive analysis, last 7 days)",
+  "_tolerance_pct": 5.0,
+  "hook_blocks_observed": 18602,
+  "session_count": 132,
+  "blocked_session_count": 105,
+  "blocked_session_pct": 80,
+  "manual_state_deletion_pct": 93,
+  "skip_review_usage_pct": 16,
+  "categories": {
+    "plan-exit": 9604,
+    "pipeline-state": 4684,
+    "agent-gates": 3819,
+    "settings-write": 0
+  },
+  "category_pct": {
+    "plan-exit": 52,
+    "pipeline-state": 25,
+    "agent-gates": 21
+  },
+  "non_adev_examples": {
+    "vllm-mlx": 533,
+    "homeassistant": 495
+  }
+}
