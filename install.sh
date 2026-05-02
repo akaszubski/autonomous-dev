@@ -65,6 +65,7 @@ CLEAN=false
 MIGRATE_MCP_REPO=""    # Issue #948: --migrate-mcp-to-repo <path>
 MIGRATE_MCP_SERVER=""  # Issue #948: --server <name> (paired with above)
 RESET_HOOKS=false      # Issue #949: --reset-hooks recovery mode
+GLOBAL_SETTINGS=false  # Issue #995: opt-in to ~/.claude/settings.json hook registration
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -86,6 +87,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --reset-hooks)
             RESET_HOOKS=true
+            shift
+            ;;
+        --global-settings)
+            GLOBAL_SETTINGS=true
             shift
             ;;
         --help|-h)
@@ -111,6 +116,12 @@ while [[ $# -gt 0 ]]; do
             echo "                                      Preserves permissions, mcpServers, env, model."
             echo "                                      Use when global hooks brick Claude Code."
             echo "                                      Skips the normal install flow."
+            echo "  --global-settings                   Opt-in: register autonomous-dev hooks in"
+            echo "                                      ~/.claude/settings.json (Issue #995)."
+            echo "                                      Default is project-local: hooks are only"
+            echo "                                      registered in <repo>/.claude/settings.json."
+            echo "                                      Hook FILES are still cached to ~/.claude/hooks/"
+            echo "                                      either way (library cache for opt-in repos)."
             echo "  --help, -h                          Show this help message"
             echo ""
             echo "After running this script:"
@@ -567,6 +578,16 @@ migrate_mcp_to_repo() {
 # Issue #156: Users with old settings.json need hooks migrated
 migrate_hooks_format() {
     log_step "Checking hooks format..."
+
+    # Issue #995 defense-in-depth: short-circuit when --global-settings is
+    # not set. Even if a future code path calls this function without
+    # checking $GLOBAL_SETTINGS at the call site, we must NEVER silently
+    # mutate ~/.claude/settings.json's hooks block when the user opted out
+    # of global hook registration.
+    if ! $GLOBAL_SETTINGS; then
+        log_info "Skipped hooks format migration (--global-settings not set, Issue #995)"
+        return 0
+    fi
 
     local lib_path="${STAGING_DIR}/files/plugins/autonomous-dev/lib"
     local settings_path="${HOME}/.claude/settings.json"
@@ -1748,18 +1769,33 @@ main() {
         log_info "You can manually create .claude/local/OPERATIONS.md for repo-specific procedures"
     fi
 
-    # Configure global settings.json (non-blocking)
+    # Configure global settings.json (opt-in via --global-settings, Issue #995)
+    # Default behavior: do NOT touch ~/.claude/settings.json. Per-repo settings
+    # in <repo>/.claude/settings.json are unchanged and still register the
+    # pipeline hooks for autonomous-dev itself. Hook FILES are still cached to
+    # ~/.claude/hooks/ via install_hook_files() so foreign repos that opt in
+    # later have the library available.
     local settings_success=false
-    if configure_global_settings; then
-        settings_success=true
+    if $GLOBAL_SETTINGS; then
+        if configure_global_settings; then
+            settings_success=true
+        else
+            log_warning "Settings configuration skipped (will use defaults)"
+        fi
     else
-        log_warning "Settings configuration skipped (will use defaults)"
+        log_info "Skipped global settings.json hook registration (use --global-settings to opt in, Issue #995)"
     fi
 
     # Migrate hooks from array to object format (Issue #156)
+    # Gated by --global-settings (Issue #995): when global hooks registration is
+    # opt-out, the hooks block in ~/.claude/settings.json should not exist —
+    # there is nothing to migrate, and we must not silently mutate the user's
+    # global settings file.
     local hooks_migrated=false
-    if migrate_hooks_format; then
-        hooks_migrated=true
+    if $GLOBAL_SETTINGS; then
+        if migrate_hooks_format; then
+            hooks_migrated=true
+        fi
     fi
 
     # Strip duplicated global hooks from per-repo settings.json (Issue #944)

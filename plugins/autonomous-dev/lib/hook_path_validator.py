@@ -87,6 +87,28 @@ INTERPRETERS: tuple[str, ...] = (
     "zsh",
 )
 
+# Path-style substrings that are no longer permitted in hook commands. The
+# canonical form (Issue #996, Phase B) is
+# ``"$(git rev-parse --show-toplevel)/.claude/hooks/<NAME>.<py|sh>"`` which
+# resolves to the project-local hook directory populated by
+# ``scripts/deploy-all.sh`` / ``sync_settings_hooks.py``. The two patterns
+# below are explicitly disallowed because they either bypass the worktree
+# (``--git-common-dir`` resolves to the main repo's git dir, breaking
+# project-local hook deployments) or hardcode the global cache path
+# (``~/.claude/`` was the v3.x default but cannot be project-scoped).
+DISALLOWED_PATH_SUBSTRINGS: tuple[tuple[str, str, str], ...] = (
+    (
+        "~/.claude/",
+        "error",
+        "use $(git rev-parse --show-toplevel)/.claude/hooks/",
+    ),
+    (
+        "--git-common-dir",
+        "error",
+        "use --show-toplevel for project-local resolution",
+    ),
+)
+
 # Pattern: `VAR=value` style env prefix tokens that shlex emits before argv.
 _ENV_PREFIX_RE = re.compile(r"^([A-Z_][A-Z0-9_]*)=(.*)$")
 
@@ -507,6 +529,69 @@ def validate_hook_paths(
     return issues
 
 
+def _validate_path_style(
+    *,
+    command: str,
+    raw_script: Optional[str],
+    event: str,
+    matcher: str,
+    settings_path: Path,
+    line_no: int,
+) -> list[ValidationIssue]:
+    """Flag hook commands using disallowed path styles (Issue #996).
+
+    The canonical pattern is
+    ``"$(git rev-parse --show-toplevel)/.claude/hooks/<NAME>.<py|sh>"``.
+    Two legacy patterns are now rejected:
+
+    * ``~/.claude/...`` — hardcodes the global cache path; cannot be
+      project-scoped per Issue #944's deduplication rationale.
+    * ``--git-common-dir`` — resolves to the *main* repository's git dir,
+      which breaks worktree-local hook deployments.
+
+    Args:
+        command: Full raw hook command string.
+        raw_script: Path-shaped argv token extracted by
+            :func:`extract_script_path`. ``None`` skips the check.
+        event: Hook event name (e.g. ``PreToolUse``).
+        matcher: Hook matcher pattern.
+        settings_path: Path to the settings file containing this command.
+        line_no: Best-effort line number for the command in the file.
+
+    Returns:
+        A list of :class:`ValidationIssue` (one per disallowed substring
+        match). Empty list when the path style is canonical.
+    """
+    issues: list[ValidationIssue] = []
+    if not raw_script:
+        return issues
+
+    # Restrict the check to script-shaped tokens. Some commands (e.g. plain
+    # ``echo``) intentionally have no script suffix and should not trip
+    # path-style heuristics.
+    suffix = Path(raw_script).suffix.lower()
+    if suffix not in SCRIPT_EXTENSIONS:
+        return issues
+
+    for substring, severity, hint in DISALLOWED_PATH_SUBSTRINGS:
+        if substring in command:
+            issues.append(
+                ValidationIssue(
+                    severity=severity,
+                    category="hook",
+                    message=(
+                        f"[{event}/{matcher}] Hook command uses disallowed "
+                        f"path style ({substring!r}): {raw_script}"
+                    ),
+                    file_path=str(settings_path),
+                    line_number=line_no,
+                    auto_fixable=False,
+                    fix_action=f"# {hint}",
+                )
+            )
+    return issues
+
+
 def _validate_one_command(
     *,
     command: str,
@@ -540,6 +625,22 @@ def _validate_one_command(
         return issues
 
     raw_script = extract_script_path(tokens)
+
+    # Path-style policy check (Issue #996, Phase B). Runs even when the
+    # script does not exist on disk so policy violations surface in clean
+    # checkouts, but only flags script-shaped tokens (``echo`` lines and
+    # other builtins are intentionally exempt).
+    issues.extend(
+        _validate_path_style(
+            command=command,
+            raw_script=raw_script,
+            event=event,
+            matcher=matcher,
+            settings_path=settings_path,
+            line_no=line_no,
+        )
+    )
+
     if not raw_script:
         # No script-like token: nothing more to validate (could be a builtin
         # like ``true`` — we don't flag this).

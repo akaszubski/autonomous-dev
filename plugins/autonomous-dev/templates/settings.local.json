@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/unified_prompt_validator.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_prompt_validator.py\"",
             "timeout": 5
           }
         ]
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "SANDBOX_ENABLED=false MCP_AUTO_APPROVE=true python3 ~/.claude/hooks/unified_pre_tool.py",
+            "command": "SANDBOX_ENABLED=false MCP_AUTO_APPROVE=true python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_pre_tool.py\"",
             "timeout": 5
           }
         ]
@@ -79,7 +79,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/plan_gate.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/plan_gate.py\"",
             "timeout": 3
           }
         ]
@@ -91,7 +91,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/session_activity_logger.py\"",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/session_activity_logger.py\"",
             "timeout": 3
           }
         ]
@@ -101,7 +101,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CONVERSATION_ARCHIVE=true python3 \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/conversation_archiver.py\"",
+            "command": "CONVERSATION_ARCHIVE=true python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/conversation_archiver.py\"",
             "timeout": 10
           }
         ]
@@ -113,7 +113,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/plan_mode_exit_detector.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/plan_mode_exit_detector.py\"",
             "timeout": 3
           }
         ]
@@ -128,7 +128,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/auto_format.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/auto_format.py\""
           }
         ]
       },
@@ -137,7 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/plugins/autonomous-dev/hooks/session_activity_logger.py\"",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/session_activity_logger.py\"",
             "timeout": 5
           }
         ]
@@ -149,23 +149,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/auto_test.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/auto_test.py\""
           },
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/security_scan.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/security_scan.py\""
           },
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/validate_command_file_ops.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/validate_command_file_ops.py\""
           },
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/validate_claude_md_size.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/validate_claude_md_size.py\""
           },
           {
             "type": "command",
-            "command": "python \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/enforce_regression_test.py\""
+            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/enforce_regression_test.py\""
           }
         ]
       }
@@ -176,7 +176,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/unified_session_tracker.py"
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_session_tracker.py\""
           }
         ]
       }
@@ -187,7 +187,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/task_completed_handler.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/task_completed_handler.py\"",
             "timeout": 5
           }
         ]
@@ -199,7 +199,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/plugins/autonomous-dev/hooks/pre_compact_batch_saver.sh\"",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre_compact_batch_saver.sh\"",
             "timeout": 5
           }
         ]
@@ -211,7 +211,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/plugins/autonomous-dev/hooks/post_compact_enricher.sh\"",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/post_compact_enricher.sh\"",
             "timeout": 5
           }
         ]
