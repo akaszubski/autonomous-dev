@@ -64,8 +64,13 @@ LEGACY_DISABLE_ENV_VAR: str = "HOOK_RECOVERY_DISABLED"
 MAX_REASON_LENGTH: int = 8000
 
 VALID_DECISION_SHAPES = frozenset(
-    {"tuple", "dict", "exit2", "legacy_recovery"}
+    {"tuple", "dict", "exit2", "legacy_recovery", "mode_skip"}
 )
+# ``mode_skip`` (Issue #999, Phase E) is emitted ONLY on the skip path of the
+# session-mode enforcement gate. The enforce path stays silent — preserving
+# the pre-Phase-E baseline where non-block hook outcomes produced no
+# telemetry. ``mode_skip`` is intentionally NOT paired with a ``mode_enforce``
+# shape: a single label ("we relaxed a check") is what triage cares about.
 
 _FALSY_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
 

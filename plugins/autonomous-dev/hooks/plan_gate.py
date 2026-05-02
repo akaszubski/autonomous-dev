@@ -174,6 +174,39 @@ def main() -> int:
         except ImportError:
             pass
 
+        # Phase E session-mode gate (Issue #999): when the intent classifier
+        # has tagged this session as a low-risk class (conversation, doc,
+        # typo, status_query, config) AND the rollout flag is on, skip the
+        # plan-gate check entirely. Hard-floor catastrophe checks live in
+        # other hooks and are unaffected. On import failure (transitional
+        # deploy / cross-cwd / partial uninstall) we fall through to the
+        # existing logic.
+        try:
+            from enforcement_decision import should_skip_enforcement
+            from hook_stdin import extract_session_id
+            from hook_telemetry import log_block_event
+
+            _phase_e_sid = extract_session_id(input_data)
+            _phase_e_skip, _phase_e_reason = should_skip_enforcement(
+                hook_name="plan_gate.py",
+                function_name=None,
+                session_id=_phase_e_sid,
+            )
+            if _phase_e_skip:
+                # Telemetry on the skip path ONLY. The enforce path stays
+                # silent — Phase E preserves today's no-event baseline for
+                # the common case.
+                log_block_event(
+                    hook_name="plan_gate.py",
+                    decision_shape="mode_skip",
+                    reason=_phase_e_reason,
+                    session_id=_phase_e_sid,
+                )
+                _output_decision("allow", f"Phase E skip: {_phase_e_reason}")
+                return 0
+        except ImportError:
+            pass  # transitional deploy — fall through to existing logic
+
         # Only check Write and Edit tools
         if tool_name not in ("Write", "Edit"):
             _output_decision("allow", f"Plan gate: tool {tool_name} not subject to plan check")

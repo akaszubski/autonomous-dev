@@ -4013,6 +4013,65 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
     return ("deny", _PLAN_EXIT_DENY_REASON)
 
 
+def _phase_e_skip(
+    function_name: str,
+    input_data: "Optional[Dict]" = None,
+    session_id: "Optional[str]" = None,
+) -> "Optional[Tuple[bool, str]]":
+    """Phase E gate (Issue #999) — should the named check be skipped?
+
+    Wraps the pure policy in :mod:`enforcement_decision` with the local
+    telemetry surface and a session_id resolution that prefers the caller's
+    explicit value, then falls back to ``input_data`` via :mod:`hook_stdin`.
+
+    Returns:
+        ``None`` on import failure (transitional deploy / cross-cwd /
+        partial uninstall) — caller MUST treat None as "fall through to
+        existing logic".
+        ``(skip, reason)`` otherwise. ``skip == True`` means the named
+        check SHOULD be bypassed; ``skip == False`` means run it as today.
+        On skip, this helper emits a single ``mode_skip`` telemetry row.
+        The enforce path is silent — preserves the pre-Phase-E baseline.
+
+    NEVER raises — every exception path returns either None (import error)
+    or ``(False, "exception_safety")`` (runtime error → fail-safe enforce).
+    """
+    try:
+        from enforcement_decision import should_skip_enforcement
+        from hook_telemetry import log_block_event
+
+        sid = session_id
+        if sid is None and input_data is not None:
+            try:
+                from hook_stdin import extract_session_id
+                sid = extract_session_id(input_data)
+            except ImportError:
+                pass
+
+        skip, reason = should_skip_enforcement(
+            hook_name="unified_pre_tool.py",
+            function_name=function_name,
+            session_id=sid,
+        )
+        if skip:
+            log_block_event(
+                hook_name="unified_pre_tool.py",
+                decision_shape="mode_skip",
+                reason=reason,
+                metadata={"function": function_name},
+                session_id=sid,
+            )
+        return (skip, reason)
+    except ImportError:
+        # Phase E libs not yet deployed in this environment — fall through.
+        return None
+    except Exception:
+        # Fail-safe: any unexpected exception → enforce. The hook decision
+        # path is load-bearing; we never want to skip a gate because we hit
+        # a weird exception inside the policy layer.
+        return (False, "exception_safety")
+
+
 def main():
     """Main entry point - dispatch to all validators and combine decisions."""
     try:
@@ -4085,12 +4144,22 @@ def main():
             # every tool call. Moved from UserPromptSubmit because in-turn
             # model tool calls bypass UserPromptSubmit. Marker writer and
             # stage advancer unchanged — only enforcement event moved.
-            plan_exit_decision = _check_plan_exit_native(tool_name, tool_input)
-            if plan_exit_decision is not None:
-                decision, reason, system_message = plan_exit_decision
-                _log_pretool_activity(tool_name, tool_input, decision, reason)
-                output_decision(decision, reason, system_message=system_message)
-                sys.exit(0)
+            #
+            # Phase E (Issue #999): wrap with session-mode gate so low-risk
+            # session classes skip the plan-exit nudge. Hard-floor checks
+            # are NOT wrapped.
+            _phase_e = _phase_e_skip(
+                "_check_plan_exit_native",
+                input_data=input_data,
+                session_id=_session_id,
+            )
+            if _phase_e is None or not _phase_e[0]:
+                plan_exit_decision = _check_plan_exit_native(tool_name, tool_input)
+                if plan_exit_decision is not None:
+                    decision, reason, system_message = plan_exit_decision
+                    _log_pretool_activity(tool_name, tool_input, decision, reason)
+                    output_decision(decision, reason, system_message=system_message)
+                    sys.exit(0)
 
             # Infrastructure protection: block direct edits to agents/, commands/,
             # hooks/, lib/, skills/ unless /implement pipeline is active (Issue #483)
@@ -4464,54 +4533,77 @@ def main():
 
                     # Issue #712: Batch CIA completion gate
                     # Block git commit in batch worktrees when issues are missing CIA
+                    # Phase E (Issue #999): session-mode wrap — low-risk
+                    # classes skip this commit gate.
                     if "git commit" in command or "git -c" in command and "commit" in command:
-                        try:
-                            cwd = os.getcwd()
-                            if ".worktrees/batch-" in cwd:
-                                if os.environ.get("SKIP_BATCH_CIA_GATE", "").strip().lower() not in ("1", "true", "yes"):
-                                    _batch_cia_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
-                                    _batch_cia_result = _check_batch_cia_completions(_batch_cia_session_id)
-                                    if _batch_cia_result is not None:
-                                        _log_pretool_activity(tool_name, tool_input, "deny", _batch_cia_result)
-                                        output_decision(
-                                            "deny", _batch_cia_result,
-                                            system_message=(
-                                                "BLOCKED: Batch CIA gate — some issues are missing "
-                                                "continuous-improvement-analyst completion. "
-                                                "Run CIA for all issues before committing."
-                                            ),
-                                        )
-                                        sys.exit(0)
-                        except Exception:
-                            pass  # Fail-open: don't block on errors
+                        _phase_e_cia = _phase_e_skip(
+                            "_check_batch_cia_completions",
+                            input_data=input_data,
+                            session_id=_session_id,
+                        )
+                        if _phase_e_cia is None or not _phase_e_cia[0]:
+                            try:
+                                cwd = os.getcwd()
+                                if ".worktrees/batch-" in cwd:
+                                    if os.environ.get("SKIP_BATCH_CIA_GATE", "").strip().lower() not in ("1", "true", "yes"):
+                                        _batch_cia_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
+                                        _batch_cia_result = _check_batch_cia_completions(_batch_cia_session_id)
+                                        if _batch_cia_result is not None:
+                                            _log_pretool_activity(tool_name, tool_input, "deny", _batch_cia_result)
+                                            output_decision(
+                                                "deny", _batch_cia_result,
+                                                system_message=(
+                                                    "BLOCKED: Batch CIA gate — some issues are missing "
+                                                    "continuous-improvement-analyst completion. "
+                                                    "Run CIA for all issues before committing."
+                                                ),
+                                            )
+                                            sys.exit(0)
+                            except Exception:
+                                pass  # Fail-open: don't block on errors
 
                     # Issue #786: Batch doc-master completion gate
                     # Block git commit in batch worktrees when issues are missing doc-master
+                    # Phase E (Issue #999): session-mode wrap.
                     if "git commit" in command or "git -c" in command and "commit" in command:
-                        try:
-                            cwd = os.getcwd()
-                            if ".worktrees/batch-" in cwd:
-                                if os.environ.get("SKIP_BATCH_DOC_MASTER_GATE", "").strip().lower() not in ("1", "true", "yes"):
-                                    _batch_dm_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
-                                    _batch_dm_result = _check_batch_doc_master_completions(_batch_dm_session_id)
-                                    if _batch_dm_result is not None:
-                                        _log_pretool_activity(tool_name, tool_input, "deny", _batch_dm_result)
-                                        output_decision(
-                                            "deny", _batch_dm_result,
-                                            system_message=(
-                                                "BLOCKED: Batch doc-master gate — some issues are missing "
-                                                "doc-master completion. "
-                                                "Run doc-master for all issues before committing."
-                                            ),
-                                        )
-                                        sys.exit(0)
-                        except Exception:
-                            pass  # Fail-open: don't block on errors
+                        _phase_e_dm = _phase_e_skip(
+                            "_check_batch_doc_master_completions",
+                            input_data=input_data,
+                            session_id=_session_id,
+                        )
+                        if _phase_e_dm is None or not _phase_e_dm[0]:
+                            try:
+                                cwd = os.getcwd()
+                                if ".worktrees/batch-" in cwd:
+                                    if os.environ.get("SKIP_BATCH_DOC_MASTER_GATE", "").strip().lower() not in ("1", "true", "yes"):
+                                        _batch_dm_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
+                                        _batch_dm_result = _check_batch_doc_master_completions(_batch_dm_session_id)
+                                        if _batch_dm_result is not None:
+                                            _log_pretool_activity(tool_name, tool_input, "deny", _batch_dm_result)
+                                            output_decision(
+                                                "deny", _batch_dm_result,
+                                                system_message=(
+                                                    "BLOCKED: Batch doc-master gate — some issues are missing "
+                                                    "doc-master completion. "
+                                                    "Run doc-master for all issues before committing."
+                                                ),
+                                            )
+                                            sys.exit(0)
+                            except Exception:
+                                pass  # Fail-open: don't block on errors
 
                     # Issue #802: Pipeline agent completeness gate
                     # Block git commit when required pipeline agents haven't completed
                     # Issue #853: In batch mode, check ALL issues rather than a single issue
-                    if "git commit" in command or "git -c" in command and "commit" in command:
+                    # Phase E (Issue #999): session-mode wrap.
+                    _phase_e_pa = _phase_e_skip(
+                        "_check_pipeline_agent_completions",
+                        input_data=input_data,
+                        session_id=_session_id,
+                    )
+                    if ("git commit" in command or "git -c" in command and "commit" in command) and (
+                        _phase_e_pa is None or not _phase_e_pa[0]
+                    ):
                         try:
                             if _is_pipeline_active():
                                 # Issue #802: env var bypass + file-based bypass
@@ -4795,12 +4887,20 @@ def main():
         # Plan-Exit Gate for MCP tools (Issue #926): enforce plan-critic
         # workflow on non-native tool calls (MCP servers). Uses explicit
         # read-only allowlist (no regex heuristics — AC #21).
-        plan_exit_mcp_decision = _check_plan_exit_mcp(tool_name)
-        if plan_exit_mcp_decision is not None:
-            decision, reason = plan_exit_mcp_decision
-            _log_pretool_activity(tool_name, tool_input, decision, reason)
-            output_decision(decision, reason)
-            sys.exit(0)
+        # Phase E (Issue #999): session-mode wrap. Hard-floor checks are
+        # NOT wrapped; this is a non-hard-floor gate.
+        _phase_e_mcp = _phase_e_skip(
+            "_check_plan_exit_mcp",
+            input_data=input_data,
+            session_id=_session_id,
+        )
+        if _phase_e_mcp is None or not _phase_e_mcp[0]:
+            plan_exit_mcp_decision = _check_plan_exit_mcp(tool_name)
+            if plan_exit_mcp_decision is not None:
+                decision, reason = plan_exit_mcp_decision
+                _log_pretool_activity(tool_name, tool_input, decision, reason)
+                output_decision(decision, reason)
+                sys.exit(0)
 
         # Run all validators in sequence (Layer 0 → Layer 1 → Layer 2 → Layer 3)
         validators_results = []
