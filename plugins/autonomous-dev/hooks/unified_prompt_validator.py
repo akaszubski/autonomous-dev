@@ -133,6 +133,14 @@ INTENT_CLASSIFIER_ENABLED = (
     os.environ.get("INTENT_CLASSIFIER_ENABLED", "false").lower() == "true"
 )
 
+# Phase D (Issue #998): enforce flag is plumbed but unused in Phase D. Phase E
+# will read it from /tmp/session_mode_*.json to gate downstream hooks. The
+# session_mode artifact captures the value at write time so Phase E sees the
+# same flag state the writer saw.
+INTENT_CLASSIFIER_ENFORCE = (
+    os.environ.get("INTENT_CLASSIFIER_ENFORCE", "false").lower() == "true"
+)
+
 # Plan-mode enforcement was moved to PreToolUse (unified_pre_tool.py) per
 # Issue #926. The marker file format and writer (plan_mode_exit_detector.py)
 # are unchanged; only the enforcement event boundary moved.
@@ -580,6 +588,21 @@ def main() -> int:
     except Exception:
         intent_result = None
     intent_fields = _intent_log_fields(intent_result)
+
+    # Phase D (Issue #998): write session-mode artifact in observe mode.
+    # Fail-open. Phase E will gate downstream PreToolUse hooks on this
+    # artifact. The write is gated on INTENT_CLASSIFIER_ENABLED so the
+    # hook remains byte-identical to the pre-classifier version when
+    # the flag is off (verified by TestHookNoOpWhenFlagOff).
+    if INTENT_CLASSIFIER_ENABLED and intent_result is not None:
+        try:
+            from session_mode import write_session_mode  # type: ignore[import-not-found]
+            session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
+            write_session_mode(session_id, intent_result, user_prompt)
+        except Exception:
+            # NEVER raise — observe-mode must be byte-identical when
+            # the artifact write fails.
+            pass
 
     # Detect command intent via routing table
     route = detect_command_intent(user_prompt)

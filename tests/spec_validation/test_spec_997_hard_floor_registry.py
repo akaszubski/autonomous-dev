@@ -267,13 +267,35 @@ class TestSpec997Criterion8ImplementerTestsPass:
 
 
 # ---------------------------------------------------------------------------
-# AC #9 — no production caller imports hard_floor (Phase C is registry-only)
+# AC #9 — Phase C registry-only had ZERO callers; Phase E (#999) adds the
+# expected consumer enforcement_decision.py. The allowlist below is the
+# explicit approved set — anything outside it is still an offender.
 # ---------------------------------------------------------------------------
 
 
+# Approved Phase E consumers. Every entry MUST point to a real file. A new
+# consumer is added only after a planning artifact justifies it.
+PHASE_E_APPROVED_PLUGIN_CALLERS = frozenset(
+    {
+        # Phase E (#999) — pure policy layer that gates non-hard-floor checks.
+        "plugins/autonomous-dev/lib/enforcement_decision.py",
+    }
+)
+
+PHASE_E_APPROVED_TEST_REFS = frozenset(
+    {
+        # Phase E integration test exercises the hard_floor invariant from
+        # the consumer side — explicit regression lock that hard-floor
+        # functions still report True after Phase E wires the gate.
+        "tests/unit/hooks/test_phase_e_integration.py",
+    }
+)
+
+
 class TestSpec997Criterion9NoProductionCallers:
-    """Phase C must not change behavior. Only the new test file may reference
-    hard_floor; no plugins/* hook or lib import is allowed yet."""
+    """After Phase E (#999), exactly one production caller is allowed —
+    enforcement_decision.py. Any other plugin import of hard_floor is still
+    an unapproved consumer and fails this test."""
 
     def test_spec_997_9_zero_callers_in_plugins(self):
         plugins_dir = REPO_ROOT / "plugins"
@@ -281,7 +303,7 @@ class TestSpec997Criterion9NoProductionCallers:
         offenders: list[str] = []
         for py in plugins_dir.rglob("*.py"):
             # The module itself is allowed to define `from __future__ import ...`
-            # and its own name; we only forbid OTHER files importing it.
+            # and its own name; we only forbid OTHER unapproved files.
             if py.resolve() == LIB_PATH.resolve():
                 continue
             try:
@@ -289,31 +311,40 @@ class TestSpec997Criterion9NoProductionCallers:
             except (UnicodeDecodeError, OSError):
                 continue
             if "from hard_floor" in text or "import hard_floor" in text:
-                offenders.append(str(py.relative_to(REPO_ROOT)))
+                rel = str(py.relative_to(REPO_ROOT))
+                if rel in PHASE_E_APPROVED_PLUGIN_CALLERS:
+                    continue  # explicitly approved
+                offenders.append(rel)
         assert not offenders, (
-            "Phase C must be registry-only — no plugin code may consume "
-            f"hard_floor yet. Offenders: {offenders}"
+            "Unapproved plugin consumer of hard_floor. Add to "
+            f"PHASE_E_APPROVED_PLUGIN_CALLERS only with a planning artifact. "
+            f"Offenders: {offenders}"
         )
 
     def test_spec_997_9_only_expected_test_files_reference_module(self):
         tests_dir = REPO_ROOT / "tests"
         # The new unit test file (implementer-owned) and this spec-validation
-        # file are the only legal references inside tests/.
-        allowed = {
+        # file are the only legal references inside tests/, plus the Phase E
+        # integration test that locks the hard-floor invariant.
+        allowed_paths = {
             UNIT_TEST_PATH.resolve(),
             Path(__file__).resolve(),
         }
+        allowed_rels = PHASE_E_APPROVED_TEST_REFS
         offenders: list[str] = []
         for py in tests_dir.rglob("*.py"):
-            if py.resolve() in allowed:
+            if py.resolve() in allowed_paths:
                 continue
             try:
                 text = py.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
             if "from hard_floor" in text or "import hard_floor" in text:
-                offenders.append(str(py.relative_to(REPO_ROOT)))
+                rel = str(py.relative_to(REPO_ROOT))
+                if rel in allowed_rels:
+                    continue
+                offenders.append(rel)
         assert not offenders, (
-            "Only the new unit test file is allowed to reference hard_floor "
-            f"in tests/. Offenders: {offenders}"
+            "Unapproved test reference to hard_floor. Offenders: "
+            f"{offenders}"
         )

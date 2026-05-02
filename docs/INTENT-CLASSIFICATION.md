@@ -106,11 +106,31 @@ unset INTENT_CLASSIFIER_ENABLED
 # or
 INTENT_CLASSIFIER_ENABLED=false
 
-# Active mode: classifier results annotate activity logs (Phase 1 only — no routing change yet)
+# Active mode: classifier results annotate activity logs + write session-mode artifact (Phase 1/D — no routing change yet)
 INTENT_CLASSIFIER_ENABLED=true
 ```
 
 When the flag is unset/false/0, the modified `unified_prompt_validator.py` produces byte-identical stdout to the unmodified version. This is verified by `tests/unit/lib/test_intent_classifier.py::TestHookNoOpWhenFlagOff` against a golden snapshot captured before the modification.
+
+### Phase D: session-mode artifact (Issue #998)
+
+When `INTENT_CLASSIFIER_ENABLED=true`, the hook also calls `lib/session_mode.write_session_mode()` after each classification, writing a per-session JSON snapshot to `/tmp/session_mode_<sha256(session_id)[:8]>.json`. The artifact captures all 12 classification fields (see `docs/LIBRARIES.md` `session_mode.py` entry) plus `enforce_mode` (the value of `INTENT_CLASSIFIER_ENFORCE` at write time). Phase E reads this artifact from PreToolUse hooks to gate routing decisions without re-parsing the activity log.
+
+The write is fail-open: any OSError or AttributeError is silently swallowed. Hook output remains byte-identical whether the write succeeds or fails.
+
+### Phase E: enforcement cutover (Issue #999)
+
+Phase E completes the intent classifier track. When `INTENT_CLASSIFIER_ENFORCE=true`, three pipeline-gating hooks (`unified_pre_tool.py`, `plan_gate.py`, `plan_mode_exit_detector.py`) consult the session-mode artifact and short-circuit their non-floor checks when the intent class is a low-risk, non-implementation class (`doc`, `config`, `typo`, `status_query`, `conversation`). Hard-floor hooks (from the Phase C registry) always fire regardless of the intent class.
+
+The policy layer is implemented in `lib/enforcement_decision.py`. Stdin reading is handled by `lib/hook_stdin.py` (one-shot cached read — hooks can call it multiple times without exhausting the stream). A `mode_skip` telemetry row is emitted to `.claude/logs/hook-blocks.jsonl` for each skipped gate (distinct from `mode_enforce` — the skip path only, not the enforce path).
+
+Single env var rollback: `INTENT_CLASSIFIER_ENFORCE=false` (or unset) reverts all Phase E gating and returns hooks to their Phase D behavior.
+
+### INTENT_CLASSIFIER_ENFORCE
+
+`INTENT_CLASSIFIER_ENFORCE` (default `false`) is the Phase E rollout knob. When set to the literal string `"true"` (case-insensitive), PreToolUse hooks will skip non-floor checks for low-risk intent classes. When unset or any other value, the hooks behave as if Phase E is not deployed.
+
+Setting this to `true` requires `INTENT_CLASSIFIER_ENABLED=true` and an active session-mode artifact. If the artifact is missing, expired, or the classifier fell back to fail-open, the hooks enforce normally (fail-safe direction is always enforce).
 
 ## Telemetry
 
@@ -173,9 +193,10 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1 | This implementation | Classifier built, hooked in shadow mode. Default off. |
+| Phase 1 | Done | Classifier built, hooked in shadow mode. Default off. |
 | Phase 1.5 | Future | Real-Haiku validation against fixtures. Calibrate threshold. |
-| Phase 2 | Future | Use classifier output to relax false-positive routing nudges (e.g., "update README" no longer suggests `/implement`). |
+| Phase D | Done (Issue #998) | Wire classifier output to per-session artifact at `/tmp/session_mode_<hash>.json`. New env var `INTENT_CLASSIFIER_ENFORCE` plumbed (unused until Phase E). |
+| Phase E | Done (Issue #999) | Enforcement cutover: `plan_gate.py`, `plan_mode_exit_detector.py`, and `unified_pre_tool.py` skip non-floor checks for low-risk intent classes when `INTENT_CLASSIFIER_ENFORCE=true`. New libs: `enforcement_decision.py` (pure policy), `hook_stdin.py` (cached stdin reader). New telemetry shape: `mode_skip`. Single env var rollback. |
 | Phase 3 | Future | Use `predicted_file_count` to scale pipeline complexity (single-file edits skip planner). |
 | Phase 4 | Future | Train a small distilled classifier from accumulated session telemetry to reduce LLM cost. |
 | Phase 5 | Future | Integrate with realign as a pre-training signal. |
@@ -198,8 +219,21 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | File | Purpose |
 |------|---------|
 | `plugins/autonomous-dev/lib/intent_classifier.py` | Main library |
+| `plugins/autonomous-dev/lib/session_mode.py` | Session-mode artifact writer (Phase D, Issue #998) |
+| `plugins/autonomous-dev/lib/enforcement_decision.py` | Pure policy layer: `should_skip_enforcement()` — 8-rule priority chain (Phase E, Issue #999) |
+| `plugins/autonomous-dev/lib/hook_stdin.py` | Cached stdin reader: `read_stdin_once()`, `extract_session_id()` (Phase E, Issue #999) |
 | `plugins/autonomous-dev/config/intent_classifier_config.json` | Default config |
 | `plugins/autonomous-dev/hooks/unified_prompt_validator.py` | Hook integration (shadow mode) |
+| `plugins/autonomous-dev/hooks/plan_gate.py` | Phase E gate site (non-floor check bypass) |
+| `plugins/autonomous-dev/hooks/plan_mode_exit_detector.py` | Phase E gate site (non-floor check bypass) |
+| `plugins/autonomous-dev/hooks/unified_pre_tool.py` | Phase E gate sites (5 wrap sites via `_phase_e_skip()`) |
 | `tests/unit/lib/test_intent_classifier.py` | Test suite (81 tests) |
+| `tests/unit/lib/test_session_mode.py` | session_mode.py unit tests |
+| `tests/unit/lib/test_enforcement_decision.py` | enforcement_decision.py unit tests (13 tests) |
+| `tests/unit/lib/test_hook_stdin.py` | hook_stdin.py unit tests (10 tests) |
+| `tests/unit/lib/test_session_mode_reader.py` | session_mode reader-side unit tests (12 tests) |
+| `tests/unit/hooks/test_phase_e_integration.py` | Phase E hook integration tests (10 tests) |
+| `tests/integration/test_enforcement_mode_cutover.py` | Enforcement cutover integration tests (3 tests) |
+| `tests/integration/test_intent_classifier_observe_mode.py` | Observe-mode byte-identity integration tests |
 | `tests/fixtures/intent_classifier_fixtures.json` | 61 labeled prompts |
 | `tests/fixtures/unified_prompt_validator_golden.json` | Pre-modification snapshot |

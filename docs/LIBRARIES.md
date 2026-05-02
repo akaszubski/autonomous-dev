@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-04-26 (tool_intent.py added — Issue #971)
+**Last Updated**: 2026-05-02 (session_mode.py added — Issue #998; hook_stdin.py + enforcement_decision.py added — Issue #999)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -128,7 +128,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 
 94. **hook_bypass.py** - Universal hook bypass mechanism (Issue #969). Single source of truth for the two bypass signals that every hook honors. `is_bypassed(start_dir=None)` returns `True` when either `AUTONOMOUS_DEV_BYPASS` env var is set to a truthy value OR a `.claude/.bypass` file exists in `start_dir` (or cwd if None) or any ancestor directory. `log_bypass_used(hook_name, tool_name, reason)` appends one JSONL event to `.claude/logs/hook-bypass.jsonl`; auto-creates parent directories; falls back to stderr on any `OSError`; never raises (bypass telemetry must not block the bypass itself). `_env_var_active()` — truthy: any non-empty string not in `{"", "0", "false", "no", "off"}` (case-insensitive). `_flag_file_in_chain(start_dir)` — walks parent chain up to `WALK_DEPTH_LIMIT=30`, does not follow symlinks. `ENV_VAR_NAME = "AUTONOMOUS_DEV_BYPASS"`. `BYPASS_FILE_RELATIVE = Path(".claude") / ".bypass"`. `LOG_FILE_RELATIVE = Path(".claude") / "logs" / "hook-bypass.jsonl"`. Pure Python stdlib, zero external dependencies. Companion tests: `tests/unit/lib/test_hook_bypass.py`, `tests/regression/test_universal_hook_bypass.py`. (v1.0.0, Issue #969)
 
-96. **hook_telemetry.py** - Unified hook block telemetry (Issue #972, #942-D capstone). Single canonical surface for recording every "deny" decision a hook makes, across all three deny shapes used in the harness: `("deny", reason)` tuple (used by `unified_pre_tool.py` via `output_decision`), `{"decision": "block", ...}` dict (used by `unified_prompt_validator.py`), and `sys.exit(2)` (used by `enforce_orchestrator.py`). Public API: `log_block_event(hook_name, decision_shape, reason, metadata=None)` — appends one JSONL row to `.claude/logs/hook-blocks.jsonl` with stable schema `{ts, hook_name, decision_shape, reason, metadata, session_id, cwd}`; falls back to stderr on `OSError`; NEVER raises; `is_telemetry_disabled()` — reads `HOOK_TELEMETRY_DISABLED` env var (also honors `HOOK_RECOVERY_DISABLED` as a deprecated alias, emitting a one-time `DeprecationWarning`); `block_event_decorator(hook_name)` — factory that wraps an `output_decision` callable to instrument all deny sites through one decorator (idempotent — double-wrapping is a no-op); `can_user_recover(hook_name, block_reason)` — checks the exemption registry at `plugins/autonomous-dev/config/hook_recovery_exemptions.json` (malformed JSON treated as "no exemptions"). Rollback: `HOOK_TELEMETRY_DISABLED=1` disables writes without redeployment. Consumed by `unified_pre_tool.py` (via `@block_event_decorator`), `unified_prompt_validator.py`, and `enforce_orchestrator.py` (via explicit `log_block_event` calls). 28 unit tests in `tests/unit/lib/test_hook_telemetry.py`. (v1.0.0, Issue #972)
+96. **hook_telemetry.py** - Unified hook block telemetry (Issue #972, #942-D capstone). Single canonical surface for recording every "deny" decision a hook makes, across all three deny shapes used in the harness: `("deny", reason)` tuple (used by `unified_pre_tool.py` via `output_decision`), `{"decision": "block", ...}` dict (used by `unified_prompt_validator.py`), and `sys.exit(2)` (used by `enforce_orchestrator.py`). **Phase E extension (Issue #999)**: adds a fourth valid `decision_shape` value, `"mode_skip"`, emitted when `_phase_e_skip()` returns `(True, reason)` — records the skip event (not a block) so telemetry consumers can observe enforcement relaxations without confusing them with deny events. `"mode_skip"` is intentionally NOT paired with `"mode_enforce"` (enforce path emits nothing — existing block shapes cover those). `VALID_DECISION_SHAPES` frozenset updated to include `"mode_skip"`. Public API: `log_block_event(hook_name, decision_shape, reason, metadata=None)` — appends one JSONL row to `.claude/logs/hook-blocks.jsonl` with stable schema `{ts, hook_name, decision_shape, reason, metadata, session_id, cwd}`; falls back to stderr on `OSError`; NEVER raises; `is_telemetry_disabled()` — reads `HOOK_TELEMETRY_DISABLED` env var (also honors `HOOK_RECOVERY_DISABLED` as a deprecated alias, emitting a one-time `DeprecationWarning`); `block_event_decorator(hook_name)` — factory that wraps an `output_decision` callable to instrument all deny sites through one decorator (idempotent — double-wrapping is a no-op); `can_user_recover(hook_name, block_reason)` — checks the exemption registry at `plugins/autonomous-dev/config/hook_recovery_exemptions.json` (malformed JSON treated as "no exemptions"). Rollback: `HOOK_TELEMETRY_DISABLED=1` disables writes without redeployment. Consumed by `unified_pre_tool.py` (via `@block_event_decorator`), `unified_prompt_validator.py`, and `enforce_orchestrator.py` (via explicit `log_block_event` calls). 28 unit tests in `tests/unit/lib/test_hook_telemetry.py`. (v1.0.0, Issue #972; v1.1.0 Issue #999 — mode_skip shape)
 
 97. **hard_floor.py** - Hard-floor hook registry — explicit read-only list of hooks (and specific functions within hooks) that MUST always fire regardless of session mode (Issue #997, Phase C). Acts as a declaration layer that session-mode logic will query in Phase D before considering any disable/skip path. Dual-source with safe fallback: authoritative source is `plugins/autonomous-dev/config/hard_floor_hooks.json`; if the file is missing, malformed, or unreadable the module falls back to in-module constants (`_FALLBACK_HARD_FLOOR_HOOKS`, `_FALLBACK_OBSERVABILITY_HOOKS`) — fallback returns `True` ONLY for entries explicitly listed in the constant (never over-blocks arbitrary hooks). No caching: every call re-reads the JSON (file is ~1 KB, hook invocation rate is low double digits/second at most). Hard-floor hooks (catastrophe prevention): `security_scan.py` (file-level; secrets in commits), `unified_pre_tool.py::_check_bash_state_deletion` (rm/truncate of pipeline state), `unified_pre_tool.py::_check_settings_json_writes` (writes to settings.json), `unified_pre_tool.py::_check_protected_infrastructure` (writes to hooks/lib/agents/commands), `unified_pre_tool.py::_check_dangerous_bash` (rm -rf with unresolved vars, force-push to master). Always-run observability (non-enforcement, logging only): `session_activity_logger.py`, `conversation_archiver.py`, `unified_session_tracker.py`. Public API: `is_hard_floor(hook_name, function_name=None) -> bool` — returns True if the (hook, function) pair is hard-floor; `get_observability_hooks() -> list[str]` — returns a fresh list of always-run observability hook filenames. Matching rules: file-level entry (no `function` key) matches only when `function_name is None`; function-level entry matches when `function_name` equals the entry's function. Phase D will wire session-mode logic to call `is_hard_floor` before any disable/skip path. 6 test functions (16 parametrized cases) in `tests/unit/lib/test_hard_floor.py`. (v1.0.0, Issue #997)
 
@@ -16563,4 +16563,168 @@ result = analyzer.prune_tests(dry_run=False)
 - `tests/unit/test_prompt_quality.py` — 27 tests covering unit-level rule checks (persona detection, casual register, constraint density) and static inspection of all existing agent `.md` files
 - `tests/spec_validation/test_spec_issue842_prompt_quality_gate.py` — 30 spec-validation tests covering hook integration, Layer 6 enforcement behavior, and test routing config
 
+## session_mode.py (Issue #998 — Phase D)
+
+**Purpose**: Session-mode artifact writer. Wires the semantic intent classifier to a per-session JSON snapshot at `/tmp/session_mode_<sha256(session_id)[:8]>.json` after each `UserPromptSubmit` when `INTENT_CLASSIFIER_ENABLED=true`. The artifact is consumed by Phase E (separate issue) to gate routing decisions in downstream `PreToolUse` hooks without requiring those hooks to parse the JSONL activity log.
+
+**Location**: `plugins/autonomous-dev/lib/session_mode.py`
+
+**Design rationale** (decision: option (b) — separate per-session file):
+- O(1) lookup vs activity-log scan: PreToolUse hooks (hot path) must read the current session mode without walking a daily JSONL file
+- Atomic last-writer-wins via `os.replace()` — same-filesystem tempfile ensures atomicity
+- Schema isolation from telemetry: telemetry is append-only JSONL; session-mode is overwrite-style "current-state" snapshot
+- Artifact TTL: 1 hour (`TTL_SECONDS = 3600`) — readers MUST honor `expires_at` and treat expired artifacts as missing
+
+### Constants
+
+- `SCHEMA_VERSION: int = 1` — bump when fields are added, renamed, or removed; Phase E reader must migrate v1 artifacts
+- `TTL_SECONDS: int = 3600` — artifact lifetime; aligns with `pipeline_completion_state.py` stale TTL
+
+### Public API
+
+#### write_session_mode()
+
+Signature: `write_session_mode(session_id: Any, intent_result: Any, prompt: str) -> None`
+
+NEVER raises. Every exception path is swallowed silently. The observe-mode goal is byte-identical hook behavior when the artifact write fails.
+
+**Parameters**:
+- `session_id` — raw session id from `CLAUDE_SESSION_ID`; may be None, empty, or `"unknown"`
+- `intent_result` — any duck-typed object with `.intent.value`, `.confidence`, `.regex_hit`, `.llm_used`, `.fail_open`, `.requires_security_audit`
+- `prompt` — original user prompt text; hashed via SHA-256 (never stored verbatim)
+
+**Artifact schema** (12 fields, all always present):
+- `schema_version` (int) — SCHEMA_VERSION at write time
+- `session_id` (str) — resolved session id (PID-suffixed for unknown sentinel)
+- `intent_class` (str) — one of the 9 IntentClass values or "ambiguous"
+- `confidence` (float) — classifier confidence in [0.0, 1.0]
+- `regex_hit` (bool) — whether security-keyword regex matched (short-circuits LLM)
+- `llm_used` (bool) — whether LLM was invoked
+- `fail_open` (bool) — whether any fail-open path was triggered
+- `requires_security_audit` (bool) — whether downstream hooks MUST preserve security checks
+- `prompt_hash` (str) — `sha256(prompt)[:16]` hex digest for log correlation (no prompt text stored)
+- `written_at` (str) — ISO 8601 UTC timestamp
+- `expires_at` (int) — Unix epoch seconds; readers treat expired artifacts as missing
+- `enforce_mode` (bool) — value of `INTENT_CLASSIFIER_ENFORCE` at write time; Phase E reads this to decide whether to gate or observe
+
+### Environment Variables
+
+- `INTENT_CLASSIFIER_ENFORCE` (default: `false`) — plumbed in Phase D but unused. Phase E will read the `enforce_mode` field written into the artifact to decide whether to apply enforcement gates in downstream hooks. Setting `true` while Phase E is not deployed has no behavioral effect.
+
+### Integration
+
+Called from `unified_prompt_validator.py` `main()` when `INTENT_CLASSIFIER_ENABLED=true` and a non-None `IntentResult` is produced by the classifier:
+
+```python
+if INTENT_CLASSIFIER_ENABLED and intent_result is not None:
+    from session_mode import write_session_mode
+    write_session_mode(session_id, intent_result, user_prompt)
+```
+
+The call is wrapped in a bare `try/except` so any import or write failure is silently swallowed — observe-mode byte-identity is preserved.
+
+### Fail-open contract
+
+`write_session_mode()` MUST NEVER raise. Phase D is observe-mode only: a failed write MUST NOT change downstream behavior. Phase E reader-side fail-open is implemented in `enforcement_decision.py` (Issue #999).
+
+### Testing
+
+- `tests/unit/lib/test_session_mode.py` — unit tests covering artifact write, atomic replace, TTL field, schema fields, PID-suffixed unknown sentinel, non-string session id, and fail-open on OSError
+- `tests/unit/lib/test_session_mode_reader.py` — reader-side unit tests: `read_session_mode()` stale/missing/mismatch paths, `should_pipeline_enforce()` decision table (12 tests, Phase E, Issue #999)
+- `tests/integration/test_intent_classifier_observe_mode.py` — integration tests verifying byte-identical hook output when flag disabled (observe-mode contract)
+
+**Version History**: v1.0.0 (2026-05-02) — Initial release, Phase D observe-mode wiring (Issue #998); v1.1.0 (2026-05-02) — Added `read_session_mode()` and `should_pipeline_enforce()` reader API, `_SKIP_INTENT_CLASSES` constant (Issue #999)
+
 **Version History**: v1.0.0 (2026-04-14) - Initial release, prompt anti-pattern detection shared library (Issue #842)
+
+---
+
+## hook_stdin.py (Issue #999 — Phase E)
+
+**Purpose**: Single-read stdin cache and session_id extractor for Phase E PreToolUse hooks. Hooks that need to read the PreToolUse JSON payload AND extract `session_id` previously risked exhausting the stdin stream on the first read. This module provides a module-level consumed-once cache so multiple callers within the same hook process always receive the same parsed dict without re-reading the stream.
+
+**Location**: `plugins/autonomous-dev/lib/hook_stdin.py`
+
+### Design notes
+
+- NOT `lru_cache` — `sys.stdin.read()` exhausts the stream after the first call; the cache is consumed-once, not key-indexed memoization.
+- Module-level `_stdin_data` + `_stdin_consumed` sentinel: distinguishes "read returned None because stdin was empty/malformed" from "read has not been called yet".
+- Fail-open: any IO/JSON exception returns `None`. Phase E hooks treat `None` as "no session context — enforce normally".
+
+### Public API
+
+#### read_stdin_once()
+
+Signature: `read_stdin_once() -> dict | None`
+
+Returns the parsed PreToolUse hook input dict on the first call; returns the cached result on subsequent calls. Returns `None` on empty stdin, malformed JSON, non-dict result, or any IO error. NEVER raises.
+
+#### extract_session_id()
+
+Signature: `extract_session_id(data: dict | None) -> str | None`
+
+Extracts `session_id` from a hook input dict. Lookup order:
+1. `data["session_id"]` (top-level field on every PreToolUse payload)
+2. `CLAUDE_SESSION_ID` env var (set by Claude Code)
+
+Sentinel handling: empty strings and the literal string `"unknown"` return `None`. Matches the convention in `session_mode._resolve_session_id`.
+
+### Testing
+
+- `tests/unit/lib/test_hook_stdin.py` — 10 unit tests covering first read, repeated reads return cached, empty stdin, malformed JSON, non-dict, IOError, session_id extraction from dict, env fallback, "unknown" sentinel, and None data
+
+**Version History**: v1.0.0 (2026-05-02) — Initial release, Phase E stdin cache (Issue #999)
+
+---
+
+## enforcement_decision.py (Issue #999 — Phase E)
+
+**Purpose**: Pure policy layer for Phase E hook gating. Accepts a hook name, optional function name, and optional session_id; consults the hard-floor registry, the enforcement env var, and the session-mode artifact; returns a `(skip: bool, reason: str)` tuple. Zero filesystem or stdin side effects — the wrapping hook decides what to do with the result.
+
+**Location**: `plugins/autonomous-dev/lib/enforcement_decision.py`
+
+### Design notes
+
+Priority order (first match wins):
+1. `is_hard_floor(...)` true → `(False, "hard_floor")` — hard floors always fire
+2. `INTENT_CLASSIFIER_ENFORCE` not `"true"` → `(False, "enforcement_off")` — default-off rollout knob
+3. session_id missing/unknown → `(False, "no_session_id_safety")`
+4. artifact missing or stale → `(False, "ambiguous_safety")`
+5. `mode["fail_open"]` true → `(False, "classifier_fail_open")`
+6. `mode["requires_security_audit"]` true → `(False, "security_audit_required")`
+7. `should_pipeline_enforce(intent_class)` true → `(False, f"mode_enforce:{intent_class}")`
+8. else → `(True, f"mode_skip:{intent_class}")` — the only True return
+
+The fail-safe direction is "enforce" (return `False`). Rule 8 is the only skip path, requiring a fully-qualified, classifier-confident, non-security intent class.
+
+### Public API
+
+#### should_skip_enforcement()
+
+Signature: `should_skip_enforcement(*, hook_name: str, function_name: str | None = None, session_id: str | None = None) -> tuple[bool, str]`
+
+Returns `(skip, reason)`. `skip == True` means the calling check SHOULD be bypassed. `skip == False` means the gate runs as today. On any internal exception, returns `(False, "exception_safety")`. NEVER raises.
+
+**Parameters**:
+- `hook_name` — filename of the calling hook (e.g. `"unified_pre_tool.py"`)
+- `function_name` — optional function name within the hook for fine-grained hard-floor matching
+- `session_id` — the session id resolved by the calling hook (may be `None`)
+
+**Reason string prefixes** (machine-parseable):
+- `"hard_floor"` — hard-floor registry blocked the skip
+- `"enforcement_off"` — `INTENT_CLASSIFIER_ENFORCE` not set to `"true"`
+- `"no_session_id_safety"` — no usable session id
+- `"ambiguous_safety"` — artifact missing or stale
+- `"classifier_fail_open"` — classifier itself fell back
+- `"security_audit_required"` — session touched a security keyword
+- `"mode_enforce:{class}"` — intent class requires enforcement
+- `"mode_skip:{class}"` — intent class permits skip (only True return)
+- `"exception_safety"` — unexpected internal exception
+
+### Testing
+
+- `tests/unit/lib/test_enforcement_decision.py` — 13 unit tests covering each priority rule, the exception_safety path, and the single True return condition
+- `tests/unit/hooks/test_phase_e_integration.py` — 10 hook integration tests verifying `_phase_e_skip()` helper + 5 wrap sites in `unified_pre_tool.py`
+- `tests/integration/test_enforcement_mode_cutover.py` — 3 integration tests for end-to-end enforcement vs skip with real artifact fixture
+
+**Version History**: v1.0.0 (2026-05-02) — Initial release, Phase E pure policy layer (Issue #999)
