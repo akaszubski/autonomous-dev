@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "_doc": "Hooks/functions in this list ALWAYS fire regardless of session mode. Catastrophe prevention only.",
+  "hard_floor_hooks": [
+    {"hook": "security_scan.py", "reason": "secrets in commits/diffs"},
+    {"hook": "unified_pre_tool.py", "function": "_check_bash_state_deletion", "reason": "rm/truncate of pipeline state"},
+    {"hook": "unified_pre_tool.py", "function": "_check_settings_json_writes", "reason": "writes to ~/.claude/settings.json or .claude/settings.json"},
+    {"hook": "unified_pre_tool.py", "function": "_check_protected_infrastructure", "reason": "writes to hooks/, lib/, agents/, commands/"},
+    {"hook": "unified_pre_tool.py", "function": "_check_dangerous_bash", "reason": "rm -rf with unresolved variables, force-push to master"}
+  ],
+  "_doc_observability": "These always run but are NOT enforcement -- they just log.",
+  "always_run_observability": [
+    "session_activity_logger.py",
+    "conversation_archiver.py",
+    "unified_session_tracker.py"
+  ]
+}

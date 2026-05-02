@@ -4,12 +4,15 @@
 # Combines deploy_local.sh (with validation) and deploy-to-repos.sh (with remote).
 #
 # Usage:
-#   ./scripts/deploy-all.sh              # Deploy everywhere
-#   ./scripts/deploy-all.sh --local      # Local machine only
-#   ./scripts/deploy-all.sh --remote     # Mac Studio only
-#   ./scripts/deploy-all.sh --dry-run    # Preview what would happen
-#   ./scripts/deploy-all.sh --no-global  # Skip global ~/.claude/ sync
-#   ./scripts/deploy-all.sh --skip-validate  # Skip post-deploy validation
+#   ./scripts/deploy-all.sh                    # Deploy everywhere
+#   ./scripts/deploy-all.sh --local            # Local machine only
+#   ./scripts/deploy-all.sh --remote           # Mac Studio only
+#   ./scripts/deploy-all.sh --dry-run          # Preview what would happen
+#   ./scripts/deploy-all.sh --no-global        # Skip global ~/.claude/ sync entirely
+#   ./scripts/deploy-all.sh --global-settings  # Opt-in: register hooks in ~/.claude/settings.json
+#                                              # (Issue #995: default is project-local hooks only;
+#                                              #  --no-global wins over --global-settings)
+#   ./scripts/deploy-all.sh --skip-validate    # Skip post-deploy validation
 #
 # Configuration (override via env vars):
 #   REMOTE_HOST  - SSH host (auto-detects: 10.55.0.2 on LAN, 100.103.205.63 via Tailscale)
@@ -49,6 +52,11 @@ STALE_HOOKS="pre_tool_use.py auto_approve_tool.py unified_pre_tool_use.py"
 DO_LOCAL=true
 DO_REMOTE=true
 DO_GLOBAL=true
+# Issue #995: project-local hooks are now the default. Registration of
+# autonomous-dev hooks in ~/.claude/settings.json is OPT-IN via --global-settings.
+# Hook FILES still cache to ~/.claude/hooks/ via the existing $GLOBAL_SUBDIRS sync;
+# this flag only controls whether settings.json registers them as active.
+DO_GLOBAL_SETTINGS=false
 DRY_RUN=false
 SKIP_VALIDATE=false
 ERRORS=0
@@ -56,17 +64,26 @@ ERRORS=0
 for arg in "$@"; do
     case "$arg" in
         --local)  DO_REMOTE=false ;;
-        --remote) DO_LOCAL=false; DO_GLOBAL=false ;;
+        --remote) DO_LOCAL=false; DO_GLOBAL=false; DO_GLOBAL_SETTINGS=false ;;
         --dry-run) DRY_RUN=true ;;
-        --no-global) DO_GLOBAL=false ;;
+        --no-global) DO_GLOBAL=false; DO_GLOBAL_SETTINGS=false ;;
+        --global-settings) DO_GLOBAL_SETTINGS=true ;;
         --skip-validate) SKIP_VALIDATE=true ;;
         --help|-h)
-            head -17 "$0" | tail -16
+            head -21 "$0" | tail -20
             exit 0
             ;;
         *) echo "Unknown flag: $arg"; exit 1 ;;
     esac
 done
+
+# Issue #995 precedence: --no-global wins over --global-settings.
+# If --no-global was passed, we already cleared DO_GLOBAL_SETTINGS in its case
+# branch above. We re-assert it here in case flag order put --global-settings
+# AFTER --no-global on the command line.
+if ! $DO_GLOBAL; then
+    DO_GLOBAL_SETTINGS=false
+fi
 
 # --- Helpers ---
 
@@ -95,6 +112,11 @@ deploy_global() {
     echo "Global (~/.claude):"
     if $DRY_RUN; then
         echo "  [dry-run] Would sync $GLOBAL_SUBDIRS"
+        if $DO_GLOBAL_SETTINGS; then
+            echo "  [dry-run] Would sync global settings.json hooks"
+        else
+            echo "  [dry-run] Would skip global settings.json hooks (use --global-settings to opt in)"
+        fi
         return
     fi
 
@@ -107,8 +129,14 @@ deploy_global() {
     fix_permissions "$GLOBAL_DEST"
     echo "  Synced: $GLOBAL_SUBDIRS"
 
-    # Sync settings.json hook registrations
-    python3 "$PLUGIN_SRC/scripts/sync_settings_hooks.py" --global 2>/dev/null && echo "  Synced global settings.json hooks" || echo "  ⚠ global settings hook sync failed"
+    # Sync settings.json hook registrations (opt-in via --global-settings, Issue #995)
+    if $DO_GLOBAL_SETTINGS; then
+        python3 "$PLUGIN_SRC/scripts/sync_settings_hooks.py" --global 2>/dev/null \
+            && echo "  Synced global settings.json hooks" \
+            || echo "  ⚠ global settings hook sync failed"
+    else
+        echo "  Skipped global settings.json hooks (use --global-settings to opt in)"
+    fi
 }
 
 deploy_repo() {
@@ -256,8 +284,14 @@ find "\$HOME/.claude/hooks" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || tr
 find "\$HOME/.claude/hooks" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
 find "\$HOME/.claude/lib" -name "*.py" -exec chmod 644 {} \; 2>/dev/null || true
 echo "  Synced global: hooks lib config"
-# Sync global settings.json hook registrations
-python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --global 2>/dev/null && echo "  Synced global settings.json hooks" || echo "  ⚠ global settings hook sync failed"
+# Sync global settings.json hook registrations (opt-in via --global-settings, Issue #995)
+# Note: \$DO_GLOBAL_SETTINGS is interpolated LOCALLY before the SSH heredoc is sent,
+# so the remote shell sees a literal "true" or "false".
+if [ "$DO_GLOBAL_SETTINGS" = "true" ]; then
+    python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --global 2>/dev/null && echo "  Synced global settings.json hooks" || echo "  ⚠ global settings hook sync failed"
+else
+    echo "  Skipped global settings.json hooks (use --global-settings to opt in)"
+fi
 $validate_script
 REMOTE_EOF
 )"
