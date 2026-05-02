@@ -170,18 +170,18 @@ class TestHardFloorInvariant:
     """Regression locks: hard-floor checks always run regardless of session mode."""
 
     def test_hard_floor_check_dangerous_bash_always_runs(self):
-        """is_hard_floor must return True for _check_dangerous_bash —
+        """is_hard_floor must return True for _detect_git_bypass —
         proving the registry recognizes it as never-skippable."""
-        assert is_hard_floor("unified_pre_tool.py", "_check_dangerous_bash") is True
+        assert is_hard_floor("unified_pre_tool.py", "_detect_git_bypass") is True
 
     def test_hard_floor_check_settings_json_writes_always_runs(self):
-        """is_hard_floor for _check_settings_json_writes must be True."""
-        assert is_hard_floor("unified_pre_tool.py", "_check_settings_json_writes") is True
+        """is_hard_floor for _detect_settings_json_write must be True."""
+        assert is_hard_floor("unified_pre_tool.py", "_detect_settings_json_write") is True
 
     def test_hard_floor_check_protected_infrastructure_always_runs(self):
-        """is_hard_floor for _check_protected_infrastructure must be True."""
+        """is_hard_floor for _is_protected_infrastructure must be True."""
         assert is_hard_floor(
-            "unified_pre_tool.py", "_check_protected_infrastructure"
+            "unified_pre_tool.py", "_is_protected_infrastructure"
         ) is True
 
     def test_hard_floor_check_bash_state_deletion_always_runs(self):
@@ -200,7 +200,7 @@ class TestHardFloorInvariant:
         try:
             skip, reason = should_skip_enforcement(
                 hook_name="unified_pre_tool.py",
-                function_name="_check_dangerous_bash",
+                function_name="_detect_git_bypass",
                 session_id=sid,
             )
             assert skip is False

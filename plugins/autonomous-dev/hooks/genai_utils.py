@@ -43,10 +43,37 @@ except ImportError:
         _sys_953.exit(0)
 
 
+import html
 import os
 import sys
 from typing import Optional
 from genai_prompts import DEFAULT_MODEL, DEFAULT_MAX_TOKENS, DEFAULT_TIMEOUT
+
+
+def _wrap_user_input(text: str) -> str:
+    """Wrap user-supplied text in XML delimiters with HTML escaping.
+
+    Defends against prompt-injection attacks where user input contains
+    structural tokens like ``</user_input>`` or ``<system>`` that could
+    escape a delimited prompt context.
+
+    Uses ``html.escape(text, quote=False)`` per OWASP XML escape guidance:
+    - Escapes structurally dangerous chars: ``&``, ``<``, ``>``.
+    - Preserves apostrophes (``'``) and double-quotes (``"``) which are
+      common in legitimate prompts (e.g., ``"it's working"`` should not
+      become ``"it&#x27;s working"``).
+
+    Issue #960 Phase 2 (security-deferred from intent classifier Phase 1).
+    Currently used by ``intent_classifier.py``; can be adopted by other
+    ``analyzer.analyze()`` callers via follow-up issues.
+
+    Args:
+        text: User-controlled input text to wrap.
+
+    Returns:
+        ``f"<user_input>\\n{escaped_text}\\n</user_input>"``.
+    """
+    return f"<user_input>\n{html.escape(text, quote=False)}\n</user_input>"
 
 
 def is_running_under_uv() -> bool:

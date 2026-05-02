@@ -74,16 +74,16 @@ def test_config_file_exists_and_parses() -> None:
         ("security_scan.py", None, True),
         # Function-level entries.
         ("unified_pre_tool.py", "_check_bash_state_deletion", True),
-        ("unified_pre_tool.py", "_check_settings_json_writes", True),
-        ("unified_pre_tool.py", "_check_protected_infrastructure", True),
-        ("unified_pre_tool.py", "_check_dangerous_bash", True),
+        ("unified_pre_tool.py", "_detect_settings_json_write", True),
+        ("unified_pre_tool.py", "_is_protected_infrastructure", True),
+        ("unified_pre_tool.py", "_detect_git_bypass", True),
         # Negative cases.
         ("plan_gate.py", None, False),  # Unlisted hook entirely.
         ("unified_pre_tool.py", "unknown_function", False),  # Listed hook, unknown function.
         ("unified_pre_tool.py", None, False),  # Function-required entries don't match None.
         ("security_scan.py", "any_function", False),  # File-level entry doesn't match a function name.
         ("", None, False),  # Empty hook name.
-        ("", "_check_dangerous_bash", False),  # Empty hook name with valid function.
+        ("", "_detect_git_bypass", False),  # Empty hook name with valid function.
     ],
 )
 def test_is_hard_floor_matrix(hook: str, function: str | None, expected: bool) -> None:
@@ -125,7 +125,7 @@ def test_fallback_on_missing_config(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     # Hard-floor entries (in fallback constant) still return True.
     assert hard_floor.is_hard_floor("security_scan.py") is True
-    assert hard_floor.is_hard_floor("unified_pre_tool.py", "_check_dangerous_bash") is True
+    assert hard_floor.is_hard_floor("unified_pre_tool.py", "_detect_git_bypass") is True
     assert hard_floor.is_hard_floor("unified_pre_tool.py", "_check_bash_state_deletion") is True
 
     # CRITICAL: arbitrary hooks must NOT be classified as hard-floor under fallback.
@@ -153,7 +153,7 @@ def test_fallback_on_malformed_json(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     monkeypatch.setattr(hard_floor, "_get_config_path", lambda: bad_path)
 
     assert hard_floor.is_hard_floor("security_scan.py") is True
-    assert hard_floor.is_hard_floor("unified_pre_tool.py", "_check_dangerous_bash") is True
+    assert hard_floor.is_hard_floor("unified_pre_tool.py", "_detect_git_bypass") is True
     assert hard_floor.is_hard_floor("random_hook.py") is False
     assert hard_floor.is_hard_floor("unified_pre_tool.py", "unknown_function") is False
     assert hard_floor.get_observability_hooks() == [

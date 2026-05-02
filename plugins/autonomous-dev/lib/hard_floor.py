@@ -47,9 +47,9 @@ __all__ = ["is_hard_floor", "get_observability_hooks"]
 _FALLBACK_HARD_FLOOR_HOOKS: tuple[tuple[str, str | None], ...] = (
     ("security_scan.py", None),
     ("unified_pre_tool.py", "_check_bash_state_deletion"),
-    ("unified_pre_tool.py", "_check_settings_json_writes"),
-    ("unified_pre_tool.py", "_check_protected_infrastructure"),
-    ("unified_pre_tool.py", "_check_dangerous_bash"),
+    ("unified_pre_tool.py", "_detect_settings_json_write"),
+    ("unified_pre_tool.py", "_is_protected_infrastructure"),
+    ("unified_pre_tool.py", "_detect_git_bypass"),
 )
 
 _FALLBACK_OBSERVABILITY_HOOKS: tuple[str, ...] = (
@@ -106,7 +106,7 @@ def is_hard_floor(hook_name: str, function_name: str | None = None) -> bool:
     Args:
         hook_name: The hook filename, e.g. ``"security_scan.py"``.
         function_name: Optional function name within the hook for fine-grained
-            matching, e.g. ``"_check_dangerous_bash"``.
+            matching, e.g. ``"_detect_git_bypass"``.
 
     Returns:
         True if the (hook, function) pair is hard-floor, False otherwise.

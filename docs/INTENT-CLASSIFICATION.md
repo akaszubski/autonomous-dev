@@ -81,6 +81,14 @@ The archived `detect_feature_request.py` was retired because the LLM rephrased t
 - Regex runs BEFORE the LLM (pre-empts rephrasing entirely).
 - Enum constraints on output (the parser rejects anything outside the 9 classes).
 
+### 5. Prompt-injection defense (Phase 2, Issue #960)
+
+Before user text reaches the LLM, `_wrap_user_input()` in `genai_utils.py` wraps it in `<user_input>…</user_input>` XML delimiters with `html.escape(text, quote=False)`. This encodes `&`, `<`, and `>` so an attacker cannot inject structural tokens like `</user_input>ignore previous instructions` into the prompt. Apostrophes and double-quotes are preserved (`quote=False`) because they appear in ordinary prompts.
+
+The LLM prompt template instructs the model to treat content inside `<user_input>` as DATA only. A module-load guard (`_validate_template_integrity`) verifies the `<user_input>` tag is still present in `_LLM_PROMPT_TEMPLATE` at import time using `raise RuntimeError` (not `assert`, which `python -O` strips). A corrupted template at import raises immediately rather than silently degrading to a vulnerable state.
+
+`_wrap_user_input` is exported from `genai_utils.py` (not `intent_classifier.py`) so other `GenAIAnalyzer` callers can adopt the same defense via follow-up issues without duplicating the logic.
+
 ## Fail-open contract
 
 Any failure path returns `IntentResult(intent=AMBIGUOUS, fail_open=True, requires_security_audit=True)`:
@@ -195,6 +203,7 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 |-------|--------|-------------|
 | Phase 1 | Done | Classifier built, hooked in shadow mode. Default off. |
 | Phase 1.5 | Future | Real-Haiku validation against fixtures. Calibrate threshold. |
+| Phase 2 | Done (Issue #960) | Prompt-injection defense: user input wrapped in `<user_input>…</user_input>` with `html.escape(quote=False)`. Module-load `RuntimeError` guard (not `assert`) validates template integrity at import time. `_wrap_user_input` helper moved to `genai_utils.py` for cross-codebase reuse. 8 new tests in `TestPromptInjectionResistance`. Prerequisite before `INTENT_CLASSIFIER_ENFORCE=true` rollout. |
 | Phase D | Done (Issue #998) | Wire classifier output to per-session artifact at `/tmp/session_mode_<hash>.json`. New env var `INTENT_CLASSIFIER_ENFORCE` plumbed (unused until Phase E). |
 | Phase E | Done (Issue #999) | Enforcement cutover: `plan_gate.py`, `plan_mode_exit_detector.py`, and `unified_pre_tool.py` skip non-floor checks for low-risk intent classes when `INTENT_CLASSIFIER_ENFORCE=true`. New libs: `enforcement_decision.py` (pure policy), `hook_stdin.py` (cached stdin reader). New telemetry shape: `mode_skip`. Single env var rollback. |
 | Phase 3 | Future | Use `predicted_file_count` to scale pipeline complexity (single-file edits skip planner). |
@@ -227,7 +236,8 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | `plugins/autonomous-dev/hooks/plan_gate.py` | Phase E gate site (non-floor check bypass) |
 | `plugins/autonomous-dev/hooks/plan_mode_exit_detector.py` | Phase E gate site (non-floor check bypass) |
 | `plugins/autonomous-dev/hooks/unified_pre_tool.py` | Phase E gate sites (5 wrap sites via `_phase_e_skip()`) |
-| `tests/unit/lib/test_intent_classifier.py` | Test suite (81 tests) |
+| `plugins/autonomous-dev/hooks/genai_utils.py` | `_wrap_user_input(text)` helper — XML-delimiter wrapping with `html.escape` (Phase 2, Issue #960) |
+| `tests/unit/lib/test_intent_classifier.py` | Test suite (68 tests, including 8 `TestPromptInjectionResistance` tests added in Phase 2) |
 | `tests/unit/lib/test_session_mode.py` | session_mode.py unit tests |
 | `tests/unit/lib/test_enforcement_decision.py` | enforcement_decision.py unit tests (13 tests) |
 | `tests/unit/lib/test_hook_stdin.py` | hook_stdin.py unit tests (10 tests) |
