@@ -79,7 +79,7 @@ class TestPriority1HardFloor:
         monkeypatch.delenv("INTENT_CLASSIFIER_ENFORCE", raising=False)
         skip, reason = should_skip_enforcement(
             hook_name="unified_pre_tool.py",
-            function_name="_check_dangerous_bash",
+            function_name="_detect_git_bypass",
             session_id="abc",
         )
         assert skip is False
@@ -97,7 +97,7 @@ class TestPriority1HardFloor:
         monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
         skip, reason = should_skip_enforcement(
             hook_name="unified_pre_tool.py",
-            function_name="_check_dangerous_bash",
+            function_name="_detect_git_bypass",
             session_id="abc",
         )
         assert skip is False

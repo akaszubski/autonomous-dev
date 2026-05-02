@@ -8,7 +8,7 @@ Acceptance criteria recap:
 1. hard_floor_hooks.json exists with required structure.
 2. lib/hard_floor.py exposes is_hard_floor() and get_observability_hooks().
 3. is_hard_floor("security_scan.py") -> True.
-4. is_hard_floor("unified_pre_tool.py", "_check_dangerous_bash") -> True.
+4. is_hard_floor("unified_pre_tool.py", "_detect_git_bypass") -> True.
 5. is_hard_floor("plan_gate.py") -> False.
 6. Malformed JSON config -> fail-closed behavior.
 7. Missing config file -> fail-closed.
@@ -19,6 +19,8 @@ Acceptance criteria recap:
 from __future__ import annotations
 
 import importlib
+import importlib.util
+import inspect
 import json
 import subprocess
 import sys
@@ -119,14 +121,14 @@ class TestSpec997Criterion3SecurityScanIsHardFloor:
 
 
 # ---------------------------------------------------------------------------
-# AC #4 — is_hard_floor("unified_pre_tool.py", "_check_dangerous_bash") -> True
+# AC #4 — is_hard_floor("unified_pre_tool.py", "_detect_git_bypass") -> True
 # ---------------------------------------------------------------------------
 
 
 class TestSpec997Criterion4DangerousBashIsHardFloor:
     def test_spec_997_4_dangerous_bash_is_hard_floor(self, hard_floor_module):
         result = hard_floor_module.is_hard_floor(
-            "unified_pre_tool.py", "_check_dangerous_bash"
+            "unified_pre_tool.py", "_detect_git_bypass"
         )
         assert result is True
 
@@ -175,7 +177,7 @@ class TestSpec997Criterion6MalformedJSONFailClosed:
         monkeypatch.setattr(hard_floor_module, "_get_config_path", lambda: bad_path)
 
         assert hard_floor_module.is_hard_floor(
-            "unified_pre_tool.py", "_check_dangerous_bash"
+            "unified_pre_tool.py", "_detect_git_bypass"
         ) is True, "dangerous_bash must remain hard-floor when config is malformed"
 
     def test_spec_997_6c_malformed_json_lookup_does_not_raise(
@@ -220,7 +222,7 @@ class TestSpec997Criterion7MissingConfigFailClosed:
         monkeypatch.setattr(hard_floor_module, "_get_config_path", lambda: missing)
 
         assert hard_floor_module.is_hard_floor(
-            "unified_pre_tool.py", "_check_dangerous_bash"
+            "unified_pre_tool.py", "_detect_git_bypass"
         ) is True
 
     def test_spec_997_7c_missing_config_lookup_does_not_raise(
@@ -347,4 +349,80 @@ class TestSpec997Criterion9NoProductionCallers:
         assert not offenders, (
             "Unapproved test reference to hard_floor. Offenders: "
             f"{offenders}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC #1004 — function-name drift guard (cross-validate registry vs. source)
+# ---------------------------------------------------------------------------
+
+
+def _load_unified_pre_tool_module():
+    """Dynamically load unified_pre_tool.py as a module for inspection."""
+    hook_path = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
+    spec = importlib.util.spec_from_file_location("unified_pre_tool", hook_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_json_registry():
+    """Load function-level entries from hard_floor_hooks.json."""
+    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return [
+        (entry["hook"], entry["function"])
+        for entry in data["hard_floor_hooks"]
+        if "function" in entry
+    ]
+
+
+def _load_fallback_constant():
+    """Load function-level entries from _FALLBACK_HARD_FLOOR_HOOKS constant."""
+    if LIB_DIR not in sys.path:
+        sys.path.insert(0, LIB_DIR)
+    if "hard_floor" in sys.modules:
+        importlib.reload(sys.modules["hard_floor"])
+    import hard_floor  # noqa: WPS433
+    return [
+        (hook, fn) for (hook, fn) in hard_floor._FALLBACK_HARD_FLOOR_HOOKS if fn is not None
+    ]
+
+
+class TestSpec1004RegistryFunctionNamesExistInSource:
+    """AC #1004: every function-level hard-floor entry must name a real
+    `def` in its hook source file. Catches the latent correctness hole that
+    Phase E (#999) would otherwise silently skip hard-floor checks.
+    """
+
+    @pytest.mark.parametrize(
+        "source_name,loader",
+        [
+            ("json", _load_json_registry),
+            ("fallback", _load_fallback_constant),
+        ],
+    )
+    def test_registry_function_names_exist_in_source(self, source_name, loader):
+        """Every function-level entry in {source} must name a real function in unified_pre_tool.py."""
+        entries = loader()
+        # Group by hook file
+        by_hook: dict[str, list[str]] = {}
+        for hook_filename, fn_name in entries:
+            by_hook.setdefault(hook_filename, []).append(fn_name)
+
+        offenders: list[str] = []
+        for hook_filename, fn_names in by_hook.items():
+            if hook_filename != "unified_pre_tool.py":
+                continue  # only validate unified_pre_tool entries here
+            module = _load_unified_pre_tool_module()
+            actual_funcs = {
+                name for name, _ in inspect.getmembers(module, inspect.isfunction)
+            }
+            for fn in fn_names:
+                if fn not in actual_funcs:
+                    offenders.append(f"{hook_filename}::{fn}")
+
+        assert not offenders, (
+            f"Registry source '{source_name}' references function names that "
+            f"do not exist in source. Phase E enforcement will silently skip "
+            f"these checks. Offenders: {offenders}"
         )
