@@ -66,7 +66,12 @@ if _hooks_path.exists() and str(_hooks_path) not in sys.path:
     sys.path.insert(0, str(_hooks_path))
 
 try:
-    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_utils import (
+        GenAIAnalyzer,
+        _safe_wrap,
+        parse_classification_response,
+        should_use_genai,
+    )
     from genai_prompts import SCOPE_ASSESSMENT_PROMPT
     _GENAI_AVAILABLE = True
 except ImportError:
@@ -76,6 +81,7 @@ except ImportError:
     GenAIAnalyzer = None  # type: ignore[assignment]
     parse_classification_response = None  # type: ignore[assignment]
     should_use_genai = None  # type: ignore[assignment]
+    _safe_wrap = None  # type: ignore[assignment]
     SCOPE_ASSESSMENT_PROMPT = ""  # type: ignore[assignment]
 
 
@@ -216,10 +222,10 @@ class IssueScopeDetector:
             # Initialize analyzer with Haiku-optimized settings
             analyzer = GenAIAnalyzer(max_tokens=150, timeout=5)
 
-            # Call GenAI with the scope assessment prompt
+            # Issue #1007 (Phase 3): wrap user-controlled input for prompt-injection defense.
             response = analyzer.analyze(
                 SCOPE_ASSESSMENT_PROMPT,
-                issue_text=capped_text,
+                issue_text=_safe_wrap(capped_text),
             )
 
             if response is None:

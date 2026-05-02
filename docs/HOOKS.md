@@ -266,7 +266,7 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 | Hook | Purpose |
 |------|---------|
 | **genai_prompts.py** | Prompt templates for GenAI-enhanced hooks |
-| **genai_utils.py** | Anthropic SDK wrapper with graceful fallback. Also exports `_wrap_user_input(text) -> str` — wraps user-controlled text in `<user_input>…</user_input>` XML delimiters with `html.escape(quote=False)` to prevent prompt-injection (Issue #960 Phase 2). |
+| **genai_utils.py** | Anthropic SDK wrapper with graceful fallback. Also exports `_wrap_user_input(text) -> str` — wraps user-controlled text in `<user_input>…</user_input>` XML delimiters with `html.escape(quote=False)` to prevent prompt-injection (Issue #960 Phase 2). Phase 3 (Issue #1007) adds `_safe_wrap(text) -> str` — never-raises convenience wrapper around `_wrap_user_input`; adopted by 8 `GenAIAnalyzer` callers (10 sites) for cross-codebase prompt-injection defense. |
 | **setup.py** | Interactive setup wizard for plugin configuration |
 
 ---

@@ -63,7 +63,12 @@ if _hooks_path.exists() and str(_hooks_path) not in sys.path:
     sys.path.insert(0, str(_hooks_path))
 
 try:
-    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_utils import (
+        GenAIAnalyzer,
+        _safe_wrap,
+        parse_classification_response,
+        should_use_genai,
+    )
     from genai_prompts import FEATURE_COMPLETION_PROMPT
     _GENAI_AVAILABLE = True
 except ImportError:
@@ -71,6 +76,7 @@ except ImportError:
     GenAIAnalyzer = None  # type: ignore[assignment]
     parse_classification_response = None  # type: ignore[assignment]
     should_use_genai = None  # type: ignore[assignment]
+    _safe_wrap = None  # type: ignore[assignment]
     FEATURE_COMPLETION_PROMPT = ""  # type: ignore[assignment]
 
 
@@ -154,9 +160,14 @@ class FeatureCompletionDetector:
 
         try:
             evidence_text = "\n".join(heuristic_evidence) if heuristic_evidence else "No heuristic evidence found."
+            # Issue #1007 (Phase 3): wrap user-controlled input for prompt-injection
+            # defense. Pattern B (.format pre-substitution): both `feature` and
+            # `evidence` are user/repo-controlled and MUST be wrapped at format()
+            # time, since analyzer.analyze() receives the already-formatted prompt
+            # and can't apply the kwarg-substitution wrapping path.
             prompt = FEATURE_COMPLETION_PROMPT.format(
-                feature=feature[:2000],
-                evidence=evidence_text[:3000],
+                feature=_safe_wrap(feature[:2000]),
+                evidence=_safe_wrap(evidence_text[:3000]),
             )
             analyzer = GenAIAnalyzer(max_tokens=200, timeout=5)
             response = analyzer.analyze(prompt)

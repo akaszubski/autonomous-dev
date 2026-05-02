@@ -72,7 +72,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import re
 
-from genai_utils import GenAIAnalyzer
+from genai_utils import GenAIAnalyzer, _safe_wrap
 from genai_prompts import DOC_GENERATION_PROMPT
 
 # Initialize GenAI analyzer (with feature flag support)
@@ -108,11 +108,14 @@ def generate_documentation_with_genai(item_name: str, item_type: str) -> Optiona
     Returns:
         Generated documentation text, or None if generation fails
     """
-    # Call shared GenAI analyzer
+    # Issue #1007 (Phase 3): wrap user-controlled input for prompt-injection
+    # defense. `item_name` is a filename from the auto-format detection path
+    # (could be attacker-influenced via crafted filenames); `item_type` is a
+    # constrained literal ("command" or "agent") — leave unwrapped.
     documentation = analyzer.analyze(
         DOC_GENERATION_PROMPT,
         item_type=item_type,
-        item_name=item_name
+        item_name=_safe_wrap(item_name)
     )
 
     # Validate generated documentation

@@ -32,6 +32,18 @@ _HOOKS_PATH = _WORKTREE_ROOT / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(_LIB_PATH))
 sys.path.insert(0, str(_HOOKS_PATH))
 
+# Issue #1007 Phase 3: peer test files (e.g. test_issue_scope_detector.py)
+# add `.claude/lib` to sys.path[0] and import older copies of these modules
+# that predate the _safe_wrap helper. Python caches the first-loaded module
+# under its name, so without eviction we'd see a stale module here. Evict
+# any cached entries from the deployed copy before our authoritative imports.
+for _stale in (
+    "scope_detector",
+    "issue_scope_detector",
+    "genai_utils",
+):
+    sys.modules.pop(_stale, None)
+
 try:
     from scope_detector import (
         analyze_complexity,
@@ -294,7 +306,13 @@ class TestScopeDetectorAssessGenAI:
             assert result.needs_decomposition == expected_decomp
 
     def test_analyze_called_with_correct_prompt_and_kwarg(self):
-        """analyze() is called with SCOPE_ASSESSMENT_PROMPT and issue_text kwarg."""
+        """analyze() is called with SCOPE_ASSESSMENT_PROMPT and wrapped issue_text kwarg.
+
+        Issue #1007 Phase 3: ``issue_text`` is wrapped via ``_safe_wrap`` before
+        being passed to ``analyzer.analyze``. The wrapped form delimits the
+        user-controlled text with ``<user_input>...</user_input>`` and HTML-escapes
+        structural tokens — see ``genai_utils._wrap_user_input``.
+        """
         mock_analyzer = _make_mock_analyzer("FOCUSED")
         mock_prompt = "Classify as FOCUSED/BROAD/VERY_BROAD: {issue_text}"
 
@@ -309,7 +327,7 @@ class TestScopeDetectorAssessGenAI:
 
         mock_analyzer.analyze.assert_called_once_with(
             mock_prompt,
-            issue_text="some feature text",
+            issue_text="<user_input>\nsome feature text\n</user_input>",
         )
 
     def test_parse_classification_called_with_correct_labels(self):
@@ -538,7 +556,12 @@ class TestIssueScopeDetectorDetectGenAI:
             assert result.should_warn == expected_warn
 
     def test_detect_genai_analyze_called_with_correct_prompt_and_kwarg(self):
-        """analyze() is called with SCOPE_ASSESSMENT_PROMPT and issue_text kwarg."""
+        """analyze() is called with SCOPE_ASSESSMENT_PROMPT and wrapped issue_text kwarg.
+
+        Issue #1007 Phase 3: ``issue_text`` is wrapped via ``_safe_wrap`` before
+        being passed to ``analyzer.analyze``. See
+        ``genai_utils._wrap_user_input``.
+        """
         mock_analyzer = _make_mock_analyzer("FOCUSED")
         mock_prompt = "Classify as FOCUSED/BROAD/VERY_BROAD: {issue_text}"
 
@@ -553,7 +576,7 @@ class TestIssueScopeDetectorDetectGenAI:
 
         mock_analyzer.analyze.assert_called_once_with(
             mock_prompt,
-            issue_text="some issue text",
+            issue_text="<user_input>\nsome issue text\n</user_input>",
         )
 
     def test_parse_classification_called_with_correct_labels(self):

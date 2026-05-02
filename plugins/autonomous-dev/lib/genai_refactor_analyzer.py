@@ -53,7 +53,12 @@ if _hooks_path.exists() and str(_hooks_path) not in sys.path:
 
 _GENAI_AVAILABLE = False
 try:
-    from genai_utils import GenAIAnalyzer, parse_classification_response, should_use_genai
+    from genai_utils import (
+        GenAIAnalyzer,
+        _safe_wrap,
+        parse_classification_response,
+        should_use_genai,
+    )
     from genai_prompts import (
         DOC_CODE_DRIFT_PROMPT,
         HOLLOW_TEST_PROMPT,
@@ -67,6 +72,7 @@ except ImportError:
     GenAIAnalyzer = None  # type: ignore[assignment,misc]
     parse_classification_response = None  # type: ignore[assignment]
     should_use_genai = None  # type: ignore[assignment]
+    _safe_wrap = None  # type: ignore[assignment]
     DOC_CODE_DRIFT_PROMPT = ""  # type: ignore[assignment]
     HOLLOW_TEST_PROMPT = ""  # type: ignore[assignment]
     DEAD_CODE_VERIFY_PROMPT = ""  # type: ignore[assignment]
@@ -328,12 +334,16 @@ class GenAIRefactorAnalyzer:
                     ))
                     continue
 
+                # Issue #1007 (Phase 3): wrap user-controlled repo content for
+                # prompt-injection defense. doc_content and source_content are
+                # repo-controlled; doc_path/source_path come from validated
+                # filesystem traversal and are left unwrapped.
                 response = self._analyzer.analyze(
                     DOC_CODE_DRIFT_PROMPT,
                     doc_path=str(md_file.relative_to(self.project_root)),
-                    doc_content=doc_truncated,
+                    doc_content=_safe_wrap(doc_truncated),
                     source_path=str(source_file.relative_to(self.project_root)),
-                    source_content=source_truncated,
+                    source_content=_safe_wrap(source_truncated),
                 )
 
                 if not response:
@@ -456,11 +466,14 @@ class GenAIRefactorAnalyzer:
             # Escalate HIGH severity to Sonnet for detail
             suggestion = f"Review {doc_path} against {source_path} and update documentation"
             if severity == SweepSeverity.HIGH and self._ensure_escalation_analyzer():
+                # Issue #1007 (Phase 3): wrap user-controlled analysis text for
+                # prompt-injection defense. file_path/category are validated/literal
+                # constants; original_analysis is composed from repo content.
                 escalation_response = self._escalation_analyzer.analyze(
                     REFACTOR_ESCALATION_PROMPT,
                     file_path=doc_path,
                     category="DOC_CODE_DRIFT",
-                    original_analysis=f"{doc_claim} vs {code_behavior}",
+                    original_analysis=_safe_wrap(f"{doc_claim} vs {code_behavior}"),
                 )
                 if escalation_response:
                     suggestion = f"[genai] {escalation_response}"
@@ -534,11 +547,14 @@ class GenAIRefactorAnalyzer:
                         findings.append(finding)
                     continue
 
+                # Issue #1007 (Phase 3): wrap user-controlled repo content for
+                # prompt-injection defense. test_source/source_under_test are
+                # repo-controlled; test_path comes from validated traversal.
                 response = self._analyzer.analyze(
                     HOLLOW_TEST_PROMPT,
                     test_path=str(test_file.relative_to(self.project_root)),
-                    test_source=test_truncated,
-                    source_under_test=source_truncated,
+                    test_source=_safe_wrap(test_truncated),
+                    source_under_test=_safe_wrap(source_truncated),
                 )
 
                 if not response:
@@ -615,11 +631,14 @@ class GenAIRefactorAnalyzer:
 
             # Escalate to Sonnet for detail
             if self._ensure_escalation_analyzer():
+                # Issue #1007 (Phase 3): wrap user-controlled reason for
+                # prompt-injection defense. reason is composed from heuristic
+                # output that may include test source snippets.
                 escalation = self._escalation_analyzer.analyze(
                     REFACTOR_ESCALATION_PROMPT,
                     file_path=test_path,
                     category="HOLLOW_TEST",
-                    original_analysis=reason,
+                    original_analysis=_safe_wrap(reason),
                 )
                 if escalation:
                     suggestion = f"[genai] {escalation}"
@@ -716,12 +735,15 @@ class GenAIRefactorAnalyzer:
             # Truncate for token limits
             func_truncated = func_source[:2000]
 
+            # Issue #1007 (Phase 3): wrap user-controlled repo content for
+            # prompt-injection defense. function_source and references_summary are
+            # repo-controlled; file_path/function_name come from AST traversal.
             response = self._analyzer.analyze(
                 DEAD_CODE_VERIFY_PROMPT,
                 file_path=candidate.file_path,
                 function_name=func_name,
-                function_source=func_truncated,
-                references_summary=references_summary,
+                function_source=_safe_wrap(func_truncated),
+                references_summary=_safe_wrap(references_summary),
             )
 
             if not response:

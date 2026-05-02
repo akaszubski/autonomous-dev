@@ -47,7 +47,7 @@ import os
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from genai_utils import GenAIAnalyzer, parse_binary_response
+from genai_utils import GenAIAnalyzer, _safe_wrap, parse_binary_response
 from genai_prompts import SECRET_ANALYSIS_PROMPT
 
 # Secret patterns to detect
@@ -147,12 +147,15 @@ def analyze_secret_context(line: str, secret_type: str, variable_name: Optional[
     if "=" in line:
         var_context = line.split("=")[0].strip()
 
-    # Call shared GenAI analyzer
+    # Issue #1007 (Phase 3): wrap user-controlled input for prompt-injection
+    # defense. `line` is source code being scanned and could contain injection
+    # tokens in a comment/string; `var_context` is parsed from that line.
+    # `secret_type` is a constant from the regex catalog — leave unwrapped.
     response = analyzer.analyze(
         SECRET_ANALYSIS_PROMPT,
-        line=line,
+        line=_safe_wrap(line),
         secret_type=secret_type,
-        variable_name=var_context or "N/A"
+        variable_name=_safe_wrap(var_context or "N/A")
     )
 
     # Parse response using shared utility

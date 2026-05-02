@@ -89,6 +89,69 @@ The LLM prompt template instructs the model to treat content inside `<user_input
 
 `_wrap_user_input` is exported from `genai_utils.py` (not `intent_classifier.py`) so other `GenAIAnalyzer` callers can adopt the same defense via follow-up issues without duplicating the logic.
 
+### 6. Cross-codebase rollout (Phase 3, Issue #1007)
+
+Phase 2 hardened the intent classifier itself. Phase 3 extends the same defense to every other `GenAIAnalyzer` caller in the codebase — 8 callers, 10 sites total. The threat model is the same: when the plugin runs inside a user's repository, repo content (READMEs, source files, dependency manifests, GitHub issue bodies) is effectively user-controlled and may contain prompt-injection attempts.
+
+**New helper: `_safe_wrap`.** A simplifying wrapper around `_wrap_user_input` that NEVER raises, lives in `plugins/autonomous-dev/hooks/genai_utils.py`:
+
+```python
+def _safe_wrap(text: str) -> str:
+    """Best-effort wrap of user-controlled text. Returns text unchanged on any failure."""
+    try:
+        return _wrap_user_input(text)
+    except Exception:
+        return text if isinstance(text, str) else str(text)
+```
+
+Adoption is a one-line change at every call site — wrap the repo-content kwarg in `_safe_wrap(...)` and the caller's prompt-injection posture matches the intent classifier's Phase 2 baseline.
+
+**Two wrapping patterns.** Phase 3 callers fall into two structural shapes:
+
+**Pattern A — kwarg substitution** (used by 7 of 8 callers). The caller passes named kwargs to `analyzer.analyze(TEMPLATE, kwarg1=value1, ...)`, and the analyzer formats the template internally:
+
+```python
+# Issue #1007 (Phase 3): wrap user-controlled input for prompt-injection defense.
+response = analyzer.analyze(
+    COMPLEXITY_CLASSIFICATION_PROMPT,
+    feature_description=_safe_wrap(capped_text),
+)
+```
+
+**Pattern B — `.format` pre-substitution** (used by `feature_completion_detector.py`). The caller pre-formats the prompt string and passes it positionally:
+
+```python
+# Issue #1007 (Phase 3): both `feature` and `evidence` MUST be wrapped at .format() time —
+# analyzer.analyze() receives the already-formatted prompt and can't apply the kwarg path.
+prompt = FEATURE_COMPLETION_PROMPT.format(
+    feature=_safe_wrap(feature[:2000]),
+    evidence=_safe_wrap(evidence_text[:3000]),
+)
+response = analyzer.analyze(prompt)
+```
+
+**What gets wrapped, what doesn't.** Phase 3 wraps **repo/user-controlled content** but leaves **enum-constrained scalars and validated identifiers** unwrapped:
+
+| Caller | Wrapped (repo/user-controlled) | Unwrapped (enum/literal/validated) |
+|--------|-------------------------------|-------------------------------------|
+| `complexity_assessor.py` | `feature_description` | — |
+| `scope_detector.py` | `issue_text` | — |
+| `issue_scope_detector.py` | `issue_text` | — |
+| `alignment_assessor.py` | `dependencies_sample`, `config_files`, `readme_content` | `primary_language`, `framework`, `package_manager`, `has_*` booleans |
+| `feature_completion_detector.py` | `feature`, `evidence` (Pattern B) | — |
+| `genai_refactor_analyzer.py` | `doc_content`, `source_content`, `test_source`, `source_under_test`, `function_source`, `references_summary`, `original_analysis` | `doc_path`, `source_path`, `test_path`, `file_path`, `function_name`, `category` (validated path traversal / AST identifiers / literal categories) |
+| `security_scan.py` | `line`, `variable_name` | `secret_type` (regex-catalog constant) |
+| `auto_fix_docs.py` | `item_name` | `item_type` (constrained literal: `"command"` or `"agent"`) |
+
+**Audit history — false positives.** The Issue #1007 audit listed 14 affected files. Four are FALSE POSITIVES — they reference Analyzer classes (`ErrorAnalyzer`, `CodebaseAnalyzer`, `TestPruningAnalyzer`) but NOT `GenAIAnalyzer`. They are NOT modified, and a parametrized test in `tests/unit/lib/test_phase3_wrap_adoption.py` locks the audit decision to catch future re-add:
+
+| File | Why NOT GenAI |
+|------|---------------|
+| `plugins/autonomous-dev/lib/error_analyzer.py` | `ErrorAnalyzer` reads JSONL logs; no LLM call |
+| `plugins/autonomous-dev/lib/codebase_analyzer.py` | `CodebaseAnalyzer` does filesystem scan; no LLM call |
+| `plugins/autonomous-dev/hooks/enforce_prunable_threshold.py` | Uses `TestPruningAnalyzer` (AST scan); no LLM call |
+| `plugins/autonomous-dev/scripts/align_project_retrofit.py` | Uses `CodebaseAnalyzer`; no LLM call |
+
 ## Fail-open contract
 
 Any failure path returns `IntentResult(intent=AMBIGUOUS, fail_open=True, requires_security_audit=True)`:
@@ -204,6 +267,7 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | Phase 1 | Done | Classifier built, hooked in shadow mode. Default off. |
 | Phase 1.5 | Future | Real-Haiku validation against fixtures. Calibrate threshold. |
 | Phase 2 | Done (Issue #960) | Prompt-injection defense: user input wrapped in `<user_input>…</user_input>` with `html.escape(quote=False)`. Module-load `RuntimeError` guard (not `assert`) validates template integrity at import time. `_wrap_user_input` helper moved to `genai_utils.py` for cross-codebase reuse. 8 new tests in `TestPromptInjectionResistance`. Prerequisite before `INTENT_CLASSIFIER_ENFORCE=true` rollout. |
+| Phase 3 (cross-codebase rollout) | Done (Issue #1007) | Adopt `_wrap_user_input` across all 8 `GenAIAnalyzer` callers (10 sites total). New `_safe_wrap` helper in `genai_utils.py` simplifies adoption (single-line invocation, never raises). Two patterns supported: kwarg substitution (7 callers) and `.format` pre-substitution (`feature_completion_detector.py`). 4 false positives from the audit verified and locked. 25 new tests across `tests/unit/hooks/test_genai_utils_safe_wrap.py` and `tests/unit/lib/test_phase3_wrap_adoption.py`. |
 | Phase D | Done (Issue #998) | Wire classifier output to per-session artifact at `/tmp/session_mode_<hash>.json`. New env var `INTENT_CLASSIFIER_ENFORCE` plumbed (unused until Phase E). |
 | Phase E | Done (Issue #999) | Enforcement cutover: `plan_gate.py`, `plan_mode_exit_detector.py`, and `unified_pre_tool.py` skip non-floor checks for low-risk intent classes when `INTENT_CLASSIFIER_ENFORCE=true`. New libs: `enforcement_decision.py` (pure policy), `hook_stdin.py` (cached stdin reader). New telemetry shape: `mode_skip`. Single env var rollback. |
 | Phase 3 | Future | Use `predicted_file_count` to scale pipeline complexity (single-file edits skip planner). |
@@ -236,7 +300,17 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | `plugins/autonomous-dev/hooks/plan_gate.py` | Phase E gate site (non-floor check bypass) |
 | `plugins/autonomous-dev/hooks/plan_mode_exit_detector.py` | Phase E gate site (non-floor check bypass) |
 | `plugins/autonomous-dev/hooks/unified_pre_tool.py` | Phase E gate sites (5 wrap sites via `_phase_e_skip()`) |
-| `plugins/autonomous-dev/hooks/genai_utils.py` | `_wrap_user_input(text)` helper — XML-delimiter wrapping with `html.escape` (Phase 2, Issue #960) |
+| `plugins/autonomous-dev/hooks/genai_utils.py` | `_wrap_user_input(text)` helper — XML-delimiter wrapping with `html.escape` (Phase 2, Issue #960). Phase 3 (Issue #1007) adds `_safe_wrap(text)` — never-raises wrapper for cross-codebase adoption. |
+| `plugins/autonomous-dev/lib/complexity_assessor.py` | Phase 3 caller (Issue #1007): wraps `feature_description` |
+| `plugins/autonomous-dev/lib/scope_detector.py` | Phase 3 caller (Issue #1007): wraps `issue_text` |
+| `plugins/autonomous-dev/lib/issue_scope_detector.py` | Phase 3 caller (Issue #1007): wraps `issue_text` |
+| `plugins/autonomous-dev/lib/alignment_assessor.py` | Phase 3 caller (Issue #1007, 2 sites): wraps `dependencies_sample`/`config_files`/`readme_content` |
+| `plugins/autonomous-dev/lib/feature_completion_detector.py` | Phase 3 caller (Issue #1007, Pattern B): wraps `feature`+`evidence` at `.format()` time |
+| `plugins/autonomous-dev/lib/genai_refactor_analyzer.py` | Phase 3 caller (Issue #1007, 5 sites): wraps `doc_content`/`source_content`/`test_source`/`source_under_test`/`function_source`/`references_summary`/`original_analysis` |
+| `plugins/autonomous-dev/hooks/security_scan.py` | Phase 3 caller (Issue #1007): wraps `line`+`variable_name` |
+| `plugins/autonomous-dev/hooks/auto_fix_docs.py` | Phase 3 caller (Issue #1007): wraps `item_name` |
+| `tests/unit/hooks/test_genai_utils_safe_wrap.py` | `_safe_wrap` helper test suite (4 tests: wraps, escapes, coerces non-string, never raises) |
+| `tests/unit/lib/test_phase3_wrap_adoption.py` | Phase 3 adoption test suite (21 tests across 8 callers + 4 false-positive locks) |
 | `tests/unit/lib/test_intent_classifier.py` | Test suite (68 tests, including 8 `TestPromptInjectionResistance` tests added in Phase 2) |
 | `tests/unit/lib/test_session_mode.py` | session_mode.py unit tests |
 | `tests/unit/lib/test_enforcement_decision.py` | enforcement_decision.py unit tests (13 tests) |

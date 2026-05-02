@@ -55,13 +55,14 @@ if _hooks_path.exists() and str(_hooks_path) not in sys.path:
     sys.path.insert(0, str(_hooks_path))
 
 try:
-    from genai_utils import GenAIAnalyzer, should_use_genai
+    from genai_utils import GenAIAnalyzer, _safe_wrap, should_use_genai
     from genai_prompts import TWELVE_FACTOR_ASSESSMENT_PROMPT, GOALS_EXTRACTION_PROMPT
     _GENAI_AVAILABLE = True
 except ImportError:
     _GENAI_AVAILABLE = False
     GenAIAnalyzer = None  # type: ignore[assignment]
     should_use_genai = None  # type: ignore[assignment]
+    _safe_wrap = None  # type: ignore[assignment]
     TWELVE_FACTOR_ASSESSMENT_PROMPT = ""  # type: ignore[assignment]
     GOALS_EXTRACTION_PROMPT = ""  # type: ignore[assignment]
 
@@ -434,6 +435,11 @@ class AlignmentAssessor:
             config_files_str = ", ".join(analysis.structure.config_files[:10]) or "none"
 
             analyzer = GenAIAnalyzer(max_tokens=400, timeout=10)
+            # Issue #1007 (Phase 3): wrap user-controlled repo content for prompt-injection
+            # defense. dependencies_sample and config_files come from the scanned project
+            # and are user-controlled (a malicious package name or path could embed
+            # injection tokens). primary_language/framework/package_manager are
+            # enum-constrained scalars set by the analyzer — leave unwrapped.
             response = analyzer.analyze(
                 TWELVE_FACTOR_ASSESSMENT_PROMPT,
                 primary_language=analysis.tech_stack.primary_language or "unknown",
@@ -443,8 +449,8 @@ class AlignmentAssessor:
                 has_env=str(has_env),
                 has_ci=str(has_ci),
                 has_docker=str(has_docker),
-                dependencies_sample=deps_sample,
-                config_files=config_files_str,
+                dependencies_sample=_safe_wrap(deps_sample),
+                config_files=_safe_wrap(config_files_str),
                 total_files=str(analysis.structure.total_files),
                 test_files=str(analysis.structure.test_files),
                 has_web_framework=str(has_web_framework),
@@ -514,9 +520,12 @@ class AlignmentAssessor:
             capped_content = readme_content[:4000] if len(readme_content) > 4000 else readme_content
 
             analyzer = GenAIAnalyzer(max_tokens=300, timeout=10)
+            # Issue #1007 (Phase 3): wrap user-controlled README content for
+            # prompt-injection defense. README is project-controlled and may contain
+            # injection attempts intended to escape the prompt's framing.
             response = analyzer.analyze(
                 GOALS_EXTRACTION_PROMPT,
-                readme_content=capped_content,
+                readme_content=_safe_wrap(capped_content),
             )
 
             if response is None:

@@ -76,6 +76,36 @@ def _wrap_user_input(text: str) -> str:
     return f"<user_input>\n{html.escape(text, quote=False)}\n</user_input>"
 
 
+def _safe_wrap(text: str) -> str:
+    """Best-effort wrap of user-controlled text. Returns text unchanged on any failure.
+
+    Issue #1007 Phase 3: simplifies adoption across ``analyzer.analyze()`` callers.
+    Callers should use this rather than direct ``_wrap_user_input`` to avoid
+    try/except boilerplate at every call site.
+
+    The helper applies the same delimiter+HTML-escape defense as
+    ``_wrap_user_input`` (see Phase 2, Issue #960) but is structurally
+    guaranteed never to raise:
+
+    - On any exception, returns the input string unchanged.
+    - For non-string input, coerces with ``str()`` and returns that.
+
+    This makes adoption a one-line replacement at every caller — wrap the
+    repo-content kwarg in ``_safe_wrap(...)`` and the caller's prompt-injection
+    posture matches the intent classifier's Phase 2 baseline.
+
+    Args:
+        text: User-controlled input text to wrap.
+
+    Returns:
+        Wrapped string on success; coerced ``str`` on failure (NEVER raises).
+    """
+    try:
+        return _wrap_user_input(text)
+    except Exception:
+        return text if isinstance(text, str) else str(text)
+
+
 def is_running_under_uv() -> bool:
     """Detect if script is running under UV."""
     return "UV_PROJECT_ENVIRONMENT" in os.environ
