@@ -532,6 +532,21 @@ def main() -> int:
 
         # Format and output results
         output = format_results(results)
+
+        # Auto-record pytest-gate completion for active /implement pipelines (Issue #802 wiring).
+        # 'unknown' guard: only record when a real session_id is resolved, so casual
+        # end-of-turn pytest passes outside a pipeline don't pollute state.
+        try:
+            if results["pytest"].get("ran") and results["pytest"].get("passed") is True:
+                from hook_stdin import read_stdin_once, extract_session_id
+                from pipeline_completion_state import resolve_session_id, record_pytest_gate_passed
+                stdin_data = read_stdin_once()
+                sid = extract_session_id(stdin_data) or resolve_session_id()
+                if sid and sid != "unknown":
+                    record_pytest_gate_passed(sid, issue_number=0)
+        except Exception:
+            pass  # Non-blocking: recording failure must never block the Stop hook
+
         sys.stderr.write(output)
 
     except Exception as e:

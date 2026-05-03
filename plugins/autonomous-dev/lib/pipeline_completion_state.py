@@ -26,6 +26,52 @@ from typing import Optional
 # Issue #802
 SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 
+
+# Pipeline state sentinel written at /implement STEP 0. Used by
+# resolve_session_id() to recover the real session_id when
+# CLAUDE_SESSION_ID is not propagated to a subshell. Issue #904.
+_IMPLEMENT_STATE_SENTINEL = Path("/tmp/implement_pipeline_state.json")
+_SESSION_SENTINEL_TTL_SECONDS = 3600
+
+
+def resolve_session_id() -> str:
+    """Resolve the active pipeline session_id with a durable fallback chain.
+
+    Single source of truth for subshell session_id resolution. Subshells that
+    inline this chain inconsistently produce divergent state files (Issue #904
+    repro: coordinator wrote with 'unknown', hook read with real session_id —
+    research_skipped flag never visible to commit-time gate).
+
+    Resolution order:
+        1. ``CLAUDE_SESSION_ID`` env var (primary — set in-process by Claude Code).
+        2. ``/tmp/implement_pipeline_state.json`` sentinel — only honored when
+           the file's mtime is within ``_SESSION_SENTINEL_TTL_SECONDS`` to avoid
+           cross-pipeline bleed.
+        3. ``'unknown'`` sentinel string. Callers that record state under
+           'unknown' should expect it to be invisible to the commit-time gate
+           (which uses the real session_id from the harness).
+
+    Returns:
+        Non-empty string. Either a real UUID, recovered sentinel value, or
+        the literal ``'unknown'``.
+    """
+    sid = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    if sid and sid != "unknown":
+        return sid
+    try:
+        if _IMPLEMENT_STATE_SENTINEL.exists():
+            mtime = _IMPLEMENT_STATE_SENTINEL.stat().st_mtime
+            if time.time() - mtime < _SESSION_SENTINEL_TTL_SECONDS:
+                with open(_IMPLEMENT_STATE_SENTINEL) as f:
+                    state = json.load(f)
+                recovered = str(state.get("session_id", "")).strip()
+                if recovered and recovered != "unknown":
+                    return recovered
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
+    return "unknown"
+
+
 # Staleness TTL for the 'unknown' session-id fallback merge.
 # When the primary-session lookup in get_completed_agents() falls back to
 # reading the 'unknown' state file (for the Issue #738/#777 in-flight boot

@@ -119,39 +119,22 @@ Before EVERY Agent tool dispatch, you MUST run this inline verification. This ca
 
 ```bash
 python3 -c "
-import sys, os, json, time
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-
 # Session-ID fallback chain (Issue #904):
 #   1. CLAUDE_SESSION_ID env var (primary — set in-process by Claude Code)
 #   2. /tmp/implement_pipeline_state.json['session_id'] (sentinel written at STEP 0)
 #      — only honored when mtime is within 3600s (avoids cross-pipeline bleed)
 #   3. 'unknown' (preserved legacy sentinel — first-boot/pre-STEP-0 case)
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_completion_state import resolve_session_id
 
 from agent_ordering_gate import check_ordering_with_session_fallback
 result = check_ordering_with_session_fallback(
     'TARGET_AGENT',
-    _resolve_session_id(),
+    resolve_session_id(),
     issue_number=ISSUE_NUMBER_OR_0,
     pipeline_mode='MODE'
 )
@@ -237,35 +220,19 @@ save_pipeline(state)
 print(f'Pipeline {state.run_id} initialized')
 "
 python3 -c "
-import sys, os, json, time
+import json
+import sys, os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
 from pipeline_state import sign_state
+from pipeline_completion_state import resolve_session_id
 
 # Session-ID fallback chain (Issue #904): env → sentinel → 'unknown'.
 # Honor a prior-written sentinel when the env var was dropped by a
 # subshell, e.g. /implement --resume re-entering STEP 0.
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
-
-sid = _resolve_session_id()
+sid = resolve_session_id()
 state = {
     'session_start': '$(date +%Y-%m-%dT%H:%M:%S)',
     'mode': 'MODE',
@@ -367,41 +334,25 @@ Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofi
 
 ```bash
 python3 -c "
-import sys, os, json, time
+import json
+import sys, os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
 from pipeline_state import sign_state
+from pipeline_completion_state import resolve_session_id
 
 # Session-ID fallback chain (Issue #904): env → sentinel → 'unknown'.
 # In a subshell that lost CLAUDE_SESSION_ID (e.g., nested heredoc in a
 # pipe), recover the real session_id from the STEP-0 sentinel instead of
 # re-signing the state as 'unknown' (which would break HMAC verification).
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
-
 state_path = '/tmp/implement_pipeline_state.json'
 if os.path.exists(state_path):
     with open(state_path) as f:
         state = json.load(f)
     state['alignment_passed'] = True
-    sid = _resolve_session_id()
+    sid = resolve_session_id()
     state = sign_state(state, sid)
     with open(state_path, 'w') as f:
         json.dump(state, f)
