@@ -10,7 +10,8 @@ Development harness for Claude Code. Deterministic enforcement, specialist agent
 - **Run `/improve` after `/implement` sessions.** Use `--auto-file` to create GitHub issues.
 - **Use `/clear` after each feature.** Prevents context bloat.
 - **Deploy with `bash scripts/deploy-all.sh`** — never manual `cp -rf`. Script handles local, remote (Mac Studio), validation, and integrity checks.
-- **Don't simplify, redesign, or consolidate agents.** The pipeline, hooks, and enforcement are validated over months of real use. The cost is tokens, not complexity. Complexity is the mechanism.
+- **Process applies WHEN doing software development.** The pipeline, hooks, and enforcement exist to ensure thoroughness on real feature work for repos. They should NOT fire on testing, exploration, scratch edits, or non-repo work. The job is to detect *when* software development is happening and apply the right level of process — not to gate every edit. Context-blind enforcement is the bug; intent-aware enforcement is the goal.
+- **Hook deadlock protocol**: If a hook blocks legitimate work, surface the block to the user with the proposed bypass and *wait for approval*. Do NOT autonomously create `.claude/.bypass` or set `AUTONOMOUS_DEV_BYPASS=1` — those signals exist for the user to authorize, not for the model to invoke. See [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) for bypass mechanics.
 
 ## Build & Test
 
@@ -122,3 +123,50 @@ grep -l "search term" ~/.claude/archive/conversations/**/*.jsonl
 **Note on `project` values:** Derived from `cwd` basename — worktrees and subdirectories (e.g., `spektiv/frontend`) get their own project row rather than rolling into the parent repo.
 
 **Last Updated**: 2026-04-21
+## Documentation Alignment
+
+CLAUDE.md alignment system prevents documentation drift. Automatic validation that CLAUDE.md stays in sync with PROJECT.md and codebase.
+
+**How to check**:
+```bash
+# Automatic (every commit)
+git commit  # Pre-commit hook validates CLAUDE.md alignment
+
+# Manual check
+python plugins/autonomous-dev/scripts/validate_claude_alignment.py
+```
+
+**What gets validated**:
+- Version dates (CLAUDE.md shouldn't be older than PROJECT.md)
+- Agent counts (documented count matches reality)
+- Command availability (documented commands exist)
+- Skills status (removed per v2.5.0 guidance)
+- Hook documentation (matches implemented hooks)
+
+**If drift detected**:
+1. Run validation script to see specific issues
+2. Update CLAUDE.md to match actual state
+3. Commit the fix
+4. Pre-commit hook validates on next commit
+
+## Maintaining Core Philosophy
+
+**The Golden Rule**: UPDATE PROJECT.md FIRST, everything else follows
+- PROJECT.md = source of truth for alignment
+- orchestrator reads it before any feature work
+- Hooks validate against it on every commit
+
+**Priority Updates**:
+1. 🔴 ALWAYS: PROJECT.md, orchestrator.md, settings.local.json
+2. 🟡 FREQUENTLY: Agent prompts, GenAI prompts, skills
+3. 🟢 PERIODICALLY: Documentation, session logs, hooks
+
+**Philosophy Checklist** (before major changes):
+- ✅ Trust the model? (GenAI reasoning > rigid Python)
+- ✅ Enforce via hooks? (100% reliable blocking)
+- ✅ Enhance via agents? (conditional intelligence)
+- ✅ PROJECT.md controls alignment? (dynamic scope)
+- ✅ Skills used progressively? (no context bloat)
+- ✅ Documentation auto-syncs? (no drift)
+
+See `docs/MAINTAINING-PHILOSOPHY.md` for comprehensive guide.
