@@ -127,6 +127,7 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 
 **Infrastructure Protection** (scoped to autonomous-dev repos):
 - Write/Edit to `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` are blocked outside the `/implement` pipeline
+- **Cross-repo symlink guard** (Issue #1019): `_is_cross_repo_protected_write()` additionally blocks any Write/Edit/Bash write that resolves via symlink into a protected path in a *different* repo root, regardless of pipeline state. This closes the silent cross-repo mutation trap where `~/Dev/realign/plugins -> ~/Dev/autonomous-dev/plugins` caused writes in the realign session to silently modify the autonomous-dev source tree. Detection: if `abs_path != abs_path.resolve()` (symlink in play) AND the resolved path is protected infrastructure AND the cwd's owning repo root differs from the resolved file's owning repo root — block. Fails open (false negative preserves existing pipeline-active check). Block message directs to `deploy-all.sh`.
 - Scoped to autonomous-dev repos (detected via `_is_autonomous_dev_repo()`) — does not affect user projects
 - User-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`), config files (`.json`/`.yaml`), and all non-infrastructure paths are unaffected
 

@@ -290,7 +290,7 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 
 **Repos in scope**: `LOCAL_REPOS` / `REMOTE_REPOS` env vars in `deploy-all.sh` (default: `autonomous-dev anyclaude realign spektiv homeassistant`).
 
-**Audit invariant**: `find ~/Dev -maxdepth 4 -name plugins -type l` should return zero results. Any symlink found is a cross-repo silent-write trap and must be replaced with a `deploy-all.sh` copy. Existing `realign/plugins -> autonomous-dev/plugins` symlink (created 2026-04-20) is the documented exception until Issue #1019's `cwd` guard lands.
+**Audit invariant**: `find ~/Dev -maxdepth 4 -name plugins -type l` should return zero results. Any symlink found is a cross-repo silent-write trap and must be replaced with a `deploy-all.sh` copy. The `_is_cross_repo_protected_write()` guard in `unified_pre_tool.py` (Issue #1019) now actively blocks Write/Edit/Bash writes that resolve across repo boundaries — so even if a symlink exists, the hook will deny the write before it silently mutates the foreign source tree.
 
 ---
 

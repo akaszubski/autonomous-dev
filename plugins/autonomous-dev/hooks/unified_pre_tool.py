@@ -1150,6 +1150,75 @@ def _is_protected_infrastructure(file_path: str) -> bool:
     return False
 
 
+def _is_cross_repo_protected_write(file_path: str) -> tuple:
+    """Detect cross-repo writes via symlinks into a foreign autonomous-dev repo.
+
+    Returns (True, reason) when ALL hold:
+      1. file_path's absolute (un-resolved) form differs from its resolved form
+         (i.e., a symlink is in play)
+      2. The resolved file lives in a protected autonomous-dev location
+         (delegates to _is_protected_infrastructure)
+      3. The cwd's owning autonomous-dev repo root differs from the resolved
+         file's owning autonomous-dev repo root
+
+    Returns (False, None) when same-repo, no symlink in play, or path
+    resolution fails. This is a *fail-open* helper by design — its caller
+    (the Write/Edit gate) still applies the existing pipeline_active check
+    afterward, so a false negative here just preserves current behavior.
+
+    Args:
+        file_path: Absolute or relative path to the file being written/edited.
+
+    Returns:
+        Tuple of (is_cross_repo: bool, reason: str | None).
+    """
+    if not file_path:
+        return (False, None)
+    try:
+        abs_path = Path(file_path).expanduser().absolute()
+        resolved_path = abs_path.resolve()
+        # No symlink in play if absolute and resolved forms are identical
+        if abs_path == resolved_path:
+            return (False, None)
+        # The resolved file must be in a protected location
+        if not _is_protected_infrastructure(str(resolved_path)):
+            return (False, None)
+
+        # Walk up from resolved file to find its owning repo root (10-level cap)
+        def _find_repo_root(start: Path) -> Path | None:
+            current = start if start.is_dir() else start.parent
+            for _ in range(10):
+                marker = current / ".claude" / "commands" / "implement.md"
+                if marker.exists():
+                    return current
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
+            return None
+
+        resolved_root = _find_repo_root(resolved_path)
+        cwd_root = _find_repo_root(Path.cwd().resolve())
+
+        if resolved_root is None or cwd_root is None:
+            return (False, None)
+
+        if resolved_root == cwd_root:
+            return (False, None)
+
+        reason = (
+            f"Cross-repo symlink write detected: '{resolved_path}' "
+            f"belongs to repo '{resolved_root}' but the session cwd belongs to "
+            f"repo '{cwd_root}'. Writing cross-repo via symlink is not allowed. "
+            f"Use 'bash scripts/deploy-all.sh' to propagate changes (Issue #1021). "
+            f"REQUIRED NEXT ACTION: Do not write directly across repos via symlinks. "
+            f"Deploy via deploy-all.sh instead."
+        )
+        return (True, reason)
+    except (OSError, ValueError):
+        return (False, None)
+
+
 def _get_active_agent_name() -> str:
     """Get the active agent name from available sources (Issue #591).
 
@@ -3467,13 +3536,6 @@ def _check_bash_infra_writes(command: str) -> "Optional[Tuple[str, str]]":
     """
     import re
 
-    # If pipeline is active, allow everything (same as Write/Edit behavior)
-    try:
-        if _is_pipeline_active():
-            return None
-    except Exception:
-        pass  # If check fails, continue with inspection
-
     # Collect candidate target file paths from various write patterns
     target_paths = []  # type: list
 
@@ -3557,12 +3619,33 @@ def _check_bash_infra_writes(command: str) -> "Optional[Tuple[str, str]]":
             for path_rename_match in re.finditer(path_rename_pattern, snippet):
                 target_paths.append(path_rename_match.group(1))
 
+    # Capture pipeline state once — cross-repo writes are blocked regardless,
+    # but same-repo protected writes are allowed when pipeline is active.
+    pipeline_active = False
+    try:
+        pipeline_active = _is_pipeline_active()
+    except Exception:
+        pass  # If check fails, treat as not active (conservative)
+
     # Check each target path against protected infrastructure
     for fp in target_paths:
         fp = fp.strip().strip("'\"")
         if not fp:
             continue
         try:
+            # Issue #1019: Cross-repo symlink write guard — check BEFORE pipeline-active
+            # short-circuit so foreign-repo writes are always blocked, even during /implement.
+            try:
+                is_cross_repo, cross_repo_reason = _is_cross_repo_protected_write(fp)
+                if is_cross_repo:
+                    file_name = Path(fp).name
+                    _update_deny_cache(fp)
+                    return (file_name, cross_repo_reason)
+            except Exception:
+                pass  # Fall through to existing _is_protected_infrastructure check
+            # Same-repo protected paths: allow when pipeline is active
+            if pipeline_active:
+                continue
             if _is_protected_infrastructure(fp):
                 file_name = Path(fp).name
                 # Check deny cache for escalation (Issue #558)
@@ -4176,6 +4259,27 @@ def main():
                 file_path = tool_input.get("file_path", "")
                 try:
                     is_protected = _is_protected_infrastructure(file_path)
+                    # Issue #1019: Cross-repo symlink write guard — block even when
+                    # a pipeline is active if the resolved file's repo root differs
+                    # from the cwd's repo root (symlink into foreign repo).
+                    if is_protected:
+                        is_cross_repo, cross_repo_reason = _is_cross_repo_protected_write(file_path)
+                        if is_cross_repo:
+                            file_name = Path(file_path).name if file_path else "unknown"
+                            _log_deviation(file_name, tool_name, "cross_repo_symlink_write_block")
+                            _log_pretool_activity(tool_name, tool_input, "deny", cross_repo_reason)
+                            output_decision(
+                                "deny", cross_repo_reason,
+                                system_message=(
+                                    f"BLOCKED: Cross-repo write to '{file_name}' via symlink. "
+                                    f"See Issue #1021."
+                                ),
+                            )
+                            try:
+                                _update_deny_cache(file_path)
+                            except Exception:
+                                pass
+                            sys.exit(0)
                     pipeline_active = _is_pipeline_active() if is_protected else False
                 except Exception:
                     # Fail closed — if protection check errors, treat as protected
