@@ -280,6 +280,20 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 
 ---
 
+## Distribution Model
+
+**Canonical source of truth**: `~/Dev/autonomous-dev/plugins/autonomous-dev/`. All other locations are *copies*, distributed via `bash scripts/deploy-all.sh`. Symlinks from consumer repos into this tree are unsupported because they cause silent cross-repo writes (see Issue #1021).
+
+**Per-repo install**: `deploy-all.sh` rsyncs `hooks/`, `commands/`, `agents/`, `lib/`, `templates/`, `config/`, `skills/`, `scripts/` into each consumer repo's `.claude/` directory. Each repo therefore owns its plugin copy; updates require explicit redeploy.
+
+**Global cache**: `deploy-all.sh` also syncs `hooks/`, `lib/`, `config/` to `~/.claude/` so plugin code is reachable from any cwd. Hook *registration* in `~/.claude/settings.json` is opt-in via `--global-settings` (Issue #995).
+
+**Repos in scope**: `LOCAL_REPOS` / `REMOTE_REPOS` env vars in `deploy-all.sh` (default: `autonomous-dev anyclaude realign spektiv homeassistant`).
+
+**Audit invariant**: `find ~/Dev -maxdepth 4 -name plugins -type l` should return zero results. Any symlink found is a cross-repo silent-write trap and must be replaced with a `deploy-all.sh` copy. Existing `realign/plugins -> autonomous-dev/plugins` symlink (created 2026-04-20) is the documented exception until Issue #1019's `cwd` guard lands.
+
+---
+
 ## Cross-References
 
 **Related Documentation**:

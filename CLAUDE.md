@@ -12,6 +12,7 @@ Development harness for Claude Code. Deterministic enforcement, specialist agent
 - **Deploy with `bash scripts/deploy-all.sh`** — never manual `cp -rf`. Script handles local, remote (Mac Studio), validation, and integrity checks.
 - **Process applies WHEN doing software development.** The pipeline, hooks, and enforcement exist to ensure thoroughness on real feature work for repos. They should NOT fire on testing, exploration, scratch edits, or non-repo work. The job is to detect *when* software development is happening and apply the right level of process — not to gate every edit. Context-blind enforcement is the bug; intent-aware enforcement is the goal.
 - **Hook deadlock protocol**: If a hook blocks legitimate work, surface the block to the user with the proposed bypass and *wait for approval*. Do NOT autonomously create `.claude/.bypass` or set `AUTONOMOUS_DEV_BYPASS=1` — those signals exist for the user to authorize, not for the model to invoke. See [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) for bypass mechanics.
+- **Plugin source of truth**: `~/Dev/autonomous-dev/plugins/autonomous-dev/` is canonical. Consumer repos (anyclaude, realign, spektiv, homeassistant) receive *copies* via `bash scripts/deploy-all.sh` — never symlinks. A symlink found by `find ~/Dev -maxdepth 4 -name plugins -type l` is a silent cross-repo write trap (Issue #1021); replace with a `deploy-all.sh` copy. See [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md#distribution-model).
 
 ## Build & Test
 
