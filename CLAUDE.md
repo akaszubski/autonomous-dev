@@ -8,7 +8,6 @@ Development harness for Claude Code. Deterministic enforcement, specialist agent
 - **Direct editing is only for**: user-facing docs (README.md, CHANGELOG.md, docs/*.md), config (.json/.yaml), typos (1-2 lines).
 - **After plan mode approval → use `/implement`**: The plan IS the input to `/implement`, not a license to bypass it.
 - **Run `/improve` after `/implement` sessions.** Use `--auto-file` to create GitHub issues.
-- **Use `/clear` after each feature.** Prevents context bloat.
 - **Deploy with `bash scripts/deploy-all.sh`** — never manual `cp -rf`. Script handles local, remote (Mac Studio), validation, and integrity checks.
 - **Don't simplify, redesign, or consolidate agents.** The pipeline, hooks, and enforcement are validated over months of real use. The cost is tokens, not complexity. Complexity is the mechanism.
 
