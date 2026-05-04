@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **pipeline_completion_state.py — optional `run_id` parameter with path-traversal validation**: All 9 public functions (including `get_research_skipped` and `get_plan_critic_skipped`) now accept an optional keyword-only `run_id: Optional[str] = None`. When provided, the state file resolves to `/tmp/pipeline_agent_completions_{run_id}.json`; when omitted (the default), the legacy `sha256(session_id)[:8]` path is used with byte-identical behavior. `run_id` is validated against `^[a-zA-Z0-9_-]{1,64}$` — invalid characters, path-traversal sequences (`../`), absolute paths, and values over 64 characters all raise `ValueError` (CWE-22 prevention). Empty string falls through to the legacy path. No existing callers were modified (#1041, #1045).
+
 - **Intent classifier**: 4 non-SWE classes (`exploration`, `triage`, `remote_ops`, `scratch`) added to skip-eligible set so multi-file investigation, GitHub issue triage, SSH-based remote work, and throwaway scratch work no longer trigger pipeline gates (#1023). The regex-first security gate, fail-open semantics, and `<user_input>` prompt-injection defense are unchanged. `IntentClass` enum is now 14 members (13 real + AMBIGUOUS); `_SKIP_INTENT_CLASSES` is now 9 entries; LLM prompt template lists 13 categories. SCHEMA_VERSION is intentionally unchanged — value-domain expansion of the `intent_class` string is forward-safe via `should_pipeline_enforce()` defaulting unknown strings to `True` (enforce).
 
 ### Known Limitations
