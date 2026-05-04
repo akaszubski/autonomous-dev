@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Intent classifier**: 4 non-SWE classes (`exploration`, `triage`, `remote_ops`, `scratch`) added to skip-eligible set so multi-file investigation, GitHub issue triage, SSH-based remote work, and throwaway scratch work no longer trigger pipeline gates (#1023). The regex-first security gate, fail-open semantics, and `<user_input>` prompt-injection defense are unchanged. `IntentClass` enum is now 14 members (13 real + AMBIGUOUS); `_SKIP_INTENT_CLASSES` is now 9 entries; LLM prompt template lists 13 categories. SCHEMA_VERSION is intentionally unchanged — value-domain expansion of the `intent_class` string is forward-safe via `should_pipeline_enforce()` defaulting unknown strings to `True` (enforce).
+
+### Known Limitations
+
+- `scratch` class does not relax Write/Edit gates in this release; only plan/validate steps relaxed (follow-up issue planned to add per-tool exception for `/tmp/`, `scripts/scratch/`, `.worktrees/scratch-*`). The regex-first security gate still applies to scratch prompts containing security keywords (#1023).
+
 ### Fixed
 
 #### Strict Mode Template Hook Path References (GitHub Issue #84)

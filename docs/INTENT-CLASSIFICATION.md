@@ -36,7 +36,7 @@ Before this work, `unified_prompt_validator` used a regex routing table to decid
 
 The trick is keeping security uncompromisable. We do this with regex-first detection (see Architecture).
 
-## The 9 intent classes
+## The 13 intent classes
 
 | Class | Description | Example |
 |-------|-------------|---------|
@@ -49,8 +49,27 @@ The trick is keeping security uncompromisable. We do this with regex-first detec
 | `typo` | Trivial fixes (single char/word) | "fix typo in welcome message" |
 | `status_query` | Read-only questions | "what is the current pipeline status" |
 | `conversation` | Chat, brainstorming, opinions | "should we use SQLite or Postgres" |
+| `exploration` | Multi-file read-only investigation across 3+ files | "look at how the pipeline state machine is wired across hooks, lib, and commands" |
+| `triage` | GitHub issue review / prioritization (no code changes) | "gh issue list --label needs-triage and group by component" |
+| `remote_ops` | SSH-based work on a remote host | "ssh andrewkaszubski@10.55.0.2 and check disk usage on Models" |
+| `scratch` | Throwaway work in /tmp/, scripts/scratch/, or .worktrees/scratch-* | "spin up a scratch worktree under .worktrees/scratch-experiments" |
 
-The 10th value, `IntentClass.AMBIGUOUS`, is the fail-open sentinel — see Fail-open contract.
+The 14th value, `IntentClass.AMBIGUOUS`, is the fail-open sentinel — see Fail-open contract.
+
+Classes `doc`, `config`, `typo`, `status_query`, `conversation`, `exploration`, `triage`, `remote_ops`, and `scratch` are **skip-eligible**: when an artifact-recorded intent matches one of these, Phase E `should_pipeline_enforce()` returns `False` and non-floor pipeline gates are bypassed for the session. Hard-floor hooks always fire regardless. (Issue #1023.)
+
+### EXPLORATION vs STATUS_QUERY
+
+The two read-only classes overlap in spirit but separate by file count and verb.
+
+- **STATUS_QUERY** — Single factual read; one-shot question answered from one file or shell command. Examples: "what is the current pipeline status", "show me failing tests from yesterday", "how do I run the integration suite".
+- **EXPLORATION** — Multi-file read-only investigation across 3+ files; verb-anchored on look/trace/audit/investigate. Examples: "look at how the pipeline state machine is wired across hooks, lib, and commands", "trace how a UserPromptSubmit event flows through every hook in the chain".
+
+The classifier prompt anchors EXPLORATION on `predicted_file_count >= 4` AND the absence of Write/Edit verbs. Misclassification between EXPLORATION and STATUS_QUERY is benign — both are skip-eligible, and the regex-first security gate continues to fire on either.
+
+### SCRATCH known limitation
+
+In this release, SCRATCH joins the skip-eligible set, which relaxes pipeline gates (plan, validate, etc.). It does **not** relax per-tool Write/Edit gates — those continue to enforce the canonical infrastructure-protection rules. A scratch script in `/tmp/` is allowed to run, but Write/Edit to `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` remains blocked outside the `/implement` pipeline. A follow-up issue is planned to add a per-tool exception for paths under `/tmp/`, `scripts/scratch/`, or `.worktrees/scratch-*`. The regex-first security gate still applies to scratch prompts containing security keywords (see adversarial fixture `scrat-sec-001`).
 
 ## Architecture
 
@@ -66,7 +85,7 @@ The regex uses **stem matching** for single-word keywords (e.g. `auth` matches `
 
 ### 2. LLM fallback
 
-If the regex misses, the prompt is sent to Claude Haiku 4.5 (`claude-haiku-4-5-20251001`, pinned in `intent_classifier_config.json`) with a strict JSON-only prompt template. The 9 intent classes are enforced both prompt-side (instructions) AND parse-side (the parser rejects values outside the enum).
+If the regex misses, the prompt is sent to Claude Haiku 4.5 (`claude-haiku-4-5-20251001`, pinned in `intent_classifier_config.json`) with a strict JSON-only prompt template. The 13 intent classes are enforced both prompt-side (instructions) AND parse-side (the parser rejects values outside the enum).
 
 The LLM is invoked through `genai_utils.GenAIAnalyzer` from `plugins/autonomous-dev/hooks/genai_utils.py`. If the SDK is unavailable, the classifier degrades to regex-only mode (non-security prompts -> AMBIGUOUS fail-open).
 
@@ -79,7 +98,7 @@ The LLM is invoked through `genai_utils.GenAIAnalyzer` from `plugins/autonomous-
 The archived `detect_feature_request.py` was retired because the LLM rephrased the user prompt internally and lost security signal. Our two safeguards against that recurrence:
 
 - Regex runs BEFORE the LLM (pre-empts rephrasing entirely).
-- Enum constraints on output (the parser rejects anything outside the 9 classes).
+- Enum constraints on output (the parser rejects anything outside the 13 classes).
 
 ### 5. Prompt-injection defense (Phase 2, Issue #960)
 
@@ -258,7 +277,7 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 - **Regex over-matches by design.** "rename auth_handler" classifies as `security_critical` because `auth` hits the stem regex. This is intentional — it's safer to over-trigger security than under-trigger it.
 - **The classifier is informational in Phase 1.** It does not relax routing yet. That is Phase 2 work.
 - **No real-API tests in unit tests.** Phase 1 unit tests use mocked deterministic LLM responses. Real-API validation is a separate Phase 1.5 step before any flag flip to "default on".
-- **Fixtures are synthetic.** 61 fixtures are hand-written to cover the 9 classes. Real session-archive fixtures are nice-to-have for Phase 1.5+.
+- **Fixtures are synthetic.** 81 fixtures are hand-written to cover the 13 classes. Real session-archive fixtures are nice-to-have for Phase 1.5+.
 
 ## Phase roadmap
 

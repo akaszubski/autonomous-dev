@@ -256,3 +256,57 @@ class TestNeverRaises:
             # RuntimeError is caught by the outer try → exception_safety.
             assert skip is False
             assert reason == "exception_safety"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1023 — Non-SWE classes flow through Priority 7/8
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1023NonSWEClasses:
+    """The 4 new skip-eligible classes (#1023) MUST:
+
+      1. Cause Priority 8 to skip when no security audit is required.
+      2. Defer to Priority 6 (security_audit_required) when set — proves the
+         skip-eligibility never overrides security gating.
+    """
+
+    NEW_CLASSES = ("exploration", "triage", "remote_ops", "scratch")
+
+    @pytest.mark.parametrize("class_value", NEW_CLASSES)
+    def test_new_class_skips_when_no_security_audit(
+        self, patched_deps, monkeypatch, class_value
+    ):
+        """Each new class with requires_security_audit=False ⇒ skip."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": class_value,
+            "fail_open": False,
+            "requires_security_audit": False,
+        }
+        patched_deps.should_pipeline_enforce_return = False
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is True, f"{class_value!r} should skip when no security audit"
+        assert reason == f"mode_skip:{class_value}"
+
+    @pytest.mark.parametrize("class_value", NEW_CLASSES)
+    def test_new_class_yields_to_security_audit(
+        self, patched_deps, monkeypatch, class_value
+    ):
+        """Priority 6 wins: requires_security_audit=True ⇒ enforce regardless."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": class_value,
+            "fail_open": False,
+            "requires_security_audit": True,
+        }
+        patched_deps.should_pipeline_enforce_return = False
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is False, (
+            f"{class_value!r} must NOT skip when security audit is required"
+        )
+        assert reason == "security_audit_required"

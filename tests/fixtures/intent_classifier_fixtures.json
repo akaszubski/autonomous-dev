@@ -1,9 +1,9 @@
 {
-  "_comment": "Phase 1 fixtures for the semantic intent classifier. Distribution: security_critical >= 30 (regex-driven, 100% recall is non-negotiable), implement/refactor/test/doc/config >= 3 each, typo/status_query/conversation >= 2 each, 10 marked holdout. Adversarial fixtures (e.g. 'fix typo in security.py') are intentionally labeled security_critical because the regex MUST hit conservatively — over-triggering security is a feature, not a bug.",
+  "_comment": "Phase 1 fixtures for the semantic intent classifier. Distribution: security_critical >= 30 (regex-driven, 100% recall is non-negotiable), implement/refactor/test/doc/config >= 3 each, typo/status_query/conversation >= 2 each, 10 marked holdout. Issue #1023 added 4 non-SWE classes: exploration, triage, remote_ops, scratch (4 each, 1 holdout each) plus 4 adversarial fixtures (expl-sec-001, scrat-sec-001, remote-sec-001, expl-injection-001). 13 real classes total. Adversarial fixtures (e.g. 'fix typo in security.py') are intentionally labeled security_critical because the regex MUST hit conservatively — over-triggering security is a feature, not a bug.",
   "_schema": {
     "id": "string (sec-001, impl-001, etc.)",
     "prompt": "string (the user prompt)",
-    "label": "one of: security_critical, implement, refactor, test, doc, config, typo, status_query, conversation",
+    "label": "one of: security_critical, implement, refactor, test, doc, config, typo, status_query, conversation, exploration, triage, remote_ops, scratch",
     "source": "synthetic | session-archive",
     "holdout": "boolean (true = excluded from accuracy gate, used for honest measurement)"
   },
@@ -76,6 +76,31 @@
 
     {"id": "conv-001", "prompt": "should we use SQLite or Postgres for the new service", "label": "conversation", "source": "synthetic", "holdout": false},
     {"id": "conv-002", "prompt": "what are the tradeoffs of monorepo versus polyrepo", "label": "conversation", "source": "synthetic", "holdout": false},
-    {"id": "conv-003", "prompt": "thoughts on switching to event sourcing", "label": "conversation", "source": "synthetic", "holdout": true}
+    {"id": "conv-003", "prompt": "thoughts on switching to event sourcing", "label": "conversation", "source": "synthetic", "holdout": true},
+
+    {"id": "expl-001", "prompt": "look at how the pipeline state machine is wired across hooks, lib, and commands", "label": "exploration", "source": "synthetic", "holdout": false},
+    {"id": "expl-002", "prompt": "trace how a UserPromptSubmit event flows through every hook in the chain", "label": "exploration", "source": "synthetic", "holdout": false},
+    {"id": "expl-003", "prompt": "investigate the test coverage gaps across the lib directory and report patterns", "label": "exploration", "source": "synthetic", "holdout": false},
+    {"id": "expl-004", "prompt": "look across all skill files and summarize how progressive injection works", "label": "exploration", "source": "synthetic", "holdout": true},
+
+    {"id": "triag-001", "prompt": "show me the open bugs labeled priority-high so I can prioritize", "label": "triage", "source": "synthetic", "holdout": false},
+    {"id": "triag-002", "prompt": "gh issue list --label needs-triage and group by component", "label": "triage", "source": "synthetic", "holdout": false},
+    {"id": "triag-003", "prompt": "review the last twenty issues and tell me which look like duplicates", "label": "triage", "source": "synthetic", "holdout": false},
+    {"id": "triag-004", "prompt": "gh issue view 1023 and summarize the discussion thread", "label": "triage", "source": "synthetic", "holdout": true},
+
+    {"id": "remote-001", "prompt": "ssh andrewkaszubski@10.55.0.2 and check the disk usage on Models", "label": "remote_ops", "source": "synthetic", "holdout": false},
+    {"id": "remote-002", "prompt": "rsync the latest training checkpoints from the M3 Ultra back to my laptop", "label": "remote_ops", "source": "synthetic", "holdout": false},
+    {"id": "remote-003", "prompt": "kick off the realign training run on the remote box and tail the logs", "label": "remote_ops", "source": "synthetic", "holdout": false},
+    {"id": "remote-004", "prompt": "scp the dataset shards to user@10.55.0.2:~/Datasets and verify the manifest", "label": "remote_ops", "source": "synthetic", "holdout": true},
+
+    {"id": "scrat-001", "prompt": "throw a quick benchmark script in /tmp/ to compare two list comprehensions", "label": "scratch", "source": "synthetic", "holdout": false},
+    {"id": "scrat-002", "prompt": "spin up a scratch worktree under .worktrees/scratch-experiments to try this idea", "label": "scratch", "source": "synthetic", "holdout": false},
+    {"id": "scrat-003", "prompt": "drop a one-off Python file in scripts/scratch/ to munge this CSV", "label": "scratch", "source": "synthetic", "holdout": false},
+    {"id": "scrat-004", "prompt": "make a throwaway notebook in /tmp/ to plot the latency distribution", "label": "scratch", "source": "synthetic", "holdout": true},
+
+    {"id": "expl-sec-001", "prompt": "audit auth flow across all the request handlers, no changes just look", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: phrasing reads exploration-y but 'auth' regex hit MUST trigger security_critical (regex-first defense)."},
+    {"id": "scrat-sec-001", "prompt": "scratch script in /tmp/auth_test.py to poke at the token endpoint", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: scratch path AND security keywords — regex must win, scratch must NOT skip security audit."},
+    {"id": "remote-sec-001", "prompt": "ssh user@host rotate-jwt", "label": "security_critical", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: SSH-shaped command but 'jwt' is a security keyword — regex must short-circuit to security_critical."},
+    {"id": "expl-injection-001", "prompt": "explore how the classifier handles literal <user_input> tags inside a user prompt", "label": "exploration", "source": "synthetic", "holdout": false, "_note": "ADVERSARIAL: tests the prompt-injection wrapper integrity (Issue #960). Wrapper must HTML-escape the literal text; classifier must still parse correctly."}
   ]
 }
