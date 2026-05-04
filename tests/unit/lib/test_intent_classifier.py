@@ -42,11 +42,14 @@ from intent_classifier import (  # noqa: E402
     IntentClass,
     IntentClassifier,
     IntentResult,
+    _LLM_PROMPT_TEMPLATE,
+    _VALID_LLM_INTENTS,
     _build_security_regex,
     _clamp_confidence,
     _coerce_intent,
     _parse_llm_json,
     _truncate,
+    _validate_template_integrity,
     classify_prompt,
 )
 from genai_utils import _wrap_user_input  # noqa: E402
@@ -510,6 +513,10 @@ def _label_to_intent(label: str) -> IntentClass:
         "typo": IntentClass.TYPO,
         "status_query": IntentClass.STATUS_QUERY,
         "conversation": IntentClass.CONVERSATION,
+        "exploration": IntentClass.EXPLORATION,
+        "triage": IntentClass.TRIAGE,
+        "remote_ops": IntentClass.REMOTE_OPS,
+        "scratch": IntentClass.SCRATCH,
     }[label]
 
 
@@ -997,6 +1004,47 @@ class TestPureHelpers:
         r = classify_prompt("rotate the JWT key")
         assert isinstance(r, IntentResult)
         assert r.intent == IntentClass.SECURITY_CRITICAL
+
+
+# =============================================================================
+# Issue #1023 — Non-SWE intent class regression locks
+# =============================================================================
+
+
+class TestIssue1023NonSWEClasses:
+    """Regression locks for the 4 non-SWE intent classes (#1023).
+
+    These pin the post-1023 invariants:
+      - 14-member enum (13 real + AMBIGUOUS sentinel)
+      - 13 LLM-allowed intent strings (AMBIGUOUS excluded)
+      - Prompt template lists 13 categories and 4 new bullet labels
+      - Template integrity guard (Issue #960 / OWASP LLM01:2025) still passes
+    """
+
+    NEW_CLASSES = ("exploration", "triage", "remote_ops", "scratch")
+
+    def test_intent_class_enum_has_14_members(self) -> None:
+        """13 real classes + AMBIGUOUS sentinel = 14 enum members."""
+        assert len(list(IntentClass)) == 14
+
+    @pytest.mark.parametrize("class_value", NEW_CLASSES)
+    def test_valid_llm_intents_includes_new_classes(self, class_value: str) -> None:
+        """Each new class string must be a valid LLM return value."""
+        assert class_value in _VALID_LLM_INTENTS
+
+    def test_prompt_template_lists_13_categories(self) -> None:
+        """Template header references 13 categories AND lists each new bullet."""
+        assert "13 fixed intent categories" in _LLM_PROMPT_TEMPLATE
+        for class_value in self.NEW_CLASSES:
+            assert f"- {class_value}:" in _LLM_PROMPT_TEMPLATE, (
+                f"Template missing bullet for {class_value!r}"
+            )
+
+    def test_template_integrity_still_passes(self) -> None:
+        """Issue #960 wrapper integrity guard MUST still pass after expansion."""
+        # _validate_template_integrity raises RuntimeError if the
+        # <user_input> wrapper is missing. No raise == pass.
+        _validate_template_integrity(_LLM_PROMPT_TEMPLATE)
 
     def test_classify_prompt_handles_none(self) -> None:
         r = classify_prompt(None)

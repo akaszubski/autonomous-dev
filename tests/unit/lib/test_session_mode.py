@@ -43,9 +43,11 @@ if str(_LIB_PATH) not in sys.path:
 from session_mode import (  # noqa: E402
     SCHEMA_VERSION,
     TTL_SECONDS,
+    _SKIP_INTENT_CLASSES,
     _atomic_write,
     _resolve_session_id,
     _session_mode_path,
+    should_pipeline_enforce,
     write_session_mode,
 )
 
@@ -399,3 +401,34 @@ class TestEnforceFlagPlumbing:
             assert data["enforce_mode"] is False
         finally:
             _cleanup_artifact(session_id)
+
+
+class TestIssue1023SkipIntentClassesExpansion:
+    """Issue #1023 — non-SWE classes added to _SKIP_INTENT_CLASSES."""
+
+    NEW_CLASSES = ("exploration", "triage", "remote_ops", "scratch")
+    ORIGINAL_CLASSES = ("doc", "config", "typo", "status_query", "conversation")
+
+    def test_skip_intent_classes_includes_new_classes(self) -> None:
+        """Frozenset has 9 entries: 5 originals + 4 new."""
+        assert len(_SKIP_INTENT_CLASSES) == 9, (
+            f"Expected 9 skip-eligible classes, got {len(_SKIP_INTENT_CLASSES)}: "
+            f"{sorted(_SKIP_INTENT_CLASSES)}"
+        )
+        for new_class in self.NEW_CLASSES:
+            assert new_class in _SKIP_INTENT_CLASSES, (
+                f"'{new_class}' not in _SKIP_INTENT_CLASSES"
+            )
+        for original_class in self.ORIGINAL_CLASSES:
+            assert original_class in _SKIP_INTENT_CLASSES, (
+                f"original skip class '{original_class}' was removed"
+            )
+
+    @pytest.mark.parametrize(
+        "class_value", ("exploration", "triage", "remote_ops", "scratch")
+    )
+    def test_should_pipeline_enforce_returns_false_for_new_classes(
+        self, class_value: str
+    ) -> None:
+        """should_pipeline_enforce() returns False for each new skip class."""
+        assert should_pipeline_enforce(class_value) is False

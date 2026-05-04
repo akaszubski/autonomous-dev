@@ -268,7 +268,18 @@ def write_session_mode(
 # non-security routing checks. Other classes — including unknown values —
 # default to enforce. This is the safe direction: when in doubt, enforce.
 _SKIP_INTENT_CLASSES: frozenset[str] = frozenset(
-    {"doc", "config", "typo", "status_query", "conversation"}
+    {
+        "doc",
+        "config",
+        "typo",
+        "status_query",
+        "conversation",
+        # Issue #1023 — non-SWE classes (no pipeline gates).
+        "exploration",
+        "triage",
+        "remote_ops",
+        "scratch",
+    }
 )
 
 
@@ -345,6 +356,10 @@ def should_pipeline_enforce(intent_class: Any) -> bool:
     | typo                   | False    |
     | status_query           | False    |
     | conversation           | False    |
+    | exploration            | False    |
+    | triage                 | False    |
+    | remote_ops             | False    |
+    | scratch                | False    |
     | unknown / non-string   | True (fail-safe) |
     +------------------------+----------+
 
