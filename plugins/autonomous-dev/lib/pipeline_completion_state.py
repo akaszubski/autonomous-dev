@@ -779,22 +779,24 @@ def record_plan_critic_skipped(
     session_id: str,
     *,
     issue_number: int = 0,
+    reason: str = "pre_validated",
 ) -> None:
     """Record that plan-critic was skipped for a given session/issue.
 
-    Called by the coordinator at STEP 5.5a when a pre-validated plan
-    is found in `.claude/plans/`, bypassing plan-critic invocation.
+    Called by the coordinator at STEP 5.5a when a pre-validated plan is
+    found, OR at STEP 5.5a.1 when the Phase 2 classifier gate fires.
 
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        reason: Audit string. "pre_validated" (5.5a default) or "classifier" (Phase 2).
 
-    Issues: #878
+    Issues: #878, #961
     """
     state = _ensure_state(session_id)
     plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
     issue_key = str(issue_number)
-    plan_critic_skipped[issue_key] = True
+    plan_critic_skipped[issue_key] = {"skipped": True, "reason": reason}
     _write_state(session_id, state)
 
 
@@ -812,14 +814,70 @@ def get_plan_critic_skipped(
     Returns:
         True if plan-critic was recorded as skipped, False otherwise.
 
-    Issues: #878
+    Issues: #878, #961
     """
     state = _read_state(session_id)
     if not state:
         return False
     plan_critic_skipped = state.get("plan_critic_skipped", {})
     issue_key = str(issue_number)
-    return bool(plan_critic_skipped.get(issue_key, False))
+    entry = plan_critic_skipped.get(issue_key, False)
+    if isinstance(entry, dict):
+        return bool(entry.get("skipped", False))
+    return bool(entry)
+
+
+def record_web_research_skipped(
+    session_id: str,
+    *,
+    issue_number: int = 0,
+    reason: str = "classifier",
+) -> None:
+    """Record that web research (researcher agent) was skipped at STEP 4.
+
+    Distinct from `record_research_skipped` (STEP 3.5 fully-specified path) so
+    Phase 5 telemetry can attribute the skip to the classifier vs the
+    pre-existing fully-specified gate.
+
+    Args:
+        session_id: The pipeline session identifier.
+        issue_number: The issue number (0 for non-batch).
+        reason: Audit string from pipeline_intent_gates.should_skip_web_research.
+
+    Issues: #961
+    """
+    state = _ensure_state(session_id)
+    web_research_skipped = state.setdefault("web_research_skipped", {})
+    issue_key = str(issue_number)
+    web_research_skipped[issue_key] = {"skipped": True, "reason": reason}
+    _write_state(session_id, state)
+
+
+def get_web_research_skipped(
+    session_id: str,
+    *,
+    issue_number: int = 0,
+) -> bool:
+    """Check if web research was skipped (Phase 2 classifier gate).
+
+    Args:
+        session_id: The pipeline session identifier.
+        issue_number: The issue number (0 for non-batch).
+
+    Returns:
+        True if recorded as skipped, False otherwise.
+
+    Issues: #961
+    """
+    state = _read_state(session_id)
+    if not state:
+        return False
+    web_research_skipped = state.get("web_research_skipped", {})
+    issue_key = str(issue_number)
+    entry = web_research_skipped.get(issue_key, False)
+    if isinstance(entry, dict):
+        return bool(entry.get("skipped", False))
+    return bool(entry)
 
 
 def verify_pipeline_agent_completions(

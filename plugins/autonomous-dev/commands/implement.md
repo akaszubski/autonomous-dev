@@ -502,15 +502,48 @@ Otherwise: proceed to STEP 4.
 - ❌ The change touches security-sensitive files or topics (authentication, encryption, tokens, secrets, sso, oauth, rbac, permission, session, jwt)
 - ❌ More than 3 files are referenced in the description
 
+### STEP 3.6: Web Research Classifier Gate (Phase 2 — opt-in)
+
+**Progress**: Output step banner only when the gate fires (STEP 3.6/15 — Web Research Classifier Gate). Skip silently when `INTENT_CLASSIFIER_ENABLED` is unset/false.
+
+**Activation**: Only runs when `INTENT_CLASSIFIER_ENABLED=true` is set in the environment. Default behavior (env var unset/false) is unchanged — both researchers run as before.
+
+**Decision logic** (delegated to pure predicate):
+
+```python
+from pipeline_intent_gates import should_skip_web_research
+from pipeline_completion_state import record_web_research_skipped
+
+skip, reason = should_skip_web_research(
+    feature_description=FEATURE_DESCRIPTION,
+    arguments=ARGUMENTS,
+)
+if skip:
+    record_web_research_skipped(SESSION_ID, issue_number=ISSUE_NUM, reason=reason)
+    print(f"Web research: SKIPPED ({reason}) — researcher-local still runs")
+```
+
+**When skipped**:
+- STEP 4 dispatches **only** `researcher-local` (Haiku) — the `researcher` (Sonnet, web) agent is omitted.
+- The merged research consists of researcher-local output alone.
+
+**When NOT skipped** (any of these): classifier disabled, `--strict` in ARGUMENTS, intent not in {CONFIG, DOC, REFACTOR}, confidence < 0.85, classifier failed open or returned AMBIGUOUS.
+
+**FORBIDDEN** — You MUST NOT:
+- Skip BOTH researchers (researcher-local always runs)
+- Skip when intent is SECURITY_CRITICAL, IMPLEMENT, TEST, or any other class outside the explicit allow-list
+- Skip when `--strict` appears in ARGUMENTS
+
 ### STEP 4: Parallel Research (2 agents)
 
 **Progress**: Output step banner (STEP 4/15 — Research, Agents: researcher-local (Haiku), researcher (Sonnet)). Output agent completions after each returns.
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
 
-Invoke TWO agents in PARALLEL (single message, both Agent tool calls):
-1. **Agent**(subagent_type="researcher-local", model="haiku") — "Search codebase for patterns related to: {feature}. Output JSON with findings and sources."
-2. **Agent**(subagent_type="researcher", model="sonnet") — "Research best practices for: {feature}. MUST use WebSearch. Output JSON with findings, sources, security considerations."
+Invoke researchers in PARALLEL (single message). The set depends on STEP 3.6:
+
+- **Always**: **Agent**(subagent_type="researcher-local", model="haiku") — "Search codebase for patterns related to: {feature}. Output JSON with findings and sources."
+- **Unless STEP 3.6 set `web_research_skipped`**: **Agent**(subagent_type="researcher", model="sonnet") — "Research best practices for: {feature}. MUST use WebSearch. Output JSON with findings, sources, security considerations."
 
 Validation: If web researcher shows 0 tool uses, retry. Merge both outputs. Persist research via `save_merged_research()`.
 
@@ -556,6 +589,40 @@ record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM)
 
 If no matching file with "Verdict: PROCEED" is found, proceed to 5.5b.
 
+#### 5.5a.1 — Classifier-Gated Skip (Phase 2 — opt-in)
+
+**Activation**: Only runs when `INTENT_CLASSIFIER_ENABLED=true`. Default (env var unset/false) is unchanged — proceed straight to 5.5b.
+
+**Decision logic** (delegated to pure predicate):
+
+```python
+from pipeline_intent_gates import should_skip_plan_critic
+from pipeline_completion_state import record_plan_critic_skipped
+
+skip, reason = should_skip_plan_critic(
+    feature_description=FEATURE_DESCRIPTION,
+    arguments=ARGUMENTS,
+)
+if skip:
+    record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM, reason=reason)
+    print(f"Plan validation: SKIPPED ({reason}) — proceeding to 5.5c structural validation")
+    # Skip 5.5b (plan-critic invocation). 5.5c structural validation STILL RUNS.
+```
+
+**Skip conditions** (ALL must hold): classifier enabled, no `--strict`, intent in {REFACTOR, CONFIG, DOC, TYPO}, confidence >= 0.85, predicted_file_count <= 3, classifier did not fail open.
+
+**When skipped**:
+- 5.5b (plan-critic agent invocation) is bypassed.
+- 5.5c (structural validation — file paths, acceptance criteria, testing strategy) **always still runs**.
+
+**When NOT skipped**: proceed to 5.5b as before.
+
+**FORBIDDEN** — You MUST NOT:
+- Skip 5.5c structural validation under any circumstance (the existing 5.5d FORBIDDEN list still applies in full)
+- Skip when `--strict` is in ARGUMENTS
+- Skip when intent is IMPLEMENT, SECURITY_CRITICAL, TEST, or any class outside {REFACTOR, CONFIG, DOC, TYPO}
+- Skip when predicted_file_count > 3 (the issue may look small but the classifier predicts otherwise)
+
 #### 5.5b — Budget Plan-Critic Invocation
 
 **When no pre-validated plan exists**, invoke the plan-critic agent with a constrained budget:
@@ -599,7 +666,7 @@ If any requirement is missing:
 
 - ❌ You MUST NOT accept a plan that contains 0 file paths (structural validation always blocks this)
 - ❌ You MUST NOT accept a plan that has no acceptance criteria section
-- ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/`
+- ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/` AND the 5.5a.1 classifier gate did NOT fire (classifier disabled, low-confidence, --strict, or intent outside allow-list)
 - ❌ You MUST NOT skip structural validation for any reason (it always runs, even with a pre-validated plan)
 
 ### STEP 6: Generate Acceptance Tests (default mode only)

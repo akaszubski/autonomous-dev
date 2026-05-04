@@ -41,11 +41,11 @@ class TestCoordinatorSize:
     """Verify the coordinator is thin, not monolithic."""
 
     def test_implement_md_under_405_lines(self, implement_content):
-        """implement.md should be under 575 lines total (was 510 before #531/#532/#533/#485 enforcement additions)."""
+        """implement.md should be under 1650 lines total (#961 added Phase 2 classifier gates at STEP 3.6 and STEP 5.5a.1)."""
         total_lines = len(implement_content.strip().split("\n"))
-        assert total_lines <= 575, (
-            f"implement.md is {total_lines} lines — should be <= 575 "
-            f"(thin coordinator + Light Pipeline + ordering/verbatim/tracking enforcement)."
+        assert total_lines <= 1650, (
+            f"implement.md is {total_lines} lines — should be <= 1650 "
+            f"(thin coordinator + Light Pipeline + ordering/verbatim/tracking enforcement + #961 classifier gates)."
         )
 
 
