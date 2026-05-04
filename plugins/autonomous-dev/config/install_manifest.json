@@ -266,6 +266,7 @@
         "plugins/autonomous-dev/lib/permission_classifier.py",
         "plugins/autonomous-dev/lib/pipeline_completion_state.py",
         "plugins/autonomous-dev/lib/pipeline_efficiency_analyzer.py",
+        "plugins/autonomous-dev/lib/pipeline_intent_gates.py",
         "plugins/autonomous-dev/lib/pipeline_intent_validator.py",
         "plugins/autonomous-dev/lib/pipeline_state.py",
         "plugins/autonomous-dev/lib/pipeline_timing_analyzer.py",
