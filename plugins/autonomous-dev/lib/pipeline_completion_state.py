@@ -6,18 +6,30 @@ Manages a per-session JSON state file that tracks which pipeline agents
 have completed. Written by unified_session_tracker.py (SubagentStop),
 read by unified_pre_tool.py (PreToolUse) to enforce ordering.
 
-State file path: /tmp/pipeline_agent_completions_{hash(session_id)[:8]}.json
+State file path (legacy): /tmp/pipeline_agent_completions_{hash(session_id)[:8]}.json
+State file path (run_id):  /tmp/pipeline_agent_completions_{run_id}.json
 
-Issues: #625, #629, #632
+When ``run_id`` is provided to any public function, the run-id-scoped path is
+used instead of the legacy sha256(session_id) path. This enables per-invocation
+isolation and crash-resume without collision. Existing callers that omit
+``run_id`` continue to use the legacy path with no behavior change. (#1041)
+
+Issues: #625, #629, #632, #1041
 """
 
 import fcntl
 import hashlib
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Optional
+
+# Regex for validating run_id values. Only alphanumerics, hyphens, and underscores
+# are permitted, with a maximum length of 64 characters. This prevents path
+# traversal attacks via run_id. (Security Finding 1 — CRITICAL A03/A01)
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 # File-based bypass for the agent completeness gate.
 # The env var SKIP_AGENT_COMPLETENESS_GATE=1 is unreachable from Bash commands
@@ -59,29 +71,45 @@ def _check_file_bypass() -> bool:
     return False
 
 
-def _state_file_path(session_id: str) -> Path:
+def _state_file_path(session_id: str, *, run_id: Optional[str] = None) -> Path:
     """Compute the state file path for a given session.
+
+    When ``run_id`` is provided (non-None, non-empty), the path is
+    ``/tmp/pipeline_agent_completions_{run_id}.json``. Otherwise, the legacy
+    sha256(session_id)[:8] hash scheme is used. (#1041)
 
     Args:
         session_id: The pipeline session identifier.
+        run_id: Optional per-invocation run identifier. When set, takes
+            precedence over the session-based hash.
 
     Returns:
         Path to the state file in /tmp.
     """
+    if run_id:
+        if not _RUN_ID_RE.match(run_id):
+            raise ValueError(
+                f"run_id contains invalid characters: {run_id!r}\n"
+                f"Expected: 1-64 characters matching [a-zA-Z0-9_-]\n"
+                f"See: docs/ARCHITECTURE-OVERVIEW.md"
+            )
+        return Path(f"/tmp/pipeline_agent_completions_{run_id}.json")
     h = hashlib.sha256(session_id.encode()).hexdigest()[:8]
     return Path(f"/tmp/pipeline_agent_completions_{h}.json")
 
 
-def _read_state(session_id: str) -> dict:
+def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
     """Read state file with file locking. Returns empty dict on any failure.
 
     Args:
         session_id: The pipeline session identifier.
+        run_id: Optional per-invocation run identifier passed to
+            ``_state_file_path``. (#1041)
 
     Returns:
         Parsed state dict, or empty dict if file missing/corrupt/stale.
     """
-    path = _state_file_path(session_id)
+    path = _state_file_path(session_id, run_id=run_id)
     if not path.exists():
         return {}
 
@@ -107,14 +135,16 @@ def _read_state(session_id: str) -> dict:
         return {}
 
 
-def _write_state(session_id: str, state: dict) -> None:
+def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> None:
     """Write state file atomically with file locking.
 
     Args:
         session_id: The pipeline session identifier.
         state: The state dict to write.
+        run_id: Optional per-invocation run identifier passed to
+            ``_state_file_path``. (#1041)
     """
-    path = _state_file_path(session_id)
+    path = _state_file_path(session_id, run_id=run_id)
     try:
         with open(path, "w") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -126,16 +156,18 @@ def _write_state(session_id: str, state: dict) -> None:
         pass  # Non-blocking: state write failure is not fatal
 
 
-def _ensure_state(session_id: str) -> dict:
+def _ensure_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
     """Read existing state or create a new skeleton.
 
     Args:
         session_id: The pipeline session identifier.
+        run_id: Optional per-invocation run identifier passed to
+            ``_read_state``. (#1041)
 
     Returns:
         A valid state dict (may be freshly created).
     """
-    state = _read_state(session_id)
+    state = _read_state(session_id, run_id=run_id)
     if not state:
         from datetime import datetime, timezone
 
@@ -156,6 +188,7 @@ def record_agent_completion(
     issue_number: int = 0,
     success: bool = True,
     is_remediation: bool = False,
+    run_id: Optional[str] = None,
 ) -> None:
     """Record that an agent has completed for a given session and issue.
 
@@ -168,6 +201,8 @@ def record_agent_completion(
             pass (e.g., reviewer re-run after BLOCKING findings). The stored
             entry is marked so the intent validator can skip duplicate-agent
             ordering findings for remediation events. Issue #902 / Issue #904.
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Notes:
         Backwards compatible: existing callers that do not pass
@@ -177,7 +212,7 @@ def record_agent_completion(
         "remediation": True}``. All readers in this module tolerate both
         shapes (see ``_completion_is_success``).
     """
-    state = _ensure_state(session_id)
+    state = _ensure_state(session_id, run_id=run_id)
     completions = state.setdefault("completions", {})
     issue_key = str(issue_number)
     issue_completions = completions.setdefault(issue_key, {})
@@ -190,7 +225,7 @@ def record_agent_completion(
     else:
         # Preserve legacy plain-bool shape for backwards compatibility.
         issue_completions[agent_type] = success
-    _write_state(session_id, state)
+    _write_state(session_id, state, run_id=run_id)
 
 
 def _completion_is_success(entry) -> bool:
@@ -272,6 +307,7 @@ def get_completed_agents(
     session_id: str,
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> set[str]:
     """Get the set of agents that have completed for a session/issue.
 
@@ -287,15 +323,21 @@ def get_completed_agents(
     from a crashed / abandoned prior run whose state file still lingers in
     ``/tmp/`` — the old 'unknown' state must not bleed into a fresh session.
 
+    Note: when ``run_id`` is provided, the unknown-session fallback merge is
+    skipped — run-id-scoped state files are per-invocation and do not use the
+    'unknown' bootstrap path. (#1041)
+
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Returns:
         Set of agent type strings that completed successfully.
     """
     result: set[str] = set()
-    state = _read_state(session_id)
+    state = _read_state(session_id, run_id=run_id)
     if state:
         completions = state.get("completions", {})
         issue_key = str(issue_number)
@@ -305,6 +347,12 @@ def get_completed_agents(
                 k for k, v in issue_completions.items()
                 if _completion_is_success(v)
             }
+
+    # Skip the unknown-session fallback merge when run_id is set.
+    # Run-id-scoped state files are per-invocation; the 'unknown' bootstrap
+    # path only applies to the legacy session-id-hashed scheme. (#1041)
+    if run_id:
+        return result
 
     # Merge completions from the 'unknown' session. The coordinator may have
     # recorded some agent completions before CLAUDE_SESSION_ID was available,
@@ -688,6 +736,7 @@ def record_pytest_gate_passed(
     *,
     issue_number: int = 0,
     passed: bool = True,
+    run_id: Optional[str] = None,
 ) -> None:
     """Record pytest gate result as a virtual agent completion.
 
@@ -699,10 +748,14 @@ def record_pytest_gate_passed(
         session_id: Current session ID.
         issue_number: Issue number (0 for single-issue pipeline).
         passed: Whether pytest gate passed (True) or failed (False).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Issues: #838
     """
-    record_agent_completion(session_id, "pytest-gate", issue_number=issue_number, success=passed)
+    record_agent_completion(
+        session_id, "pytest-gate", issue_number=issue_number, success=passed, run_id=run_id
+    )
 
 
 def get_pytest_gate_passed(
@@ -732,6 +785,7 @@ def record_research_skipped(
     session_id: str,
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> None:
     """Record that research was skipped for a given session/issue.
 
@@ -741,33 +795,38 @@ def record_research_skipped(
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Issues: #802
     """
-    state = _ensure_state(session_id)
+    state = _ensure_state(session_id, run_id=run_id)
     research_skipped = state.setdefault("research_skipped", {})
     issue_key = str(issue_number)
     research_skipped[issue_key] = True
-    _write_state(session_id, state)
+    _write_state(session_id, state, run_id=run_id)
 
 
 def get_research_skipped(
     session_id: str,
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> bool:
     """Check if research was skipped for a given session/issue.
 
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1045)
 
     Returns:
         True if research was recorded as skipped, False otherwise.
 
-    Issues: #802
+    Issues: #802, #1045
     """
-    state = _read_state(session_id)
+    state = _read_state(session_id, run_id=run_id)
     if not state:
         return False
     research_skipped = state.get("research_skipped", {})
@@ -779,6 +838,7 @@ def record_plan_critic_skipped(
     session_id: str,
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> None:
     """Record that plan-critic was skipped for a given session/issue.
 
@@ -788,33 +848,38 @@ def record_plan_critic_skipped(
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Issues: #878
     """
-    state = _ensure_state(session_id)
+    state = _ensure_state(session_id, run_id=run_id)
     plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
     issue_key = str(issue_number)
     plan_critic_skipped[issue_key] = True
-    _write_state(session_id, state)
+    _write_state(session_id, state, run_id=run_id)
 
 
 def get_plan_critic_skipped(
     session_id: str,
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> bool:
     """Check if plan-critic was skipped for a given session/issue.
 
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1045)
 
     Returns:
         True if plan-critic was recorded as skipped, False otherwise.
 
-    Issues: #878
+    Issues: #878, #1045
     """
-    state = _read_state(session_id)
+    state = _read_state(session_id, run_id=run_id)
     if not state:
         return False
     plan_critic_skipped = state.get("plan_critic_skipped", {})
@@ -827,6 +892,7 @@ def verify_pipeline_agent_completions(
     pipeline_mode: str = "full",
     *,
     issue_number: int = 0,
+    run_id: Optional[str] = None,
 ) -> tuple[bool, set[str], set[str]]:
     """Verify all required agents completed for a pipeline run.
 
@@ -843,6 +909,8 @@ def verify_pipeline_agent_completions(
         session_id: The pipeline session identifier.
         pipeline_mode: Pipeline mode — "full", "light", "fix", or "tdd-first".
         issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Returns:
         Tuple of (passed, completed_agents, missing_agents).
@@ -863,9 +931,9 @@ def verify_pipeline_agent_completions(
         return (True, set(), set())
 
     try:
-        completed = get_completed_agents(session_id, issue_number=issue_number)
-        research_skipped = get_research_skipped(session_id, issue_number=issue_number)
-        plan_critic_skipped = get_plan_critic_skipped(session_id, issue_number=issue_number)
+        completed = get_completed_agents(session_id, issue_number=issue_number, run_id=run_id)
+        research_skipped = get_research_skipped(session_id, issue_number=issue_number, run_id=run_id)
+        plan_critic_skipped = get_plan_critic_skipped(session_id, issue_number=issue_number, run_id=run_id)
 
         # Import agent_ordering_gate for get_required_agents
         try:
