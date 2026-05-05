@@ -16121,7 +16121,7 @@ result = check_ordering_prerequisites(
 - v1.1.0 (2026-04-07) - Defense-in-depth: `launched_agents` parameter blocks parallel mode bypass when prerequisite not launched; `GateResult.warning` field for observability; fail-open logging in `unified_pre_tool.py` (Issue #669)
 - v1.0.0 (2026-03-30) - Initial release for hook-level pipeline ordering enforcement (Issues #625, #629, #632)
 
-## 176+4. pipeline_completion_state.py (v1.7.0 - Issues #625, #629, #632, #686, #712, #786, #802, #837, #838, #878, #1041, #1045)
+## 176+4. pipeline_completion_state.py (v1.8.0 - Issues #625, #629, #632, #686, #712, #786, #802, #837, #838, #878, #1041, #1045, #1046)
 
 **Purpose**: Shared state for agent ordering enforcement. Manages a per-session JSON state file that tracks which pipeline agents have completed and which have been launched. Written by `unified_session_tracker.py` (SubagentStop for completions) and `unified_pre_tool.py` (PreToolUse for launches), read by `unified_pre_tool.py` to enforce ordering.
 
@@ -16163,7 +16163,7 @@ record_doc_verdict(session_id="abc123", issue_number=42, verdict="PASS")
 
 ### Functions
 
-- **`record_agent_completion(session_id, agent_type, *, issue_number=0, success=True) -> None`** — Record that an agent has completed for a given session and issue. Called by `unified_session_tracker.py` on SubagentStop. Also called explicitly by the coordinator (implement.md, implement-batch.md) for `doc-master` after parsing its verdict, because SubagentStop does not fire reliably for background agents — without the explicit call, `doc-master` would be absent from the completed agents set even after a successful run (Issue #852).
+- **`record_agent_completion(session_id, agent_type, *, issue_number=0, success=True, run_id=None, _single_scope=False) -> None`** — Record that an agent has completed for a given session and issue. By default performs a **tri-scope write**: the completion entry is written under three keys in the `completions` dict — `str(issue_number)` (the primary key, e.g. `"42"`), `"0"` (unscoped/default), and `"unscoped"` (stable alias for readers needing an issue-agnostic view). When `issue_number=0` only `"0"` and `"unscoped"` are written (no separate numeric key). This eliminates the need for callers to invoke the function multiple times with different `issue_number` values and ensures all five aggregating readers find the completion regardless of which scope key they query. Pass `_single_scope=True` to write only to `str(issue_number)` — intended for test isolation only, not production callers. `run_id` selects the run-id-scoped state file when provided (#1041). Called by `unified_session_tracker.py` on SubagentStop. Also called explicitly by the coordinator (implement.md, implement-batch.md) for `doc-master` after parsing its verdict, because SubagentStop does not fire reliably for background agents — without the explicit call, `doc-master` would be absent from the completed agents set even after a successful run (Issue #852). (Issues #852, #1041, #1046)
 - **`get_completed_agents(session_id, *, issue_number=0) -> set[str]`** — Get the set of agents that have completed successfully for a session/issue. Returns empty set on any read error (fail-open).
 - **`record_agent_launch(session_id, agent_type, *, issue_number=0) -> None`** — Record that an agent has been launched (started) for a given session and issue. Called by `unified_pre_tool.py` in PreToolUse BEFORE the agent runs. Used by the parallel-mode defense-in-depth guard to distinguish "running concurrently" from "skipped entirely". (Issue #686)
 - **`get_launched_agents(session_id, *, issue_number=0) -> set[str]`** — Get the set of agents that have been launched for a session/issue. Returns empty set on any read error. (Issue #686)
@@ -16191,7 +16191,9 @@ record_doc_verdict(session_id="abc123", issue_number=42, verdict="PASS")
   "created_at": "2026-03-30T12:00:00+00:00",
   "validation_mode": "sequential",
   "completions": {
-    "42": {"planner": true, "test-master": true, "doc-master": true, "doc-master-verdict": "PASS"}
+    "42": {"planner": true, "test-master": true, "doc-master": true, "doc-master-verdict": "PASS"},
+    "0": {"planner": true, "test-master": true, "doc-master": true},
+    "unscoped": {"planner": true, "test-master": true, "doc-master": true}
   },
   "launches": {
     "42": {"reviewer": true, "security-auditor": true}
@@ -16213,10 +16215,11 @@ record_doc_verdict(session_id="abc123", issue_number=42, verdict="PASS")
 - `tests/unit/lib/test_pipeline_completion_state_verdict.py` — 13 unit tests for Issue #837 verdict recording and verification functions
 - `tests/unit/hooks/test_batch_doc_master_gate.py` — includes 4 new regression tests for differentiated "never ran" vs "no valid verdict" block messages (Issue #837)
 - `tests/regression/test_issue_802_agent_completeness_gate.py` — 7 regression tests for the hook-level gate
-- `tests/unit/lib/test_pipeline_completion_state_run_id.py` — 15 unit tests for run_id path routing, back-compat, and path-traversal rejection (Issues #1041, #1045)
+- `tests/unit/lib/test_pipeline_completion_state_run_id.py` — 33 unit tests for run_id path routing, back-compat, path-traversal rejection, and tri-scope write behavior (Issues #1041, #1045, #1046)
 - `tests/spec_validation/test_spec_1045_run_id.py` — 13 spec-validation tests verifying keyword-only parameter contract, path isolation, and zero-caller-modification guarantee (Issue #1045)
 
 **Version History**:
+- v1.8.0 (2026-05-04) - `record_agent_completion()` now performs a **tri-scope write** by default: completion entries are written to `str(issue_number)`, `"0"`, and `"unscoped"` keys simultaneously, eliminating the need for callers to invoke the function multiple times with different `issue_number` values. When `issue_number=0`, only `"0"` and `"unscoped"` are written. New `_single_scope=True` opt-out parameter restricts writes to `str(issue_number)` only — intended for test isolation. Reader audit confirmed all 5 aggregating readers are safe: `"unscoped"` is filtered by `int()` exception handlers at all aggregating sites. 18 new tests in `test_pipeline_completion_state_run_id.py`. (Issue #1046)
 - v1.7.0 (2026-05-04) - Optional `run_id: Optional[str] = None` keyword-only parameter wired through all 9 public functions (including `get_research_skipped` and `get_plan_critic_skipped`) and private helpers (`_state_file_path`, `_read_state`, `_write_state`, `_ensure_state`). When provided, the state file path is `/tmp/pipeline_agent_completions_{run_id}.json`; when omitted, the legacy sha256(session_id)[:8] path is used with byte-identical behavior. Path-traversal validation added via `_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")` — `ValueError` is raised when `run_id` contains invalid characters, path-traversal sequences, or exceeds 64 characters; empty string falls through to the legacy path (Security Finding 1 — CWE-22/A03). Zero existing callers modified. 28 new tests: 15 unit tests (7 traversal-rejection) + 13 spec-validation. (Issues #1041, #1045)
 - v1.6.0 (2026-04-15) - `implement.md` and `implement-batch.md` coordinators now call `record_agent_completion(session_id, 'doc-master', ...)` explicitly alongside `record_doc_verdict()`, closing the gap where SubagentStop fails to fire for background agents — `doc-master` was absent from the completed agents set in 11 of 14 invocations despite completing successfully (Issue #852). 4 regression tests in `tests/regression/test_issue_852_doc_verdict_completion.py`.
 - v1.5.0 (2026-04-14) - Added `record_pytest_gate_passed()` and `get_pytest_gate_passed()` convenience wrappers; pytest-gate stored as a virtual agent completion (`agent_type="pytest-gate"`) so all existing ordering and completeness machinery automatically treats it as a completed agent; `SKIP_PYTEST_GATE=1` escape hatch bypasses the gate entirely; `unified_pre_tool.py` injects `"pytest-gate"` into completed set when env var is set before running the ordering check (Issue #838)

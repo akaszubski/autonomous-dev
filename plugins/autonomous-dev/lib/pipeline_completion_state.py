@@ -189,8 +189,26 @@ def record_agent_completion(
     success: bool = True,
     is_remediation: bool = False,
     run_id: Optional[str] = None,
+    _single_scope: bool = False,
 ) -> None:
     """Record that an agent has completed for a given session and issue.
+
+    By default writes under THREE scope keys (tri-scope write), eliminating
+    the manual workaround of calling this function multiple times with
+    different ``issue_number`` values:
+
+    - ``str(issue_number)`` — the primary key (e.g., ``"42"`` for issue 42)
+    - ``"0"`` — the unscoped/default key (always written)
+    - ``"unscoped"`` — a stable third key for readers that need an
+      issue-agnostic view
+
+    When ``issue_number=0`` is passed, the ``"0"`` and ``"unscoped"``
+    entries are written (no separate numeric key since N==0 is the same as
+    the default key). (#1046)
+
+    Pass ``_single_scope=True`` to opt out of tri-scope writes and write
+    only to ``str(issue_number)``. This is intended for tests that verify
+    single-scope state shape; it should not be used in production callers.
 
     Args:
         session_id: The pipeline session identifier.
@@ -203,6 +221,8 @@ def record_agent_completion(
             ordering findings for remediation events. Issue #902 / Issue #904.
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path. (#1041)
+        _single_scope: When True, write only to ``str(issue_number)`` (back-
+            compat opt-out). Intended for test isolation only. (#1046)
 
     Notes:
         Backwards compatible: existing callers that do not pass
@@ -211,20 +231,35 @@ def record_agent_completion(
         passed, the stored value becomes a dict ``{"success": <bool>,
         "remediation": True}``. All readers in this module tolerate both
         shapes (see ``_completion_is_success``).
+
+    Issues: #1046
     """
-    state = _ensure_state(session_id, run_id=run_id)
-    completions = state.setdefault("completions", {})
-    issue_key = str(issue_number)
-    issue_completions = completions.setdefault(issue_key, {})
+    # Build the completion entry (plain bool or remediation dict).
     if is_remediation:
-        # Store as dict so the remediation flag persists alongside success.
-        issue_completions[agent_type] = {
+        entry = {
             "success": bool(success),
             "remediation": True,
         }
     else:
-        # Preserve legacy plain-bool shape for backwards compatibility.
-        issue_completions[agent_type] = success
+        entry = success  # type: ignore[assignment]  # plain bool, legacy shape
+
+    state = _ensure_state(session_id, run_id=run_id)
+    completions = state.setdefault("completions", {})
+
+    if _single_scope:
+        # Opt-out path: write only to str(issue_number).
+        issue_completions = completions.setdefault(str(issue_number), {})
+        issue_completions[agent_type] = entry
+    else:
+        # Tri-scope write: write to the primary key, "0", and "unscoped".
+        # Determine the set of scope keys to write to.
+        scope_keys: set[str] = {"0", "unscoped"}
+        if issue_number != 0:
+            scope_keys.add(str(issue_number))
+        for key in scope_keys:
+            issue_completions = completions.setdefault(key, {})
+            issue_completions[agent_type] = entry
+
     _write_state(session_id, state, run_id=run_id)
 
 
