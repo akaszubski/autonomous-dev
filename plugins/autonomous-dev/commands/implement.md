@@ -176,7 +176,7 @@ ARGUMENTS: {{ARGUMENTS}}
 
 ### STEP 0: Parse Mode and Route
 
-Parse ARGUMENTS: `--batch` → see [implement-batch.md](implement-batch.md), `--issues` → see [implement-batch.md](implement-batch.md), `--resume` → see [implement-resume.md](implement-resume.md), `--fix` → see [implement-fix.md](implement-fix.md), `--light` → LIGHT PIPELINE MODE (below), `--tdd-first` → FULL PIPELINE (TDD variant), `--acceptance-first` → recognized but no-op (same as default), `--full-tests` → disable smart test routing (run complete test suite in STEP 8), else → FULL PIPELINE (acceptance-first default). Reject `--quick`. Auto-detect batch: 2+ issue refs → BATCH ISSUES MODE. Check `--no-cache` flag.
+Parse ARGUMENTS: `--batch` → see [implement-batch.md](implement-batch.md), `--issues` → see [implement-batch.md](implement-batch.md), `--resume <id>` → classify via `classify_resume_id` (Issue #1047): `batch-*` prefix → [implement-resume.md](implement-resume.md); 16-char hex or `YYYYMMDD-HHMMSS` → single-run resume (skip RUN_ID gen, set `RUN_ID=<id>`, load completions via `get_completed_agents(sid, run_id=<id>)`); other → BLOCK listing all 3 accepted forms, `--fix` → see [implement-fix.md](implement-fix.md), `--light` → LIGHT PIPELINE MODE (below), `--tdd-first` → FULL PIPELINE (TDD variant), `--acceptance-first` → recognized but no-op (same as default), `--full-tests` → disable smart test routing (run complete test suite in STEP 8), else → FULL PIPELINE (acceptance-first default). Reject `--quick`. Auto-detect batch: 2+ issue refs → BATCH ISSUES MODE. Check `--no-cache` flag.
 
 **Mutual exclusivity**: `--fix` and `--light` are each mutually exclusive with `--batch`, `--issues`, and `--resume`. If combined, BLOCK with error. `--light` and `--fix` are also mutually exclusive.
 
@@ -223,8 +223,28 @@ Store `ISSUE_BODY` and `ISSUE_TITLE` as pipeline context. If `gh issue view` fai
 
 Activate pipeline state:
 ```bash
-RUN_ID="$(date +%Y%m%d-%H%M%S)"
+RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
+export RUN_ID
+export PIPELINE_STATE_FILE="/tmp/implement_pipeline_${RUN_ID}.json"
 PIPELINE_START=$(date +%s)
+
+# Acquire exclusive non-blocking run lock (Issue #1047)
+LOCK_FD=$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p); break
+from pipeline_state import acquire_run_lock
+fd = acquire_run_lock('${RUN_ID}')
+if fd is None:
+    print('LOCK_HELD', flush=True)
+    sys.exit(1)
+print(fd)
+" 2>/dev/null || echo "LOCK_HELD")
+if [ "$LOCK_FD" = "LOCK_HELD" ]; then
+    echo "BLOCKED: Another /implement is in progress in this process (lock held). Wait, use a separate Claude Code window, or remove /tmp/pipeline_${RUN_ID}.lock if stale."
+    exit 1
+fi
 python3 -c "
 import sys, os as _os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):

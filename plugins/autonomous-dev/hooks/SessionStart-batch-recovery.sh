@@ -14,6 +14,14 @@ if [ "$source" != "compact" ]; then
   exit 0
 fi
 
+# Issue #1047: Skip implicit batch recovery when an explicit single-run
+# resume is in flight. RUN_ID is exported by STEP 0 of implement.md when
+# --resume <run_id> is used, signaling that the coordinator is handling
+# its own resume path and does not need batch recovery injection.
+if [ -n "${RUN_ID:-}" ]; then
+  exit 0
+fi
+
 # Check if batch is in progress
 BATCH_STATE=".claude/batch_state.json"
 PIPELINE_STATE_FILE="${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
