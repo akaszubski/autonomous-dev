@@ -1,5 +1,6 @@
 """
 Tests for run_id support in pipeline_completion_state.py — Issue #1045.
+Also covers tri-scope auto-write in record_agent_completion() — Issue #1046.
 
 Verifies:
 - All 7 public functions accept optional keyword-only run_id parameter.
@@ -9,8 +10,11 @@ Verifies:
 - Two parallel run_ids do not see each other's completions.
 - Legacy path (no run_id) still works as before.
 - No callers in hooks/ or lib/ (other than pipeline_completion_state.py) were modified.
+- record_agent_completion() writes to issue_number=N, "0", and "unscoped" by default.
+- _single_scope=True opt-out writes only to str(issue_number).
+- After tri-scope write, get_completed_agents finds the agent under any scope.
 
-Issues: #1045, #1041
+Issues: #1045, #1041, #1046
 """
 
 import inspect
@@ -28,6 +32,7 @@ LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "
 sys.path.insert(0, str(LIB_DIR))
 
 from pipeline_completion_state import (
+    _read_state,
     _state_file_path,
     get_completed_agents,
     get_plan_critic_skipped,
@@ -352,3 +357,123 @@ def test_get_plan_critic_skipped_with_run_id(session_id):
     finally:
         for candidate in Path("/tmp").glob(f"pipeline_agent_completions_*{run_id}*"):
             candidate.unlink(missing_ok=True)
+
+
+# --------------------------------------------------------------------------- #
+# AC2, AC5: Tri-scope write behavior — Issue #1046
+# --------------------------------------------------------------------------- #
+
+
+def test_record_writes_to_tri_scope_by_default(tmp_path, monkeypatch, session_id):
+    """AC2 + AC5: One write with issue_number=42 produces 3 scope entries.
+
+    The state file must contain keys "42", "0", and "unscoped" all populated
+    with the recorded agent. Issue #1046.
+    """
+    # Redirect /tmp writes to a session-specific path to avoid cross-test contamination.
+    run_id = f"run-tri-scope-test-1046-{os.getpid()}"
+
+    try:
+        record_agent_completion(
+            session_id, "researcher-local", issue_number=42, success=True, run_id=run_id
+        )
+
+        state = _read_state(session_id, run_id=run_id)
+        assert state, "State file was not written"
+        completions = state.get("completions", {})
+
+        # All three scopes must be present.
+        assert "42" in completions, f"Primary scope '42' missing. Keys: {list(completions)}"
+        assert "0" in completions, f"Default scope '0' missing. Keys: {list(completions)}"
+        assert "unscoped" in completions, (
+            f"Unscoped key 'unscoped' missing. Keys: {list(completions)}"
+        )
+
+        # The agent must appear in each scope.
+        for scope_key in ("42", "0", "unscoped"):
+            assert "researcher-local" in completions[scope_key], (
+                f"researcher-local not found in scope {scope_key!r}: {completions[scope_key]}"
+            )
+    finally:
+        for candidate in Path("/tmp").glob(f"pipeline_agent_completions_*{run_id}*"):
+            candidate.unlink(missing_ok=True)
+
+
+def test_single_scope_opt_out(tmp_path, monkeypatch, session_id):
+    """AC3: _single_scope=True writes only to str(issue_number).
+
+    When the caller passes _single_scope=True, only the primary key is
+    written; "0" and "unscoped" must NOT contain the agent. Issue #1046.
+    """
+    run_id = f"run-single-scope-test-1046-{os.getpid()}"
+
+    try:
+        record_agent_completion(
+            session_id,
+            "implementer",
+            issue_number=42,
+            success=True,
+            run_id=run_id,
+            _single_scope=True,
+        )
+
+        state = _read_state(session_id, run_id=run_id)
+        assert state, "State file was not written"
+        completions = state.get("completions", {})
+
+        # Only the primary key "42" must have the entry.
+        assert "42" in completions, f"Primary scope '42' missing. Keys: {list(completions)}"
+        assert "implementer" in completions["42"], (
+            f"implementer not found in primary scope '42': {completions['42']}"
+        )
+
+        # "0" and "unscoped" must NOT exist (or not contain implementer).
+        assert "implementer" not in completions.get("0", {}), (
+            f"implementer leaked into scope '0' despite _single_scope=True"
+        )
+        assert "implementer" not in completions.get("unscoped", {}), (
+            f"implementer leaked into scope 'unscoped' despite _single_scope=True"
+        )
+    finally:
+        for candidate in Path("/tmp").glob(f"pipeline_agent_completions_*{run_id}*"):
+            candidate.unlink(missing_ok=True)
+
+
+def test_get_from_any_scope_finds_agent(session_id):
+    """AC5: After tri-scope write, get_completed_agents finds agent under any scope.
+
+    Verifies that a single record_agent_completion(issue_number=42) call
+    makes the agent discoverable via get_completed_agents with issue_number=42,
+    issue_number=0, AND by reading the "unscoped" key directly. Issue #1046.
+    """
+    import hashlib
+
+    # Use legacy path (no run_id) for this test to cover the default code path.
+    run_id = f"run-any-scope-test-1046-{os.getpid()}"
+    h = hashlib.sha256(session_id.encode()).hexdigest()[:8]
+    legacy_path = Path(f"/tmp/pipeline_agent_completions_{h}.json")
+
+    try:
+        record_agent_completion(session_id, "planner", issue_number=42, success=True)
+
+        # Must appear under the primary issue scope.
+        agents_42 = get_completed_agents(session_id, issue_number=42)
+        assert "planner" in agents_42, (
+            f"planner not found under issue_number=42: {agents_42}"
+        )
+
+        # Must also appear under issue_number=0 (the default scope).
+        agents_0 = get_completed_agents(session_id, issue_number=0)
+        assert "planner" in agents_0, (
+            f"planner not found under issue_number=0: {agents_0}"
+        )
+
+        # Must appear in the raw "unscoped" key.
+        state = _read_state(session_id)
+        assert state, "State file missing"
+        completions = state.get("completions", {})
+        assert "planner" in completions.get("unscoped", {}), (
+            f"planner not in 'unscoped' scope: {completions.get('unscoped')}"
+        )
+    finally:
+        legacy_path.unlink(missing_ok=True)
