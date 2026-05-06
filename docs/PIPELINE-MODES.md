@@ -149,6 +149,8 @@ Any other format is rejected with a message listing all three accepted forms.
 
 Pipeline state for a single run is kept in `/tmp/implement_pipeline_<run_id>.json` (exported as `PIPELINE_STATE_FILE` at STEP 0) and the legacy sentinel `/tmp/implement_pipeline_state.json` (session-level, written for subshell fallback). `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
 
+**Stale-state garbage collection (Issue #1048)**: At STEP 0, immediately before generating a new `RUN_ID`, `pipeline_completion_state._gc_stale_states()` removes any `/tmp` artifacts older than 7200 seconds (2× the staleness TTL): `pipeline_agent_completions_*.json` (both sha256 and run_id paths), `implement_pipeline_*.json` (per-run sentinel files), and `pipeline_*.lock` (orphaned lockfiles). This prevents `/tmp` accumulation from long-lived Claude Code sessions without relying on OS temp-file reaping. All shell references to the sentinel file in `implement.md`, `implement-batch.md`, and `implement-fix.md` use the env-var-aware form `${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}` so the override is respected everywhere.
+
 ## Session-ID Propagation Contract
 
 **Added**: Issue #904 (ROOT-CAUSE consolidation of #898 subshell propagation,

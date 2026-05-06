@@ -127,14 +127,15 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
 
 # Session-ID fallback chain (Issue #904):
 #   1. CLAUDE_SESSION_ID env var (primary — set in-process by Claude Code)
-#   2. /tmp/implement_pipeline_state.json['session_id'] (sentinel written at STEP 0)
-#      — only honored when mtime is within 3600s (avoids cross-pipeline bleed)
+#   2. ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}['session_id']
+#      (sentinel written at STEP 0) — only honored when mtime is within 3600s
+#      (avoids cross-pipeline bleed)
 #   3. 'unknown' (preserved legacy sentinel — first-boot/pre-STEP-0 case)
 def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -223,6 +224,20 @@ Store `ISSUE_BODY` and `ISSUE_TITLE` as pipeline context. If `gh issue view` fai
 
 Activate pipeline state:
 ```bash
+# Garbage-collect stale state files from prior crashed runs (Issue #1048)
+python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_completion_state import _gc_stale_states
+result = _gc_stale_states()
+removed = result['state_files_removed'] + result['sentinels_removed'] + result['lockfiles_removed']
+if removed:
+    print(f'GC: removed {removed} stale state file(s)')
+" 2>/dev/null || true
+
 RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
 export RUN_ID
 export PIPELINE_STATE_FILE="/tmp/implement_pipeline_${RUN_ID}.json"
@@ -271,7 +286,7 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -294,7 +309,7 @@ state = {
     'session_id': sid
 }
 state = sign_state(state, sid)
-with open('/tmp/implement_pipeline_state.json', 'w') as f:
+with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
     json.dump(state, f)
 "
 ```
@@ -402,7 +417,7 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = '/tmp/implement_pipeline_state.json'
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -416,7 +431,7 @@ def _resolve_session_id():
         pass
     return 'unknown'
 
-state_path = '/tmp/implement_pipeline_state.json'
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
 if os.path.exists(state_path):
     with open(state_path) as f:
         state = json.load(f)
@@ -1308,7 +1323,7 @@ If FAIL: invoke doc-master to fix, re-run until 0 failures. **FORBIDDEN**: skipp
 - ❌ You MUST NOT inline the analysis yourself instead of invoking the agent
 - ❌ You MUST NOT treat STEP 13 as the final step — STEP 15 is mandatory
 
-After launching analyst, confirm the agent task ID is valid, THEN cleanup: `rm -f /tmp/implement_pipeline_state.json && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true`
+After launching analyst, confirm the agent task ID is valid, THEN cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true`
 
 **FORBIDDEN** (Issue #559): Cleaning up pipeline state before confirming the STEP 15 analyst agent launch succeeded. The analyst reads pipeline state — cleanup before launch loses context.
 
@@ -1481,7 +1496,7 @@ git push origin $(git branch --show-current) 2>/dev/null || echo "Warning: Push 
 
 **FORBIDDEN**: Skipping this step or cleaning up pipeline state before confirming the analyst agent launch succeeded.
 
-After confirming the analyst task ID is valid: Cleanup: `rm -f /tmp/implement_pipeline_state.json`
+After confirming the analyst task ID is valid: Cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
 
 **Agents (light)**: planner (Sonnet), implementer (Sonnet or Opus per planner), doc-master (Sonnet), continuous-improvement-analyst (Sonnet). 4 agents.
 

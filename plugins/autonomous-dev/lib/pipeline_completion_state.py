@@ -18,6 +18,7 @@ Issues: #625, #629, #632, #1041
 """
 
 import fcntl
+import glob
 import hashlib
 import json
 import os
@@ -1019,3 +1020,59 @@ def clear_session(session_id: str) -> None:
         path.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
+    """Garbage-collect stale state files and orphaned lockfiles in /tmp.
+
+    Deletes files older than ``max_age_seconds``:
+
+    - ``/tmp/pipeline_agent_completions_*.json`` (both legacy sha256 and new
+      run_id paths)
+    - ``/tmp/implement_pipeline_*.json`` (per-run sentinel files)
+    - ``/tmp/pipeline_*.lock`` (orphaned lockfiles)
+
+    Default is 2× the existing ``STALE_UNKNOWN_TTL_SECONDS`` (3600 → 7200).
+
+    Args:
+        max_age_seconds: Files with mtime older than this many seconds are
+            removed.  Default 7200 (2× TTL).
+
+    Returns:
+        A dict with removal counts and any errors encountered::
+
+            {
+                'state_files_removed': int,
+                'sentinels_removed': int,
+                'lockfiles_removed': int,
+                'errors': list[str],
+            }
+
+    Issues: #1041 #1048
+    """
+    now = time.time()
+    cutoff = now - max_age_seconds
+
+    counts: dict = {
+        "state_files_removed": 0,
+        "sentinels_removed": 0,
+        "lockfiles_removed": 0,
+        "errors": [],
+    }
+
+    patterns = [
+        ("/tmp/pipeline_agent_completions_*.json", "state_files_removed"),
+        ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
+        ("/tmp/pipeline_*.lock", "lockfiles_removed"),
+    ]
+
+    for pattern, key in patterns:
+        for path in glob.glob(pattern):
+            try:
+                if os.stat(path).st_mtime < cutoff:
+                    os.unlink(path)
+                    counts[key] += 1
+            except OSError as exc:
+                counts["errors"].append(f"{path}: {exc}")
+
+    return counts
