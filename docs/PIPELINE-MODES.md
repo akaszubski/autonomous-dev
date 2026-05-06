@@ -137,7 +137,17 @@ If the pipeline is interrupted (auto-compact, crash, user `/clear`):
 /implement --resume <run_id>
 ```
 
-The `run_id` is printed at STEP 0. Pipeline state is at `/tmp/implement_pipeline_state.json` (per-session) and `~/.claude/pipeline_state/{run_id}.json` (persistent). `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
+The `run_id` is printed at STEP 0. `--resume <id>` auto-detects the id format via `classify_resume_id()` (Issue #1047):
+
+| Form | Format | Behavior |
+|------|--------|----------|
+| `batch-*` | Starts with `batch-` | Delegates to [implement-resume.md](../commands/implement-resume.md) (worktree batch recovery) |
+| 16-char hex | Exactly 16 lowercase hex chars | Single-run resume — skips RUN_ID generation, loads completions from `run_id`-scoped state |
+| Legacy timestamp | `YYYYMMDD-HHMMSS` | Back-compat single-run resume (pre-#1047 format) |
+
+Any other format is rejected with a message listing all three accepted forms.
+
+Pipeline state for a single run is kept in `/tmp/implement_pipeline_<run_id>.json` (exported as `PIPELINE_STATE_FILE` at STEP 0) and the legacy sentinel `/tmp/implement_pipeline_state.json` (session-level, written for subshell fallback). `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
 
 ## Session-ID Propagation Contract
 

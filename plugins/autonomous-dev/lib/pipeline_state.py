@@ -10,9 +10,12 @@ Usage:
     trace = get_trace(state)
 """
 
+import fcntl
 import hashlib
 import hmac as _hmac
 import json
+import os
+import re as _re
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -826,3 +829,109 @@ def cleanup_pipeline(run_id: str) -> None:
         pass
     # Also clean up the associated secret file
     cleanup_pipeline_secret(run_id)
+
+
+# =============================================================================
+# RUN_ID GENERATION AND LOCKFILE HELPERS (Issue #1047)
+# =============================================================================
+
+# Resume classification regexes — order matters (batch first, then hex, then legacy)
+_BATCH_ID_RE = _re.compile(r"^batch-")
+_RUN_ID_HEX_RE = _re.compile(r"^[a-f0-9]{16}$")
+_RUN_ID_LEGACY_TIMESTAMP_RE = _re.compile(r"^\d{8}-\d{6}$")  # YYYYMMDD-HHMMSS back-compat
+
+
+def generate_run_id() -> str:
+    """Generate a 16-char hex run_id via secrets.token_hex(8).
+
+    The format matches ``_RUN_ID_HEX_RE`` (16 lowercase hex characters) and
+    is also accepted by the ``_RUN_ID_RE`` validator in
+    ``pipeline_completion_state``.
+
+    Returns:
+        16-character lowercase hex string (e.g., ``'a3f1b2c4d5e67890'``).
+    """
+    return secrets.token_hex(8)
+
+
+def get_lockfile_path(run_id: str) -> Path:
+    """Return the lockfile path for the given run_id.
+
+    Args:
+        run_id: The pipeline run identifier.
+
+    Returns:
+        Path to ``/tmp/pipeline_<run_id>.lock``.
+    """
+    return Path(f"/tmp/pipeline_{run_id}.lock")
+
+
+def acquire_run_lock(run_id: str) -> Optional[int]:
+    """Acquire exclusive non-blocking lock on /tmp/pipeline_<run_id>.lock.
+
+    Uses ``fcntl.flock(LOCK_EX | LOCK_NB)``.  The OS releases the lock
+    automatically when the process exits, even on a crash.  The caller must
+    hold the returned file descriptor open for the entire duration of the
+    pipeline run; closing it releases the lock.
+
+    Args:
+        run_id: The pipeline run identifier used to derive the lock path.
+
+    Returns:
+        An open file descriptor (int) on success; ``None`` if the lock is
+        already held by another process or thread.
+    """
+    lock_path = get_lockfile_path(run_id)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fd
+    except (BlockingIOError, OSError):
+        os.close(fd)
+        return None
+
+
+def release_run_lock(fd: int) -> None:
+    """Release the run lock by unlocking and closing the file descriptor.
+
+    Idempotent — calling on an already-released descriptor does not raise.
+
+    Args:
+        fd: The file descriptor returned by ``acquire_run_lock``.
+    """
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        pass
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def classify_resume_id(arg: str) -> str:
+    """Classify a ``--resume <id>`` argument by format.
+
+    Classification order (first match wins):
+
+    1. ``batch``        — ``arg`` starts with ``'batch-'``
+    2. ``run_id``       — ``arg`` is exactly 16 lowercase hex characters
+    3. ``run_id_legacy``— ``arg`` matches ``YYYYMMDD-HHMMSS`` (back-compat)
+    4. ``invalid``      — no pattern matched
+
+    Args:
+        arg: The raw ``--resume`` argument value.
+
+    Returns:
+        One of ``"batch"``, ``"run_id"``, ``"run_id_legacy"``, or
+        ``"invalid"``.
+    """
+    if not arg:
+        return "invalid"
+    if _BATCH_ID_RE.match(arg):
+        return "batch"
+    if _RUN_ID_HEX_RE.match(arg):
+        return "run_id"
+    if _RUN_ID_LEGACY_TIMESTAMP_RE.match(arg):
+        return "run_id_legacy"
+    return "invalid"
