@@ -431,12 +431,12 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
    ```bash
    # CRITICAL: Only clean up AFTER STEP B3.5 CIA is confirmed launched
    # The CIA reads pipeline state — cleaning up before launch loses context
-   rm -f /tmp/implement_pipeline_state.json
+   rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
    ```
 
    **FORBIDDEN** (Issue #559):
    - ❌ Cleaning up pipeline state before confirming STEP B3.5 CIA agent launch succeeded
-   - ❌ Removing /tmp/implement_pipeline_state.json before STEP B3.5 CIA has a valid task ID
+   - ❌ Removing ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json} before STEP B3.5 CIA has a valid task ID
 
 **On merge conflict**: DO NOT force-merge. Report conflicting files and leave worktree intact for manual resolution. Provide manual merge instructions.
 

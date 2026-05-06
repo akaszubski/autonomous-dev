@@ -90,9 +90,9 @@ After alignment validation passes, initialize the pipeline state file so that ho
 
 ```bash
 python3 -c "
-import json, time
+import json, os, time
 state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time())}
-with open('/tmp/implement_pipeline_state.json', 'w') as f:
+with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
     json.dump(state, f)
 print('Pipeline state initialized for fix mode')
 "
@@ -435,7 +435,7 @@ After the parallel agents complete, parse the doc-master output:
 - ❌ You MUST NOT clean up pipeline state before launching the analyst
 - ❌ You MUST NOT inline the analysis yourself instead of invoking the agent
 
-After launching the analyst and confirming the agent task ID is valid, cleanup: `rm -f /tmp/implement_pipeline_state.json`
+After launching the analyst and confirming the agent task ID is valid, cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
 
 **FORBIDDEN** (Issue #559): Cleaning up pipeline state before confirming the STEP F5 analyst agent launch succeeded. The analyst reads pipeline state — cleanup before launch loses context.
 
