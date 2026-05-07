@@ -238,6 +238,7 @@
         "plugins/autonomous-dev/lib/hook_safety.py",
         "plugins/autonomous-dev/lib/hook_stdin.py",
         "plugins/autonomous-dev/lib/hook_telemetry.py",
+        "plugins/autonomous-dev/lib/hook_timing.py",
         "plugins/autonomous-dev/lib/hybrid_validator.py",
         "plugins/autonomous-dev/lib/ideation_engine.py",
         "plugins/autonomous-dev/lib/ideation_report_generator.py",

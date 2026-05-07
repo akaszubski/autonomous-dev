@@ -1,0 +1,302 @@
+{
+  "hooks": {
+    "auto_fix_docs.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 954875,
+      "p95_ns": 5510750,
+      "p99_ns": 5510750,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "auto_format.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 190584,
+      "p95_ns": 202750,
+      "p99_ns": 202750,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "auto_test.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 4,
+      "p50_ns": 8895648000,
+      "p95_ns": 8943320833,
+      "p99_ns": 8943320833,
+      "shape_counts": {
+        "exception": 4
+      }
+    },
+    "conversation_archiver.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 13042,
+      "p95_ns": 15333,
+      "p99_ns": 15333,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "enforce_orchestrator.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 176500,
+      "p95_ns": 229916,
+      "p99_ns": 229916,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "enforce_prunable_threshold.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 60905292,
+      "p95_ns": 68516208,
+      "p99_ns": 68516208,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "enforce_regression_test.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 5774833,
+      "p95_ns": 6069125,
+      "p99_ns": 6069125,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "enforce_tdd.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 180666,
+      "p95_ns": 195583,
+      "p99_ns": 195583,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "genai_prompts.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 24833,
+      "p95_ns": 29833,
+      "p99_ns": 29833,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "genai_utils.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 9208,
+      "p95_ns": 9875,
+      "p99_ns": 9875,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "plan_gate.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 504250,
+      "p95_ns": 1329334,
+      "p99_ns": 1329334,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "plan_mode_exit_detector.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 500333,
+      "p95_ns": 521042,
+      "p99_ns": 521042,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "security_scan.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 188458,
+      "p95_ns": 240500,
+      "p99_ns": 240500,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "session_activity_logger.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 14755709,
+      "p95_ns": 18536917,
+      "p99_ns": 18536917,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "setup.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 6737250,
+      "p95_ns": 6881375,
+      "p99_ns": 6881375,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "stop_quality_gate.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 8756254041,
+      "p95_ns": 8832838334,
+      "p99_ns": 8832838334,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "task_completed_handler.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 413375,
+      "p95_ns": 2404167,
+      "p99_ns": 2404167,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "unified_pre_tool.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 14333000,
+      "p95_ns": 17947584,
+      "p99_ns": 17947584,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "unified_prompt_validator.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 589375,
+      "p95_ns": 631125,
+      "p99_ns": 631125,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "unified_session_tracker.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 10298542,
+      "p95_ns": 23721750,
+      "p99_ns": 23721750,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "validate_claude_md_size.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 232291,
+      "p95_ns": 342125,
+      "p99_ns": 342125,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "validate_command_file_ops.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 21094375,
+      "p95_ns": 22940625,
+      "p99_ns": 22940625,
+      "shape_counts": {
+        "exception": 5
+      }
+    },
+    "validate_project_alignment.py": {
+      "allow_count": 5,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 551916,
+      "p95_ns": 1862709,
+      "p99_ns": 1862709,
+      "shape_counts": {
+        "allow": 5
+      }
+    },
+    "validate_session_quality.py": {
+      "allow_count": 0,
+      "block_count": 0,
+      "block_ratio": 0.0,
+      "count": 5,
+      "p50_ns": 171250,
+      "p95_ns": 181750,
+      "p99_ns": 181750,
+      "shape_counts": {
+        "exception": 5
+      }
+    }
+  },
+  "metadata": {
+    "captured_at": "2026-05-07T15:03:00.842079+00:00",
+    "data_kind": "synthetic-v0",
+    "generated_at": "2026-05-07T21:26:12+00:00",
+    "git_sha": "827f493",
+    "platform": "darwin-arm64",
+    "row_count": 119,
+    "schema_version": 1,
+    "source_jsonl": "baselines/2026-05-pre-refactor.jsonl"
+  }
+}
