@@ -66,6 +66,50 @@ All validators are invoked automatically by the pre-commit hook. You rarely need
 
 ## Hook Telemetry
 
+### `scripts/hook_perf_report.py` — **Hook timing performance report** (Issue #1012)
+
+```bash
+python scripts/hook_perf_report.py                         # last day, top 20 by p95
+python scripts/hook_perf_report.py --last 6h --json        # JSON output for piping
+python scripts/hook_perf_report.py --since 2026-05-07T00:00:00Z
+python scripts/hook_perf_report.py --top 5
+python scripts/hook_perf_report.py --start-dir baselines/  # read from a baseline dir
+```
+
+Reads the daily-rotated timing JSONL at `~/.claude/logs/hook_timings_YYYY-MM-DD.jsonl` (written by `hook_timing.py`) and produces a p50/p95/p99 latency table with allow/block counts and block ratio per hook. Used by `scripts/capture_baseline.py` and `scripts/publish_hook_baseline.py` for aggregation.
+
+### `scripts/capture_baseline.py` — **Baseline capture driver** (Issue #1012)
+
+```bash
+python scripts/capture_baseline.py \
+    --output baselines/$(date -u +%Y-%m)-<label>.jsonl \
+    --runs 5 \
+    --verbose
+```
+
+Drives synthetic hook invocations (~5 runs × 24 hooks = ~120 rows) and writes the raw JSONL to the given output path. The resulting file is the source of truth for a baseline snapshot; derived summary artifacts are produced by `scripts/publish_hook_baseline.py`. Captured baselines with `row_count < 500` or a timespan under 1h are classified `synthetic-v0` and do NOT satisfy AC1 of issue #1022.
+
+### `scripts/publish_hook_baseline.py` — **Baseline publisher** (Issue #1022)
+
+```bash
+# Dry-run: write .summary.json and .summary.md next to the .jsonl.
+python scripts/publish_hook_baseline.py \
+    --jsonl baselines/2026-05-pre-refactor.jsonl
+
+# Cross-post to GitHub issue #943 (idempotent via sentinel comment).
+python scripts/publish_hook_baseline.py \
+    --jsonl baselines/2026-05-pre-refactor.jsonl \
+    --post --issue 943
+```
+
+Reads a baseline JSONL produced by `scripts/capture_baseline.py` and emits two derived artifacts next to it:
+- `<stem>.summary.json` — machine-readable aggregated stats with metadata block (`captured_at`, `generated_at`, `git_sha`, `platform`, `schema_version`, `source_jsonl`, `row_count`, `data_kind`).
+- `<stem>.summary.md` — human-readable report with Top-5 slowest hooks (by p95), Top-5 most-blocked gates (by block ratio), and a Baseline policy section.
+
+The `data_kind` field distinguishes `synthetic-v0` (row count < 500 OR timespan < 1h) from `real-workday`. Optional `--post --issue N` cross-posts to a GitHub issue idempotently using an embedded sentinel comment `<!-- hook-timing-baseline:<label> -->`; existing comments are updated rather than duplicated. All `gh` calls use list-arg subprocess invocations (`shell=False`, 15-second timeout). Comment bodies are truncated to 60,000 chars (under GitHub's 65,536 limit).
+
+**AC1 deferral**: the committed `2026-05-pre-refactor` baseline is `synthetic-v0` (119 rows) and does not satisfy AC1 of issue #1022. A real-workday capture (≥4h active session) is operational follow-up. See `baselines/README.md` for the full `BASELINE_POLICY`.
+
 ### `scripts/hook_block_summary.py` — **Hook block triage**
 
 ```bash

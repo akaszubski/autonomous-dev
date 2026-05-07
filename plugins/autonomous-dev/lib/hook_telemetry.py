@@ -64,13 +64,17 @@ LEGACY_DISABLE_ENV_VAR: str = "HOOK_RECOVERY_DISABLED"
 MAX_REASON_LENGTH: int = 8000
 
 VALID_DECISION_SHAPES = frozenset(
-    {"tuple", "dict", "exit2", "legacy_recovery", "mode_skip"}
+    {"tuple", "dict", "exit2", "legacy_recovery", "mode_skip", "allow"}
 )
 # ``mode_skip`` (Issue #999, Phase E) is emitted ONLY on the skip path of the
 # session-mode enforcement gate. The enforce path stays silent — preserving
 # the pre-Phase-E baseline where non-block hook outcomes produced no
 # telemetry. ``mode_skip`` is intentionally NOT paired with a ``mode_enforce``
 # shape: a single label ("we relaxed a check") is what triage cares about.
+# ``allow`` (Issue #1012, W0) is emitted by ``hook_timing.HookTimer`` for
+# every hook invocation that did NOT raise an exception and did NOT set a
+# more specific decision shape. The constant is documentation-only — this
+# module's ``log_block_event`` does not validate against the frozenset.
 
 _FALSY_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
 
@@ -141,8 +145,10 @@ def log_block_event(
     Args:
         hook_name: Filename of the hook emitting the block (e.g.
             ``"unified_pre_tool.py"``).
-        decision_shape: One of ``"tuple"``, ``"dict"``, ``"exit2"``, or
-            ``"legacy_recovery"`` (the last is for the back-compat shim).
+        decision_shape: One of ``"tuple"``, ``"dict"``, ``"exit2"``,
+            ``"legacy_recovery"`` (the last is for the back-compat shim),
+            or ``"mode_skip"``. ``"allow"`` is emitted by
+            ``hook_timing.HookTimer`` (sibling module, separate file).
             Unknown values are logged as-is — readers MUST treat the field
             as opaque.
         reason: Human-readable reason the hook denied. Capped at

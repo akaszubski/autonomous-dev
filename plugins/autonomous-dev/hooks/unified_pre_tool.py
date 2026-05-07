@@ -4943,5 +4943,25 @@ def main():
     sys.exit(0)
 
 
+
+# Issue #1012 (W0): Per-hook timing telemetry. Best-effort, never raises.
+# Records duration + decision_shape to ~/.claude/logs/hook_timings_YYYY-MM-DD.jsonl.
+try:
+    from hook_timing import HookTimer  # type: ignore[import-not-found]
+except ImportError:
+    # Fallback: no-op stub so hooks keep working if hook_timing is missing.
+    class HookTimer:  # type: ignore[no-redef]
+        def __init__(self, *_, **__): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def set_decision_shape(self, _): pass
+
+_HOOK_TIMER_NAME = Path(__file__).name
+
+
+def _timed_main():
+    with HookTimer(_HOOK_TIMER_NAME):
+        return main()
+
 if __name__ == "__main__":
-    _hook_safe_main(main)
+    _hook_safe_main(_timed_main)
