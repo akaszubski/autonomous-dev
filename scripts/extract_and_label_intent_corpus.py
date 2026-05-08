@@ -642,8 +642,27 @@ def _call_claude_p_judge(
     raw = envelope.get("result")
     if not isinstance(raw, str):
         return None
+
+    # Strip markdown code fences if claude wrapped the response (#1065).
+    # claude -p with Haiku frequently returns ```json\n{...}\n``` for structured
+    # output even when the prompt asks for raw JSON. json.loads on the fenced
+    # string raises JSONDecodeError, so every label call silently fails.
+    stripped = raw.strip()
+    if stripped.startswith("```"):
+        # Drop opening fence (with optional language tag, e.g. ```json or bare ```)
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            stripped = stripped[first_newline + 1:]
+        else:
+            # Rare single-line case: ```json{...}```
+            stripped = stripped[3:]
+        # Drop trailing fence if present
+        if stripped.rstrip().endswith("```"):
+            stripped = stripped.rstrip()[:-3]
+        stripped = stripped.strip()
+
     try:
-        parsed = json.loads(raw.strip())
+        parsed = json.loads(stripped)
     except json.JSONDecodeError:
         return None
     intent = parsed.get("intent")

@@ -518,6 +518,118 @@ def test_call_claude_p_judge_rejects_confidence_out_of_range() -> None:
     assert result is None
 
 
+def test_call_claude_p_judge_strips_markdown_fences_with_language_tag(monkeypatch) -> None:
+    """Regression test for #1065: must strip markdown ``` ``` ```json ... ``` ``` ```
+    fences from envelope.result before json.loads.
+
+    claude -p with Haiku frequently wraps structured output in markdown code
+    fences even when the prompt asks for raw JSON. Without fence stripping,
+    json.loads raises JSONDecodeError, the function returns None, and every
+    real-labeling call is silently dropped as a judge_failure.
+    """
+    import subprocess as _subprocess
+
+    fake_envelope = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '```json\n{"intent": "implement", "confidence": 0.95}\n```',
+    }
+
+    def fake_run(cmd, **kwargs):
+        return _subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps(fake_envelope),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.subprocess.run", fake_run
+    )
+
+    out = _call_claude_p_judge(
+        "classify this", model="claude-haiku-4-5-20251001"
+    )
+
+    assert out == {"intent": "implement", "confidence": 0.95}, (
+        f"Markdown-fenced JSON must be parsed correctly (#1065). Got: {out!r}"
+    )
+
+
+def test_call_claude_p_judge_strips_markdown_fences_no_language_tag(monkeypatch) -> None:
+    """Regression test for #1065: bare ``` ``` ``` (no language tag) fences must also be stripped.
+
+    Some claude -p responses use ``` ``` ``` without a language tag. The fence-stripping
+    code must handle both ``` ``` ```json and bare ``` ``` ``` openings.
+    """
+    import subprocess as _subprocess
+
+    fake_envelope = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '```\n{"intent": "config", "confidence": 0.85}\n```',
+    }
+
+    def fake_run(cmd, **kwargs):
+        return _subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps(fake_envelope),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.subprocess.run", fake_run
+    )
+
+    out = _call_claude_p_judge(
+        "classify this", model="claude-haiku-4-5-20251001"
+    )
+
+    assert out == {"intent": "config", "confidence": 0.85}, (
+        f"Bare ``` fences (no language tag) must be parsed correctly (#1065). Got: {out!r}"
+    )
+
+
+def test_call_claude_p_judge_strips_markdown_fences_with_trailing_whitespace(monkeypatch) -> None:
+    """Regression test for #1065: trailing whitespace after closing fence must
+    not break parsing.
+
+    Some claude -p responses include trailing newlines/whitespace after the
+    closing fence. The fence-stripping code must tolerate this.
+    """
+    import subprocess as _subprocess
+
+    fake_envelope = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '```json\n{"intent": "doc", "confidence": 0.78}\n```\n  ',
+    }
+
+    def fake_run(cmd, **kwargs):
+        return _subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps(fake_envelope),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.subprocess.run", fake_run
+    )
+
+    out = _call_claude_p_judge(
+        "classify this", model="claude-haiku-4-5-20251001"
+    )
+
+    assert out == {"intent": "doc", "confidence": 0.78}, (
+        f"Trailing whitespace after fence must not block parsing (#1065). Got: {out!r}"
+    )
+
+
 def test_call_claude_p_judge_passes_cwd_to_avoid_project_context(monkeypatch) -> None:
     """Regression test for #1064: must pass cwd= to subprocess.run so the
     spawned ``claude -p`` session does not inherit the parent's CWD and load
