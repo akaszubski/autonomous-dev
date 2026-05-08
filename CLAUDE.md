@@ -49,7 +49,7 @@ pytest --cov=plugins/autonomous-dev/hooks --cov=plugins/autonomous-dev/lib --cov
 - **Agents**: 15 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
 - **Skills**: 19 domain packages, progressively injected per-step to prevent context bloat
 
-Component counts: 16 agents, 19 skills, 23 commands, 30 hooks, 216 libraries.
+Component counts: 16 agents, 19 skills, 23 commands, 30 hooks, 219 libraries.
 
 ## Commands
 
