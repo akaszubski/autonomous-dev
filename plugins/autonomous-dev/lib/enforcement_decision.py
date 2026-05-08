@@ -10,21 +10,33 @@ optional function name, and optional session_id, it consults:
 and returns a ``(skip, reason)`` tuple. The wrapping hook decides what to do
 with the result; this layer is pure policy.
 
-Priority (first match wins):
-    1. ``is_hard_floor(...)`` true     → ``(False, "hard_floor")``
+Priority (first match wins) — 9 priorities total:
+    1. ``is_hard_floor(...)`` true       → ``(False, "hard_floor")``
     2. ``INTENT_CLASSIFIER_ENFORCE`` not "true" → ``(False, "enforcement_off")``
-    3. session_id missing/unknown      → ``(False, "no_session_id_safety")``
-    4. artifact missing or stale       → ``(False, "ambiguous_safety")``
-    5. ``mode["fail_open"]`` true      → ``(False, "classifier_fail_open")``
+    3. session_id missing/unknown        → ``(False, "no_session_id_safety")``
+    4. artifact missing or stale         → ``(False, "ambiguous_safety")``
+    4.5. ``mode["clarified_intent"]`` set → trust user's disambiguation
+         (``(False, f"clarified_enforce:{cls}")`` or
+         ``(True, f"clarified_skip:{cls}")``). This bypasses 5 and 6 because
+         the user has explicitly overridden the classifier's uncertainty.
+    5. ``mode["fail_open"]`` true        → ``(False, "classifier_fail_open")``
     6. ``mode["requires_security_audit"]`` true → ``(False, "security_audit_required")``
     7. ``should_pipeline_enforce(...)`` true → ``(False, f"mode_enforce:{intent_class}")``
-    8. else                            → ``(True, f"mode_skip:{intent_class}")``
+    8. else                              → ``(True, f"mode_skip:{intent_class}")``
 
 The fail-safe direction across the board is "enforce" (return ``False``):
-when in doubt, run the existing gate. The only ``True`` return is rule 8 —
-a fully-qualified, classifier-confident, non-security skip class.
+when in doubt, run the existing gate. The only ``True`` returns are rule 4.5
+(user-clarified skip class) and rule 8 (a fully-qualified, classifier-
+confident, non-security skip class).
+
+Security note for Priority 4.5: SECURITY_CRITICAL only comes from the regex
+pre-gate (intent_classifier.py:649) and is never AMBIGUOUS, so a clarified
+intent is never offered when a security keyword was matched. The
+AskUserQuestion round-trip ONLY fires on AMBIGUOUS — see
+unified_prompt_validator.py.
 
 Issue: #999 (Phase E — pipeline-gate hook cutover).
+Issue: #1024 (M2 — AskUserQuestion round-trip on AMBIGUOUS classifications).
 """
 
 from __future__ import annotations
@@ -113,6 +125,23 @@ def should_skip_enforcement(
         mode = read_session_mode(session_id)
         if mode is None:
             return (False, "ambiguous_safety")
+
+        # Priority 4.5 (Issue #1024 M2): user clarification overrides the
+        # classifier's uncertainty. When the classifier returned AMBIGUOUS,
+        # fail_open=True and requires_security_audit=True (set defensively
+        # in intent_classifier _fail_open). The user has now disambiguated
+        # via AskUserQuestion, so we trust their selection and skip the
+        # pessimism short-circuits in priorities 5 and 6.
+        #
+        # Security rationale: SECURITY_CRITICAL comes from the regex
+        # pre-gate (intent_classifier.py:649), never AMBIGUOUS. A clarified
+        # intent is never offered when a security keyword was matched, so
+        # this branch cannot be used to bypass the security gate.
+        clarified = mode.get("clarified_intent")
+        if isinstance(clarified, str) and clarified:
+            if should_pipeline_enforce(clarified):
+                return (False, f"clarified_enforce:{clarified}")
+            return (True, f"clarified_skip:{clarified}")
 
         # Priority 5: classifier itself fell back. Don't trust the
         # intent_class — keep enforcement hot.

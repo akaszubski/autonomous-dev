@@ -1,0 +1,132 @@
+{
+  "_schema_version": 1,
+  "generated_at": "2026-05-08T06:44:38.990567+00:00",
+  "corpus_size": 108,
+  "per_class": {
+    "config": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "conversation": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "doc": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "exploration": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 1
+    },
+    "implement": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "refactor": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "remote_ops": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "scratch": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "security_critical": {
+      "precision": 0.9697,
+      "recall": 1.0,
+      "f1": 0.9846,
+      "support": 32
+    },
+    "status_query": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "test": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "triage": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    },
+    "typo": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 0
+    }
+  },
+  "macro_f1": 0.4923,
+  "confusion_matrix": {
+    "config": {
+      "ambiguous": 5
+    },
+    "conversation": {
+      "ambiguous": 4
+    },
+    "doc": {
+      "ambiguous": 6
+    },
+    "exploration": {
+      "ambiguous": 5,
+      "security_critical": 1
+    },
+    "implement": {
+      "ambiguous": 5
+    },
+    "refactor": {
+      "ambiguous": 5
+    },
+    "remote_ops": {
+      "ambiguous": 5
+    },
+    "scratch": {
+      "ambiguous": 5
+    },
+    "security_critical": {
+      "security_critical": 32,
+      "ambiguous": 3
+    },
+    "status_query": {
+      "ambiguous": 4
+    },
+    "test": {
+      "ambiguous": 5
+    },
+    "triage": {
+      "ambiguous": 5
+    },
+    "typo": {
+      "ambiguous": 4
+    }
+  },
+  "bottom_3_underperformers": [
+    "exploration"
+  ]
+}

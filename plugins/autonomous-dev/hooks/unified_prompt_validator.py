@@ -527,6 +527,144 @@ def _check_compaction_recovery() -> None:
 
 
 # ============================================================================
+# AskUserQuestion Round-Trip (Issue #1024 M2)
+# ============================================================================
+#
+# When the intent classifier returns AMBIGUOUS, this hook appends an
+# additionalContext block telling Claude to call AskUserQuestion. The
+# user's answer is persisted via the one-shot CLI
+# `plugins/autonomous-dev/scripts/persist_intent_answer.py`, which sets
+# clarified_intent on the existing session-mode artifact.
+#
+# Gating: BOTH INTENT_CLASSIFIER_ENABLED and INTENT_CLASSIFIER_ENFORCE
+# must be "true". Asking is wasteful when the reader won't honor the
+# answer (Phase E reader gates on ENFORCE).
+#
+# Loop guard: if `clarification_asked` is already True OR
+# `clarified_intent` is already set on the artifact, skip — the user has
+# already been prompted (or already answered). This prevents repeated
+# AskUserQuestion calls within a single session.
+
+# The clarification template. The literal session_id is inlined via
+# str.replace on the sentinel "__SESSION_ID__" (NOT str.format) so that
+# session_id values containing '{' / '}' / format-string field names cannot
+# trigger IndexError/KeyError suppression (DoS-via-error-swallow) and so
+# that no caller-controlled string is ever passed to .format().
+#
+# Defense-in-depth: even though CLAUDE_SESSION_ID is framework-set today,
+# treating it as untrusted is the right posture: the hook also reads
+# os.environ.get("CLAUDE_SESSION_ID", "unknown"), so a hostile environment
+# could in principle deliver a crafted value. We additionally sanitize the
+# session_id through _SAFE_SESSION_ID_RE before inlining.
+#
+# Issue #1024 — Security audit Finding 1 (HIGH, OWASP A03 Injection).
+_CLARIFICATION_TEMPLATE = (
+    "[autonomous-dev] Your prompt is ambiguous to the intent classifier.\n"
+    "Before proceeding, call AskUserQuestion with these options:\n"
+    "- IMPLEMENT (build a feature, write code)\n"
+    "- REFACTOR (restructure without behavior change)\n"
+    "- TEST (write or fix tests)\n"
+    "- DOC (documentation, README, comments)\n"
+    "- CONFIG (settings, .json/.yaml/.toml edits)\n"
+    "- STATUS_QUERY (read-only question)\n"
+    "- EXPLORATION (multi-file read-only investigation)\n"
+    "\n"
+    "After the user responds, run this Bash command to persist the answer:\n"
+    "  python plugins/autonomous-dev/scripts/persist_intent_answer.py "
+    "--session-id \"__SESSION_ID__\" --intent <answer-key>\n"
+)
+
+# Replace any character outside [A-Za-z0-9_-] with '_' before inlining the
+# session_id into _CLARIFICATION_TEMPLATE. This neutralizes shell
+# metacharacters (`;`, `|`, `&`, `$`, backticks, quotes, whitespace) so that
+# even if Claude pastes the persist command verbatim into Bash, the
+# session_id token cannot break out of the quoted argument.
+#
+# Compiled once at module load — efficiency + reusability.
+_SAFE_SESSION_ID_RE = re.compile(r"[^a-zA-Z0-9_\-]")
+
+
+def _maybe_build_clarification(
+    *,
+    intent_result,
+    session_id: str,
+) -> Optional[str]:
+    """Build the additionalContext clarification block when appropriate.
+
+    Returns the formatted block string when ALL of these hold:
+        1. ``intent_result.intent.value == "ambiguous"``.
+        2. Both ``INTENT_CLASSIFIER_ENABLED`` and
+           ``INTENT_CLASSIFIER_ENFORCE`` are true (case-insensitive).
+        3. The session-mode artifact has neither ``clarification_asked``
+           True nor ``clarified_intent`` set (loop guard).
+
+    Otherwise returns ``None``.
+
+    Side effect: when the conditions are met, marks
+    ``clarification_asked=True`` on the artifact via
+    ``update_session_mode_partial`` so subsequent prompts in the same
+    session do not re-ask. NEVER raises.
+
+    Args:
+        intent_result: The IntentResult from the classifier.
+        session_id: The resolved session id (already from env).
+
+    Returns:
+        Formatted clarification block, or ``None`` if not applicable.
+    """
+    # Gate 1: classification must be AMBIGUOUS.
+    try:
+        intent_value = intent_result.intent.value
+    except AttributeError:
+        return None
+    if intent_value != "ambiguous":
+        return None
+
+    # Gate 2: both flags must be on.
+    if not (INTENT_CLASSIFIER_ENABLED and INTENT_CLASSIFIER_ENFORCE):
+        return None
+
+    # Gate 3: loop guard — has the user already been asked?
+    try:
+        from session_mode import (  # type: ignore[import-not-found]
+            read_session_mode,
+            update_session_mode_partial,
+        )
+    except ImportError:
+        # session_mode unavailable — silent fail-open. Don't emit.
+        return None
+
+    try:
+        mode = read_session_mode(session_id)
+    except Exception:
+        mode = None
+
+    if isinstance(mode, dict):
+        if mode.get("clarification_asked") is True:
+            return None
+        clarified = mode.get("clarified_intent")
+        if isinstance(clarified, str) and clarified:
+            return None
+
+    # Mark the artifact so we don't re-ask on the next prompt in this
+    # session. Failure here is non-fatal — we still emit the clarification.
+    try:
+        update_session_mode_partial(session_id, clarification_asked=True)
+    except Exception:
+        pass
+
+    # Sanitize the session_id before inlining: replace any character outside
+    # [A-Za-z0-9_-] with '_'. This neutralizes shell metacharacters and
+    # ensures the persist command Claude is asked to run cannot have the
+    # session_id token break out of its quoted argument. We use str.replace
+    # on a sentinel (NOT str.format) so format-string field references in
+    # the value cannot raise IndexError/KeyError (which would suppress the
+    # clarification via the outer try/except — a DoS vector).
+    safe_session_id = _SAFE_SESSION_ID_RE.sub("_", session_id)
+    return _CLARIFICATION_TEMPLATE.replace("__SESSION_ID__", safe_session_id)
+
+
+# ============================================================================
 # Main Hook Entry Point
 # ============================================================================
 
@@ -594,6 +732,8 @@ def main() -> int:
     # artifact. The write is gated on INTENT_CLASSIFIER_ENABLED so the
     # hook remains byte-identical to the pre-classifier version when
     # the flag is off (verified by TestHookNoOpWhenFlagOff).
+    clarification_block: Optional[str] = None
+    clarification_emitted: bool = False
     if INTENT_CLASSIFIER_ENABLED and intent_result is not None:
         try:
             from session_mode import write_session_mode  # type: ignore[import-not-found]
@@ -603,6 +743,23 @@ def main() -> int:
             # NEVER raise — observe-mode must be byte-identical when
             # the artifact write fails.
             pass
+
+        # Issue #1024 (M2): AskUserQuestion round-trip on AMBIGUOUS.
+        # When the classifier returned AMBIGUOUS AND both the ENABLED
+        # and ENFORCE flags are on (asking is wasteful when the reader
+        # won't honor), append an additionalContext block instructing
+        # Claude to call AskUserQuestion and persist the answer via the
+        # one-shot CLI. NEVER raises.
+        try:
+            clarification_block = _maybe_build_clarification(
+                intent_result=intent_result,
+                session_id=os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+            )
+            clarification_emitted = clarification_block is not None
+        except Exception:
+            # Defensive — never crash the hook on clarification logic.
+            clarification_block = None
+            clarification_emitted = False
 
     # Detect command intent via routing table
     route = detect_command_intent(user_prompt)
@@ -640,36 +797,51 @@ def main() -> int:
         return 2
 
     if route and QUALITY_NUDGE_ENABLED:
-        _log_activity("nudge", {
+        nudge_log: dict = {
             "prompt": prompt_preview,
             "suggested_command": route["command"],
             "reason": route["reason"],
             "decision": "nudge",
             **intent_fields,
-        })
+        }
+        if clarification_emitted:
+            nudge_log["clarification_emitted"] = True
+        _log_activity("nudge", nudge_log)
         message = _format_nudge(route["command"], route["reason"])
         print(message, file=sys.stderr)
-        output = {
+        nudge_output: dict = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
                 "nudge": message,
             }
         }
-        print(json.dumps(output))
+        # Issue #1024 (M2): append clarification block to additionalContext
+        # if AMBIGUOUS classification triggered the round-trip. Routing
+        # blocks (return 2 above) take precedence and do NOT carry the
+        # block — only the non-blocking nudge / pass paths do.
+        if clarification_block:
+            nudge_output["hookSpecificOutput"]["additionalContext"] = clarification_block
+        print(json.dumps(nudge_output))
         return 0
 
     # Pass: no routing match
-    _log_activity("pass", {
+    pass_log: dict = {
         "prompt": prompt_preview,
         "decision": "pass",
         "route_matched": False,
         **intent_fields,
-    })
-    output = {
+    }
+    if clarification_emitted:
+        pass_log["clarification_emitted"] = True
+    _log_activity("pass", pass_log)
+    output: dict = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit"
         }
     }
+    # Issue #1024 (M2): append clarification block to additionalContext.
+    if clarification_block:
+        output["hookSpecificOutput"]["additionalContext"] = clarification_block
     print(json.dumps(output))
     return 0
 

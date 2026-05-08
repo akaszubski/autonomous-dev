@@ -1,0 +1,1091 @@
+{
+  "_schema_version": 1,
+  "_extracted_at": "2026-05-08T06:44:16.279819+00:00",
+  "_methodology": "synthetic-fallback (no API key)",
+  "entries": [
+    {
+      "id": "synthetic-0000",
+      "prompt": "implement OAuth2 with JWT refresh token rotation",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0001",
+      "prompt": "add password hashing with bcrypt to the user model",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0002",
+      "prompt": "fix the authentication bypass in /api/admin",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0003",
+      "prompt": "rotate the API key used for the analytics service",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0004",
+      "prompt": "audit the encryption used for user secrets at rest",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0005",
+      "prompt": "add CSRF protection to the form submit endpoint",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0006",
+      "prompt": "fix XSS vulnerability in the comment renderer",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0007",
+      "prompt": "patch the SQL injection in the search query builder",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0008",
+      "prompt": "review SSRF risk in the URL preview service",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0009",
+      "prompt": "add RBAC permissions to the admin dashboard",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0010",
+      "prompt": "implement SSO via SAML for the customer portal",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0011",
+      "prompt": "create a migration to add the new auth_provider column",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0012",
+      "prompt": "update the schema migration to drop the old session table",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0013",
+      "prompt": "add session expiry enforcement to the login flow",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0014",
+      "prompt": "store the database credentials in the secret manager",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0015",
+      "prompt": "decrypt legacy user records during the migration",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0016",
+      "prompt": "investigate CVE-2024-12345 impact on our crypto library",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0017",
+      "prompt": "exploit a token reuse vulnerability in the refresh handler",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0018",
+      "prompt": "wire authn middleware to the GraphQL gateway",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0019",
+      "prompt": "add authz checks to the file download endpoint",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0020",
+      "prompt": "rename auth_handler to identity_handler",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0021",
+      "prompt": "fix typo in security.py docstring",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0022",
+      "prompt": "add password reset email flow with token expiry",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0023",
+      "prompt": "implement MFA enrollment using TOTP",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0024",
+      "prompt": "harden the JWT signing key rotation cadence",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0025",
+      "prompt": "add brute-force protection to the password endpoint",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0026",
+      "prompt": "draft a migration to encrypt PII columns",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0027",
+      "prompt": "update the OAuth2 scopes for the mobile client",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0028",
+      "prompt": "review the api_key handling in the worker pool",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0029",
+      "prompt": "add credential rotation hooks to the deploy pipeline",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0030",
+      "prompt": "scan dependencies for known vulnerability advisories",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0031",
+      "prompt": "audit RBAC roles and remove unused permissions",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0032",
+      "prompt": "implement pagination for the user list endpoint",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0033",
+      "prompt": "add a CLI subcommand to export reports as PDF",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0034",
+      "prompt": "build a webhook receiver for inbound events",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0035",
+      "prompt": "create a new dashboard widget for daily active users",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0036",
+      "prompt": "extract the order pricing calculation into its own module",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0037",
+      "prompt": "rename the variable user_id to userId across the frontend",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0038",
+      "prompt": "consolidate the four logger setup helpers into one",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0039",
+      "prompt": "split the large utils.py into focused submodules",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0040",
+      "prompt": "add unit tests for the PaymentService class",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0041",
+      "prompt": "fix the flaky test in tests/integration/test_queue.py",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0042",
+      "prompt": "increase test coverage on the parser module to 90 percent",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0043",
+      "prompt": "write a property-based test for the URL canonicalizer",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0044",
+      "prompt": "update the README with the new CLI flags",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0045",
+      "prompt": "write a docstring for the format_report function",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0046",
+      "prompt": "add a CHANGELOG entry for the v3.4 release",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0047",
+      "prompt": "draft the architecture overview section in docs",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0048",
+      "prompt": "set the timeout to 30 seconds in the worker config",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0049",
+      "prompt": "tweak the pyproject toml to enable strict mode",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0050",
+      "prompt": "add the new feature flag to settings.json",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0051",
+      "prompt": "update the GitHub Actions workflow to run on Python 3.12",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0052",
+      "prompt": "fix typo in the welcome message",
+      "label": "typo",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0053",
+      "prompt": "correct the misspelled word in the error string",
+      "label": "typo",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0054",
+      "prompt": "fix grammar in the help text",
+      "label": "typo",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0055",
+      "prompt": "what is the current pipeline status",
+      "label": "status_query",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0056",
+      "prompt": "show me the failing tests from yesterday",
+      "label": "status_query",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0057",
+      "prompt": "how do I run the integration suite",
+      "label": "status_query",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0058",
+      "prompt": "should we use SQLite or Postgres for the new service",
+      "label": "conversation",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0059",
+      "prompt": "what are the tradeoffs of monorepo versus polyrepo",
+      "label": "conversation",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0060",
+      "prompt": "thoughts on switching to event sourcing",
+      "label": "conversation",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0061",
+      "prompt": "look at how the pipeline state machine is wired across hooks, lib, and commands",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0062",
+      "prompt": "trace how a UserPromptSubmit event flows through every hook in the chain",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0063",
+      "prompt": "investigate the test coverage gaps across the lib directory and report patterns",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0064",
+      "prompt": "look across all skill files and summarize how progressive injection works",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0065",
+      "prompt": "show me the open bugs labeled priority-high so I can prioritize",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0066",
+      "prompt": "gh issue list --label needs-triage and group by component",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0067",
+      "prompt": "review the last twenty issues and tell me which look like duplicates",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0068",
+      "prompt": "gh issue view 1023 and summarize the discussion thread",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0069",
+      "prompt": "ssh [USER@HOST] and check the disk usage on Models",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [
+        "ssh_user_at_host"
+      ],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0070",
+      "prompt": "rsync the latest training checkpoints from the M3 Ultra back to my laptop",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0071",
+      "prompt": "kick off the realign training run on the remote box and tail the logs",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0072",
+      "prompt": "scp the dataset shards to [USER@HOST]:~/Datasets and verify the manifest",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [
+        "ssh_user_at_host"
+      ],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0073",
+      "prompt": "throw a quick benchmark script in /tmp/ to compare two list comprehensions",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0074",
+      "prompt": "spin up a scratch worktree under .worktrees/scratch-experiments to try this idea",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0075",
+      "prompt": "drop a one-off Python file in scripts/scratch/ to munge this CSV",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0076",
+      "prompt": "make a throwaway notebook in /tmp/ to plot the latency distribution",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": true
+    },
+    {
+      "id": "synthetic-0077",
+      "prompt": "audit auth flow across all the request handlers, no changes just look",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0078",
+      "prompt": "scratch script in /tmp/auth_test.py to poke at the token endpoint",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0079",
+      "prompt": "ssh user@host rotate-jwt",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synthetic-0080",
+      "prompt": "explore how the classifier handles literal <user_input> tags inside a user prompt",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-doc-001",
+      "prompt": "Update the project README with usage examples for the new CLI",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-doc-002",
+      "prompt": "Write docstrings for all public functions in utils.py",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-doc-003",
+      "prompt": "Add a CHANGELOG entry describing the new features in this release",
+      "label": "doc",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-cfg-001",
+      "prompt": "Update the pyproject.toml to pin the numpy version to 1.26",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-cfg-002",
+      "prompt": "Add the REDIS_URL environment variable to the .env.example file",
+      "label": "config",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-typo-001",
+      "prompt": "Fix the misspelling of 'recieved' in the error message string",
+      "label": "typo",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-typo-002",
+      "prompt": "Correct 'teh' to 'the' in the help text output",
+      "label": "typo",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-status-001",
+      "prompt": "What tests are currently failing in CI?",
+      "label": "status_query",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-status-002",
+      "prompt": "Show me the git log for the last 5 commits",
+      "label": "status_query",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-conv-001",
+      "prompt": "What are the tradeoffs between using Redis and Memcached for caching?",
+      "label": "conversation",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-conv-002",
+      "prompt": "Should we adopt GraphQL or stick with REST for the new API?",
+      "label": "conversation",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-expl-001",
+      "prompt": "Investigate how the session lifecycle is managed across hooks and lib modules",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-expl-002",
+      "prompt": "Trace how environment variables flow from the CI config into hook execution",
+      "label": "exploration",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-triage-001",
+      "prompt": "List all open issues labeled 'bug' and group them by component",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-triage-002",
+      "prompt": "Review the last 10 closed issues and identify patterns in the defects",
+      "label": "triage",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-remote-001",
+      "prompt": "Check disk usage on the remote training server and report available space",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-remote-002",
+      "prompt": "Sync the latest model checkpoints from the remote box to the local storage",
+      "label": "remote_ops",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-scratch-001",
+      "prompt": "Write a quick throwaway script in /tmp to compare two JSON files",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-scratch-002",
+      "prompt": "Create a one-off notebook in /tmp/ to visualize the training loss curve",
+      "label": "scratch",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-impl-001",
+      "prompt": "Add a new endpoint to export user data as a CSV file",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-impl-002",
+      "prompt": "Build a background job to send weekly digest emails to subscribers",
+      "label": "implement",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-ref-001",
+      "prompt": "Refactor the large report_generator.py by splitting it into smaller modules",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-ref-002",
+      "prompt": "Clean up dead code in the legacy payment handler",
+      "label": "refactor",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-test-001",
+      "prompt": "Write integration tests for the new webhook receiver endpoint",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-test-002",
+      "prompt": "Fix the flaky end-to-end test that fails intermittently in CI",
+      "label": "test",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-sec-001",
+      "prompt": "Implement rate limiting on the login endpoint to prevent brute force",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    },
+    {
+      "id": "synth-extra-sec-002",
+      "prompt": "Audit the RBAC permissions for the admin API endpoints",
+      "label": "security_critical",
+      "source": "synthetic",
+      "judge_a": "synthetic-fallback",
+      "judge_b": "synthetic-fallback",
+      "redactions_applied": [],
+      "holdout": false
+    }
+  ]
+}

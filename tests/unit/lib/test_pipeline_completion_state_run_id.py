@@ -247,38 +247,16 @@ def test_back_compat_legacy_path_unchanged(session_id):
 
 
 # --------------------------------------------------------------------------- #
-# AC6: No existing callers modified
+# AC6: One-time PR scope guard for #1041 — REMOVED as obsolete
 # --------------------------------------------------------------------------- #
-
-
-def test_no_existing_callers_modified():
-    """AC6: git diff master shows no changes to hooks/ or lib/ except pipeline_completion_state.py."""
-    result = subprocess.run(
-        ["git", "diff", "master", "--name-only",
-         "plugins/autonomous-dev/hooks/",
-         "plugins/autonomous-dev/lib/"],
-        capture_output=True,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
-    assert result.returncode == 0, f"git diff failed: {result.stderr}"
-
-    changed_files = [
-        line.strip()
-        for line in result.stdout.splitlines()
-        if line.strip()
-    ]
-
-    # Filter out pipeline_completion_state.py — that's the one we're allowed to change
-    unexpected_changes = [
-        f for f in changed_files
-        if "pipeline_completion_state.py" not in f
-    ]
-
-    assert unexpected_changes == [], (
-        f"Unexpected changes to hooks/ or lib/ callers: {unexpected_changes}"
-    )
-
+#
+# The original AC6 test asserted that no hooks/ or lib/ files except
+# pipeline_completion_state.py were modified vs master. This was a one-time
+# PR scope guard for #1041 (now merged) and incorrectly fails any future PR
+# that legitimately touches those areas (e.g., #1024 enforcement_decision.py
+# changes for the AskUserQuestion round-trip). Removed because its purpose
+# served when #1041 landed; keeping it as a permanent test makes any
+# legitimate hook/lib change look like a scope violation.
 
 # --------------------------------------------------------------------------- #
 # Security: run_id validation (traversal rejection) — Security Finding 1 & 2

@@ -130,6 +130,8 @@ jobs:
           python -m pytest tests/integration/ -v --tb=short -o "addopts=" --ignore=tests/archived/
 
       - name: Run regression tests
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "Running regression tests..."
           python -m pytest tests/regression/ -v --tb=short -o "addopts=" --ignore=tests/archived/
