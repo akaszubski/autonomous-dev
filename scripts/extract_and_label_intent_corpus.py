@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 """Extract real user prompts from session archive and label them with a single judge.
 
-Pulls first_user_prompt values from ~/.claude/archive/sessions.db (all projects,
-last 30 days), applies PII scrubbing, dedup, and length filtering, then uses a
+Supports two prompt sources selected via ``--source {sqlite,transcripts,both}``:
+
+- ``sqlite`` (default): pulls ``first_user_prompt`` values from
+  ``~/.claude/archive/sessions.db`` (all projects, last 30 days). Preserves
+  behavior prior to Issue #1072.
+- ``transcripts``: walks ``~/.claude/archive/conversations/{YYYY-MM}/*.jsonl``
+  and extracts all user-typed messages, closing the class-imbalance gap for
+  classes like ``refactor``, ``remote_ops``, ``test``, and ``typo`` that rarely
+  appear as session-entry prompts (#1072).
+- ``both``: union of both sources, deduplicated by md5 hash; sqlite entries win
+  on cross-source collision. Recommended for subscription users refreshing their
+  own corpus against actual workflow.
+
+All sources apply PII scrubbing, dedup, and length filtering, then use a
 single LLM-as-judge invoked via ``claude -p`` (subprocess) to label each prompt
 with one of the 13 intent classes. Authentication uses the user's existing
 Claude Code subscription session — no API keys are required.
@@ -17,12 +29,17 @@ Usage::
         --output tests/fixtures/intent_classifier_real_corpus.json \\
         --dry-run
 
-    # Real labeling (requires `claude` on PATH and a logged-in session)
+    # Real labeling from sessions.db (default)
     python scripts/extract_and_label_intent_corpus.py \\
         --output tests/fixtures/intent_classifier_real_corpus.json \\
         --max-prompts 150
 
-GitHub Issue: #1043
+    # Mine mid-conversation prompts to close class-imbalance gaps (#1072)
+    python scripts/extract_and_label_intent_corpus.py \\
+        --output tests/fixtures/intent_classifier_real_corpus.json \\
+        --source both --max-prompts 300 --cost-cap-usd 0
+
+GitHub Issues: #1043, #1072
 """
 
 from __future__ import annotations
@@ -38,6 +55,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,7 +113,13 @@ _COST_PER_CALL_USD = 0.005  # $0.005 per call (single judge ~ $0.005 per prompt)
 _MAX_CALLS_DEFAULT = 500
 
 _DEFAULT_DB_PATH = Path.home() / ".claude" / "archive" / "sessions.db"
+_DEFAULT_TRANSCRIPTS_DIR = Path.home() / ".claude" / "archive" / "conversations"
 _DEFAULT_OUTPUT = _PROJECT_ROOT / "tests" / "fixtures" / "intent_classifier_real_corpus.json"
+
+# Self-traffic guard: corpus extractor's own claude-p judge prompts. Filtered
+# out of transcript walks so we never feed our own classifier prompts back into
+# the corpus (#1072).
+_JUDGE_PROMPT_PREFIX = "Classify this user prompt:"
 
 # ---------------------------------------------------------------------------
 # PII scrubbing — 10 pattern types (Issue #1043, plan item 3)
@@ -260,6 +284,98 @@ def extract_prompts_from_db(
     except sqlite3.Error as e:
         print(f"WARNING: SQLite error reading {db_path}: {e}", file=sys.stderr)
         return []
+
+
+# ---------------------------------------------------------------------------
+# Transcript JSONL extraction (#1072)
+# ---------------------------------------------------------------------------
+
+
+def extract_prompts_from_transcripts(
+    transcripts_dir: Path,
+    *,
+    days: int = 30,
+    max_prompts: int = 1000,
+) -> List[str]:
+    """Pull user-typed messages from transcript JSONLs.
+
+    Walks ``~/.claude/archive/conversations/{YYYY-MM}/*.jsonl``, extracts
+    user messages, applies the same length+content filters as the SQLite
+    path. Dedups by content hash. Filters out synthetic wrappers
+    (``<local-command-caveat>``) and the corpus-script's own self-traffic.
+
+    Filter conditions enforced (in order):
+        1. Skip rows where ``type != "user"``
+        2. Skip rows whose ``message.role != "user"``
+        3. Skip rows whose ``message.content`` is not a string (lists =
+           tool_result envelopes from Claude Code)
+        4. Skip content starting with ``<local-command-caveat>``
+        5. Skip content starting with the corpus-script's own judge prompt
+        6. Skip content shorter than ``MIN_PROMPT_LEN``
+        7. Skip content longer than ``MAX_PROMPT_LEN``
+        Plus: dedup by md5 of stripped content.
+
+    Args:
+        transcripts_dir: Path to the conversations directory.
+        days: Look-back window in days; transcripts older than this are
+            skipped via mtime check.
+        max_prompts: Maximum number of prompts to return.
+
+    Returns:
+        List of user-typed prompt strings (deduped, raw — PII scrubbing
+        happens downstream in :func:`build_corpus`).
+    """
+    if not transcripts_dir.exists():
+        return []
+    cutoff = time.time() - (days * 86400)
+    prompts: List[str] = []
+    seen: set = set()
+    for jsonl_path in sorted(
+        transcripts_dir.rglob("*.jsonl"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    ):
+        try:
+            if jsonl_path.stat().st_mtime < cutoff:
+                continue
+            with open(jsonl_path) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    # Filter 1: only user-typed rows
+                    if d.get("type") != "user":
+                        continue
+                    msg = d.get("message") or {}
+                    # Filter 2: nested role must also be user
+                    if msg.get("role") != "user":
+                        continue
+                    content = msg.get("content")
+                    # Filter 3: skip tool_result list-shaped content
+                    if not isinstance(content, str):
+                        continue
+                    content = content.strip()
+                    # Filter 4: skip local-command-caveat synthetic wrappers
+                    if content.startswith("<local-command-caveat>"):
+                        continue
+                    # Filter 5: skip corpus-script self-traffic (judge prompts)
+                    if content.startswith(_JUDGE_PROMPT_PREFIX):
+                        continue
+                    # Filters 6+7: length window
+                    if not (MIN_PROMPT_LEN <= len(content) <= MAX_PROMPT_LEN):
+                        continue
+                    # Dedup by content hash
+                    h = hashlib.md5(content.encode()).hexdigest()
+                    if h in seen:
+                        continue
+                    seen.add(h)
+                    prompts.append(content)
+                    if len(prompts) >= max_prompts:
+                        return prompts
+        except (OSError, PermissionError):
+            continue
+    return prompts
 
 
 # ---------------------------------------------------------------------------
@@ -839,13 +955,13 @@ def label_prompts_with_single_judge(
             break
 
         if dry_run:
-            # In dry run, simulate a judge response with a placeholder label
+            # In dry run, simulate a judge response with a placeholder label.
+            # `source` is attached by build_corpus after labeling (#1072).
             agreed.append(
                 {
                     "id": f"real-{entry_id:04d}",
                     "prompt": prompt,
                     "label": "conversation",  # dry-run placeholder
-                    "source": "sqlite",
                     "judge": judge_model,
                     "redactions_applied": [],
                     "holdout": False,
@@ -872,13 +988,12 @@ def label_prompts_with_single_judge(
             drop_counts["invalid_intent"] = drop_counts.get("invalid_intent", 0) + 1
             continue
 
-        # Accept entry
+        # Accept entry. `source` is attached by build_corpus after labeling (#1072).
         agreed.append(
             {
                 "id": f"real-{entry_id:04d}",
                 "prompt": prompt,
                 "label": result["intent"],
-                "source": "sqlite",
                 "judge": judge_model,
                 "redactions_applied": [],
                 "holdout": False,
@@ -901,11 +1016,14 @@ def build_corpus(
     dry_run: bool = False,
     cost_cap_usd: float = COST_CAP_USD,
     max_calls: int = _MAX_CALLS_DEFAULT,
+    source: str = "sqlite",
+    transcripts_dir: Path = _DEFAULT_TRANSCRIPTS_DIR,
 ) -> Dict[str, Any]:
     """Build the full intent classification corpus.
 
-    Extracts from DB, scrubs PII, filters, and labels using ``claude -p``.
-    Falls back to synthetic corpus when the ``claude`` CLI is not on PATH.
+    Extracts from DB and/or transcripts, scrubs PII, filters, and labels
+    using ``claude -p``. Falls back to synthetic corpus when the ``claude``
+    CLI is not on PATH.
 
     Args:
         db_path: Path to sessions.db
@@ -919,6 +1037,12 @@ def build_corpus(
             disables the call cap. Defaults to ``_MAX_CALLS_DEFAULT`` (500).
             This is the actual runaway-loop safety net under subscription
             auth where the dollar cap is fictional. See #1070.
+        source: Prompt extraction source — one of ``"sqlite"`` (default,
+            ``first_user_prompt`` from ``sessions.db``), ``"transcripts"``
+            (all user messages from transcript JSONLs), or ``"both"``
+            (union of both, deduped, sqlite wins on collision). #1072.
+        transcripts_dir: Path to the transcript conversations directory.
+            Defaults to ``~/.claude/archive/conversations``.
 
     Returns:
         Corpus dict ready for JSON serialization
@@ -945,24 +1069,58 @@ def build_corpus(
             "entries": entries,
         }
 
-    # Real extraction path
-    print(f"INFO: Extracting prompts from {db_path}", file=sys.stderr)
-    raw_prompts = extract_prompts_from_db(db_path, days=30, max_prompts=max_prompts * 3)
-    print(f"INFO: Got {len(raw_prompts)} raw prompts from DB", file=sys.stderr)
+    # Real extraction path — route by source (#1072)
+    print(f"INFO: Extracting prompts from source={source}", file=sys.stderr)
 
-    # Scrub PII
-    scrubbed_pairs: List[Tuple[str, List[str]]] = []
+    # Track origin of each raw prompt before scrubbing so we can attach
+    # `source` to each labeled entry (sqlite wins on cross-source collision).
+    source_for_raw: Dict[str, str] = {}
+    raw_prompts: List[str] = []
+
+    if source in ("sqlite", "both"):
+        sqlite_prompts = extract_prompts_from_db(
+            db_path, days=30, max_prompts=max_prompts * 3
+        )
+        print(
+            f"INFO: Got {len(sqlite_prompts)} raw prompts from sqlite",
+            file=sys.stderr,
+        )
+        for p in sqlite_prompts:
+            if p not in source_for_raw:
+                source_for_raw[p] = "sqlite"
+                raw_prompts.append(p)
+
+    if source in ("transcripts", "both"):
+        transcript_prompts = extract_prompts_from_transcripts(
+            transcripts_dir, days=30, max_prompts=max_prompts * 3
+        )
+        print(
+            f"INFO: Got {len(transcript_prompts)} raw prompts from transcripts",
+            file=sys.stderr,
+        )
+        for p in transcript_prompts:
+            if p not in source_for_raw:
+                source_for_raw[p] = "transcript"
+                raw_prompts.append(p)
+
+    # Scrub PII (uniform pipeline for both sources)
+    scrubbed_triples: List[Tuple[str, List[str], str]] = []
     for p in raw_prompts:
         scrubbed, redactions = scrub_pii(p)
-        scrubbed_pairs.append((scrubbed, redactions))
+        scrubbed_triples.append((scrubbed, redactions, source_for_raw[p]))
 
     # Filter and dedup
     filtered: List[str] = []
     redaction_map: Dict[str, List[str]] = {}
-    for scrubbed, redactions in scrubbed_pairs:
+    source_map: Dict[str, str] = {}  # scrubbed prompt -> source label
+    for scrubbed, redactions, src in scrubbed_triples:
         if MIN_PROMPT_LEN <= len(scrubbed.strip()) <= MAX_PROMPT_LEN:
             filtered.append(scrubbed)
-            redaction_map[scrubbed] = redactions
+            # First-seen wins on collision (preserves sqlite priority since
+            # sqlite is processed first in `--source both`).
+            if scrubbed not in redaction_map:
+                redaction_map[scrubbed] = redactions
+                source_map[scrubbed] = src
 
     filtered = filter_and_dedup(filtered)
     filtered = filtered[:max_prompts]
@@ -977,9 +1135,10 @@ def build_corpus(
         dry_run=dry_run,
     )
 
-    # Attach redaction metadata
+    # Attach redaction metadata + source (#1072)
     for entry in labeled_entries:
         entry["redactions_applied"] = redaction_map.get(entry["prompt"], [])
+        entry["source"] = source_map.get(entry["prompt"], "sqlite")
 
     # Print drop summary to stdout (not committed to file)
     if drop_counts:
@@ -1061,6 +1220,19 @@ def main() -> None:
             "loop safety net under subscription auth (#1070)."
         ),
     )
+    parser.add_argument(
+        "--source",
+        choices=["sqlite", "transcripts", "both"],
+        default="sqlite",
+        help=(
+            "Prompt extraction source. 'sqlite' (default): first_user_prompt "
+            "from sessions.db. 'transcripts': all user messages from "
+            "transcript JSONLs in ~/.claude/archive/conversations. 'both': "
+            "union of both, deduped (sqlite wins on collision). The "
+            "transcripts source closes class-coverage gaps for refactor / "
+            "remote_ops / security_critical / test / typo classes (#1072)."
+        ),
+    )
     args = parser.parse_args()
 
     # Validate paths
@@ -1079,6 +1251,7 @@ def main() -> None:
         dry_run=args.dry_run,
         cost_cap_usd=args.cost_cap_usd,
         max_calls=args.max_calls,
+        source=args.source,
     )
 
     output_path.write_text(json.dumps(corpus, indent=2))

@@ -132,7 +132,7 @@ python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --dry-run
 
-# Real labeling (requires `claude` on PATH and a logged-in session)
+# Real labeling from sessions.db only (default — preserves previous behavior)
 python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --max-prompts 150
@@ -145,11 +145,35 @@ python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --max-prompts 150 \
     --cost-cap-usd 0
+
+# Mine mid-conversation prompts from transcript JSONLs (closes class-imbalance gap
+# for refactor/remote_ops/security_critical/test/typo classes — Issue #1072)
+python scripts/extract_and_label_intent_corpus.py \
+    --output tests/fixtures/intent_classifier_real_corpus.json \
+    --source transcripts \
+    --max-prompts 150 \
+    --cost-cap-usd 0
+
+# Union of both sources — recommended for subscription users refreshing their
+# own corpus; sqlite wins on cross-source prompt collision (deduped by md5 hash)
+python scripts/extract_and_label_intent_corpus.py \
+    --output tests/fixtures/intent_classifier_real_corpus.json \
+    --source both \
+    --max-prompts 300 \
+    --cost-cap-usd 0
 ```
 
-Pulls `first_user_prompt` values from `~/.claude/archive/sessions.db` (all projects, last 30 days), applies PII scrubbing, deduplication, and length filtering. Uses a single LLM-as-judge via `claude -p` subprocess invocation (reuses your Claude Code subscription auth — no API keys needed). Falls back to synthetic-fallback when `claude` is not on PATH.
+Extracts real user prompts and labels them with a single LLM-as-judge via `claude -p` subprocess invocation (reuses your Claude Code subscription auth — no API keys needed). Falls back to synthetic-fallback when `claude` is not on PATH. Two prompt sources are supported:
+
+- **`sqlite` (default)**: pulls `first_user_prompt` values from `~/.claude/archive/sessions.db` (all projects, last 30 days). Preserves behavior prior to Issue #1072.
+- **`transcripts`**: walks `~/.claude/archive/conversations/{YYYY-MM}/*.jsonl` and extracts all user-typed messages (not just session-entry prompts), closing the class-imbalance gap for classes like `refactor`, `remote_ops`, `test`, and `typo` that rarely appear as session-entry prompts.
+- **`both`**: union of both sources, deduplicated by md5 hash; sqlite entries win on collision. Recommended for subscription users refreshing their own corpus against actual workflow.
+
+All sources apply PII scrubbing, deduplication, and length filtering before labeling.
 
 **CLI flags** (Issue #1070): `--cost-cap-usd FLOAT` (default `0.50`) — set to `0` to disable the dollar cap when running under subscription auth where per-call cost is `$0`. `--max-calls INT` (default `500`) — the real runaway-loop safety net; set to `0` to disable. Both caps are independent; `would_exceed_cap` returns `True` if either active cap would be exceeded.
+
+**CLI flags** (Issue #1072): `--source {sqlite,transcripts,both}` (default `sqlite`) — selects the prompt extraction source as described above.
 
 Reads `sessions.db` from `~/.claude/archive/` (same source as `scripts/mine_session_logs.py`). Output corpus consumed by `scripts/measure_intent_classifier.py`.
 

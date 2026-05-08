@@ -234,7 +234,11 @@ def test_judge_returns_valid_intent_writes_entry() -> None:
 
     assert len(agreed) == 1
     assert agreed[0]["label"] == "implement"
-    assert agreed[0]["source"] == "sqlite"
+    # `source` is attached by build_corpus, not by label_prompts_with_single_judge (#1072)
+    assert "source" not in agreed[0], (
+        "label_prompts_with_single_judge should NOT set the `source` field — "
+        "build_corpus attaches it post-loop based on extraction origin."
+    )
     assert agreed[0]["judge"] == "claude-haiku-4-5-20251001"
     # Schema check: legacy fields must NOT exist on entries
     assert "judge_a" not in agreed[0]

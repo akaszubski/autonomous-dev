@@ -174,6 +174,25 @@ class TestCorpusWellFormed:
             f"Corpus entries still carry legacy judge_a/judge_b fields: {offenders[:5]}"
         )
 
+    def test_corpus_source_values_are_valid(self) -> None:
+        """All corpus entries must have a valid `source` value (#1072).
+
+        Valid values: ``sqlite`` (first_user_prompt extraction path),
+        ``synthetic`` (synthetic-fallback corpus path), or ``transcript``
+        (transcript JSONL extraction path added in #1072).
+        """
+        valid_sources = {"sqlite", "synthetic", "transcript"}
+        corpus = json.loads(_CORPUS_PATH.read_text())
+        invalid = [
+            (e.get("id", "?"), e.get("source", ""))
+            for e in corpus.get("entries", [])
+            if e.get("source") not in valid_sources
+        ]
+        assert not invalid, (
+            f"Entries with invalid source values: {invalid[:5]}. "
+            f"Valid values: {sorted(valid_sources)}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Test 2: All 13 classes have at least MIN_ENTRIES_PER_CLASS entries
