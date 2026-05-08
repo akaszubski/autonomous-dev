@@ -124,7 +124,13 @@ class TestWriteSessionMode:
         assert match is not None, f"Path format wrong: {path}"
 
     def test_schema_fields_present(self) -> None:
-        """Test 3: All 12 schema keys present in written JSON."""
+        """Test 3: All 14 schema keys present in written JSON.
+
+        Issue #1024 (M2): clarification_asked + clarified_intent were added
+        as additive optional fields. SCHEMA_VERSION stays at 1 because the
+        additions are strictly additive — readers MUST use ``data.get(...)``
+        with defaults when consulting these new fields.
+        """
         session_id = "test-session-schema"
         _cleanup_artifact(session_id)
         try:
@@ -150,6 +156,9 @@ class TestWriteSessionMode:
                 "written_at",
                 "expires_at",
                 "enforce_mode",
+                # Issue #1024 (M2) — AskUserQuestion round-trip fields.
+                "clarification_asked",
+                "clarified_intent",
             }
             assert set(data.keys()) == expected_keys, (
                 f"Schema fields mismatch.\n"
@@ -174,6 +183,9 @@ class TestWriteSessionMode:
             assert abs(data["expires_at"] - (written_ts + TTL_SECONDS)) <= 1
             # prompt_hash is a 16-char hex digest.
             assert re.match(r"^[0-9a-f]{16}$", data["prompt_hash"])
+            # Issue #1024 (M2) — clarification fields default to inactive.
+            assert data["clarification_asked"] is False
+            assert data["clarified_intent"] is None
         finally:
             _cleanup_artifact(session_id)
 

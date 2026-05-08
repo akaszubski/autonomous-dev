@@ -57,7 +57,21 @@ __all__ = [
     "write_session_mode",
     "read_session_mode",
     "should_pipeline_enforce",
+    "update_session_mode_partial",
+    "effective_intent_class",
 ]
+
+# Issue #1024 (M2): allowlist of fields update_session_mode_partial may set.
+# A closed allowlist is the safe direction — it forces the writer to fail when
+# a typo or unknown key is passed, rather than silently mutating the artifact
+# with a field that no reader honors. Forward-compat: extend this set when a
+# new field is introduced; do NOT replace it with **kwargs passthrough.
+_PARTIAL_UPDATE_ALLOWED_FIELDS: frozenset[str] = frozenset(
+    {
+        "clarification_asked",
+        "clarified_intent",
+    }
+)
 
 # Schema version — bump when fields are added/renamed/removed (Phase E note).
 SCHEMA_VERSION: int = 1
@@ -235,6 +249,13 @@ def write_session_mode(
 
         resolved_session_id = _resolve_session_id(session_id)
 
+        # 14 fields (12 original + 2 added in Issue #1024 M2):
+        # `clarification_asked` / `clarified_intent` are additive optional
+        # fields used by the AskUserQuestion round-trip on AMBIGUOUS
+        # classifications. They are SET to default values on every write so
+        # readers can rely on `mode.get("clarified_intent")` returning a
+        # well-defined value rather than KeyError. SCHEMA_VERSION stays at 1
+        # because the additions are strictly additive.
         payload = {
             "schema_version": SCHEMA_VERSION,
             "session_id": resolved_session_id,
@@ -248,6 +269,8 @@ def write_session_mode(
             "written_at": written_at,
             "expires_at": expires_at,
             "enforce_mode": enforce_mode,
+            "clarification_asked": False,
+            "clarified_intent": None,
         }
 
         path = _session_mode_path(session_id)
@@ -377,3 +400,103 @@ def should_pipeline_enforce(intent_class: Any) -> bool:
     if not isinstance(intent_class, str):
         return True
     return intent_class.strip().lower() not in _SKIP_INTENT_CLASSES
+
+
+# ---------------------------------------------------------------------------
+# Issue #1024 (M2) — partial-update helper + effective intent class
+# ---------------------------------------------------------------------------
+
+
+def update_session_mode_partial(session_id: Any, **fields: Any) -> bool:
+    """Atomically merge new fields into an existing session-mode artifact.
+
+    This is the helper that backs the AskUserQuestion round-trip on
+    AMBIGUOUS classifications (Issue #1024). The hook layer asks the user
+    to disambiguate, and the persisted answer flips the enforcement gate
+    by setting ``clarified_intent`` on the existing artifact.
+
+    Contract:
+        - Read-modify-write semantics. The full payload is read, the
+          allowed fields from ``**fields`` are merged in, and the result
+          is atomically written via :func:`_atomic_write`.
+        - If the artifact is missing or stale, no file is created and
+          ``False`` is returned. We do NOT lazily create artifacts here —
+          that is the writer's job, and a missing artifact in this code
+          path means the round-trip fired late or the session has rolled
+          over to a new prompt.
+        - Unknown keys in ``**fields`` are silently filtered out. This is
+          forward-compat: callers in older deploys may pass new fields
+          this version does not yet recognize. We never raise on unknown
+          keys.
+        - NEVER raises. Any I/O / serialization failure returns ``False``.
+        - Last-writer-wins under concurrent access (the same atomic
+          replace contract as :func:`write_session_mode`).
+
+    Args:
+        session_id: Raw session id (may be ``None``, empty, or
+            ``"unknown"`` — same resolution rules as the writer).
+        **fields: Field updates. Only keys in
+            :data:`_PARTIAL_UPDATE_ALLOWED_FIELDS` are honored. Unknown
+            keys are silently filtered out.
+
+    Returns:
+        ``True`` if the artifact was successfully read and rewritten with
+        at least one allowed field updated. ``False`` if the artifact was
+        missing/stale, no allowed fields were passed, or any I/O error
+        occurred.
+    """
+    try:
+        # Read the current state. Returns None for missing/stale/malformed.
+        mode = read_session_mode(session_id)
+        if mode is None:
+            return False
+
+        # Filter to allowed fields. Unknown keys are silently ignored
+        # (forward-compat). If no allowed fields were passed, no-op.
+        filtered = {
+            k: v
+            for k, v in fields.items()
+            if k in _PARTIAL_UPDATE_ALLOWED_FIELDS
+        }
+        if not filtered:
+            return False
+
+        # Merge — preserve all existing keys, overwrite only filtered ones.
+        merged = dict(mode)
+        merged.update(filtered)
+
+        # Atomic write back to the same path the reader would consult.
+        path = _session_mode_path(session_id)
+        _atomic_write(path, merged)
+        return True
+    except Exception:
+        # Fail-open contract: never raise. The round-trip persistence is
+        # best-effort — if it fails, downstream readers will see no
+        # `clarified_intent` and AMBIGUOUS pessimism remains in effect.
+        return False
+
+
+def effective_intent_class(mode: dict | None) -> str | None:
+    """Return the intent class to act on, honoring user clarification.
+
+    When the user has disambiguated an AMBIGUOUS classification via
+    AskUserQuestion (Issue #1024 M2), ``mode["clarified_intent"]`` holds
+    the user-supplied value. Callers should prefer that over the
+    classifier's ``intent_class`` because the user has overridden the
+    classifier's uncertainty.
+
+    Args:
+        mode: The session-mode artifact dict, or ``None`` if there was no
+            artifact. ``None`` propagates straight through.
+
+    Returns:
+        The clarified intent if set (a non-empty string), otherwise the
+        original ``intent_class`` field. ``None`` if ``mode`` is ``None``
+        or both fields are absent.
+    """
+    if mode is None:
+        return None
+    clarified = mode.get("clarified_intent")
+    if isinstance(clarified, str) and clarified:
+        return clarified
+    return mode.get("intent_class")

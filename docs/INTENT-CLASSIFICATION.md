@@ -186,6 +186,14 @@ Any failure path returns `IntentResult(intent=AMBIGUOUS, fail_open=True, require
 
 `AMBIGUOUS` is the safe default. Callers MUST treat `requires_security_audit=True` as "do not relax security checks". The classifier never defaults to "skip security".
 
+### AskUserQuestion round-trip (Issue #1024 M2)
+
+When both `INTENT_CLASSIFIER_ENABLED` and `INTENT_CLASSIFIER_ENFORCE` are `true` and the classifier returns `AMBIGUOUS`, the `UserPromptSubmit` hook (`unified_prompt_validator.py`) appends an `additionalContext` block instructing Claude to call `AskUserQuestion` with seven canonical intent options (IMPLEMENT, REFACTOR, TEST, DOC, CONFIG, STATUS_QUERY, EXPLORATION). After the user responds, Claude runs `plugins/autonomous-dev/scripts/persist_intent_answer.py --session-id <id> --intent <choice>`, which calls `update_session_mode_partial()` to set `clarified_intent` on the artifact. The next PreToolUse hook reads `clarified_intent` and `enforcement_decision.py` Priority 4.5 honors the user's disambiguation, bypassing the pessimistic `fail_open`/`requires_security_audit` short-circuits that normally apply to AMBIGUOUS.
+
+A loop guard prevents re-asking: if `clarification_asked` is already `True` or `clarified_intent` is already set, the block is not emitted again in the same session.
+
+Security boundary: SECURITY_CRITICAL is produced only by the regex pre-gate and cannot be AMBIGUOUS, so the AskUserQuestion round-trip is never offered when a security keyword matched. The allowed set for user selection explicitly excludes `security_critical` and `ambiguous`.
+
 ## Enabling
 
 Phase 1 ships in shadow mode. The hook integration is gated by an environment variable that defaults OFF:
@@ -204,7 +212,7 @@ When the flag is unset/false/0, the modified `unified_prompt_validator.py` produ
 
 ### Phase D: session-mode artifact (Issue #998)
 
-When `INTENT_CLASSIFIER_ENABLED=true`, the hook also calls `lib/session_mode.write_session_mode()` after each classification, writing a per-session JSON snapshot to `/tmp/session_mode_<sha256(session_id)[:8]>.json`. The artifact captures all 12 classification fields (see `docs/LIBRARIES.md` `session_mode.py` entry) plus `enforce_mode` (the value of `INTENT_CLASSIFIER_ENFORCE` at write time). Phase E reads this artifact from PreToolUse hooks to gate routing decisions without re-parsing the activity log.
+When `INTENT_CLASSIFIER_ENABLED=true`, the hook also calls `lib/session_mode.write_session_mode()` after each classification, writing a per-session JSON snapshot to `/tmp/session_mode_<sha256(session_id)[:8]>.json`. The artifact captures 14 fields: the original 12 classification fields (see `docs/LIBRARIES.md` `session_mode.py` entry) plus `enforce_mode` (the value of `INTENT_CLASSIFIER_ENFORCE` at write time), plus two fields added in Issue #1024 M2: `clarification_asked` (bool, default `False`) and `clarified_intent` (str or `None`, set after the user responds to an AskUserQuestion round-trip). Phase E reads this artifact from PreToolUse hooks to gate routing decisions without re-parsing the activity log.
 
 The write is fail-open: any OSError or AttributeError is silently swallowed. Hook output remains byte-identical whether the write succeeds or fails.
 
@@ -289,6 +297,7 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | Phase 3 (cross-codebase rollout) | Done (Issue #1007) | Adopt `_wrap_user_input` across all 8 `GenAIAnalyzer` callers (10 sites total). New `_safe_wrap` helper in `genai_utils.py` simplifies adoption (single-line invocation, never raises). Two patterns supported: kwarg substitution (7 callers) and `.format` pre-substitution (`feature_completion_detector.py`). 4 false positives from the audit verified and locked. 25 new tests across `tests/unit/hooks/test_genai_utils_safe_wrap.py` and `tests/unit/lib/test_phase3_wrap_adoption.py`. |
 | Phase D | Done (Issue #998) | Wire classifier output to per-session artifact at `/tmp/session_mode_<hash>.json`. New env var `INTENT_CLASSIFIER_ENFORCE` plumbed (unused until Phase E). |
 | Phase E | Done (Issue #999) | Enforcement cutover: `plan_gate.py`, `plan_mode_exit_detector.py`, and `unified_pre_tool.py` skip non-floor checks for low-risk intent classes when `INTENT_CLASSIFIER_ENFORCE=true`. New libs: `enforcement_decision.py` (pure policy), `hook_stdin.py` (cached stdin reader). New telemetry shape: `mode_skip`. Single env var rollback. |
+| M2 (AMBIGUOUS round-trip) | Done (Issue #1024) | When the classifier returns AMBIGUOUS and both enforce flags are on, `unified_prompt_validator.py` appends an additionalContext block asking Claude to call AskUserQuestion with 7 intent options. New CLI `scripts/persist_intent_answer.py` persists the answer onto the artifact via `update_session_mode_partial()`. `enforcement_decision.py` Priority 4.5 (9th priority total) trusts the clarified intent and bypasses the fail_open/requires_security_audit pessimism. Session-mode artifact expanded to 14 fields: `clarification_asked` and `clarified_intent` added. Loop guard prevents re-asking within a session. |
 | Phase 3 | Future | Use `predicted_file_count` to scale pipeline complexity (single-file edits skip planner). |
 | Phase 4 | Future | Train a small distilled classifier from accumulated session telemetry to reduce LLM cost. |
 | Phase 5 | Future | Integrate with realign as a pre-training signal. |
@@ -311,8 +320,9 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | File | Purpose |
 |------|---------|
 | `plugins/autonomous-dev/lib/intent_classifier.py` | Main library |
-| `plugins/autonomous-dev/lib/session_mode.py` | Session-mode artifact writer (Phase D, Issue #998) |
-| `plugins/autonomous-dev/lib/enforcement_decision.py` | Pure policy layer: `should_skip_enforcement()` — 8-rule priority chain (Phase E, Issue #999) |
+| `plugins/autonomous-dev/lib/session_mode.py` | Session-mode artifact writer/reader (Phase D, Issue #998). Issue #1024 M2 adds `update_session_mode_partial()`, `effective_intent_class()`, and the `clarification_asked`/`clarified_intent` fields to the 14-field artifact payload. |
+| `plugins/autonomous-dev/lib/enforcement_decision.py` | Pure policy layer: `should_skip_enforcement()` — 9-priority chain (Priority 4.5 inserted in Issue #1024 M2 to trust user-clarified intents; Phase E Issue #999 established the original 8 priorities) |
+| `plugins/autonomous-dev/scripts/persist_intent_answer.py` | CLI called by Claude after AskUserQuestion to persist the user's intent selection onto the session-mode artifact (Issue #1024 M2). Accepts `--session-id` and `--intent`. Allowed values: `implement`, `refactor`, `test`, `doc`, `config`, `status_query`, `exploration`. Rejects `security_critical` and `ambiguous`. Exit 0 = success or silent fail-open; exit 1 = validation failure. |
 | `plugins/autonomous-dev/lib/hook_stdin.py` | Cached stdin reader: `read_stdin_once()`, `extract_session_id()` (Phase E, Issue #999) |
 | `plugins/autonomous-dev/config/intent_classifier_config.json` | Default config |
 | `plugins/autonomous-dev/hooks/unified_prompt_validator.py` | Hook integration (shadow mode) |
@@ -331,12 +341,59 @@ Lowering `confidence_threshold` makes the classifier more decisive but increases
 | `tests/unit/hooks/test_genai_utils_safe_wrap.py` | `_safe_wrap` helper test suite (4 tests: wraps, escapes, coerces non-string, never raises) |
 | `tests/unit/lib/test_phase3_wrap_adoption.py` | Phase 3 adoption test suite (21 tests across 8 callers + 4 false-positive locks) |
 | `tests/unit/lib/test_intent_classifier.py` | Test suite (68 tests, including 8 `TestPromptInjectionResistance` tests added in Phase 2) |
-| `tests/unit/lib/test_session_mode.py` | session_mode.py unit tests |
-| `tests/unit/lib/test_enforcement_decision.py` | enforcement_decision.py unit tests (13 tests) |
+| `tests/unit/lib/test_session_mode.py` | session_mode.py unit tests (16 tests) |
+| `tests/unit/lib/test_session_mode_clarification.py` | session_mode M2 clarification unit tests (13 tests, Issue #1024) |
+| `tests/unit/lib/test_enforcement_decision.py` | enforcement_decision.py unit tests (21 tests — 13 Phase E + 6 Issue #1024 M2 clarified-intent + 2 defense-in-depth) |
 | `tests/unit/lib/test_hook_stdin.py` | hook_stdin.py unit tests (10 tests) |
 | `tests/unit/lib/test_session_mode_reader.py` | session_mode reader-side unit tests (12 tests) |
 | `tests/unit/hooks/test_phase_e_integration.py` | Phase E hook integration tests (10 tests) |
+| `tests/unit/hooks/test_unified_prompt_validator_clarification.py` | Clarification block unit tests (11 tests, Issue #1024 M2): adversarial inputs + brace regression |
+| `tests/unit/scripts/test_persist_intent_answer.py` | persist_intent_answer.py unit tests (11 tests, Issue #1024 M2) |
 | `tests/integration/test_enforcement_mode_cutover.py` | Enforcement cutover integration tests (3 tests) |
+| `tests/integration/test_ambiguous_clarification_round_trip.py` | End-to-end round-trip integration tests (6 tests, Issue #1024 M2) |
 | `tests/integration/test_intent_classifier_observe_mode.py` | Observe-mode byte-identity integration tests |
 | `tests/fixtures/intent_classifier_fixtures.json` | 61 labeled prompts |
 | `tests/fixtures/unified_prompt_validator_golden.json` | Pre-modification snapshot |
+
+<!-- BEGIN: M2 calibration metrics (auto-generated by scripts/measure_intent_classifier.py) -->
+## Calibration Metrics (M2, Issue #1043)
+
+_Generated at: 2026-05-08T06:44:38.990567+00:00 | Corpus size: 108_
+
+**Macro F1: 0.492**
+
+### Per-Class Metrics
+
+| Class | Precision | Recall | F1 | Support |
+|-------|-----------|--------|----|---------|
+| `config` | 0.000 | 0.000 | 0.000 | 0 |
+| `conversation` | 0.000 | 0.000 | 0.000 | 0 |
+| `doc` | 0.000 | 0.000 | 0.000 | 0 |
+| `exploration` | 0.000 | 0.000 | 0.000 | 1 |
+| `implement` | 0.000 | 0.000 | 0.000 | 0 |
+| `refactor` | 0.000 | 0.000 | 0.000 | 0 |
+| `remote_ops` | 0.000 | 0.000 | 0.000 | 0 |
+| `scratch` | 0.000 | 0.000 | 0.000 | 0 |
+| `security_critical` | 0.970 | 1.000 | 0.985 | 32 |
+| `status_query` | 0.000 | 0.000 | 0.000 | 0 |
+| `test` | 0.000 | 0.000 | 0.000 | 0 |
+| `triage` | 0.000 | 0.000 | 0.000 | 0 |
+| `typo` | 0.000 | 0.000 | 0.000 | 0 |
+
+### Underperforming Classes
+
+These classes had the lowest F1 scores (excluding `security_critical`). In this synthetic-fallback run, 11 of 12 non-security classes have support=0 and tied at F1=0.000; only `exploration` had support > 0 (support=1, still F1=0.000):
+
+1. `exploration` — F1: 0.000 (support=1; predicted as `ambiguous`)
+
+**Note**: A real-session corpus (two-judge run with `ANTHROPIC_API_KEY` + `OPENROUTER_API_KEY`) is required for meaningful per-class differentiation. This report MEASURES the synthetic-fallback baseline. Targeted augmentation of corpus coverage for underperforming classes is tracked as a follow-up to Issue #1043.
+
+### Methodology
+
+- Corpus: `tests/fixtures/intent_classifier_real_corpus.json`
+- Two-judge unanimous agreement (Anthropic + non-Anthropic via OpenRouter)
+  OR synthetic-fallback when API keys unavailable
+- Holdout entries excluded from accuracy gate but included in support counts
+- Regression policy: per-class F1 must not drop >0.05 from baseline; macro F1 must not drop >0.03
+
+<!-- END: M2 calibration metrics -->

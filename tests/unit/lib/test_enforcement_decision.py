@@ -263,6 +263,175 @@ class TestNeverRaises:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Issue #1024 (M2) — clarified_intent overrides classifier uncertainty
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1024ClarifiedIntent:
+    """Priority 4.5 — user-clarified intent bypasses fail_open + audit gates.
+
+    The AskUserQuestion round-trip on AMBIGUOUS classifications sets
+    ``clarified_intent`` on the session-mode artifact. When that field is
+    present, ``should_skip_enforcement`` MUST honor it ahead of the
+    pessimism short-circuits in priorities 5 and 6, because the user has
+    explicitly resolved the classifier's uncertainty.
+
+    Security note: SECURITY_CRITICAL only comes from the regex pre-gate
+    (intent_classifier.py:649), never AMBIGUOUS, so a clarified intent
+    is never offered when a security keyword was matched. The hook layer
+    enforces this — the policy layer trusts what's written on the
+    artifact.
+    """
+
+    def test_clarified_intent_overrides_fail_open(
+        self, patched_deps, monkeypatch
+    ):
+        """Clarified intent + fail_open=True ⇒ trust user's selection."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": True,  # would normally short-circuit Priority 5
+            "requires_security_audit": True,  # AMBIGUOUS sets this defensively
+            "clarified_intent": "implement",
+        }
+        # implement → enforce per should_pipeline_enforce
+        patched_deps.should_pipeline_enforce_return = True
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is False
+        assert reason == "clarified_enforce:implement", (
+            f"Priority 4.5 should fire BEFORE fail_open's Priority 5, "
+            f"got reason={reason!r}"
+        )
+
+    def test_clarified_intent_overrides_security_audit(
+        self, patched_deps, monkeypatch
+    ):
+        """Clarified DOC + requires_security_audit=True ⇒ skip.
+
+        AMBIGUOUS sets requires_security_audit=True defensively. The user
+        has now disambiguated to DOC (a skip class). We trust the user.
+        Security rationale: AMBIGUOUS never overlaps with SECURITY_CRITICAL
+        (which comes from the regex pre-gate), so this branch is safe.
+        """
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": False,
+            "requires_security_audit": True,  # would normally Priority 6
+            "clarified_intent": "doc",
+        }
+        # doc → skip per should_pipeline_enforce
+        patched_deps.should_pipeline_enforce_return = False
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is True
+        assert reason == "clarified_skip:doc", (
+            f"Priority 4.5 should fire BEFORE security_audit's Priority 6, "
+            f"got reason={reason!r}"
+        )
+
+    def test_clarified_intent_skips_when_class_is_skippable(
+        self, patched_deps, monkeypatch
+    ):
+        """Clarified status_query → skip (clarified_skip:status_query)."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": False,
+            "requires_security_audit": False,
+            "clarified_intent": "status_query",
+        }
+        patched_deps.should_pipeline_enforce_return = False
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is True
+        assert reason == "clarified_skip:status_query"
+
+    def test_clarified_intent_empty_string_falls_through(
+        self, patched_deps, monkeypatch
+    ):
+        """Empty string MUST NOT trigger Priority 4.5 — only non-empty."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": True,
+            "requires_security_audit": True,
+            "clarified_intent": "",  # falsy — must NOT bypass priorities 5/6
+        }
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is False
+        # Should fall through to Priority 5 (fail_open).
+        assert reason == "classifier_fail_open"
+
+    def test_clarified_intent_none_falls_through(
+        self, patched_deps, monkeypatch
+    ):
+        """None MUST NOT trigger Priority 4.5."""
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": True,
+            "requires_security_audit": True,
+            "clarified_intent": None,
+        }
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is False
+        assert reason == "classifier_fail_open"
+
+    def test_priority_4_5_does_not_bypass_security_critical(
+        self, patched_deps, monkeypatch
+    ):
+        """Priority 4.5 with clarified_intent='security_critical' ⇒ enforce.
+
+        Defense-in-depth: the security claim ``SECURITY_CRITICAL cannot
+        bypass enforcement via clarified_intent`` rests on
+        ``should_pipeline_enforce`` returning ``True`` for
+        ``security_critical``. Even if an attacker writes
+        ``clarified_intent='security_critical'`` directly to the artifact
+        (bypassing ``persist_intent_answer.py`` validation),
+        ``should_pipeline_enforce`` returns ``True`` for security_critical
+        so Priority 4.5 still enforces. Defense-in-depth.
+
+        This test pins the policy contract directly — independent of the
+        CLI gate in ``persist_intent_answer.py`` — so a future refactor
+        cannot accidentally make Priority 4.5 skip for a class that
+        ``should_pipeline_enforce`` would mark as enforce.
+
+        Cross-references audit Finding 2 (HIGH, OWASP A08).
+        """
+        monkeypatch.setenv("INTENT_CLASSIFIER_ENFORCE", "true")
+        patched_deps.read_session_mode_return = {
+            "intent_class": "ambiguous",
+            "fail_open": True,
+            "requires_security_audit": True,
+            "clarified_intent": "security_critical",
+        }
+        # The real should_pipeline_enforce returns True for security_critical
+        # (it's NOT in _SKIP_INTENT_CLASSES). Mirror that here.
+        patched_deps.should_pipeline_enforce_return = True
+        skip, reason = should_skip_enforcement(
+            hook_name="plan_gate.py", session_id="real-sid"
+        )
+        assert skip is False, (
+            "clarified_intent='security_critical' must NEVER cause skip — "
+            "should_pipeline_enforce returns True for security_critical, "
+            "so Priority 4.5 falls into the clarified_enforce branch."
+        )
+        assert reason == "clarified_enforce:security_critical", (
+            f"reason should be clarified_enforce:security_critical to make "
+            f"the audit trail explicit; got {reason!r}"
+        )
+
+
 class TestIssue1023NonSWEClasses:
     """The 4 new skip-eligible classes (#1023) MUST:
 
