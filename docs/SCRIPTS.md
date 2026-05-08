@@ -136,9 +136,20 @@ python scripts/extract_and_label_intent_corpus.py \
 python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --max-prompts 150
+
+# Subscription auth (claude Max / claude -p) — bypass the fictional dollar cap
+# Per-call cost is $0 under subscription, so the $0.50 default cap fires at entry ~83.
+# Set --cost-cap-usd 0 to disable the dollar cap; --max-calls 500 remains as the
+# real runaway-loop safety net.
+python scripts/extract_and_label_intent_corpus.py \
+    --output tests/fixtures/intent_classifier_real_corpus.json \
+    --max-prompts 150 \
+    --cost-cap-usd 0
 ```
 
 Pulls `first_user_prompt` values from `~/.claude/archive/sessions.db` (all projects, last 30 days), applies PII scrubbing, deduplication, and length filtering. Uses a single LLM-as-judge via `claude -p` subprocess invocation (reuses your Claude Code subscription auth — no API keys needed). Falls back to synthetic-fallback when `claude` is not on PATH.
+
+**CLI flags** (Issue #1070): `--cost-cap-usd FLOAT` (default `0.50`) — set to `0` to disable the dollar cap when running under subscription auth where per-call cost is `$0`. `--max-calls INT` (default `500`) — the real runaway-loop safety net; set to `0` to disable. Both caps are independent; `would_exceed_cap` returns `True` if either active cap would be exceeded.
 
 Reads `sessions.db` from `~/.claude/archive/` (same source as `scripts/mine_session_logs.py`). Output corpus consumed by `scripts/measure_intent_classifier.py`.
 

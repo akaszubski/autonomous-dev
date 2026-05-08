@@ -324,6 +324,151 @@ def test_cost_cap_at_limit() -> None:
 
 
 # ---------------------------------------------------------------------------
+# #1070 — configurable cost cap + call-count cap
+# ---------------------------------------------------------------------------
+
+
+def test_cost_tracker_cap_usd_zero_disables_dollar_cap() -> None:
+    """Regression test for #1070: setting cap_usd=0 disables the dollar cap entirely.
+
+    Under Claude Max subscription auth, the per-call dollar cost is $0 — the
+    dollar accounting is fictional. Users running under subscription auth must
+    be able to disable the dollar cap and rely on max_calls as the runaway-
+    loop safety net.
+    """
+    tracker = CostTracker(cap_usd=0.0, max_calls=10000)
+    # 1000 calls would normally exceed $0.50 but cap is disabled
+    assert not tracker.would_exceed_cap(additional_calls=1000), (
+        "cap_usd=0 must mean unlimited dollar cap (#1070)"
+    )
+
+
+def test_cost_tracker_max_calls_caps_count() -> None:
+    """Regression test for #1070: max_calls cap stops further calls."""
+    tracker = CostTracker(cap_usd=99.0, max_calls=5)  # huge dollar cap, tight call cap
+    tracker.record_calls(5)  # at the cap exactly
+    # 6th call would exceed
+    assert tracker.would_exceed_cap(additional_calls=1), (
+        "max_calls=5 must reject the 6th call (#1070)"
+    )
+
+
+def test_cost_tracker_max_calls_zero_disables_call_cap() -> None:
+    """Regression test for #1070: max_calls=0 means unlimited."""
+    tracker = CostTracker(cap_usd=99.0, max_calls=0)
+    tracker.record_calls(10000)
+    assert not tracker.would_exceed_cap(additional_calls=1), (
+        "max_calls=0 must mean unlimited (#1070)"
+    )
+
+
+def test_cost_tracker_dollar_and_count_caps_independent() -> None:
+    """Regression test for #1070: both caps active; whichever fires first wins."""
+    # Dollar cap at $0.05 = 10 calls at $0.005 each
+    # Call cap at 20
+    # Dollar cap should fire first (after 10 calls)
+    tracker = CostTracker(cap_usd=0.05, max_calls=20)
+    tracker.record_calls(10)  # exactly at dollar cap
+    assert tracker.would_exceed_cap(additional_calls=1), (
+        "11th call must trip dollar cap (#1070)"
+    )
+
+    # Reverse: dollar cap big, call cap tight
+    tracker2 = CostTracker(cap_usd=99.0, max_calls=5)
+    tracker2.record_calls(5)
+    assert tracker2.would_exceed_cap(additional_calls=1), (
+        "6th call must trip call cap (#1070)"
+    )
+
+
+def test_cli_cost_cap_usd_flag_overrides_default(monkeypatch, tmp_path) -> None:
+    """Regression test for #1070: --cost-cap-usd CLI flag overrides default."""
+    from extract_and_label_intent_corpus import main as _main
+
+    output_path = tmp_path / "test_corpus.json"
+    captured_kwargs: Dict[str, Any] = {}
+
+    def fake_build_corpus(db_path, **kwargs):  # type: ignore[no-untyped-def]
+        captured_kwargs.update(kwargs)
+        return {
+            "_schema_version": 1,
+            "_extracted_at": "x",
+            "_methodology": "test",
+            "entries": [],
+        }
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.build_corpus", fake_build_corpus
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "script",
+            "--cost-cap-usd",
+            "0",
+            "--output",
+            str(output_path),
+            "--dry-run",
+        ],
+    )
+    _main()
+    assert captured_kwargs.get("cost_cap_usd") == 0.0, (
+        f"--cost-cap-usd 0 must propagate to build_corpus (#1070). "
+        f"Got: {captured_kwargs.get('cost_cap_usd')!r}"
+    )
+
+
+def test_cli_max_calls_flag_overrides_default(monkeypatch, tmp_path) -> None:
+    """Regression test for #1070: --max-calls CLI flag overrides default."""
+    from extract_and_label_intent_corpus import main as _main
+
+    output_path = tmp_path / "test_corpus.json"
+    captured_kwargs: Dict[str, Any] = {}
+
+    def fake_build_corpus(db_path, **kwargs):  # type: ignore[no-untyped-def]
+        captured_kwargs.update(kwargs)
+        return {
+            "_schema_version": 1,
+            "_extracted_at": "x",
+            "_methodology": "test",
+            "entries": [],
+        }
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.build_corpus", fake_build_corpus
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "script",
+            "--max-calls",
+            "200",
+            "--output",
+            str(output_path),
+            "--dry-run",
+        ],
+    )
+    _main()
+    assert captured_kwargs.get("max_calls") == 200, (
+        f"--max-calls 200 must propagate to build_corpus (#1070). "
+        f"Got: {captured_kwargs.get('max_calls')!r}"
+    )
+
+
+def test_cost_tracker_backward_compat_positional_args() -> None:
+    """Regression test for #1070: existing CostTracker(cap_usd=...) calls still work.
+
+    The new ``max_calls`` parameter is keyword-only with a sensible default so
+    callers that predate #1070 keep working without modification.
+    """
+    # Old-style positional/keyword (no max_calls)
+    tracker = CostTracker(cap_usd=0.5)
+    assert tracker.cap_usd == 0.5
+    # max_calls defaults to _MAX_CALLS_DEFAULT (500)
+    assert tracker.max_calls == 500
+
+
+# ---------------------------------------------------------------------------
 # Synthetic fallback corpus tests
 # ---------------------------------------------------------------------------
 

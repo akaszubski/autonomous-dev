@@ -88,6 +88,12 @@ COST_CAP_USD = 0.50
 # Rough cost estimates per API call (conservative)
 _COST_PER_CALL_USD = 0.005  # $0.005 per call (single judge ~ $0.005 per prompt)
 
+# Default runaway-loop safety net (#1070). The dollar cap is meaningless under
+# Claude Max subscription auth (per-call $ cost is 0), but we still want to
+# bound infinite loops. 500 calls is generous for the realistic 100-200 prompt
+# corpus while still bounded.
+_MAX_CALLS_DEFAULT = 500
+
 _DEFAULT_DB_PATH = Path.home() / ".claude" / "archive" / "sessions.db"
 _DEFAULT_OUTPUT = _PROJECT_ROOT / "tests" / "fixtures" / "intent_classifier_real_corpus.json"
 
@@ -682,30 +688,60 @@ def _call_claude_p_judge(
 # ---------------------------------------------------------------------------
 
 class CostTracker:
-    """Track estimated LLM API cost and enforce hard cap.
+    """Track estimated LLM API cost and enforce hard caps.
+
+    Two independent caps (#1070):
+
+    - ``cap_usd`` is the dollar cost cap. Set to ``0`` (or any value <= 0) to
+      disable. Useful under Claude Max subscription auth where per-call dollar
+      cost is $0 and the dollar accounting is fictional.
+    - ``max_calls`` is the API-call count cap. This is the actual runaway-loop
+      safety net. Set to ``0`` to disable.
+
+    The label loop calls :meth:`would_exceed_cap` before each request and
+    breaks out if either cap would be exceeded.
 
     Args:
-        cap_usd: Maximum spend in USD before hard stop
-        cost_per_call_usd: Estimated cost per individual API call
+        cap_usd: Maximum spend in USD before hard stop. ``0`` disables.
+        cost_per_call_usd: Estimated cost per individual API call.
+        max_calls: Maximum number of API calls before hard stop. ``0``
+            disables. Defaults to ``_MAX_CALLS_DEFAULT`` (500).
     """
 
-    def __init__(self, cap_usd: float = COST_CAP_USD, cost_per_call_usd: float = _COST_PER_CALL_USD) -> None:
-        self._cap = cap_usd
+    def __init__(
+        self,
+        cap_usd: float = COST_CAP_USD,
+        cost_per_call_usd: float = _COST_PER_CALL_USD,
+        *,
+        max_calls: int = _MAX_CALLS_DEFAULT,
+    ) -> None:
+        self._cap_usd = cap_usd
         self._cost_per_call = cost_per_call_usd
+        self._max_calls = max_calls
         self._total_calls = 0
         self._estimated_cost = 0.0
 
-    def would_exceed_cap(self, additional_calls: int = 2) -> bool:
-        """Check if making additional_calls more API calls would exceed the cap.
+    def would_exceed_cap(self, additional_calls: int = 1) -> bool:
+        """Check if making additional_calls more API calls would exceed any cap.
+
+        Returns True if either the dollar cap OR the call-count cap would be
+        exceeded by ``additional_calls`` more calls. A cap value of ``0`` (or
+        any non-positive number) disables that specific cap.
 
         Args:
             additional_calls: Number of planned upcoming calls
 
         Returns:
-            True if cap would be exceeded
+            True if any active cap would be exceeded
         """
-        projected = self._estimated_cost + additional_calls * self._cost_per_call
-        return projected > self._cap
+        if self._cap_usd > 0:  # 0 (or negative) = unlimited dollar cap
+            projected_cost = self._estimated_cost + additional_calls * self._cost_per_call
+            if projected_cost > self._cap_usd:
+                return True
+        if self._max_calls > 0:  # 0 (or negative) = unlimited call cap
+            if self._total_calls + additional_calls > self._max_calls:
+                return True
+        return False
 
     def record_calls(self, n: int = 1) -> None:
         """Record that n API calls were made.
@@ -725,6 +761,16 @@ class CostTracker:
     def estimated_cost_usd(self) -> float:
         """Estimated total cost in USD."""
         return self._estimated_cost
+
+    @property
+    def cap_usd(self) -> float:
+        """Active dollar cap (0 = unlimited)."""
+        return self._cap_usd
+
+    @property
+    def max_calls(self) -> int:
+        """Active call-count cap (0 = unlimited)."""
+        return self._max_calls
 
 
 # ---------------------------------------------------------------------------
@@ -761,11 +807,35 @@ def label_prompts_with_single_judge(
 
     for prompt in prompts:
         if cost_tracker.would_exceed_cap(additional_calls=1):
-            print(
-                f"WARNING: Cost cap ${COST_CAP_USD:.2f} would be exceeded. "
-                "Stopping early.",
-                file=sys.stderr,
+            # Distinguish which cap fired so users can see whether to raise
+            # --cost-cap-usd or --max-calls (#1070).
+            cap_usd = cost_tracker.cap_usd
+            max_calls = cost_tracker.max_calls
+            dollar_active = cap_usd > 0 and (
+                cost_tracker.estimated_cost_usd + cost_tracker._cost_per_call > cap_usd
             )
+            count_active = max_calls > 0 and (
+                cost_tracker.total_calls + 1 > max_calls
+            )
+            if dollar_active:
+                print(
+                    f"WARNING: Cost cap ${cap_usd:.2f} would be exceeded. "
+                    "Stopping early.",
+                    file=sys.stderr,
+                )
+            elif count_active:
+                print(
+                    f"WARNING: Call cap ({max_calls} calls) would be exceeded. "
+                    "Stopping early.",
+                    file=sys.stderr,
+                )
+            else:
+                # Defensive: would_exceed_cap returned True but neither branch
+                # detected. Fall back to a generic message.
+                print(
+                    "WARNING: Cap would be exceeded. Stopping early.",
+                    file=sys.stderr,
+                )
             break
 
         if dry_run:
@@ -829,6 +899,8 @@ def build_corpus(
     max_prompts: int = 150,
     judge_model: str = "claude-haiku-4-5-20251001",
     dry_run: bool = False,
+    cost_cap_usd: float = COST_CAP_USD,
+    max_calls: int = _MAX_CALLS_DEFAULT,
 ) -> Dict[str, Any]:
     """Build the full intent classification corpus.
 
@@ -840,6 +912,13 @@ def build_corpus(
         max_prompts: Target number of labeled entries
         judge_model: Anthropic model ID passed to ``claude -p --model``
         dry_run: If True, skip subprocess calls (produces placeholder labels)
+        cost_cap_usd: Maximum dollar spend before stopping. ``0`` disables
+            the dollar cap (useful under Claude Max subscription auth where
+            per-call cost is $0). See #1070.
+        max_calls: Maximum number of judge API calls before stopping. ``0``
+            disables the call cap. Defaults to ``_MAX_CALLS_DEFAULT`` (500).
+            This is the actual runaway-loop safety net under subscription
+            auth where the dollar cap is fictional. See #1070.
 
     Returns:
         Corpus dict ready for JSON serialization
@@ -889,7 +968,7 @@ def build_corpus(
     filtered = filtered[:max_prompts]
     print(f"INFO: {len(filtered)} prompts after dedup+filter", file=sys.stderr)
 
-    cost_tracker = CostTracker(cap_usd=COST_CAP_USD)
+    cost_tracker = CostTracker(cap_usd=cost_cap_usd, max_calls=max_calls)
 
     labeled_entries, drop_counts = label_prompts_with_single_judge(
         filtered,
@@ -962,6 +1041,26 @@ def main() -> None:
         action="store_true",
         help="Skip subprocess calls, write placeholder corpus",
     )
+    parser.add_argument(
+        "--cost-cap-usd",
+        type=float,
+        default=COST_CAP_USD,
+        help=(
+            "Maximum dollar spend before stopping (default: $%(default).2f). "
+            "Set to 0 to disable the dollar cap entirely — useful under Claude "
+            "Max subscription auth where per-call cost is $0 (#1070)."
+        ),
+    )
+    parser.add_argument(
+        "--max-calls",
+        type=int,
+        default=_MAX_CALLS_DEFAULT,
+        help=(
+            "Maximum number of judge API calls before stopping (default: "
+            "%(default)d). Set to 0 to disable. This is the actual runaway-"
+            "loop safety net under subscription auth (#1070)."
+        ),
+    )
     args = parser.parse_args()
 
     # Validate paths
@@ -978,6 +1077,8 @@ def main() -> None:
         max_prompts=args.max_prompts,
         judge_model=args.judge_model,
         dry_run=args.dry_run,
+        cost_cap_usd=args.cost_cap_usd,
+        max_calls=args.max_calls,
     )
 
     output_path.write_text(json.dumps(corpus, indent=2))
