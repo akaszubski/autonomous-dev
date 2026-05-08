@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **`extract_and_label_intent_corpus.py` — nested `claude -p` session no longer inherits project context** (Issue #1064): `_call_claude_p_judge` now passes `cwd=str(Path.home())` to `subprocess.run`, so the spawned `claude -p` session starts in `$HOME` instead of the repo root. Previously the subprocess inherited the project CWD, causing Claude Code to load this repo's `CLAUDE.md`, hooks, and skills into the context window — producing an Anthropic API `prompt_too_long` rejection and silently falling back to synthetic labels on every real-labeling run. No change to CLI flags, output corpus schema, or auth model. +1 regression test in `tests/unit/scripts/test_extract_and_label_intent_corpus.py`.
+
 ### Changed
 - refactor(scripts): #1043 follow-up — `extract_and_label_intent_corpus.py` is
   now single-judge via `claude -p` (was two-judge Anthropic+OpenRouter).

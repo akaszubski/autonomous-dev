@@ -516,3 +516,52 @@ def test_call_claude_p_judge_rejects_confidence_out_of_range() -> None:
         )
 
     assert result is None
+
+
+def test_call_claude_p_judge_passes_cwd_to_avoid_project_context(monkeypatch) -> None:
+    """Regression test for #1064: must pass cwd= to subprocess.run so the
+    spawned ``claude -p`` session does not inherit the parent's CWD and load
+    this project's CLAUDE.md + hooks (which causes ``prompt_too_long``).
+
+    Without ``cwd=``, the subprocess inherits the parent's current working
+    directory. When the corpus extractor runs from inside the autonomous-dev
+    repo, the spawned ``claude -p`` session loads the project's CLAUDE.md,
+    auto-memory, hooks, and skills — pushing the cumulative system prompt
+    over the API limit and causing every label call to fail with
+    ``terminal_reason: "prompt_too_long"``. Pinning ``cwd`` to a neutral
+    directory (``Path.home()``) prevents that context bleed.
+    """
+    import subprocess as _subprocess
+
+    captured_kwargs: Dict[str, Any] = {}
+    fake_envelope = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": '{"intent": "implement", "confidence": 0.9}',
+    }
+
+    def fake_run(cmd, **kwargs):
+        captured_kwargs.update(kwargs)
+        return _subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout=json.dumps(fake_envelope),
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "extract_and_label_intent_corpus.subprocess.run", fake_run
+    )
+
+    out = _call_claude_p_judge(
+        "classify this", model="claude-haiku-4-5-20251001"
+    )
+
+    assert out == {"intent": "implement", "confidence": 0.9}
+    assert "cwd" in captured_kwargs, (
+        "subprocess.run must receive cwd= to prevent #1064 project-context bleed"
+    )
+    assert captured_kwargs["cwd"] == str(Path.home()), (
+        f"cwd must be Path.home() (got {captured_kwargs['cwd']!r}) — #1064"
+    )

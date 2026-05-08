@@ -625,6 +625,7 @@ def _call_claude_p_judge(
             capture_output=True,
             timeout=timeout_sec,
             check=False,
+            cwd=str(Path.home()),  # avoid loading project CLAUDE.md/hooks in nested session (#1064)
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None
