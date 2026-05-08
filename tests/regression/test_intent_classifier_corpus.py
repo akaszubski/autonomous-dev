@@ -4,12 +4,13 @@ Tests:
 1. Corpus file exists and is well-formed (schema check, >=100 entries)
 2. Corpus has >=3 entries per class for all 13 classes
 3. Corpus has no PII (re-scan with scrubber)
-4. Per-class precision meets baseline (gated on OPENROUTER_API_KEY)
-5. No regression against committed baseline (gated on OPENROUTER_API_KEY)
+4. Per-class precision meets baseline (gated on `claude` CLI + non-synthetic corpus)
+5. No regression against committed baseline (gated on `claude` CLI + non-synthetic corpus)
 
-Tests 4 and 5 are API-gated via pytest.mark.skipif — they require
-OPENROUTER_API_KEY to run real LLM labeling. All other tests are
-unconditional and must pass in CI without API keys.
+Tests 4 and 5 are CLI-gated via pytest.mark.skipif — they require the
+``claude`` CLI to be on PATH for live single-judge labeling AND a real-session
+corpus (synthetic-fallback corpora produce unreliable per-class precision).
+All other tests are unconditional and must pass in CI without the CLI.
 
 GitHub Issue: #1043
 """
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -67,7 +69,25 @@ _NON_SWE_CLASSES = {
     "scratch",
 }
 
-_HAS_API_KEY = bool(os.environ.get("OPENROUTER_API_KEY", ""))
+_HAS_CLAUDE_CLI = shutil.which("claude") is not None
+
+
+def _corpus_is_synthetic_fallback() -> bool:
+    """Return True when the committed corpus was built via the synthetic
+    fallback path (claude CLI absent at generation time). The live precision
+    and F1 regression gates assume a real-session corpus; synthetic-fallback
+    is heavily biased toward security_critical and produces unreliable
+    per-class precision/recall signals.
+    """
+    try:
+        corpus = json.loads(_CORPUS_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        return True
+    methodology = str(corpus.get("_methodology", "")).lower()
+    return "synthetic" in methodology
+
+
+_CORPUS_IS_SYNTHETIC = _corpus_is_synthetic_fallback()
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +135,7 @@ class TestCorpusWellFormed:
         entries = corpus.get("entries", [])
         assert entries, "Corpus entries list is empty"
 
-        required_fields = {"id", "prompt", "label", "source", "judge_a", "judge_b",
+        required_fields = {"id", "prompt", "label", "source", "judge",
                            "redactions_applied", "holdout"}
 
         for i, entry in enumerate(entries[:10]):  # Check first 10 for speed
@@ -139,6 +159,19 @@ class TestCorpusWellFormed:
         ]
         assert not invalid, (
             f"Entries with invalid labels: {invalid[:5]}"
+        )
+
+    def test_corpus_no_legacy_judge_fields(self) -> None:
+        """No corpus entry should retain the legacy ``judge_a``/``judge_b`` fields."""
+        corpus = json.loads(_CORPUS_PATH.read_text())
+        entries = corpus.get("entries", [])
+        offenders = [
+            e.get("id", "?")
+            for e in entries
+            if "judge_a" in e or "judge_b" in e
+        ]
+        assert not offenders, (
+            f"Corpus entries still carry legacy judge_a/judge_b fields: {offenders[:5]}"
         )
 
 
@@ -241,8 +274,12 @@ class TestCorpusNoPII:
 
 
 @pytest.mark.skipif(
-    not _HAS_API_KEY,
-    reason="OPENROUTER_API_KEY not set — skipping live precision gate",
+    not _HAS_CLAUDE_CLI,
+    reason="claude CLI not on PATH — skipping live precision gate",
+)
+@pytest.mark.skipif(
+    _CORPUS_IS_SYNTHETIC,
+    reason="corpus is synthetic-fallback — live precision gate requires a real-session corpus",
 )
 class TestPerClassPrecisionGate:
     """Per-class precision/recall gates against the real classifier (requires API key)."""
@@ -305,8 +342,12 @@ class TestPerClassPrecisionGate:
 
 
 @pytest.mark.skipif(
-    not _HAS_API_KEY,
-    reason="OPENROUTER_API_KEY not set — skipping live regression test",
+    not _HAS_CLAUDE_CLI,
+    reason="claude CLI not on PATH — skipping live regression test",
+)
+@pytest.mark.skipif(
+    _CORPUS_IS_SYNTHETIC,
+    reason="corpus is synthetic-fallback — live regression gate requires a real-session corpus",
 )
 class TestNoRegressionAgainstBaseline:
     """Validates current classifier performance doesn't regress from baseline."""

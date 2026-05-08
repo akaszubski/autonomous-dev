@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Changed
+- refactor(scripts): #1043 follow-up — `extract_and_label_intent_corpus.py` is
+  now single-judge via `claude -p` (was two-judge Anthropic+OpenRouter).
+  Removes `OPENROUTER_API_KEY` dependency. Per-entry schema field rename:
+  `judge_a` + `judge_b` → `judge`. Committed corpus fixture regenerated.
+
 ### Added
 - **M2 calibration — intent classifier corpus extraction and per-class accuracy measurement** (Issue #1043): New script `scripts/extract_and_label_intent_corpus.py` extracts real user prompts from `~/.claude/archive/sessions.db` (last 30 days, all projects), applies PII scrubbing, deduplication, and length filtering, then uses two judges (Anthropic + non-Anthropic via OpenRouter) to label each prompt with one of the 13 intent classes — only unanimously-agreed entries are written to the corpus. Falls back to a synthetic-fallback corpus (`tests/fixtures/intent_classifier_real_corpus.json`, 108 entries) when API keys are unavailable. New script `scripts/measure_intent_classifier.py` runs the real `IntentClassifier` against the corpus, computes per-class precision/recall/F1 and a confusion matrix, and writes the baseline to `docs/intent_classifier_calibration.json`. Results are idempotently spliced into `docs/INTENT-CLASSIFICATION.md` via `<!-- BEGIN/END: M2 calibration metrics -->` sentinels. CI regression gate `tests/regression/test_intent_classifier_corpus.py` (gated on `OPENROUTER_API_KEY`) enforces that per-class F1 must not drop >0.05 from baseline and macro F1 must not drop >0.03. Synthetic-fallback run shows `security_critical` F1=0.985 (recall=100%) and all other classes at F1=0.000 with support=0 — this is expected: the synthetic corpus has overwhelming `security_critical` representation; a real-session two-judge run is required for meaningful per-class coverage. `.github/workflows/ci.yml` regression step already passes `OPENROUTER_API_KEY` from secrets. `docs/SCRIPTS.md` gains entries for both new scripts. 33 new tests: 17 in `tests/unit/scripts/test_extract_and_label_intent_corpus.py` (PII scrubbing, dedup, two-judge agreement logic, synthetic-fallback) and 16 in `tests/regression/test_intent_classifier_corpus.py` (corpus schema validation, PII checks, per-class F1 regression gate, macro F1 regression gate).
 

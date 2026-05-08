@@ -124,24 +124,23 @@ Reads `.claude/logs/hook-blocks.jsonl` (unified telemetry from Issue #972) and, 
 
 ## Intent Classifier Calibration (Issue #1043)
 
-### `scripts/extract_and_label_intent_corpus.py` — **Corpus extraction + two-judge labeling**
+### `scripts/extract_and_label_intent_corpus.py` — **Corpus extraction + single-judge labeling**
 
 ```bash
-# Dry-run: extract prompts without calling judges
+# Synthetic-fallback (no claude CLI required)
 python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --dry-run
 
-# Full run with API keys set (Anthropic + OpenRouter for two-judge agreement)
-ANTHROPIC_API_KEY=... OPENROUTER_API_KEY=... \
-    python scripts/extract_and_label_intent_corpus.py \
+# Real labeling (requires `claude` on PATH and a logged-in session)
+python scripts/extract_and_label_intent_corpus.py \
     --output tests/fixtures/intent_classifier_real_corpus.json \
     --max-prompts 150
 ```
 
-Pulls `first_user_prompt` values from `~/.claude/archive/sessions.db` (all projects, last 30 days), applies PII scrubbing, deduplication, and length filtering. Uses two judges (Anthropic + non-Anthropic via OpenRouter) to label each prompt with one of the 13 intent classes — only unanimously-agreed entries are written to the output corpus file. Falls back to a synthetic-fallback methodology (curated entries + existing fixtures) when API keys are unavailable.
+Pulls `first_user_prompt` values from `~/.claude/archive/sessions.db` (all projects, last 30 days), applies PII scrubbing, deduplication, and length filtering. Uses a single LLM-as-judge via `claude -p` subprocess invocation (reuses your Claude Code subscription auth — no API keys needed). Falls back to synthetic-fallback when `claude` is not on PATH.
 
-Requires `ANTHROPIC_API_KEY` and `OPENROUTER_API_KEY` for two-judge mode. Reads `sessions.db` from `~/.claude/archive/` (same source as `scripts/mine_session_logs.py`). Output corpus consumed by `scripts/measure_intent_classifier.py`.
+Reads `sessions.db` from `~/.claude/archive/` (same source as `scripts/mine_session_logs.py`). Output corpus consumed by `scripts/measure_intent_classifier.py`.
 
 ### `scripts/measure_intent_classifier.py` — **Per-class accuracy measurement**
 
@@ -154,7 +153,7 @@ python scripts/measure_intent_classifier.py \
 
 Runs the real `IntentClassifier` from `lib/intent_classifier.py` against each entry in the corpus file, computes per-class precision/recall/F1, builds a confusion matrix, and identifies the lowest-F1 underperforming classes. Optionally writes results to `docs/intent_classifier_calibration.json` (baseline for CI regression) and splices a Markdown report into `docs/INTENT-CLASSIFICATION.md` (idempotent, via `<!-- BEGIN: M2 calibration metrics -->` / `<!-- END: ... -->` sentinels).
 
-**Related**: `tests/fixtures/intent_classifier_real_corpus.json` (108 corpus entries), `docs/intent_classifier_calibration.json` (baseline metrics), `tests/regression/test_intent_classifier_corpus.py` (CI gate, gated on `OPENROUTER_API_KEY`).
+**Related**: `tests/fixtures/intent_classifier_real_corpus.json` (108 corpus entries), `docs/intent_classifier_calibration.json` (baseline metrics), `tests/regression/test_intent_classifier_corpus.py` (CI gate, gated on `claude` CLI presence via `shutil.which`).
 
 ---
 

@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""Extract real user prompts from session archive and label them with two judges.
+"""Extract real user prompts from session archive and label them with a single judge.
 
 Pulls first_user_prompt values from ~/.claude/archive/sessions.db (all projects,
-last 30 days), applies PII scrubbing, dedup, and length filtering, then uses
-two judges (Anthropic + non-Anthropic via OpenRouter) to label each prompt with
-one of the 13 intent classes. Only unanimously-agreed entries are written to the
-output corpus file.
+last 30 days), applies PII scrubbing, dedup, and length filtering, then uses a
+single LLM-as-judge invoked via ``claude -p`` (subprocess) to label each prompt
+with one of the 13 intent classes. Authentication uses the user's existing
+Claude Code subscription session — no API keys are required.
 
-Usage:
+ANTHROPIC_API_KEY/OPENROUTER_API_KEY are NOT used. Auth comes from
+your existing ``claude`` CLI session (run ``claude /login`` once).
+
+Usage::
+
+    # Synthetic-fallback (no claude CLI required)
     python scripts/extract_and_label_intent_corpus.py \\
         --output tests/fixtures/intent_classifier_real_corpus.json \\
-        --max-prompts 150 \\
         --dry-run
 
-    # With API keys set:
-    ANTHROPIC_API_KEY=... OPENROUTER_API_KEY=... \\
-        python scripts/extract_and_label_intent_corpus.py \\
-        --output tests/fixtures/intent_classifier_real_corpus.json
+    # Real labeling (requires `claude` on PATH and a logged-in session)
+    python scripts/extract_and_label_intent_corpus.py \\
+        --output tests/fixtures/intent_classifier_real_corpus.json \\
+        --max-prompts 150
 
 GitHub Issue: #1043
 """
@@ -30,7 +34,9 @@ import html
 import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -80,7 +86,7 @@ MAX_PROMPT_LEN = 2000
 COST_CAP_USD = 0.50
 
 # Rough cost estimates per API call (conservative)
-_COST_PER_CALL_USD = 0.005  # $0.005 per call (two judges = $0.01 per prompt)
+_COST_PER_CALL_USD = 0.005  # $0.005 per call (single judge ~ $0.005 per prompt)
 
 _DEFAULT_DB_PATH = Path.home() / ".claude" / "archive" / "sessions.db"
 _DEFAULT_OUTPUT = _PROJECT_ROOT / "tests" / "fixtures" / "intent_classifier_real_corpus.json"
@@ -283,8 +289,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": scrubbed_prompt,
             "label": label,
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": redactions,
             "holdout": fx.get("holdout", False),
         }
@@ -297,8 +302,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Update the project README with usage examples for the new CLI",
             "label": "doc",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -307,8 +311,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Write docstrings for all public functions in utils.py",
             "label": "doc",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -317,8 +320,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Add a CHANGELOG entry describing the new features in this release",
             "label": "doc",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -327,8 +329,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Update the pyproject.toml to pin the numpy version to 1.26",
             "label": "config",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -337,8 +338,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Add the REDIS_URL environment variable to the .env.example file",
             "label": "config",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -347,8 +347,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Fix the misspelling of 'recieved' in the error message string",
             "label": "typo",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -357,8 +356,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Correct 'teh' to 'the' in the help text output",
             "label": "typo",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -367,8 +365,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "What tests are currently failing in CI?",
             "label": "status_query",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -377,8 +374,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Show me the git log for the last 5 commits",
             "label": "status_query",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -387,8 +383,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "What are the tradeoffs between using Redis and Memcached for caching?",
             "label": "conversation",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -397,8 +392,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Should we adopt GraphQL or stick with REST for the new API?",
             "label": "conversation",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -407,8 +401,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Investigate how the session lifecycle is managed across hooks and lib modules",
             "label": "exploration",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -417,8 +410,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Trace how environment variables flow from the CI config into hook execution",
             "label": "exploration",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -427,8 +419,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "List all open issues labeled 'bug' and group them by component",
             "label": "triage",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -437,8 +428,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Review the last 10 closed issues and identify patterns in the defects",
             "label": "triage",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -447,8 +437,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Check disk usage on the remote training server and report available space",
             "label": "remote_ops",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -457,8 +446,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Sync the latest model checkpoints from the remote box to the local storage",
             "label": "remote_ops",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -467,8 +455,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Write a quick throwaway script in /tmp to compare two JSON files",
             "label": "scratch",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -477,8 +464,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Create a one-off notebook in /tmp/ to visualize the training loss curve",
             "label": "scratch",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -487,8 +473,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Add a new endpoint to export user data as a CSV file",
             "label": "implement",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -497,8 +482,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Build a background job to send weekly digest emails to subscribers",
             "label": "implement",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -507,8 +491,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Refactor the large report_generator.py by splitting it into smaller modules",
             "label": "refactor",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -517,8 +500,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Clean up dead code in the legacy payment handler",
             "label": "refactor",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -527,8 +509,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Write integration tests for the new webhook receiver endpoint",
             "label": "test",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -537,8 +518,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Fix the flaky end-to-end test that fails intermittently in CI",
             "label": "test",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -547,8 +527,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Implement rate limiting on the login endpoint to prevent brute force",
             "label": "security_critical",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -557,8 +536,7 @@ def _build_synthetic_fallback_corpus() -> List[Dict[str, Any]]:
             "prompt": "Audit the RBAC permissions for the admin API endpoints",
             "label": "security_critical",
             "source": "synthetic",
-            "judge_a": "synthetic-fallback",
-            "judge_b": "synthetic-fallback",
+            "judge": "synthetic-fallback",
             "redactions_applied": [],
             "holdout": False,
         },
@@ -608,111 +586,75 @@ _JUDGE_USER_TEMPLATE = """Classify this user prompt:
 Respond with only: {{"intent": "...", "confidence": 0.0}}"""
 
 
-def _call_anthropic_judge(
+def _call_claude_p_judge(
     prompt: str,
     *,
     model: str,
-    api_key: str,
+    timeout_sec: int = 60,
 ) -> Optional[Dict[str, Any]]:
-    """Call Anthropic API for intent classification.
+    """Call ``claude -p`` for intent classification.
+
+    Uses the user's existing Claude Code subscription auth (no API key
+    needed). Returns None on any failure (timeout, parse error, invalid
+    intent class, missing CLI).
 
     Args:
-        prompt: The user prompt to classify
-        model: Anthropic model identifier
-        api_key: Anthropic API key
+        prompt: The user prompt to classify (already PII-scrubbed).
+        model: Anthropic model identifier passed to ``--model``.
+        timeout_sec: Subprocess timeout in seconds.
 
     Returns:
-        Dict with 'intent' and 'confidence' or None on failure
+        Dict with 'intent' and 'confidence' or None on failure.
     """
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return None
-
-    client = Anthropic(api_key=api_key)
-    try:
-        user_content = _JUDGE_USER_TEMPLATE.format(
-            prompt=html.escape(prompt, quote=False)
-        )
-        message = client.messages.create(
-            model=model,
-            max_tokens=100,
-            system=_JUDGE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        raw = message.content[0].text.strip()
-        result = json.loads(raw)
-        if result.get("intent") not in VALID_INTENT_CLASSES:
-            return None
-        confidence = float(result.get("confidence", 0.0))
-        if not (0.0 <= confidence <= 1.0):
-            return None
-        return {"intent": result["intent"], "confidence": confidence}
-    except Exception:
-        return None
-
-
-def _call_openrouter_judge(
-    prompt: str,
-    *,
-    model: str,
-    api_key: str,
-) -> Optional[Dict[str, Any]]:
-    """Call OpenRouter API for intent classification.
-
-    Args:
-        prompt: The user prompt to classify
-        model: OpenRouter model identifier (e.g. openai/gpt-4o-mini)
-        api_key: OpenRouter API key
-
-    Returns:
-        Dict with 'intent' and 'confidence' or None on failure
-    """
-    try:
-        import urllib.request
-        import urllib.error
-    except ImportError:
-        return None
-
-    user_content = _JUDGE_USER_TEMPLATE.format(
+    user_message = _JUDGE_USER_TEMPLATE.format(
         prompt=html.escape(prompt, quote=False)
     )
-    payload = json.dumps(
-        {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": _JUDGE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "max_tokens": 100,
-            "temperature": 0,
-        }
-    ).encode()
+    cmd = [
+        "claude",
+        "-p",
+        "--output-format", "json",
+        "--model", model,
+        "--max-turns", "1",
+        "--system-prompt", _JUDGE_SYSTEM_PROMPT,
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            input=user_message,
+            text=True,
+            capture_output=True,
+            timeout=timeout_sec,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
 
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/autonomous-dev",
-        },
-        method="POST",
-    )
+    if result.returncode != 0:
+        return None
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-        raw = data["choices"][0]["message"]["content"].strip()
-        result = json.loads(raw)
-        if result.get("intent") not in VALID_INTENT_CLASSES:
-            return None
-        confidence = float(result.get("confidence", 0.0))
-        if not (0.0 <= confidence <= 1.0):
-            return None
-        return {"intent": result["intent"], "confidence": confidence}
-    except Exception:
+        envelope = json.loads(result.stdout)
+    except json.JSONDecodeError:
         return None
+    if envelope.get("is_error") or envelope.get("subtype") != "success":
+        return None
+    raw = envelope.get("result")
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = json.loads(raw.strip())
+    except json.JSONDecodeError:
+        return None
+    intent = parsed.get("intent")
+    if intent not in VALID_INTENT_CLASSES:
+        return None
+    try:
+        confidence = float(parsed.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        return None
+    if not (0.0 <= confidence <= 1.0):
+        return None
+    return {"intent": intent, "confidence": confidence}
 
 
 # ---------------------------------------------------------------------------
@@ -766,46 +708,39 @@ class CostTracker:
 
 
 # ---------------------------------------------------------------------------
-# Two-judge labeling
+# Single-judge labeling
 # ---------------------------------------------------------------------------
 
-def label_prompts_with_two_judges(
+def label_prompts_with_single_judge(
     prompts: List[str],
     *,
-    judge_a_model: str,
-    judge_b_model: str,
-    anthropic_api_key: str,
-    openrouter_api_key: str,
+    judge_model: str,
     cost_tracker: CostTracker,
     confidence_threshold: float = 0.70,
     dry_run: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
-    """Label prompts using two independent judges.
+    """Label prompts using a single LLM judge invoked via ``claude -p``.
 
-    Runs judge A (Anthropic) and judge B (OpenRouter/non-Anthropic) on each
-    prompt. Only entries where both judges agree on the intent AND both
-    report confidence >= threshold are kept.
+    Runs the judge on each prompt. Entries are kept when the judge returns a
+    valid intent class with confidence >= ``confidence_threshold``.
 
     Args:
         prompts: List of pre-scrubbed prompts to label
-        judge_a_model: Anthropic model ID for judge A
-        judge_b_model: OpenRouter model ID for judge B
-        anthropic_api_key: Anthropic API key
-        openrouter_api_key: OpenRouter API key
+        judge_model: Anthropic model ID passed to ``claude -p --model``
         cost_tracker: CostTracker to enforce spend cap
         confidence_threshold: Minimum confidence to accept
-        dry_run: If True, skip all API calls
+        dry_run: If True, skip all subprocess calls
 
     Returns:
-        Tuple of (agreed_entries, disagreement_counts)
-        where disagreement_counts maps "label_a->label_b" pairs to count
+        Tuple of (agreed_entries, drop_counts) where drop_counts maps a drop
+        reason ("judge_failure", "low_confidence", "invalid_intent") to count.
     """
     agreed: List[Dict[str, Any]] = []
-    disagreement_counts: Dict[str, int] = {}
+    drop_counts: Dict[str, int] = {}
     entry_id = 0
 
     for prompt in prompts:
-        if cost_tracker.would_exceed_cap(additional_calls=2):
+        if cost_tracker.would_exceed_cap(additional_calls=1):
             print(
                 f"WARNING: Cost cap ${COST_CAP_USD:.2f} would be exceeded. "
                 "Stopping early.",
@@ -814,15 +749,14 @@ def label_prompts_with_two_judges(
             break
 
         if dry_run:
-            # In dry run, simulate agreement with a placeholder label
+            # In dry run, simulate a judge response with a placeholder label
             agreed.append(
                 {
                     "id": f"real-{entry_id:04d}",
                     "prompt": prompt,
                     "label": "conversation",  # dry-run placeholder
                     "source": "sqlite",
-                    "judge_a": judge_a_model,
-                    "judge_b": judge_b_model,
+                    "judge": judge_model,
                     "redactions_applied": [],
                     "holdout": False,
                 }
@@ -830,51 +764,39 @@ def label_prompts_with_two_judges(
             entry_id += 1
             continue
 
-        result_a = _call_anthropic_judge(prompt, model=judge_a_model, api_key=anthropic_api_key)
-        result_b = _call_openrouter_judge(prompt, model=judge_b_model, api_key=openrouter_api_key)
-        cost_tracker.record_calls(2)
+        result = _call_claude_p_judge(prompt, model=judge_model)
+        cost_tracker.record_calls(1)
 
-        # Drop if either judge failed entirely
-        if result_a is None or result_b is None:
-            disagreement_counts["judge_failure->judge_failure"] = (
-                disagreement_counts.get("judge_failure->judge_failure", 0) + 1
-            )
+        # Drop if judge failed entirely (subprocess error, parse error, invalid intent)
+        if result is None:
+            drop_counts["judge_failure"] = drop_counts.get("judge_failure", 0) + 1
             continue
 
         # Drop if low confidence
-        if result_a["confidence"] < confidence_threshold:
-            disagreement_counts[f"low_conf_a->{result_a['intent']}"] = (
-                disagreement_counts.get(f"low_conf_a->{result_a['intent']}", 0) + 1
-            )
-            continue
-        if result_b["confidence"] < confidence_threshold:
-            disagreement_counts[f"low_conf_b->{result_b['intent']}"] = (
-                disagreement_counts.get(f"low_conf_b->{result_b['intent']}", 0) + 1
-            )
+        if result["confidence"] < confidence_threshold:
+            drop_counts["low_confidence"] = drop_counts.get("low_confidence", 0) + 1
             continue
 
-        # Drop if disagreement
-        if result_a["intent"] != result_b["intent"]:
-            pair = f"{result_a['intent']}->{result_b['intent']}"
-            disagreement_counts[pair] = disagreement_counts.get(pair, 0) + 1
+        # Defense-in-depth — should already be filtered by _call_claude_p_judge
+        if result["intent"] not in VALID_INTENT_CLASSES:
+            drop_counts["invalid_intent"] = drop_counts.get("invalid_intent", 0) + 1
             continue
 
-        # Both agree with sufficient confidence — keep
+        # Accept entry
         agreed.append(
             {
                 "id": f"real-{entry_id:04d}",
                 "prompt": prompt,
-                "label": result_a["intent"],
+                "label": result["intent"],
                 "source": "sqlite",
-                "judge_a": judge_a_model,
-                "judge_b": judge_b_model,
+                "judge": judge_model,
                 "redactions_applied": [],
                 "holdout": False,
             }
         )
         entry_id += 1
 
-    return agreed, disagreement_counts
+    return agreed, drop_counts
 
 
 # ---------------------------------------------------------------------------
@@ -885,39 +807,35 @@ def build_corpus(
     db_path: Path,
     *,
     max_prompts: int = 150,
-    judge_a_model: str = "claude-haiku-4-5-20251001",
-    judge_b_model: str = "openai/gpt-4o-mini",
-    anthropic_api_key: str = "",
-    openrouter_api_key: str = "",
+    judge_model: str = "claude-haiku-4-5-20251001",
     dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Build the full intent classification corpus.
 
-    Extracts from DB, scrubs PII, filters, and labels. Falls back to
-    synthetic corpus if API keys are unavailable.
+    Extracts from DB, scrubs PII, filters, and labels using ``claude -p``.
+    Falls back to synthetic corpus when the ``claude`` CLI is not on PATH.
 
     Args:
         db_path: Path to sessions.db
         max_prompts: Target number of labeled entries
-        judge_a_model: Anthropic model for judge A
-        judge_b_model: OpenRouter model for judge B
-        anthropic_api_key: Anthropic API key (empty = no real calls)
-        openrouter_api_key: OpenRouter API key (empty = no real calls)
-        dry_run: If True, skip API calls (produces placeholder labels)
+        judge_model: Anthropic model ID passed to ``claude -p --model``
+        dry_run: If True, skip subprocess calls (produces placeholder labels)
 
     Returns:
         Corpus dict ready for JSON serialization
     """
-    has_api_keys = bool(anthropic_api_key and openrouter_api_key)
-    methodology = (
-        "two-judge unanimous agreement (Anthropic + non-Anthropic)"
-        if has_api_keys and not dry_run
-        else "synthetic-fallback (no API key)"
-    )
+    has_claude_cli = shutil.which("claude") is not None
+    use_real_judge = has_claude_cli and not dry_run
+    if use_real_judge:
+        methodology = "single-judge via claude -p (Anthropic subscription auth)"
+    elif dry_run:
+        methodology = "dry-run placeholder (no real labeling)"
+    else:
+        methodology = "synthetic-fallback (claude CLI unavailable)"
 
-    if not has_api_keys and not dry_run:
+    if not use_real_judge and not dry_run:
         print(
-            "INFO: No API keys set. Using synthetic-fallback corpus from existing fixtures.",
+            "INFO: claude CLI not on PATH. Using synthetic-fallback corpus from existing fixtures.",
             file=sys.stderr,
         )
         entries = _build_synthetic_fallback_corpus()
@@ -953,12 +871,9 @@ def build_corpus(
 
     cost_tracker = CostTracker(cap_usd=COST_CAP_USD)
 
-    labeled_entries, disagreement_counts = label_prompts_with_two_judges(
+    labeled_entries, drop_counts = label_prompts_with_single_judge(
         filtered,
-        judge_a_model=judge_a_model,
-        judge_b_model=judge_b_model,
-        anthropic_api_key=anthropic_api_key,
-        openrouter_api_key=openrouter_api_key,
+        judge_model=judge_model,
         cost_tracker=cost_tracker,
         dry_run=dry_run,
     )
@@ -967,13 +882,13 @@ def build_corpus(
     for entry in labeled_entries:
         entry["redactions_applied"] = redaction_map.get(entry["prompt"], [])
 
-    # Print disagreement summary to stdout (not committed to file)
-    if disagreement_counts:
-        print("\n--- Disagreement summary ---")
-        total_disagreements = sum(disagreement_counts.values())
-        print(f"Total disagreements/drops: {total_disagreements}")
-        for pair, count in sorted(disagreement_counts.items(), key=lambda x: -x[1]):
-            print(f"  {pair}: {count}")
+    # Print drop summary to stdout (not committed to file)
+    if drop_counts:
+        print("\n--- Drop summary ---")
+        total_drops = sum(drop_counts.values())
+        print(f"Total drops: {total_drops}")
+        for reason, count in sorted(drop_counts.items(), key=lambda x: -x[1]):
+            print(f"  {reason}: {count}")
         print("---")
 
     print(
@@ -1018,19 +933,14 @@ def main() -> None:
         help="Target maximum prompts to label (default: 150)",
     )
     parser.add_argument(
-        "--judge-a-model",
+        "--judge-model",
         default="claude-haiku-4-5-20251001",
-        help="Anthropic model for judge A",
-    )
-    parser.add_argument(
-        "--judge-b-model",
-        default="openai/gpt-4o-mini",
-        help="OpenRouter model for judge B",
+        help="Anthropic model ID passed to `claude -p --model`",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Skip API calls, write placeholder corpus",
+        help="Skip subprocess calls, write placeholder corpus",
     )
     args = parser.parse_args()
 
@@ -1043,16 +953,10 @@ def main() -> None:
     output_path: Path = args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
-
     corpus = build_corpus(
         db_path,
         max_prompts=args.max_prompts,
-        judge_a_model=args.judge_a_model,
-        judge_b_model=args.judge_b_model,
-        anthropic_api_key=anthropic_api_key,
-        openrouter_api_key=openrouter_api_key,
+        judge_model=args.judge_model,
         dry_run=args.dry_run,
     )
 
@@ -1068,7 +972,7 @@ def main() -> None:
     if entry_count < 100:
         print(
             f"WARNING: Only {entry_count} entries — below ≥100 target. "
-            "Consider re-running with API keys or augmenting synthetic corpus.",
+            "Consider re-running with the claude CLI on PATH or augmenting the synthetic corpus.",
             file=sys.stderr,
         )
 

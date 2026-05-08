@@ -1,7 +1,8 @@
 """Unit tests for extract_and_label_intent_corpus.py.
 
-Tests PII scrubbing, dedup, length filtering, two-judge agreement logic,
-and cost cap enforcement. All LLM calls are mocked.
+Tests PII scrubbing, dedup, length filtering, single-judge labeling logic
+(via ``claude -p`` subprocess wrapper), and cost cap enforcement. All
+subprocess calls are mocked.
 
 GitHub Issue: #1043
 """
@@ -24,6 +25,7 @@ sys.path.insert(
 
 from extract_and_label_intent_corpus import (
     CostTracker,
+    VALID_INTENT_CLASSES,
     _build_synthetic_fallback_corpus,
     _RE_AWS_ACCOUNT,
     _RE_BASE64,
@@ -35,8 +37,9 @@ from extract_and_label_intent_corpus import (
     _RE_RFC1918_IP,
     _RE_SSH_USER_AT_HOST,
     _RE_UUID,
+    _call_claude_p_judge,
     filter_and_dedup,
-    label_prompts_with_two_judges,
+    label_prompts_with_single_judge,
     scrub_pii,
 )
 
@@ -206,7 +209,7 @@ def test_length_filter_rejects_too_long() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Two-judge agreement logic tests (mocked LLM)
+# Single-judge labeling tests (mocked subprocess)
 # ---------------------------------------------------------------------------
 
 
@@ -214,61 +217,28 @@ def _make_judge_result(intent: str, confidence: float = 0.9) -> Dict[str, Any]:
     return {"intent": intent, "confidence": confidence}
 
 
-def test_both_judges_agree_writes_entry() -> None:
-    """When both judges agree, the entry is added to agreed list."""
+def test_judge_returns_valid_intent_writes_entry() -> None:
+    """When the judge returns a valid intent above threshold, the entry is added."""
     prompts = ["implement pagination for the user list endpoint"]
     tracker = CostTracker()
 
-    with (
-        patch(
-            "extract_and_label_intent_corpus._call_anthropic_judge",
-            return_value=_make_judge_result("implement"),
-        ),
-        patch(
-            "extract_and_label_intent_corpus._call_openrouter_judge",
-            return_value=_make_judge_result("implement"),
-        ),
+    with patch(
+        "extract_and_label_intent_corpus._call_claude_p_judge",
+        return_value=_make_judge_result("implement"),
     ):
-        agreed, disagreements = label_prompts_with_two_judges(
+        agreed, drops = label_prompts_with_single_judge(
             prompts,
-            judge_a_model="claude-haiku",
-            judge_b_model="openai/gpt-4o-mini",
-            anthropic_api_key="test-key",
-            openrouter_api_key="test-key",
+            judge_model="claude-haiku-4-5-20251001",
             cost_tracker=tracker,
         )
 
     assert len(agreed) == 1
     assert agreed[0]["label"] == "implement"
     assert agreed[0]["source"] == "sqlite"
-
-
-def test_judges_disagree_drops_entry() -> None:
-    """When judges disagree, the entry is dropped and counted in disagreements."""
-    prompts = ["update the README with new flags"]
-    tracker = CostTracker()
-
-    with (
-        patch(
-            "extract_and_label_intent_corpus._call_anthropic_judge",
-            return_value=_make_judge_result("doc"),
-        ),
-        patch(
-            "extract_and_label_intent_corpus._call_openrouter_judge",
-            return_value=_make_judge_result("implement"),
-        ),
-    ):
-        agreed, disagreements = label_prompts_with_two_judges(
-            prompts,
-            judge_a_model="claude-haiku",
-            judge_b_model="openai/gpt-4o-mini",
-            anthropic_api_key="test-key",
-            openrouter_api_key="test-key",
-            cost_tracker=tracker,
-        )
-
-    assert len(agreed) == 0
-    assert any("doc->implement" in k or "implement->doc" in k for k in disagreements)
+    assert agreed[0]["judge"] == "claude-haiku-4-5-20251001"
+    # Schema check: legacy fields must NOT exist on entries
+    assert "judge_a" not in agreed[0]
+    assert "judge_b" not in agreed[0]
 
 
 def test_judge_low_confidence_drops_entry() -> None:
@@ -276,53 +246,37 @@ def test_judge_low_confidence_drops_entry() -> None:
     prompts = ["implement something"]
     tracker = CostTracker()
 
-    with (
-        patch(
-            "extract_and_label_intent_corpus._call_anthropic_judge",
-            return_value=_make_judge_result("implement", confidence=0.50),  # below 0.70
-        ),
-        patch(
-            "extract_and_label_intent_corpus._call_openrouter_judge",
-            return_value=_make_judge_result("implement", confidence=0.90),
-        ),
+    with patch(
+        "extract_and_label_intent_corpus._call_claude_p_judge",
+        return_value=_make_judge_result("implement", confidence=0.50),  # below 0.70
     ):
-        agreed, disagreements = label_prompts_with_two_judges(
+        agreed, drops = label_prompts_with_single_judge(
             prompts,
-            judge_a_model="claude-haiku",
-            judge_b_model="openai/gpt-4o-mini",
-            anthropic_api_key="test-key",
-            openrouter_api_key="test-key",
+            judge_model="claude-haiku-4-5-20251001",
             cost_tracker=tracker,
         )
 
     assert len(agreed) == 0
+    assert drops.get("low_confidence", 0) == 1
 
 
 def test_judge_returns_invalid_intent_drops_entry() -> None:
-    """Entry is dropped when judge returns an invalid intent class."""
+    """Entry is dropped when judge returns None (failure / invalid intent)."""
     prompts = ["implement something"]
     tracker = CostTracker()
 
-    with (
-        patch(
-            "extract_and_label_intent_corpus._call_anthropic_judge",
-            return_value=None,  # invalid/failure
-        ),
-        patch(
-            "extract_and_label_intent_corpus._call_openrouter_judge",
-            return_value=_make_judge_result("implement"),
-        ),
+    with patch(
+        "extract_and_label_intent_corpus._call_claude_p_judge",
+        return_value=None,  # subprocess error / parse failure / invalid intent
     ):
-        agreed, disagreements = label_prompts_with_two_judges(
+        agreed, drops = label_prompts_with_single_judge(
             prompts,
-            judge_a_model="claude-haiku",
-            judge_b_model="openai/gpt-4o-mini",
-            anthropic_api_key="test-key",
-            openrouter_api_key="test-key",
+            judge_model="claude-haiku-4-5-20251001",
             cost_tracker=tracker,
         )
 
     assert len(agreed) == 0
+    assert drops.get("judge_failure", 0) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -337,24 +291,18 @@ def test_cost_cap_enforced_stops_labeling() -> None:
     prompts = ["prompt one", "prompt two", "prompt three"]
 
     # Tracker's would_exceed_cap should return True before any calls
-    assert tracker.would_exceed_cap(additional_calls=2)
+    # (single-judge mode plans 1 additional call per prompt)
+    assert tracker.would_exceed_cap(additional_calls=1)
 
-    with (
-        patch("extract_and_label_intent_corpus._call_anthropic_judge") as mock_a,
-        patch("extract_and_label_intent_corpus._call_openrouter_judge") as mock_b,
-    ):
-        agreed, _ = label_prompts_with_two_judges(
+    with patch("extract_and_label_intent_corpus._call_claude_p_judge") as mock_judge:
+        agreed, _ = label_prompts_with_single_judge(
             prompts,
-            judge_a_model="claude-haiku",
-            judge_b_model="openai/gpt-4o-mini",
-            anthropic_api_key="test-key",
-            openrouter_api_key="test-key",
+            judge_model="claude-haiku-4-5-20251001",
             cost_tracker=tracker,
         )
 
     # No calls should have been made since cap was already exceeded
-    mock_a.assert_not_called()
-    mock_b.assert_not_called()
+    mock_judge.assert_not_called()
     assert len(agreed) == 0
 
 
@@ -397,3 +345,174 @@ def test_synthetic_fallback_corpus_minimum_size() -> None:
     """Synthetic fallback corpus has at least 100 entries."""
     entries = _build_synthetic_fallback_corpus()
     assert len(entries) >= 100, f"Only {len(entries)} entries in synthetic fallback"
+
+
+def test_synthetic_fallback_entries_use_judge_field() -> None:
+    """Synthetic-fallback entries use the single ``judge`` field, not judge_a/b."""
+    entries = _build_synthetic_fallback_corpus()
+    assert entries, "Synthetic fallback returned no entries"
+    for entry in entries:
+        assert entry.get("judge") == "synthetic-fallback", (
+            f"Entry {entry.get('id')!r} has unexpected judge field: {entry.get('judge')!r}"
+        )
+        assert "judge_a" not in entry, (
+            f"Entry {entry.get('id')!r} still has legacy judge_a field"
+        )
+        assert "judge_b" not in entry, (
+            f"Entry {entry.get('id')!r} still has legacy judge_b field"
+        )
+
+
+# ---------------------------------------------------------------------------
+# `_call_claude_p_judge` envelope and subprocess behavior tests
+# ---------------------------------------------------------------------------
+
+
+def _make_envelope(intent: str = "implement", confidence: float = 0.92) -> str:
+    """Build the JSON envelope claude -p emits with `--output-format json`."""
+    inner = json.dumps({"intent": intent, "confidence": confidence})
+    return json.dumps(
+        {
+            "subtype": "success",
+            "is_error": False,
+            "result": inner,
+        }
+    )
+
+
+def test_call_claude_p_judge_handles_missing_cli() -> None:
+    """When `claude` CLI is absent, subprocess.run raises FileNotFoundError -> None."""
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        side_effect=FileNotFoundError("claude not on PATH"),
+    ):
+        result = _call_claude_p_judge(
+            "implement pagination", model="claude-haiku-4-5-20251001"
+        )
+    assert result is None
+
+
+def test_call_claude_p_judge_handles_timeout() -> None:
+    """When subprocess.run times out, the helper returns None."""
+    import subprocess as _subprocess
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        side_effect=_subprocess.TimeoutExpired(cmd=["claude"], timeout=60),
+    ):
+        result = _call_claude_p_judge(
+            "implement pagination", model="claude-haiku-4-5-20251001"
+        )
+    assert result is None
+
+
+def test_call_claude_p_judge_parses_envelope() -> None:
+    """A well-formed claude -p JSON envelope yields a parsed intent + confidence."""
+    fake = MagicMock()
+    fake.returncode = 0
+    fake.stdout = _make_envelope(intent="doc", confidence=0.88)
+    fake.stderr = ""
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        return_value=fake,
+    ) as mock_run:
+        result = _call_claude_p_judge(
+            "Update the README with new flags",
+            model="claude-haiku-4-5-20251001",
+        )
+
+    assert result == {"intent": "doc", "confidence": 0.88}
+    # Validate the subprocess invocation shape
+    args, kwargs = mock_run.call_args
+    cmd = args[0]
+    assert cmd[0] == "claude"
+    assert cmd[1] == "-p"
+    assert "--output-format" in cmd
+    assert "json" in cmd
+    assert "--model" in cmd
+    assert "claude-haiku-4-5-20251001" in cmd
+    assert "--max-turns" in cmd
+    assert "1" in cmd
+    assert "--system-prompt" in cmd
+    assert kwargs.get("capture_output") is True
+    assert kwargs.get("text") is True
+    assert "input" in kwargs
+
+
+def test_call_claude_p_judge_rejects_invalid_intent_in_envelope() -> None:
+    """When the envelope's inner result contains an unknown intent, return None."""
+    fake = MagicMock()
+    fake.returncode = 0
+    inner = json.dumps({"intent": "not_a_real_class", "confidence": 0.95})
+    fake.stdout = json.dumps(
+        {"subtype": "success", "is_error": False, "result": inner}
+    )
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        return_value=fake,
+    ):
+        result = _call_claude_p_judge(
+            "investigate session lifecycle",
+            model="claude-haiku-4-5-20251001",
+        )
+
+    assert result is None
+
+
+def test_call_claude_p_judge_rejects_error_envelope() -> None:
+    """When `is_error=True` or `subtype != success`, helper returns None."""
+    fake = MagicMock()
+    fake.returncode = 0
+    fake.stdout = json.dumps(
+        {"subtype": "error", "is_error": True, "result": None}
+    )
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        return_value=fake,
+    ):
+        result = _call_claude_p_judge(
+            "any prompt", model="claude-haiku-4-5-20251001"
+        )
+
+    assert result is None
+
+
+def test_call_claude_p_judge_rejects_nonzero_exit() -> None:
+    """A non-zero subprocess returncode yields None."""
+    fake = MagicMock()
+    fake.returncode = 1
+    fake.stdout = ""
+    fake.stderr = "boom"
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        return_value=fake,
+    ):
+        result = _call_claude_p_judge(
+            "any prompt", model="claude-haiku-4-5-20251001"
+        )
+
+    assert result is None
+
+
+def test_call_claude_p_judge_rejects_confidence_out_of_range() -> None:
+    """Confidence outside [0.0, 1.0] returns None (defense in depth)."""
+    fake = MagicMock()
+    fake.returncode = 0
+    inner = json.dumps({"intent": "implement", "confidence": 1.5})
+    fake.stdout = json.dumps(
+        {"subtype": "success", "is_error": False, "result": inner}
+    )
+
+    with patch(
+        "extract_and_label_intent_corpus.subprocess.run",
+        return_value=fake,
+    ):
+        result = _call_claude_p_judge(
+            "any prompt", model="claude-haiku-4-5-20251001"
+        )
+
+    assert result is None

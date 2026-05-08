@@ -386,13 +386,13 @@ These classes had the lowest F1 scores (excluding `security_critical`). In this 
 
 1. `exploration` — F1: 0.000 (support=1; predicted as `ambiguous`)
 
-**Note**: A real-session corpus (two-judge run with `ANTHROPIC_API_KEY` + `OPENROUTER_API_KEY`) is required for meaningful per-class differentiation. This report MEASURES the synthetic-fallback baseline. Targeted augmentation of corpus coverage for underperforming classes is tracked as a follow-up to Issue #1043.
+**Note**: A real-session corpus (single-judge run via `claude -p` with the `claude` CLI on PATH) is required for meaningful per-class differentiation. This report MEASURES the synthetic-fallback baseline. Targeted augmentation of corpus coverage for underperforming classes is tracked as a follow-up to Issue #1043.
 
 ### Methodology
 
 - Corpus: `tests/fixtures/intent_classifier_real_corpus.json`
-- Two-judge unanimous agreement (Anthropic + non-Anthropic via OpenRouter)
-  OR synthetic-fallback when API keys unavailable
+- Single-judge via `claude -p` (Anthropic subscription auth, no API keys)
+  OR synthetic-fallback when `claude` CLI is not on PATH
 - Holdout entries excluded from accuracy gate but included in support counts
 - Regression policy: per-class F1 must not drop >0.05 from baseline; macro F1 must not drop >0.03
 
