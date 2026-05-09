@@ -49,6 +49,51 @@ SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 STALE_UNKNOWN_TTL_SECONDS = 3600
 
 
+def resolve_session_id(
+    *,
+    sentinel_path: str = "/tmp/implement_pipeline_state.json",
+    max_age_seconds: int = 3600,
+) -> str:
+    """Resolve the current Claude session id via fallback chain.
+
+    Issue #1081 (drift fix); semantics from Issue #904.
+
+    Fallback chain (first match wins):
+        1. ``CLAUDE_SESSION_ID`` env var, if set and non-empty.
+        2. ``sentinel_path`` JSON file's ``session_id`` field, if file
+           exists, mtime is within ``max_age_seconds``, JSON parses, and
+           the field is a non-empty string.
+        3. The literal string ``"unknown"``.
+
+    NEVER raises. Catches ``OSError``, ``json.JSONDecodeError``,
+    ``ValueError`` and unexpected types — all paths return ``"unknown"``.
+
+    Used by ``commands/implement.md`` STEP 0, STEP 2, and the
+    Pre-Dispatch Ordering Protocol to recover session id in subshell
+    contexts that drop the env var (nested heredocs, pipe subshells).
+    """
+    env_sid = os.environ.get("CLAUDE_SESSION_ID", "")
+    if env_sid:
+        return env_sid
+    try:
+        st = os.stat(sentinel_path)
+        if (time.time() - st.st_mtime) > max_age_seconds:
+            return "unknown"
+    except OSError:
+        return "unknown"
+    try:
+        with open(sentinel_path) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return "unknown"
+    if not isinstance(data, dict):
+        return "unknown"
+    sid = data.get("session_id")
+    if isinstance(sid, str) and sid:
+        return sid
+    return "unknown"
+
+
 def _check_file_bypass() -> bool:
     """Check and consume the file-based bypass for the agent completeness gate.
 
