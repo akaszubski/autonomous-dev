@@ -190,6 +190,29 @@ Runs the real `IntentClassifier` from `lib/intent_classifier.py` against each en
 
 **Related**: `tests/fixtures/intent_classifier_real_corpus.json` (108 corpus entries), `docs/intent_classifier_calibration.json` (baseline metrics), `tests/regression/test_intent_classifier_corpus.py` (CI gate, gated on `claude` CLI presence via `shutil.which`).
 
+### `scripts/measure_intent_classifier.py --validate-from-telemetry` — Telemetry-driven FN rate (Issue #1077)
+
+```bash
+# Default paths
+python3 scripts/measure_intent_classifier.py --validate-from-telemetry
+
+# Custom paths
+python3 scripts/measure_intent_classifier.py --validate-from-telemetry \
+    --telemetry-log .claude/logs/hook-blocks.jsonl \
+    --sessions-db ~/.claude/archive/sessions.db \
+    --telemetry-output docs/intent_classifier_telemetry_validation.json
+```
+
+Reads `mode_skip` rows from hook telemetry, joins against the session archive,
+and reports the observed false-negative rate of intent-classifier-driven
+session-mode skipping with a Wilson 95% CI. Used as the gating measurement
+for flipping `INTENT_CLASSIFIER_ENFORCE` from `false` to `true`. See
+`.claude/plans/mode-gating-rollout.md` Phase B and `docs/INTENT-CLASSIFICATION.md`
+"Rollout to Enforce Mode" section.
+
+Filters out synthetic `phase-e-test-*` session IDs. Idempotent — same
+inputs produce byte-identical output (modulo `_meta.generated_at`).
+
 ---
 
 ## Benchmarks & Measurement

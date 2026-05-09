@@ -230,6 +230,31 @@ Single env var rollback: `INTENT_CLASSIFIER_ENFORCE=false` (or unset) reverts al
 
 Setting this to `true` requires `INTENT_CLASSIFIER_ENABLED=true` and an active session-mode artifact. If the artifact is missing, expired, or the classifier fell back to fail-open, the hooks enforce normally (fail-safe direction is always enforce).
 
+### Rollout to Enforce Mode
+
+Before flipping `INTENT_CLASSIFIER_ENFORCE` from `false` to `true`, the observed false-negative (FN) rate of intent-classifier-driven session-mode skipping must be measured against real production telemetry. The gating script is `scripts/measure_intent_classifier.py --validate-from-telemetry` (Issue #1077, Phase B of the mode-gating rollout plan).
+
+**What it measures**: For each session where `mode_skip` telemetry was emitted (Phase E bypassed a non-floor gate), the script classifies whether the session was implement-shaped (first prompt matched `/implement`, `/refactor`, or `/fix`; or the session had `tool_calls >= 8` and `transcript_bytes >= 4096`). Implement-shaped sessions that hit `mode_skip` are counted as false negatives. Wilson 95% CI is reported.
+
+**Decision threshold**: flip `INTENT_CLASSIFIER_ENFORCE` to `true` when the observed FN rate (upper Wilson 95% CI bound) is below the project's acceptable FN threshold. Require at least 50 real sessions (`n_unique_sessions >= 50`) before treating the result as actionable.
+
+**Running the measurement**:
+
+```bash
+# Default paths (reads .claude/logs/hook-blocks.jsonl + ~/.claude/archive/sessions.db)
+python3 scripts/measure_intent_classifier.py --validate-from-telemetry
+
+# Custom paths
+python3 scripts/measure_intent_classifier.py --validate-from-telemetry \
+    --telemetry-log .claude/logs/hook-blocks.jsonl \
+    --sessions-db ~/.claude/archive/sessions.db \
+    --telemetry-output docs/intent_classifier_telemetry_validation.json
+```
+
+Output is written to `docs/intent_classifier_telemetry_validation.json`. Synthetic `phase-e-test-*` session IDs are excluded from the measurement. The script is idempotent — same inputs produce byte-identical output (modulo `_meta.generated_at`).
+
+See `.claude/plans/mode-gating-rollout.md` for the full rollout plan and Phase B acceptance criteria.
+
 ## Telemetry
 
 Every classification call (when telemetry is enabled, default true) appends one JSONL line to `.claude/logs/activity/{YYYY-MM-DD}.jsonl`:
