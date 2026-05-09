@@ -69,6 +69,16 @@ Component counts: 16 agents, 19 skills, 23 commands, 30 hooks, 219 libraries.
 | Architecture details | [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) |
 | Troubleshooting | [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) |
 
+## Periodic Maintenance
+
+These tasks aren't part of the per-commit workflow — they're run on a maintainer cadence (roughly monthly) to keep load-bearing infrastructure calibrated. Per-event automations have periodic-aggregation counterparts; this is where the periodic side lives.
+
+| Task | Command | When to run |
+|------|---------|-------------|
+| Refresh intent classifier calibration corpus | `python3 scripts/extract_and_label_intent_corpus.py --source both --cost-cap-usd 0 --max-prompts 200 --output tests/fixtures/intent_classifier_real_corpus.json` | Monthly, or when classifier behavior feels off. Uses your `claude` CLI subscription auth. See [docs/INTENT-CLASSIFICATION.md](docs/INTENT-CLASSIFICATION.md) and [docs/SCRIPTS.md](docs/SCRIPTS.md). |
+| Sweep narrative docs for drift | `/refactor --docs` | Monthly, or after multiple feature batches land. doc-master in `/implement` only checks docs covering changed files; narrative docs (README, ARCHITECTURE-OVERVIEW, HARNESS-EVOLUTION) need a periodic full-state pass. |
+| Triage CIA-filed auto-improvement issues | manual review of `gh issue list --label auto-improvement` | Weekly. CIA files per-session findings; triage groups them by root cause, sequences dependencies, drops noise. See [PROJECT.md Layer 4](.claude/PROJECT.md). |
+
 ## Session Continuity
 
 `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact. Activity logged to `.claude/logs/activity/` by `session_activity_logger.py`.
