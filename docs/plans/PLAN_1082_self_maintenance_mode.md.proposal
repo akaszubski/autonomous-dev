@@ -1,0 +1,80 @@
+# Plan: Issue #1082 — autonomous-dev self-maintenance friction
+
+**Status:** Round 2 draft after Phase 0 investigation. Round 1 verdict was REVISE @ 2.6.
+
+## Phase 0 — Verified Premises (2026-05-10)
+
+Read against live code, not memory:
+
+| Prior premise (Round 1) | Verified state |
+|---|---|
+| "Bypass code is missing for #1082" | **Wrong.** Bypass code exists at unified_pre_tool.py:4604-4711. Both batch and non-batch paths are inside the `_skip_gate_via_*` short-circuit. Shipped 5849571 (2026-04-19). |
+| "Per-issue baselines need to be added" | **Wrong.** They exist at prompt_integrity.py:487-593 (Issue #764). |
+| "Friction events 1-2 are issue-number unavailability" | **Wrong.** State file shows `issue_number: 1081` correctly written. `_get_current_issue_number()` returns 1081 cleanly. |
+| "Both bypasses ignored at commit time" | **Misdiagnosis.** Bypass file `/tmp/skip_agent_completeness_gate` from yesterday 08:45 still exists, never consumed. The bypass code path was never reached on attempt 2. The block came from a different hook layer. |
+
+### Real root causes
+
+**Friction events 1-2 (researcher/implementer prompt shrinkage) — confirmed:**
+- `get_prompt_baseline(agent_type, issue_number=1081)` at prompt_integrity.py:566-586 falls back to lowest prior issue's baseline (Issue #867, intentional for cross-issue drift detection) when issue #1081 has no recorded baseline.
+- For the very first dispatch of any new issue, this means baseline = lowest prior issue's prompt. If prior issue had a richer prompt context, first dispatch is guaranteed to trip 20% shrinkage.
+- The cross-issue detection itself is sound; the bug is that it activates on the *first* dispatch where there is no current-issue baseline yet to detect drift FROM.
+
+**Friction event 8 (bypass ignored) — re-diagnosed:**
+- Most likely sequence: attempt 1 hit gate (no bypass yet). User applied `touch`. Attempt 2 was blocked by a *different* hook layer (probably workflow-enforcement or protected-infra Edit) BEFORE reaching the gate code at L4604. Bypass file persisted because the gate's bypass-detection block was never executed.
+- Side issue: pipeline state has `session_id: "unknown"` because coordinator couldn't read `CLAUDE_SESSION_ID`. Downstream `verify_pipeline_agent_completions("unknown", ...)` keys completions to a stale bucket — agents that DID complete in a prior session under a real session_id never count.
+
+**Friction events 3-7 (protected-infra Edit, cp/chmod/Write blocks) — partially understood:**
+- These are correct enforcement *for consumer projects* but wrong for self-maintenance. The protected-path lists in unified_pre_tool.py guard `plugins/autonomous-dev/{lib,hooks,...}` — but those are the literal files maintainers need to edit when fixing bugs.
+- Coordinator Edit during active pipeline is gated by HMAC-signed state file; even a properly-signed pipeline doesn't grant Edit access to coordinator on protected paths.
+
+## Revised Implementation — Phase 1 (single PR, ~150 LOC)
+
+**Dropped from Round 1 plan:** Phase 2 (bypass code already exists), Phase 4 (consumer-repo scope expansion). Phase 3 collapses into 1a below.
+
+### 1a. Fix first-dispatch baseline fallback
+
+**File:** `plugins/autonomous-dev/lib/prompt_integrity.py:566-586`
+
+**Change:** Split `get_prompt_baseline` per-issue lookup from cross-issue fallback. When `issue_number` is provided AND no baseline exists for that exact issue, return `None`. Caller (unified_pre_tool.py:792) then takes the seed-from-observation branch, which correctly records the new issue's baseline.
+
+**New function:** `get_cross_issue_baseline(agent_type, exclude_issue=None)` — returns lowest-issue baseline excluding the current issue. Caller invokes this only AFTER the current issue has its own baseline, for cross-issue drift comparison on the second+ dispatch within the issue.
+
+**Test:** Unit test asserts that first-dispatch in a new issue with prior issue baselines does NOT block. Second-dispatch with shrunken prompt DOES block via cross-issue check.
+
+### 1b. Fix coordinator session_id resolution
+
+**File:** `plugins/autonomous-dev/commands/implement.md` (coordinator state-file write step) and the helper that writes `/tmp/implement_pipeline_state.json`.
+
+**Change:** When `CLAUDE_SESSION_ID` env is empty, fall back to a deterministic session id derived from `run_id` (e.g., `sha256(run_id)[:16]`) rather than literal `"unknown"`. Document that downstream `verify_pipeline_agent_completions` keys off this same value.
+
+**Test:** Integration test asserts pipeline state never contains `session_id: "unknown"`.
+
+### 1c. Surface the actual block on commit-bypass failures
+
+**File:** unified_pre_tool.py around L4604 and the protected-infra Edit block.
+
+**Change:** When a commit attempt is blocked by a hook *other than* the agent-completeness gate while a bypass marker is present, the block message should explicitly say so: "Note: `/tmp/skip_agent_completeness_gate` is present but this block came from <other-gate>". This prevents the misdiagnosis pattern that produced Event 8.
+
+**Test:** Regression test simulates touch+commit blocked by protected-infra Edit; assert the deny message references the protected-infra path, not the agent gate.
+
+### Out of scope for this PR
+
+- **Self-maintenance mode flag** (#1082 Option A/B). Defer until 1a-1c demonstrate whether the residual friction is large enough to justify a new mode. Current hypothesis: 1a removes events 1-2, 1b removes the session_id stale-bucket amplifier, 1c removes the misdiagnosis loop in event 8. Events 3-7 (protected-infra Edit) remain — those are the real candidate for a self-maintenance flag if the friction persists.
+- **Inline-bypass regex widening** (`re.match` anchors at start, fails for `cd ... && SKIP_...`). Defer; document the limitation in the gate's deny message.
+
+## Acceptance Criteria
+
+- [ ] First researcher dispatch on a brand-new issue does NOT block on a prior issue's baseline.
+- [ ] Pipeline state file never contains `session_id: "unknown"`.
+- [ ] Block messages name the actual blocking hook when a bypass marker is present but the block came from elsewhere.
+- [ ] Regression: existing per-issue baseline tests (test_validate_prompt_integrity_shrinkage.py) still pass.
+- [ ] Regression: existing bypass tests (test_native_tool_auto_approval.py and #802 tests) still pass.
+- [ ] Manual self-maintenance run on autonomous-dev itself completes a `--fix` cycle with ≤2 hook events for events 1-2 and 8 categories.
+
+## Open Questions for Round 2 Critique
+
+1. Is splitting `get_prompt_baseline` from `get_cross_issue_baseline` the right shape, or should the caller pass an explicit flag (`enable_cross_issue=True` after first dispatch)?
+2. Coordinator session_id fallback: hash of run_id vs. PID-based vs. UUID vs. mlx-style monotonic counter — which pattern is consistent with existing autonomous-dev session-id conventions?
+3. Should 1c be a new dedicated "bypass diagnostics" hook layer, or just message enrichment on existing block paths?
+4. Events 3-7 explicitly out of scope — does that leave the meta-issue substantially incomplete, or are those the right candidates for a follow-up issue?
