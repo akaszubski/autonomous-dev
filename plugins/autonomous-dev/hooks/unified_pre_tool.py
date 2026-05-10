@@ -1332,6 +1332,59 @@ def _get_pipeline_mode_from_state() -> str:
     return "full"
 
 
+_SELF_MAINT_CACHE: "dict[str, bool]" = {}
+
+
+def _is_self_maintenance_mode() -> bool:
+    """Detect if we are operating inside the canonical autonomous-dev source.
+
+    Returns True iff a parent of the current working directory (up to 30
+    levels) contains ``plugins/autonomous-dev/.claude-plugin/marketplace.json``
+    — the canonical-source marker. This identifies the autonomous-dev repo
+    itself (where maintainers edit the framework) versus any consumer repo
+    where the plugin is installed via ``.claude/``.
+
+    Used to relax gates whose enforcement intent is "consumer protections"
+    rather than "framework correctness". The test gate, security audit,
+    doc-master verdict, and prompt-integrity baselines remain enforced —
+    they are dogfooding requirements. Only the gates that exist to keep
+    consumer-repo maintainers from accidentally editing installed framework
+    files relax here, because in autonomous-dev itself those files ARE the
+    work product.
+
+    Result is cached per-cwd within this process (the cwd rarely changes
+    mid-hook-invocation and the walk is cheap, but the cache keeps it from
+    showing up in flamegraphs).
+
+    Returns:
+        True if cwd is inside the canonical autonomous-dev source tree.
+    """
+    try:
+        key = str(Path.cwd().resolve())
+    except (OSError, RuntimeError):
+        return False
+    cached = _SELF_MAINT_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    marker = Path("plugins") / "autonomous-dev" / ".claude-plugin" / "marketplace.json"
+    try:
+        current = Path(key)
+        for _ in range(30):
+            if (current / marker).exists():
+                _SELF_MAINT_CACHE[key] = True
+                return True
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+    except (OSError, RuntimeError):
+        pass
+
+    _SELF_MAINT_CACHE[key] = False
+    return False
+
+
 def _is_pipeline_active() -> bool:
     """Check if the /implement pipeline is currently active.
 
@@ -4392,15 +4445,30 @@ def main():
                     # Block rm/unlink/truncate of pipeline state files during active pipeline.
                     # Issue #865: Allow cleanup when PIPELINE_CLEANUP_PHASE is set
                     # (STEP 15 / STEP B4 cleanup authorized by coordinator)
+                    # Issue #1083: Allow cleanup in self-maintenance mode (autonomous-dev
+                    # source repo). Mid-session env-var bypasses don't propagate to hook
+                    # subprocesses (Issue #779), so maintainers working on the framework
+                    # itself were deadlocked when a /implement session left stuck state.
                     try:
                         _cleanup_phase = os.getenv("PIPELINE_CLEANUP_PHASE", "").lower()
                         _state_del = _check_bash_state_deletion(command)
-                        if _state_del is not None and _cleanup_phase not in ("1", "true") and _is_pipeline_active():
+                        _self_maint = _is_self_maintenance_mode()
+                        if (
+                            _state_del is not None
+                            and _cleanup_phase not in ("1", "true")
+                            and not _self_maint
+                            and _is_pipeline_active()
+                        ):
                             _sd_reason = (
                                 f"BLOCKED: {_state_del[1]} "
                                 f"File: {_state_del[0]}. "
                                 f"REQUIRED NEXT ACTION: Do NOT delete pipeline state files "
-                                f"during an active /implement session."
+                                f"during an active /implement session. "
+                                f"BYPASS (in order of reliability): "
+                                f"(1) `touch .claude/.bypass` then retry — file-based, "
+                                f"works mid-session; (2) export PIPELINE_CLEANUP_PHASE=1 "
+                                f"BEFORE launching claude (env vars don't propagate "
+                                f"mid-session — Issue #779)."
                             )
                             _log_deviation(_state_del[0], tool_name, "state_file_deletion_block")
                             _log_pretool_activity(tool_name, tool_input, "deny", _sd_reason)
@@ -4409,6 +4477,12 @@ def main():
                                 system_message="BLOCKED: Pipeline state file deletion during active pipeline.",
                             )
                             sys.exit(0)
+                        elif _state_del is not None and _self_maint and _is_pipeline_active():
+                            # Log the relaxation for the audit trail (Issue #1083).
+                            _log_pretool_activity(
+                                tool_name, tool_input, "allow",
+                                "self-maintenance: state cleanup permitted (autonomous-dev source repo)"
+                            )
                     except Exception:
                         pass  # Fail-open: never block on detection errors
 
