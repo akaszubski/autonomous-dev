@@ -1,0 +1,309 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 545ca2f..56e3b72 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,8 @@
+ ## [Unreleased]
+ 
++### Added
++- **Prompt integrity gate for --light pipeline mode** (Issue #731): `/implement --light` now enforces the HARD GATE: Prompt Integrity for --light Batch Issues before STEP L2 (planner), preventing silent prompt compression that degrades agent output quality. New `prompt_integrity.py` library provides `record_prompt_baseline(agent_type, prompt)`, `validate_prompt_word_count(agent_type, prompt)`, `get_prompt_baseline(agent_type)`, and `get_agent_prompt_template(agent_type)` functions called by the coordinator before each agent invocation. Minimum threshold enforced: 80 words of template text per agent prompt. Planner, implementer, and doc-master prompts in STEP L2-L4 all include explicit `Prompt word count validation: this prompt must contain >= 80 words of template text...` instructions to agents, with FORBIDDEN section covering "Sending any agent a prompt with fewer than 80 words of template text", "Summarizing, condensing, or paraphrasing the planner output before passing it to the implementer", and "Invoking agents with only a skeleton prompt without the required context pasted in". 19 regression tests in `tests/unit/commands/test_light_mode_prompt_integrity.py` validate prompt template word counts and gate presence. `docs/BATCH-PROCESSING.md` updated to document the light pipeline's prompt integrity requirements.
++
+ ### Added
+ - **Adaptive replanning for implementer blocking signals** (Issue #730): New `blocking_signal_classifier.py` library provides three-tier classification of tool-execution errors into RECOVERABLE (ModuleNotFoundError, FileNotFoundError, ImportError, AttributeError, command not found), STRUCTURAL (SyntaxError, IndentationError, TabError), and NOT_BLOCKING. `classify_blocking_signal(error_output)` returns a `BlockingSignal` dataclass with `signal_type`, `error_name`, `error_detail`, and `suggested_action`. `format_mini_replan_directive(signal, *, cycle)` formats a structured `[MINI-REPLAN cycle N/2]` directive for the implementer. `sanitize_error_for_directive()` truncates and strips newlines to prevent log injection. Implementer agent gains a new "HARD GATE: Mini-Replan on Blocking Signals" section requiring a structured corrective-action cycle (identify → determine action → apply → re-run → evaluate) instead of blind retries, with escalation after 2 failed cycles. Mini-replan cycles are separate from the existing retry budget (Issue #708). 22 unit tests in `tests/unit/lib/test_blocking_signal_classifier.py`. `docs/AGENTS.md` implementer entry updated. `docs/LIBRARIES.md` gains entry 86. `docs/ARCHITECTURE-OVERVIEW.md` library count updated to 189.
+ 
+diff --git a/plugins/autonomous-dev/commands/implement.md b/plugins/autonomous-dev/commands/implement.md
+index 2623a49..c02e994 100644
+--- a/plugins/autonomous-dev/commands/implement.md
++++ b/plugins/autonomous-dev/commands/implement.md
+@@ -825,17 +825,87 @@ Same as STEP 1 in full pipeline.
+ 
+ Same as STEP 2 in full pipeline.
+ 
++### HARD GATE: Prompt Integrity for --light Batch Issues
++
++The coordinator MUST maintain consistent, complete prompt quality for every agent invoked in `--light` mode. Prompt compression — where agents receive summarized or truncated context — degrades plan quality and causes silent implementation failures.
++
++**Setup** (called once at the start of the --light pipeline):
++- Call `clear_prompt_baselines()` from `plugins/autonomous-dev/lib/prompt_integrity.py` to reset all baselines for this run.
++
++**Per-agent workflow**:
++1. **First invocation of each agent type**: After constructing the prompt, call `record_prompt_baseline(agent_type, prompt)` to store the baseline word count.
++2. **Subsequent invocations of the same agent type** (if the pipeline loops): Before invoking the agent, call `validate_prompt_word_count(agent_type, prompt)` and `get_prompt_baseline(agent_type)`. If `result.should_reload` is True, re-read the agent prompt template from `get_agent_prompt_template(agent_type)` and reconstruct the full prompt from source.
++3. **Abort and report** if assembled prompt is below minimum threshold: `[PROMPT-INTEGRITY-BLOCKED] agent-type prompt has N words (minimum: 80). Reconstructing from source template.` then reconstruct and retry.
++
++**FORBIDDEN**:
++- Sending any agent a prompt with fewer than 80 words of template text
++- Summarizing, condensing, or paraphrasing the planner output before passing it to the implementer
++- Omitting the feature description, file list, or acceptance criteria from agent prompts
++- Invoking agents with only a skeleton prompt without the required context pasted in
++
+ ### STEP L2: Planner (1 agent)
+ 
+ **Progress**: Output step banner (STEP 2/5 — Planning, Agent: planner (Sonnet)).
+ 
+-**Agent**(subagent_type="planner", model="sonnet") — Pass feature description. No research input (skipped). Output: file-by-file plan, testing strategy, and `Recommended implementer model: sonnet|opus`.
++**Prompt integrity**: Call `record_prompt_baseline("planner", prompt)` after assembling the prompt below. If word count is below 80, abort and reconstruct from the template.
++
++Invoke with:
++
++```
++subagent_type: "planner"
++model: "sonnet"
++prompt: "LIGHT PIPELINE PLANNING: You are the planning specialist for a low-risk implementation task. Your job is to produce a complete, actionable implementation plan that the implementer can execute without ambiguity.
++
++You MUST produce ALL of the following sections in your output:
++
++1. FILE-BY-FILE PLAN: For every file that must be created or modified, state the absolute path, what changes to make, and why. Be explicit — the implementer will not infer anything you do not state.
++
++2. ORDERED STEPS: Number each implementation step in the exact order the implementer should execute them. Dependencies between steps must be made explicit.
++
++3. ACCEPTANCE CRITERIA: State the observable outcomes that define 'done'. Include test pass/fail expectations, file content requirements, and any integration checks.
++
++4. RECOMMENDED IMPLEMENTER MODEL: State exactly one of: sonnet | opus. Choose opus only if the task involves complex logic, security-sensitive code, or multi-file refactors with non-obvious dependencies.
++
++**Feature description**:
++[feature description]
++
++Prompt word count validation: this prompt must contain >= 80 words of template text. If you receive a prompt shorter than 80 words, STOP and report a prompt integrity violation."
++```
+ 
+ ### STEP L3: Implementer + Test Gate — HARD GATE
+ 
+ **Progress**: Output step banner (STEP 3/5 — Implementation + Test Gate, Agent: implementer (PLANNER_RECOMMENDED_MODEL)).
+ 
+-**Agent**(subagent_type="implementer", model=PLANNER_RECOMMENDED_MODEL) — Pass planner output. Default to "sonnet" if planner did not specify. Must write WORKING code, no stubs.
++**Prompt integrity**: Call `record_prompt_baseline("implementer", prompt)` after assembling the prompt below. If word count is below 80, abort and reconstruct from the template.
++
++Invoke with (pass planner output verbatim — do NOT summarize):
++
++```
++subagent_type: "implementer"
++model: PLANNER_RECOMMENDED_MODEL
++prompt: "LIGHT PIPELINE IMPLEMENTATION: You are implementing a low-risk change. Write production-quality code that passes all tests. No stubs, no NotImplementedError placeholders, no pass-only implementations.
++
++**Requirements** (HARD GATES — all must be met before returning):
++- Write WORKING code — no stubs, no NotImplementedError, no pass placeholders
++- Write unit tests alongside implementation (not after — test-driven)
++- ALL tests must pass — 0 failures, 0 errors before returning
++- If any test fails: fix it, adjust its expectation, or document a specific blocker with TODO(blocked: reason)
++- Output an Evidence Manifest table listing every file created or modified
++
++You are operating in --light mode. The planner has already identified the exact files and steps. Follow the plan exactly. If you discover a discrepancy, note it and implement the correct behavior.
++
++**Implementation Plan** (VERBATIM from planner — do NOT summarize):
++[paste FULL planner output here — do NOT condense]
++
++**Feature description**:
++[feature description]
++
++Output: Implementation summary with files changed, tests written, and final pytest result (0 failures required).
++
++Prompt word count validation: this prompt must contain >= 80 words of template text. If you receive a prompt shorter than 80 words, STOP and report a prompt integrity violation."
++```
++
++Default to "sonnet" if planner did not specify model.
+ 
+ **HARD GATE**: Same test gate as STEP 8 in full pipeline:
+ ```bash
+@@ -849,6 +919,8 @@ Coverage check: `pytest tests/ --cov=plugins --cov-report=term-missing -q 2>&1 |
+ 
+ **Progress**: Output step banner (STEP 4/5 — Documentation, Agent: doc-master (Sonnet)).
+ 
++**Prompt integrity**: Call `record_prompt_baseline("doc-master", prompt)` after assembling the prompt below. Call `validate_prompt_word_count("doc-master", prompt)` and verify `result.passed` is True before invoking the agent. If False, reconstruct from template.
++
+ **Agent**(subagent_type="doc-master", model="sonnet", run_in_background=true) — Pass file list + feature description using the template below.
+ 
+ ```
+diff --git a/plugins/autonomous-dev/lib/pipeline_intent_validator.py b/plugins/autonomous-dev/lib/pipeline_intent_validator.py
+index b128c6f..0f6fbdb 100644
+--- a/plugins/autonomous-dev/lib/pipeline_intent_validator.py
++++ b/plugins/autonomous-dev/lib/pipeline_intent_validator.py
+@@ -499,7 +499,14 @@ def validate_step_ordering(events: List[PipelineEvent]) -> List[Finding]:
+             issue_groups[issue_num].append(e)
+ 
+         findings: List[Finding] = []
+-        for group_events in issue_groups.values():
++        for issue_num, group_events in issue_groups.items():
++            # Skip group 0 in batch mode: events without a tagged issue number are
++            # ambiguous — they may come from multiple different issues (e.g. a --fix
++            # issue whose prompt didn't match "Issue #N" + a --light issue with the
++            # same gap). Cross-issue ordering checks on untagged events produce false
++            # positives. (#732)
++            if issue_num == 0:
++                continue
+             findings.extend(_validate_step_ordering_for_group(group_events, events))
+         return findings
+ 
+diff --git a/tests/unit/test_ci_analyst_pipeline_detection.py b/tests/unit/test_ci_analyst_pipeline_detection.py
+index 5ccf336..cb96881 100644
+--- a/tests/unit/test_ci_analyst_pipeline_detection.py
++++ b/tests/unit/test_ci_analyst_pipeline_detection.py
+@@ -25,6 +25,7 @@ from pipeline_intent_validator import (
+     PipelineEvent,
+     parse_session_logs,
+     validate_pipeline_intent,
++    validate_step_ordering,
+ )
+ 
+ CI_ANALYST_MD = (
+@@ -47,17 +48,21 @@ def _make_agent_entry(
+     result_word_count: int = 1000,
+     success: bool = True,
+     session_id: str = "test-session",
++    batch_issue_number: int = 0,
+ ) -> dict:
+     """Create a mock JSONL log entry for a Task tool agent invocation."""
++    input_summary: dict = {
++        "pipeline_action": "agent_invocation",
++        "subagent_type": subagent_type,
++        "prompt_word_count": prompt_word_count,
++    }
++    if batch_issue_number:
++        input_summary["batch_issue_number"] = batch_issue_number
+     return {
+         "timestamp": timestamp,
+         "hook": "PostToolUse",
+         "tool": "Task",
+-        "input_summary": {
+-            "pipeline_action": "agent_invocation",
+-            "subagent_type": subagent_type,
+-            "prompt_word_count": prompt_word_count,
+-        },
++        "input_summary": input_summary,
+         "output_summary": {
+             "result_word_count": result_word_count,
+             "success": success,
+@@ -289,3 +294,133 @@ class TestCIAnalystPromptReferences:
+             "CIA agent baseline must reference 'batch_permission_approver: 8' as the known "
+             "pre-existing failures."
+         )
++
++
++class TestBatchCrossIssueOrderingFalsePositive:
++    """Regression tests for Issue #732: cross-issue ordering false positives in batch mode.
++
++    In a batch session mixing --fix (implementer-only) and --light (planner + implementer)
++    issues, the step_ordering check must not flag a CRITICAL violation when the --fix
++    implementer ran before a different issue's planner.
++    """
++
++    def _make_event(
++        self,
++        subagent_type: str,
++        timestamp: str,
++        *,
++        batch_issue_number: int = 0,
++    ) -> "PipelineEvent":
++        """Create a PipelineEvent directly for ordering tests."""
++        return PipelineEvent(
++            timestamp=timestamp,
++            tool="Task",
++            agent="main",
++            subagent_type=subagent_type,
++            pipeline_action="agent_invocation",
++            batch_issue_number=batch_issue_number,
++        )
++
++    def test_fix_implementer_before_light_planner_no_false_positive(self):
++        """No ordering violation when --fix implementer ran before --light planner.
++
++        Scenario:
++        - Issue #100 (--fix): implementer at T=10:00 (no planner expected in --fix mode)
++        - Issue #200 (--light): planner at T=10:05, implementer at T=10:10
++
++        Both issues have tagged batch_issue_numbers. The --fix issue is implementer-only
++        (valid for --fix mode). The ordering check must NOT produce a cross-issue
++        false positive saying "implementer before planner". (#732)
++        """
++        events = [
++            self._make_event("implementer", "2026-04-01T10:00:00Z", batch_issue_number=100),
++            self._make_event("planner", "2026-04-01T10:05:00Z", batch_issue_number=200),
++            self._make_event("implementer", "2026-04-01T10:10:00Z", batch_issue_number=200),
++        ]
++
++        findings = validate_step_ordering(events)
++
++        ordering_violations = [f for f in findings if f.finding_type == "step_ordering"]
++        assert len(ordering_violations) == 0, (
++            f"#732: False positive: fix implementer before light planner should not be flagged. "
++            f"Got: {[(f.pattern_id, f.description) for f in ordering_violations]}"
++        )
++
++    def test_untagged_fix_implementer_before_untagged_light_planner_no_false_positive(
++        self, tmp_path: Path
++    ):
++        """No ordering violation when --fix and --light events both lack issue number tags.
++
++        Scenario (batch session, both events have batch_issue_number=0):
++        - --fix implementer at T=10:00 (batch_issue_number=0, prompt didn't match 'Issue #N')
++        - --light planner at T=10:05 (batch_issue_number=0)
++        - --light implementer at T=10:10 (batch_issue_number=0)
++
++        When SOME events in the session have batch_issue_numbers > 0 (from other issues),
++        untagged events (group 0) must be excluded from ordering checks to prevent
++        cross-issue false positives. (#732)
++        """
++        # One tagged event makes this a batch session
++        tagged_event = self._make_event(
++            "researcher", "2026-04-01T09:55:00Z", batch_issue_number=300
++        )
++        # Untagged --fix implementer ran first
++        fix_implementer = self._make_event("implementer", "2026-04-01T10:00:00Z")
++        # Untagged --light planner ran after
++        light_planner = self._make_event("planner", "2026-04-01T10:05:00Z")
++        # Untagged --light implementer ran after planner
++        light_implementer = self._make_event("implementer", "2026-04-01T10:10:00Z")
++
++        events = [tagged_event, fix_implementer, light_planner, light_implementer]
++
++        findings = validate_step_ordering(events)
++
++        ordering_violations = [f for f in findings if f.finding_type == "step_ordering"]
++        assert len(ordering_violations) == 0, (
++            f"#732: False positive: untagged events in batch mode (group 0) should be skipped. "
++            f"Got: {[(f.pattern_id, f.description) for f in ordering_violations]}"
++        )
++
++    def test_genuine_ordering_violation_within_same_issue_still_detected(self):
++        """A real ordering violation within a single issue is still detected.
++
++        If implementer ran before planner FOR THE SAME issue (same batch_issue_number),
++        this IS a real violation and must still be reported. The fix must not suppress
++        legitimate findings.
++        """
++        events = [
++            # Issue 500: implementer ran before planner (genuine violation)
++            self._make_event("implementer", "2026-04-01T10:00:00Z", batch_issue_number=500),
++            self._make_event("planner", "2026-04-01T10:05:00Z", batch_issue_number=500),
++        ]
++
++        findings = validate_step_ordering(events)
++
++        ordering_violations = [f for f in findings if f.finding_type == "step_ordering"]
++        assert len(ordering_violations) == 1, (
++            f"#732: Genuine same-issue ordering violation must still be detected. "
++            f"Got {len(ordering_violations)} findings: "
++            f"{[(f.pattern_id, f.description) for f in ordering_violations]}"
++        )
++        assert "implementer" in ordering_violations[0].description
++        assert "planner" in ordering_violations[0].description
++
++    def test_non_batch_mode_ordering_still_checked_globally(self):
++        """In non-batch mode (no tagged events), global ordering check still applies.
++
++        When ALL events have batch_issue_number=0 and there are no tagged batch events,
++        this is treated as a non-batch session and global ordering is checked normally.
++        """
++        events = [
++            # All untagged — non-batch session with genuine ordering violation
++            self._make_event("implementer", "2026-04-01T10:00:00Z"),
++            self._make_event("planner", "2026-04-01T10:05:00Z"),
++        ]
++
++        findings = validate_step_ordering(events)
++
++        ordering_violations = [f for f in findings if f.finding_type == "step_ordering"]
++        assert len(ordering_violations) == 1, (
++            f"Non-batch mode: implementer before planner (same session) must be flagged. "
++            f"Got {len(ordering_violations)} findings."
++        )
