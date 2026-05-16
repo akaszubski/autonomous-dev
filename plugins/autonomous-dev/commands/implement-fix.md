@@ -84,6 +84,23 @@ Verify the fix is within project scope. If misaligned: BLOCK with reason.
 
 This is the same alignment gate as the full pipeline STEP 1.
 
+#### Prompt Baseline Reset (Defensive — Issue #1088 F3)
+
+Before initializing pipeline state, clear any stale `prompt_baselines.json` from a prior session. /fix mode by design dispatches shorter, focused prompts; stale baselines from prior runs frequently exceed the 20% shrinkage threshold against fresh fix-mode prompts and produce false-positive integrity blocks.
+
+```python
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from prompt_integrity import clear_prompt_baselines
+clear_prompt_baselines()
+print('Prompt baselines cleared for fix mode')
+```
+
+Note: This step becomes unnecessary once #1082 Phase 1a (per-issue baseline split) lands. Until then, /fix mode SHOULD clear baselines defensively at pipeline start.
+
 #### Pipeline State Initialization
 
 After alignment validation passes, initialize the pipeline state file so that hook enforcement (prompt integrity, pipeline ordering) is active during fix mode:
@@ -209,6 +226,36 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 **HARD GATE**: After implementer completes, run `pytest --tb=short -q` again.
 If ANY test still fails: RE-INVOKE implementer with remaining failures.
 Maximum 3 re-invocations before escalating to user.
+
+#### Pytest Gate Recording (Issue #1088 F1)
+
+After the pytest re-run passes (0 failures, 0 errors), the coordinator MUST record the gate result so downstream ordering checks at STEP F4 let reviewer/doc-master dispatch. Without this call, F4 dispatch hits an ORDERING VIOLATION block ("pytest-gate prerequisite not met"). The full pipeline (`implement.md` STEP 8) has this recording step; fix mode previously omitted it.
+
+```python
+import sys, os, json
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_completion_state import resolve_session_id, record_pytest_gate_passed
+
+SESSION_ID = resolve_session_id()
+# Fix mode is single-issue; recover ISSUE_NUMBER from state file if present, else 0.
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+ISSUE_NUMBER = 0
+try:
+    with open(state_path) as _f:
+        ISSUE_NUMBER = int(json.load(_f).get('issue_number', 0) or 0)
+except (OSError, ValueError, json.JSONDecodeError):
+    pass
+
+record_pytest_gate_passed(SESSION_ID, passed=True, issue_number=ISSUE_NUMBER)
+print(f'pytest-gate recorded for session={SESSION_ID[:8]} issue={ISSUE_NUMBER}')
+```
+
+**FORBIDDEN**:
+- ❌ Skipping the `record_pytest_gate_passed()` call — downstream ordering gates will block STEP F4 dispatch.
+- ❌ Calling `record_pytest_gate_passed(passed=True)` when pytest still has failures.
 
 ### HARD GATE: Root Cause Analysis Output Gate
 

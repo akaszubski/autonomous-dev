@@ -2615,3 +2615,75 @@ class TestMissingSecurityReview:
         assert len(findings) == 1, "#798: fix mode with hooks/ change must warn"
         assert findings[0].pattern_id == "missing_security_review"
 
+    def test_absolute_path_tests_exclusion(self, tmp_path):
+        """Absolute-path test files under tests/ must be excluded from security review.
+
+        Regression test for Issue #1088 (F2): JSONL activity logs record absolute
+        file paths (e.g. /Users/foo/repo/tests/unit/hooks/test_x.py). A bare
+        ``startswith("tests/")`` check silently misses these, producing
+        false-positive missing_security_review warnings on every test edit.
+        """
+        log_file = tmp_path / "session.jsonl"
+        base = datetime(2026, 2, 28, 10, 0, 0)
+        # Use an absolute path under tests/ — what real JSONL logs contain.
+        abs_test_path = str(tmp_path / "repo" / "tests" / "unit" / "hooks" / "test_conversation_archiver.py")
+        lines = [
+            _make_jsonl_line(
+                subagent_type="implementer",
+                timestamp=(base).isoformat(),
+            ),
+            _make_write_jsonl_line(
+                abs_test_path,
+                timestamp=(base + timedelta(minutes=2)).isoformat(),
+            ),
+        ]
+        log_file.write_text("\n".join(lines) + "\n")
+
+        events = [
+            _make_event(subagent_type="implementer", timestamp=(base).isoformat()),
+        ]
+
+        findings = detect_missing_security_review(log_file, events)
+        assert len(findings) == 0, (
+            "#1088 F2: absolute-path test files must be excluded. "
+            f"Got findings: {[f.description for f in findings]}"
+        )
+
+    def test_absolute_path_non_test_file_still_flags(self, tmp_path):
+        """Absolute-path non-test security file must still trigger the warning.
+
+        Companion to test_absolute_path_tests_exclusion — proves the fix narrows
+        the exclusion to test paths only, not all absolute paths. Issue #1088 (F2).
+        """
+        log_file = tmp_path / "session.jsonl"
+        base = datetime(2026, 2, 28, 10, 0, 0)
+        # Absolute path under hooks/ (NOT under tests/) — must still flag.
+        abs_hook_path = str(tmp_path / "repo" / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py")
+        lines = [
+            _make_jsonl_line(
+                subagent_type="implementer",
+                timestamp=(base).isoformat(),
+            ),
+            _make_write_jsonl_line(
+                abs_hook_path,
+                timestamp=(base + timedelta(minutes=2)).isoformat(),
+            ),
+            _make_jsonl_line(
+                subagent_type="reviewer",
+                timestamp=(base + timedelta(minutes=5)).isoformat(),
+            ),
+        ]
+        log_file.write_text("\n".join(lines) + "\n")
+
+        events = [
+            _make_event(subagent_type="implementer", timestamp=(base).isoformat()),
+            _make_event(subagent_type="reviewer", timestamp=(base + timedelta(minutes=5)).isoformat()),
+        ]
+
+        findings = detect_missing_security_review(log_file, events)
+        assert len(findings) == 1, (
+            "#1088 F2: absolute-path non-test security file must still trigger warning. "
+            f"Got findings: {[f.description for f in findings]}"
+        )
+        assert findings[0].pattern_id == "missing_security_review"
+

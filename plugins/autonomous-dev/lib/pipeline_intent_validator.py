@@ -1475,8 +1475,10 @@ def detect_missing_security_review(
     such path is modified and no security-auditor event exists in the session,
     a WARNING finding is emitted.
 
-    Test files (paths starting with ``tests/``) are excluded — modifying a test
-    that touches hook-related paths is not a security concern.
+    Test files (paths starting with ``tests/`` or containing ``/tests/``) are
+    excluded — modifying a test that touches hook-related paths is not a
+    security concern. The ``/tests/`` substring check is required because
+    JSONL activity logs record absolute file paths.
 
     Args:
         log_path: Path to the JSONL log file.
@@ -1524,8 +1526,10 @@ def detect_missing_security_review(
         if not file_path:
             continue
 
-        # Skip test files — they are not security-sensitive
-        if file_path.startswith("tests/"):
+        # Skip test files (relative or absolute paths) — they are not security-sensitive.
+        # JSONL activity logs record absolute paths (e.g. /Users/.../tests/unit/hooks/test_x.py),
+        # so a bare startswith("tests/") check silently misses them. Issue #1088.
+        if file_path.startswith("tests/") or "/tests/" in file_path:
             continue
 
         # Check against security-sensitive patterns
