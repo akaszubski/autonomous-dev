@@ -593,26 +593,108 @@ class TestHookRegistration:
             "conversation_archiver not in component_classifications"
         assert hooks["conversation_archiver"]["classification"] == "process-requirement"
 
+    # conversation_archiver is a global hook (see
+    # plugins/autonomous-dev/lib/settings_merger.py::CANONICAL_GLOBAL_HOOKS).
+    # Global hooks are registered ONCE in ~/.claude/settings.json by
+    # configure_global_settings.py and fire for every session regardless of
+    # per-repo template.
+    #
+    # Issue #944 codified the invariant that per-repo templates MUST NOT
+    # redeclare global hooks (would cause double execution). The 4 templates
+    # below are the user-facing per-repo templates enforced by
+    # tests/regression/smoke/test_settings_template_integrity.py::
+    # test_template_has_no_global_hook_duplicates. The constant is duplicated
+    # locally (rather than imported from the regression test module) to avoid
+    # cross-test-module imports — if the regression test renames the constant,
+    # mypy/pyflakes will not flag a stale import here.
+    #
+    # The dogfooding templates (settings.autonomous-dev.json,
+    # settings.local.json) are intentionally NOT in this set — they redeclare
+    # global hooks on purpose so they work without configure_global_settings.py
+    # having been run first.
+    _GLOBAL_FREE_TEMPLATES = (
+        "settings.default.json",
+        "settings.granular-bash.json",
+        "settings.permission-batching.json",
+        "settings.strict-mode.json",
+    )
+
+    @staticmethod
+    def _template_has_archiver(template_path: Path) -> bool:
+        """Return True iff conversation_archiver is referenced in Stop hooks."""
+        data = json.loads(template_path.read_text())
+        hooks_section = data.get("hooks", {})
+        stop_hooks = hooks_section.get("Stop", [])
+        return any(
+            "conversation_archiver" in h.get("command", "")
+            for entry in stop_hooks
+            for h in entry.get("hooks", [])
+        )
+
     def test_hook_in_all_settings_templates(self):
-        """conversation_archiver must be registered in ALL settings templates."""
+        """conversation_archiver must be registered in dogfooding templates.
+
+        conversation_archiver is a global hook. Per Issue #944, it is REQUIRED
+        in the dogfooding templates (settings.autonomous-dev.json,
+        settings.local.json) but FORBIDDEN in the templates listed in
+        ``_GLOBAL_FREE_TEMPLATES`` (default, granular-bash, permission-batching,
+        strict-mode) — those rely on the global ~/.claude/settings.json
+        registration to avoid double execution.
+        """
         templates_dir = REPO_ROOT / "plugins" / "autonomous-dev" / "templates"
         templates = list(templates_dir.glob("settings.*.json"))
 
         assert len(templates) >= 5, f"Expected at least 5 templates, found {len(templates)}"
 
+        checked_non_global_free = 0
         for template in templates:
-            data = json.loads(template.read_text())
-            hooks_section = data.get("hooks", {})
-            stop_hooks = hooks_section.get("Stop", [])
-
-            archiver_found = any(
-                "conversation_archiver" in h.get("command", "")
-                for entry in stop_hooks
-                for h in entry.get("hooks", [])
-            )
-            assert archiver_found, (
+            if template.name in self._GLOBAL_FREE_TEMPLATES:
+                # Issue #944: global-free templates MUST NOT contain
+                # conversation_archiver. Skip the positive assertion here —
+                # ``test_archiver_absent_from_global_free_templates`` below
+                # enforces the negative invariant.
+                continue
+            checked_non_global_free += 1
+            assert self._template_has_archiver(template), (
                 f"conversation_archiver not found in {template.name} Stop hooks"
             )
+
+        assert checked_non_global_free >= 1, (
+            "Expected at least one non-global-free (dogfooding) template "
+            "containing conversation_archiver, found none. "
+            "Check templates/ — has settings.autonomous-dev.json or "
+            "settings.local.json been removed?"
+        )
+
+    def test_archiver_absent_from_global_free_templates(self):
+        """conversation_archiver MUST NOT appear in _GLOBAL_FREE_TEMPLATES.
+
+        Inverse assertion enforcing Issue #944 from the conversation_archiver
+        side. If a future maintainer adds conversation_archiver to any of the
+        four user-facing per-repo templates, this test fails and points them
+        to the global-hook deduplication invariant.
+
+        Complements ``test_template_has_no_global_hook_duplicates`` in
+        tests/regression/smoke/test_settings_template_integrity.py — that test
+        checks the full CANONICAL_GLOBAL_HOOKS list; this one specifically
+        targets conversation_archiver because that is the hook whose
+        registration this test module is responsible for.
+        """
+        templates_dir = REPO_ROOT / "plugins" / "autonomous-dev" / "templates"
+        violations = []
+        for template_name in self._GLOBAL_FREE_TEMPLATES:
+            template_path = templates_dir / template_name
+            if not template_path.exists():
+                continue  # Template removed — handled by other tests
+            if self._template_has_archiver(template_path):
+                violations.append(template_name)
+
+        assert not violations, (
+            f"conversation_archiver was found in global-free templates "
+            f"{violations} — this violates Issue #944 (global hooks must not "
+            f"be redeclared in per-repo templates, causes double execution). "
+            f"Remove the Stop-hook entry from the listed template(s)."
+        )
 
 
 # ---------------------------------------------------------------------------
