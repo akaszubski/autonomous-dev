@@ -156,12 +156,13 @@ Pipeline state for a single run is kept in `/tmp/implement_pipeline_<run_id>.jso
 **Added**: Issue #904 (ROOT-CAUSE consolidation of #898 subshell propagation,
 #902 remediation false-positive, #875 cross-pipeline isolation).
 
-### Fallback Chain — `env → sentinel → 'unknown'`
+### Fallback Chain — `env → sentinel → activity-log → 'unknown'`
 
 Every coordinator subshell that needs the current pipeline session id MUST
-resolve it with this three-step fallback. The chain is implemented inline
-in `commands/implement.md` at each `python3 -c "..."` heredoc that reads
-`CLAUDE_SESSION_ID`:
+resolve it with this four-step fallback. The chain is implemented in
+`resolve_session_id()` in `lib/pipeline_completion_state.py` (Issue #1093)
+and called from `commands/implement.md` at each `python3 -c "..."` heredoc
+that reads `CLAUDE_SESSION_ID`:
 
 1. **Environment variable** — `os.environ.get('CLAUDE_SESSION_ID')`
    - Primary source. Claude Code sets this in-process before the coordinator
@@ -174,11 +175,22 @@ in `commands/implement.md` at each `python3 -c "..."` heredoc that reads
    - **TTL guard (3600s)**: the sentinel is only trusted when its mtime is
      within the last hour. Older sentinels from crashed prior pipelines are
      NOT merged — this prevents cross-pipeline bleed (#875).
-3. **Literal `'unknown'`** — preserved legacy sentinel.
-   - Returned only when both env and sentinel are unavailable. This is a
-     legitimate first-boot case (hooks that fire BEFORE STEP 0 writes the
-     sentinel) — not an error path. Downstream code treats `'unknown'` as
-     a first-class session id that stores state in its own file.
+   - **Boot-time sentinel skip**: if the sentinel's `session_id` field is the
+     literal string `"unknown"` (written before the real session id is
+     available), this step is skipped and the chain falls through to the
+     activity-log scan. This prevents locking in "unknown" when a real id
+     is discoverable from the log.
+3. **Activity log scan** — `.claude/logs/activity/{YYYY-MM-DD}.jsonl`
+   - Scans today's activity log (written by `session_activity_logger.py`)
+     for the most recent entry whose `session_id` field is a non-empty,
+     non-"unknown" string. This is the load-bearing fallback for Bash
+     subprocess contexts where both env and sentinel carry "unknown" — a
+     known boot-time race where STEP 0 writes the sentinel before the real
+     session id is available. (Issue #1093)
+4. **Literal `'unknown'`** — preserved legacy sentinel.
+   - Returned only when env, sentinel, and activity log are all unavailable.
+     Downstream code treats `'unknown'` as a first-class session id that
+     stores state in its own file.
 
 ### Why `'unknown'` is Preserved
 

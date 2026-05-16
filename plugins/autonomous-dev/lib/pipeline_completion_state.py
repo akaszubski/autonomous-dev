@@ -24,6 +24,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -49,6 +50,91 @@ SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 STALE_UNKNOWN_TTL_SECONDS = 3600
 
 
+def _find_activity_log_dir(start_dir: Optional[Path] = None) -> Optional[Path]:
+    """Locate the ``.claude/logs/activity/`` directory by walking up from *start_dir*.
+
+    Mirrors the pattern in ``coordinator_log.py`` / ``session_activity_logger.py``.
+    The search starts at *start_dir* (defaults to ``Path.cwd()``) and checks
+    each ancestor for a ``.claude`` directory.  Does NOT create the directory
+    (read-only resolver).
+
+    Args:
+        start_dir: Directory to start searching from. Defaults to CWD.
+
+    Returns:
+        Path to ``<repo>/.claude/logs/activity/`` if found, else ``None``.
+    """
+    cwd = start_dir or Path.cwd()
+    candidates = [cwd] + list(cwd.parents)
+    for parent in candidates:
+        log_dir = parent / ".claude" / "logs" / "activity"
+        if log_dir.is_dir():
+            return log_dir
+    return None
+
+
+def _resolve_session_id_from_activity_log(
+    log_dir: Optional[Path] = None,
+    today: Optional[str] = None,
+) -> Optional[str]:
+    """Scan today's activity log JSONL for the most recent real session id.
+
+    The activity log is written by ``session_activity_logger.py`` (PreToolUse,
+    PostToolUse, SubagentStop). Those hooks see the real ``session_id`` from
+    Claude Code's stdin, so the log is the source of truth in subprocess
+    contexts that lack ``CLAUDE_SESSION_ID``.
+
+    Scans the last 200 lines of the file for the FIRST encountered entry
+    (newest first) with a ``session_id`` field that is:
+      - a non-empty string, AND
+      - not the literal ``"unknown"``.
+
+    Args:
+        log_dir: Activity log directory. Defaults to
+            ``<repo>/.claude/logs/activity`` resolved from CWD.
+        today: Date string in ``YYYY-MM-DD`` format. Defaults to today (UTC-free
+            local clock — matches the writer in ``session_activity_logger.py``).
+
+    Returns:
+        Real session id string, or ``None`` if the log is missing/empty/has
+        only ``"unknown"`` / corrupt JSON throughout. Never raises.
+
+    Issues: #1093
+    """
+    if log_dir is None:
+        log_dir = _find_activity_log_dir()
+    if log_dir is None:
+        return None
+    if today is None:
+        today = datetime.now().strftime("%Y-%m-%d")
+
+    log_file = log_dir / f"{today}.jsonl"
+    try:
+        with open(log_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return None
+
+    # Newest entries are at the end (append-only log).
+    # Bound the scan to the last 200 lines for performance.
+    tail = lines[-200:]
+    for raw in reversed(tail):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            entry = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            # Skip corrupt lines, don't abort the whole scan.
+            continue
+        if not isinstance(entry, dict):
+            continue
+        sid = entry.get("session_id")
+        if isinstance(sid, str) and sid and sid != "unknown":
+            return sid
+    return None
+
+
 def resolve_session_id(
     *,
     sentinel_path: str = "/tmp/implement_pipeline_state.json",
@@ -56,14 +142,21 @@ def resolve_session_id(
 ) -> str:
     """Resolve the current Claude session id via fallback chain.
 
-    Issue #1081 (drift fix); semantics from Issue #904.
+    Issue #1081 (drift fix); Issue #1093 (activity-log fallback);
+    semantics from Issue #904.
 
     Fallback chain (first match wins):
         1. ``CLAUDE_SESSION_ID`` env var, if set and non-empty.
         2. ``sentinel_path`` JSON file's ``session_id`` field, if file
-           exists, mtime is within ``max_age_seconds``, JSON parses, and
-           the field is a non-empty string.
-        3. The literal string ``"unknown"``.
+           exists, mtime is within ``max_age_seconds``, JSON parses,
+           the field is a non-empty string, AND the value is not the
+           literal ``"unknown"`` (a stale sentinel from boot-time).
+        3. Today's activity log (``.claude/logs/activity/{YYYY-MM-DD}.jsonl``)
+           scanned for the most recent entry with a real ``session_id``.
+           This is the load-bearing fallback for Bash subprocess contexts
+           that lack the env var AND whose sentinel was written under
+           ``"unknown"``. (#1093)
+        4. The literal string ``"unknown"``.
 
     NEVER raises. Catches ``OSError``, ``json.JSONDecodeError``,
     ``ValueError`` and unexpected types — all paths return ``"unknown"``.
@@ -75,22 +168,35 @@ def resolve_session_id(
     env_sid = os.environ.get("CLAUDE_SESSION_ID", "")
     if env_sid:
         return env_sid
+
+    # Step 2: sentinel file. Only return its session_id when it is a real
+    # value (not the boot-time "unknown" placeholder) — otherwise fall
+    # through to the activity-log scan.
+    sentinel_sid: Optional[str] = None
     try:
         st = os.stat(sentinel_path)
-        if (time.time() - st.st_mtime) > max_age_seconds:
-            return "unknown"
+        if (time.time() - st.st_mtime) <= max_age_seconds:
+            try:
+                with open(sentinel_path) as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError, ValueError):
+                data = None
+            if isinstance(data, dict):
+                candidate = data.get("session_id")
+                if isinstance(candidate, str) and candidate and candidate != "unknown":
+                    sentinel_sid = candidate
     except OSError:
-        return "unknown"
-    try:
-        with open(sentinel_path) as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError, ValueError):
-        return "unknown"
-    if not isinstance(data, dict):
-        return "unknown"
-    sid = data.get("session_id")
-    if isinstance(sid, str) and sid:
-        return sid
+        pass
+
+    if sentinel_sid is not None:
+        return sentinel_sid
+
+    # Step 3: activity log scan (Issue #1093).
+    log_sid = _resolve_session_id_from_activity_log()
+    if log_sid is not None:
+        return log_sid
+
+    # Step 4: legacy fallback.
     return "unknown"
 
 
