@@ -313,6 +313,7 @@
         "plugins/autonomous-dev/lib/status_tracker.py",
         "plugins/autonomous-dev/lib/step5_quality_gate.py",
         "plugins/autonomous-dev/lib/stuck_detector.py",
+        "plugins/autonomous-dev/lib/subagent_invocation_cache.py",
         "plugins/autonomous-dev/lib/success_criteria_validator.py",
         "plugins/autonomous-dev/lib/sweep_analyzer.py",
         "plugins/autonomous-dev/lib/sync_dispatcher.py",

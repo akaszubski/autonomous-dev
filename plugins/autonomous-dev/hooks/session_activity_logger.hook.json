@@ -9,6 +9,11 @@
   },
   "registrations": [
     {
+      "event": "PreToolUse",
+      "matcher": "Task|Agent",
+      "timeout": 3
+    },
+    {
       "event": "PostToolUse",
       "matcher": "*",
       "timeout": 5

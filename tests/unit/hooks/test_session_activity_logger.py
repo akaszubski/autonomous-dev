@@ -818,3 +818,416 @@ class TestAgentEventPriority:
         entry = json.loads(list(log_dir.glob("*.jsonl"))[0].read_text().splitlines()[0])
         # Debug mode uses raw format, priority field should not be present
         assert "priority" not in entry
+
+
+# ============================================================================
+# Issue #1087 regression tests: subagent invocation correlation
+# ============================================================================
+#
+# Background: Claude Code's SubagentStop hook payload sometimes omits the
+# agent_type field and ALWAYS reports duration_ms=0. These tests lock in
+# the PreToolUse-to-SubagentStop correlation that recovers both fields.
+#
+# Coverage:
+#   - PreToolUse for Task/Agent caches subagent_type + start_time.
+#   - Cache lookup pops oldest entry FIFO (sequential agents).
+#   - Cache lookup prefers same-type match when SubagentStop stdin has
+#     a non-empty agent_type.
+#   - Stale cache entries (>1 hour) are ignored.
+#   - SubagentStop in unified_session_tracker resolves the missing
+#     agent_type AND computes non-zero duration_ms, then calls
+#     record_agent_completion for the agent.
+
+import time as _time1087
+
+# Add lib dir for subagent_invocation_cache import
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent.parent
+        / "plugins"
+        / "autonomous-dev"
+        / "lib"
+    ),
+)
+
+
+@pytest.fixture
+def isolated_session_id(tmp_path, monkeypatch):
+    """Per-test session id with isolated /tmp via cache_path patch.
+
+    Each test gets a distinct session id and a tmp_path-rooted cache so
+    the cache file does not collide with concurrent tests or stale state
+    from previous runs.
+    """
+    import uuid
+    sid = f"test-{uuid.uuid4().hex[:12]}"
+    import subagent_invocation_cache as sic
+
+    def _scoped_cache_path(session_id: str) -> Path:
+        return tmp_path / f"subagent_invocations_{session_id}.json"
+
+    monkeypatch.setattr(sic, "cache_path", _scoped_cache_path)
+    yield sid
+
+
+class TestSubagentInvocationCacheLib:
+    """Direct tests for the shared subagent_invocation_cache library (#1087)."""
+
+    def test_cache_invocation_round_trip(self, isolated_session_id):
+        """cache_invocation followed by pop_invocation returns the entry."""
+        import subagent_invocation_cache as sic
+        ok = sic.cache_invocation(
+            isolated_session_id,
+            "implementer",
+            start_time=1000.0,
+            description="fix #1087",
+        )
+        assert ok is True
+        popped = sic.pop_invocation(isolated_session_id)
+        assert popped is not None
+        assert popped["subagent_type"] == "implementer"
+        assert popped["start_time"] == 1000.0
+        assert popped["description"] == "fix #1087"
+
+    def test_cache_empty_subagent_type_rejected(self, isolated_session_id):
+        """Caching an empty subagent_type is rejected — would corrupt FIFO."""
+        import subagent_invocation_cache as sic
+        assert sic.cache_invocation(isolated_session_id, "") is False
+        assert sic.pop_invocation(isolated_session_id) is None
+
+    def test_pop_fifo_order(self, isolated_session_id):
+        """Multiple invocations pop in first-in-first-out order."""
+        import subagent_invocation_cache as sic
+        sic.cache_invocation(isolated_session_id, "researcher-local", start_time=1.0)
+        sic.cache_invocation(isolated_session_id, "planner", start_time=2.0)
+        sic.cache_invocation(isolated_session_id, "implementer", start_time=3.0)
+        assert sic.pop_invocation(isolated_session_id)["subagent_type"] == "researcher-local"
+        assert sic.pop_invocation(isolated_session_id)["subagent_type"] == "planner"
+        assert sic.pop_invocation(isolated_session_id)["subagent_type"] == "implementer"
+
+    def test_pop_preferred_type_match(self, isolated_session_id):
+        """preferred_subagent_type prefers a matching entry over FIFO order."""
+        import subagent_invocation_cache as sic
+        sic.cache_invocation(isolated_session_id, "researcher-local", start_time=1.0)
+        sic.cache_invocation(isolated_session_id, "implementer", start_time=2.0)
+        popped = sic.pop_invocation(
+            isolated_session_id, preferred_subagent_type="implementer"
+        )
+        assert popped["subagent_type"] == "implementer"
+        assert popped["start_time"] == 2.0
+        remaining = sic.peek_queue(isolated_session_id)
+        assert len(remaining) == 1
+        assert remaining[0]["subagent_type"] == "researcher-local"
+
+    def test_pop_empty_queue_returns_none(self, isolated_session_id):
+        """Pop on a never-populated session returns None."""
+        import subagent_invocation_cache as sic
+        assert sic.pop_invocation(isolated_session_id) is None
+
+    def test_pop_stale_cache_ignored(self, isolated_session_id):
+        """Cache files older than TTL are ignored on read."""
+        import subagent_invocation_cache as sic
+        import os as _os
+
+        sic.cache_invocation(isolated_session_id, "implementer", start_time=1.0)
+        path = sic.cache_path(isolated_session_id)
+        assert path.exists()
+
+        old = _time1087.time() - (sic.TTL_SECONDS + 60)
+        _os.utime(path, (old, old))
+
+        assert sic.pop_invocation(isolated_session_id) is None
+
+    def test_pop_corrupt_json_returns_none(self, isolated_session_id):
+        """Corrupt cache file does not crash; pop returns None."""
+        import subagent_invocation_cache as sic
+        path = sic.cache_path(isolated_session_id)
+        path.write_text("this is { not json")
+        assert sic.pop_invocation(isolated_session_id) is None
+
+
+class TestSessionActivityLoggerPreToolUseCaching:
+    """PreToolUse for Task/Agent caches the invocation (#1087)."""
+
+    def test_pretool_task_caches_subagent_type(self, tmp_path, monkeypatch):
+        """PreToolUse for tool_name=Task records subagent_type + start_time."""
+        import subagent_invocation_cache as sic
+        monkeypatch.setattr(
+            sic,
+            "cache_path",
+            lambda sid: tmp_path / f"subagent_invocations_{sid}.json",
+        )
+        # session_activity_logger's PreToolUse branch uses _sic_cache_invocation
+        # bound at module-import time. Re-bind to the (now patched) cache_invocation.
+        monkeypatch.setattr(sal, "_sic_cache_invocation", sic.cache_invocation)
+
+        hook_input = json.dumps({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "implementer",
+                "description": "fix bug",
+            },
+            "session_id": "pre-task-1",
+        })
+        before = _time1087.time()
+        with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true", "CLAUDE_SESSION_ID": "pre-task-1"}):
+            with patch("sys.stdin", StringIO(hook_input)):
+                with pytest.raises(SystemExit) as exc:
+                    sal.main()
+                assert exc.value.code == 0
+        after = _time1087.time()
+
+        popped = sic.pop_invocation("pre-task-1")
+        assert popped is not None
+        assert popped["subagent_type"] == "implementer"
+        assert popped["description"] == "fix bug"
+        assert before <= popped["start_time"] <= after
+
+    def test_pretool_agent_caches_subagent_type(self, tmp_path, monkeypatch):
+        """PreToolUse for tool_name=Agent (newer Claude Code) also caches."""
+        import subagent_invocation_cache as sic
+        monkeypatch.setattr(
+            sic,
+            "cache_path",
+            lambda sid: tmp_path / f"subagent_invocations_{sid}.json",
+        )
+        monkeypatch.setattr(sal, "_sic_cache_invocation", sic.cache_invocation)
+
+        hook_input = json.dumps({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": "reviewer"},
+            "session_id": "pre-agent-1",
+        })
+        with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true", "CLAUDE_SESSION_ID": "pre-agent-1"}):
+            with patch("sys.stdin", StringIO(hook_input)):
+                with pytest.raises(SystemExit):
+                    sal.main()
+
+        popped = sic.pop_invocation("pre-agent-1")
+        assert popped is not None
+        assert popped["subagent_type"] == "reviewer"
+
+    def test_pretool_non_agent_tool_does_not_cache(self, tmp_path, monkeypatch):
+        """PreToolUse for non-Task/Agent tools (e.g. Read) does NOT cache."""
+        import subagent_invocation_cache as sic
+        monkeypatch.setattr(
+            sic,
+            "cache_path",
+            lambda sid: tmp_path / f"subagent_invocations_{sid}.json",
+        )
+        monkeypatch.setattr(sal, "_sic_cache_invocation", sic.cache_invocation)
+
+        hook_input = json.dumps({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {"file_path": "/tmp/x.py"},
+            "session_id": "pre-read-1",
+        })
+        with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true", "CLAUDE_SESSION_ID": "pre-read-1"}):
+            with patch("sys.stdin", StringIO(hook_input)):
+                with pytest.raises(SystemExit):
+                    sal.main()
+
+        assert sic.pop_invocation("pre-read-1") is None
+
+    def test_pretool_empty_subagent_type_does_not_cache(self, tmp_path, monkeypatch):
+        """PreToolUse for Task with empty subagent_type does not cache."""
+        import subagent_invocation_cache as sic
+        monkeypatch.setattr(
+            sic,
+            "cache_path",
+            lambda sid: tmp_path / f"subagent_invocations_{sid}.json",
+        )
+        monkeypatch.setattr(sal, "_sic_cache_invocation", sic.cache_invocation)
+
+        hook_input = json.dumps({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "", "description": "?"},
+            "session_id": "pre-empty-1",
+        })
+        with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true", "CLAUDE_SESSION_ID": "pre-empty-1"}):
+            with patch("sys.stdin", StringIO(hook_input)):
+                with pytest.raises(SystemExit):
+                    sal.main()
+
+        assert sic.pop_invocation("pre-empty-1") is None
+
+
+class TestUnifiedSessionTrackerSubagentStopCorrelation:
+    """SubagentStop in unified_session_tracker resolves agent_type + duration_ms (#1087)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_unified_tracker(self, tmp_path, monkeypatch):
+        """Import unified_session_tracker fresh and route cache to tmp_path."""
+        import importlib
+        import subagent_invocation_cache as sic
+
+        monkeypatch.setattr(
+            sic,
+            "cache_path",
+            lambda sid: tmp_path / f"subagent_invocations_{sid}.json",
+        )
+
+        if "unified_session_tracker" in sys.modules:
+            ust = importlib.reload(sys.modules["unified_session_tracker"])
+        else:
+            ust = importlib.import_module("unified_session_tracker")
+        monkeypatch.setattr(ust, "_pop_cached_subagent_invocation", sic.pop_invocation)
+        self.ust = ust
+        self.sic = sic
+
+    def test_subagent_stop_recovers_empty_agent_type_from_cache(
+        self, tmp_path, monkeypatch
+    ):
+        """When SubagentStop stdin has agent_type='', cache resolves the name.
+
+        This is the precise bug shape observed in production logs:
+        SubagentStop has subagent_type='' but agent_transcript_path is
+        populated. The PreToolUse cache fills the gap.
+        """
+        self.sic.cache_invocation("stop-1", "implementer", start_time=_time1087.time() - 5.0)
+
+        hook_input = json.dumps({
+            "hook_event_name": "SubagentStop",
+            "agent_type": "",
+            "session_id": "stop-1",
+            "agent_transcript_path": "",
+            "last_assistant_message": "Completed.",
+        })
+
+        captured = {}
+
+        def _fake_record(*, session_id, agent_type, issue_number, success):
+            captured["session_id"] = session_id
+            captured["agent_type"] = agent_type
+            captured["issue_number"] = issue_number
+            captured["success"] = success
+
+        import pipeline_completion_state as pcs
+        monkeypatch.setattr(pcs, "record_agent_completion", _fake_record)
+
+        write_calls = []
+        monkeypatch.setattr(
+            self.ust,
+            "_write_jsonl_entry",
+            lambda **kw: (write_calls.append(kw) or True),
+        )
+
+        with patch("sys.stdin", StringIO(hook_input)):
+            with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "stop-1"}, clear=False):
+                self.ust.main()
+
+        assert len(write_calls) == 1
+        # Critical assertion #1: subagent_type recovered from cache, NOT empty.
+        assert write_calls[0]["subagent_type"] == "implementer"
+        # Critical assertion #2: duration_ms is non-zero.
+        assert write_calls[0]["duration_ms"] > 0
+        # Critical assertion #3: record_agent_completion called with the right type.
+        assert captured.get("agent_type") == "implementer"
+        assert captured.get("success") is True
+
+    def test_subagent_stop_with_populated_agent_type_still_computes_duration(
+        self, tmp_path, monkeypatch
+    ):
+        """Even when stdin provides agent_type, duration_ms is computed from cache."""
+        self.sic.cache_invocation("stop-2", "reviewer", start_time=_time1087.time() - 10.0)
+
+        hook_input = json.dumps({
+            "hook_event_name": "SubagentStop",
+            "agent_type": "reviewer",
+            "session_id": "stop-2",
+            "agent_transcript_path": "",
+            "last_assistant_message": "All good.",
+        })
+
+        write_calls = []
+        monkeypatch.setattr(
+            self.ust,
+            "_write_jsonl_entry",
+            lambda **kw: (write_calls.append(kw) or True),
+        )
+        import pipeline_completion_state as pcs
+        monkeypatch.setattr(pcs, "record_agent_completion", lambda **kw: None)
+
+        with patch("sys.stdin", StringIO(hook_input)):
+            with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "stop-2"}, clear=False):
+                self.ust.main()
+
+        assert len(write_calls) == 1
+        assert write_calls[0]["subagent_type"] == "reviewer"
+        assert write_calls[0]["duration_ms"] >= 5000  # We set start_time 10s ago.
+
+    def test_subagent_stop_without_cache_does_not_crash(
+        self, tmp_path, monkeypatch
+    ):
+        """SubagentStop with no PreToolUse cache (e.g. hook race) doesn't crash."""
+        hook_input = json.dumps({
+            "hook_event_name": "SubagentStop",
+            "agent_type": "doc-master",
+            "session_id": "stop-3",
+            "agent_transcript_path": "",
+            "last_assistant_message": "Done.",
+        })
+        write_calls = []
+        monkeypatch.setattr(
+            self.ust,
+            "_write_jsonl_entry",
+            lambda **kw: (write_calls.append(kw) or True),
+        )
+        import pipeline_completion_state as pcs
+        monkeypatch.setattr(pcs, "record_agent_completion", lambda **kw: None)
+
+        with patch("sys.stdin", StringIO(hook_input)):
+            with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "stop-3"}, clear=False):
+                self.ust.main()
+
+        assert len(write_calls) == 1
+        assert write_calls[0]["subagent_type"] == "doc-master"
+
+    def test_subagent_stop_preferred_type_match_in_parallel_queue(
+        self, tmp_path, monkeypatch
+    ):
+        """With multiple cached agents, prefer the matching type from stdin.
+
+        Models the parallel-agent case: implementer and reviewer were
+        launched concurrently; reviewer completes first. SubagentStop
+        for reviewer must pop reviewer (not the older implementer).
+        """
+        self.sic.cache_invocation("stop-4", "implementer", start_time=_time1087.time() - 100.0)
+        self.sic.cache_invocation("stop-4", "reviewer", start_time=_time1087.time() - 5.0)
+
+        hook_input = json.dumps({
+            "hook_event_name": "SubagentStop",
+            "agent_type": "reviewer",
+            "session_id": "stop-4",
+            "agent_transcript_path": "",
+        })
+        write_calls = []
+        monkeypatch.setattr(
+            self.ust,
+            "_write_jsonl_entry",
+            lambda **kw: (write_calls.append(kw) or True),
+        )
+        import pipeline_completion_state as pcs
+        captured = {}
+        monkeypatch.setattr(
+            pcs,
+            "record_agent_completion",
+            lambda **kw: captured.update(kw),
+        )
+
+        with patch("sys.stdin", StringIO(hook_input)):
+            with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "stop-4"}, clear=False):
+                self.ust.main()
+
+        assert write_calls[0]["subagent_type"] == "reviewer"
+        # Duration should reflect reviewer's 5s, not implementer's 100s.
+        assert 4000 <= write_calls[0]["duration_ms"] <= 15000
+        # implementer still in queue (not popped).
+        remaining = self.sic.peek_queue("stop-4")
+        assert len(remaining) == 1
+        assert remaining[0]["subagent_type"] == "implementer"

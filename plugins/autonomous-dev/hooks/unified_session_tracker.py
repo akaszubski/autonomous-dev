@@ -128,6 +128,16 @@ try:
 except ImportError:
     HAS_VERSION_READER = False
 
+# Issue #1087: subagent invocation cache for recovering missing
+# agent_type and duration_ms in SubagentStop payloads. Cache writes
+# happen in session_activity_logger.py on PreToolUse; we read here.
+try:
+    from subagent_invocation_cache import pop_invocation as _pop_cached_subagent_invocation
+except ImportError:
+    # Fallback: cache lib missing → fall back to pre-#1087 behavior.
+    def _pop_cached_subagent_invocation(*_args, **_kwargs):
+        return None
+
 
 # ============================================================================
 # Configuration
@@ -892,6 +902,23 @@ def main() -> int:
             session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
             agent_transcript_path_raw = ""
 
+        # Issue #1087: Recover missing subagent_type and duration_ms via the
+        # subagent invocation cache populated by session_activity_logger on
+        # PreToolUse. Claude Code's SubagentStop payload frequently omits
+        # agent_type (showing "") and always reports a 0 duration. Without
+        # this cache, downstream consumers (ghost-agent detection, agent
+        # completeness gate, pipeline timing analyzer) have no way to know
+        # which agent stopped or how long it took.
+        cached_invocation = _pop_cached_subagent_invocation(
+            session_id,
+            preferred_subagent_type=(agent_name or "").strip()
+            if agent_name not in ("", "unknown")
+            else "",
+        )
+        if (not agent_name) or agent_name in ("", "unknown"):
+            if cached_invocation and cached_invocation.get("subagent_type"):
+                agent_name = cached_invocation["subagent_type"]
+
         # Determine status with correct priority (Issue #541):
         # 1. CLAUDE_AGENT_STATUS env var (structural signal) — authoritative
         # 2. _determine_success() text scan — fallback only when env var absent
@@ -908,8 +935,22 @@ def main() -> int:
         # Validate transcript path
         agent_transcript_path = _validate_transcript_path(agent_transcript_path_raw)
 
-        # Compute duration
-        duration_ms = _compute_duration_ms()
+        # Compute duration. Prefer the PreToolUse cache (Issue #1087) since
+        # _compute_duration_ms() relies on agent_tracker's "started_at" which
+        # is not populated for native Task/Agent invocations.
+        duration_ms = 0
+        if cached_invocation and isinstance(
+            cached_invocation.get("start_time"), (int, float)
+        ):
+            try:
+                duration_ms = max(
+                    0,
+                    int((time.time() - float(cached_invocation["start_time"])) * 1000),
+                )
+            except (TypeError, ValueError):
+                duration_ms = 0
+        if duration_ms == 0:
+            duration_ms = _compute_duration_ms()
 
         # Compute word count
         # Prefer full transcript aggregation to capture multi-turn output (#872/#907)

@@ -65,6 +65,26 @@ from pathlib import Path
 # In-process cache for session date (avoids repeated file reads within same invocation)
 _SESSION_DATE_CACHE: dict = {}
 
+# ============================================================================
+# Subagent Invocation Cache helpers (Issue #1087)
+# ============================================================================
+#
+# Claude Code's SubagentStop hook payload sometimes omits the agent_type
+# and always reports duration_ms=0. We work around this by caching
+# subagent invocations at PreToolUse time and popping them at
+# SubagentStop. The cache lives in plugins/autonomous-dev/lib/
+# subagent_invocation_cache.py so both this hook (PreToolUse writer) and
+# unified_session_tracker.py (SubagentStop reader) can share it.
+
+try:
+    from subagent_invocation_cache import cache_invocation as _sic_cache_invocation
+except ImportError:
+    # Fallback: silently disable the cache so this hook still loads if
+    # the lib is missing. SubagentStop instrumentation degrades to the
+    # pre-#1087 behavior (empty subagent_type, duration_ms=0) — no crash.
+    def _sic_cache_invocation(*_args, **_kwargs):
+        return False
+
 
 def main():
     """Log tool call activity to structured JSONL."""
@@ -146,6 +166,29 @@ def main():
             log_file = log_dir / f"{date_str}.jsonl"
             with open(log_file, "a") as f:
                 f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+            sys.exit(0)
+
+        # PreToolUse: cache subagent invocation data for SubagentStop correlation (Issue #1087).
+        # Only Task/Agent invocations get cached — every other tool call is ignored at this branch
+        # so we don't double-log PostToolUse later in main().
+        if hook_event == "PreToolUse":
+            pre_tool_name = hook_input.get("tool_name", "")
+            if pre_tool_name in ("Task", "Agent"):
+                pre_tool_input = hook_input.get("tool_input", {}) or {}
+                pre_session_id = (
+                    os.environ.get("CLAUDE_SESSION_ID")
+                    or hook_input.get("session_id", "unknown")
+                )
+                pre_subagent_type = (pre_tool_input.get("subagent_type", "") or "").strip()
+                if pre_subagent_type:
+                    _sic_cache_invocation(
+                        pre_session_id,
+                        pre_subagent_type,
+                        start_time=time.time(),
+                        description=pre_tool_input.get("description", ""),
+                    )
+            # Always exit on PreToolUse — we don't write a log entry from this hook
+            # (unified_pre_tool.py owns PreToolUse activity logging).
             sys.exit(0)
 
         # PostToolUse: capture tool call activity
