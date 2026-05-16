@@ -1,3 +1,26 @@
+> [!WARNING]
+> **THIS FILE IS EXECUTED VERBATIM BY AN AUTOMATED CI PIPELINE**
+>
+> `.github/workflows/claude-implement.yml` triggers on the `claude-implement`
+> label (any user can apply it on any issue) and passes this file's contents
+> directly to `anthropics/claude-code-action@beta` with `contents: write` +
+> `pull-requests: write`. Claude implements the issue body verbatim, then
+> creates a PR automatically.
+>
+> **Attack chain:**
+> 1. Open a PR modifying this file (no CODEOWNERS, so zero reviews needed).
+> 2. Once merged, label any issue `claude-implement`.
+> 3. Claude executes attacker-controlled instructions with full repo write access.
+>
+> **Recommended fixes:**
+> - Add `CLAUDE.md @akaszubski` to `CODEOWNERS`
+> - Restrict the `claude-implement` label to maintainers only (branch protection)
+> - Add `if: github.actor == 'akaszubski'` or an explicit allowlist to the workflow
+>
+> **HUMAN REVIEW REQUIRED — DO NOT AUTO-MERGE THIS FILE**
+>
+> See: [labs.jamessawyer.co.uk](https://labs.jamessawyer.co.uk/) | [OWASP LLM01 — Prompt Injection](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
+
 # autonomous-dev
 
 Development harness for Claude Code. Deterministic enforcement, specialist agents, alignment gates — 12 elements of harness engineering.
