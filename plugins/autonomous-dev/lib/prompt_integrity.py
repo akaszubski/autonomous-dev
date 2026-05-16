@@ -14,6 +14,7 @@ Usage:
         validate_prompt_slots,
         record_prompt_baseline,
         get_prompt_baseline,
+        get_cross_issue_baseline,
         get_agent_prompt_template,
         clear_prompt_baselines,
     )
@@ -530,22 +531,49 @@ def get_prompt_baseline(
     issue_number: Optional[int] = None,
     state_dir: Optional[Path] = None,
 ) -> Optional[int]:
-    """Get the baseline word count for an agent.
+    """Get the baseline word count for an agent (per-issue isolated).
 
-    When issue_number is provided, returns the baseline for THAT specific issue
-    only (per-issue isolation for batch mode — Issue #764). When issue_number is
-    None, falls back to the original behavior: returns the word count from the
-    issue with the lowest number (first issue in batch).
+    When ``issue_number`` is provided, returns the baseline for THAT specific
+    issue ONLY (per-issue isolation — Issue #764). If no baseline exists for
+    that exact issue, returns ``None`` — the caller is expected to seed a new
+    baseline from the first observed prompt. This is the contract that makes
+    the first dispatch of a new issue safe in batch mode (Issue #1082 Phase 1a):
+    a new issue MUST NOT be compared against a prior issue's baseline because
+    that would guarantee a false-positive shrinkage block on first dispatch.
+
+    When ``issue_number`` is None, falls back to the original single-issue
+    behavior: returns the word count from the lowest-numbered issue. This
+    preserves backward compatibility for non-batch callers.
+
+    For cross-issue baseline comparison (the value of the lowest-issue baseline
+    across the batch), use :func:`get_cross_issue_baseline`. For cross-issue
+    drift detection (the recommended path), use
+    :func:`record_batch_observation` + :func:`get_cumulative_shrinkage`
+    (Issue #794) — that mechanism tracks the trajectory across the entire
+    batch rather than collapsing it to a single first-issue value.
+
+    History:
+        - Issue #764 introduced per-issue baselines.
+        - Issue #867 added a silent cross-issue fallback inside this function;
+          that fallback contradicted #764 and caused first-dispatch blocks on
+          every new issue in a batch.
+        - Issue #1082 Phase 1a removed the silent fallback. Cross-issue
+          baseline lookup is now an explicit, opt-in call to
+          :func:`get_cross_issue_baseline`.
 
     Args:
         agent_type: Agent name to look up.
         issue_number: Specific issue to get baseline for. When provided, only
-            returns the baseline recorded for this exact issue. When None,
-            returns the baseline from the lowest-numbered issue (backward compat).
+            returns the baseline recorded for this exact issue (no fallback).
+            When None, returns the baseline from the lowest-numbered issue
+            (backward-compat single-issue mode).
         state_dir: Optional override for state directory.
 
     Returns:
-        Word count baseline, or None if no baseline exists.
+        Word count baseline for the requested issue, or None if no baseline
+        exists for that issue. Callers that previously relied on the implicit
+        cross-issue fallback should switch to :func:`get_cross_issue_baseline`
+        or :func:`get_cumulative_shrinkage`.
     """
     baselines_path = _get_baselines_path(state_dir)
 
@@ -562,7 +590,9 @@ def get_prompt_baseline(
     if not agent_data:
         return None
 
-    # Per-issue lookup (Issue #764): return baseline for this specific issue only
+    # Per-issue lookup (Issue #764, #1082 Phase 1a): return baseline for this
+    # specific issue ONLY. If absent, return None so the caller seeds a new
+    # baseline from observation instead of inheriting a prior issue's value.
     if issue_number is not None:
         issue_key = str(issue_number)
         baseline = agent_data.get(issue_key)
@@ -572,25 +602,100 @@ def get_prompt_baseline(
                 agent_type, issue_key, baseline,
             )
             return baseline
-        # Issue #867: Fall back to lowest-issue baseline for cross-issue detection.
-        # Without this, each issue starts fresh and cross-issue shrinkage is invisible.
-        try:
-            lowest_issue = min(agent_data.keys(), key=lambda k: int(k))
-            fallback = agent_data[lowest_issue]
-            logger.debug(
-                "Cross-issue baseline fallback: %s issue #%s -> using issue #%s baseline = %d words",
-                agent_type, issue_key, lowest_issue, fallback,
-            )
-            return fallback
-        except (ValueError, TypeError):
-            return None
+        logger.debug(
+            "No per-issue baseline for %s issue #%s; returning None "
+            "(caller should seed from observation). For cross-issue lookup, "
+            "use get_cross_issue_baseline().",
+            agent_type, issue_key,
+        )
+        return None
 
-    # Backward compat: find entry with lowest issue number (first issue in batch)
+    # Backward compat: find entry with lowest issue number (single-issue mode)
     try:
         lowest_issue = min(agent_data.keys(), key=lambda k: int(k))
         return agent_data[lowest_issue]
     except (ValueError, TypeError):
         return None
+
+
+def get_cross_issue_baseline(
+    agent_type: str,
+    *,
+    exclude_issue: Optional[int] = None,
+    state_dir: Optional[Path] = None,
+) -> Optional[int]:
+    """Get the lowest-issue baseline across all recorded issues for an agent.
+
+    Returns the word-count baseline from the lowest-numbered issue that has a
+    recorded baseline for ``agent_type``. When ``exclude_issue`` is provided,
+    that issue is excluded from consideration — useful for the "compare against
+    OTHER issues' baselines" pattern (e.g., on the second+ dispatch within an
+    issue, callers may want to compare against prior issues' baselines without
+    re-considering the current issue's own first-dispatch value).
+
+    This is the explicit cross-issue lookup that was previously implemented as
+    a silent fallback inside :func:`get_prompt_baseline` (Issue #867). It was
+    extracted in Issue #1082 Phase 1a to resolve the contradiction with #764's
+    per-issue isolation contract. The two intents — per-issue isolation and
+    cross-issue baseline lookup — now live in separate functions so callers
+    can pick the one they actually want.
+
+    For cross-issue *drift detection* in batch mode, prefer
+    :func:`record_batch_observation` + :func:`get_cumulative_shrinkage`
+    (Issue #794). That mechanism tracks the full trajectory of word counts
+    across the batch and reports cumulative drift against
+    :data:`MAX_CUMULATIVE_SHRINKAGE`, rather than collapsing the batch history
+    to a single first-issue value. Use ``get_cross_issue_baseline`` only when
+    you need the specific lowest-issue baseline value itself (e.g., for
+    diagnostics or one-shot threshold comparisons).
+
+    Args:
+        agent_type: Agent name to look up.
+        exclude_issue: If provided, skip this issue when selecting the
+            lowest-numbered issue. Used by callers that want "the lowest OTHER
+            issue's baseline".
+        state_dir: Optional override for state directory.
+
+    Returns:
+        Word count baseline from the lowest-numbered issue (excluding
+        ``exclude_issue`` if provided), or None if no qualifying baseline
+        exists.
+    """
+    baselines_path = _get_baselines_path(state_dir)
+
+    if not baselines_path.exists():
+        return None
+
+    try:
+        data = json.loads(baselines_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Could not read baselines file: %s", baselines_path)
+        return None
+
+    agent_data = data.get(agent_type)
+    if not agent_data:
+        return None
+
+    candidate_keys = list(agent_data.keys())
+    if exclude_issue is not None:
+        exclude_key = str(exclude_issue)
+        candidate_keys = [k for k in candidate_keys if k != exclude_key]
+
+    if not candidate_keys:
+        return None
+
+    try:
+        lowest_issue = min(candidate_keys, key=lambda k: int(k))
+    except (ValueError, TypeError):
+        return None
+
+    baseline = agent_data[lowest_issue]
+    logger.debug(
+        "Cross-issue baseline lookup: %s -> using issue #%s baseline = %d words "
+        "(exclude_issue=%s)",
+        agent_type, lowest_issue, baseline, exclude_issue,
+    )
+    return baseline
 
 
 def clear_prompt_baselines(*, state_dir: Optional[Path] = None) -> None:

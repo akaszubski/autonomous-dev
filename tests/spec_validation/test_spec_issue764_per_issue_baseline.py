@@ -1,10 +1,22 @@
 """
 Spec validation tests for Issue #764: Fix progressive prompt shrinkage in batch mode.
 
-Acceptance criteria:
-1. Per-issue baseline isolation works (issue 1 baseline doesn't block issue 2)
-2. Within-issue shrinkage is still detected
+Acceptance criteria (post Issue #1082 Phase 1a):
+1. Per-issue baseline isolation works (issue 1 baseline does not contaminate
+   issue 2's per-issue lookup). For a brand-new issue with no baseline,
+   ``get_prompt_baseline()`` returns None.
+2. Within-issue shrinkage is still detected.
 3. Backward compatibility when PIPELINE_ISSUE_NUMBER is not set
+   (``get_prompt_baseline()`` without ``issue_number`` returns the
+   lowest-issue baseline for single-issue mode).
+4. Cross-issue baseline lookup is the job of ``get_cross_issue_baseline()``;
+   cross-issue drift detection is the job of ``record_batch_observation`` +
+   ``get_cumulative_shrinkage`` (Issue #794).
+
+Issue #1082 Phase 1a removed the silent cross-issue fallback that Issue #867
+had added inside ``get_prompt_baseline``. The retroactive #867 amendments to
+this file (tests 1, 4, 5) are reverted here to assert the original #764
+contract: per-issue isolation, with cross-issue lookup made explicit.
 """
 
 import sys
@@ -19,6 +31,7 @@ if str(LIB_DIR) not in sys.path:
 
 from prompt_integrity import (
     clear_prompt_baselines,
+    get_cross_issue_baseline,
     get_prompt_baseline,
     record_prompt_baseline,
     validate_prompt_word_count,
@@ -28,13 +41,17 @@ from prompt_integrity import (
 class TestSpecIssue764PerIssueBaseline:
     """Spec validation: per-issue baseline isolation for batch mode."""
 
-    def test_spec_764_1_issue2_falls_back_to_lowest_issue_baseline(
+    def test_spec_764_1_issue2_per_issue_lookup_returns_none(
         self, tmp_path: Path
     ) -> None:
-        """Criterion 1 (updated by Issue #867): When baselines are recorded
-        per-issue, looking up the baseline for issue 2 falls back to the
-        lowest-issue baseline (issue 1) for cross-issue shrinkage detection.
-        This prevents undetected 55% prompt shrinkage across batch issues."""
+        """Criterion 1 (restored by Issue #1082 Phase 1a): A per-issue lookup
+        for a brand-new issue must return None — never silently inherit a
+        prior issue's baseline. The previous silent fallback (added by #867)
+        produced a guaranteed first-dispatch block in batch mode.
+
+        Cross-issue baseline lookup, when needed, is an explicit call to
+        ``get_cross_issue_baseline()``.
+        """
         state_dir = tmp_path / "state"
         state_dir.mkdir()
 
@@ -45,13 +62,21 @@ class TestSpecIssue764PerIssueBaseline:
             "implementer", issue_number=1, word_count=500, state_dir=state_dir
         )
 
-        # Look up baseline for issue 2 -- should fall back to issue 1's baseline
+        # Per-issue lookup for issue 2 must return None — no silent fallback.
         baseline_issue2 = get_prompt_baseline(
             "implementer", issue_number=2, state_dir=state_dir
         )
-        assert baseline_issue2 == 500, (
-            f"Expected fallback to issue 1 baseline (500), got {baseline_issue2}. "
-            f"Issue #867: cross-issue shrinkage detection requires fallback."
+        assert baseline_issue2 is None, (
+            f"Expected None for issue 2's per-issue lookup (Issue #1082 "
+            f"Phase 1a contract), got {baseline_issue2}. "
+            f"A silent fallback re-introduces the #764 first-dispatch block."
+        )
+
+        # Explicit cross-issue lookup returns the lowest-issue baseline.
+        cross = get_cross_issue_baseline("implementer", state_dir=state_dir)
+        assert cross == 500, (
+            f"Explicit get_cross_issue_baseline() should return issue 1's "
+            f"baseline (500), got {cross}."
         )
 
     def test_spec_764_2_within_issue_shrinkage_detected(
@@ -122,8 +147,10 @@ class TestSpecIssue764PerIssueBaseline:
     def test_spec_764_4_multiple_agents_isolated_per_issue(
         self, tmp_path: Path
     ) -> None:
-        """Criterion 1 extended: Per-issue isolation works across different agents.
-        Issue 1's reviewer baseline must not affect issue 2's reviewer lookup."""
+        """Criterion 1 extended (Issue #1082 Phase 1a contract): per-issue
+        isolation holds across agents. Issue 1's baselines must not contaminate
+        issue 2's per-issue lookups for any agent.
+        """
         state_dir = tmp_path / "state"
         state_dir.mkdir()
 
@@ -137,20 +164,38 @@ class TestSpecIssue764PerIssueBaseline:
             "implementer", issue_number=1, word_count=500, state_dir=state_dir
         )
 
-        # Issue 2 should fall back to issue 1's baseline (Issue #867: cross-issue detection)
-        assert get_prompt_baseline("reviewer", issue_number=2, state_dir=state_dir) == 600
-        assert get_prompt_baseline("implementer", issue_number=2, state_dir=state_dir) == 500
+        # Issue 2 per-issue lookups MUST return None for both agents
+        # (no silent cross-issue fallback after Issue #1082 Phase 1a).
+        assert (
+            get_prompt_baseline("reviewer", issue_number=2, state_dir=state_dir)
+            is None
+        )
+        assert (
+            get_prompt_baseline("implementer", issue_number=2, state_dir=state_dir)
+            is None
+        )
 
-        # But issue 1 baselines are still retrievable
+        # Issue 1 baselines remain retrievable per-issue.
         assert get_prompt_baseline("reviewer", issue_number=1, state_dir=state_dir) == 600
         assert get_prompt_baseline("implementer", issue_number=1, state_dir=state_dir) == 500
 
-    def test_spec_764_5_batch_scenario_cross_issue_shrinkage_detected(
+        # Explicit cross-issue lookup still works for both agents.
+        assert get_cross_issue_baseline("reviewer", state_dir=state_dir) == 600
+        assert get_cross_issue_baseline("implementer", state_dir=state_dir) == 500
+
+    def test_spec_764_5_first_dispatch_not_blocked_against_prior_issue(
         self, tmp_path: Path
     ) -> None:
-        """Criterion 1 end-to-end (updated by Issue #867): Simulates a real
-        batch scenario where issue 1 has a large prompt and issue 2 has a much
-        smaller prompt. With cross-issue fallback, the shrinkage IS detected."""
+        """Criterion 1 end-to-end (Issue #1082 Phase 1a): A new issue's FIRST
+        dispatch must not be compared against a prior issue's baseline. That
+        scenario is exactly the friction event #1082 was raised to fix: the
+        coordinator sends a 300-word prompt for issue 2 and the gate must not
+        block it against issue 1's 800-word baseline.
+
+        Cross-issue drift detection is the job of ``record_batch_observation``
+        + ``get_cumulative_shrinkage`` (Issue #794), not of
+        ``get_prompt_baseline``.
+        """
         state_dir = tmp_path / "state"
         state_dir.mkdir()
 
@@ -161,22 +206,26 @@ class TestSpecIssue764PerIssueBaseline:
             "implementer", issue_number=1, word_count=800, state_dir=state_dir
         )
 
-        # Issue 2: much smaller prompt (62.5% shrinkage from 800 to 300)
+        # Issue 2: smaller prompt (300 words) — natural first-dispatch size.
         issue2_prompt = " ".join(["word"] * 300)
 
-        # Per-issue lookup: issue 2 falls back to issue 1's baseline (Issue #867)
+        # Per-issue lookup for issue 2 returns None: there is no in-issue
+        # baseline yet, so the caller will seed one from the first observation.
         baseline_for_issue2 = get_prompt_baseline(
             "implementer", issue_number=2, state_dir=state_dir
         )
-        assert baseline_for_issue2 == 800, (
-            f"Expected fallback to issue 1 baseline (800), got {baseline_for_issue2}"
+        assert baseline_for_issue2 is None, (
+            f"Expected None for issue 2's per-issue lookup (Issue #1082 "
+            f"Phase 1a), got {baseline_for_issue2}. The silent fallback to "
+            f"issue 1's 800-word baseline guaranteed a first-dispatch block."
         )
 
-        # With the fallback baseline, the 62.5% shrinkage IS detected
+        # With no baseline, validation against None is a no-op shrinkage check:
+        # the prompt is accepted on its own merits (>= MIN_CRITICAL words).
         result = validate_prompt_word_count(
             "implementer", issue2_prompt, baseline_for_issue2, max_shrinkage=0.15
         )
-        assert result.passed is False, (
-            f"Issue 2's 62.5% prompt shrinkage should be detected via cross-issue fallback. "
-            f"Decision: passed={result.passed}, reason={result.reason}"
+        assert result.passed is True, (
+            f"First dispatch should be allowed when no per-issue baseline "
+            f"exists. Decision: passed={result.passed}, reason={result.reason}"
         )
