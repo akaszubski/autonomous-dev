@@ -158,3 +158,61 @@ class TestBlockMessageMentionsBypass:
         lib_path = LIB_DIR / "pipeline_completion_state.py"
         source = lib_path.read_text()
         assert "touch /tmp/skip_agent_completeness_gate" in source
+
+
+class TestBlockMessageOrdering:
+    """Issue #1086: file-based bypass MUST be listed before env-var in both deny messages."""
+
+    HOOK_PATH = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
+
+    def _extract_non_batch_message(self) -> str:
+        """Return the string-literal block of the non-batch deny message."""
+        source = self.HOOK_PATH.read_text()
+        start = source.index('BLOCKED: Agent completeness gate')
+        end = source.index('(Issue #802)', start) + len('(Issue #802)')
+        return source[start:end]
+
+    def _extract_batch_message(self) -> str:
+        """Return the string-literal block of the batch deny message."""
+        source = self.HOOK_PATH.read_text()
+        start = source.index('BLOCKED: Batch agent completeness gate')
+        end = source.index('(Issue #853)', start) + len('(Issue #853)')
+        return source[start:end]
+
+    def test_non_batch_file_bypass_precedes_env_var(self):
+        msg = self._extract_non_batch_message()
+        file_idx = msg.index('touch /tmp/skip_agent_completeness_gate')
+        env_idx = msg.index('SKIP_AGENT_COMPLETENESS_GATE=1')
+        assert file_idx < env_idx, (
+            f"file-bypass mention (idx {file_idx}) must precede env-var mention "
+            f"(idx {env_idx}) in non-batch message"
+        )
+
+    def test_batch_file_bypass_precedes_env_var(self):
+        msg = self._extract_batch_message()
+        file_idx = msg.index('touch /tmp/skip_agent_completeness_gate')
+        env_idx = msg.index('SKIP_AGENT_COMPLETENESS_GATE=1')
+        assert file_idx < env_idx, (
+            f"file-bypass mention (idx {file_idx}) must precede env-var mention "
+            f"(idx {env_idx}) in batch message"
+        )
+
+    def test_non_batch_env_var_has_before_launching_caveat(self):
+        msg = self._extract_non_batch_message()
+        assert 'BEFORE launching claude' in msg, (
+            "Non-batch message must include 'BEFORE launching claude' caveat on env-var bypass"
+        )
+
+    def test_batch_env_var_has_before_launching_caveat(self):
+        msg = self._extract_batch_message()
+        assert 'BEFORE launching claude' in msg, (
+            "Batch message must include 'BEFORE launching claude' caveat on env-var bypass"
+        )
+
+    def test_non_batch_message_has_bypass_header(self):
+        msg = self._extract_non_batch_message()
+        assert 'BYPASS (in order of reliability)' in msg
+
+    def test_batch_message_has_bypass_header(self):
+        msg = self._extract_batch_message()
+        assert 'BYPASS (in order of reliability)' in msg

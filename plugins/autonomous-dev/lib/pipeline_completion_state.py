@@ -1089,8 +1089,10 @@ def verify_pipeline_agent_completions(
     Fail-open: returns (True, set(), set()) on any error to avoid blocking
     legitimate commits due to state file issues.
 
-    Escape hatch: set SKIP_AGENT_COMPLETENESS_GATE=1 to bypass, or run:
-    touch /tmp/skip_agent_completeness_gate (Issue #802)
+    Escape hatch (in order of reliability): (1) touch /tmp/skip_agent_completeness_gate
+    as a separate command, then retry — file-based, works mid-session;
+    (2) export SKIP_AGENT_COMPLETENESS_GATE=1 BEFORE launching claude (env vars
+    don't propagate mid-session — Issue #779). (Issue #802)
 
     Args:
         session_id: The pipeline session identifier.
