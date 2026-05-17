@@ -196,11 +196,30 @@ The harness implements all 12 elements of the harness engineering framework:
 - **Scheduling**: Weekly automated cycles via `/self-improve`. Post-change hooks verify agent prompt edits don't regress quality.
 - See issues #579-#584 for implementation roadmap.
 
+**Periodic-Aggregation Passes** (Per-Event Automation ↔ Periodic-Aggregation Duality, Issue #1075)
+
+Per-event automations (doc-master in /implement, CIA in /implement, baseline capture at STEP 1) work well in isolation but each has an unfilled counterpart need: a periodic full-state pass that aggregates across many events. The shape is consistent:
+
+| Per-event automation | Periodic-aggregation pass |
+|---|---|
+| doc-master per commit (changed-files scope only) | `/refactor --docs` — narrative-doc sweep |
+| Test-baseline per session (per-pipeline only) | Machine-readable baseline snapshot across sessions |
+| CIA per session (one issue at a time) | Triage pass — root-cause grouping of accumulated `auto-improvement` queue |
+
+A periodic-aggregation pass:
+- Runs at maintainer cadence (weekly/monthly), not per-commit.
+- Reads accumulated state from prior events.
+- Identifies gaps, duplicates, dependencies, drift that per-event scope cannot see.
+- Outputs either **updates** (docs reconciled in place) or a **ranked work queue** (triaged issues, baseline snapshot).
+
+This is the architectural layer that catches drift no per-event hook can see — by design, per-event automations have a single-commit blast radius. Periodic passes are additive: they do not replace or modify per-event hooks. Implementations land incrementally — pick one, generalize the pattern, then port to the other variants.
+
 **Key Distinctions:**
 - **Hooks = enforcement** (quality gates, always active, blocking)
 - **Agents = intelligence** (expert assistance, conditionally invoked, advisory)
 - **Continuous improvement = learning** (post-hoc analysis, drift detection, issue filing)
 - **Self-improvement = evolution** (autonomous measurement, diagnosis, fix, verification — closed loop)
+- **Periodic-aggregation = visibility** (cross-event sweeps that catch what per-event scope misses)
 
 ### Hook Lifecycle Events
 
