@@ -41,20 +41,25 @@ Design the smallest set of changes that achieves the goal. List files in depende
 
 ### Step 5: Adversarial Critique
 
-The plan-critic agent reviews the plan across 5 axes:
+The plan-critic agent reviews the plan across 6 axes:
 - **Assumption audit**: What might not be true?
 - **Scope creep detection**: Is the plan doing more than needed?
 - **Existing solution search**: Has prior art been checked?
 - **Minimalism pressure**: What can be removed?
 - **Uncertainty flagging**: What's risky?
+- **Operational Integration Test**: Are subprocess/network/fs calls tested with runtime-context kwargs (cwd, env, credentials)?
 
-Minimum 2 critique rounds before PROCEED verdict.
+Minimum 3 critique rounds before PROCEED verdict.
 
-### Step 6: Issue Decomposition
+### Step 6: Auto-Create GitHub Issues (--quick mode, PROCEED only)
 
-**HARD GATE**: If the Minimal Path contains >=2 independent work items, issue creation is REQUIRED. GitHub issues are created directly via `gh issue create` (not via `/create-issue`). If `gh` is unavailable, a warning is logged and `/plan-to-issues` can be used manually afterward.
+This step runs only after a PROCEED verdict from Step 5. If the plan-critic issued REVISE or BLOCKED, return to Step 5 to address feedback first.
 
-When the plan is a single coherent unit (<2 independent items), this step is skipped and the plan file records `N/A — single work item` in the `## Linked Issues` section.
+**Guard — `--no-issues` flag**: Pass `--no-issues` to `/plan` to skip issue creation entirely. The plan file records `Issues not created — --no-issues flag was set` in `## Linked Issues`.
+
+**Guard — single work item**: If the Minimal Path contains <2 independent work items, this step is skipped and the plan file records `N/A — single work item` in `## Linked Issues`.
+
+When >=2 independent work items exist after a PROCEED verdict, GitHub issues are created in quick mode (Summary + Implementation Approach + Acceptance Criteria) via `gh issue create` (not via `/create-issue`). Issue creation is **non-blocking**: if `gh` fails for any reason, a warning is logged, plan file creation continues, and `/plan-to-issues` can be run manually afterward.
 
 ### Step 7: Plan Output
 
@@ -84,7 +89,11 @@ What might go wrong.
 Plan-critic feedback and resolutions.
 
 ## Linked Issues
-List of created issues: "- #NNN: Title" for each issue, or "N/A — single work item" if no issues were created, or "Issues not created — run `/plan-to-issues`" if gh was unavailable.
+One of:
+- `- https://github.com/owner/repo/issues/NNN: Title` for each auto-created issue
+- `N/A — single work item` if no issue decomposition was needed
+- `Issues not created — --no-issues flag was set` if `--no-issues` was passed
+- `Issues not created — run /plan-to-issues` if gh was unavailable or failed
 ```
 
 ## Hook Enforcement
@@ -123,7 +132,7 @@ When blocked, the message includes:
 | `plan_gate.py` hook | Enforces plan existence before complex edits |
 | `plan_validator.py` lib | Validates plan file contents and sections |
 | `planning-workflow` skill | Documents the workflow for context injection |
-| `/plan-to-issues` command | Fallback when `gh` was unavailable during Step 6; converts plan files into issues |
+| `/plan-to-issues` command | Thorough-mode issue creation (full templates); also the fallback when `gh` was unavailable during Step 6 or `--no-issues` was passed |
 
 ## Rationale
 

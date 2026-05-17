@@ -33,7 +33,7 @@ When you type `/implement "#72"`, Claude coordinates specialist agents through a
 | 1 | **alignment check** | Checks if the feature fits your PROJECT.md goals and scope. Blocks if it doesn't. |
 | 2 | **researcher** (x2) | Searches codebase + web for patterns, best practices, existing solutions |
 | 3 | **planner** | Designs the architecture and creates a file-by-file implementation plan |
-| 3.5 | **plan-critic** | Adversarial review across 5 axes (assumption audit, scope creep, existing solutions, minimalism, uncertainty). Iterates planner until verdict is PROCEED. |
+| 3.5 | **plan-critic** | Adversarial review across 6 axes (assumption audit, scope creep, existing solutions, minimalism, uncertainty, operational integration test). Iterates planner until verdict is PROCEED. |
 | 4 | **acceptance tests** | Writes acceptance tests that define what "done" means |
 | 5 | **implementer** | Writes code + unit tests to make the acceptance tests pass |
 | 5.5 | **plan-implementation alignment gate** | Compares planned files vs implemented files. Blocks on >50% divergence. |
@@ -88,7 +88,7 @@ autonomous-dev enforces process through three layers, each addressing a differen
 
 Substantial enforcement hardening shipped recently. Current focus areas:
 
-- **Planning workflow** — 7-step `/plan` + adversarial `plan-critic` review (1-5 Likert across 5 axes, composite ≥3.0 → PROCEED)
+- **Planning workflow** — 7-step `/plan` + adversarial `plan-critic` review (1-5 Likert across 6 axes, composite ≥3.0 → PROCEED)
 - **Iterative refinement** — Self-Refine pattern integrated into `/implement`, `/advise`, `/refactor`
 - **Pipeline ordering** — Deterministic sequencing; `reviewer → security-auditor` always sequential on security-sensitive changes
 - **Session analytics** — Every conversation archived to `~/.claude/archive/` with 17-column SQLite index
@@ -243,7 +243,7 @@ Use `/plan` for changes touching >3 files, >100 lines, or with uncertain approac
 /plan-to-issues               # Thorough-mode fallback for batch issue creation
 ```
 
-The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 5 axes, iterates planner until composite ≥3.0) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
+The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 6 axes, iterates planner until composite ≥3.0) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
 
 ### Plan-exit enforcement is scoped to autonomous-dev projects (since #938)
 
@@ -333,7 +333,7 @@ Research Self-Critique (inline FEEDBACK pass, Self-Refine pattern)
 Planning (Opus)
      |
 Plan Validation Gate (plan-critic, Opus)  <- HARD GATE: adversarial review
-     |                                       5 axes, ≥3.0 composite to PROCEED
+     |                                       6 axes, ≥3.0 composite to PROCEED
      |                                       REVISE re-invokes planner
      |
 Acceptance Tests (test-master)            <- Acceptance-first (default)

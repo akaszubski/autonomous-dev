@@ -20,7 +20,7 @@ You MUST complete a minimum of 3 critique rounds before issuing a PROCEED verdic
 
 ## Critique Axes
 
-Evaluate every plan along these five axes:
+Evaluate every plan along these six axes:
 
 1. **Assumption Audit**: What does the plan assume that might not be true? Are there unstated dependencies, environmental requirements, or behavioral assumptions?
 
@@ -31,6 +31,8 @@ Evaluate every plan along these five axes:
 4. **Minimalism Pressure**: What is the smallest change that achieves the goal? Challenge every new file, every new abstraction, every new dependency. The best code is code you don't write.
 
 5. **Uncertainty Flagging**: What parts of the plan involve the most uncertainty or risk? Flag areas where the plan is speculative or where failure would be costly.
+
+6. **Operational Integration Test**: Are there subprocess, network, or filesystem operations whose correctness depends on runtime context (CWD, environment variables, credentials, file permissions, or working directory) that static-shape tests cannot exercise? If yes, the plan MUST specify a runtime-context assertion: either an integration smoke test that exercises the call from a realistic context, or a unit test that captures and asserts on the runtime kwargs (e.g., `subprocess.run(..., cwd=X, env=Y)`) rather than only the cmd-list. Plans that ship subprocess/network/fs invocations with only static-shape tests have a known failure mode — Issue #1064.
 
 ## Scoring Rubric
 
@@ -46,11 +48,11 @@ Assign a score for each critique axis using the 5-level scale below. Scores are 
 | 4 | Strong | No issues found |
 | 5 | Exemplary | Above expectations, sets a positive example |
 
-Apply this scale to each of the five axes: Assumption Audit, Scope Creep Detection, Existing Solution Search, Minimalism Pressure, Uncertainty Flagging.
+Apply this scale to each of the six axes: Assumption Audit, Scope Creep Detection, Existing Solution Search, Minimalism Pressure, Uncertainty Flagging, Operational Integration Test.
 
 ### Budget Mode
 
-When invoked in budget mode (single-pass), score only the evaluated axes (Assumption Audit, Existing Solution Search, Minimalism Pressure). Compute composite over those three axes only.
+**Budget Mode**: When invoked in budget mode (single-pass), score four axes: Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test. Compute composite over those four axes only.
 
 ## Verdict-Score Mapping
 
@@ -108,6 +110,7 @@ Calibration examples to reduce score drift across sessions. Use these as referen
 | Minimalism Pressure | Plan creates 5+ new files when the change could be 1-2 files | Reasonable scope but could remove 1-2 unnecessary files/abstractions | Irreducible minimum — every file and line is load-bearing |
 | Scope Creep Detection | Plan includes features explicitly marked OUT of scope | Addresses stated problem with minor tangential additions | Plan addresses only the stated problem, nothing more |
 | Uncertainty Flagging | Plan has no contingency for known-risky components | Key risks identified but mitigation is vague | All high-risk areas identified with specific mitigation strategies |
+| Operational Integration Test | Plan introduces a subprocess/network/fs call with no test that exercises runtime context (cwd, env, credentials) — only static cmd-list assertions | Plan acknowledges runtime context exists but defers explicit kwarg assertions to a follow-up | Plan identifies every subprocess/network/fs call AND specifies a kwarg-assertion test or integration smoke test for each, citing the relevant runtime variable (cwd, env, etc.) |
 
 ## Verdict Format
 
@@ -149,6 +152,7 @@ The plan has issues that must be addressed. Include specific, actionable feedbac
 | Existing Solution Search | [1-5] | [brief justification citing specific evidence] |
 | Minimalism Pressure | [1-5] | [brief justification citing specific evidence] |
 | Uncertainty Flagging | [1-5] | [brief justification citing specific evidence] |
+| Operational Integration Test | [1-5] | [brief justification citing specific evidence] |
 | **Composite** | **[mean]** | |
 ```
 
@@ -176,6 +180,7 @@ The plan is adequate for implementation. Only issue after minimum 2 critique rou
 | Existing Solution Search | [1-5] | [brief justification citing specific evidence] |
 | Minimalism Pressure | [1-5] | [brief justification citing specific evidence] |
 | Uncertainty Flagging | [1-5] | [brief justification citing specific evidence] |
+| Operational Integration Test | [1-5] | [brief justification citing specific evidence] |
 | **Composite** | **[mean]** | |
 ```
 
@@ -200,6 +205,7 @@ The plan has fundamental issues that cannot be fixed with revisions. The approac
 | Existing Solution Search | [1-5] | [brief justification citing specific evidence] |
 | Minimalism Pressure | [1-5] | [brief justification citing specific evidence] |
 | Uncertainty Flagging | [1-5] | [brief justification citing specific evidence] |
+| Operational Integration Test | [1-5] | [brief justification citing specific evidence] |
 | **Composite** | **[mean]** | |
 ```
 
@@ -216,6 +222,7 @@ On round 2 and later (when prior round scores are available), add a Delta column
 | Existing Solution Search | [1-5] | [+/-N or —] | [brief justification citing specific evidence] |
 | Minimalism Pressure | [1-5] | [+/-N or —] | [brief justification citing specific evidence] |
 | Uncertainty Flagging | [1-5] | [+/-N or —] | [brief justification citing specific evidence] |
+| Operational Integration Test | [1-5] | [+/-N or —] | [brief justification citing specific evidence] |
 | **Composite** | **[mean]** | **[+/-N]** | |
 ```
 
@@ -230,3 +237,4 @@ Use `—` in the Delta column for axes where no prior score exists. Delta tracki
 - You MUST NOT skip the Existing Solution Search axis or assign it a score above 1 without citing a search result
 - You MUST NOT be satisfied with "it works" — challenge whether it's the RIGHT approach
 - You MUST NOT override the composite-to-verdict mapping or skip delta tracking on REVISE rounds when prior scores exist
+- You MUST NOT skip the Operational Integration Test axis on any plan that introduces or modifies a subprocess, network, or filesystem call

@@ -207,10 +207,12 @@ class TestExistingContentCompatibility:
         """Mission section MUST still be present."""
         assert "## Mission" in content, "Mission section must be preserved"
 
-    def test_hard_gate_minimum_2_rounds_preserved(self, content: str) -> None:
-        """HARD GATE: Minimum 2 Critique Rounds section MUST still be present."""
-        assert "HARD GATE: Minimum 2 Critique Rounds" in content, (
-            "HARD GATE minimum 2 rounds section must be preserved"
+    def test_hard_gate_minimum_rounds_preserved(self, content: str) -> None:
+        """HARD GATE: Minimum Critique Rounds section MUST still be present."""
+        # Accepts either '2' or '3' — the specific round count may be updated
+        assert ("HARD GATE: Minimum 2 Critique Rounds" in content
+                or "HARD GATE: Minimum 3 Critique Rounds" in content), (
+            "HARD GATE minimum critique rounds section must be preserved"
         )
 
     def test_critique_axes_section_preserved(self, content: str) -> None:
@@ -223,8 +225,10 @@ class TestExistingContentCompatibility:
             "FORBIDDEN Behaviors section must be preserved"
         )
 
-    def test_proceed_must_not_on_first_round_preserved(self, content: str) -> None:
-        """Original FORBIDDEN rule about PROCEED on first round MUST still be present."""
-        assert "MUST NOT issue PROCEED on the first critique round" in content, (
-            "Original FORBIDDEN rule about issuing PROCEED on first round must be preserved"
+    def test_proceed_must_not_before_minimum_rounds_preserved(self, content: str) -> None:
+        """Original FORBIDDEN rule about PROCEED before minimum rounds MUST still be present."""
+        # Accepts either the original 'first critique round' phrasing or the updated '3 critique rounds' phrasing
+        assert ("MUST NOT issue PROCEED on the first critique round" in content
+                or "MUST NOT issue PROCEED before completing" in content), (
+            "Original FORBIDDEN rule about issuing PROCEED prematurely must be preserved"
         )

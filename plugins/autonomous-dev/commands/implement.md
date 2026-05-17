@@ -618,8 +618,8 @@ If no matching file with "Verdict: PROCEED" is found, proceed to 5.5b.
 **When no pre-validated plan exists**, invoke the plan-critic agent with a constrained budget:
 
 - **Rounds**: 1 (single pass, no iterative critique)
-- **Axes**: 3 only — Assumption Audit, Existing Solution Search, Minimalism Pressure
-- **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 3 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure. Output verdict: PROCEED, REVISE, or BLOCKED." (When running under --batch, include the BATCH CONTEXT block (worktree path + issue number) per implement-batch.md STEP B3.)
+- **Axes**: 4 only — Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test
+- **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 4 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test. Output verdict: PROCEED, REVISE, or BLOCKED." (When running under --batch, include the BATCH CONTEXT block (worktree path + issue number) per implement-batch.md STEP B3.)
 
 **Parse verdict from plan-critic output**:
 

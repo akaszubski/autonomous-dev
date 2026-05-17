@@ -197,6 +197,57 @@ Profiles are registered in `tests/property/conftest.py`:
 - `default`: `max_examples=50` (fast local iteration)
 - `ci`: `max_examples=200`, `deadline=None` (thorough CI runs)
 
+### 6. Runtime Integration Testing Patterns (subprocess, network, filesystem)
+
+When code invokes external operations whose correctness depends on **runtime context** (CWD, environment variables, credentials, file permissions), assert on the **kwargs**, not just the cmd-list or return value. Static-shape tests (asserting `cmd == ["claude", "-p", prompt]`) silently pass even when `cwd=` or `env=` is wrong — and shipped Issue #1064 through a full 8-agent pipeline.
+
+**The principle**: capture the full kwargs dict via `monkeypatch`, then assert on the specific runtime variable that affects correctness.
+
+```python
+def test_subprocess_passes_cwd_to_avoid_context_bleed(monkeypatch) -> None:
+    """Regression test: must pass cwd= so the spawned subprocess does not
+    inherit the parent's CWD."""
+    captured_kwargs: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout="...", stderr=""
+        )
+
+    monkeypatch.setattr("mymodule.subprocess.run", fake_run)
+    my_function_under_test(...)
+
+    # Assert on the RUNTIME KWARG, not just the cmd-list
+    assert "cwd" in captured_kwargs, "subprocess.run must receive cwd="
+    assert captured_kwargs["cwd"] == str(Path.home()), (
+        f"cwd must be Path.home() (got {captured_kwargs['cwd']!r})"
+    )
+```
+
+**When to use this pattern**:
+
+- Any `subprocess.run` / `subprocess.Popen` whose correctness depends on `cwd`, `env`, `timeout`, `input`, or `stdin`.
+- Any network call whose correctness depends on env-provided credentials, base URLs, proxy settings, or TLS context.
+- Any filesystem operation whose correctness depends on `Path.cwd()` or relative-path resolution.
+
+**Anti-pattern to avoid**:
+
+```python
+# BAD — passes even when cwd is wrong, which is the bug Issue #1064 was
+def test_subprocess_invokes_claude(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="ok", stderr="")
+    monkeypatch.setattr("mymodule.subprocess.run", fake_run)
+    result = my_function_under_test(...)
+    # ↓ This static-shape assertion misses the entire CWD bug class.
+    assert result.returncode == 0
+```
+
+**Reference example**: `tests/unit/scripts/test_extract_and_label_intent_corpus.py::test_call_claude_p_judge_passes_cwd_to_avoid_project_context` (regression test for Issue #1064, the bug that motivated this pattern).
+
+**Pipeline integration**: The plan-critic agent's **Operational Integration Test** axis enforces this pattern at plan time. Plans introducing subprocess/network/fs calls must specify either a kwarg-assertion test (this pattern) or an integration smoke test — score 1 if neither is specified.
+
 ---
 
 ## Anti-Patterns (NEVER do these)
