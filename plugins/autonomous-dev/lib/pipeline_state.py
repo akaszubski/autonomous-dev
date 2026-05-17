@@ -832,6 +832,102 @@ def cleanup_pipeline(run_id: str) -> None:
 
 
 # =============================================================================
+# BASE COMMIT ANCHORING (Issue #1069)
+# =============================================================================
+#
+# Pre-existing working-tree modifications cause `git diff --name-only HEAD` to
+# include files unrelated to the current pipeline run. When the coordinator
+# emits acceptance criteria that reference "files in the diff", spec-validator
+# correctly verifies the criterion and FAILs on pre-existing tree state —
+# producing a false-positive that requires human override.
+#
+# The fix anchors diff commands to the commit SHA captured at pipeline start
+# (PIPELINE_BASE_COMMIT). This restricts the diff to files actually changed by
+# the current run, ignoring any tree state that existed before the pipeline
+# began. The base commit is stored in the legacy sentinel state file
+# (PIPELINE_STATE_FILE, default /tmp/implement_pipeline_state.json) under the
+# 'base_commit' key.
+
+
+def set_pipeline_base_commit(
+    base_commit: str,
+    *,
+    state_path: Optional[str] = None,
+) -> bool:
+    """Record PIPELINE_BASE_COMMIT in the pipeline state file.
+
+    Called at pipeline start (full-pipeline STEP 1 or fix-mode STEP F1) to
+    capture the git HEAD before any pipeline-driven file modifications. The
+    captured SHA is later used by spec-validator (STEP 8.5 / STEP F3.5) to
+    anchor `git diff --name-only` commands so the diff reflects only files
+    changed by the current pipeline run, not pre-existing tree state.
+
+    Args:
+        base_commit: The git commit SHA captured via `git rev-parse HEAD`.
+            Empty string is permitted (e.g., no-commit repository) but
+            disables anchoring — callers should fall back to plain HEAD diff
+            in that case.
+        state_path: Optional override for the state file path. Defaults to
+            the PIPELINE_STATE_FILE env var, falling back to
+            /tmp/implement_pipeline_state.json.
+
+    Returns:
+        True if the base commit was successfully written, False if the state
+        file does not exist or could not be read/written.
+    """
+    path = state_path or os.environ.get(
+        "PIPELINE_STATE_FILE", str(LEGACY_SENTINEL_PATH)
+    )
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path) as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    state["base_commit"] = base_commit
+    try:
+        with open(path, "w") as f:
+            json.dump(state, f)
+    except OSError:
+        return False
+    return True
+
+
+def get_pipeline_base_commit(
+    state_path: Optional[str] = None,
+) -> Optional[str]:
+    """Read PIPELINE_BASE_COMMIT from the pipeline state file.
+
+    Returns the commit SHA captured at pipeline start, or None if not set.
+    Callers SHOULD fall back to plain `HEAD` when the base commit is missing
+    (e.g., legacy pipelines, fresh state files, no-commit repos).
+
+    Args:
+        state_path: Optional override for the state file path. Defaults to
+            the PIPELINE_STATE_FILE env var, falling back to
+            /tmp/implement_pipeline_state.json.
+
+    Returns:
+        The base commit SHA string if recorded and non-empty, otherwise None.
+    """
+    path = state_path or os.environ.get(
+        "PIPELINE_STATE_FILE", str(LEGACY_SENTINEL_PATH)
+    )
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path) as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    base = state.get("base_commit")
+    if not isinstance(base, str) or not base.strip():
+        return None
+    return base.strip()
+
+
+# =============================================================================
 # RUN_ID GENERATION AND LOCKFILE HELPERS (Issue #1047)
 # =============================================================================
 

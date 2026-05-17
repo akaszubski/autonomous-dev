@@ -312,6 +312,28 @@ state = sign_state(state, sid)
 with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
     json.dump(state, f)
 "
+
+# PIPELINE_BASE_COMMIT capture (Issue #1069). REQUIRED: anchors all downstream
+# `git diff --name-only` invocations (acceptance criteria, spec-validator
+# dispatch at STEP 8.5, security-sensitivity scan) to the commit SHA at
+# pipeline start. Without this anchor, `git diff HEAD` includes pre-existing
+# working-tree modifications and produces false-positive FAIL verdicts.
+# FORBIDDEN: skipping this capture, or emitting `git diff --name-only HEAD`
+# in any acceptance criterion or spec-validator prompt template downstream —
+# all such commands MUST use `git diff --name-only $PIPELINE_BASE_COMMIT`.
+PIPELINE_BASE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import set_pipeline_base_commit
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+ok = set_pipeline_base_commit('$PIPELINE_BASE_COMMIT', state_path=state_path)
+print(f'PIPELINE_BASE_COMMIT recorded: $PIPELINE_BASE_COMMIT (ok={ok})')
+"
+export PIPELINE_BASE_COMMIT
 ```
 
 ---
@@ -881,8 +903,37 @@ Plan-Implementation Alignment Check:
 **Context Boundary** — The spec-validator operates with strict isolation. You MUST pass ONLY the following to this agent:
 - Acceptance criteria from STEP 6
 - Feature description (from user input)
-- Changed file paths (from `git diff --name-only`)
+- Changed file paths (from `git diff --name-only $PIPELINE_BASE_COMMIT` — anchored to the commit captured at STEP 0 per Issue #1069; falls back to `HEAD` only when `PIPELINE_BASE_COMMIT` is empty)
 - PROJECT.md scope sections
+
+**Changed-file computation** (Issue #1069):
+
+```bash
+# Recover PIPELINE_BASE_COMMIT from state file (set at STEP 0)
+PIPELINE_BASE_COMMIT=$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import get_pipeline_base_commit
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+print(get_pipeline_base_commit(state_path=state_path) or '')
+")
+# Anchor diff to PIPELINE_BASE_COMMIT so the file list reflects ONLY changes
+# made by THIS pipeline run, not pre-existing working-tree state. The
+# fallback to HEAD only applies when the base commit is missing (legacy
+# state files from before Issue #1069 landed). FORBIDDEN: emitting any
+# acceptance criterion or spec-validator prompt template that references
+# `git diff --name-only HEAD` — pre-existing working-tree modifications
+# would produce false-positive FAIL verdicts on files this pipeline did
+# not touch.
+if [ -n "$PIPELINE_BASE_COMMIT" ]; then
+  CHANGED_FILES=$(git diff --name-only "$PIPELINE_BASE_COMMIT" 2>/dev/null)
+else
+  CHANGED_FILES=$(git diff --name-only HEAD 2>/dev/null)
+fi
+```
 
 **FORBIDDEN** — You MUST NOT pass any of the following to the spec-validator:
 - Implementer output or summary

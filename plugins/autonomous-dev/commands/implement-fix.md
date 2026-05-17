@@ -117,6 +117,31 @@ print('Pipeline state initialized for fix mode')
 
 This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
 
+#### PIPELINE_BASE_COMMIT Capture (Issue #1069)
+
+Immediately after initializing the pipeline state, capture the git HEAD as `PIPELINE_BASE_COMMIT` and persist it to the state file. This commit SHA anchors `git diff --name-only` commands at STEP F3.5 (spec-validator dispatch) so the diff reflects ONLY files changed by THIS pipeline run, not pre-existing working-tree state from prior sessions or unrelated edits. Without this anchor, spec-validator emits false-positive FAIL verdicts whenever the working tree already contained uncommitted changes when the pipeline started.
+
+```bash
+# Capture base commit for spec-validator anchoring (Issue #1069)
+PIPELINE_BASE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import set_pipeline_base_commit
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+ok = set_pipeline_base_commit('$PIPELINE_BASE_COMMIT', state_path=state_path)
+print(f'PIPELINE_BASE_COMMIT recorded: $PIPELINE_BASE_COMMIT (ok={ok})')
+"
+export PIPELINE_BASE_COMMIT
+```
+
+**FORBIDDEN**:
+- ❌ Skipping the `PIPELINE_BASE_COMMIT` capture — STEP F3.5 spec-validator dispatch depends on this value to filter out pre-existing tree state.
+- ❌ Using `git diff --name-only HEAD` in any acceptance criterion or spec-validator prompt template downstream of this step — always use `git diff --name-only $PIPELINE_BASE_COMMIT` so the diff reflects only files changed by this pipeline run.
+
 ### STEP F1.5: Pre-Staged Files Check — HARD GATE
 
 **Progress**: Output step banner (STEP F1.5/5 — Pre-Staged Check). Output gate result.
@@ -306,10 +331,36 @@ If fixing a bug, at least one NEW test must be added that would FAIL without the
 
 Same context boundary as STEP 8.5 in the full pipeline. Pass ONLY:
 - Bug description / fix description (from user input)
-- Changed file paths (from `git diff --name-only`)
+- Changed file paths (from `git diff --name-only $PIPELINE_BASE_COMMIT` — anchored to the commit captured at STEP F1 per Issue #1069; falls back to `HEAD` only when `PIPELINE_BASE_COMMIT` is empty)
 - PROJECT.md scope sections
 
-**FORBIDDEN**: Passing implementer output, code diffs, reviewer feedback, or any implementation details to the spec-validator.
+**Changed-file computation** (Issue #1069):
+
+```bash
+# Recover PIPELINE_BASE_COMMIT from state file (set at STEP F1)
+PIPELINE_BASE_COMMIT=$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import get_pipeline_base_commit
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+print(get_pipeline_base_commit(state_path=state_path) or '')
+")
+# Anchor diff to PIPELINE_BASE_COMMIT so the file list reflects ONLY changes
+# made by THIS pipeline run, not pre-existing working-tree state.
+# Fallback to HEAD only when the base commit is missing (legacy state files).
+if [ -n "$PIPELINE_BASE_COMMIT" ]; then
+  CHANGED_FILES=$(git diff --name-only "$PIPELINE_BASE_COMMIT" 2>/dev/null)
+else
+  CHANGED_FILES=$(git diff --name-only HEAD 2>/dev/null)
+fi
+```
+
+**FORBIDDEN**:
+- ❌ Passing implementer output, code diffs, reviewer feedback, or any implementation details to the spec-validator.
+- ❌ Generating acceptance criteria that reference `git diff --name-only HEAD` directly — always use `git diff --name-only $PIPELINE_BASE_COMMIT` (Issue #1069). Pre-existing working-tree modifications (e.g., docs edited before the pipeline started) appear in `git diff HEAD` and produce false-positive FAIL verdicts.
 
 **Agent**(subagent_type="spec-validator", model="opus") — Pass bug description + changed file paths ONLY.
 
@@ -323,10 +374,25 @@ Parse verdict: `SPEC-VALIDATOR-VERDICT: PASS` or `SPEC-VALIDATOR-VERDICT: FAIL`.
 
 #### Security-Sensitivity Detection — HARD GATE
 
-Before invoking any STEP F4 agents, run deterministic security-sensitivity detection on the changed file list:
+Before invoking any STEP F4 agents, run deterministic security-sensitivity detection on the changed file list. The diff MUST be anchored to `PIPELINE_BASE_COMMIT` (Issue #1069) so pre-existing working-tree state is excluded:
 
 ```bash
-CHANGED_FILES=$(git diff --name-only HEAD 2>/dev/null)
+# Recover PIPELINE_BASE_COMMIT from state file (set at STEP F1)
+PIPELINE_BASE_COMMIT=$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import get_pipeline_base_commit
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+print(get_pipeline_base_commit(state_path=state_path) or '')
+")
+if [ -n "$PIPELINE_BASE_COMMIT" ]; then
+  CHANGED_FILES=$(git diff --name-only "$PIPELINE_BASE_COMMIT" 2>/dev/null)
+else
+  CHANGED_FILES=$(git diff --name-only HEAD 2>/dev/null)
+fi
 ```
 
 Match each file path against security-sensitive patterns (substring match, case-insensitive). Patterns are grouped by domain — false positives are cheap (an extra security review), false negatives are expensive (missed security regression):
