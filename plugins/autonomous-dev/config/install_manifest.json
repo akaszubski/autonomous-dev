@@ -202,6 +202,7 @@
         "plugins/autonomous-dev/lib/copy_system.py",
         "plugins/autonomous-dev/lib/coverage_baseline.py",
         "plugins/autonomous-dev/lib/covers_index.py",
+        "plugins/autonomous-dev/lib/doc_drift_detector.py",
         "plugins/autonomous-dev/lib/dependabot_tracker.py",
         "plugins/autonomous-dev/lib/distributed_training_validator.py",
         "plugins/autonomous-dev/lib/doc_master_auto_apply.py",

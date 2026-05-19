@@ -614,13 +614,14 @@ class TestRefactorAnalyzerFullAnalysis:
         """Test that full_analysis runs all modes when none specified."""
         analyzer = RefactorAnalyzer(tmp_path)
         analyzer.analyze_tests = MagicMock(return_value=[])
-        analyzer.analyze_docs = MagicMock(return_value=[])
+        # "docs" now routes to analyze_doc_drift (Issue #1098)
+        analyzer.analyze_doc_drift = MagicMock(return_value=[])
         analyzer.analyze_code = MagicMock(return_value=[])
 
         report = analyzer.full_analysis()
 
         analyzer.analyze_tests.assert_called_once()
-        analyzer.analyze_docs.assert_called_once()
+        analyzer.analyze_doc_drift.assert_called_once()
         analyzer.analyze_code.assert_called_once()
         assert report.modes_run == ["tests", "docs", "code"]
 
@@ -662,7 +663,8 @@ class TestRefactorAnalyzerFullAnalysis:
             RefactorCategory.DEAD_CODE, SweepSeverity.LOW, "c.py", "cf", "s"
         )
         analyzer.analyze_tests = MagicMock(return_value=[tf])
-        analyzer.analyze_docs = MagicMock(return_value=[df])
+        # "docs" now routes to analyze_doc_drift (Issue #1098)
+        analyzer.analyze_doc_drift = MagicMock(return_value=[df])
         analyzer.analyze_code = MagicMock(return_value=[cf])
 
         report = analyzer.full_analysis()

@@ -291,7 +291,7 @@ See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uni
 ### Quality & Analysis
 
 ```bash
-/refactor                # Code, docs, and test optimization (--tests, --docs, --code, --fix)
+/refactor                # Code, docs, and test optimization (--tests, --docs, --docs-redundancy, --code, --fix)
 /sweep                   # Quick codebase hygiene (alias for /refactor --quick); --tests for AST-based test pruning analysis
 /audit                   # Quality audit (--quick, --security, --docs, --code, --tests)
 /skill-eval              # Measure skill effectiveness via behavioral delta scoring (--quick, --skill, --update)

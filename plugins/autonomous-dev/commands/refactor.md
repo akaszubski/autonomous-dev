@@ -18,7 +18,8 @@ ARGUMENTS: {{ARGUMENTS}}
 
 Parse the ARGUMENTS for optional flags:
 - `--tests`: Run test optimization analysis only (shape + waste)
-- `--docs`: Run doc redundancy analysis only
+- `--docs`: Run narrative-doc drift sweep across whole repo. Identifies count drift (e.g., '216 libraries' vs actual 219 files) and enumeration drift via `covers:` frontmatter dereferencing. Idempotent. Default home for periodic-aggregation per PROJECT.md Layer 4.
+- `--docs-redundancy`: Run doc redundancy analysis (semantic similarity between markdown files via SequenceMatcher). This was the prior `--docs` behavior, renamed to free `--docs` for drift detection.
 - `--code`: Run code optimization analysis only (dead code + unused libs)
 - `--fix`: Apply automated fixes after detection (requires findings)
 - `--quick`: Run quick hygiene sweep (delegates to SweepAnalyzer, same as old `/sweep`)
@@ -26,7 +27,15 @@ Parse the ARGUMENTS for optional flags:
 - `--issues`: Pipe findings through /create-issue (HIGH/CRITICAL get individual issues, LOW/MEDIUM aggregated into one)
 - `--batch`: Submit GenAI analysis via Anthropic Batch API (50% cost, async results)
 
-If no mode flags provided (no --tests, --docs, --code, --quick), run **all three deep modes** (tests + docs + code).
+If no mode flags provided (no --tests, --docs, --docs-redundancy, --code, --quick), run **all three deep modes** (tests + docs + code).
+
+**Usage examples:**
+```
+/refactor --docs               # Drift sweep: count + enumeration drift via covers: frontmatter
+/refactor --docs-redundancy    # Prior --docs behavior: SequenceMatcher redundancy analysis
+/refactor --docs --issues      # Drift sweep + file GitHub issues for findings
+/refactor --docs-redundancy --fix  # Redundancy analysis with auto-fix applied
+```
 
 If `--fix` is not provided, this is a dry-run (detect only, no changes).
 

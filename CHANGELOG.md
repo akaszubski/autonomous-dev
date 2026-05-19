@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Changed
+- **BREAKING: `/refactor --docs` no longer detects markdown redundancy.** Redundancy detection has been renamed to `/refactor --docs-redundancy`. The `--docs` flag now performs narrative-doc drift detection per PROJECT.md Layer 4 (Issue #1098).
+
+### Added
+- **`/refactor --docs` — periodic-aggregation drift sweep** (Issue #1098): Sweeps every doc with `covers:` frontmatter against actual code/component state; detects count drift (e.g. "216 libraries" vs actual 219 files) and enumeration drift (list items with no matching source artifact) across the whole repo. Idempotent; repo-relative `doc_path` output for portability. Implemented in new library `lib/doc_drift_detector.py` (`DocDriftFinding` dataclass + `detect_doc_drift()` entry point). First concrete instance of the periodic-aggregation pattern (umbrella #1075). (Issue #1098)
+
 ### Added
 - **6th critique axis "Operational Integration Test" added to plan-critic** (Issue #1067): `plan-critic.md` now evaluates plans on a 6th axis — whether subprocess, network, or filesystem calls whose correctness depends on runtime context (CWD, env vars, credentials, file permissions) are covered by runtime-context assertions rather than static-shape tests only. Plans that ship such calls with only static-shape tests are flagged per the known failure mode documented in Issue #1064. Budget mode (single-pass) updated from 3 to 4 scored axes to include this new axis (Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test). `commands/implement.md` STEP 5.5b updated from 3 to 4 axes in the plan-implementation alignment gate. `skills/testing-guide/SKILL.md` gains a "Runtime Integration Testing Patterns" section documenting the `subprocess.run` kwarg assertion pattern via `monkeypatch`. `docs/PLANNING-WORKFLOW.md` Step 5 axis list updated from 5 to 6 axes. `tests/spec_validation/test_spec_issue880_plan_critic_rubric.py` broadened to accept "2 rounds" or "3 rounds" as valid minimum-round language.
 
@@ -625,7 +631,7 @@
 - `test_routing.py` library: `route_tests()` high-level API plus `classify_changes()`, `compute_marker_expression()`, and `get_skipped_tiers()` for per-category test tier selection.
 - `step5_quality_gate.py` library: `run_quality_gate()` consolidates test execution (with smart routing), coverage regression check, and skip baseline enforcement into a single STEP 5 gate. `run_tests_routed()` delegates to `test_routing` when available and falls back to the full suite.
 - `test_routing_config.json` config: routing rules per change category, tier-to-marker mappings, `always_smoke` and `docs_only_skip_all` flags — all user-tunable without code changes.
-- `/refactor` command: unified code, docs, and test optimization with deeper analysis than `/sweep`. Three modes: `--tests` (Quality Diamond shape + waste detection), `--docs` (redundancy via SequenceMatcher), `--code` (dead code + unused lib detection). Supports `--fix` to apply fixes and `--quick` for the original sweep-style hygiene check.
+- `/refactor` command: unified code, docs, and test optimization with deeper analysis than `/sweep`. Three modes: `--tests` (Quality Diamond shape + waste detection), `--docs-redundancy` (redundancy via SequenceMatcher; was `--docs` before Issue #1098 rename), `--code` (dead code + unused lib detection). Supports `--fix` to apply fixes and `--quick` for the original sweep-style hygiene check.
 - `refactor_analyzer.py` library: `RefactorAnalyzer` class orchestrating deep analysis across test shape, test waste, doc redundancy, dead code, and unused libraries. Composes `SweepAnalyzer` for quick-sweep mode.
 - `ConfidenceLevel` enum (`HIGH`/`MEDIUM`/`LOW`) added to `refactor_analyzer.py`; `RefactorFinding` now carries a `confidence` field (default `HIGH`) so callers can filter findings by reliability.
 - `/refactor --fix` now applies confidence-level gating: HIGH-confidence findings are passed to agents for automated fix, MEDIUM-confidence findings are surfaced as a "Manual Review Recommended" list (not auto-fixed), and LOW-confidence findings are excluded from `--fix` output entirely.

@@ -41,6 +41,22 @@ except ImportError:
         SweepSeverity,
     )
 
+# Import doc_drift_detector with fallback pattern (Issue #1098)
+try:
+    from plugins.autonomous_dev.lib.doc_drift_detector import (
+        DocDriftFinding,
+        detect_doc_drift,
+    )
+except ImportError:
+    try:
+        from doc_drift_detector import (  # type: ignore[no-redef]
+            DocDriftFinding,
+            detect_doc_drift,
+        )
+    except ImportError:
+        DocDriftFinding = None  # type: ignore[misc,assignment]
+        detect_doc_drift = None  # type: ignore[assignment]
+
 
 # =============================================================================
 # Data Classes
@@ -376,6 +392,50 @@ class RefactorAnalyzer:
 
         return findings
 
+    def analyze_doc_drift(self) -> List[RefactorFinding]:
+        """Run narrative-doc drift sweep (Issue #1098).
+
+        Sweeps every doc with ``covers:`` frontmatter against actual
+        code/component state. Detects count drift (e.g. "216 libraries" vs
+        actual 219 files) and enumeration drift (list items with no matching
+        source artifact). Idempotent and deterministic.
+
+        Returns:
+            List of doc-drift refactor findings with category="docs".
+        """
+        findings: List[RefactorFinding] = []
+
+        try:
+            if detect_doc_drift is None:
+                return findings
+            drift_findings = detect_doc_drift(self.project_root)
+            for df in drift_findings:
+                # Map severity string to SweepSeverity
+                sev_map = {
+                    "low": SweepSeverity.LOW,
+                    "medium": SweepSeverity.MEDIUM,
+                    "high": SweepSeverity.HIGH,
+                }
+                severity = sev_map.get(df.severity, SweepSeverity.MEDIUM)
+                findings.append(
+                    RefactorFinding(
+                        category=RefactorCategory.DOC_REDUNDANCY,
+                        severity=severity,
+                        file_path=df.doc_path,
+                        description=df.description,
+                        suggestion=(
+                            "Update the documented count/enumeration to match actual"
+                            " source artifacts."
+                        ),
+                        optimization_type=OptimizationType.HYGIENE,
+                        line=df.line_number,
+                    )
+                )
+        except Exception:
+            pass
+
+        return findings
+
     def analyze_code(self) -> List[RefactorFinding]:
         """Analyze code for dead code and unused libraries.
 
@@ -459,7 +519,8 @@ class RefactorAnalyzer:
 
         mode_map = {
             "tests": self.analyze_tests,
-            "docs": self.analyze_docs,
+            "docs": self.analyze_doc_drift,         # NEW — drift detection (Issue #1098)
+            "docs_redundancy": self.analyze_docs,   # RENAMED — preserves existing redundancy behavior
             "code": self.analyze_code,
         }
 
