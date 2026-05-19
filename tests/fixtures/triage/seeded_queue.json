@@ -1,0 +1,79 @@
+[
+  {
+    "number": 101,
+    "title": "[CI] flaky regression test in coordinator pipeline",
+    "body": "The coordinator pipeline tests fail intermittently.\n\nFile: plugins/autonomous-dev/lib/coordinator.py\nSee tests/regression/test_coordinator.py for context.",
+    "labels": [{"name": "auto-improvement"}, {"name": "bug"}],
+    "createdAt": "2026-05-15T10:00:00Z"
+  },
+  {
+    "number": 102,
+    "title": "[CI] coordinator pipeline regression on macOS",
+    "body": "On macOS the coordinator pipeline fails when running tests/regression/test_coordinator.py.\n\nReferenced files:\n- plugins/autonomous-dev/lib/coordinator.py\n- tests/regression/test_coordinator.py",
+    "labels": [{"name": "auto-improvement"}, {"name": "regression"}],
+    "createdAt": "2026-05-14T08:00:00Z"
+  },
+  {
+    "number": 103,
+    "title": "[CI] coordinator regression: pipeline cleanup fails",
+    "body": "Cleanup phase of coordinator pipeline regression fails on Linux runners.\n\nplugins/autonomous-dev/lib/coordinator.py is the entry point.",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-13T08:00:00Z"
+  },
+  {
+    "number": 104,
+    "title": "[CI] hook installation race condition",
+    "body": "Hook installation races with the settings template generator.\n\nplugins/autonomous-dev/hooks/unified_pre_tool.py",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-12T08:00:00Z"
+  },
+  {
+    "number": 105,
+    "title": "[CI] settings template hook installation order",
+    "body": "Settings template generator runs before hook installation in some flows.\n\nplugins/autonomous-dev/hooks/unified_pre_tool.py and lib/settings_generator.py both touch the same files.",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-11T08:00:00Z"
+  },
+  {
+    "number": 106,
+    "title": "[HARDENING] secret scrubbing missing for slack tokens",
+    "body": "Secret scrubbing in plugins/autonomous-dev/lib/runtime_data_aggregator.py does not cover slack tokens. Hook entry point plugins/autonomous-dev/hooks/unified_pre_tool.py should also be audited.",
+    "labels": [{"name": "auto-improvement"}, {"name": "security"}],
+    "createdAt": "2026-05-10T08:00:00Z"
+  },
+  {
+    "number": 111,
+    "title": "[HARDENING] secret scrubbing missing for AWS tokens",
+    "body": "Additional secret patterns needed in plugins/autonomous-dev/lib/runtime_data_aggregator.py — covers AWS access keys and gcp service-account JSON. The same file plugins/autonomous-dev/hooks/unified_pre_tool.py uses similar regexes that should be unified.",
+    "labels": [{"name": "auto-improvement"}, {"name": "security"}],
+    "createdAt": "2026-05-09T08:00:00Z"
+  },
+  {
+    "number": 107,
+    "title": "[TRENDS] hook block rate trending up week over week",
+    "body": "Hook block rate has trended up by 12% week over week. Investigate causes.",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-09T08:00:00Z"
+  },
+  {
+    "number": 108,
+    "title": "[Maintenance] update dependency hypothesis to latest",
+    "body": "Hypothesis is two minor versions behind upstream.",
+    "labels": [{"name": "auto-improvement"}, {"name": "fp-acknowledged"}],
+    "createdAt": "2026-05-08T08:00:00Z"
+  },
+  {
+    "number": 109,
+    "title": "no tag prefix here at all",
+    "body": "Stray issue with no bracket prefix.",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-07T08:00:00Z"
+  },
+  {
+    "number": 110,
+    "title": "[CI-warning] doc-master soft warning on PROJECT.md",
+    "body": "doc-master emits a soft warning when PROJECT.md changes.",
+    "labels": [{"name": "auto-improvement"}],
+    "createdAt": "2026-05-06T08:00:00Z"
+  }
+]

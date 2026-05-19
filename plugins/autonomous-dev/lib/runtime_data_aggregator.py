@@ -566,19 +566,25 @@ def collect_ci_signals(
         )
 
 
-def collect_github_signals(
+def fetch_open_issues_with_label(
     repo: str = "akaszubski/autonomous-dev",
-) -> Tuple[List[AggregatedSignal], SourceHealth]:
-    """Collect signals from GitHub issues labeled auto-improvement.
+    label: str = "auto-improvement",
+    limit: int = 200,
+) -> Tuple[List[Dict[str, Any]], SourceHealth]:
+    """Fetch raw open GitHub issues with a given label via the ``gh`` CLI.
 
-    Runs gh CLI to list open issues with the auto-improvement label.
-    Gracefully falls back if gh is unavailable or times out.
+    Returns the full raw issue dicts (``number``, ``title``, ``body``, ``labels``,
+    ``createdAt``) without any signal wrapping. This is the low-level building block used
+    by :func:`collect_github_signals` and by the issue-triage analyzer.
 
     Args:
-        repo: GitHub repository in owner/repo format
+        repo: GitHub repository in ``owner/repo`` format.
+        label: Label to filter on (e.g., ``"auto-improvement"``).
+        limit: Maximum number of issues to request (``--limit`` to gh).
 
     Returns:
-        Tuple of (signals, source_health)
+        Tuple of (issues, source_health). On failure ``issues`` is empty and
+        ``source_health.status`` is ``"error"`` with a populated ``error_message``.
     """
     source_name = "github"
     try:
@@ -586,9 +592,10 @@ def collect_github_signals(
             [
                 "gh", "issue", "list",
                 "--repo", repo,
-                "--label", "auto-improvement",
+                "--label", label,
                 "--state", "open",
-                "--json", "title,body,labels,createdAt",
+                "--limit", str(limit),
+                "--json", "number,title,body,labels,createdAt",
             ],
             capture_output=True,
             timeout=30,
@@ -609,31 +616,18 @@ def collect_github_signals(
                 error_message="Invalid JSON from gh CLI",
             )
 
+        if not isinstance(issues, list):
+            return [], SourceHealth(
+                source=source_name, status="error", signal_count=0,
+                error_message="Unexpected gh JSON shape (expected list)",
+            )
+
         if not issues:
             return [], SourceHealth(source=source_name, status="empty", signal_count=0)
 
-        signals = []
-        for issue in issues:
-            title = _sanitize_string(issue.get("title", ""))
-            created = issue.get("createdAt", "")
-            signals.append(
-                AggregatedSignal(
-                    source=source_name,
-                    signal_type="github_issue",
-                    description=title[:200],
-                    frequency=1,
-                    severity=0.5,
-                    raw_data={"title": title, "createdAt": created},
-                    timestamp=created,
-                )
-            )
-
-        health = SourceHealth(
-            source=source_name,
-            status="ok",
-            signal_count=len(signals),
+        return issues, SourceHealth(
+            source=source_name, status="ok", signal_count=len(issues),
         )
-        return signals, health
 
     except FileNotFoundError:
         return [], SourceHealth(
@@ -650,6 +644,50 @@ def collect_github_signals(
             source=source_name, status="error", signal_count=0,
             error_message=str(e)[:200],
         )
+
+
+def collect_github_signals(
+    repo: str = "akaszubski/autonomous-dev",
+) -> Tuple[List[AggregatedSignal], SourceHealth]:
+    """Collect signals from GitHub issues labeled auto-improvement.
+
+    Wraps :func:`fetch_open_issues_with_label` and converts each raw issue into an
+    :class:`AggregatedSignal`. Preserves the original external contract for callers that
+    were already using this function (existing tests must pass unchanged).
+
+    Args:
+        repo: GitHub repository in owner/repo format
+
+    Returns:
+        Tuple of (signals, source_health)
+    """
+    issues, health = fetch_open_issues_with_label(
+        repo=repo, label="auto-improvement", limit=200,
+    )
+
+    if health.status != "ok":
+        return [], health
+
+    source_name = "github"
+    signals: List[AggregatedSignal] = []
+    for issue in issues:
+        title = _sanitize_string(issue.get("title", ""))
+        created = issue.get("createdAt", "")
+        signals.append(
+            AggregatedSignal(
+                source=source_name,
+                signal_type="github_issue",
+                description=title[:200],
+                frequency=1,
+                severity=0.5,
+                raw_data={"title": title, "createdAt": created},
+                timestamp=created,
+            )
+        )
+
+    return signals, SourceHealth(
+        source=source_name, status="ok", signal_count=len(signals),
+    )
 
 
 # =============================================================================

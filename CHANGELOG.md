@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **`/triage --auto-improvement` — periodic-aggregation root-cause triage** (Issue #1099): New slash command and library (`lib/issue_triage_analyzer.py`) that reads all open `auto-improvement` GitHub issues, groups them by bracket tag (`[CI]`, `[HARDENING]`, etc.) and by Jaccard token similarity within each tag (union-find, threshold: 2 shared tokens), ranks clusters by `cluster_size * severity_weight * recency_decay`, and surfaces cross-cluster dependencies via shared file-path references. Filters `fp-acknowledged` issues by default; `--include-fp-acknowledged` restores them. Supports `--repo`, `--limit`, and `--json` flags. Idempotent — byte-identical output on unchanged queue contents (only time-varying input is `now`, pinned in tests). New `fetch_open_issues_with_label()` function extracted from `runtime_data_aggregator.py` as a shared building block; `collect_github_signals()` now delegates to it (external contract preserved). `CLAUDE.md` Periodic Maintenance table updated; `/triage` added to Commands line. 35 new tests: 21 unit (`tests/unit/lib/test_issue_triage_analyzer.py`), 10 integration (`tests/integration/test_triage_command.py`), 4 structural (`tests/structural/test_triage_command_structure.py`).
+
 ### Changed
 - **BREAKING: `/refactor --docs` no longer detects markdown redundancy.** Redundancy detection has been renamed to `/refactor --docs-redundancy`. The `--docs` flag now performs narrative-doc drift detection per PROJECT.md Layer 4 (Issue #1098).
 

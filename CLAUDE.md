@@ -64,7 +64,7 @@ Component counts: 16 agents, 19 skills, 23 commands, 30 hooks, 220 libraries.
 
 ## Commands
 
-`/plan` | `/implement` (full, --light, --batch, --issues, --resume, --fix) | `/create-issue` (--quick) | `/plan-to-issues` (--quick) | `/align` (--project, --docs, --retrofit) | `/audit` (--quick, --security, --docs, --code, --tests) | `/setup` | `/sync` (--github, --env, --all, --uninstall) | `/health-check` | `/advise` | `/worktree` (--list, --status, --merge, --discard) | `/scaffold-genai-uat` | `/status` | `/refactor` (--tests, --docs, --docs-redundancy, --code, --fix, --quick) | `/sweep` | `/improve` (--auto-file) | `/retrospective` | `/mem-search` | `/skill-eval` (--quick, --skill, --update) | `/autoresearch` (--target, --metric, --iterations, --min-improvement, --dry-run)
+`/plan` | `/implement` (full, --light, --batch, --issues, --resume, --fix) | `/create-issue` (--quick) | `/plan-to-issues` (--quick) | `/align` (--project, --docs, --retrofit) | `/audit` (--quick, --security, --docs, --code, --tests) | `/setup` | `/sync` (--github, --env, --all, --uninstall) | `/health-check` | `/advise` | `/worktree` (--list, --status, --merge, --discard) | `/scaffold-genai-uat` | `/status` | `/refactor` (--tests, --docs, --docs-redundancy, --code, --fix, --quick) | `/sweep` | `/improve` (--auto-file) | `/retrospective` | `/mem-search` | `/skill-eval` (--quick, --skill, --update) | `/autoresearch` (--target, --metric, --iterations, --min-improvement, --dry-run) | `/triage` (--auto-improvement, --repo, --limit, --include-fp-acknowledged, --json)
 
 ## Key Paths
 
@@ -88,7 +88,7 @@ These tasks aren't part of the per-commit workflow — they're run on a maintain
 |------|---------|-------------|
 | Refresh intent classifier calibration corpus | `python3 scripts/extract_and_label_intent_corpus.py --source both --cost-cap-usd 0 --max-prompts 200 --output tests/fixtures/intent_classifier_real_corpus.json` | Monthly, or when classifier behavior feels off. Uses your `claude` CLI subscription auth. See [docs/INTENT-CLASSIFICATION.md](docs/INTENT-CLASSIFICATION.md) and [docs/SCRIPTS.md](docs/SCRIPTS.md). |
 | Sweep narrative docs for drift | `/refactor --docs` | Monthly, or after multiple feature batches land. doc-master in `/implement` only checks docs covering changed files; narrative docs (README, ARCHITECTURE-OVERVIEW, HARNESS-EVOLUTION) need a periodic full-state pass. For the prior redundancy behavior, use `--docs-redundancy`. |
-| Triage CIA-filed auto-improvement issues | manual review of `gh issue list --label auto-improvement` | Weekly. CIA files per-session findings; triage groups them by root cause, sequences dependencies, drops noise. See [PROJECT.md Layer 4](.claude/PROJECT.md). |
+| Triage CIA-filed auto-improvement issues | `/triage --auto-improvement` | Weekly. CIA files per-session findings; this command groups them by root cause, sequences dependencies, drops noise, and emits a ranked work queue. Idempotent on a clean queue. See [PROJECT.md Layer 4](.claude/PROJECT.md). |
 
 ## Session Continuity
 

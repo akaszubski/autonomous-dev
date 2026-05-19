@@ -1,15 +1,15 @@
 # Command Reference
 
-**Complete list of all 7 active slash commands**
+**Complete list of all 9 active slash commands**
 
 ---
 
 ## Overview
 
-Commands were consolidated to 7 active commands. Individual agent commands were archived - use `/implement` for the full pipeline instead.
+Commands were consolidated from many to a focused set. Individual agent commands were archived - use `/implement` for the full pipeline instead.
 
-**Total Active Commands**: 7
-- **Core Workflow**: `/implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`, `/advise`
+**Total Active Commands**: 9
+- **Core Workflow**: `/implement`, `/create-issue`, `/align`, `/setup`, `/sync`, `/health-check`, `/advise`, `/test`, `/triage`
 
 **Archived** (12 commands): Individual agent commands (`/research`, `/plan`, `/implement`, etc.) and redundant variants moved to `commands/archive/`
 
@@ -27,6 +27,7 @@ Commands were consolidated to 7 active commands. Individual agent commands were 
 | `/health-check` | < 30s | Validate plugin integrity |
 | `/create-issue` | 3-5min | Create GitHub issue with research |
 | `/test` | < 60s | Run pytest (unit + integration + UAT) |
+| `/triage --auto-improvement` | < 30s | Cluster open `auto-improvement` issues by root cause and emit a ranked work queue (periodic-aggregation pass) |
 
 ---
 
@@ -331,6 +332,42 @@ TEST_AUTO_TRACK_ISSUES=false    # Auto-create issues from tests
 /test-integration   Integration tests - components together (< 10s)
 /test-uat          UAT tests - user workflows (< 60s)
 ```
+
+---
+
+## /triage --auto-improvement
+
+Periodic-aggregation root-cause triage of the open auto-improvement queue. Clusters open
+issues by bracket tag (primary) and by Jaccard token similarity within a tag (secondary),
+ranks clusters by `cluster_size * severity_weight * recency_decay`, and surfaces
+cross-cluster dependencies (clusters sharing a referenced file path).
+
+**Usage**
+
+```bash
+# Default human-readable report.
+/triage --auto-improvement
+
+# Custom repo and limit.
+/triage --auto-improvement --repo owner/repo --limit 100
+
+# Include fp-acknowledged issues (filtered out by default).
+/triage --auto-improvement --include-fp-acknowledged
+
+# Machine-readable JSON output.
+/triage --auto-improvement --json
+```
+
+**Idempotence**
+
+On unchanged queue contents `/triage` produces byte-identical output across runs (rank
+score DESC, then root cause tag ASC, then sub-cluster ID ASC, then issue numbers ASC
+within each cluster). The only time-varying input is `now` (used for recency decay).
+
+**When to run**
+
+Weekly, or after a CIA-heavy session that filed many `auto-improvement` issues. The
+output is a work queue, not a destructive action.
 
 ---
 

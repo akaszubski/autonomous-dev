@@ -308,6 +308,7 @@ See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uni
 /worktree                # Git worktrees (--list, --status, --merge, --discard)
 /scaffold-genai-uat      # Scaffold LLM-as-judge tests into any repo
 /mem-search              # Search claude-mem persistent memory
+/triage --auto-improvement  # Cluster open auto-improvement issues by root cause; emit ranked work queue (periodic)
 ```
 
 ---
@@ -437,7 +438,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Commands | 23 | Slash commands for workflows |
+| Commands | 24 | Slash commands for workflows |
 | Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
 | Skills | 19 | Domain knowledge (added: planning-workflow, prompt-engineering) |
 | Hooks | 30 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
@@ -476,7 +477,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 - [Spec Validation](tests/spec_validation/) - Spec-blind behavioral tests
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 23 commands
+- [Commands](plugins/autonomous-dev/commands/) - All 24 commands
 - [Hooks](docs/HOOKS.md) - 30 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
 - [Libraries](docs/LIBRARIES.md) - 210 Python utilities

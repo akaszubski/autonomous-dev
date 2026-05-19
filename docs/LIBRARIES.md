@@ -15980,6 +15980,86 @@ for health in report.source_health:
 - `tests/unit/lib/test_runtime_data_aggregator.py` — unit tests
 - `tests/genai/test_acceptance_runtime_data_aggregator.py` — acceptance tests
 
+## issue_triage_analyzer.py (v1.0.0 - Issue #1099)
+
+**Purpose**: Periodic-aggregation root-cause clustering for the open `auto-improvement` GitHub issue queue. Reads issues via `fetch_open_issues_with_label()`, groups them by bracket tag (primary) and Jaccard token similarity (secondary), ranks clusters by `cluster_size * severity_weight * recency_decay`, and surfaces cross-cluster dependencies via shared file path references. Designed to be idempotent — byte-identical output on unchanged inputs (only time-varying input is `now`, pinned in tests).
+
+**Location**: `plugins/autonomous-dev/lib/issue_triage_analyzer.py`
+
+**Key algorithm**:
+- Primary clustering: extract `[TAG]` from each issue title; ungrouped issues land in `UNTAGGED`
+- Secondary clustering: union-find within each tag using Jaccard token similarity (threshold: 2 shared tokens after stopword removal); prevents one mega-cluster per common tag
+- Rank score: `cluster_size * SEVERITY_WEIGHTS[severity] * exp(-0.693 * age_days / RECENCY_HALF_LIFE_DAYS)`
+- Deterministic sort: `rank_score DESC`, then `root_cause_tag ASC`, then `sub_cluster_id ASC`, then `issue_numbers ASC`
+
+### Data Classes
+
+#### `TriageFinding`
+A single root-cause cluster of related auto-improvement issues.
+
+**Attributes**:
+- `root_cause_tag: str` — Bracket content from the issue title (e.g., `"CI"`). `"UNTAGGED"` if no bracket tag present.
+- `sub_cluster_id: int` — 1-indexed sub-cluster ID within `root_cause_tag`
+- `issue_numbers: Tuple[int, ...]` — Sorted ASC tuple of GitHub issue numbers in the cluster
+- `issue_titles: Tuple[str, ...]` — Parallel to `issue_numbers`
+- `cluster_size: int` — `len(issue_numbers)`
+- `severity: str` — `"low"`, `"medium"`, or `"high"` (most severe label across all issues)
+- `rank_score: float` — Cluster priority score
+- `shared_files: Tuple[str, ...]` — Sorted file paths mentioned in 2+ issue bodies
+- `dependency_notes: Tuple[str, ...]` — Sorted notes describing cross-cluster dependencies
+- `suggested_fix_order: int` — 1-indexed global rank after sorting by `rank_score` DESC
+
+### Public API
+
+#### `run_triage()`
+
+Main entry point.
+
+```python
+run_triage(
+    repo: str = "akaszubski/autonomous-dev",
+    limit: int = 200,
+    include_fp_acknowledged: bool = False,
+    _now: Optional[datetime] = None,
+) -> Tuple[List[TriageFinding], SourceHealth]
+```
+
+**Parameters**:
+- `repo` — GitHub repository in `owner/repo` format (default: `"akaszubski/autonomous-dev"`)
+- `limit` — Maximum number of issues to fetch via `gh` CLI
+- `include_fp_acknowledged` — If `False` (default), issues with the `fp-acknowledged` label are filtered out
+- `_now` — Override current time (used in tests for deterministic recency decay)
+
+**Returns**: Tuple of (`findings`, `source_health`). `findings` is sorted by `suggested_fix_order` ASC. Empty list on `gh` failure.
+
+#### `format_report()`
+
+Render findings to a human-readable text report.
+
+```python
+format_report(findings: List[TriageFinding], source_health: SourceHealth) -> str
+```
+
+**Usage**:
+
+```python
+from pathlib import Path
+import sys
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from issue_triage_analyzer import run_triage, format_report
+
+findings, health = run_triage(repo="owner/repo")
+print(format_report(findings, health))
+```
+
+**Testing**:
+- `tests/unit/lib/test_issue_triage_analyzer.py` — 21 unit tests
+- `tests/integration/test_triage_command.py` — 10 integration tests
+- `tests/structural/test_triage_command_structure.py` — 4 structural tests
+- `tests/fixtures/triage/seeded_queue.json` — 11 seeded issues for deterministic integration tests
+
+---
+
 ## 176+1. runtime_verification_classifier.py (373 lines, v1.0.0 - Issue #564)
 
 **Purpose**: Classify changed files into runtime verification targets so the reviewer agent can decide which opt-in runtime checks to run after completing static code review.

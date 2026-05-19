@@ -17,6 +17,7 @@
     "status",
     "sweep",
     "sync",
+    "triage",
     "worktree"
   ],
   "components": {
@@ -65,6 +66,7 @@
         "plugins/autonomous-dev/commands/status.md",
         "plugins/autonomous-dev/commands/sweep.md",
         "plugins/autonomous-dev/commands/sync.md",
+        "plugins/autonomous-dev/commands/triage.md",
         "plugins/autonomous-dev/commands/worktree.md"
       ],
       "target": ".claude/commands"
@@ -249,6 +251,7 @@
         "plugins/autonomous-dev/lib/installation_validator.py",
         "plugins/autonomous-dev/lib/intent_classifier.py",
         "plugins/autonomous-dev/lib/issue_scope_detector.py",
+        "plugins/autonomous-dev/lib/issue_triage_analyzer.py",
         "plugins/autonomous-dev/lib/logging_utils.py",
         "plugins/autonomous-dev/lib/math_utils.py",
         "plugins/autonomous-dev/lib/mcp_permission_validator.py",
