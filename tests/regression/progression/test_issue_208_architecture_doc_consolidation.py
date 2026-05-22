@@ -378,6 +378,14 @@ class TestBrokenReferenceRemoval:
         Arrange: Project files
         Act: Search for ARCHITECTURE.md references (excluding archived/ and test files)
         Assert: No references found except in archived/ directory and this test file
+
+        Regression note (Issue #928): A small set of unit/spec tests use the
+        string literal "docs/ARCHITECTURE.md" as a *test fixture* — an arbitrary
+        doc path passed to path-routing, write-enforcement, and doc-drift
+        helpers. These are NOT real references to the (archived) ARCHITECTURE.md
+        file; they're inputs chosen to exercise generic code paths. We exclude
+        them explicitly by filename rather than by directory so that any new
+        real reference elsewhere in tests/ still fails this guard.
         """
         # Arrange - Search for references to ARCHITECTURE.md
         # Pattern matches: ARCHITECTURE.md but not MCP-ARCHITECTURE.md, ARCHITECTURE-OVERVIEW.md, etc.
@@ -387,11 +395,29 @@ class TestBrokenReferenceRemoval:
         # Act
         matching_files = self._find_files_with_pattern(pattern)
 
+        # Test fixture files that legitimately use the literal "docs/ARCHITECTURE.md"
+        # as input to generic helpers — NOT real references to the archived doc.
+        # Each entry must include a comment naming why the file is excluded.
+        fixture_test_files = {
+            # Issue #928: uses "docs/ARCHITECTURE.md" as a fixture path for the
+            # docs_only routing classifier — any docs/*.md filename would work.
+            "test_test_routing.py",
+            # Issue #928: uses "/repo/docs/ARCHITECTURE.md" as a Write target
+            # fixture for the explicit-implement enforcement hook; the path is
+            # arbitrary and exercises docs/*.md handling, not the specific doc.
+            "test_explicit_implement_enforcement.py",
+            # Issue #928: builds a synthetic docs/ARCHITECTURE.md file under
+            # tmp_path to test the doc-drift sweep; never touches the real
+            # archived doc.
+            "test_1098_doc_drift_sweep_spec.py",
+        }
+
         # Filter out allowed references
         # Exclude: archived/, this test file, .claude/ (installed copies), CHANGELOG (history),
         # test artifacts, files with ARCHITECTURE in name (e.g., MCP-ARCHITECTURE.md),
         # scripts that reference the pattern for validation, marketplace/cache files,
-        # skills documentation (contains examples), plugin lib README (internal docs)
+        # skills documentation (contains examples), plugin lib README (internal docs),
+        # and the fixture_test_files set above (Issue #928).
         disallowed_refs = [
             f
             for f in matching_files
@@ -408,6 +434,7 @@ class TestBrokenReferenceRemoval:
             and ".mcp" not in f.parts  # MCP configuration
             and "skills" not in f.parts  # Exclude skill documentation (contains examples)
             and f.name != "README.md"  # Exclude READMEs with internal doc references
+            and f.name not in fixture_test_files  # Issue #928: tests using path as fixture
         ]
 
         # Assert

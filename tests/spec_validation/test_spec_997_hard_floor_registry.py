@@ -55,7 +55,7 @@ def hard_floor_module():
 
 
 class TestSpec997Criterion1ConfigStructure:
-    """AC #1: config file exists with version, _doc, hard_floor_hooks (5),
+    """AC #1: config file exists with version, _doc, hard_floor_hooks (6 after #1008),
     _doc_observability, always_run_observability (3)."""
 
     def test_spec_997_1a_config_file_exists(self):
@@ -73,11 +73,12 @@ class TestSpec997Criterion1ConfigStructure:
         missing = required - set(data.keys())
         assert not missing, f"Missing required keys: {missing}"
 
-    def test_spec_997_1c_hard_floor_hooks_has_five_entries(self):
+    def test_spec_997_1c_hard_floor_hooks_has_six_entries(self):
+        # Originally 5 entries; Issue #1008 added _check_rm_rf_unresolved_vars.
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         entries = data["hard_floor_hooks"]
         assert isinstance(entries, list), "hard_floor_hooks must be a list"
-        assert len(entries) == 5, f"Expected 5 entries, found {len(entries)}"
+        assert len(entries) == 6, f"Expected 6 entries, found {len(entries)}"
 
     def test_spec_997_1d_observability_has_three_entries(self):
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))

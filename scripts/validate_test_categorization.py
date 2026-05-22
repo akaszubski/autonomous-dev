@@ -13,6 +13,7 @@ Test Tier Structure:
   tests/integration/           - Integration tests (multi-component)
   tests/security/              - Security-focused tests
   tests/hooks/                 - Hook-specific tests
+  tests/structural/            - Structural validation (schema/format checks)
 
 Usage:
   python scripts/validate_test_categorization.py
@@ -26,6 +27,9 @@ from collections import defaultdict
 from pathlib import Path
 
 # Valid test directories (tests in these get auto-marked)
+# Note: "structural" is a flat-tier directory (like unit/integration/security/hooks)
+# that holds schema/format validation tests — assertions about file structure,
+# command frontmatter, manifest shape, etc. — rather than behavioral tests.
 VALID_CATEGORIES = [
     "regression/smoke",
     "regression/regression",
@@ -35,6 +39,7 @@ VALID_CATEGORIES = [
     "integration",
     "security",
     "hooks",
+    "structural",
 ]
 
 # Directories that should NOT contain test files
@@ -140,6 +145,7 @@ def print_report(stats: dict, tests_dir: Path):
         "integration": 5,
         "security": 6,
         "hooks": 7,
+        "structural": 8,
     }
 
     categories = sorted(

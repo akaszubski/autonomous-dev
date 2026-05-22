@@ -38,6 +38,13 @@ DISABLE_ENV_VAR: str = "HOOK_RECOVERY_DISABLED"
 
 _FALSY_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
 
+# One-shot deprecation flag (Issue #993). Python's default warning filter
+# suppresses DeprecationWarning from non-``__main__`` modules, so the legacy
+# ``warnings.warn`` was silently swallowed when hooks imported the shim.
+# We emit a direct stderr line instead, guarded by this module-level flag
+# so each process logs the deprecation exactly once.
+_legacy_warn_emitted: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -131,18 +138,18 @@ def log_block_with_recovery(
         session_id: Optional session id (defaults to ``CLAUDE_SESSION_ID``).
         start_dir: Project root anchor. Defaults to cwd.
     """
-    import warnings as _warnings
-
-    try:
-        _warnings.warn(
-            "log_block_with_recovery is deprecated; "
-            "use hook_telemetry.log_block_event instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    except Exception:
-        # NEVER raise.
-        pass
+    global _legacy_warn_emitted
+    if not _legacy_warn_emitted:
+        try:
+            sys.stderr.write(
+                "[hook-recovery] DEPRECATION: log_block_with_recovery is "
+                "deprecated; use hook_telemetry.log_block_event\n"
+            )
+            sys.stderr.flush()
+        except Exception:
+            # NEVER raise — telemetry must not block hook decisions.
+            pass
+        _legacy_warn_emitted = True
 
     try:
         # Local import keeps hook_recovery importable even when

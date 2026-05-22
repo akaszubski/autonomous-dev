@@ -856,13 +856,25 @@ def get_cumulative_shrinkage(
     Computes drift from the first observation to the latest observation for
     the specified agent_type.
 
+    Returns None for single-issue runs (remediation loops); cumulative drift
+    only applies across >=2 distinct issues (true batch mode). This guards
+    against false positives in same-agent remediation loops where round 2's
+    prompt may legitimately be shorter (narrower remediation scope) — without
+    this gate, the detector would treat that as compression evidence regardless
+    of whether all N invocations target the same issue (Issue #934).
+
+    Observations missing an issue identifier (legacy or malformed entries) are
+    discarded from the distinct-issue count rather than counted as a
+    pseudo-issue.
+
     Args:
         agent_type: Agent name to look up.
         state_dir: Optional override for state directory.
 
     Returns:
         Shrinkage percentage (e.g., 20.0 for 20%), or None if fewer than
-        2 observations exist for this agent. Returns 0.0 if latest >= first.
+        2 observations exist OR fewer than 2 distinct issues are represented
+        (single-issue remediation loop). Returns 0.0 if latest >= first.
     """
     obs_path = _get_observations_path(state_dir)
 
@@ -877,6 +889,22 @@ def get_cumulative_shrinkage(
 
     observations = data.get(agent_type)
     if not observations or len(observations) < 2:
+        return None
+
+    # Issue #934: skip drift check for single-issue remediation loops.
+    # record_batch_observation stores entries as {"issue": <num>, "word_count": <n>};
+    # we tolerate either "issue" or "issue_number" for forward compatibility, and
+    # discard None to avoid counting missing-id observations as a pseudo-issue.
+    distinct_issues = {
+        obs.get("issue", obs.get("issue_number")) for obs in observations
+    }
+    distinct_issues.discard(None)
+    if len(distinct_issues) < 2:
+        logger.debug(
+            "Cumulative drift check skipped for %s: only %d distinct issue(s) "
+            "across %d observations (single-issue remediation loop, Issue #934)",
+            agent_type, len(distinct_issues), len(observations),
+        )
         return None
 
     first_wc = observations[0]["word_count"]

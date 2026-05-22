@@ -173,6 +173,7 @@ bypass itself never fails on telemetry errors.
 | ModuleNotFoundError in hooks | Re-run `install.sh` or copy libs to `~/.claude/lib/` (see below) |
 | ModuleNotFoundError in commands | Commands auto-resolve libs via multi-candidate resolver (`.claude/lib` → `plugins/autonomous-dev/lib` → `~/.claude/lib`) — re-run `install.sh` if libs are missing |
 | Hook not running | Check `~/.claude/settings.json` |
+| No hooks fire after fresh install (all events) | Settings file may have been silently skipped at load due to a schema-invalid template. Reinstall from a current template (`install.sh`) — see "Hooks silently disabled after install" below |
 | Context exceeded | Run `/clear` |
 | Plugin changes not visible | Run `/sync --plugin-dev` then `/reload-plugins` (or full restart if hooks/settings changed) |
 | Pipeline stuck mid-run (auto-compact, crash) | Run `/implement --resume <run_id>` — run_id is printed at STEP 0 |
@@ -181,6 +182,39 @@ bypass itself never fails on telemetry errors.
 | Deploy timed out to Mac Studio | Check `tailscale status`; if peer is on DERP relay, SSH handshake may exceed the 5s probe timeout — wait for P2P or deploy via LAN IP |
 | sessions.db missing token counts | Pre-fix hook bug (Issue #901). Deploy latest, then re-run a session to repopulate. Existing rows can be backfilled by re-parsing `~/.claude/archive/conversations/**/*.jsonl` |
 | doc-master returned empty verdict | Known background-agent race — the coordinator retries once with reduced context. If it still fails, the verdict is logged as `MISSING` and the pipeline proceeds with warning |
+
+---
+
+## Hooks Silently Disabled After Install
+
+**Symptom**: After `install.sh` completes, no hooks fire — not on Write, not on Bash, not on Stop. Claude Code appears to work but all enforcement, formatting, and quality gates are absent. There are no error messages.
+
+**Cause (Issues #1103/1104/1105)**: Claude Code silently discards a `settings.local.json` file when it contains keys or values that violate the settings schema. Three classes of schema violation were present in the shipped templates prior to the fix:
+
+1. **`PreCommit` hook event key**: `PreCommit` is not a recognized Claude Code hook lifecycle event. Its presence caused the entire hooks block to be rejected.
+2. **Object-typed matcher**: `{"tools": ["Write", "Edit"]}` is not a valid matcher value — matchers must be plain strings. The correct form is `"Write|Edit"`.
+3. **`Bash(:*)` in `permissions.allow`**: The colon-prefixed glob syntax is not recognized in the allow list. The correct form is `"Bash"`.
+
+Any one of these caused the settings file to be silently skipped, disabling every hook for every session — with no warning.
+
+**Who is affected**: Users who installed autonomous-dev before 2026-05-21 and have not re-run `install.sh` since. The defect was present in `settings.local.json`, `settings.autonomous-dev.json`, `settings.strict-mode.json`, and `settings.permission-batching.json`.
+
+**Fix**:
+```bash
+# Re-run install to regenerate settings from the corrected templates:
+bash install.sh
+
+# Full restart of Claude Code is required after settings change:
+# Cmd+Q (Mac) or Ctrl+Q, wait 5 seconds, reopen
+
+# Verify hooks are active — this prompt should show hook output:
+/health-check
+```
+
+**Verify the fix manually** (check your `.claude/settings.local.json` does NOT contain):
+- A top-level `"PreCommit"` key inside the `hooks` block
+- Matcher objects like `{"tools": [...]}` — all matchers must be strings
+- `"Bash(:*)"` in the `permissions.allow` array
 
 ---
 
@@ -552,6 +586,69 @@ echo "Exit code: $?"
 echo "=== Settings ==="
 cat ~/.claude/settings.json | python3 -m json.tool | head -20
 ```
+
+---
+
+## Uninstalling autonomous-dev
+
+Two uninstall paths exist; pick the one that matches your situation.
+
+### When to use which path
+
+| Situation | Recommended | Why |
+|---|---|---|
+| Claude Code still launches; you want a clean removal | `/sync --uninstall` | Python orchestrator; richer preview, rollback support |
+| Claude Code refuses prompts, hooks are bricked, or `/sync` itself fails | `bash install.sh --uninstall` | Shell-only; survives a broken install, no Claude CLI required |
+
+### Shell-only uninstall — `install.sh --uninstall`
+
+The shell path is intentionally self-contained: it parses only the
+install manifest, uses two small Python helpers for JSON mutation, and
+NEVER imports from `uninstall_orchestrator.py` (which may itself be
+part of a broken install).
+
+**What it removes** (manifest-driven):
+- Files in `~/.claude/hooks/`, `~/.claude/lib/`, `~/.claude/commands/`,
+  `~/.claude/agents/`, `~/.claude/scripts/` that are listed in
+  `install_manifest.json`.
+- The `hooks` block in `~/.claude/settings.json` (preserves
+  permissions, mcpServers, env, model, custom extensions).
+- autonomous-dev entries in `~/.claude/plugins/installed_plugins.json`
+  and `~/.claude/plugins/marketplaces.json`.
+
+**What it PRESERVES** (never touched):
+- `~/.claude/PROJECT.md`, `~/.claude/CLAUDE.md`, `~/.claude/.env`
+- `~/.claude/logs/`, `~/.claude/archive/`, `~/.claude/memory/`
+- `~/.claude/hooks/extensions/` (user-added hooks)
+- Any file in those directories NOT listed in the manifest
+
+**Backup location**: every removal/strip is copied first to
+`~/.claude/backups/uninstall-YYYYMMDD-HHMMSS/<mirror-tree>/`. To
+recover, restore the files from that directory.
+
+### Usage
+
+```bash
+# Preview what would happen (no mutations).
+bash install.sh --uninstall --dry-run
+
+# Real uninstall.
+bash install.sh --uninstall
+
+# Also strip autonomous-dev hooks from specific repos' settings.json.
+bash install.sh --uninstall --repos "/path/to/repo1,/path/to/repo2"
+
+# Combine: dry-run with per-repo strip preview.
+bash install.sh --uninstall --dry-run --repos "/path/to/repo1"
+```
+
+**Idempotency**: re-running on a clean state is a no-op — exits 0,
+emits "Nothing to remove", and does NOT create a new backup root.
+
+**Recovery**: if you need to roll back, the backup root is printed at
+the end of every real run. Copy files from
+`~/.claude/backups/uninstall-YYYYMMDD-HHMMSS/` back into place, or
+re-run `bash install.sh` to reinstall fresh.
 
 ---
 

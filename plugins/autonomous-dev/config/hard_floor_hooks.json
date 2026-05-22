@@ -6,7 +6,8 @@
     {"hook": "unified_pre_tool.py", "function": "_check_bash_state_deletion", "reason": "rm/truncate of pipeline state"},
     {"hook": "unified_pre_tool.py", "function": "_detect_settings_json_write", "reason": "writes to ~/.claude/settings.json or .claude/settings.json"},
     {"hook": "unified_pre_tool.py", "function": "_is_protected_infrastructure", "reason": "writes to hooks/, lib/, agents/, commands/"},
-    {"hook": "unified_pre_tool.py", "function": "_detect_git_bypass", "reason": "Detects git bypass attempts: force-push, --no-verify, git reset --hard, git clean -f"}
+    {"hook": "unified_pre_tool.py", "function": "_detect_git_bypass", "reason": "Detects git bypass attempts: force-push, --no-verify, git reset --hard, git clean -f"},
+    {"hook": "unified_pre_tool.py", "function": "_check_rm_rf_unresolved_vars", "reason": "rm -rf with unquoted variable expansion (catastrophic if unset)"}
   ],
   "_doc_observability": "These always run but are NOT enforcement -- they just log.",
   "always_run_observability": [

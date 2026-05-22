@@ -14,6 +14,7 @@ Mirrors ``tests/unit/lib/test_hook_telemetry.py`` style.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -244,14 +245,25 @@ class TestHookTimerDisabledFastPath:
 
 class TestEmitTimingEventReadOnlyFs:
     def test_falls_back_to_stderr_on_oserror(self, monkeypatch, capsys, home_dir):
-        original_open = Path.open
+        # Patch the builtin ``open`` seen by the hook_timing module so the
+        # OSError-on-write path is hit. ``hook_timing.emit_timing_event``
+        # uses ``open(log_path, "a", ..., opener=...)``; replacing that
+        # name in the module's namespace exercises the OSError branch
+        # without depending on which underlying syscall pattern is used.
+        import builtins
 
-        def raise_oserror(self, *args, **kwargs):
-            if "hook_timings_" in self.name:
+        original_open = builtins.open
+
+        def raise_oserror(path, *args, **kwargs):
+            try:
+                pstr = os.fspath(path)
+            except TypeError:
+                pstr = str(path)
+            if "hook_timings_" in pstr:
                 raise OSError("read-only filesystem")
-            return original_open(self, *args, **kwargs)
+            return original_open(path, *args, **kwargs)
 
-        monkeypatch.setattr(Path, "open", raise_oserror)
+        monkeypatch.setattr(hook_timing, "open", raise_oserror, raising=False)
 
         # Must not raise.
         hook_timing.emit_timing_event(

@@ -60,6 +60,31 @@ autonomous-dev uses a **diamond testing model** — not the traditional testing 
 - `test_dynamic_component_counts.py` — Uses `glob()` discovery, minimum thresholds, structural checks. No hardcoded counts (`assert len(agents) == 16` is FORBIDDEN).
 - **Coverage Gap Assessment** (test-master) — Before writing ANY tests, classify change type and generate gap summary showing which test types are required. Prevents over/under-testing. See [test-master.md](/plugins/autonomous-dev/agents/test-master.md) for details.
 
+#### Negative-Assertion Scope Locks (false-positive audit decisions)
+
+When an audit (issue, refactor pass, or migration) identifies a set of files as **intentionally NOT modified** (false positives — they superficially match the audit's pattern but are out of scope), lock that decision with a parametrized **negative-assertion** test. The test asserts a marker string is *absent* from each file, so a future agent reading the audit and "fixing" one of these files will trip the test instead of silently re-flagging it.
+
+**When to use**: Any audit that produces an "affected files" list where some entries are deliberately excluded after manual review. Without a scope lock, the next audit cycle re-discovers the same false positives and the team re-litigates the decision.
+
+```python
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        "plugins/autonomous-dev/lib/error_analyzer.py",      # False positive: not GenAIAnalyzer
+        "plugins/autonomous-dev/lib/codebase_analyzer.py",   # False positive: not GenAIAnalyzer
+        # ... one entry per excluded file, with WHY in a comment
+    ],
+)
+def test_audit_false_positive_files_unchanged(file_path: str) -> None:
+    """Lock the audit decision: these files do NOT match the audit pattern."""
+    content = (_REPO_ROOT / file_path).read_text()
+    assert "marker_string_the_audit_flags" not in content, (
+        f"{file_path} now matches the audit pattern — re-verify the audit decision."
+    )
+```
+
+**Reference**: `tests/unit/lib/test_phase3_wrap_adoption.py::test_phase3_false_positive_files_unchanged` (Issue #1007 — Phase 3 GenAIAnalyzer adoption audit excluded 4 files that reference Analyzer classes but not GenAIAnalyzer). The docstring of each scope-lock test MUST cite the originating audit (issue number or refactor pass) and explain WHY each file is excluded.
+
 ### Layer 3: Property-Based Invariants
 
 **What**: Universal properties that hold across all inputs

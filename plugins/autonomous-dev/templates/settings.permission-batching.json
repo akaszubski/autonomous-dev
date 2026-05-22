@@ -60,7 +60,6 @@
     "ask": [
       "Write",
       "Edit",
-      "Bash(:*)",
       "Bash(git push:*)",
       "Bash(git push --force:*)",
       "Bash(npm publish:*)",

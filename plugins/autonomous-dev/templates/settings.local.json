@@ -119,12 +119,7 @@
         ]
       },
       {
-        "matcher": {
-          "tools": [
-            "Write",
-            "Edit"
-          ]
-        },
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -139,33 +134,6 @@
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/session_activity_logger.py\"",
             "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PreCommit": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/auto_test.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/security_scan.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/validate_command_file_ops.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/validate_claude_md_size.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/.claude/hooks/enforce_regression_test.py\""
           }
         ]
       }

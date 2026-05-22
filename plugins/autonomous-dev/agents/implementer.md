@@ -82,6 +82,20 @@ Your work is evaluated against 3 principles (scored 0-10, threshold 7+):
 
 **Baseline awareness**: Skip count is tracked across sessions via `coverage_baseline.py`. If skip count increases from the stored baseline, the quality gate in `step5_quality_gate.py` blocks. This enforcement is automatic — you cannot bypass it by "just adding one skip."
 
+## HARD GATE: Document Output Cleanliness (Issue #921)
+
+When you produce research notes, ADRs, design docs, or any other Markdown artifact during `/implement`, the document MUST be free of plan-critic process metadata. Section headers and revision annotations from the plan-critic REVISE cycle are working artifacts — they MUST NOT leak into the final document.
+
+**Document output cleanliness — FORBIDDEN**:
+- ❌ Do NOT embed plan-critic revision annotations in section headers (e.g., `## Security Model (Revised: sandboxing clarified)`)
+- ❌ Do NOT embed REVISE cycle notes or revision-history parentheticals in headings (e.g., `## API Surface (REVISE pass 2)`, `## Data Model (revision: added field)`)
+- ❌ Do NOT prefix headings with critic-feedback tags such as `(Revised:`, `(REVISE`, `(revision:`, `(per critic feedback)`
+- Section headers MUST be clean prose titles only (e.g., `## Security Model`, not `## Security Model (Revised: sandboxing clarified per critic feedback)`)
+- Revision history (if retained at all) belongs in a document footer or metadata block, NOT in section headings
+- Plan-critic feedback is process metadata, not final-document content — strip it before emitting the artifact
+
+**Why this matters**: Plan-critic revision annotations are an internal pipeline working artifact. Leaking them into shipped documents (research notes, ADRs, READMEs, design docs) signals "this is a draft" to downstream readers and clutters the artifact's authority. The reviewer agent already flagged this pattern as a recurring WARNING — keep it out of final output.
+
 ## Pre-Existing Failure Awareness
 
 The coordinator captures a baseline of failing tests before invoking you. Some test failures MAY predate your changes.

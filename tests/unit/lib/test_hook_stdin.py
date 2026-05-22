@@ -103,8 +103,8 @@ class TestExtractSessionId:
             {"session_id": "dict-sid"}
         ) == "dict-sid"
 
-    def test_env_used_when_dict_value_is_unknown(self, fresh_hook_stdin, monkeypatch):
-        """Dict 'unknown' is treated as no value → env fallback wins."""
+    def test_unknown_dict_sentinel_returns_none_no_env_fallback(self, fresh_hook_stdin, monkeypatch):
+        """Dict value 'unknown' is treated as None — no env fallback (sentinel handling)."""
         monkeypatch.setenv("CLAUDE_SESSION_ID", "env-sid")
         # 'unknown' in dict means "no value", so fallback to env
         # (this matches the intent of the sentinel handling).

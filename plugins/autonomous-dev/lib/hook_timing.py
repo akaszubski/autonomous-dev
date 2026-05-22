@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -50,9 +51,25 @@ DISABLE_ENV_VAR: str = "HOOK_TIMING_DISABLED"
 LOG_DIR_OVERRIDE_ENV_VAR: str = "HOOK_TIMING_DIR"
 
 MAX_DECISION_SHAPE_LENGTH: int = 64
+MAX_HOOK_NAME_LENGTH: int = 128
 SCHEMA_VERSION: int = 1
 
+# Owner-only permissions for the timing log file (Issue #1056, Finding 2).
+# Multi-user systems must not expose internal hook timing data to other users.
+LOG_FILE_MODE: int = 0o600
+
 _FALSY_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
+
+# Path-detection regex used by :func:`_sanitize_os_error` (Issue #1056,
+# Finding 3). Matches POSIX absolute paths (``/...``) AND optionally
+# quoted variants such as ``'/foo/bar'`` or ``"/foo/bar"``. The match is
+# intentionally greedy on non-whitespace, non-quote characters so paths
+# containing spaces (which OSError strings typically wrap in quotes) are
+# still captured by the quoted-path branch.
+_ABS_PATH_PATTERN = re.compile(
+    r"""(?P<quoted>['"])(?P<qpath>/[^'"\n]+)(?P=quoted)|(?P<path>/[^\s'"]+)""",
+    re.VERBOSE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +112,80 @@ def _resolve_log_path(override: Optional[Path] = None) -> Path:
     log_dir = _resolve_log_dir(override)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return log_dir / f"{LOG_FILE_PREFIX}{today}{LOG_FILE_SUFFIX}"
+
+
+def _sanitize_os_error(exc: BaseException) -> str:
+    """Return a stringified OSError with full paths replaced by basenames.
+
+    OSError messages from the standard library frequently embed absolute
+    paths (``[Errno 13] Permission denied: '/Users/alice/.claude/logs/x'``).
+    Surfacing those raw to stderr leaks internal directory structure to
+    anyone reading stderr — including subordinate processes, log
+    aggregators, and CI artifacts. This helper rewrites every absolute
+    path in the message to just its basename via :class:`pathlib.PurePosixPath`,
+    so the failing filename is still visible without revealing the
+    surrounding directory tree.
+
+    Handles paths with spaces (when quoted in the message), paths under
+    ``/Users/``, ``/tmp/``, ``/home/``, and arbitrary depths. The
+    ``filename`` and ``filename2`` attributes (which OSError carries
+    separately from the message) are also substituted out of the rendered
+    string when they appear, so a custom ``__str__`` that includes them
+    is still sanitized.
+
+    Args:
+        exc: An OSError (or any BaseException — non-OSError input is
+            rendered with ``str()`` and run through the same substitution).
+
+    Returns:
+        A safe-to-log string with only basename references.
+    """
+    try:
+        raw = str(exc)
+    except Exception:
+        return "<unrepresentable error>"
+
+    def _replace(match: "re.Match[str]") -> str:
+        qpath = match.group("qpath")
+        path = match.group("path")
+        full = qpath if qpath is not None else path
+        try:
+            base = Path(full).name or full
+        except Exception:
+            base = full
+        if qpath is not None:
+            quote = match.group("quoted")
+            return f"{quote}{base}{quote}"
+        return base
+
+    sanitized = _ABS_PATH_PATTERN.sub(_replace, raw)
+
+    # OSError carries filename/filename2 attributes; some Python builds
+    # render them outside the main message in subclasses. Substitute any
+    # surviving full-path mentions of those attributes too.
+    for attr in ("filename", "filename2"):
+        try:
+            value = getattr(exc, attr, None)
+        except Exception:
+            value = None
+        if isinstance(value, (str, bytes, os.PathLike)):
+            try:
+                full = os.fspath(value)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(full, bytes):
+                try:
+                    full = full.decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+            if full and full.startswith("/") and full in sanitized:
+                try:
+                    base = Path(full).name or full
+                except Exception:
+                    base = full
+                sanitized = sanitized.replace(full, base)
+
+    return sanitized
 
 
 def _normalize_decision_shape(shape: str) -> str:
@@ -148,6 +239,15 @@ def emit_timing_event(
     except Exception:
         safe_hook = "unknown"
 
+    # Issue #1056, Finding 1: cap hook_name length BEFORE it reaches the
+    # log file. Adversarial or malformed hook names could otherwise
+    # produce oversized JSONL lines or break downstream parsers that
+    # assume bounded fields. The cap is applied here (write-path) rather
+    # than at the call site so every code path that emits a row is
+    # protected by a single guard.
+    if len(safe_hook) > MAX_HOOK_NAME_LENGTH:
+        safe_hook = safe_hook[:MAX_HOOK_NAME_LENGTH]
+
     try:
         safe_dur = int(dur_ns)
     except Exception:
@@ -183,17 +283,44 @@ def emit_timing_event(
     try:
         log_path = _resolve_log_path(log_dir)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as fh:
+
+        # Issue #1056, Finding 2: enforce owner-only (0o600) permissions
+        # on the timing log. The opener sets the mode at file-creation
+        # time so newly created files are tight from the first byte.
+        # ``os.chmod`` is then re-applied as a backstop for files that
+        # already existed (legacy logs created before this guard landed
+        # would otherwise retain their old, possibly looser, perms).
+        def _secure_opener(path: str, flags: int) -> int:
+            return os.open(path, flags, LOG_FILE_MODE)
+
+        with open(log_path, "a", encoding="utf-8", opener=_secure_opener) as fh:
             fh.write(line + "\n")
+
+        # Backstop: tighten perms in case the file pre-existed with
+        # looser permissions. Swallow chmod failures — telemetry must
+        # never block the host hook over a perm-tightening attempt.
+        try:
+            os.chmod(log_path, LOG_FILE_MODE)
+        except OSError:
+            pass
+
         return
     except OSError as exc:
+        # Issue #1056, Finding 3: sanitize the error message so absolute
+        # paths (which OSError typically embeds verbatim) do not leak
+        # internal directory structure to stderr.
+        safe_exc = _sanitize_os_error(exc)
         try:
-            sys.stderr.write(f"[hook-timing] {line} (log_write_failed: {exc})\n")
+            sys.stderr.write(f"[hook-timing] {line} (log_write_failed: {safe_exc})\n")
         except Exception:
             pass
     except Exception as exc:  # pragma: no cover - last-resort guard
         try:
-            sys.stderr.write(f"[hook-timing] {line} (unexpected_error: {exc})\n")
+            safe_exc = _sanitize_os_error(exc)
+        except Exception:
+            safe_exc = "<unrepresentable error>"
+        try:
+            sys.stderr.write(f"[hook-timing] {line} (unexpected_error: {safe_exc})\n")
         except Exception:
             pass
 

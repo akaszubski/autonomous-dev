@@ -22,6 +22,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import urllib.error
@@ -31,6 +32,29 @@ from typing import List, Tuple
 
 LINK_RE = re.compile(r"\[(?:[^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HTTP_TIMEOUT_SECONDS = 3.0
+
+
+def _find_project_root(start: Path) -> Path:
+    """Walk up from ``start`` to find a project root marker.
+
+    A project root is the first ancestor directory containing either a
+    ``.git`` entry (directory or file — git worktrees use a file) or a
+    ``pyproject.toml`` file. If no such ancestor is found, ``start`` is
+    returned as the fallback.
+
+    Args:
+        start: The directory to begin the upward walk from. SHOULD be an
+            absolute, resolved path so the comparison is unambiguous.
+
+    Returns:
+        The first ancestor directory (inclusive of ``start``) containing
+        ``.git`` or ``pyproject.toml``; otherwise ``start``.
+    """
+    current = start if start.is_dir() else start.parent
+    for candidate in (current, *current.parents):
+        if (candidate / ".git").exists() or (candidate / "pyproject.toml").exists():
+            return candidate
+    return current
 
 
 def parse_args(argv=None):
@@ -77,6 +101,22 @@ def check_link(link: str, doc_path: Path, *, no_http: bool) -> Tuple[bool, str]:
     if not target:
         return True, ""
     candidate = (doc_path.parent / target).resolve()
+    # SECURITY (Issue #994): Containment check MUST run BEFORE existence check
+    # so a crafted traversal link like "../../../../etc/passwd" cannot leak
+    # the existence of files outside the project. Without this guard, a
+    # malicious doc could "validate" successfully against arbitrary system
+    # files (e.g. /etc/passwd, /etc/hosts), silently turning the link
+    # checker into a filesystem oracle.
+    project_root = _find_project_root(doc_path.parent.resolve())
+    try:
+        is_contained = candidate.is_relative_to(project_root)
+    except (ValueError, AttributeError):
+        # Python < 3.9 fallback: prefix comparison.
+        root_str = str(project_root)
+        cand_str = str(candidate)
+        is_contained = cand_str == root_str or cand_str.startswith(root_str + os.sep)
+    if not is_contained:
+        return False, f"link escapes project root: {target}"
     if candidate.exists():
         return True, ""
     return False, f"missing file: {candidate}"

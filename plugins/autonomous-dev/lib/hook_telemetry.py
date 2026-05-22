@@ -29,10 +29,18 @@ Design constraints (mirrored from ``hook_bypass.py`` and ``hook_recovery.py``):
 - The exemption registry is parsed defensively — malformed JSON is treated
   as "no exemptions".
 
-Note on rotation: rotation is deferred to a follow-up. Atomic ``open(..., 'a')``
-on POSIX is sufficient for line-level integrity for events smaller than
-``PIPE_BUF`` (typically 4096 bytes) — the schema fits comfortably under that
-threshold once ``reason`` is capped at ``MAX_REASON_LENGTH``.
+Note on rotation: rotation is deferred to a follow-up. Line-level integrity
+under concurrent writes is guaranteed via ``fcntl.flock(LOCK_EX)`` (POSIX
+advisory lock) wrapped around the ``write`` call. This works for events of
+any size — the previous reliance on ``PIPE_BUF`` atomic-append guarantees
+(4096B Linux, 512B macOS) is too small for ``MAX_REASON_LENGTH=8000``
+events and could produce torn lines on macOS even for typical events
+(Issue #992). The lock adds ~1ms per write — negligible relative to hook
+runtime — and preserves the 8000B reason headroom that triage relies on
+for debugging context. On non-POSIX platforms (e.g. Windows), ``fcntl`` is
+unavailable and we fall back to the bare append; concurrent writes on
+Windows are vanishingly rare for this telemetry surface and acceptable as
+a known limitation.
 """
 
 from __future__ import annotations
@@ -45,6 +53,15 @@ import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+
+# ``fcntl`` is POSIX-only. On Windows it is absent; we degrade gracefully
+# to a bare append (no advisory locking). The advisory lock guards against
+# torn JSONL lines when multiple processes concurrently append events
+# larger than PIPE_BUF (4096B Linux, 512B macOS) — see Issue #992.
+try:
+    import fcntl  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - Windows fallback
+    fcntl = None  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
 # Module constants
@@ -207,7 +224,32 @@ def log_block_event(
         log_path = _resolve_log_path(start_dir)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+            # Hold an exclusive advisory lock for the duration of the
+            # write. On POSIX this prevents concurrent appenders from
+            # interleaving bytes within a single line — required because
+            # ``MAX_REASON_LENGTH=8000`` exceeds PIPE_BUF on every
+            # mainstream platform (Issue #992). On non-POSIX (fcntl=None)
+            # we fall through to a bare append; this is the same
+            # behavior as before the fix and is acceptable because
+            # concurrent writes on Windows are not a realistic threat
+            # for this telemetry surface.
+            if fcntl is not None:
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                except OSError:
+                    # NFS or unsupported FS may refuse flock; degrade
+                    # to bare append rather than raise. Telemetry must
+                    # never break the hook decision path.
+                    pass
+                try:
+                    fh.write(line + "\n")
+                finally:
+                    try:
+                        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                    except OSError:
+                        pass
+            else:
+                fh.write(line + "\n")
         return
     except OSError as exc:
         try:

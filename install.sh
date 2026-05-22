@@ -66,6 +66,9 @@ MIGRATE_MCP_REPO=""    # Issue #948: --migrate-mcp-to-repo <path>
 MIGRATE_MCP_SERVER=""  # Issue #948: --server <name> (paired with above)
 RESET_HOOKS=false      # Issue #949: --reset-hooks recovery mode
 GLOBAL_SETTINGS=false  # Issue #995: opt-in to ~/.claude/settings.json hook registration
+UNINSTALL=false        # Issue #951: --uninstall shell-only uninstall
+DRY_RUN=false          # Issue #951: --dry-run for --uninstall
+UNINSTALL_REPOS=""     # Issue #951: --repos <space-or-comma-separated list>
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -92,6 +95,18 @@ while [[ $# -gt 0 ]]; do
         --global-settings)
             GLOBAL_SETTINGS=true
             shift
+            ;;
+        --uninstall)
+            UNINSTALL=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --repos)
+            UNINSTALL_REPOS="$2"
+            shift 2
             ;;
         --help|-h)
             echo "autonomous-dev Plugin Installer"
@@ -122,6 +137,28 @@ while [[ $# -gt 0 ]]; do
             echo "                                      registered in <repo>/.claude/settings.json."
             echo "                                      Hook FILES are still cached to ~/.claude/hooks/"
             echo "                                      either way (library cache for opt-in repos)."
+            echo "  --uninstall                         Standalone: shell-only uninstall (Issue #951)."
+            echo "                                      Removes manifest-owned files from"
+            echo "                                      ~/.claude/{hooks,lib,commands,agents,scripts},"
+            echo "                                      strips autonomous-dev hooks from"
+            echo "                                      ~/.claude/settings.json, unregisters from"
+            echo "                                      ~/.claude/plugins/installed_plugins.json."
+            echo "                                      Backs up everything to"
+            echo "                                      ~/.claude/backups/uninstall-YYYYMMDD-HHMMSS/."
+            echo "                                      PRESERVES: PROJECT.md, CLAUDE.md, .env,"
+            echo "                                      logs/, archive/, memory/, hooks/extensions/."
+            echo "                                      Use --dry-run to preview, --repos to also"
+            echo "                                      strip per-repo settings.json files."
+            echo "                                      Companion to /sync --uninstall (Python path)."
+            echo "                                      Skips the normal install flow."
+            echo "  --dry-run                           With --uninstall: print the plan, do not"
+            echo "                                      delete or modify anything."
+            echo "  --repos <list>                      With --uninstall: comma- or space-separated"
+            echo "                                      list of repo paths to also clean. Each must"
+            echo "                                      exist and contain a .claude/ subdirectory."
+            echo "                                      autonomous-dev hook entries in each repo's"
+            echo "                                      .claude/settings.json are stripped (with"
+            echo "                                      backup); user-added entries are preserved."
             echo "  --help, -h                          Show this help message"
             echo ""
             echo "After running this script:"
@@ -457,6 +494,531 @@ reset_global_hooks() {
     fi
 
     log_info "Restart Claude Code (Cmd+Q / Ctrl+Q) to pick up the change."
+    return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UNINSTALL HELPERS (Issue #951)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# These functions implement `install.sh --uninstall`, a shell-only uninstall
+# path that coexists with `/sync --uninstall` (the Python orchestrator). The
+# shell path serves the "broken state, no Claude CLI" use case — when
+# uninstall_orchestrator.py is itself broken or the user cannot launch
+# Claude Code at all.
+#
+# Design constraints (see Issue #951 plan):
+#   - Manifest-driven. Files to remove come from install_manifest.json so
+#     user-added files (e.g. ~/.claude/hooks/extensions/*) are preserved.
+#   - Backup before mutate. Every removal/strip is preceded by a copy into
+#     ~/.claude/backups/uninstall-YYYYMMDD-HHMMSS/<mirror-tree>/.
+#   - Preserves PROJECT.md, CLAUDE.md, .env, logs/, archive/, memory/,
+#     hooks/extensions/.
+#   - Idempotent: re-running on a clean state is a no-op (exit 0, no error,
+#     no new backup dir).
+#   - --dry-run short-circuits ALL mutations.
+
+# Module-scope state for the uninstall flow.
+UNINSTALL_BACKUP_ROOT=""
+
+# Compute manifest path used by uninstall. Order:
+#   1. local repo (developer flow: install.sh next to plugins/...)
+#   2. staged    (post-bootstrap: ~/.autonomous-dev-staging/files/...)
+#   3. installed (post-install:   ~/.claude/config/install_manifest.json)
+_uninstall_find_manifest() {
+    local local_path
+    local_path="$(dirname "$0")/${MANIFEST_FILE}"
+    if [[ -f "$local_path" ]]; then
+        echo "$local_path"
+        return 0
+    fi
+    local staged_path="${STAGING_DIR}/files/${MANIFEST_FILE}"
+    if [[ -f "$staged_path" ]]; then
+        echo "$staged_path"
+        return 0
+    fi
+    local installed_path="${HOME}/.claude/config/install_manifest.json"
+    if [[ -f "$installed_path" ]]; then
+        echo "$installed_path"
+        return 0
+    fi
+    return 1
+}
+
+# Find a staged or local script (uninstall helpers).
+_uninstall_find_script() {
+    local script_name="$1"
+    local local_path="$(dirname "$0")/plugins/autonomous-dev/scripts/${script_name}"
+    if [[ -f "$local_path" ]]; then
+        echo "$local_path"
+        return 0
+    fi
+    local staged_path="${STAGING_DIR}/files/plugins/autonomous-dev/scripts/${script_name}"
+    if [[ -f "$staged_path" ]]; then
+        echo "$staged_path"
+        return 0
+    fi
+    local installed_path="${HOME}/.claude/scripts/${script_name}"
+    if [[ -f "$installed_path" ]]; then
+        echo "$installed_path"
+        return 0
+    fi
+    return 1
+}
+
+# Create a unique backup root for this uninstall run.
+# Side effect: sets UNINSTALL_BACKUP_ROOT.
+# DRY_RUN: no directory creation; UNINSTALL_BACKUP_ROOT is set for display only.
+uninstall_create_backup_root() {
+    local stamp
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    UNINSTALL_BACKUP_ROOT="${HOME}/.claude/backups/uninstall-${stamp}"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would create backup root: ${UNINSTALL_BACKUP_ROOT}"
+        return 0
+    fi
+    if ! mkdir -p "$UNINSTALL_BACKUP_ROOT"; then
+        log_error "Cannot create backup root: ${UNINSTALL_BACKUP_ROOT}"
+        return 1
+    fi
+    log_info "Backup root: ${UNINSTALL_BACKUP_ROOT}"
+    return 0
+}
+
+# Use Python (already a dep) to extract the list of manifest-owned files
+# under a given top-level component key (e.g. "hooks", "lib", "commands",
+# "agents", "scripts", "skills"). Output: one basename per line.
+_uninstall_list_manifest_basenames() {
+    local manifest="$1"
+    local component="$2"
+    python3 - "$manifest" "$component" <<'PYEOF'
+import json
+import os
+import sys
+
+manifest_path = sys.argv[1]
+component = sys.argv[2]
+
+try:
+    with open(manifest_path, encoding="utf-8") as f:
+        manifest = json.load(f)
+except OSError:
+    sys.exit(0)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+comp = manifest.get("components", {}).get(component, {})
+files = comp.get("files", [])
+if not isinstance(files, list):
+    sys.exit(0)
+
+for entry in files:
+    if isinstance(entry, str):
+        print(os.path.basename(entry))
+PYEOF
+}
+
+# Remove manifest-owned files from a target directory, preserving any
+# files NOT in the manifest (user-added). For each removal, copy the file
+# to UNINSTALL_BACKUP_ROOT/<component>/ first.
+#
+# Arguments:
+#   $1: component key in install_manifest.json (e.g. "hooks", "lib").
+#   $2: target directory under HOME (e.g. ~/.claude/hooks).
+#
+# Globals: DRY_RUN, UNINSTALL_BACKUP_ROOT.
+#
+# Side effect when not DRY_RUN: backs up + deletes each manifest-owned
+# file. Empty target directory is left alone (don't rmdir; the user may
+# have an extensions/ subdir or just want the directory there).
+uninstall_remove_global_files() {
+    local component="$1"
+    local target_dir="$2"
+    local manifest
+    manifest="$(_uninstall_find_manifest)" || {
+        log_warning "No manifest found; cannot perform manifest-driven cleanup of ${target_dir}"
+        return 1
+    }
+
+    if [[ ! -d "$target_dir" ]]; then
+        log_info "${target_dir} does not exist - nothing to remove for ${component}"
+        return 0
+    fi
+
+    local backup_subdir="${UNINSTALL_BACKUP_ROOT}/${component}"
+    local removed=0
+    local would_remove=0
+    local basenames
+    basenames="$(_uninstall_list_manifest_basenames "$manifest" "$component")"
+
+    if [[ -z "$basenames" ]]; then
+        log_info "Manifest has no ${component} files - skipping"
+        return 0
+    fi
+
+    if [[ "$DRY_RUN" != "true" ]]; then
+        mkdir -p "$backup_subdir"
+    fi
+
+    local name
+    while IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        local file_path="${target_dir}/${name}"
+        if [[ -e "$file_path" || -L "$file_path" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+                ((would_remove++))
+                if $VERBOSE; then
+                    log_info "[DRY RUN]   Would remove: ${file_path}"
+                fi
+            else
+                # Backup, then remove. Use -P to NOT follow symlinks.
+                if cp -P "$file_path" "${backup_subdir}/${name}" 2>/dev/null \
+                   && rm -f "$file_path"; then
+                    ((removed++))
+                    if $VERBOSE; then
+                        log_success "  Removed: ${file_path}"
+                    fi
+                else
+                    log_warning "  Failed to remove: ${file_path}"
+                fi
+            fi
+        fi
+    done <<< "$basenames"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] ${component}: would remove ${would_remove} file(s) from ${target_dir}"
+    else
+        if [[ "$removed" -gt 0 ]]; then
+            log_success "${component}: removed ${removed} file(s) from ${target_dir}"
+        else
+            log_info "${component}: nothing to remove in ${target_dir}"
+        fi
+    fi
+    return 0
+}
+
+# Remove autonomous-dev core commands from ~/.claude/commands/.
+# This is the small set installed by install_global_commands(): sync,
+# setup, health-check. Plus any additional manifest commands that ended
+# up there.
+uninstall_remove_global_commands() {
+    log_step "Cleaning ~/.claude/commands/..."
+    uninstall_remove_global_files "commands" "${HOME}/.claude/commands"
+}
+
+# Strip autonomous-dev hooks from ~/.claude/settings.json.
+# Delegates to the existing reset_global_hooks.py helper, which already
+# implements the "strip hooks block, preserve everything else" contract
+# (Issue #949). We use it here because the entire ~/.claude/settings.json
+# hooks block IS autonomous-dev when installed via install.sh.
+uninstall_strip_global_settings_hooks() {
+    log_step "Stripping hooks from ~/.claude/settings.json..."
+    local target="${HOME}/.claude/settings.json"
+
+    if [[ ! -f "$target" ]]; then
+        log_info "${target} does not exist - nothing to strip"
+        return 0
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        # Use reset_global_hooks.py only to detect IF there's a hooks
+        # block; we don't write anything in dry-run.
+        local hooks_present
+        hooks_present=$(python3 -c "
+import json, sys
+try:
+    with open('$target', encoding='utf-8') as f:
+        d = json.load(f)
+    print('true' if 'hooks' in d else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+        if [[ "$hooks_present" == "true" ]]; then
+            log_info "[DRY RUN] Would strip hooks block from ${target}"
+            log_info "[DRY RUN] Would back up to ${target}.preglobal-hooks-strip"
+        else
+            log_info "[DRY RUN] No hooks block to strip in ${target}"
+        fi
+        return 0
+    fi
+
+    local script_path
+    script_path="$(_uninstall_find_script reset_global_hooks.py)" || {
+        log_warning "reset_global_hooks.py not found - skipping global settings strip"
+        return 0
+    }
+
+    local result
+    result=$(python3 "$script_path" --target "$target" 2>&1 \
+        || echo '{"success":false,"stripped":false,"error":"helper_failed"}')
+
+    local stripped
+    stripped=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print('true' if d.get('stripped') else 'false')" \
+        2>/dev/null || echo "false")
+
+    if [[ "$stripped" == "true" ]]; then
+        log_success "Stripped hooks block from ${target}"
+        # Also copy the .preglobal-hooks-strip backup into our uninstall
+        # backup tree so it's all in one place.
+        local pgh_backup="${target}.preglobal-hooks-strip"
+        if [[ -f "$pgh_backup" ]]; then
+            mkdir -p "${UNINSTALL_BACKUP_ROOT}/global-settings" 2>/dev/null || true
+            cp -P "$pgh_backup" "${UNINSTALL_BACKUP_ROOT}/global-settings/" 2>/dev/null || true
+        fi
+    else
+        log_info "No autonomous-dev hooks in ${target}"
+    fi
+    return 0
+}
+
+# Walk a list of repo paths and strip autonomous-dev hooks from each
+# repo's .claude/settings.json. Rejects paths that don't exist or don't
+# contain a .claude/ subdirectory.
+#
+# Globals: UNINSTALL_REPOS (comma- or space-separated), DRY_RUN,
+# UNINSTALL_BACKUP_ROOT.
+uninstall_walk_repos() {
+    if [[ -z "$UNINSTALL_REPOS" ]]; then
+        return 0
+    fi
+
+    log_step "Stripping autonomous-dev hooks from per-repo settings.json..."
+
+    local script_path
+    script_path="$(_uninstall_find_script uninstall_strip_repo_hooks.py)" || {
+        log_warning "uninstall_strip_repo_hooks.py not found - skipping per-repo strip"
+        return 0
+    }
+
+    # Accept comma OR whitespace separation.
+    local normalized="${UNINSTALL_REPOS//,/ }"
+
+    local repo
+    for repo in $normalized; do
+        [[ -z "$repo" ]] && continue
+
+        # Validate: must exist as a directory.
+        if [[ ! -d "$repo" ]]; then
+            log_error "  --repos: path does not exist: ${repo}"
+            continue
+        fi
+        # Validate: must contain a .claude/ subdirectory.
+        if [[ ! -d "${repo}/.claude" ]]; then
+            log_error "  --repos: missing .claude/ in: ${repo}"
+            continue
+        fi
+
+        local repo_settings="${repo}/.claude/settings.json"
+        if [[ ! -f "$repo_settings" ]]; then
+            log_info "  No settings.json in ${repo}/.claude/"
+            continue
+        fi
+
+        local backup_root_for_repo="${UNINSTALL_BACKUP_ROOT}/repo-$(basename "$repo")"
+        local dry_flag=""
+        if [[ "$DRY_RUN" == "true" ]]; then
+            dry_flag="--dry-run"
+        fi
+
+        local result
+        result=$(python3 "$script_path" \
+            --target "$repo_settings" \
+            --backup-root "$backup_root_for_repo" \
+            $dry_flag 2>&1 \
+            || echo '{"success":false,"stripped":false,"error":"helper_failed"}')
+
+        local success stripped would_strip
+        success=$(echo "$result" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print('true' if d.get('success') else 'false')" \
+            2>/dev/null || echo "false")
+        stripped=$(echo "$result" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print('true' if d.get('stripped') else 'false')" \
+            2>/dev/null || echo "false")
+        would_strip=$(echo "$result" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print('true' if d.get('would_strip') else 'false')" \
+            2>/dev/null || echo "false")
+
+        if [[ "$success" != "true" ]]; then
+            log_warning "  Failed to process: ${repo_settings}"
+        elif [[ "$DRY_RUN" == "true" ]]; then
+            if [[ "$would_strip" == "true" ]]; then
+                log_info "  [DRY RUN] Would strip autonomous-dev hooks from: ${repo_settings}"
+            else
+                log_info "  [DRY RUN] Nothing to strip in: ${repo_settings}"
+            fi
+        else
+            if [[ "$stripped" == "true" ]]; then
+                log_success "  Stripped autonomous-dev hooks: ${repo_settings}"
+            else
+                log_info "  No autonomous-dev hooks in: ${repo_settings}"
+            fi
+        fi
+    done
+    return 0
+}
+
+# Unregister autonomous-dev from Claude Code's plugin and marketplace
+# registry files (if present).
+uninstall_unregister_plugin() {
+    log_step "Unregistering autonomous-dev plugin..."
+
+    local plugins_file="${HOME}/.claude/plugins/installed_plugins.json"
+    local marketplaces_file="${HOME}/.claude/plugins/marketplaces.json"
+
+    if [[ ! -f "$plugins_file" && ! -f "$marketplaces_file" ]]; then
+        log_info "No plugin registration files found - nothing to unregister"
+        return 0
+    fi
+
+    local script_path
+    script_path="$(_uninstall_find_script uninstall_unregister_plugin.py)" || {
+        log_warning "uninstall_unregister_plugin.py not found - skipping unregister"
+        return 0
+    }
+
+    local dry_flag=""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        dry_flag="--dry-run"
+    fi
+
+    local result
+    result=$(python3 "$script_path" \
+        --plugins-file "$plugins_file" \
+        --marketplaces-file "$marketplaces_file" \
+        --backup-root "${UNINSTALL_BACKUP_ROOT}/registry" \
+        $dry_flag 2>&1 \
+        || echo '{"success":false,"stripped":false,"error":"helper_failed"}')
+
+    local stripped would_strip
+    stripped=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print('true' if d.get('stripped') else 'false')" \
+        2>/dev/null || echo "false")
+    would_strip=$(echo "$result" | python3 -c \
+        "import json,sys; d=json.load(sys.stdin); print('true' if d.get('would_strip') else 'false')" \
+        2>/dev/null || echo "false")
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        if [[ "$would_strip" == "true" ]]; then
+            log_info "[DRY RUN] Would unregister autonomous-dev from plugin/marketplace registries"
+        else
+            log_info "[DRY RUN] No autonomous-dev entries found in plugin/marketplace registries"
+        fi
+    else
+        if [[ "$stripped" == "true" ]]; then
+            log_success "Unregistered autonomous-dev from plugin/marketplace registries"
+        else
+            log_info "No autonomous-dev entries in plugin/marketplace registries"
+        fi
+    fi
+    return 0
+}
+
+# Print the uninstall plan (used in --dry-run header and at start of
+# real run).
+uninstall_print_plan() {
+    echo ""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "═══════════════════════════════════════════════════════════════"
+        log_info "  UNINSTALL --dry-run  (no files will be modified)"
+        log_info "═══════════════════════════════════════════════════════════════"
+    else
+        log_info "═══════════════════════════════════════════════════════════════"
+        log_info "  UNINSTALL  (autonomous-dev will be removed)"
+        log_info "═══════════════════════════════════════════════════════════════"
+    fi
+    echo ""
+    log_info "Plan:"
+    log_info "  1. Create backup root: ${UNINSTALL_BACKUP_ROOT}"
+    log_info "  2. Remove manifest-owned files from:"
+    log_info "       ~/.claude/hooks/        (preserves extensions/)"
+    log_info "       ~/.claude/lib/"
+    log_info "       ~/.claude/commands/"
+    log_info "       ~/.claude/agents/"
+    log_info "       ~/.claude/scripts/"
+    log_info "  3. Strip autonomous-dev hooks from ~/.claude/settings.json"
+    log_info "  4. Unregister from ~/.claude/plugins/installed_plugins.json"
+    if [[ -n "$UNINSTALL_REPOS" ]]; then
+        log_info "  5. Strip per-repo hooks from: ${UNINSTALL_REPOS}"
+    fi
+    log_info ""
+    log_info "PRESERVED (never touched):"
+    log_info "  ~/.claude/PROJECT.md, CLAUDE.md, .env"
+    log_info "  ~/.claude/{logs,archive,memory}/"
+    log_info "  ~/.claude/hooks/extensions/"
+    echo ""
+}
+
+# Top-level entry point for --uninstall mode. Orchestrates all steps,
+# always returns 0 to the shell (errors are surfaced via log_error).
+uninstall_main() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║       autonomous-dev Uninstall (--dry-run)                  ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+    else
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║       autonomous-dev Uninstall                              ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+    fi
+
+    # Check for completely empty install (idempotent fast path).
+    local has_anything=false
+    if [[ -d "${HOME}/.claude/hooks" || -d "${HOME}/.claude/lib" \
+        || -d "${HOME}/.claude/commands" || -d "${HOME}/.claude/agents" \
+        || -d "${HOME}/.claude/scripts" \
+        || -f "${HOME}/.claude/settings.json" ]]; then
+        has_anything=true
+    fi
+    if [[ "$has_anything" == "false" && -z "$UNINSTALL_REPOS" ]]; then
+        echo ""
+        log_info "Nothing to remove (no ~/.claude/ install artifacts found)"
+        return 0
+    fi
+
+    if ! uninstall_create_backup_root; then
+        return 1
+    fi
+
+    uninstall_print_plan
+
+    # Manifest-owned file removal.
+    uninstall_remove_global_files "hooks"    "${HOME}/.claude/hooks"
+    uninstall_remove_global_files "lib"      "${HOME}/.claude/lib"
+    uninstall_remove_global_commands
+    uninstall_remove_global_files "agents"   "${HOME}/.claude/agents"
+    uninstall_remove_global_files "scripts"  "${HOME}/.claude/scripts"
+
+    # Global settings hooks.
+    uninstall_strip_global_settings_hooks
+
+    # Plugin/marketplace registry.
+    uninstall_unregister_plugin
+
+    # Per-repo hooks (optional).
+    uninstall_walk_repos
+
+    echo ""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "═══════════════════════════════════════════════════════════════"
+        log_info "  --dry-run complete. No files were modified."
+        log_info "  Re-run without --dry-run to apply the plan above."
+        log_info "═══════════════════════════════════════════════════════════════"
+    else
+        log_success "═══════════════════════════════════════════════════════════════"
+        log_success "  Uninstall complete."
+        log_success "  Backup: ${UNINSTALL_BACKUP_ROOT}"
+        log_success "═══════════════════════════════════════════════════════════════"
+        log_info ""
+        log_info "PRESERVED:"
+        log_info "  ~/.claude/PROJECT.md, CLAUDE.md, .env"
+        log_info "  ~/.claude/{logs,archive,memory}/"
+        log_info "  ~/.claude/hooks/extensions/"
+        log_info ""
+        log_info "Restart Claude Code to fully detach autonomous-dev."
+    fi
     return 0
 }
 
@@ -1630,6 +2192,22 @@ main() {
             exit 1
         fi
         if reset_global_hooks; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+
+    # Issue #951: Standalone uninstall mode — shell-only uninstall path.
+    # Coexists with /sync --uninstall (the Python orchestrator). This
+    # path serves the "broken state, no Claude CLI" use case. Short-
+    # circuits the normal install flow.
+    if [[ "$UNINSTALL" == "true" ]]; then
+        if ! command -v python3 &> /dev/null; then
+            log_error "Python 3 required for --uninstall (manifest parsing + JSON mutation)"
+            exit 1
+        fi
+        if uninstall_main; then
             exit 0
         else
             exit 1
