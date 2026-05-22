@@ -306,6 +306,41 @@ assert any(Path("plugins/autonomous-dev/lib").glob("*skill*"))
 
 **Rule**: If the test itself is the thing that needs updating most often, delete it.
 
+### Negative-assertion scope locks (lock audit exclusions)
+
+**Rule**: When an audit produces an "affected files" list and some files are intentionally **excluded** after manual review (false positives), write a parametrized negative-assertion test that locks the exclusion. Without it, the next audit cycle re-flags the same files and the team re-litigates the decision.
+
+**Trigger when**: an issue body lists files audited but intentionally not modified.
+
+The test asserts the audit's marker string is *absent* from each excluded file, so any future "fix" to one of these files trips the test instead of slipping through. Each parametrize entry MUST be accompanied by a comment (or docstring section) explaining WHY this file is excluded — the lock is only useful if a future reader can quickly verify whether the exclusion still holds.
+
+```python
+# GOOD — negative-assertion scope lock with per-file rationale
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        "plugins/autonomous-dev/lib/error_analyzer.py",      # Excluded: ErrorAnalyzer != GenAIAnalyzer
+        "plugins/autonomous-dev/lib/codebase_analyzer.py",   # Excluded: CodebaseAnalyzer != GenAIAnalyzer
+    ],
+)
+def test_audit_false_positive_files_unchanged(file_path: str) -> None:
+    """Lock Issue #1007 audit: these files do NOT call GenAIAnalyzer.
+
+    Each file is excluded because its name superficially matches the audit
+    pattern but the code does not. Catches future re-flagging.
+    """
+    content = (REPO_ROOT / file_path).read_text()
+    assert "from genai_utils import GenAIAnalyzer" not in content, (
+        f"{file_path} now imports GenAIAnalyzer — re-verify Issue #1007 audit."
+    )
+
+# BAD — comment-only exclusion (drifts; no enforcement)
+# Issue #1007 audit: skip error_analyzer.py, codebase_analyzer.py (false positives).
+# (Next agent ignores the comment and "fixes" one of them.)
+```
+
+**Reference**: `tests/unit/lib/test_phase3_wrap_adoption.py::test_phase3_false_positive_files_unchanged` and the `Negative-Assertion Scope Locks` subsection in `docs/TESTING-STRATEGY.md` (Layer 2).
+
 ---
 
 ## Test Tiers — Diamond Model (auto-categorized by directory)

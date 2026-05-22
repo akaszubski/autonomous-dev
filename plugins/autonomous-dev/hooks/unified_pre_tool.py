@@ -3238,8 +3238,19 @@ def _check_agent_denial(*, window_seconds: int = AGENT_DENY_TTL) -> "Optional[st
         with open(state_path) as f:
             state = _json.load(f)
         if state.get("session_id") != _session_id:
+            # Issue #1051: deny file from a different session is orphaned — clean it up
+            try:
+                os.unlink(state_path)
+            except OSError:
+                pass  # fail-open — cleanup failure must not block agents
             return None
         if _time.time() - state.get("timestamp", 0) > window_seconds:
+            # Issue #1051: stale deny file beyond TTL — clean it up so subsequent
+            # agent invocations are not blocked by manual `rm` requirements
+            try:
+                os.unlink(state_path)
+            except OSError:
+                pass  # fail-open — cleanup failure must not block agents
             return None
         return state.get("agent_type", "")
     except Exception:
@@ -3350,6 +3361,83 @@ def _check_bash_state_deletion(command: str) -> "Optional[Tuple[str, str]]":
                 if _is_state_file(target):
                     return (target, "Pipeline state file deletion blocked during active pipeline (Issue #803)")
 
+    except Exception:
+        pass  # Fail-open: never block legitimate commands on detection errors
+
+    return None
+
+
+def _check_rm_rf_unresolved_vars(command: str) -> "Optional[Tuple[str, str]]":
+    """Detect `rm -rf` (or `rm -f`/`rm -Rf` etc.) with unquoted variable expansion.
+
+    Catastrophic-prevention guard (Issue #1008). When a variable used as the
+    deletion target is unset or empty, `rm -rf $VAR/subpath` expands to
+    `rm -rf /subpath` — which can erase critical filesystem paths. Quoting the
+    variable (`"$VAR"`) makes the empty case safe (`rm -rf ""` is a harmless
+    no-op), so the rule is: flag UNQUOTED variable expansions only.
+
+    Detection scope:
+        - `rm -rf $VAR` / `rm -rf ${VAR}` — unquoted variable
+        - `rm -rf $VAR/anything` — unquoted variable with suffix
+        - `rm -f $VAR` — single-file `rm -f` with unquoted var is also dangerous
+        - `rm -Rf $VAR`, `rm -fr $VAR`, etc. — any combo of [rRfF] flags
+
+    Safe (NOT flagged):
+        - `rm -rf "$VAR"` / `rm -rf "${VAR}"` — quoted variable
+        - `rm -rf /tmp/foo` — literal path
+        - `ls -la` — not an `rm` command
+        - heredoc bodies and `--body "..."` quoted args (stripped before scanning)
+
+    Args:
+        command: The Bash command string to inspect.
+
+    Returns:
+        ``None`` if the command is safe, or a tuple of ``(decision, reason)``
+        where ``decision == "deny"`` and ``reason`` carries the user-facing
+        message. The tuple shape matches the deny-pipeline contract used by
+        the caller in ``main()``.
+    """
+    import re
+
+    try:
+        # Strip heredoc bodies and --body/--message quoted args so user-supplied
+        # text content (issue descriptions, PR bodies, etc.) doesn't trigger a
+        # false positive. Mirrors the sanitization in _check_bash_state_deletion.
+        scrubbed = command
+
+        _heredoc_pat = r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n.*?\n\s*\1\b"
+        scrubbed = re.sub(_heredoc_pat, "", scrubbed, flags=re.DOTALL)
+
+        _body_pat = r"""--body\s+(?:'[^']*'|"[^"]*"|\$\([^)]*\))"""
+        scrubbed = re.sub(_body_pat, '--body ""', scrubbed)
+
+        _msg_pat = r"""(?:--message|-m)\s+(?:'[^']*'|"[^"]*")"""
+        scrubbed = re.sub(_msg_pat, '-m ""', scrubbed)
+
+        # Core detection: `rm` + one or more flag tokens (each containing at
+        # least one of r/R/f/F) + a bareword variable expansion.
+        #
+        # The negative lookahead `(?!["\'])` is the safety hinge: if the next
+        # character is a quote, the variable is being expanded safely and we
+        # do NOT flag.
+        rm_rf_var_pattern = (
+            r"\brm\s+(?:-[a-zA-Z]*[rRfF][a-zA-Z]*\s+)+"
+            r"(?![\"'])"
+            r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)"
+        )
+        match = re.search(rm_rf_var_pattern, scrubbed)
+        if match is not None:
+            var_expr = match.group(1)
+            reason = (
+                f"BLOCKED: rm -rf with unquoted variable expansion detected: "
+                f"{var_expr}. If the variable is unset or empty, the command "
+                f"expands to a catastrophic deletion (e.g. `rm -rf /subpath` "
+                f"or `rm -rf /`). Quote the variable to make the empty case "
+                f"a safe no-op: rm -rf \"{var_expr}\". "
+                f"REQUIRED NEXT ACTION: Re-issue the command with the "
+                f"variable double-quoted."
+            )
+            return ("deny", reason)
     except Exception:
         pass  # Fail-open: never block legitimate commands on detection errors
 
@@ -4444,6 +4532,33 @@ def main():
                                     sys.exit(0)
                         except Exception:
                             pass  # Fail-open: never block on detection errors
+
+                    # Issue #1008: rm -rf with unresolved (unquoted) variable
+                    # expansion. ALWAYS fires (hard-floor) regardless of pipeline
+                    # status — `rm -rf $UNSET_VAR/path` expanding to `rm -rf /path`
+                    # is catastrophic in any session mode. Fires BEFORE the
+                    # state-deletion guard because it is a stronger gate.
+                    try:
+                        _rm_rf_var = _check_rm_rf_unresolved_vars(command)
+                        if _rm_rf_var is not None:
+                            _rrv_decision, _rrv_reason = _rm_rf_var
+                            _log_deviation(
+                                "rm_rf_unresolved_var", tool_name,
+                                "rm_rf_unresolved_var_block",
+                            )
+                            _log_pretool_activity(tool_name, tool_input, "deny", _rrv_reason)
+                            output_decision(
+                                _rrv_decision, _rrv_reason,
+                                system_message=(
+                                    "BLOCKED: rm -rf with unquoted variable. "
+                                    "Quote the variable to avoid catastrophic deletion."
+                                ),
+                            )
+                            sys.exit(0)
+                    except SystemExit:
+                        raise
+                    except Exception:
+                        pass  # Fail-open: never block on detection errors
 
                     # Issue #803: Pipeline state file deletion guard.
                     # Block rm/unlink/truncate of pipeline state files during active pipeline.

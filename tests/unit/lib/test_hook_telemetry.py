@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import sys
-import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -311,21 +310,31 @@ class TestBlockEventDecorator:
 
 
 class TestRecoveryShimDelegation:
-    def test_shim_delegates_to_log_block_event(self, project_dir):
-        """log_block_with_recovery should write to hook-blocks.jsonl now."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            hook_recovery.log_block_with_recovery(
-                hook_name="unified_pre_tool.py",
-                tool_name="Bash",
-                block_reason="WORKFLOW ENFORCEMENT",
-                recovery_hint="use /implement",
-            )
-            # DeprecationWarning emitted.
-            assert any(
-                issubclass(warning.category, DeprecationWarning) for warning in w
-            ), [str(warning.message) for warning in w]
+    def test_shim_delegates_to_log_block_event(self, project_dir, capsys):
+        """log_block_with_recovery should write to hook-blocks.jsonl now.
 
+        Per Issue #993, the deprecation surface is a direct ``sys.stderr``
+        write (not ``warnings.warn``), because Python's default warning
+        filter suppresses ``DeprecationWarning`` from non-``__main__``
+        modules and hook operators never saw the signal. Reset the
+        one-shot flag before invoking to guarantee the marker is emitted
+        on this call.
+        """
+        # Reset the one-shot flag so this call re-emits the deprecation.
+        hook_recovery._legacy_warn_emitted = False
+
+        hook_recovery.log_block_with_recovery(
+            hook_name="unified_pre_tool.py",
+            tool_name="Bash",
+            block_reason="WORKFLOW ENFORCEMENT",
+            recovery_hint="use /implement",
+        )
+
+        # Deprecation surfaces on stderr as a [hook-recovery] DEPRECATION line.
+        captured = capsys.readouterr()
+        assert "DEPRECATION: log_block_with_recovery is deprecated" in captured.err, (
+            "Deprecation marker missing from stderr; got: " + repr(captured.err)
+        )
         # Row was written to the new log path.
         log_path = project_dir / hook_telemetry.LOG_FILE_RELATIVE
         assert log_path.exists()

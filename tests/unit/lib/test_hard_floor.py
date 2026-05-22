@@ -48,7 +48,7 @@ def test_config_file_exists_and_parses() -> None:
 
     hard_floor_hooks = data["hard_floor_hooks"]
     assert isinstance(hard_floor_hooks, list)
-    assert len(hard_floor_hooks) == 5, "Expected exactly 5 hard-floor entries"
+    assert len(hard_floor_hooks) == 6, "Expected exactly 6 hard-floor entries"
 
     for entry in hard_floor_hooks:
         assert isinstance(entry, dict)
@@ -77,6 +77,7 @@ def test_config_file_exists_and_parses() -> None:
         ("unified_pre_tool.py", "_detect_settings_json_write", True),
         ("unified_pre_tool.py", "_is_protected_infrastructure", True),
         ("unified_pre_tool.py", "_detect_git_bypass", True),
+        ("unified_pre_tool.py", "_check_rm_rf_unresolved_vars", True),
         # Negative cases.
         ("plan_gate.py", None, False),  # Unlisted hook entirely.
         ("unified_pre_tool.py", "unknown_function", False),  # Listed hook, unknown function.

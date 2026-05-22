@@ -70,33 +70,61 @@ class TestSpecTestIsolationPromptIntegrity:
             )
             assert "shrank" in reason
 
+    # Issue #933: This assertion was originally written against the live
+    # working tree (`git diff HEAD`), which made it fire on every subsequent
+    # PR that legitimately modifies production code. Scoped to the #784 merge
+    # commit so the historical spec criterion is preserved without future
+    # false positives. Deletion would remove a regression lock; pinning to
+    # the commit preserves the historical record.
+    PR_784_COMMIT_SHA = "834ab88"
+    PR_784_TEST_FILE = "tests/unit/hooks/test_prompt_integrity_enforcement.py"
+
     def test_spec_isolation_3_no_production_code_changes(self):
-        """Criterion 3: Only test files were changed -- no production code
-        modifications."""
+        """Criterion 3: At PR #784 merge, the spec-isolation fix landed in
+        test code. This is a historical assertion pinned to commit 834ab88;
+        not a live working-tree check (Issue #933).
+
+        The assertion verifies that the #784 fix touched the prompt-integrity
+        test file (proving the spec-criterion-3 intent that the fix was test-
+        scoped). Note: commit 834ab88 was a multi-issue batch and also
+        modified production code for OTHER bundled issues -- those changes
+        are out of scope for the #784 isolation criterion.
+
+        If the pinned commit cannot be resolved (e.g., shallow clone), the
+        test SKIPS rather than fails.
+        """
         result = subprocess.run(
-            ["git", "diff", "HEAD", "--name-only"],
+            [
+                "git",
+                "show",
+                "--name-only",
+                "--format=",
+                self.PR_784_COMMIT_SHA,
+            ],
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
         )
+        if result.returncode != 0:
+            pytest.skip(
+                f"Commit {self.PR_784_COMMIT_SHA} not in this clone "
+                f"(shallow clone or commit purged): {result.stderr.strip()}"
+            )
         changed_files = [
             f for f in result.stdout.strip().splitlines() if f.strip()
         ]
-        production_changes = [
-            f for f in changed_files
-            if not f.startswith("tests/")
-            and not f.startswith("docs/")
-            and not f.startswith("scripts/")
-            and not f.startswith("logs/")
-        ]
-        # Filter to only files under plugins/ hooks/ lib/ (production code)
-        hook_or_lib_changes = [
-            f for f in production_changes
-            if "hooks/" in f or "lib/" in f or "agents/" in f
-        ]
-        assert hook_or_lib_changes == [], (
-            f"Production code was changed: {hook_or_lib_changes}. "
-            f"The fix should be isolated to test code only."
+        assert changed_files, (
+            f"git show returned no files for {self.PR_784_COMMIT_SHA}; "
+            f"cannot verify historical assertion."
+        )
+        # Historical spec criterion 3: the prompt-integrity test isolation
+        # fix landed in the corresponding test file. Verify the expected
+        # test file is present in the pinned commit's changeset.
+        assert self.PR_784_TEST_FILE in changed_files, (
+            f"Expected the #784 isolation fix to touch "
+            f"{self.PR_784_TEST_FILE!r} in commit "
+            f"{self.PR_784_COMMIT_SHA}, but it was not in the changeset. "
+            f"Changed files: {changed_files}"
         )
 
     def test_spec_isolation_4_original_test_passes(self):

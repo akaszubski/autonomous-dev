@@ -131,11 +131,39 @@ def _strip_leading_slash(name: str) -> str:
 
 
 def _check_command_dir(directory: Path, command_name: str) -> bool:
-    """Return True iff ``directory`` contains ``<command_name>.md``."""
+    """Return True iff ``directory`` contains ``<command_name>.md``.
+
+    Defense-in-depth (Issue #954, M-01): ``command_name`` is a slash-command
+    identifier, never a path. Reject any input containing path separators or
+    ``..`` traversal segments outright, then use ``Path.resolve()`` as a
+    backstop against symlink-based escapes. Without these guards a caller
+    that ever passes user-controlled input could read arbitrary files
+    relative to ``directory`` (e.g. ``"../../../etc/passwd"`` would resolve
+    to ``/etc/passwd.md`` and ``.is_file()`` would happily report on it).
+    """
+    # Primary guard: slash-command names MUST NOT contain path components.
+    if "/" in command_name or "\\" in command_name or ".." in command_name:
+        return False
     try:
         if not directory.exists() or not directory.is_dir():
             return False
-        return (directory / f"{command_name}.md").is_file()
+        candidate = directory / f"{command_name}.md"
+        # Backstop: symlinks inside ``directory`` could still escape. Resolve
+        # both paths (non-strict so non-existent files don't raise) and verify
+        # the candidate remains inside ``directory``.
+        try:
+            candidate_resolved = candidate.resolve(strict=False)
+            dir_resolved = directory.resolve(strict=False)
+        except (OSError, RuntimeError):
+            # Resolution failure (e.g. symlink loop) — treat as unknown.
+            return False
+        dir_prefix = str(dir_resolved) + os.sep
+        if (
+            not str(candidate_resolved).startswith(dir_prefix)
+            and candidate_resolved != dir_resolved
+        ):
+            return False
+        return candidate.is_file()
     except OSError:
         # Permission denied, broken symlink, etc. Treat as "unknown" — the
         # caller is responsible for its own fail-CLOSED policy via the outer
@@ -220,6 +248,15 @@ def command_registered(name: str) -> bool:
         command_name = _strip_leading_slash(name)
         if not command_name:
             return True  # Empty name → can't say it's missing.
+
+        # Defense-in-depth chokepoint (Issue #954, M-01): slash-command names
+        # are NEVER paths. Reject any name containing path separators or
+        # ``..`` traversal segments before *any* filesystem or manifest
+        # lookup. This is fail-OPEN (returning False) on purpose — the
+        # caller asked about an obviously invalid command name, so we are
+        # confident it does not exist as a real registered command.
+        if "/" in command_name or "\\" in command_name or ".." in command_name:
+            return False
 
         # 1. Project-local commands.
         try:

@@ -209,9 +209,19 @@ For existing projects, use:
 
 ### Uninstall
 
+Two paths — pick the one that matches your situation:
+
 ```bash
+# Normal uninstall (Claude Code still works)
 /sync --uninstall
+
+# Shell-only uninstall (Claude Code is broken, hooks are bricked, or /sync itself fails)
+bash install.sh --uninstall            # removes hooks and global registration
+bash install.sh --uninstall --dry-run  # preview first
+bash install.sh --uninstall --repos "/path/to/repo1,/path/to/repo2"  # also clean per-repo settings
 ```
+
+See [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uninstalling-autonomous-dev) for the full comparison table and rollback instructions.
 
 ---
 

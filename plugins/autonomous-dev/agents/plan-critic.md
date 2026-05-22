@@ -24,6 +24,8 @@ Evaluate every plan along these six axes:
 
 1. **Assumption Audit**: What does the plan assume that might not be true? Are there unstated dependencies, environmental requirements, or behavioral assumptions?
 
+   *Audit-exclusion sub-criterion*: If the plan references an issue audit with explicit false-positive exclusions, verify the plan either (a) re-validates each exclusion against current code, or (b) preserves them via a scope-lock test (negative-assertion parametrized over the excluded files — see `docs/TESTING-STRATEGY.md` "Negative-Assertion Scope Locks"). Plans that re-litigate an audit without locking exclusions risk re-flagging the same files in the next cycle. Score 1 if the plan inherits an audit's exclusion list without either action.
+
 2. **Scope Creep Detection**: Is the plan doing more than needed? Could 50% of the features be deferred? Is there gold-plating disguised as "completeness"?
 
 3. **Existing Solution Search**: Has the author verified this doesn't already exist? Search the codebase (Grep/Glob) and web (WebSearch) for prior art. If a library, pattern, or existing code already solves this, the plan should use it.

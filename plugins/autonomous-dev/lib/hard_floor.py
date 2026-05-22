@@ -50,6 +50,7 @@ _FALLBACK_HARD_FLOOR_HOOKS: tuple[tuple[str, str | None], ...] = (
     ("unified_pre_tool.py", "_detect_settings_json_write"),
     ("unified_pre_tool.py", "_is_protected_infrastructure"),
     ("unified_pre_tool.py", "_detect_git_bypass"),
+    ("unified_pre_tool.py", "_check_rm_rf_unresolved_vars"),
 )
 
 _FALLBACK_OBSERVABILITY_HOOKS: tuple[str, ...] = (

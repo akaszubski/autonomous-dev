@@ -424,6 +424,11 @@ class TestStrictModeWorkflowEnd2End:
         Complete strict mode config should be valid and loadable.
 
         This is the most basic end-to-end test - can we even load the config?
+
+        Issue #1103: ``PreCommit`` was removed from the template — Claude Code
+        does not recognize that event and its presence caused the entire
+        settings file to be skipped at load time. ``PreCommit`` and
+        ``SubagentStop`` are no longer required in this template.
         """
         # Should load without errors
         with open(template_path) as f:
@@ -435,30 +440,39 @@ class TestStrictModeWorkflowEnd2End:
         assert "permissions" in config
         assert "hooks" in config
 
-        # Should have all expected hook types
+        # Should have core Claude-Code-recognized hook events.
+        # (PreCommit removed per Issue #1103 — not a valid Claude Code event.)
         assert "UserPromptSubmit" in config["hooks"]
         assert "PostToolUse" in config["hooks"]
-        assert "PreCommit" in config["hooks"]
-        assert "SubagentStop" in config["hooks"]
+        assert "PreToolUse" in config["hooks"]
+        assert "PreCommit" not in config["hooks"], (
+            "PreCommit was removed in Issue #1103 — Claude Code does not "
+            "recognize this event."
+        )
 
     def test_all_9_hooks_referenced_correctly(
         self, template_config, plugin_hooks_dir
     ):
         """
-        All 9 expected hooks should be referenced with correct paths.
+        All currently-registered hooks should be referenced with correct paths.
 
         This is the master validation test - everything should work together.
+
+        Issue #1103: The 7 hooks that were registered under the (invalid)
+        ``PreCommit`` event have been removed from this template — Claude Code
+        does not recognize ``PreCommit`` and the entire settings file was
+        being skipped. The hook source files still exist on disk and can be
+        wired into a real git pre-commit hook (``.git/hooks/``) later. The
+        ``test_precommit_hook_files_still_exist_on_disk`` regression test
+        guards their continued presence on disk.
         """
+        # Only hooks that remain in the template after Issue #1103's PreCommit
+        # block removal. The original list (kept for traceability) was:
+        #   validate_project_alignment.py, enforce_orchestrator.py,
+        #   enforce_tdd.py, auto_fix_docs.py, validate_session_quality.py,
+        #   auto_test.py, security_scan.py — all formerly under "PreCommit".
         expected_hooks = {
-            "detect_feature_request.py": "UserPromptSubmit",
             "auto_format.py": "PostToolUse",
-            "validate_project_alignment.py": "PreCommit",
-            "enforce_orchestrator.py": "PreCommit",
-            "enforce_tdd.py": "PreCommit",
-            "auto_fix_docs.py": "PreCommit",
-            "validate_session_quality.py": "PreCommit",
-            "auto_test.py": "PreCommit",
-            "security_scan.py": "PreCommit",
         }
 
         found_hooks = {}

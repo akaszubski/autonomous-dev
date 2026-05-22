@@ -393,7 +393,9 @@ print(get_test_count(Path('.')))
 echo "Baseline test count: $BASELINE_TEST_COUNT"
 ```
 
-**Baseline Failing Tests Capture** (for fix-forward classification in STEP 8 — Issue #860):
+**Baseline Failing Tests Capture** (for fix-forward classification in STEP 8 — Issue #860; timeout handling — Issue #1094):
+
+The pytest baseline capture is wrapped in a `try/except subprocess.TimeoutExpired` block. The default timeout is 600 seconds (10 minutes), overridable via the `BASELINE_TIMEOUT_SECONDS` env var. On timeout, a `__TIMEOUT__` sentinel is written to the baseline file instead of letting a traceback propagate; STEP 8 reads this sentinel and skips fix-forward classification (since we cannot compare against an unknown baseline).
 
 ```bash
 BASELINE_FAILING_FILE="/tmp/baseline_failing_tests.txt"
@@ -405,13 +407,24 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.
         break
 from fix_forward import parse_failing_tests
 import subprocess
-result = subprocess.run(['pytest', '--tb=no', '-q'], capture_output=True, text=True, timeout=120)
-failing = parse_failing_tests(result.stdout + result.stderr)
-for t in sorted(failing):
-    print(t)
+_timeout_s = int(_os.environ.get('BASELINE_TIMEOUT_SECONDS', '600'))
+try:
+    result = subprocess.run(['pytest', '--tb=no', '-q'], capture_output=True, text=True, timeout=_timeout_s)
+    failing = parse_failing_tests(result.stdout + result.stderr)
+    for t in sorted(failing):
+        print(t)
+except subprocess.TimeoutExpired:
+    # Issue #1094: write sentinel instead of letting traceback propagate into the baseline file.
+    # STEP 8 detects __TIMEOUT__ and skips fix-forward classification.
+    sys.stderr.write(f'WARNING: baseline pytest capture timed out after {_timeout_s}s; writing __TIMEOUT__ sentinel.\n')
+    print('__TIMEOUT__')
 " > "$BASELINE_FAILING_FILE"
 BASELINE_FAILING_COUNT=$(grep -c . "$BASELINE_FAILING_FILE" 2>/dev/null || echo "0")
-echo "Baseline failing tests: $BASELINE_FAILING_COUNT"
+if grep -q '^__TIMEOUT__$' "$BASELINE_FAILING_FILE" 2>/dev/null; then
+    echo "Baseline failing tests: UNKNOWN (capture timed out; fix-forward classification will be skipped in STEP 8)"
+else
+    echo "Baseline failing tests: $BASELINE_FAILING_COUNT"
+fi
 ```
 
 ### STEP 2: Validate PROJECT.md Alignment — HARD GATE
@@ -764,18 +777,43 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         break
 from fix_forward import parse_failing_tests, classify_failures
 import subprocess
-# Capture current pytest output inline (not via shell variable)
-current_result = subprocess.run(['pytest', '--tb=no', '-q'], capture_output=True, text=True, timeout=120)
-current_failing = parse_failing_tests(current_result.stdout + current_result.stderr)
-# Read baseline failing tests from temp file written in STEP 1 (newline-separated test IDs)
+# Read baseline failing tests from temp file written in STEP 1 (newline-separated test IDs).
+# Issue #1094: handle __TIMEOUT__ sentinel — when STEP 1 timed out, baseline is unknown and
+# we cannot meaningfully classify failures. Skip classification instead of comparing against
+# an empty/garbage set.
 baseline_file = '/tmp/baseline_failing_tests.txt'
+baseline_failing = None  # sentinel: unknown baseline
 try:
     baseline_contents = open(baseline_file).read().strip()
-    baseline_failing = set(baseline_contents.split('\n')) if baseline_contents else set()
+    if baseline_contents.startswith('__TIMEOUT__'):
+        sys.stderr.write('WARNING: STEP 1 baseline capture timed out; skipping fix-forward classification (baseline unknown).\n')
+        baseline_failing = None
+    elif baseline_contents:
+        baseline_failing = set(baseline_contents.split('\n'))
+    else:
+        baseline_failing = set()
 except FileNotFoundError:
+    # No baseline file means STEP 1 did not run a capture. Treat as empty baseline.
     baseline_failing = set()
-result = classify_failures(baseline_failing, current_failing)
-print(f'Fixed: {len(result[\"fixed\"])} | Pre-existing: {len(result[\"pre_existing_remaining\"])} | New: {len(result[\"new_failures\"])}')
+
+# Capture current pytest output inline (not via shell variable).
+# Issue #1094: use configurable timeout (default 600s) and handle TimeoutExpired symmetrically.
+_timeout_s = int(os.environ.get('BASELINE_TIMEOUT_SECONDS', '600'))
+current_failing = None  # sentinel: unknown current
+try:
+    current_result = subprocess.run(['pytest', '--tb=no', '-q'], capture_output=True, text=True, timeout=_timeout_s)
+    current_failing = parse_failing_tests(current_result.stdout + current_result.stderr)
+except subprocess.TimeoutExpired:
+    sys.stderr.write(f'WARNING: STEP 8 current pytest capture timed out after {_timeout_s}s; skipping fix-forward classification.\n')
+    current_failing = None
+
+# Issue #1094: skip classification when either side is unknown — comparing against a missing
+# baseline or current set produces garbage results (pre_existing_remaining always 0).
+if baseline_failing is None or current_failing is None:
+    print('Fix-forward classification: SKIPPED (baseline or current capture unavailable)')
+else:
+    result = classify_failures(baseline_failing, current_failing)
+    print(f'Fixed: {len(result[\"fixed\"])} | Pre-existing: {len(result[\"pre_existing_remaining\"])} | New: {len(result[\"new_failures\"])}')
 "
 ```
 

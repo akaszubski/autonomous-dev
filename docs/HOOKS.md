@@ -147,6 +147,7 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Block message includes a `REQUIRED NEXT ACTION` directive telling the orchestrator to reload the agent prompt template via `get_agent_prompt_template()` and retry the Agent call with a full-length prompt
 - Non-infrastructure paths (docs, config, test files) are unaffected — the guard only activates for the same `_is_protected_infrastructure()` paths that the base infrastructure gate covers
 - Fails open on all state file errors (`_record_agent_denial` swallows exceptions; `_check_agent_denial` returns `None` on any error) to avoid blocking legitimate work
+- **Auto-cleanup of stale deny files** (Issue #1051): `_check_agent_denial` now deletes deny files that belong to a different session (session-id mismatch) or whose timestamp exceeds `AGENT_DENY_TTL`, using a fail-open `os.unlink` (OSError is swallowed). This prevents stale `/tmp/adev-agent-deny-*.json` files from accumulating across pipeline runs and requiring manual `rm` to unblock agents. Only deny files that are actively enforced (same session, within TTL) are preserved.
 
 **Cross-Tool Write-to-Bash Workaround Detection** (Issue #803):
 - When a Write/Edit to a protected infrastructure file is denied, `_update_deny_cache(file_path)` is now called at both denial sites — the main infrastructure protection block and the Issue #750 agent-denial-workaround block — so the denied path is recorded in the deny cache at `/tmp/.claude_deny_cache.jsonl`

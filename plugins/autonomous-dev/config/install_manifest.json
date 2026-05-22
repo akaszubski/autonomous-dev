@@ -373,7 +373,9 @@
         "plugins/autonomous-dev/scripts/reset_global_hooks.py",
         "plugins/autonomous-dev/scripts/session_tracker.py",
         "plugins/autonomous-dev/scripts/strip_duplicate_hooks.py",
-        "plugins/autonomous-dev/scripts/sync_settings_hooks.py"
+        "plugins/autonomous-dev/scripts/sync_settings_hooks.py",
+        "plugins/autonomous-dev/scripts/uninstall_strip_repo_hooks.py",
+        "plugins/autonomous-dev/scripts/uninstall_unregister_plugin.py"
       ],
       "target": ".claude/scripts"
     },
