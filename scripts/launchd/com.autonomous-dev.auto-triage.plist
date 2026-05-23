@@ -3,37 +3,36 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.autonomous-dev.triage</string>
+    <string>com.autonomous-dev.auto-triage</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/drain-all.sh --root-cause --limit 6</string>
+        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/auto-triage.sh</string>
     </array>
 
+    <!-- Runs 30 min before the drain so labels are fresh -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
         <integer>2</integer>
         <key>Minute</key>
-        <integer>30</integer>
+        <integer>0</integer>
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/akaszubski/Dev/autonomous-dev/logs/scheduled/launchd.out.log</string>
+    <string>/Users/akaszubski/Dev/autonomous-dev/logs/auto-triage/launchd.out.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/akaszubski/Dev/autonomous-dev/logs/scheduled/launchd.err.log</string>
+    <string>/Users/akaszubski/Dev/autonomous-dev/logs/auto-triage/launchd.err.log</string>
 
     <key>WorkingDirectory</key>
     <string>/Users/akaszubski/Dev/autonomous-dev</string>
 
-    <!-- launchd will skip ticks if the prior run is still active -->
     <key>RunAtLoad</key>
     <false/>
 
-    <!-- Inherit user PATH so claude, gh, python3, git are found -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>

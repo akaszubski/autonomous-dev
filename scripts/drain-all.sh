@@ -26,6 +26,7 @@ mkdir -p "$STATE_DIR"
 REPO="akaszubski/autonomous-dev"
 DRY=0
 PHASE1=0
+ROOT_CAUSE_ONLY=0
 LABEL_FILTER=""
 LIMIT=0
 
@@ -33,6 +34,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry) DRY=1; shift ;;
     --phase1) PHASE1=1; shift ;;
+    --root-cause) ROOT_CAUSE_ONLY=1; shift ;;
     --label) LABEL_FILTER="$2"; shift 2 ;;
     --limit) LIMIT="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
@@ -40,6 +42,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown flag: $1"; exit 2 ;;
   esac
 done
+
+# --root-cause is shorthand for "filter to issues with root-cause label".
+if (( ROOT_CAUSE_ONLY )); then
+  LABEL_FILTER="root-cause"
+fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$PROGRESS_LOG"; }
 
