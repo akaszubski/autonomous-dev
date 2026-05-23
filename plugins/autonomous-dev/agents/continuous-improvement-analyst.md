@@ -364,6 +364,27 @@ if history_path.exists():
 
 **Skip conditions**: Do NOT run if timing_history.jsonl does not exist or has fewer than 5 total entries.
 
+### Step 5.6: Validator Diversity (Check 15)
+
+15. **Validator Diversity** (severity: info): Measure how complementary the reviewer and security-auditor findings are for this pipeline run. Low overlap = healthy specialization. High overlap = possible rubber-stamping. Never blocks the pipeline.
+
+```bash
+RUN_ID="${RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
+PYTHONPATH="plugins/autonomous-dev/lib" python3 -m validator_diversity \
+  --reviewer ".claude/logs/activity/validators/$RUN_ID/reviewer.txt" \
+  --security ".claude/logs/activity/validators/$RUN_ID/security-auditor.txt" \
+  --json 2>/dev/null
+```
+
+Interpret the returned JSON:
+- `files_present: false` → artifact files are missing (early pipeline exit, --light mode, or --fix mode without security run). **OMIT** the `### Validator Diversity` subsection entirely. Do NOT report an error.
+- `classification: "blind-spot"` AND `files_present: true` → both validators produced zero parseable findings. Include subsection, note zero findings.
+- `alert: "[VALIDATOR-OVERLAP]"` → log as `[VALIDATOR-OVERLAP]` finding at info severity. Advisory only — do NOT file a GitHub issue, do NOT block the pipeline.
+- `alert: "[VALIDATOR-BLIND-SPOT]"` AND `files_present: true` → include subsection, note zero findings from both validators.
+- All other classifications → include subsection with fields as shown in the report template.
+
+**Skip conditions**: Do NOT run if `python3 -m validator_diversity` is unavailable (module not found). Log `[VALIDATOR-DIVERSITY-SKIP] module unavailable`.
+
 ### Step 6: Auto-trigger trends analysis (every 10 issues)
 
 After filing issues, verify the total count of auto-improvement issues:
@@ -401,4 +422,9 @@ This ensures trends surface automatically without manual `/improve --trends` run
 
 ### Trends
 - [TRIGGERED/SKIPPED] — {reason}
+
+### Validator Diversity
+**Diversity**: {float} | **Jaccard**: {float} | **Reviewer**: {N} | **Security**: {N} | **Classification**: {label} | **Alert**: {alert or none}
 ```
+
+Omit `### Validator Diversity` entirely when artifact files are missing (`files_present: false`).

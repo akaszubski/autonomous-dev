@@ -159,6 +159,18 @@ For each feature in the list:
    - `light` → light pipeline (implement.md --light)
 3. If a feature fails, log the failure and continue to the next feature
 
+**Per-Issue Validator Artifact Write** (Issue #991): After reviewer and security-auditor both return for each issue, persist their verbatim outputs so the CIA can compute the Validator Diversity Score:
+```bash
+ISSUE_RUN_ID="${BATCH_ID}-issue${ISSUE_NUMBER}"
+mkdir -p ".claude/logs/activity/validators/$ISSUE_RUN_ID"
+cat > ".claude/logs/activity/validators/$ISSUE_RUN_ID/reviewer.txt" << 'REVIEWER_EOF'
+{reviewer verbatim output for this issue}
+REVIEWER_EOF
+cat > ".claude/logs/activity/validators/$ISSUE_RUN_ID/security-auditor.txt" << 'SECURITY_EOF'
+{security-auditor verbatim output for this issue}
+SECURITY_EOF
+```
+
 **Per-Issue Doc-Drift Verdict Collection** (Issue #559):
 
 After doc-master completes for each issue, parse its output for the `DOC-DRIFT-VERDICT`. This mirrors the single-issue verdict parsing in implement.md STEP 12.

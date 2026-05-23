@@ -414,6 +414,7 @@ These agents provide specialized functionality for alignment, git operations, pr
   - Test lifecycle health (pruning candidates, untraced tests, tier imbalance; check #12)
   - Token efficiency analysis (tokens-per-word ratio, per-invocation budget; check #13)
   - Pipeline efficiency analysis (cross-run model tier recommendations, token trend detection, IQR outlier detection via `pipeline_efficiency_analyzer.py`; check #14)
+  - Validator diversity (Jaccard overlap between reviewer and security-auditor findings; `[VALIDATOR-OVERLAP]` when Jaccard > 0.8 AND total findings ≥ 6; `[VALIDATOR-BLIND-SPOT]` when both validators return zero findings with artifacts present; info severity, never blocks; check #15)
   - Cross-repo finding routing (Issue #739): each finding is annotated with `target_repo: autonomous-dev | consumer | both` based on where the fix lives; issues are filed to the correct repo using `-R akaszubski/autonomous-dev` for framework findings or no `-R` flag for consumer findings; `both` findings produce two cross-referenced issues
 **Excluded**: Feature code quality, security vulnerabilities, documentation completeness (handled by other agents)
 **Mission**: "Is autonomous-dev's automation working correctly?"
