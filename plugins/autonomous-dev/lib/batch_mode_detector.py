@@ -80,6 +80,18 @@ FIX_SIGNALS: List[str] = [
     "broken",
     "crash",
     "regression",
+    "false positive",
+    "false-positive",
+    "guard fires",
+    "blocks",
+    "blocked",
+    "stale",
+    "hardening",
+    "umbrella",
+    "missing check",
+    "misclass",
+    "drift",
+    "[ci]",
 ]
 
 # Light signals (case-insensitive)
@@ -95,7 +107,7 @@ LIGHT_SIGNALS: List[str] = [
 ]
 
 # Label overrides (highest priority)
-LABEL_FIX: List[str] = ["bug"]
+LABEL_FIX: List[str] = ["bug", "auto-improvement"]
 LABEL_LIGHT: List[str] = ["documentation"]
 
 

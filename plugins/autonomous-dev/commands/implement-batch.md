@@ -520,6 +520,29 @@ gh issue view [number] --json title,body,labels
 
 Create feature list: "Issue #N: [title]"
 
+**STEP I1.3: Already-Done Detection**
+
+Before mode detection, check each issue against prior commits using `already_done_detector.check_issue_already_implemented()`:
+
+```python
+from already_done_detector import check_issue_already_implemented
+
+for issue_number, title, body in issues:
+    result = check_issue_already_implemented(
+        issue_number=issue_number,
+        title=title,
+        body=body,
+        repo_root=Path.cwd(),
+    )
+    if result is not None:
+        sha, message = result
+        print(f"SKIP: Issue #{issue_number} already implemented in commit {sha}: {message}")
+        # Auto-close: gh issue comment {issue_number} --body "Already implemented in {sha}"
+        # Remove from feature list; do not process further.
+```
+
+If a match is found, skip that issue (remove from the batch feature list) and optionally add a comment on the GitHub issue referencing the implementing commit. Continue processing remaining issues normally.
+
 **STEP I1.5: Mode Detection and Confirmation**
 
 Use `batch_mode_detector.detect_batch_modes()` to analyze each issue's title, body, and labels.
