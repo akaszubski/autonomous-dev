@@ -29,14 +29,13 @@ mkdir -p "$LOG_DIR"
 MAX_ISSUES=8
 CLUSTER_FILTER=""
 DRY=0
-BUDGET=30
 REPO="akaszubski/autonomous-dev"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --max-issues) MAX_ISSUES="$2"; shift 2 ;;
     --cluster) CLUSTER_FILTER="$2"; shift 2 ;;
-    --budget) BUDGET="$2"; shift 2 ;;
+    --budget) shift 2 ;;  # accepted for backwards-compat; ignored (subscription auth)
     --dry) DRY=1; shift ;;
     --repo) REPO="$2"; shift 2 ;;
     *) echo "unknown flag: $1"; exit 2 ;;
@@ -117,27 +116,40 @@ echo "$FINAL" > "$PICKED_FILE"
 echo "Picked: $FINAL" | tee -a "$LOG_FILE"
 
 if (( DRY )); then
-  echo "DRY: would run /implement --batch $FINAL" | tee -a "$LOG_FILE"
+  echo "DRY: would run /implement for each of: $FINAL" | tee -a "$LOG_FILE"
   exit 0
 fi
 
-# 4. Clear stale pipeline state.
-rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
+# Run /implement one issue at a time — avoids /implement --batch's worktree
+# strategy, which fails on this repo because .claude/* is gitignored and
+# `git worktree add` skips untracked files (hooks → empty → PreToolUse deadlock).
+# Single-issue mode runs in-place on master with full harness, no worktree.
+SUCCESSES=()
+FAILURES=()
+for n in ${FINAL//,/ }; do
+  echo "--- /implement $n ---" | tee -a "$LOG_FILE"
+  # Clear stale per-issue pipeline state.
+  rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
 
-# 5. Run the harness headless. Full hooks, full agents, full gates.
-claude \
-  --print \
-  --permission-mode acceptEdits \
-  --max-budget-usd "$BUDGET" \
-  --output-format stream-json \
-  --include-hook-events \
-  --verbose \
-  --name "scheduled-${TS}" \
-  --setting-sources user,project,local \
-  "/implement --batch $FINAL" \
-  > "$EVENTS_FILE" 2>>"$LOG_FILE" || {
-    echo "implement run failed — see $LOG_FILE" | tee -a "$LOG_FILE"
-    exit 1
-  }
+  ISSUE_EVENTS="$LOG_DIR/${TS}-${n}.events.json"
+  if claude \
+      --print \
+      --permission-mode acceptEdits \
+      --output-format stream-json \
+      --include-hook-events \
+      --verbose \
+      --name "scheduled-${TS}-${n}" \
+      --setting-sources user,project,local \
+      "/implement $n" \
+      > "$ISSUE_EVENTS" 2>>"$LOG_FILE"; then
+    SUCCESSES+=("$n")
+    echo "  ok: $n" | tee -a "$LOG_FILE"
+  else
+    FAILURES+=("$n")
+    echo "  FAILED: $n (see $ISSUE_EVENTS)" | tee -a "$LOG_FILE"
+  fi
+done
 
-echo "Done. events=$EVENTS_FILE log=$LOG_FILE" | tee -a "$LOG_FILE"
+echo "Done. ok=${#SUCCESSES[@]} fail=${#FAILURES[@]} log=$LOG_FILE" | tee -a "$LOG_FILE"
+echo "  successes: ${SUCCESSES[*]:-none}" | tee -a "$LOG_FILE"
+echo "  failures:  ${FAILURES[*]:-none}" | tee -a "$LOG_FILE"

@@ -9,7 +9,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/triage-and-implement.sh --max-issues 6 --budget 25</string>
+        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/triage-and-implement.sh --max-issues 6</string>
     </array>
 
     <key>StartCalendarInterval</key>

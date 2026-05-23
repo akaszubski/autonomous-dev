@@ -48,13 +48,12 @@ BATCHES=(
 DRY=0
 FROM=0
 ONLY=""
-BUDGET=50
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry) DRY=1; shift ;;
     --from) FROM="$2"; shift 2 ;;
     --only) ONLY="$2"; shift 2 ;;
-    --budget) BUDGET="$2"; shift 2 ;;
+    --budget) shift 2 ;;  # accepted but ignored — subscription auth, no $ cap
     -h|--help) sed -n '1,30p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1"; exit 2 ;;
   esac
@@ -79,19 +78,17 @@ run_batch() {
   local log="${base}.log"
   local events="${base}.events.json"
 
-  echo "[$idx/${#BATCHES[@]}] batch=$name issues=$issues budget=\$$BUDGET -> $log"
+  echo "[$idx/${#BATCHES[@]}] batch=$name issues=$issues -> $log"
 
   # Clear any stale pipeline state from a prior crashed run.
   rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
 
   # Run the harness via headless claude. Hooks + agents + gates all active.
   # --permission-mode acceptEdits: auto-approve file edits BUT hook decisions still block.
-  # --max-budget-usd: hard cap so a runaway batch can't burn budget.
   # --output-format stream-json + --include-hook-events: full diagnostic trail.
   claude \
     --print \
     --permission-mode acceptEdits \
-    --max-budget-usd "$BUDGET" \
     --output-format stream-json \
     --include-hook-events \
     --verbose \
