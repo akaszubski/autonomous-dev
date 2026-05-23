@@ -1115,6 +1115,17 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 - ❌ You MUST NOT use parallel mode when any security-sensitive file is in the changeset
 - ❌ You MUST NOT skip any of the three validators (reviewer, security-auditor, doc-master) in parallel mode
 
+**Validator artifact write** — After reviewer and security-auditor both return, persist their verbatim outputs:
+```bash
+mkdir -p ".claude/logs/activity/validators/$RUN_ID"
+cat > ".claude/logs/activity/validators/$RUN_ID/reviewer.txt" << 'REVIEWER_EOF'
+{reviewer verbatim output}
+REVIEWER_EOF
+cat > ".claude/logs/activity/validators/$RUN_ID/security-auditor.txt" << 'SECURITY_EOF'
+{security-auditor verbatim output}
+SECURITY_EOF
+```
+
 ---
 
 **SEQUENTIAL mode** (security-sensitive files detected — keep strict ordering)
@@ -1138,6 +1149,17 @@ Invoke agents in STRICT ORDER. Reviewer and security-auditor are SEQUENTIAL — 
 **VERBATIM PASSING REQUIRED**: Pass the FULL file list with complete diffs from STEP 8 to the security-auditor. Do NOT summarize or condense the file changes. Always include the marker '[TRUNCATED: N chars removed]' at the truncation point so downstream agents know content was cut.
 
 **Agent**(subagent_type="security-auditor", model="sonnet") — Pass file list with complete diffs. Output: PASS/FAIL (OWASP Top 10). Starts ONLY AFTER reviewer in STEP 10a has returned its verdict.
+
+**Validator artifact write** — After security-auditor returns, persist verbatim outputs (reviewer from 10a, security-auditor from 10b):
+```bash
+mkdir -p ".claude/logs/activity/validators/$RUN_ID"
+cat > ".claude/logs/activity/validators/$RUN_ID/reviewer.txt" << 'REVIEWER_EOF'
+{reviewer verbatim output from STEP 10a}
+REVIEWER_EOF
+cat > ".claude/logs/activity/validators/$RUN_ID/security-auditor.txt" << 'SECURITY_EOF'
+{security-auditor verbatim output}
+SECURITY_EOF
+```
 
 **STEP 10c: Doc-Master (can run in parallel with 10a/10b)**
 
@@ -1191,7 +1213,16 @@ For each cycle:
 2. **VERBATIM PASSING REQUIRED**: Pass ALL BLOCKING findings VERBATIM to the implementer. Do NOT summarize, reword, or condense. Include the full validator output as critique history. The implementer needs the exact finding text to understand what to fix.
 3. **Re-invoke implementer in REMEDIATION MODE** — **Agent**(subagent_type="implementer", model="opus") with prompt: "REMEDIATION MODE — Fix the following BLOCKING findings. Critique history: {full validator output verbatim}. BLOCKING findings: {findings verbatim}." The coordinator MUST NOT apply fixes directly. Even for trivial one-line fixes, the implementer agent must be re-invoked. If context limits prevent implementer re-invocation, BLOCK the pipeline and suggest `/clear` then `/implement --resume`.
 4. **Run pytest** — Verify 0 failures after remediation fixes.
-5. **Re-run failing validators AND security-auditor** — If reviewer failed, re-run reviewer. If security-auditor failed, re-run security-auditor. **security-auditor MUST always re-run after remediation, even if it passed originally**, because remediation changes the code it certified — a PASS from STEP 10 is stale and cannot be accepted when code was modified in STEP 11. Do NOT invoke doc-master during remediation.
+5. **Re-run failing validators AND security-auditor** — If reviewer failed, re-run reviewer. If security-auditor failed, re-run security-auditor. **security-auditor MUST always re-run after remediation, even if it passed originally**, because remediation changes the code it certified — a PASS from STEP 10 is stale and cannot be accepted when code was modified in STEP 11. Do NOT invoke doc-master during remediation. After both validators return, overwrite the artifact files with the final post-remediation outputs:
+   ```bash
+   mkdir -p ".claude/logs/activity/validators/$RUN_ID"
+   cat > ".claude/logs/activity/validators/$RUN_ID/reviewer.txt" << 'REVIEWER_EOF'
+   {reviewer post-remediation verbatim output}
+   REVIEWER_EOF
+   cat > ".claude/logs/activity/validators/$RUN_ID/security-auditor.txt" << 'SECURITY_EOF'
+   {security-auditor post-remediation verbatim output}
+   SECURITY_EOF
+   ```
 6. **Check verdicts** — If all pass → proceed to STEP 12. If any fail → next cycle.
 
 **After 2 cycles still failing**:

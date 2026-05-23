@@ -65,7 +65,7 @@ python3 scripts/run_reviewer_benchmark.py
 /improve --auto-file           # Create GitHub issues for systemic problems
 ```
 
-**How it works**: The `continuous-improvement-analyst` agent reads the session activity log at `~/.claude/logs/activity/` and the session transcripts at `~/.claude/archive/conversations/`. It runs 7 quality checks:
+**How it works**: The `continuous-improvement-analyst` agent reads the session activity log at `~/.claude/logs/activity/` and the session transcripts at `~/.claude/archive/conversations/`. It runs 15 quality checks:
 
 1. **Pipeline completeness** — Did all required agents run for the mode?
 2. **Gating integrity** — Were HARD GATEs bypassed?
@@ -74,6 +74,14 @@ python3 scripts/run_reviewer_benchmark.py
 5. **Agent output fidelity** — Did the coordinator truncate/summarize agent output before passing to the next stage?
 6. **Known bypass patterns** — Patterns like "good enough" on failing tests
 7. **Novel bypass detection** — Anomalies not in the known patterns file
+8. **Deny-then-workaround detection** — Hook denies followed by equivalent Bash workarounds
+9. **Doc-master verdict quality** — Did doc-master produce a real sweep or just update CHANGELOG?
+10. **Extension health** — Silent crashes in `.claude/hooks/extensions/` hook extensions
+11. **Pipeline timing analysis** — Ghost, wasteful, and slow agent invocations via `pipeline_timing_analyzer.py`
+12. **Test lifecycle health** — Pruning candidates, untraced tests, tier imbalance
+13. **Token efficiency analysis** — Tokens-per-word ratio and per-invocation budget
+14. **Pipeline efficiency analysis** — Cross-run model tier recommendations and token trends via `pipeline_efficiency_analyzer.py`
+15. **Validator diversity** — Jaccard overlap between reviewer and security-auditor findings; high overlap with ≥6 total findings emits `[VALIDATOR-OVERLAP]`
 
 Findings are labeled `auto-improvement` and filed to `akaszubski/autonomous-dev` (framework bugs) or the active consumer repo (app-code bugs).
 
