@@ -45,7 +45,7 @@ def session_id(tmp_path, monkeypatch):
 
     sid = f"spec849-{time.time_ns()}"
 
-    def _patched(s):
+    def _patched(s, *, run_id=None):
         import hashlib
 
         h = hashlib.sha256(s.encode()).hexdigest()[:8]
@@ -259,6 +259,7 @@ def test_spec_issue849_4_full_mode_requires_all_agents(session_id):
         "researcher-local",
         "researcher",
         "planner",
+        "plan-critic",
         "implementer",
         "pytest-gate",
         "reviewer",

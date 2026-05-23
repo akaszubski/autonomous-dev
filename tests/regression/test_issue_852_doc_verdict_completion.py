@@ -42,7 +42,7 @@ def pcs(tmp_path, monkeypatch):
     # Redirect state file paths to tmp_path for full isolation
     original_state_file_path = mod._state_file_path
 
-    def patched_state_file_path(session_id: str) -> Path:
+    def patched_state_file_path(session_id: str, *, run_id=None) -> Path:
         import hashlib
         h = hashlib.sha256(session_id.encode()).hexdigest()[:8]
         return tmp_path / f"pipeline_agent_completions_{h}.json"

@@ -356,6 +356,25 @@
       "remediation": "Hook blocks git commit until all batch issues have CIA completion. Set SKIP_BATCH_CIA_GATE=1 to bypass."
     },
     {
+      "id": "step6_bundling_bypass",
+      "name": "STEP 6 acceptance tests bundled into implementer scope",
+      "description": "Coordinator skips STEP 6 with a novel bypass reason citing hook-blockage on coordinator Write/Edit to tests/genai/test_acceptance_*.py, then silently bundles the acceptance test creation into the STEP 8 implementer's scope. The implementer writes unit-level regression tests, not behavioral acceptance tests. A criteria_registry may be saved to satisfy the gate while the test files themselves are never created.",
+      "issue": "#973",
+      "hard_gate": "STEP 6 FORBIDDEN list in plugins/autonomous-dev/commands/implement.md (Issue #973 prohibitions)",
+      "detection": {
+        "type": "pipeline_completeness",
+        "indicators": [
+          "STEP 6 skip reason mentions 'hook-blocked' or 'bundled into implementer'",
+          "criteria_registry saved but no test_acceptance_*.py files created in tests/genai/",
+          "STEP 6 skip after coordinator Write/Edit was denied",
+          "Coordinator output contains 'acceptance tests bundled into STEP 8 implementer' or 'coordinator code-writing is hook-blocked'",
+          "save_criteria_registry() called in STEP 6 without corresponding tests/genai/test_acceptance_*.py file creation"
+        ]
+      },
+      "severity": "high",
+      "remediation": "When coordinator Write/Edit to tests/genai/test_acceptance_*.py is hook-denied, invoke test-master (a test-writing agent) OR record acceptance criteria via record_acceptance_criteria(). Silent skip and bundling into implementer scope are FORBIDDEN."
+    },
+    {
       "id": "research_skip_entire_batch",
       "name": "Research skipped for entire batch",
       "description": "Both researcher-local and researcher agents skipped for all issues in a batch using pre-researched content exemption. While skipping research for a single issue with fresh /create-issue cache is valid, skipping for ALL issues suggests the exemption is being over-applied.",
