@@ -138,7 +138,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [HOOKS.md](H
    - Optional `--tdd-first` flag reverts to legacy TDD-first (failing unit tests first)
 7. **Implementation**: implementer makes tests pass
 7.25. **Plan-Implementation Alignment Gate** (OUTPUT VALIDATION GATE, Issue #857): After tests pass, coordinator compares STEP 5 planned files (CREATE/MODIFY) against `git diff --name-only HEAD`. Test and doc files excluded. Files present in plan but absent in implementation → WARNING. Files implemented but not planned → WARNING. If >50% of non-excluded implemented files are unplanned → BLOCK.
-7.5. **Spec-Blind Validation** (STEP 8.5, HARD GATE): spec-validator writes behavioral tests from acceptance criteria only — without seeing implementation details — and validates the implementation against them
+7.5. **Spec-Blind Validation** (STEP 8.5, HARD GATE): spec-validator validates implementation against acceptance criteria only — without seeing implementation details — and emits a binary PASS/FAIL verdict (Issue #931: no file writes; verdict-only output)
    - Strict context boundary: spec-validator receives ONLY acceptance criteria, feature description, and changed file paths (no implementer output, no code diffs, no research)
    - PASS → proceed to E2E testing / validation; FAIL → implementer remediation (max 2 cycles)
 7.6. **E2E UI Testing** (STEP 9.7, Issue #656, optional): ui-tester writes Playwright MCP browser tests
@@ -183,7 +183,7 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 ### Key Design Decisions
 
 - **Acceptance-first by default** (Issue #404): test-master writes specification-driven acceptance tests before implementation. `--tdd-first` flag reverts to legacy TDD.
-- **Spec-blind validation** (STEP 8.5, HARD GATE): spec-validator writes behavioral tests from acceptance criteria *without seeing the implementation*, then validates against it. Strict context boundary — no implementer output, no code diffs, no research.
+- **Spec-blind validation** (STEP 8.5, HARD GATE): spec-validator validates acceptance criteria against observable behavior *without seeing the implementation*, emitting a binary PASS/FAIL verdict. Strict context boundary — no implementer output, no code diffs, no research. No file writes permitted (Issue #931): if a criterion cannot be evaluated without writing a test file, the criterion is marked FAIL.
 - **LLM-as-judge infrastructure**: `GenAIClient` in `tests/genai/conftest.py` — OpenRouter-backed, dual model (Gemini Flash + Haiku 4.5), 24h response caching, ~$0.02/run. Judge methods: `judge()` (holistic), `judge_analytic()` (per-criterion MET/UNMET), `judge_consistent()` (multi-round consensus).
 - **Property-based invariants**: Hypothesis library with profile-based example counts (50 default, 200 CI). Tier registry (`tier_registry.py`) is canonical source of truth for marker-to-directory mapping.
 - **Coverage Gap Assessment** (HARD GATE): test-master classifies changes into 8 categories, outputs gap summary showing required test types before writing any tests. Prevents over-testing and under-testing.
