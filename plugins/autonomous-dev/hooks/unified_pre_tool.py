@@ -1385,6 +1385,90 @@ def _is_self_maintenance_mode() -> bool:
     return False
 
 
+def _is_settings_template_path(file_path: str) -> bool:
+    """Return True iff file_path is a plugin-source settings template path.
+
+    Used to short-circuit the Issue #557 settings guard for template files under
+    plugins/*/templates/ — these are work products (template source), not the
+    runtime settings files the guard is designed to protect. Issue #1001.
+
+    Tightened after security-auditor MEDIUM (A01 Broken Access Control):
+    the helper previously matched any path with a ``templates`` component,
+    which would also bypass the guard for runtime paths like
+    ``.claude/templates/settings.local.json``. The check now requires
+    ``"plugins"`` to appear as a path component BEFORE ``"templates"`` in
+    the resolved parts tuple, scoping the bypass to genuine plugin
+    template-source paths only.
+
+    Args:
+        file_path: The path string from tool_input["file_path"].
+
+    Returns:
+        True if the resolved path has a ``templates`` component preceded
+        somewhere by a ``plugins`` component. False on empty input,
+        resolution error, missing ``templates`` component, or
+        ``templates`` not preceded by ``plugins``.
+    """
+    if not file_path:
+        return False
+    try:
+        parts = Path(file_path).resolve().parts
+        if "templates" not in parts:
+            return False
+        templates_idx = parts.index("templates")
+        return "plugins" in parts[:templates_idx]
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _is_plugin_source_path(file_path: str) -> bool:
+    """Return True iff file_path resolves under a real autonomous-dev source tree.
+
+    Used by the Issue #557 settings-write guard self-maintenance branch
+    (Issue #1111) to detect writes that target the canonical
+    autonomous-dev plugin source tree. The previous substring check
+    (``"plugins/autonomous-dev/" in str(file_path)``) would also match
+    unrelated paths like ``/tmp/plugins/autonomous-dev/...`` (security-
+    auditor LOW, A01).
+
+    The tightened check has TWO requirements (both must hold):
+
+    1. ``"plugins"`` and ``"autonomous-dev"`` appear as ADJACENT
+       components (in that order) in the resolved path parts.
+    2. An ancestor of that ``plugins/autonomous-dev/`` directory contains
+       the canonical marker
+       ``plugins/autonomous-dev/.claude-plugin/marketplace.json`` — i.e.
+       the path actually lives inside a real autonomous-dev source tree,
+       not a look-alike directory layout under ``/tmp`` or similar.
+
+    Args:
+        file_path: The path string from tool_input["file_path"].
+
+    Returns:
+        True iff both conditions above hold. False on empty input,
+        resolution error, missing adjacency, or no canonical marker.
+    """
+    if not file_path:
+        return False
+    try:
+        parts = Path(file_path).resolve().parts
+        adj_idx: int | None = None
+        for i, p in enumerate(parts):
+            if p == "plugins" and i + 1 < len(parts) and parts[i + 1] == "autonomous-dev":
+                adj_idx = i
+                break
+        if adj_idx is None:
+            return False
+        # Verify a real autonomous-dev source tree by checking for the
+        # canonical marker file at the ancestor that owns the
+        # plugins/autonomous-dev/ directory.
+        repo_root = Path(*parts[:adj_idx]) if adj_idx > 0 else Path(parts[0])
+        marker = repo_root / "plugins" / "autonomous-dev" / ".claude-plugin" / "marketplace.json"
+        return marker.exists()
+    except (OSError, RuntimeError):
+        return False
+
+
 def _is_pipeline_active() -> bool:
     """Check if the /implement pipeline is currently active.
 
@@ -1762,7 +1846,13 @@ def _detect_env_spoofing(command: str) -> "Optional[str]":
     """
     import re
 
-    stripped = _strip_quoted_segments(command)
+    # Issue #1032: Strip heredoc content before quoted segments so that
+    # protected env-var names appearing inside heredoc bodies (e.g. when
+    # writing a Markdown file that documents PIPELINE_STATE_FILE) do not
+    # produce false-positive blocks. Mirrors the pattern used by
+    # _detect_gh_issue_create at lines 2172-2173.
+    stripped = _strip_heredoc_content(command)
+    stripped = _strip_quoted_segments(stripped)
 
     # --- Pass 1: Check individual PROTECTED_ENV_VARS (exact match) ---
     for var in PROTECTED_ENV_VARS:
@@ -4357,28 +4447,46 @@ def main():
                 if file_path:
                     fname = Path(file_path).name
                     if fname in ("settings.json", "settings.local.json"):
-                        try:
-                            if _is_pipeline_active():
-                                block_reason = (
-                                    f"BLOCKED: Write to '{fname}' denied during active pipeline. "
-                                    f"Settings files are protected during /implement sessions. "
-                                    f"(Issue #557) "
-                                    f"REQUIRED NEXT ACTION: Complete the current /implement "
-                                    f"pipeline first, then modify settings. "
-                                    f"Do NOT write settings during an active pipeline."
-                                )
-                                _log_deviation(fname, tool_name, "settings_json_write_block")
-                                _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
-                                output_decision(
-                                    "deny", block_reason,
-                                    system_message=(
-                                        f"BLOCKED: Write to '{fname}' denied during pipeline. "
-                                        f"Complete /implement first."
-                                    ),
-                                )
-                                sys.exit(0)
-                        except Exception:
-                            pass  # Don't block on check failure
+                        # Issue #1001: template paths are work products
+                        # (plugins/*/templates/...) — bypass the guard.
+                        if _is_settings_template_path(file_path):
+                            pass
+                        # Issue #1111: self-maintenance on plugin source — when
+                        # we are inside the canonical autonomous-dev tree AND
+                        # touching plugins/autonomous-dev/ paths, the maintainer
+                        # IS the runtime settings author and the consumer-side
+                        # guard does not apply. Tightened (security-auditor LOW,
+                        # A01) from a substring check to a component-adjacency
+                        # check via _is_plugin_source_path to avoid matching
+                        # unrelated paths like /tmp/plugins/autonomous-dev/...
+                        elif (
+                            _is_self_maintenance_mode()
+                            and _is_plugin_source_path(file_path)
+                        ):
+                            pass
+                        else:
+                            try:
+                                if _is_pipeline_active():
+                                    block_reason = (
+                                        f"BLOCKED: Write to '{fname}' denied during active pipeline. "
+                                        f"Settings files are protected during /implement sessions. "
+                                        f"(Issue #557) "
+                                        f"REQUIRED NEXT ACTION: Complete the current /implement "
+                                        f"pipeline first, then modify settings. "
+                                        f"Do NOT write settings during an active pipeline."
+                                    )
+                                    _log_deviation(fname, tool_name, "settings_json_write_block")
+                                    _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                                    output_decision(
+                                        "deny", block_reason,
+                                        system_message=(
+                                            f"BLOCKED: Write to '{fname}' denied during pipeline. "
+                                            f"Complete /implement first."
+                                        ),
+                                    )
+                                    sys.exit(0)
+                            except Exception:
+                                pass  # Don't block on check failure
 
                 # Issue #790: Block deletion of spec validation tests outside current batch scope.
                 # Detect Write with empty/whitespace content as a deletion vector.
