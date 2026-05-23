@@ -29,6 +29,7 @@ PHASE1=0
 ROOT_CAUSE_ONLY=0
 LABEL_FILTER=""
 LIMIT=0
+TIMEOUT_SEC=2700  # 45 min per issue — kills runaway claude invocations
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --root-cause) ROOT_CAUSE_ONLY=1; shift ;;
     --label) LABEL_FILTER="$2"; shift 2 ;;
     --limit) LIMIT="$2"; shift 2 ;;
+    --timeout) TIMEOUT_SEC="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
     -h|--help) sed -n '1,20p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1"; exit 2 ;;
@@ -139,7 +141,10 @@ while read -r n; do
 
   rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
 
-  if claude \
+  # Per-issue timeout via perl alarm — bulletproof, no coreutils dependency.
+  # `exec` replaces the perl process with claude so signals propagate cleanly.
+  if perl -e 'alarm shift; exec @ARGV or die "exec failed: $!"' "$TIMEOUT_SEC" \
+      claude \
       --print \
       --permission-mode acceptEdits \
       --output-format stream-json \
@@ -153,9 +158,14 @@ while read -r n; do
     DONE=$((DONE+1))
     log "[$i/$TOTAL] #$n OK"
   else
+    rc=$?
     touch "$fail_marker"
     FAILED=$((FAILED+1))
-    log "[$i/$TOTAL] #$n FAIL (events: $events)"
+    if (( rc == 142 )); then
+      log "[$i/$TOTAL] #$n FAIL (TIMEOUT after ${TIMEOUT_SEC}s; events: $events)"
+    else
+      log "[$i/$TOTAL] #$n FAIL (rc=$rc; events: $events)"
+    fi
   fi
 
   log "  progress: $DONE done, $FAILED failed, $SKIPPED skipped, $((TOTAL - i)) remaining"
