@@ -124,7 +124,7 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.setattr(
             pcs,
             "_state_file_path",
-            lambda sid: tmp_path / f"completions_{sid[:8]}.json",
+            lambda sid, *, run_id=None: tmp_path / f"completions_{sid[:8]}.json",
         )
 
         session_id = "test-906-874-a"
@@ -168,7 +168,7 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.setattr(
             pcs,
             "_state_file_path",
-            lambda sid: tmp_path / f"completions_{sid[:8]}.json",
+            lambda sid, *, run_id=None: tmp_path / f"completions_{sid[:8]}.json",
         )
 
         session_id = "test-906-874-b"
@@ -289,7 +289,7 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.setattr(
             pcs,
             "_state_file_path",
-            lambda sid: tmp_path / f"completions_{sid[:8]}.json",
+            lambda sid, *, run_id=None: tmp_path / f"completions_{sid[:8]}.json",
         )
 
         session_id = "test-906-897"

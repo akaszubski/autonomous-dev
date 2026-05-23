@@ -41,7 +41,7 @@ def session_id(tmp_path, monkeypatch):
     """Create a unique session and patch state file path to tmp."""
     sid = "test-regression-849"
 
-    def _patched(s):
+    def _patched(s, *, run_id=None):
         import hashlib
 
         h = hashlib.sha256(s.encode()).hexdigest()[:8]

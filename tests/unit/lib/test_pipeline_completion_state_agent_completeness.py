@@ -37,7 +37,7 @@ def session_id(tmp_path, monkeypatch):
     # Patch _state_file_path to use tmp_path
     original_fn = pcs._state_file_path
 
-    def _patched(s):
+    def _patched(s, *, run_id=None):
         import hashlib
         h = hashlib.sha256(s.encode()).hexdigest()[:8]
         return tmp_path / f"pipeline_agent_completions_{h}.json"
