@@ -82,6 +82,8 @@ STEP_ORDER = {
     "reviewer": 6.0,
     "security-auditor": 6.1,
     "doc-master": 6.0,
+    # CIA runs last, after all validation/implementation agents. Issue #957.
+    "continuous-improvement-analyst": 7.0,
 }
 
 # Agent pairs that MUST be sequential (first must complete before second starts)
@@ -96,6 +98,14 @@ SEQUENTIAL_REQUIRED = [
     ("pytest-gate", "security-auditor"),
     ("pytest-gate", "doc-master"),
     ("reviewer", "security-auditor"),
+    # Issue #957: continuous-improvement-analyst MUST run as the final step,
+    # after implementer, reviewer, and doc-master have all completed.
+    # security-auditor is intentionally omitted because it is conditional
+    # (sequential-mode + security-sensitive files only) — requiring it would
+    # break --fix mode where security-auditor is skipped.
+    ("implementer", "continuous-improvement-analyst"),
+    ("reviewer", "continuous-improvement-analyst"),
+    ("doc-master", "continuous-improvement-analyst"),
 ]
 
 # TDD-first mode pairs: only enforced when test-master is in the pipeline.
