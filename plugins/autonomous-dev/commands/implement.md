@@ -711,10 +711,10 @@ save_criteria_registry(criteria, Path(".claude/local"))
 ```
 This registry is consumed by `step5_quality_gate.run_quality_gate()` to report acceptance coverage (N/M criteria) in the STEP 8 test gate output.
 
-**FORBIDDEN**:
-- ❌ Silently skipping STEP 6 without outputting a skip reason
-- ❌ Proceeding from STEP 5 to STEP 8 without either executing or explicitly skipping STEP 6
-- ❌ Skipping STEP 6 when tests/genai/conftest.py exists and mode is not --tdd-first
+**FORBIDDEN** — You MUST NOT do any of the following (Issue #973):
+- ❌ You MUST NOT silently skip STEP 6, proceed from STEP 5 to STEP 8 without executing or explicitly skipping STEP 6, or skip STEP 6 when `tests/genai/conftest.py` exists and mode is not `--tdd-first`
+- ❌ You MUST NOT use the skip reason "STEP 6: SKIPPED (coordinator code-writing is hook-blocked)" or any variant citing hook blockage — this is a NOVEL BYPASS (Issue #973). When a coordinator Write/Edit to `tests/genai/test_acceptance_*.py` is hook-denied, the REQUIRED action is to invoke `test-master` (a test-writing agent) OR record acceptance criteria via `record_acceptance_criteria()` — silent skip is FORBIDDEN
+- ❌ You MUST NOT bundle acceptance tests into the STEP 8 implementer's scope, and you MUST NOT save a criteria registry via `save_criteria_registry()` as a substitute for creating the `tests/genai/test_acceptance_*.py` file — the registry is a tracking artifact, NOT a replacement for the tests themselves; the implementer writes unit-level regression tests, behavioral acceptance tests MUST be written separately
 
 ### STEP 7: Test-Master (--tdd-first only)
 
