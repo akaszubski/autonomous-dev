@@ -4522,9 +4522,12 @@ def main():
                         )
                         if _pq_is_agent_or_command:
                             _pq_content = ""
+                            _pq_existing = ""  # Pre-edit content (empty for Write)
+                            _pq_is_edit = False
                             if tool_name == "Write":
                                 _pq_content = tool_input.get("content", "")
                             elif tool_name == "Edit":
+                                _pq_is_edit = True
                                 # Read existing file, apply replacement in memory
                                 try:
                                     _pq_existing = Path(file_path).read_text(encoding="utf-8")
@@ -4536,6 +4539,7 @@ def main():
                                         _pq_content = _pq_existing  # Can't apply edit, check existing
                                 except (OSError, UnicodeDecodeError):
                                     _pq_content = ""  # Can't read file, skip check
+                                    _pq_existing = ""
 
                             if _pq_content:
                                 # Defensive import of prompt_quality_rules
@@ -4558,14 +4562,49 @@ def main():
                                                 if "/commands/" in file_path
                                                 else _pq_mod.CONSTRAINT_DENSITY_THRESHOLD
                                             )
-                                            _pq_violations = (
-                                                _pq_mod.check_persona(_pq_content)
-                                                + _pq_mod.check_casual_register(_pq_content)
-                                                + _pq_mod.check_constraint_density(
-                                                    _pq_content,
-                                                    threshold=_pq_density_threshold,
+                                            # Issue #1038: Make Edit checks diff-aware so
+                                            # pre-existing oversized sections / pre-existing
+                                            # persona/casual phrases do not block edits that
+                                            # don't touch them.  Write (full overwrite) uses
+                                            # the standard check — everything is "new".
+                                            if _pq_is_edit and _pq_existing:
+                                                _pre_persona = set(
+                                                    _pq_mod.check_persona(_pq_existing)
                                                 )
-                                            )
+                                                _pre_casual = set(
+                                                    _pq_mod.check_casual_register(_pq_existing)
+                                                )
+                                                _new_persona = [
+                                                    v
+                                                    for v in _pq_mod.check_persona(_pq_content)
+                                                    if v not in _pre_persona
+                                                ]
+                                                _new_casual = [
+                                                    v
+                                                    for v in _pq_mod.check_casual_register(
+                                                        _pq_content
+                                                    )
+                                                    if v not in _pre_casual
+                                                ]
+                                                _new_density = (
+                                                    _pq_mod.check_constraint_density_diff(
+                                                        _pq_existing,
+                                                        _pq_content,
+                                                        threshold=_pq_density_threshold,
+                                                    )
+                                                )
+                                                _pq_violations = (
+                                                    _new_persona + _new_casual + _new_density
+                                                )
+                                            else:
+                                                _pq_violations = (
+                                                    _pq_mod.check_persona(_pq_content)
+                                                    + _pq_mod.check_casual_register(_pq_content)
+                                                    + _pq_mod.check_constraint_density(
+                                                        _pq_content,
+                                                        threshold=_pq_density_threshold,
+                                                    )
+                                                )
                                 except Exception:
                                     _pq_violations = None  # Fail-open on import errors
 

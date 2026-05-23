@@ -5,7 +5,7 @@ Shared library used by:
 - unified_pre_tool.py Layer 6 (write-time validation)
 """
 import re
-from typing import List
+from typing import Dict, List
 
 # Persona pattern: catches "You are an expert", "You are a world-class",
 # but NOT "You are the **implementer** agent" (legitimate role assignment).
@@ -120,6 +120,94 @@ def check_constraint_density(
             f"{bullet_count} bullet items exceeds threshold of {threshold}."
         )
 
+    return violations
+
+
+def _section_bullet_counts(content: str) -> Dict[str, int]:
+    """Parse content into a {section_name: bullet_count} map.
+
+    Used by diff-aware checks (Issue #1038) to compare pre-edit and
+    post-edit content section-by-section.  Sections are identified by
+    ``## `` headers (level 2, not level 1 or level 3+).
+
+    If the same section header appears multiple times, the LAST occurrence
+    wins — this matches the conservative diff-awareness semantics: the
+    "current state" of a section is what the section looks like at end of
+    file.  Sections with duplicate names are rare in practice.
+
+    Args:
+        content: Full text content to parse.
+
+    Returns:
+        Mapping of section name (header text without leading ``## ``) to
+        bullet count within that section.  Top-level bullets (before any
+        ``## `` header) are collected under the key ``"(top-level)"``.
+    """
+    counts: Dict[str, int] = {}
+    lines = content.split("\n")
+
+    current_section: str = "(top-level)"
+    bullet_count: int = 0
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## ") and not stripped.startswith("### "):
+            # Record previous section's count before moving on.
+            counts[current_section] = bullet_count
+            current_section = stripped.lstrip("# ").strip()
+            bullet_count = 0
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            bullet_count += 1
+
+    # Record the final section.
+    counts[current_section] = bullet_count
+    return counts
+
+
+def check_constraint_density_diff(
+    old_content: str,
+    new_content: str,
+    threshold: int = CONSTRAINT_DENSITY_THRESHOLD,
+) -> List[str]:
+    """Diff-aware constraint-density check (Issue #1038).
+
+    Only flags sections in ``new_content`` that are:
+      (a) NEW (not present in ``old_content``) AND oversized, OR
+      (b) WORSENED (bullet count increased over the prior count) AND oversized.
+
+    Sections that existed before with the same-or-fewer bullets are exempted
+    even if they exceed the threshold.  This prevents pre-existing oversized
+    sections from blocking edits that don't touch those sections.
+
+    Args:
+        old_content: Pre-edit file content.
+        new_content: Post-edit file content (after applying the edit).
+        threshold: Maximum allowed bullet items per section.
+
+    Returns:
+        List of violation descriptions for sections that are new-or-worsened
+        AND exceed the threshold.  Empty if no qualifying violations.
+    """
+    old_counts = _section_bullet_counts(old_content)
+    new_counts = _section_bullet_counts(new_content)
+
+    violations: List[str] = []
+    for section, new_count in new_counts.items():
+        if new_count <= threshold:
+            continue
+        old_count = old_counts.get(section)
+        # Exempt if section existed before with same-or-fewer bullets.
+        if old_count is not None and new_count <= old_count:
+            continue
+        if old_count is None:
+            reason = f"new section with {new_count} bullets"
+        else:
+            reason = (
+                f"{old_count} -> {new_count} bullets (increase exceeds threshold)"
+            )
+        violations.append(
+            f"Section '{section}': {reason} exceeds threshold of {threshold}."
+        )
     return violations
 
 

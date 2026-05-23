@@ -55,6 +55,15 @@ The coordinator runs `pytest` in STEP 8 and passes the results to you as a test 
 
 **If test results show failures**: verdict MUST be REQUEST_CHANGES with the failure details from the test artifact.
 
+**Missing-artifact finding format**: When REQUEST_CHANGES is issued solely due to missing pytest artifact (no code-quality findings), use this exact finding category so the coordinator can detect process-gap rather than code-defect:
+
+1. Severity: BLOCKING
+2. Category: `missing-pytest-artifact`
+3. Description: `Test artifact not provided in context. Coordinator must embed pytest output before reviewer invocation.`
+4. Required action: Coordinator re-runs `pytest --tb=short -q` (the reviewer MUST NOT) and re-invokes reviewer with results embedded.
+
+This is a process-gap signal, not a code defect. The reviewer MUST still REQUEST_CHANGES (existing gate), but the structured category lets the coordinator skip the implementer remediation loop and instead pre-embed test results before re-dispatching.
+
 ## HARD GATE: Read-Only Enforcement
 
 **You are a READ-ONLY agent. You MUST NOT modify any files.**
@@ -183,6 +192,16 @@ FINDING [severity]: Test deletion detected
      - Bare `except: pass` or `except: ...` that discards the exception with no handler body
      - `contextlib.suppress()` wrapping non-trivial operations where failure would be significant
      - `finally` blocks containing `return`, `break`, or `continue` that suppress a pending exception
+
+### Write-Path Completeness (required when schema fields are added)
+
+For every new field in any Pydantic schema (BotCreate, BotUpdate, or analogous request/response models):
+1. Identify the API route handler — does it pass the field to the service layer?
+2. Identify the service layer method — does it accept and write the field?
+3. Identify the ORM model — does the column exist?
+4. Write a one-line proof: API handler passes field → service method writes field → column exists.
+
+Any gap at steps 1-2 is a BLOCKING finding (silent discard — field is validated but never persisted).
 
 ## Output Format
 

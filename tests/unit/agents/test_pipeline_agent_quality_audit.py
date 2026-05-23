@@ -84,6 +84,60 @@ class TestReviewerAgent:
         # This checks the entry in the main FORBIDDEN list (not just the section-local one)
         assert "MUST NOT issue any verdict (APPROVE or REQUEST_CHANGES) with 0 tool uses" in self.content
 
+    def test_1010_write_path_completeness_section_present(self):
+        """Reviewer must have Write-Path Completeness section (Issue #1010).
+
+        New Pydantic schema fields must be traced through API route → service
+        layer → ORM model to prevent silent-discard bugs.
+        """
+        assert "Write-Path Completeness" in self.content, (
+            "reviewer.md must include the Write-Path Completeness section so "
+            "reviewers explicitly check API handler → service → ORM wiring "
+            "for new schema fields (#1010)."
+        )
+        # The 4 numbered steps must all be present.
+        assert "Identify the API route handler" in self.content
+        assert "Identify the service layer method" in self.content
+        assert "Identify the ORM model" in self.content
+        assert "one-line proof" in self.content
+
+    def test_1010_silent_discard_blocking_severity(self):
+        """Write-Path Completeness gaps must be marked as BLOCKING findings (#1010).
+
+        If a field reaches validation but never makes it to a service-layer
+        write, the field is silently discarded — that is a behavioral bug,
+        not a style nit, so it MUST be BLOCKING severity.
+        """
+        assert "silent discard" in self.content, (
+            "reviewer.md must call out 'silent discard' so reviewers recognise "
+            "the field-validated-but-not-persisted bug class (#1010)."
+        )
+        assert "BLOCKING finding" in self.content, (
+            "reviewer.md must mark write-path gaps as BLOCKING severity (#1010)."
+        )
+
+    def test_1108_missing_pytest_artifact_finding_category(self):
+        """Reviewer must define a missing-pytest-artifact finding category (Issue #1108).
+
+        When REQUEST_CHANGES is issued solely because the coordinator did not
+        embed pytest output, the finding must be structured so the coordinator
+        can detect the process-gap and re-dispatch with test results rather
+        than spinning up the implementer remediation loop.
+        """
+        assert "missing-pytest-artifact" in self.content, (
+            "reviewer.md must define the 'missing-pytest-artifact' finding "
+            "category so the coordinator can distinguish process-gap from "
+            "code-defect REQUEST_CHANGES verdicts (#1108)."
+        )
+        assert "Coordinator must embed pytest output" in self.content, (
+            "reviewer.md must specify the coordinator's required corrective "
+            "action when test artifact is missing (#1108)."
+        )
+        assert "process-gap" in self.content, (
+            "reviewer.md must label missing-artifact findings as a process-gap "
+            "signal so the coordinator can route them appropriately (#1108)."
+        )
+
 
 class TestDocMasterAgent:
     """doc-master.md: haiku→sonnet, semantic guidance, GenAI gate."""
