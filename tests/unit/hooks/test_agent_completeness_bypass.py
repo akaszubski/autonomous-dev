@@ -41,8 +41,20 @@ import unified_pre_tool as hook
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    """Reset relevant env vars for each test."""
+def clean_env(monkeypatch, tmp_path):
+    """Reset relevant env vars for each test.
+
+    Also chdir to a temp directory so the hook's ``cwd`` check at
+    unified_pre_tool.py:4832 does not see ``.worktrees/batch-`` in the
+    path. When tests run from a worktree whose path contains that
+    substring (e.g. ``.worktrees/batch-20260523-223202``), the hook
+    routes through the batch-mode agent-completeness branch instead of
+    the non-batch branch that ``_check_pipeline_agent_completions`` (the
+    function these tests patch) lives on. The batch branch reads real
+    on-disk state and returns ``allow`` when no state exists, causing
+    the gate-blocks-without-bypass tests to receive ``allow`` instead of
+    the expected ``deny``. Issue #956.
+    """
     env_keys = [
         "SKIP_AGENT_COMPLETENESS_GATE", "CLAUDE_SESSION_ID",
         "PIPELINE_MODE", "PIPELINE_ISSUE_NUMBER", "PIPELINE_STATE_FILE",
@@ -57,6 +69,8 @@ def clean_env(monkeypatch):
     # Defaults: MCP security on, agent auth on
     monkeypatch.setenv("PRE_TOOL_MCP_SECURITY", "true")
     monkeypatch.setenv("PRE_TOOL_AGENT_AUTH", "true")
+    # Isolate from worktree cwd that triggers batch-mode hook branch (Issue #956)
+    monkeypatch.chdir(tmp_path)
 
 
 @pytest.fixture
