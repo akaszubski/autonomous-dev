@@ -371,7 +371,7 @@
           "save_criteria_registry() called in STEP 6 without corresponding tests/genai/test_acceptance_*.py file creation"
         ]
       },
-      "severity": "high",
+      "severity": "critical",
       "remediation": "When coordinator Write/Edit to tests/genai/test_acceptance_*.py is hook-denied, invoke test-master (a test-writing agent) OR record acceptance criteria via record_acceptance_criteria(). Silent skip and bundling into implementer scope are FORBIDDEN."
     },
     {
