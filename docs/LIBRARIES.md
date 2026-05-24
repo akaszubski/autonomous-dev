@@ -14641,7 +14641,7 @@ Integration Tests:
 
 6. **Issue Research Detection** (detect_issue_research):
    - Scans a GitHub issue body for H2 headings that indicate pre-researched content from /create-issue
-   - Recognises sections: "Implementation Approach", "What Does NOT Work", "Security Considerations", "Test Scenarios", "Architecture", "Research Findings", "Technical Details", "Existing Patterns", "Edge Cases", "Background", "Context", "Dependencies", "Scenarios"
+   - Recognises 24 sections (13 original + 11 empirical/scientific added in Issue #1009): "Implementation Approach", "What Does NOT Work", "Security Considerations", "Test Scenarios", "Architecture", "Research Findings", "Technical Details", "Existing Patterns", "Edge Cases", "Background", "Context", "Dependencies", "Scenarios", "Data Source", "Empirical Analysis", "Empirical Evidence", "Experimental Results", "Findings Source", "Measurements", "Observed Behavior", "Proposed Configuration", "Proposed Values", "References", "Results"
    - Returns is_research_rich (True when section_count >= 3), matched_sections, section_count, and issue_body_as_research (concatenated content)
    - Used by /implement STEP 3 to skip redundant STEP 4 research when the issue already contains sufficient context
 
