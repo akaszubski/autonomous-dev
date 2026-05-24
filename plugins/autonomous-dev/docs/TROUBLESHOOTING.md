@@ -309,9 +309,11 @@ Behavior notes:
 
 Use this when you can't or don't want to fetch `install.sh` (offline machine, cautious environment, or simply faster). Self-contained — no install required.
 
+This version is preferred over a naive `write_text` approach because it is atomic under SIGINT (a temp file is renamed, so no partial writes), preserves dotfiles-manager symlinks by resolving to the real target before writing, and never widens file permissions.
+
 ```bash
 python3 -c "
-import json, shutil, sys
+import json, os, sys, tempfile
 from pathlib import Path
 p = Path.home() / '.claude' / 'settings.json'
 if not p.exists():
@@ -320,10 +322,16 @@ data = json.loads(p.read_text())
 if 'hooks' not in data:
     print('no hooks block to remove — nothing to do'); sys.exit(0)
 backup = p.with_suffix(p.suffix + '.preglobal-hooks-strip')
-shutil.copy2(p, backup)
+backup.write_bytes(p.read_bytes()); os.chmod(str(backup), 0o600)
 removed = list(data['hooks'].keys()) if isinstance(data.get('hooks'), dict) else []
 data.pop('hooks')
-p.write_text(json.dumps(data, indent=2))
+try:
+    real_p = p.resolve() if p.is_symlink() else p
+except OSError:
+    real_p = p
+fd, tmp = tempfile.mkstemp(dir=str(real_p.parent), prefix='.settings.', suffix='.tmp')
+os.write(fd, json.dumps(data, indent=2).encode()); os.close(fd)
+os.chmod(tmp, 0o600); os.replace(tmp, real_p)
 print(f'Stripped {len(removed)} hook event(s); backup: {backup}')
 "
 ```
