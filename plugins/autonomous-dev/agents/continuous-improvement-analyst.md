@@ -129,6 +129,8 @@ Includes Intent-Level Pipeline Validation via `pipeline_intent_validator` (step 
 
 5. **Implementer duration varies greatly with feature complexity**: Only flag implementer as SLOW when duration >8min AND word output is low (words_per_second < 1.0). Large implementations producing substantial output are expected to take longer.
 
+6. **STEP 6 "0 tests generated" when all criteria are deterministic**: When the coordinator outputs `STEP 6: SKIPPED (all criteria classified deterministic — N/N tests written by implementer in STEP 5/8)`, this is a valid outcome. Do NOT flag as a ghost invocation or pipeline skip violation. Only flag STEP 6 as a problem when: (a) no STEP 6 log line appears at all, OR (b) the output reads `EXECUTED (0 acceptance tests generated)` without the deterministic-skip explanation.
+
 ## Finding Routing
 
 Each finding must be routed to the repository where the fix belongs. Ask: **"Where does the code that needs changing live?"**
@@ -213,7 +215,7 @@ print('FINDINGS:', json.dumps([{'type': f.finding_type, 'severity': f.severity, 
 "
 ```
 
-The `subagent_type` field in JSONL log entries identifies which pipeline agent ran. Look for entries where `tool == "Agent"` (or `tool == "Task"`) and `input_summary.pipeline_action == "agent_invocation"` — the `input_summary.subagent_type` field contains the agent name.
+The `subagent_type` field in JSONL log entries identifies which pipeline agent ran. Identify entries where `tool == "Agent"` (or `tool == "Task"`) and `input_summary.pipeline_action == "agent_invocation"` — the `input_summary.subagent_type` field contains the agent name.
 
 ### Step 2: Detect bypasses
 
@@ -257,7 +259,7 @@ Flag any pattern as `[GAMING]` with specific evidence (file, line, before/after)
 
 ### Step 4: Cross-issue patterns (if batch)
 
-If analyzing a batch session, look for systemic issues:
+If analyzing a batch session, identify systemic issues:
 - Same bypass recurring across multiple issues
 - Progressive shortcutting (later issues get fewer agents)
 - Increasing speed suggesting decreasing thoroughness

@@ -315,6 +315,100 @@ class TestOutputDecisionSystemMessage:
 
 
 # ---------------------------------------------------------------------------
+# TestInstallManifestProtection (Issue #980)
+# ---------------------------------------------------------------------------
+
+
+class TestInstallManifestProtection:
+    """Tests for per-file protection of install_manifest.json (Issue #980).
+
+    The deployment manifest at
+    plugins/autonomous-dev/config/install_manifest.json MUST NOT be
+    direct-edited by the coordinator — it requires the implementer agent
+    (pipeline-active) so STEP 11 test-gate re-validation runs.
+    """
+
+    def _run_hook(self, tool_name: str, tool_input: dict) -> dict:
+        """Run the hook's main() with given input and capture JSON output."""
+        input_data = json.dumps({"tool_name": tool_name, "tool_input": tool_input})
+        captured = StringIO()
+
+        with patch("sys.stdin", StringIO(input_data)), \
+             patch("sys.stdout", captured), \
+             pytest.raises(SystemExit):
+            hook.main()
+
+        output_text = captured.getvalue().strip()
+        lines = [l for l in output_text.split("\n") if l.strip()]
+        return json.loads(lines[-1]) if lines else {}
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_protected_absolute_path(self, _mock):
+        """Absolute path to install_manifest.json → protected (True)."""
+        assert hook._is_protected_infrastructure(
+            "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json"
+        ) is True
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_protected_relative_path(self, _mock):
+        """Relative path 'plugins/autonomous-dev/config/install_manifest.json'
+        → protected (True). The bare-relative form must match too."""
+        assert hook._is_protected_infrastructure(
+            "plugins/autonomous-dev/config/install_manifest.json"
+        ) is True
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_basename_alone_not_matched(self, _mock):
+        """Bare 'install_manifest.json' (no prefix) MUST NOT match —
+        protection is path-prefixed, not basename-based."""
+        assert hook._is_protected_infrastructure("install_manifest.json") is False
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_partial_basename_not_matched(self, _mock):
+        """Partial-basename false positives MUST NOT match.
+
+        - 'foo_install_manifest.json' must NOT match (different file)
+        - 'install_manifest.json.bak' must NOT match (different file)
+        """
+        assert hook._is_protected_infrastructure(
+            "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/foo_install_manifest.json"
+        ) is False
+        assert hook._is_protected_infrastructure(
+            "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json.bak"
+        ) is False
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_blocks_direct_edit_outside_pipeline(self, _mock, monkeypatch):
+        """Edit attempt to install_manifest.json outside the pipeline → deny."""
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+
+        result = self._run_hook("Edit", {
+            "file_path": "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json",
+            "old_string": "old",
+            "new_string": "new",
+        })
+
+        decision = result["hookSpecificOutput"]["permissionDecision"]
+        assert decision == "deny"
+        assert "BLOCKED" in result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
+    def test_install_manifest_allows_edit_inside_pipeline(self, _mock, monkeypatch):
+        """Edit to install_manifest.json with implementer agent → allow."""
+        monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
+
+        result = self._run_hook("Edit", {
+            "file_path": "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json",
+            "old_string": "old",
+            "new_string": "new",
+        })
+
+        decision = result["hookSpecificOutput"]["permissionDecision"]
+        assert decision == "allow"
+
+
+# ---------------------------------------------------------------------------
 # TestBashInfrastructureProtection (#502)
 # ---------------------------------------------------------------------------
 
