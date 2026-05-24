@@ -251,6 +251,50 @@ def _validate_feature_name(name: str) -> Tuple[bool, str]:
     return (True, '')
 
 
+def _bootstrap_worktree_plugin_artifacts(worktree_path: Path) -> None:
+    """Create plugins/__init__.py and plugins/autonomous_dev symlink in a new worktree.
+
+    These two artifacts are not tracked by git (they live in .gitignore or are
+    build outputs), so a freshly checked-out worktree is missing them and pytest
+    collection fails with ImportError.
+
+    Best-effort: on any OSError the warning is written to stderr and the function
+    returns without raising, so the caller still gets (True, resolved_path).
+
+    Args:
+        worktree_path: Absolute path to the newly-created worktree root.
+    """
+    import sys
+
+    plugins_dir = worktree_path / "plugins"
+    if not plugins_dir.is_dir():
+        # No plugins directory at all — nothing to bootstrap.
+        return
+
+    # 1. Create plugins/__init__.py if absent.
+    init_file = plugins_dir / "__init__.py"
+    if not init_file.exists():
+        try:
+            init_file.write_text("# Make plugins a package\n")
+        except OSError as exc:
+            print(
+                f"WARNING: worktree bootstrap: could not create {init_file}: {exc}",
+                file=sys.stderr,
+            )
+            return
+
+    # 2. Create plugins/autonomous_dev → autonomous-dev symlink if absent.
+    symlink_path = plugins_dir / "autonomous_dev"
+    if not symlink_path.exists() and not symlink_path.is_symlink():
+        try:
+            symlink_path.symlink_to("autonomous-dev")
+        except OSError as exc:
+            print(
+                f"WARNING: worktree bootstrap: could not create symlink {symlink_path}: {exc}",
+                file=sys.stderr,
+            )
+
+
 def _get_worktree_base_dir() -> Path:
     """Get base directory for worktrees (.worktrees/ in project root).
 
@@ -365,6 +409,8 @@ def create_worktree(feature_name: str, base_branch: str = 'master') -> Tuple[boo
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             # Non-fatal: worktree still created, just might be in detached state
             pass
+
+        _bootstrap_worktree_plugin_artifacts(resolved_path)
 
         return (True, resolved_path)
 
