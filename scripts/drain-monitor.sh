@@ -82,16 +82,17 @@ elif [[ "$drain_alive" == "no" && "$shepherd_alive" == "yes" ]]; then
 
 elif [[ "$drain_alive" == "no" && "$shepherd_alive" == "no" ]]; then
   # Both dead. Either pipeline complete (queue exhausted) or aborted.
-  # Distinguish by reading the last line of progress.log.
-  last_line=$(tail -1 "$PROGRESS_LOG" 2>/dev/null)
-  if echo "$last_line" | grep -q "Drain complete"; then
+  # Look at the last 5 lines — completion messages are followed by hints.
+  last_lines=$(tail -5 "$PROGRESS_LOG" 2>/dev/null)
+  if echo "$last_lines" | grep -q "Drain complete"; then
     log "COMPLETE: pipeline finished successfully"
-  elif echo "$last_line" | grep -qE "ABORT|FAIL"; then
-    log "ABORTED: $last_line"
+  elif echo "$last_lines" | grep -qE "ABORT"; then
+    log "ABORTED — last lines:"
+    echo "$last_lines" | sed 's/^/  /' | tee -a "$MONITOR_LOG"
     NEEDS_ATTENTION=1
   else
-    log "UNCLEAR: drain not alive, no clear completion. Last line:"
-    echo "  $last_line" | tee -a "$MONITOR_LOG"
+    log "UNCLEAR: drain not alive, no clear completion. Last 5 lines:"
+    echo "$last_lines" | sed 's/^/  /' | tee -a "$MONITOR_LOG"
     NEEDS_ATTENTION=1
   fi
 

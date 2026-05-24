@@ -47,13 +47,14 @@ while kill -0 "$WATCH_PID" 2>/dev/null; do
 done
 
 log "PID $WATCH_PID exited — running next phase"
-bash -c "$THEN_CMD" >> "$LOG" 2>&1
+# Explicit `bash -c "bash ..."` so the script runs even without +x bit on the inner script.
+bash -c "bash $THEN_CMD" >> "$LOG" 2>&1
 rc=$?
 log "next phase exited rc=$rc"
 
 if [[ -n "$AND_THEN_CMD" ]]; then
   log "running and-then phase"
-  bash -c "$AND_THEN_CMD" >> "$LOG" 2>&1
+  bash -c "bash $AND_THEN_CMD" >> "$LOG" 2>&1
   log "and-then exited rc=$?"
 fi
 
