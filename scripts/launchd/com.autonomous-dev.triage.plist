@@ -9,7 +9,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/drain-all.sh --root-cause --limit 6</string>
+        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/drain-all.sh --root-cause --limit 6 --timeout 5400</string>
     </array>
 
     <key>StartCalendarInterval</key>
