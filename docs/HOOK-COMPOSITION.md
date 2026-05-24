@@ -66,16 +66,24 @@ NEVER substring-match against command strings. Use the principled classifier:
 ```python
 from tool_intent import classify, write_targets, has_suspicious_exec
 
+# Issue #958: tempfile paths cannot affect real settings — skip them.
+_TEMP_PREFIXES = ("/tmp/", "/var/folders/", "/private/tmp/")
+
 intent = classify(tool_name, tool_input)  # -> "READ" | "WRITE" | "EXEC"
 if intent == "WRITE":
     targets = write_targets(tool_name, tool_input)
-    if any("settings.json" in t for t in targets):
-        return ("deny", "Settings writes must go through /implement")
+    for target in targets:
+        if any(target.startswith(p) for p in _TEMP_PREFIXES):
+            continue  # Safe: test fixture in tempfile dir, not a real settings location
+        if "settings.json" in target:
+            return ("deny", "Settings writes must go through /implement")
 ```
 
 The classifier dispatches by tool name for native Claude Code tools (Read/Write/Edit/etc.) and parses Bash commands via `shlex.split` to identify the binary and its arguments. Python `-c` snippets are analyzed via the AST-based `python_write_detector`.
 
-**Why**: The settings-write gate previously flagged `python3 -c "json.load(open('settings.json'))"` as a write because the command string contained "settings". `json.load` is a READ. Substring matching cannot distinguish read from write — the classifier can.
+**Tempfile carve-out (Issue #958)**: Writes to `settings.json` under `/tmp/`, `/var/folders/`, or `/private/tmp/` are allowed — these are pytest fixtures and `tempfile.mkdtemp()` paths that are physically incapable of affecting real Claude settings. Writes to `.claude/settings.json`, `~/.claude/settings.json`, or any repo-relative `settings.json` remain blocked.
+
+**Why**: The settings-write gate previously flagged `python3 -c "json.load(open('settings.json'))"` as a write because the command string contained "settings". `json.load` is a READ. Substring matching cannot distinguish read from write — the classifier can. In sessions #944 and #948, false-positive blocks on test fixtures caused the implementer to rename fixture files to bypass the guard; the tempfile carve-out eliminates the false-positive without weakening protection for real settings paths.
 
 ---
 
