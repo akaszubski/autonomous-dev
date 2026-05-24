@@ -65,6 +65,57 @@ class TestGetAgentPromptTemplate:
         with pytest.raises(FileNotFoundError, match="Agent prompt template not found"):
             get_agent_prompt_template("nonexistent-agent", agents_dir=agents_dir)
 
+    def test_consumer_install_layout_uses_dot_claude_agents(self, tmp_path: Path) -> None:
+        """Consumer install: only .claude/agents/ exists — fallback resolves template."""
+        dot_claude_agents = tmp_path / ".claude" / "agents"
+        dot_claude_agents.mkdir(parents=True)
+        agent_file = dot_claude_agents / "planner.md"
+        agent_file.write_text("# Planner\n\nConsumer install template.\n")
+
+        import prompt_integrity as pi
+        original = pi._find_project_root
+        pi._find_project_root = lambda start=None: tmp_path
+        try:
+            result = get_agent_prompt_template("planner")
+        finally:
+            pi._find_project_root = original
+
+        assert result == "# Planner\n\nConsumer install template.\n"
+
+    def test_primary_plugins_path_takes_precedence_when_both_exist(self, tmp_path: Path) -> None:
+        """When plugins/autonomous-dev/agents/ exists, it wins over .claude/agents/."""
+        primary_dir = tmp_path / "plugins" / "autonomous-dev" / "agents"
+        primary_dir.mkdir(parents=True)
+        (primary_dir / "planner.md").write_text("# Primary Planner\n")
+
+        fallback_dir = tmp_path / ".claude" / "agents"
+        fallback_dir.mkdir(parents=True)
+        (fallback_dir / "planner.md").write_text("# Fallback Planner\n")
+
+        import prompt_integrity as pi
+        original = pi._find_project_root
+        pi._find_project_root = lambda start=None: tmp_path
+        try:
+            result = get_agent_prompt_template("planner")
+        finally:
+            pi._find_project_root = original
+
+        assert result == "# Primary Planner\n"
+
+    def test_consumer_install_missing_agent_raises(self, tmp_path: Path) -> None:
+        """Consumer layout: .claude/agents/ exists but agent file absent — FileNotFoundError."""
+        dot_claude_agents = tmp_path / ".claude" / "agents"
+        dot_claude_agents.mkdir(parents=True)
+
+        import prompt_integrity as pi
+        original = pi._find_project_root
+        pi._find_project_root = lambda start=None: tmp_path
+        try:
+            with pytest.raises(FileNotFoundError, match="Agent prompt template not found"):
+                get_agent_prompt_template("planner")
+        finally:
+            pi._find_project_root = original
+
 
 class TestValidatePromptWordCount:
     """Tests for prompt word count validation."""

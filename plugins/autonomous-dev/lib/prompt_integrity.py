@@ -150,6 +150,9 @@ def get_agent_prompt_template(
     if agents_dir is None:
         root = _find_project_root()
         agents_dir = root / "plugins" / "autonomous-dev" / "agents"
+        if not agents_dir.exists():
+            # Consumer install: templates are at .claude/agents/ (Issue #1118)
+            agents_dir = root / ".claude" / "agents"
 
     agent_file = agents_dir / f"{agent_type}.md"
     if not agent_file.exists():
