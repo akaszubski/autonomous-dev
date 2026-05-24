@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.autonomous-dev.drain-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>cd /Users/akaszubski/Dev/autonomous-dev && bash scripts/drain-monitor.sh</string>
+    </array>
+
+    <!-- Hourly at :07 — same minute as the session cron was using -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/akaszubski/Dev/autonomous-dev/logs/drain-all/monitor.launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/akaszubski/Dev/autonomous-dev/logs/drain-all/monitor.launchd.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/akaszubski/Dev/autonomous-dev</string>
+
+    <!-- Fire once shortly after load, then every StartInterval -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
