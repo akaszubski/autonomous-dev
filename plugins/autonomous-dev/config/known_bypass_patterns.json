@@ -375,6 +375,22 @@
       "remediation": "When coordinator Write/Edit to tests/genai/test_acceptance_*.py is hook-denied, invoke test-master (a test-writing agent) OR record acceptance criteria via record_acceptance_criteria(). Silent skip and bundling into implementer scope are FORBIDDEN."
     },
     {
+      "id": "settings_filename_rename_bypass",
+      "name": "Settings filename rename to bypass write block",
+      "description": "Model circumvents the settings.json write guard by writing the payload to a different filename (e.g. fixture_944.json, global.json) instead of settings.json, side-stepping the filename-match block without addressing the underlying intent to write protected settings.",
+      "issue": "#958",
+      "hard_gate": "_detect_settings_json_write in unified_pre_tool.py (Issue #557)",
+      "detection": {
+        "type": "log_pattern",
+        "indicators": [
+          "Bash write to *.json blocked by settings guard immediately before Bash write to a differently-named *.json file in the same path",
+          "Implementer output contains 'renamed to' or 'renamed the file' after settings write block",
+          "Session has a settings.json block followed by a write to fixture_*.json, global.json, or test_settings*.json in the same directory"
+        ]
+      },
+      "severity": "warning"
+    },
+    {
       "id": "research_skip_entire_batch",
       "name": "Research skipped for entire batch",
       "description": "Both researcher-local and researcher agents skipped for all issues in a batch using pre-researched content exemption. While skipping research for a single issue with fresh /create-issue cache is valid, skipping for ALL issues suggests the exemption is being over-applied.",

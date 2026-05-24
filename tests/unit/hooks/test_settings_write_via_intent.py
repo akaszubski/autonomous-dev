@@ -135,3 +135,45 @@ class TestFalsePositiveFix:
     def test_settings_local_json_read(self):
         cmd = """python3 -c "import json; json.load(open('.claude/settings.local.json'))" """
         assert hook._detect_settings_json_write(cmd) is None
+
+
+# ---------------------------------------------------------------------------
+# TestIssue958TempfileCarveout — /tmp/ and tempfile paths must not be blocked
+# ---------------------------------------------------------------------------
+
+
+class TestIssue958TempfileCarveout:
+    """Issue #958 — /tmp/ paths must NOT be blocked; real paths still block."""
+
+    def test_tmp_settings_json_write_allowed(self):
+        """Write to /tmp/mcp_test_run/home/.claude/settings.json MUST pass.
+
+        This was the false-positive that caused the rename bypass in sessions
+        #944 and #948: test fixtures under /tmp/ cannot affect real settings.
+        """
+        cmd = "echo '{}' > /tmp/mcp_test_run/home/.claude/settings.json"
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_var_folders_settings_json_write_allowed(self):
+        """macOS tempfile.mkdtemp() path under /var/folders/ MUST pass."""
+        cmd = "echo '{}' > /var/folders/xx/abc123/T/pytest-of-user/settings.json"
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_private_tmp_settings_json_write_allowed(self):
+        """macOS /private/tmp/ (symlink target of /tmp/) MUST pass."""
+        cmd = "python3 -c \"from pathlib import Path; Path('/private/tmp/test/settings.json').write_text('{}')\""
+        assert hook._detect_settings_json_write(cmd) is None
+
+    def test_dot_claude_settings_still_blocked(self):
+        """Real ~/.claude/settings.json write MUST still block (no regression)."""
+        cmd = "echo '{}' > ~/.claude/settings.json"
+        result = hook._detect_settings_json_write(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+    def test_repo_relative_settings_still_blocked(self):
+        """Repo-relative .claude/settings.json write MUST still block."""
+        cmd = "echo '{}' > .claude/settings.json"
+        result = hook._detect_settings_json_write(cmd)
+        assert result is not None
+        assert "BLOCKED" in result

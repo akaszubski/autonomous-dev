@@ -741,6 +741,17 @@ def detect_issue_research(issue_body: str) -> Dict[str, Any]:
         "edge cases",
         "background",
         "context",
+        "data source",
+        "empirical analysis",
+        "empirical evidence",
+        "experimental results",
+        "findings source",
+        "measurements",
+        "observed behavior",
+        "proposed configuration",
+        "proposed values",
+        "references",
+        "results",
     }
 
     # Strip fenced code blocks to avoid false positive heading matches

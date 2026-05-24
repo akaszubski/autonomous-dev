@@ -208,6 +208,16 @@ class TestPlannerAgent:
         """Planner must have HARD GATE for scope."""
         assert "HARD GATE" in self.content
 
+    def test_minimum_scope_hard_gate_exists(self):
+        """Planner must have HARD GATE: Minimum Scope section (Issue #1006)."""
+        assert "HARD GATE: Minimum Scope" in self.content
+
+    def test_minimum_scope_forbidden_over_build(self):
+        """Planner must FORBID adding components beyond AC scope (Issue #1006)."""
+        assert "FORBIDDEN" in self.content
+        assert "minimum" in self.content.lower()
+        assert "acceptance criterion" in self.content or "acceptance criteria" in self.content.lower()
+
 
 class TestImplementerAgent:
     """implementer.md: HARD GATEs for skips, stubs, hooks, and path depth."""

@@ -261,3 +261,264 @@ This is a summary of the feature.
         assert result["section_count"] == 0
         assert result["matched_sections"] == []
         assert result["is_research_rich"] is False
+
+
+class TestEmpiricalSections:
+    """Regression tests for Issue #1009 — empirical/scientific vocabulary allowlist."""
+
+    def test_data_source_section_recognised(self) -> None:
+        """'data source' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Data Source
+
+The dataset was collected from production logs spanning 2024-2025.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_empirical_analysis_section_recognised(self) -> None:
+        """'empirical analysis' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Empirical Analysis
+
+Quantitative analysis of 10,000 samples shows p < 0.01.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_empirical_evidence_section_recognised(self) -> None:
+        """'empirical evidence' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Empirical Evidence
+
+Observed 42% latency reduction across 500 production deploys.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_experimental_results_section_recognised(self) -> None:
+        """'experimental results' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Experimental Results
+
+A/B test with 10k users shows 15% improvement in retention.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_findings_source_section_recognised(self) -> None:
+        """'findings source' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Findings Source
+
+Data sourced from internal monitoring dashboards.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_measurements_section_recognised(self) -> None:
+        """'measurements' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Measurements
+
+p99 latency: 240ms baseline, 180ms after fix (25% reduction).
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_observed_behavior_section_recognised(self) -> None:
+        """'observed behavior' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Observed Behavior
+
+Hook fires 3x per Bash invocation in current implementation.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_proposed_configuration_section_recognised(self) -> None:
+        """'proposed configuration' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Proposed Configuration
+
+max_connections: 100, timeout: 30s, retry_backoff: exponential.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_proposed_values_section_recognised(self) -> None:
+        """'proposed values' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Proposed Values
+
+threshold=0.85, window=60s, burst_limit=200.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_references_section_recognised(self) -> None:
+        """'references' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## References
+
+- RFC 7519 (JWT)
+- NIST SP 800-107 (SHA-based HMACs)
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_results_section_recognised(self) -> None:
+        """'results' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context about the system.
+
+## Context
+
+Relevant operational context.
+
+## Results
+
+Error rate dropped from 2.3% to 0.1% after deploying the fix.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_realistic_empirical_issue_body_is_rich(self) -> None:
+        """End-to-end: a realistic empirical research issue body is classified as rich."""
+        body = """\
+## Background
+
+The current rate-limiting implementation uses a fixed window counter
+which causes thundering herd at window boundaries.
+
+## Empirical Evidence
+
+Observed 3.2x spike in 429 responses at each 60-second window boundary
+across 5 days of production traffic logs (sample: 1.2M requests).
+
+## Proposed Values
+
+sliding_window_size: 60s, token_bucket_capacity: 1000,
+refill_rate: 16.7 tokens/s (matches current avg throughput).
+
+## Results
+
+Sliding window simulation on the 1.2M request replay shows boundary
+spike eliminated; p99 response time unchanged at 180ms.
+
+## References
+
+- Token bucket algorithm: RFC 6585 section 4
+- Sliding window counter: Cloudflare blog "How we built rate limiting"
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] == 5
+
+    def test_two_new_sections_below_threshold(self) -> None:
+        """Boundary guard: only 2 new-vocabulary sections does NOT reach the threshold."""
+        body = """\
+## Empirical Evidence
+
+Latency increased by 40ms on average across sampled requests.
+
+## Results
+
+The fix reduced error rate from 5% to 0.5%.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is False
+        assert result["section_count"] == 2

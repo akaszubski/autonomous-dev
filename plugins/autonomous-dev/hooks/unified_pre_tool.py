@@ -2541,7 +2541,12 @@ def _detect_settings_json_write(command: str) -> "Optional[str]":
     # sed -i, dd, tools like rm/touch/chmod, AND python -c snippets via
     # python_write_detector AST analysis. (Issue #557, #768, #971)
     write_targets = _extract_bash_file_writes(command)
+    # Issue #958: Allow writes to tempfile directories — these paths cannot
+    # affect real settings files under ~/.claude/ or any project root.
+    _TEMP_PREFIXES = ("/tmp/", "/var/folders/", "/private/tmp/")
     for target in write_targets:
+        if any(target.startswith(prefix) for prefix in _TEMP_PREFIXES):
+            continue  # Safe: tempfile directory, not a real settings location
         for pat in settings_patterns:
             if re.search(pat, target):
                 if re.search(r'\bsed\s+.*-i', command):
@@ -2572,6 +2577,25 @@ def _detect_settings_json_write(command: str) -> "Optional[str]":
     # reference AND a true write keyword. We deliberately do NOT match
     # ``open\s*\(`` alone — that was the false-positive trigger removed in
     # Issue #971 (it flagged read-only ``json.load(open(...))``).
+    #
+    # Issue #958: Skip the defense-in-depth block entirely when ALL resolved
+    # write targets that reference settings patterns are in temp directories.
+    # This prevents false-positives on python -c snippets that write to
+    # /private/tmp/, /tmp/, or /var/folders/ (e.g. pytest fixtures).
+    _all_settings_writes_are_temp = (
+        len(write_targets) > 0
+        and all(
+            any(target.startswith(prefix) for prefix in _TEMP_PREFIXES)
+            for target in write_targets
+            if any(re.search(pat, target) for pat in settings_patterns)
+        )
+        and any(
+            any(re.search(pat, target) for pat in settings_patterns)
+            for target in write_targets
+        )
+    )
+    if _all_settings_writes_are_temp:
+        return None
     py_c_patterns = [
         r'python3?\s+-c\s+"([^"]+)"',
         r"python3?\s+-c\s+'([^']+)'",
