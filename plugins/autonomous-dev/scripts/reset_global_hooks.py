@@ -50,15 +50,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
-def _atomic_write_json(target: Path, content: Dict[str, Any]) -> None:
-    """Write JSON atomically to ``target`` via temp file + os.rename.
+def _atomic_write_json(
+    target: Path, content: Dict[str, Any]
+) -> Tuple[Path, bool, bool]:
+    """Write JSON atomically to ``target`` via temp file + os.replace.
+
+    Handles dotfiles-manager symlinks: resolves ``target`` to its real path
+    so that the in-place rewrite preserves the symlink entry in the filesystem
+    rather than replacing it with a plain file.
+
+    Permission hardening:
+    - Reads the existing file's mode and applies a floor of 0o600 (strips
+      any group/other read/write/execute bits).
+    - If the file is absent or unreadable, defaults to 0o600.
 
     NOTE: Duplicates _atomic_write_json from strip_duplicate_hooks.py by
     design. A recovery tool runs when the system is broken — cross-script
@@ -70,18 +80,38 @@ def _atomic_write_json(target: Path, content: Dict[str, Any]) -> None:
     operations (which use ".settings-strip-").
 
     Args:
-        target: Destination path.
+        target: Destination path (may be a symlink).
         content: Dictionary to serialize.
+
+    Returns:
+        Tuple of (real_target, was_symlink, was_broken_symlink).
+        ``real_target`` is the resolved real path (equals ``target`` when not
+        a symlink). ``was_symlink`` is True when ``target`` is a symlink.
+        ``was_broken_symlink`` is True when ``target`` is a symlink pointing
+        to a nonexistent path (the broken symlink is replaced with a real file).
 
     Raises:
         OSError: On write or rename failure.
     """
-    target.parent.mkdir(parents=True, exist_ok=True)
+    was_symlink = target.is_symlink()
+    was_broken_symlink = False
+    real_target = target
+
+    if was_symlink:
+        try:
+            real_target = target.resolve(strict=True)
+        except OSError:
+            # Broken symlink — keep real_target == target so os.replace
+            # overwrites the symlink entry with a real file.
+            real_target = target
+            was_broken_symlink = True
+
+    real_target.parent.mkdir(parents=True, exist_ok=True)
     fd = None
     temp_path = None
     try:
         fd, temp_path = tempfile.mkstemp(
-            dir=str(target.parent),
+            dir=str(real_target.parent),
             prefix=".reset-hooks-",
             suffix=".json.tmp",
         )
@@ -89,13 +119,15 @@ def _atomic_write_json(target: Path, content: Dict[str, Any]) -> None:
         os.write(fd, payload.encode("utf-8"))
         os.close(fd)
         fd = None
-        # Match existing settings file mode (best effort).
+        # Permission floor: read existing mode, then strip group/other bits.
         try:
-            mode = target.stat().st_mode & 0o777
+            mode = real_target.stat().st_mode & 0o777
+            if mode & 0o077:  # any group/other bits set
+                mode = 0o600
         except OSError:
             mode = 0o600
         os.chmod(temp_path, mode)
-        os.rename(temp_path, target)
+        os.replace(temp_path, real_target)
     except OSError:
         if fd is not None:
             try:
@@ -108,6 +140,8 @@ def _atomic_write_json(target: Path, content: Dict[str, Any]) -> None:
             except OSError:
                 pass
         raise
+
+    return real_target, was_symlink, was_broken_symlink
 
 
 def reset_file(target: Path) -> Dict[str, Any]:
@@ -134,8 +168,9 @@ def reset_file(target: Path) -> Dict[str, Any]:
         result["message"] = f"settings.json not present at {target}"
         return result
 
-    # Read the file.
+    # Read the file. Follow symlink so we get the real bytes.
     try:
+        # Always read the symlink target's content (read_bytes follows symlinks).
         raw = target.read_text(encoding="utf-8")
     except OSError as e:
         result["success"] = False
@@ -186,8 +221,11 @@ def reset_file(target: Path) -> Dict[str, Any]:
     # Edge case 3: backup exists -> overwrite. Recovery contract:
     # always reflect the most recent pre-strip state.
     backup_path = target.with_suffix(target.suffix + ".preglobal-hooks-strip")
+    backup_source_is_symlink = target.is_symlink()
     try:
-        shutil.copy2(target, backup_path)
+        # Read dereferenced bytes for backup — backup is always a real file.
+        backup_path.write_bytes(target.read_bytes())
+        os.chmod(str(backup_path), 0o600)
     except OSError as e:
         result["success"] = False
         result["error"] = f"Cannot write backup: {e}"
@@ -200,7 +238,9 @@ def reset_file(target: Path) -> Dict[str, Any]:
     # Strip and write atomically.
     del settings["hooks"]
     try:
-        _atomic_write_json(target, settings)
+        real_target, was_symlink, was_broken_symlink = _atomic_write_json(
+            target, settings
+        )
     except OSError as e:
         result["success"] = False
         result["error"] = f"Failed to write target: {e}"
@@ -211,14 +251,28 @@ def reset_file(target: Path) -> Dict[str, Any]:
         )
         return result
 
-    # Success.
+    # Success — compose message with any symlink notes.
     result["stripped"] = True
     result["backup_path"] = str(backup_path)
     result["hook_keys_removed"] = hook_keys_removed
-    result["message"] = (
+    msg = (
         f"Removed {len(hook_keys_removed)} hook event(s); "
         f"backup saved to {backup_path}."
     )
+    if was_broken_symlink:
+        msg += (
+            " (settings.json was a broken symlink; replaced with a real file)"
+        )
+    elif was_symlink:
+        msg += (
+            f" (settings.json is a symlink; rewrote real target at"
+            f" {real_target} to preserve dotfiles manager)"
+        )
+    if backup_source_is_symlink:
+        msg += (
+            " (backup source was a symlink; backed up dereferenced contents)"
+        )
+    result["message"] = msg
     return result
 
 

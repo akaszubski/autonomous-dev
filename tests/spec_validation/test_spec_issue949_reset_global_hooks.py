@@ -443,6 +443,24 @@ def test_spec_issue949_ac7_python_one_liner_present_and_works(
         "AC7 violated: python3 -c one-liner does not reference the 'hooks' key"
     )
 
+    # Hardening assertions (Issue #965): one-liner must use safe primitives.
+    assert "os.replace" in body, (
+        "AC7/965 violated: one-liner must use os.replace (atomic, SIGINT-safe) "
+        "instead of write_text"
+    )
+    assert ("chmod" in body or "0o600" in body or "0600" in body), (
+        "AC7/965 violated: one-liner must set 0o600 permissions on backup/output"
+    )
+    assert "tempfile.mkstemp" in body, (
+        "AC7/965 violated: one-liner must use tempfile.mkstemp for atomic write"
+    )
+    assert "shutil.copy2" not in body, (
+        "AC7/965 violated: one-liner must NOT use shutil.copy2 (use write_bytes instead)"
+    )
+    assert "p.write_text" not in body and ".write_text(" not in body, (
+        "AC7/965 violated: one-liner must NOT use write_text (use atomic temp+rename instead)"
+    )
+
     # Run the one-liner against a fake HOME with a real hooks-bearing
     # settings.json. This is the smoke test that proves it actually works.
     fake_home = _fake_home(tmp_path)
@@ -519,4 +537,69 @@ def test_spec_issue949_ac8_all_other_keys_preserved_bit_for_bit(
         f"AC8 violated: top-level key set drift.\n"
         f"expected = {sorted(expected_keys)}\n"
         f"actual   = {sorted(post.keys())}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# AC9 (Issue #965): defensive hardening umbrella applied to script + doc
+# ---------------------------------------------------------------------------
+
+
+def test_ac9_hardening_umbrella_applied() -> None:
+    """AC9: verify Issue #965 defensive hardening is applied to both the
+    script and the TROUBLESHOOTING.md Option 2 one-liner.
+
+    Checks:
+    - reset_global_hooks.py: no shutil.copy2, uses os.replace, uses
+      is_symlink(), uses 0o600 permission floor.
+    - TROUBLESHOOTING.md Option 2: uses os.replace, no shutil.copy2.
+    """
+    script = (
+        REPO_ROOT
+        / "plugins"
+        / "autonomous-dev"
+        / "scripts"
+        / "reset_global_hooks.py"
+    )
+    script_text = script.read_text(encoding="utf-8")
+
+    # Script must NOT use shutil.copy2.
+    assert "shutil.copy2(" not in script_text, (
+        "AC9 violated: reset_global_hooks.py must not use shutil.copy2; "
+        "use write_bytes + os.chmod(0o600) instead"
+    )
+
+    # Script must use os.replace for atomic rename.
+    assert "os.replace(" in script_text, (
+        "AC9 violated: reset_global_hooks.py must use os.replace for atomic rename"
+    )
+
+    # Script must have symlink guard.
+    assert "is_symlink()" in script_text, (
+        "AC9 violated: reset_global_hooks.py must have is_symlink() guard for "
+        "dotfiles-manager symlink preservation"
+    )
+
+    # Script must enforce 0o600 permission floor.
+    assert "0o600" in script_text, (
+        "AC9 violated: reset_global_hooks.py must enforce 0o600 permission floor"
+    )
+
+    # TROUBLESHOOTING.md Option 2 must also use os.replace and not shutil.copy2.
+    doc_text = TROUBLESHOOTING_MD.read_text(encoding="utf-8")
+
+    # Find the Option 2 block (between "### Option 2" and next "### Option").
+    match = re.search(
+        r"### Option 2.*?(?=### Option|\Z)",
+        doc_text,
+        re.DOTALL,
+    )
+    assert match, "AC9: could not locate Option 2 block in TROUBLESHOOTING.md"
+    option2_block = match.group(0)
+
+    assert "os.replace(" in option2_block, (
+        "AC9 violated: TROUBLESHOOTING.md Option 2 must use os.replace"
+    )
+    assert "shutil.copy2" not in option2_block, (
+        "AC9 violated: TROUBLESHOOTING.md Option 2 must not use shutil.copy2"
     )
