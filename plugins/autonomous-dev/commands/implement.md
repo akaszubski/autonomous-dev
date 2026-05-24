@@ -683,7 +683,10 @@ If any requirement is missing:
 STEP 6: SKIPPED (--tdd-first mode — test-master handles tests in STEP 7)
 STEP 6: SKIPPED (tests/genai/conftest.py not found — falling back to TDD-first)
 STEP 6: EXECUTED (N acceptance tests generated from M criteria)
+STEP 6: SKIPPED (all criteria classified deterministic — N/N tests written by implementer in STEP 5/8)
 ```
+
+When every acceptance criterion is classified as a static/deterministic check (see Test Placement Classification Rule below), STEP 6 MUST output the third SKIPPED variant above — NOT `EXECUTED (0 tests generated)`. The implementer writes these as unit tests in STEP 5/8; writing zero genai tests is the correct outcome, not a failure.
 
 **Test Placement Classification Rule** — Before writing any acceptance test, classify it by what it actually does:
 
@@ -998,6 +1001,10 @@ Failing criteria: [list from spec-validator output]
 **Progress**: Output step banner (STEP 9/15 — Hook Registration). Output gate result after.
 
 If hooks were created/modified: verify they appear in `templates/settings.*.json`, `config/global_settings_template.json`, and `config/install_manifest.json`. BLOCK if unregistered.
+
+**FORBIDDEN at STEP 9**: You MUST NOT apply a missing-entry fix to `plugins/autonomous-dev/config/install_manifest.json` via direct Edit/Write (this bypasses STEP 11 test-gate re-validation); you MUST NOT cite "1-line fix" or "config file allowlist" as justification for direct edit (install_manifest.json is a deployment manifest, not a settings file); you MUST NOT proceed to STEP 10 with manifest entries missing for newly-created hooks/lib/agents/commands/skills files.
+
+**REQUIRED**: If `install_manifest.json` is missing entries, re-invoke the implementer in REMEDIATION MODE (same pattern as STEP 11) — pass the missing-entries list verbatim. **Defense-in-depth**: `unified_pre_tool.py` blocks direct Write/Edit to `config/install_manifest.json` outside the pipeline (Issue #980 `PROTECTED_INFRA_FILES`).
 
 ### STEP 9.5: Agent Count Gate — HARD GATE
 

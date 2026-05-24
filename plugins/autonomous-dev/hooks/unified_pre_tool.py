@@ -575,6 +575,12 @@ PROTECTED_INFRA_SEGMENTS = {
     '/skills/': {'.md'},
 }
 
+# Per-file protected entries (Issue #980) — relative paths from autonomous-dev
+# repo root. Matched via endswith against normalized absolute paths.
+PROTECTED_INFRA_FILES = {
+    "plugins/autonomous-dev/config/install_manifest.json",
+}
+
 # ============================================================================
 # Plan-Exit Enforcement (Issue #926)
 #
@@ -1139,6 +1145,14 @@ def _is_protected_infrastructure(file_path: str) -> bool:
     path_basename = Path(file_path).name
     if path_basename.startswith("test_") or path_basename.endswith("_test.py"):
         return False
+    # Per-file protection (Issue #980): explicit file allowlist with strict
+    # suffix matching — prevents partial-basename false positives.
+    for protected_file in PROTECTED_INFRA_FILES:
+        # Match both absolute paths ending with the suffix AND a bare relative path.
+        # endswith with leading "/" prevents partial-basename false positives
+        # (e.g., "foo_install_manifest.json" must not match).
+        if normalized.endswith("/" + protected_file) or normalized == protected_file:
+            return True
     # Ensure leading slash or check for bare directory name at start
     for segment, extensions in PROTECTED_INFRA_SEGMENTS.items():
         # segment is like '/agents/' — check both embedded and path-start forms

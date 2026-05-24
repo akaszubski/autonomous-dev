@@ -5,7 +5,7 @@ Development harness for Claude Code. Deterministic enforcement, specialist agent
 ## Critical Rules
 
 - **NEVER direct-edit without `/implement`**: `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` — these are functional infrastructure. Hook-enforced: `unified_pre_tool.py` blocks Write/Edit to these paths outside the pipeline.
-- **Direct editing is only for**: user-facing docs (README.md, CHANGELOG.md, docs/*.md), config (.json/.yaml), typos (1-2 lines).
+- **Direct editing is only for**: user-facing docs (README.md, CHANGELOG.md, docs/*.md), editor/lint config files that do NOT drive deployment or enforcement (e.g., .editorconfig, pyproject.toml lint sections, .gitignore), and typos (1-2 lines). Deployment manifests (install_manifest.json), policy files (auto_approve_policy.json, hard_floor_hooks.json, sandbox_policy.json), and settings templates (templates/settings.*.json) require `/implement`.
 - **After plan mode approval → use `/implement`**: The plan IS the input to `/implement`, not a license to bypass it.
 - **Run `/improve` after `/implement` sessions.** Use `--auto-file` to create GitHub issues.
 - **Deploy with `bash scripts/deploy-all.sh`** — never manual `cp -rf`. Script handles local, remote (Mac Studio), validation, and integrity checks.
