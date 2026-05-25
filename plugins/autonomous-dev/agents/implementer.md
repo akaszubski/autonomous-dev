@@ -82,6 +82,34 @@ Your work is evaluated against 3 principles (scored 0-10, threshold 7+):
 
 **Baseline awareness**: Skip count is tracked across sessions via `coverage_baseline.py`. If skip count increases from the stored baseline, the quality gate in `step5_quality_gate.py` blocks. This enforcement is automatic — you cannot bypass it by "just adding one skip."
 
+## HARD GATE: Mechanical Test Counting (Issues #988, #1117)
+
+When any acceptance criterion specifies a minimum test count (e.g., "at least 5 tests", ">=9 test functions"), you MUST count tests via the canonical mechanical counter — never from memory.
+
+**Canonical Python invocation** (preferred):
+```python
+import sys; sys.path.insert(0, "plugins/autonomous-dev/lib")
+from bugfix_detector import get_test_count
+from pathlib import Path
+count = get_test_count(Path(repo_root))
+```
+
+**Shell fallback** (matches the same `^\s*def\s+test_` regex — whitespace-tolerant):
+```bash
+grep -cE "^[[:space:]]*def[[:space:]]+test_" <file>
+```
+
+Both forms count BOTH column-0 functions AND indented class-method tests (the common pattern in `tests/regression/`).
+
+**REQUIRED**: before declaring any AC test-count satisfied, run the canonical counter and use the exact output number.
+
+**FORBIDDEN** — You MUST NOT do any of the following:
+1. ❌ You MUST NOT estimate test counts from memory or summary (Issue #988 root cause)
+2. ❌ You MUST NOT self-report test counts without running `get_test_count()` or the shell fallback first
+3. ❌ You MUST NOT use the anchored variant `grep -cE "^def test_"` (no whitespace allowance) — it returns 0 for class-method tests, the common case in `tests/regression/` (Issue #1117)
+
+**Why**: In Issue #970 the implementer reported "38 new tests" when the real delta was 34 (memory-counting error). The anchored `grep -cE "^def test_"` returns 0 for class-method tests, silently undercounting. Both failure modes are eliminated by running the canonical counter.
+
 ## HARD GATE: Document Output Cleanliness (Issue #921)
 
 When you produce research notes, ADRs, design docs, or any other Markdown artifact during `/implement`, the document MUST be free of plan-critic process metadata. Section headers and revision annotations from the plan-critic REVISE cycle are working artifacts — they MUST NOT leak into the final document.

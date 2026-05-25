@@ -8,7 +8,7 @@ Enables autonomous-dev to enforce quality gates on itself by detecting:
 - Whether running in CI environment (GitHub Actions, etc.)
 
 Detection Strategy:
-- Multi-marker detection (plugins/autonomous-dev/ directory + manifest.json)
+- Multi-marker detection (plugins/autonomous-dev/.claude-plugin/marketplace.json)
 - Worktree detection via .git file parsing
 - CI detection via environment variables
 - Thread-safe caching for performance
@@ -102,7 +102,7 @@ def is_autonomous_dev_repo() -> bool:
 
     Detection Strategy:
         1. Look for plugins/autonomous-dev/ directory
-        2. Verify manifest.json exists
+        2. Verify .claude-plugin/marketplace.json exists
         3. Traverse up directory tree to find repo root
         4. Cache result for performance
 
@@ -115,7 +115,7 @@ def is_autonomous_dev_repo() -> bool:
     Graceful Degradation:
         - Missing .git directory: Returns False
         - Permission errors: Returns False
-        - Corrupted manifest: Returns False
+        - Corrupted marker: Returns False
         - Any exception: Returns False (safe default)
 
     Examples:
@@ -175,16 +175,22 @@ def _detect_autonomous_dev() -> bool:
         # Limit traversal to 10 levels (prevent infinite loops)
         for _ in range(10):
             # Check for autonomous-dev signature files
-            manifest_path = current / "plugins" / "autonomous-dev" / "manifest.json"
+            marker_path = (
+                current
+                / "plugins"
+                / "autonomous-dev"
+                / ".claude-plugin"
+                / "marketplace.json"
+            )
 
-            if manifest_path.exists():
-                # Verify it's a valid manifest (contains "autonomous-dev")
+            if marker_path.exists():
+                # Verify it's a valid marker (contains "autonomous-dev")
                 try:
-                    content = manifest_path.read_text()
+                    content = marker_path.read_text()
                     if "autonomous-dev" in content:
                         return True
                 except Exception:
-                    # Corrupted manifest or permission error
+                    # Corrupted marker or permission error
                     return False
 
             # Move to parent directory

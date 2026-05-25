@@ -104,10 +104,15 @@ def mock_git_repo(tmp_path):
 @pytest.fixture
 def mock_autonomous_dev_repo(mock_git_repo):
     """Create autonomous-dev git repository."""
-    # Add autonomous-dev signature files
-    plugins_dir = mock_git_repo / "plugins" / "autonomous-dev"
-    plugins_dir.mkdir(parents=True)
-    (plugins_dir / "manifest.json").write_text(
+    # Add autonomous-dev signature files.
+    # Issue #1126: the canonical marker is
+    # plugins/autonomous-dev/.claude-plugin/marketplace.json, NOT
+    # plugins/autonomous-dev/manifest.json (which never existed on disk).
+    plugin_marker_dir = (
+        mock_git_repo / "plugins" / "autonomous-dev" / ".claude-plugin"
+    )
+    plugin_marker_dir.mkdir(parents=True)
+    (plugin_marker_dir / "marketplace.json").write_text(
         '{"name": "autonomous-dev", "version": "1.0.0"}'
     )
 
