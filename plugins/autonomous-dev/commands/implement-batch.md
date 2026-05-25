@@ -534,7 +534,7 @@ Create feature list: "Issue #N: [title]"
 
 **STEP I1.3: Already-Done Detection**
 
-Before mode detection, check each issue against prior commits using `already_done_detector.check_issue_already_implemented()`:
+Before mode detection, check each issue against prior commits using `already_done_detector.check_issue_already_implemented()`. The detector returns a `MatchResult(sha, subject, classification)` NamedTuple only when a HEAD-ancestor commit contains an explicit closure marker (`Closes #N`, `Fixes #N`, `Completed: #N`); it returns `None` for all other cases (no reference, anti-marker like `Pending: #N` or `Preflight-skipped: #N`, or stale-branch commits not in HEAD ancestry).
 
 ```python
 from already_done_detector import check_issue_already_implemented
@@ -547,13 +547,24 @@ for issue_number, title, body in issues:
         repo_root=Path.cwd(),
     )
     if result is not None:
-        sha, message = result
-        print(f"SKIP: Issue #{issue_number} already implemented in commit {sha}: {message}")
-        # Auto-close: gh issue comment {issue_number} --body "Already implemented in {sha}"
+        # result.classification is always "closes" for non-None returns.
+        # ("anti" and "stale_branch" results are filtered to None internally
+        # so the caller stays simple — no need to switch on classification.)
+        print(
+            f"SKIP: Issue #{issue_number} already implemented in commit "
+            f"{result.sha} (classification={result.classification}): {result.subject}"
+        )
+        # Auto-close: gh issue comment {issue_number} --body "Already implemented in {result.sha}"
         # Remove from feature list; do not process further.
 ```
 
 If a match is found, skip that issue (remove from the batch feature list) and optionally add a comment on the GitHub issue referencing the implementing commit. Continue processing remaining issues normally.
+
+**Classification semantics** (informational; the caller does not need to switch on these):
+- `closes` — explicit closure marker (`Closes #N`, `Fixes #N`, `Completed: #N`) on a HEAD-ancestor commit. The only classification ever returned to the caller.
+- `anti` — explicit non-closure marker (`Pending: #N`, `Preflight-skipped: #N`, `Deferred: #N`). Filtered to `None` internally.
+- `stale_branch` — closure marker present but the commit is not reachable from HEAD (unmerged side branch). Filtered to `None` internally.
+- `mention` — bare `#N` reference with no marker. Filtered to `None` internally.
 
 **STEP I1.5: Mode Detection and Confirmation**
 
