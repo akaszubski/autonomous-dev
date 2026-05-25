@@ -1,7 +1,7 @@
 ---
 name: debugging-workflow
 description: "Systematic debugging methodology — reproduce, isolate, bisect, fix, verify. Use when diagnosing failures, tracing errors, or investigating unexpected behavior. TRIGGER when: debug, error, traceback, stack trace, bisect, breakpoint, failing test, unexpected behavior. DO NOT TRIGGER when: writing new features, code review, documentation, refactoring."
-allowed-tools: [Read, Grep, Glob, Bash]
+allowed-tools: "Read, Grep, Glob, Bash"
 ---
 
 # Debugging Workflow
@@ -125,12 +125,7 @@ python -m pytest --cov=module --cov-report=term-missing tests/path/test_file.py
 3. Is there a regression test for this bug? → Must be YES
 4. Could this bug occur elsewhere? → Search for similar patterns
 
-## Common Pitfalls
+## Cross-References
 
-| Pitfall | Why It's Wrong | What To Do Instead |
-|---------|---------------|-------------------|
-| Fix without reproducing | You might fix the wrong thing | Always reproduce first |
-| Fix the symptom | Bug will recur in different form | Find root cause |
-| Large refactor as "fix" | Introduces new bugs | Minimal change only |
-| No regression test | Bug will come back | Test is part of the fix |
-| Skip full test suite | Fix broke something else | Always run full suite |
+- [testing-guide](../testing-guide/SKILL.md) — Test patterns for regression tests
+- [error-handling](../error-handling/SKILL.md) — Error handling patterns
