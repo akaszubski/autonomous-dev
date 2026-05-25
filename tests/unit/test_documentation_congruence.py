@@ -150,11 +150,18 @@ class TestComponentCounts:
 
     def test_template_count(self):
         actual = len(list(PLUGIN.glob("templates/settings.*.json")))
-        project_md = _read(ROOT / ".claude" / "PROJECT.md")
-        documented = _extract_number(project_md, r"Settings templates\s*\((\d+)")
-        assert documented is not None, "PROJECT.md missing template count"
+        # Content allocation (Issue #1120): settings template count lives in
+        # docs/RUNBOOK.md (operational reference), not PROJECT.md (strategic
+        # scope). The CLAUDE.md component-counts line is an accepted fallback.
+        pattern = r"(\d+)\s+settings templates?"
+        documented = _extract_number(_read(ROOT / "docs" / "RUNBOOK.md"), pattern)
+        if documented is None:
+            documented = _extract_number(_read(ROOT / "CLAUDE.md"), pattern)
+        assert documented is not None, (
+            "Settings template count missing from both docs/RUNBOOK.md and CLAUDE.md"
+        )
         assert actual == documented, (
-            f"Settings templates: {actual} on disk, {documented} in PROJECT.md"
+            f"Settings templates: {actual} on disk, {documented} in docs"
         )
 
 
