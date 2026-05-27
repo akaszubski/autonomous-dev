@@ -222,7 +222,7 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 | **validate_command_file_ops.py** | Commands execute Python libs, not just describe them | — |
 | **validate_session_quality.py** | Session log completeness | — |
 | **auto_fix_docs.py** | Documentation consistency auto-fixes | AUTO_FIX_DOCS |
-| **validate_claude_md_size.py** | Warns when CLAUDE.md exceeds 200 lines (Anthropic best practice). Non-blocking — always exits 0. | — |
+| **validate_claude_md_size.py** | Warns when context files exceed their target sizes: CLAUDE.md > 200 lines (Anthropic best practice), .claude/PROJECT.md > 150 lines (content-allocation target), and ~/.claude/projects/<slug>/memory/MEMORY.md > 200 lines (Anthropic auto-load threshold). Each check runs independently; missing files are skipped silently. Non-blocking — always exits 0. | — |
 
 ### SubagentStop
 

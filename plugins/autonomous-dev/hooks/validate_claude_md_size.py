@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-CLAUDE.md Size Guard Hook
+Context-File Size Guard Hook
 
-Warns when CLAUDE.md exceeds 200 lines (Anthropic best practice).
-This is a NON-BLOCKING warning-only hook — always exits 0.
+Warns when project context files exceed their target sizes. This is a
+NON-BLOCKING warning-only hook — always exits 0 regardless of findings.
 
 What it checks:
-- Whether CLAUDE.md exists in the repo root
-- Whether CLAUDE.md exceeds 200 lines
+- CLAUDE.md in the repo root: warns if > 200 lines (Anthropic best practice).
+- .claude/PROJECT.md in the repo root: warns if > 150 lines
+  (content-allocation target, see docs/development/CONTENT_ALLOCATION.md).
+- ~/.claude/projects/<slug>/memory/MEMORY.md: warns if > 200 lines
+  (Anthropic auto-load threshold). The slug is derived from the current
+  working directory by replacing '/' with '-'.
 
-If CLAUDE.md is missing, silently passes (no output).
-If CLAUDE.md exceeds 200 lines, prints a warning to stderr.
+Each file is checked independently. Missing files are silently skipped
+(no warning, no error). A failure in one check does not block the others.
 
 Usage:
     Add to settings.local.json or settings.autonomous-dev.json PreCommit hooks:
@@ -60,6 +64,8 @@ from pathlib import Path
 from typing import Tuple
 
 MAX_LINES = 200
+MAX_PROJECT_LINES = 150  # PROJECT.md (docs/development/CONTENT_ALLOCATION.md)
+MAX_MEMORY_LINES = 200   # MEMORY.md (Anthropic auto-load threshold)
 
 
 def get_repo_root() -> Path:
@@ -70,6 +76,86 @@ def get_repo_root() -> Path:
             return current
         current = current.parent
     return Path.cwd()
+
+
+def derive_memory_path() -> Path:
+    """Derive the auto-load MEMORY.md path for the current working directory.
+
+    Claude stores per-project auto-memory at
+    ``~/.claude/projects/<slug>/memory/MEMORY.md`` where ``<slug>`` is the
+    absolute path of the current working directory with '/' replaced by '-'.
+
+    Returns:
+        Path to MEMORY.md for the current cwd. The file may not exist —
+        callers must handle that case.
+    """
+    slug = str(Path.cwd()).replace("/", "-")
+    return Path.home() / ".claude" / "projects" / slug / "memory" / "MEMORY.md"
+
+
+def check_project_md_size(repo_root: Path) -> Tuple[int, str]:
+    """Check .claude/PROJECT.md size against the content-allocation target.
+
+    Args:
+        repo_root: Path to the repository root directory.
+
+    Returns:
+        Tuple of (line_count, warning_message).
+        line_count is 0 if PROJECT.md is missing or unreadable.
+        warning_message is empty string if no warning needed.
+    """
+    project_md_path = repo_root / ".claude" / "PROJECT.md"
+
+    if not project_md_path.exists():
+        return 0, ""
+
+    try:
+        content = project_md_path.read_text(encoding="utf-8")
+    except OSError:
+        return 0, ""
+
+    line_count = len(content.splitlines())
+
+    if line_count <= MAX_PROJECT_LINES:
+        return line_count, ""
+
+    warning = (
+        f"WARNING: .claude/PROJECT.md is {line_count} lines "
+        f"(content-allocation target: keep under {MAX_PROJECT_LINES}). "
+        f"Current: {line_count}/{MAX_PROJECT_LINES}"
+    )
+    return line_count, warning
+
+
+def check_memory_md_size() -> Tuple[int, str]:
+    """Check the per-project auto-memory MEMORY.md against Anthropic's auto-load threshold.
+
+    Returns:
+        Tuple of (line_count, warning_message).
+        line_count is 0 if MEMORY.md is missing or unreadable.
+        warning_message is empty string if no warning needed.
+    """
+    memory_md_path = derive_memory_path()
+
+    if not memory_md_path.exists():
+        return 0, ""
+
+    try:
+        content = memory_md_path.read_text(encoding="utf-8")
+    except OSError:
+        return 0, ""
+
+    line_count = len(content.splitlines())
+
+    if line_count <= MAX_MEMORY_LINES:
+        return line_count, ""
+
+    warning = (
+        f"WARNING: MEMORY.md is {line_count} lines "
+        f"(Anthropic auto-load threshold: {MAX_MEMORY_LINES}). "
+        f"Current: {line_count}/{MAX_MEMORY_LINES} — file: {memory_md_path}"
+    )
+    return line_count, warning
 
 
 def check_claude_md_size(repo_root: Path) -> Tuple[int, str]:
@@ -103,7 +189,10 @@ def check_claude_md_size(repo_root: Path) -> Tuple[int, str]:
 
 
 def main() -> int:
-    """Run CLAUDE.md size check.
+    """Run all context-file size checks (CLAUDE.md, PROJECT.md, MEMORY.md).
+
+    Each check runs in isolation — a failure in one check (e.g. OSError)
+    does not suppress the others. All warnings are printed to stderr.
 
     Returns:
         Always 0 (non-blocking warning hook).
@@ -118,10 +207,31 @@ def main() -> int:
         pass
 
     repo_root = get_repo_root()
-    line_count, warning = check_claude_md_size(repo_root)
 
-    if warning:
-        print(warning, file=sys.stderr)
+    # CLAUDE.md check (repo root).
+    try:
+        _, warning = check_claude_md_size(repo_root)
+        if warning:
+            print(warning, file=sys.stderr)
+    except OSError:
+        # One check's failure must not block the others.
+        pass
+
+    # .claude/PROJECT.md check (content-allocation target).
+    try:
+        _, warning = check_project_md_size(repo_root)
+        if warning:
+            print(warning, file=sys.stderr)
+    except OSError:
+        pass
+
+    # MEMORY.md check (per-project auto-memory under ~/.claude/projects/).
+    try:
+        _, warning = check_memory_md_size()
+        if warning:
+            print(warning, file=sys.stderr)
+    except OSError:
+        pass
 
     return 0
 

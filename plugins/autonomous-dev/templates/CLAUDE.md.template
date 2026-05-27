@@ -1,0 +1,64 @@
+# {PROJECT_NAME}
+
+{PROJECT_ONE_LINE_DESCRIPTION}
+
+For purpose, scope, and architecture see [`.claude/PROJECT.md`](.claude/PROJECT.md). For where content lives in this repo see [`docs/development/CONTENT_ALLOCATION.md`](docs/development/CONTENT_ALLOCATION.md).
+
+## Critical Rules
+
+{CRITICAL_RULES}
+
+TODO: Add hard rules that must hold every turn. Examples:
+- **NEVER** direct-edit `{PROTECTED_PATHS}` outside the `/implement` pipeline.
+- **ALWAYS** run `{TEST_COMMAND}` before merging.
+- **Deploy with** `{DEPLOY_COMMAND}` — never manual file copies.
+
+Rules of thumb (delete this hint after filling in):
+- Behaviour rules only — anything else routes to PROJECT.md or memory.
+- Aim for ≤6 bullets. If you exceed that, the rules need consolidating.
+
+## Architecture
+
+{ARCHITECTURE_SUMMARY}
+
+TODO: One-paragraph summary. Components, layers, key counts. Deep diagrams live in `docs/architecture/*.md`.
+
+**Example**:
+- **Pipeline**: {N}-step workflow — {PIPELINE_STAGES}
+- **Enforcement**: {N} hooks with hard gates
+- **Modules**: {N} agents, {N} skills, {N} commands
+
+Full diagram: [`docs/architecture/OVERVIEW.md`](docs/architecture/OVERVIEW.md).
+
+## Commands
+
+{COMMAND_INVENTORY}
+
+TODO: One-line inventory of project commands. Source of truth lives in the command files themselves; this is a quick scan.
+
+**Example**: `/plan` | `/implement` | `/align` | `/audit`
+
+User-facing reference: [`docs/COMMANDS.md`](docs/COMMANDS.md).
+
+## Key Paths
+
+| What | Where |
+|------|-------|
+| Alignment source of truth | [.claude/PROJECT.md](.claude/PROJECT.md) |
+| Content allocation rules | [docs/development/CONTENT_ALLOCATION.md](docs/development/CONTENT_ALLOCATION.md) |
+| Operational runbook | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
+| Architecture overview | [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md) |
+| Test suite | `tests/` |
+| {ADDITIONAL_PATH} | `{ADDITIONAL_LOCATION}` |
+
+TODO: Add 4-8 high-value paths. If a contributor opens the repo, where do they look first?
+
+## Session Continuity
+
+TODO: Describe how state survives `/clear` and auto-compact. Examples:
+- Activity logged to `.claude/logs/activity/`.
+- Restore state with `{RESTORE_COMMAND}` after `/clear`.
+
+---
+
+**Last Updated**: {DATE}

@@ -13,8 +13,11 @@ This project uses the **autonomous-dev** plugin for Claude Code, providing AI-po
 | Quality check | `/audit` | Coverage, security, docs |
 | Alignment | `/align` | PROJECT.md validation |
 | Doc updates | `/align --docs` | Sync docs with code |
+| Content audit | `/align --content` | Sizes + de-dup CLAUDE.md / PROJECT.md / MEMORY.md |
 
 **Direct editing is only for**: docs (.md), config (.json/.yaml), typos (1-2 lines).
+
+**Content Allocation**: One topic, one home. See `docs/development/CONTENT_ALLOCATION.md` (drop-in via `/align --content`).
 
 **Context Management**:
 - Clear context after EACH feature: `/clear`

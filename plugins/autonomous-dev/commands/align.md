@@ -1,7 +1,7 @@
 ---
 name: align
-description: "Unified alignment command (--project, --docs, --retrofit)"
-argument-hint: "[--project | --docs | --retrofit] [--dry-run] [--auto]"
+description: "Unified alignment command (--project, --docs, --retrofit, --content)"
+argument-hint: "[--project | --docs | --retrofit | --content] [--dry-run] [--auto]"
 version: 3.1.0
 category: core
 allowed-tools: [Read, Write, Edit, Grep, Glob]
@@ -19,6 +19,7 @@ user-invocable: true
 - `/align` - Full alignment (PROJECT.md + CLAUDE.md + README vs code + hooks review)
 - `/align --docs` - Documentation only (ensure all docs consistent with PROJECT.md)
 - `/align --retrofit` - Brownfield retrofit (5-phase project transformation)
+- `/align --content` - Content allocation audit (CLAUDE.md/PROJECT.md/MEMORY.md sizing + de-dup)
 
 ---
 
@@ -35,6 +36,11 @@ user-invocable: true
 /align --retrofit
 /align --retrofit --dry-run
 /align --retrofit --auto
+
+# Content allocation audit
+/align --content
+/align --content --dry-run
+/align --content --auto
 ```
 
 ---
@@ -89,7 +95,7 @@ Check the following:
 - Do examples actually work?
 
 ### Phase 3: Hooks/Rules Review
-Check for inflation in validation hooks:
+MUST review validation hooks for inflation:
 - Are hooks still necessary?
 - Do hook rules match current standards?
 - Any redundant or conflicting hooks?
@@ -303,6 +309,94 @@ python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
 
 ---
 
+## Mode 4: Content Allocation (`--content`)
+
+**Purpose**: Audit and de-duplicate context files (`CLAUDE.md`, `PROJECT.md`, `MEMORY.md`, `memory/*.md`, top-level `docs/`) against the one-topic-one-home pattern. Enforces size budgets on the files that load every turn or every session.
+
+**Time**: 5-20 minutes
+
+**Workflow**: 4-phase process — AUDIT → PROPOSE → APPROVE → EXECUTE.
+
+### Phase 1: AUDIT
+
+- Read `CLAUDE.md`, `PROJECT.md`, `MEMORY.md`, all `memory/*.md`, and the top-level `docs/` listing.
+- Measure each file against the size budget table from `skills/content-allocation/SKILL.md`.
+- Search for duplicated headings, repeated rules, and content that lives in the wrong tier.
+
+### Phase 2: PROPOSE
+
+- Emit a structured plan. For each over-budget file or duplicated chunk, name the canonical home, the proposed move (or pointer compression), and the expected size impact.
+- Group proposals by tier (`CLAUDE.md` → memory → docs) so the reviewer can approve in batches.
+
+### Phase 3: INTERACTIVE APPROVAL
+
+- The user reviews each proposed move and approves or rejects.
+- `--dry-run` skips approval and only emits the plan.
+- `--auto` accepts all proposals below a risk threshold (compressions and deletions); cross-tier moves still REQUIRE explicit approval.
+
+### Phase 4: EXECUTE
+
+- Apply the approved moves: rewrite source files, insert pointer lines, update cross-references.
+- Re-measure size budgets after the run.
+- Print a delta summary: lines removed from auto-loaded files, files compressed, files deleted.
+
+### Sub-flags
+
+- `--dry-run` — emit the proposal only; no files written.
+- `--auto` — auto-approve low-risk proposals (compressions, deletions of stubs <500 bytes, removal of `RESOLVED`/`SUPERSEDED` findings).
+
+### What gets allocated
+
+1. **CLAUDE.md** — kept ≤200 lines (target ≤100). Behaviour rules only.
+2. **PROJECT.md** — kept ≤200 lines (target ≤150). Purpose, scope, architecture only.
+3. **MEMORY.md** — kept ≤200 lines (target ≤150). Index entries, ≤150 chars each.
+4. **memory/*.md** — individual files 1-3 KB. Larger files split or promoted to `docs/`.
+5. **Cross-store de-dup** — duplicate content reduced to one canonical copy plus pointers.
+
+### Example output
+
+```
+/align --content
+
+Phase 1: AUDIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLAUDE.md       254 lines (over budget: target 100, ceiling 200)
+PROJECT.md      178 lines (within budget)
+MEMORY.md       259 lines (over budget: ceiling 200)
+memory/*.md     14 files, 3 over 3 KB, 2 under 500 bytes
+
+Duplications found: 5
+  - "Deploy with deploy-all.sh" rule appears in CLAUDE.md and PROJECT.md
+  - MLX section appears in MEMORY.md and memory/training_pipeline_2026_02.md
+
+Phase 2: PROPOSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Move CLAUDE.md "Mac Studio Deployment" → memory/project_mac_studio_setup.md
+   Saves: ~12 lines from CLAUDE.md
+2. Compress MEMORY.md MLX section → 3-line index entry pointing to memory file
+   Saves: ~45 lines from MEMORY.md
+3. Delete memory/session_outcomes_2026_01_15.md (>7 days old, marked RESOLVED)
+
+Phase 3: INTERACTIVE APPROVAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Approve proposal 1? [Y/n/skip]
+...
+
+Phase 4: EXECUTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLAUDE.md       254 → 175 lines (-79)
+MEMORY.md       259 → 137 lines (-122)
+Files moved: 1, compressed: 1, deleted: 1
+```
+
+### When to use
+
+- After a major refactor or every ~10 sessions.
+- When `CLAUDE.md` or `MEMORY.md` exceed their hard ceilings.
+- Before applying the content-allocation pattern to a new repo (use the template at `templates/CONTENT_ALLOCATION.md`).
+
+---
+
 ## When to Use Each Mode
 
 | Scenario | Mode |
@@ -314,6 +408,9 @@ python plugins/autonomous-dev/lib/retrofit_executor.py --rollback <timestamp>
 | Onboarding new developers | `/align --docs` |
 | Adopting autonomous-dev | `/align --retrofit` |
 | Legacy codebase migration | `/align --retrofit` |
+| CLAUDE.md / MEMORY.md over budget | `/align --content` |
+| Periodic context-file hygiene (every ~10 sessions) | `/align --content` |
+| Applying content-allocation pattern to a new repo | `/align --content` |
 
 ---
 
@@ -339,6 +436,10 @@ python plugins/autonomous-dev/lib/hybrid_validator.py --mode auto
 - Execute 5-phase brownfield transformation as described above
 - Sub-flags: `--dry-run` (preview), `--auto` (non-interactive)
 
+**Content mode** (`/align --content`):
+- Execute 4-phase content allocation audit as described in Mode 4 above
+- Sub-flags: `--dry-run` (preview), `--auto` (auto-approve low-risk proposals)
+
 ---
 
 ## Implementation Details
@@ -350,12 +451,17 @@ Parse arguments from user input:
 
 IF --retrofit flag:
     → Run 5-phase brownfield retrofit
-    → Check for --dry-run or --auto sub-flags
+    → MUST handle --dry-run or --auto sub-flags
 
 ELIF --docs flag:
     → Run documentation consistency check
     → alignment_fixer.py + cross-reference validation
     → No code changes, docs only
+
+ELIF --content flag:
+    → Run 4-phase content allocation audit (AUDIT → PROPOSE → APPROVE → EXECUTE)
+    → MUST load methodology from skills/content-allocation/SKILL.md
+    → MUST handle --dry-run (proposal only) or --auto (low-risk auto-approve)
 
 ELSE (default):
     → Phase 1: alignment_fixer.py (quick scan)
@@ -380,6 +486,8 @@ ELSE (default):
 - `migration_planner.py` - Phase 3
 - `retrofit_executor.py` - Phase 4
 - `retrofit_verifier.py` - Phase 5
+
+**--content mode**: skills/content-allocation/SKILL.md (methodology); reuses Read/Glob/Grep/Edit
 
 ---
 

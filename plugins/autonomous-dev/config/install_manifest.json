@@ -397,6 +397,7 @@
         "plugins/autonomous-dev/skills/archived/semantic-validation/SKILL.md",
         "plugins/autonomous-dev/skills/archived/skill-integration/SKILL.md",
         "plugins/autonomous-dev/skills/code-review/SKILL.md",
+        "plugins/autonomous-dev/skills/content-allocation/SKILL.md",
         "plugins/autonomous-dev/skills/debugging-workflow/SKILL.md",
         "plugins/autonomous-dev/skills/documentation-guide/SKILL.md",
         "plugins/autonomous-dev/skills/error-handling/SKILL.md",
@@ -417,6 +418,7 @@
     },
     "templates": {
       "files": [
+        "plugins/autonomous-dev/templates/CLAUDE.md.template",
         "plugins/autonomous-dev/templates/PROJECT.md.template",
         "plugins/autonomous-dev/templates/project-structure.json",
         "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
@@ -430,9 +432,9 @@
     }
   },
   "description": "File manifest for autonomous-dev plugin installation",
-  "generated": "2026-02-14",
+  "generated": "2026-05-27",
   "post_install": {
     "message": "Restart Claude Code (Cmd+Q or Ctrl+Q) to activate commands"
   },
-  "version": "3.50.0"
+  "version": "3.51.0"
 }

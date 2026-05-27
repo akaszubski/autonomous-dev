@@ -11,7 +11,7 @@ covers:
 
 Complete technical architecture for the autonomous-dev plugin, including agents, skills, libraries, hooks, and model tier strategy.
 
-**Component Counts**: 16 agents (18 archived), 19 skills, 24 active commands, 224 libraries, 30 active hooks (62 archived).
+**Component Counts**: 16 agents (18 archived), 20 skills, 24 active commands, 224 libraries, 30 active hooks (62 archived).
 
 **Last Updated**: 2026-04-25
 
@@ -69,7 +69,7 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - Each skill declares `allowed-tools:` for least privilege
 - Compact SKILL.md files with detailed content in docs/ subdirectories
 
-**Active Skills** (19 total):
+**Active Skills** (20 total):
 - **Core**: python-standards, testing-guide, api-design, documentation-guide
 - **Code Quality**: code-review, refactoring-patterns
 - **Error & Debugging**: error-handling, debugging-workflow
@@ -78,6 +78,7 @@ Specialized skill packages using progressive disclosure to prevent context bloat
 - **Workflow & Research**: git-github, research-patterns, planning-workflow
 - **Validation**: scientific-validation
 - **Prompt Engineering**: prompt-engineering (constraint budgets, register shifting, HARD GATE patterns — see [docs/PROMPT-ENGINEERING.md](PROMPT-ENGINEERING.md))
+- **Content Allocation**: content-allocation (one-topic-one-home routing, size budgets, CLAUDE.md/PROJECT.md/MEMORY.md de-dup — used by `/align --content`)
 
 ---
 
