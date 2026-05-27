@@ -35,7 +35,7 @@ Component counts: 16 agents, 19 skills, 23 commands, 30 hooks, 220 libraries. Fu
 
 ## Commands
 
-`/plan` | `/implement` (full, --light, --batch, --issues, --resume, --fix) | `/create-issue` (--quick) | `/plan-to-issues` (--quick) | `/align` (--project, --docs, --retrofit) | `/audit` (--quick, --security, --docs, --code, --tests) | `/setup` | `/sync` (--github, --env, --all, --uninstall) | `/health-check` | `/advise` | `/worktree` (--list, --status, --merge, --discard) | `/scaffold-genai-uat` | `/status` | `/refactor` (--tests, --docs, --docs-redundancy, --code, --fix, --quick) | `/sweep` | `/improve` (--auto-file) | `/retrospective` | `/mem-search` | `/skill-eval` (--quick, --skill, --update) | `/autoresearch` (--target, --metric, --iterations, --min-improvement, --dry-run) | `/triage` (--auto-improvement, --repo, --limit, --include-fp-acknowledged, --json)
+`/plan` | `/implement` (full, --light, --batch, --issues, --resume, --fix) | `/create-issue` (--quick) | `/plan-to-issues` (--quick) | `/align` (--project, --docs, --retrofit, --content) | `/audit` (--quick, --security, --docs, --code, --tests) | `/setup` | `/sync` (--github, --env, --all, --uninstall) | `/health-check` | `/advise` | `/worktree` (--list, --status, --merge, --discard) | `/scaffold-genai-uat` | `/status` | `/refactor` (--tests, --docs, --docs-redundancy, --code, --fix, --quick) | `/sweep` | `/improve` (--auto-file) | `/retrospective` | `/mem-search` | `/skill-eval` (--quick, --skill, --update) | `/autoresearch` (--target, --metric, --iterations, --min-improvement, --dry-run) | `/triage` (--auto-improvement, --repo, --limit, --include-fp-acknowledged, --json)
 
 User-facing reference: [`plugins/autonomous-dev/docs/COMMANDS.md`](plugins/autonomous-dev/docs/COMMANDS.md). Source of truth: `plugins/autonomous-dev/commands/<name>.md`.
 
@@ -59,4 +59,4 @@ User-facing reference: [`plugins/autonomous-dev/docs/COMMANDS.md`](plugins/auton
 
 Session state restored by `SessionStart-batch-recovery.sh` after `/clear` or auto-compact. Activity logged to `.claude/logs/activity/`. Every session is archived by `conversation_archiver.py` to `~/.claude/archive/` — schema and SQL examples live in the global `~/.claude/CLAUDE.md` (cross-repo) and in [`docs/SESSION-ANALYTICS.md`](docs/SESSION-ANALYTICS.md).
 
-**Last Updated**: 2026-05-26
+**Last Updated**: 2026-05-27

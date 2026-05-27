@@ -20,7 +20,7 @@ Commands were consolidated from many to a focused set. Individual agent commands
 | Command | Time | Description |
 |---------|------|-------------|
 | `/implement` | 15-30min | Smart implementation with three modes: full pipeline (default), quick (--quick), batch (--batch/--issues/--resume) |
-| `/align` | 5-10min | Unified alignment (3 modes: `--project`, `--claude`, `--retrofit`) |
+| `/align` | 5-20min | Unified alignment (4 modes: `--project`, `--docs`, `--retrofit`, `--content`) |
 | `/setup` | 2-5min | Interactive setup wizard |
 | `/sync` | 1-2min | Smart sync (auto-detects: dev env, marketplace, or plugin dev) |
 | `/status` | < 30s | Track PROJECT.md goal progress |

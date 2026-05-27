@@ -292,7 +292,7 @@ See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uni
 ```bash
 /plan "..."              # 7-step planning workflow with adversarial plan-critic
 /status                  # View PROJECT.md goal progress
-/align                   # Check alignment (--project, --docs, --retrofit)
+/align                   # Check alignment (--project, --docs, --retrofit, --content)
 /create-issue "..."      # Create GitHub issue with automated research
 /plan-to-issues          # Thorough-mode batch issue creation from plan output
 /health-check            # Verify plugin installation
