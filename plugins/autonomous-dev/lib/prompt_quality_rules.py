@@ -26,6 +26,37 @@ CASUAL_REGISTER_PATTERNS = [
 # Maximum bullet items per ## section before flagging as oversized.
 CONSTRAINT_DENSITY_THRESHOLD = 8
 
+# Issue #1119: ##-section headers containing any of these tokens (case-insensitive)
+# are exempt from bullet-density counting.  These sections are load-bearing
+# enforcement text (FORBIDDEN lists, HARD GATE policies, REQUIRED steps) — not
+# prose bullets — so capping their length forces agents to adopt symbol-prefix
+# workarounds (e.g. "❌ ") that defeat the lint rule and drift list formatting
+# across files.
+EXEMPT_HEADER_TOKENS = ("FORBIDDEN", "HARD GATE", "HARD-GATE", "REQUIRED", "MUST NOT")
+
+
+def _is_exempt_section(header: str) -> bool:
+    """Return True if a ``## `` header denotes an exempt enforcement section.
+
+    Matching is case-insensitive and substring-based: a header is exempt if
+    any token in :data:`EXEMPT_HEADER_TOKENS` appears anywhere in the header
+    text (after stripping the leading ``## ``).  Examples that match:
+
+      - ``## FORBIDDEN``
+      - ``## HARD GATE: Test Coverage``
+      - ``## REQUIRED: Steps``
+      - ``## MUST NOT skip``
+
+    Args:
+        header: Section header text WITHOUT the leading ``## `` (the form
+            already produced by callers via ``stripped.lstrip("# ").strip()``).
+
+    Returns:
+        True if the header contains any exempt token, False otherwise.
+    """
+    upper = header.upper()
+    return any(token in upper for token in EXEMPT_HEADER_TOKENS)
+
 
 def check_persona(content: str) -> List[str]:
     """Check for banned persona patterns.
@@ -83,6 +114,11 @@ def check_constraint_density(
     Counts bullet items (lines starting with - or *) per ## section.
     Sections exceeding the threshold are flagged.
 
+    Issue #1119: ``## `` sections whose headers contain enforcement tokens
+    (FORBIDDEN, HARD GATE, REQUIRED, MUST NOT — see
+    :data:`EXEMPT_HEADER_TOKENS`) are exempt from this check.  These sections
+    are load-bearing enforcement text, not prose.
+
     Args:
         content: Full text content to check.
         threshold: Maximum allowed bullet items per section.
@@ -96,13 +132,17 @@ def check_constraint_density(
     current_section: str = "(top-level)"
     section_start_line: int = 1
     bullet_count: int = 0
+    # Issue #1119: when True, the current section is exempt — do not count
+    # bullets and do not emit a violation when the section closes.
+    section_exempt: bool = False
 
     for i, line in enumerate(lines):
         stripped = line.strip()
         # Detect ## section headers (not # or ###)
         if stripped.startswith("## ") and not stripped.startswith("### "):
-            # Check previous section before moving to next
-            if bullet_count > threshold:
+            # Check previous section before moving to next — but skip the
+            # check entirely if the previous section was exempt.
+            if not section_exempt and bullet_count > threshold:
                 violations.append(
                     f"Section '{current_section}' (line {section_start_line}): "
                     f"{bullet_count} bullet items exceeds threshold of {threshold}."
@@ -110,11 +150,14 @@ def check_constraint_density(
             current_section = stripped.lstrip("# ").strip()
             section_start_line = i + 1
             bullet_count = 0
-        elif stripped.startswith("- ") or stripped.startswith("* "):
+            section_exempt = _is_exempt_section(current_section)
+        elif not section_exempt and (
+            stripped.startswith("- ") or stripped.startswith("* ")
+        ):
             bullet_count += 1
 
-    # Check final section
-    if bullet_count > threshold:
+    # Check final section — same exemption rule applies.
+    if not section_exempt and bullet_count > threshold:
         violations.append(
             f"Section '{current_section}' (line {section_start_line}): "
             f"{bullet_count} bullet items exceeds threshold of {threshold}."
@@ -135,32 +178,46 @@ def _section_bullet_counts(content: str) -> Dict[str, int]:
     "current state" of a section is what the section looks like at end of
     file.  Sections with duplicate names are rare in practice.
 
+    Issue #1119: exempt enforcement sections (see :func:`_is_exempt_section`)
+    are OMITTED from the returned mapping.  Bullets inside an exempt section
+    are not counted, and the section itself never appears as a key.  This
+    means :func:`check_constraint_density_diff` will never flag an exempt
+    section regardless of bullet count.
+
     Args:
         content: Full text content to parse.
 
     Returns:
-        Mapping of section name (header text without leading ``## ``) to
-        bullet count within that section.  Top-level bullets (before any
-        ``## `` header) are collected under the key ``"(top-level)"``.
+        Mapping of non-exempt section name (header text without leading
+        ``## ``) to bullet count within that section.  Top-level bullets
+        (before any ``## `` header) are collected under the key
+        ``"(top-level)"``.
     """
     counts: Dict[str, int] = {}
     lines = content.split("\n")
 
     current_section: str = "(top-level)"
     bullet_count: int = 0
+    section_exempt: bool = False
 
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("## ") and not stripped.startswith("### "):
-            # Record previous section's count before moving on.
-            counts[current_section] = bullet_count
+            # Record previous section's count before moving on — but only if
+            # that section was not exempt.
+            if not section_exempt:
+                counts[current_section] = bullet_count
             current_section = stripped.lstrip("# ").strip()
             bullet_count = 0
-        elif stripped.startswith("- ") or stripped.startswith("* "):
+            section_exempt = _is_exempt_section(current_section)
+        elif not section_exempt and (
+            stripped.startswith("- ") or stripped.startswith("* ")
+        ):
             bullet_count += 1
 
-    # Record the final section.
-    counts[current_section] = bullet_count
+    # Record the final section — same exemption rule.
+    if not section_exempt:
+        counts[current_section] = bullet_count
     return counts
 
 
