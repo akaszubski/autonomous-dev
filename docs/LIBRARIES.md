@@ -16634,7 +16634,7 @@ result = analyzer.prune_tests(dry_run=False)
 
 **Version History**: v1.0.0 (2026-04-11) - Initial release, Dependabot security tracking at STEP 13 (Issue #767)
 
-## 176+11. prompt_quality_rules.py (v1.0.0 - Issue #842)
+## 176+11. prompt_quality_rules.py (v1.1.0 - Issue #842, updated Issue #1119)
 
 **Purpose**: Shared anti-pattern detection library for agent and command prompt files. Used as the rule engine by both the static inspection test suite (`tests/unit/test_prompt_quality.py`) and the unified_pre_tool.py Layer 6 write-time gate. Centralizes all anti-pattern definitions so enforcement is consistent between static analysis and runtime blocking.
 
@@ -16644,9 +16644,11 @@ result = analyzer.prune_tests(dry_run=False)
 - `PERSONA_PATTERN` — compiled regex that matches banned expert-qualifier persona openers (`You are an expert`, `You are a senior`, `You are a world-class`, `You are a renowned/leading/top`) while explicitly allowing legitimate role assignments (`You are the **implementer** agent`)
 - `CASUAL_REGISTER_PATTERNS` — list of compiled regexes for six casual register phrases that weaken enforcement prompts: `check for`, `look for`, `make sure`, `try to`, `you should`, `feel free`
 - `CONSTRAINT_DENSITY_THRESHOLD = 8` — maximum bullet items (lines starting with `- ` or `* `) allowed per `##` section before flagging as oversized
+- `EXEMPT_HEADER_TOKENS` — tuple of case-insensitive header substrings whose `##` sections are exempt from bullet-density counting: `FORBIDDEN`, `HARD GATE`, `HARD-GATE`, `REQUIRED`, `MUST NOT`; these sections are load-bearing enforcement text, not prose, so capping their length forces agents into symbol-prefix workarounds (Issue #1119)
+- `_is_exempt_section(header)` — returns True if a `## ` section header (with leading `## ` stripped) contains any exempt token via case-insensitive substring match
 - `check_persona(content)` — scans for persona pattern matches, returning violation strings with line numbers; legitimate role assignments pass through
 - `check_casual_register(content)` — scans for all casual register patterns; each match produces a violation string with line number and the matched phrase
-- `check_constraint_density(content, threshold=8)` — parses content into `##`-delimited sections, counts bullet items per section, and flags sections exceeding the threshold; the final section is also checked after the loop completes
+- `check_constraint_density(content, threshold=8)` — parses content into `##`-delimited sections, counts bullet items per section, and flags sections exceeding the threshold; sections whose headers contain any `EXEMPT_HEADER_TOKENS` token are skipped entirely (Issue #1119); the final section is also checked after the loop completes
 - `check_all(content)` — orchestrates all three checks and returns a combined violation list; an empty return means the content passes all checks
 
 ### Public API
@@ -16654,7 +16656,7 @@ result = analyzer.prune_tests(dry_run=False)
 **Functions**:
 - `check_persona(content: str) -> List[str]` — detect banned expert-qualifier persona openers; returns violation strings with line numbers
 - `check_casual_register(content: str) -> List[str]` — detect casual register phrases that weaken enforcement; returns violation strings with line numbers
-- `check_constraint_density(content: str, threshold: int = 8) -> List[str]` — detect oversized constraint sections exceeding the bullet-item threshold
+- `check_constraint_density(content: str, threshold: int = 8) -> List[str]` — detect oversized constraint sections exceeding the bullet-item threshold; `##` sections whose headers contain `FORBIDDEN`, `HARD GATE`, `HARD-GATE`, `REQUIRED`, or `MUST NOT` (case-insensitive) are exempt (Issue #1119)
 - `check_all(content: str) -> List[str]` — run all three checks and return combined violations (empty = pass)
 
 ### Integration
@@ -16666,6 +16668,7 @@ result = analyzer.prune_tests(dry_run=False)
 ### Testing
 
 - `tests/unit/test_prompt_quality.py` — 27 tests covering unit-level rule checks (persona detection, casual register, constraint density) and static inspection of all existing agent `.md` files
+- `tests/unit/test_prompt_quality_rules.py` — 9 regression tests covering the Issue #1119 exemption: FORBIDDEN/HARD GATE/REQUIRED sections with more than 8 bullets pass the check, non-exempt sections still fail, `_is_exempt_section` header matching, and the diff-aware path via `_section_bullet_counts` correctly omits exempt sections
 - `tests/spec_validation/test_spec_issue842_prompt_quality_gate.py` — 30 spec-validation tests covering hook integration, Layer 6 enforcement behavior, and test routing config
 
 ## session_mode.py (Issue #998 — Phase D)
