@@ -33,6 +33,7 @@ from prompt_integrity import (
     ValidateAndReloadResult,
     clear_prompt_baselines,
     compute_template_baselines,
+    construct_revision_prompt,
     get_agent_prompt_template,
     get_prompt_baseline,
     record_prompt_baseline,
@@ -729,6 +730,112 @@ class TestValidatePromptSlots:
     def test_required_prompt_slots_contains_security_auditor(self) -> None:
         """REQUIRED_PROMPT_SLOTS must include security-auditor."""
         assert "security-auditor" in REQUIRED_PROMPT_SLOTS
+
+
+class TestConstructRevisionPrompt:
+    """Tests for construct_revision_prompt() — Issue #1116.
+
+    The coordinator previously re-invoked agents for revision (plan-critic
+    REVISE) or remediation (reviewer BLOCKING) by passing ONLY the new
+    feedback. The prompt-integrity hook then detected this as shrinkage vs the
+    baseline word count and blocked the re-invocation. construct_revision_prompt
+    combines the full baseline context with the feedback so the resulting
+    prompt's word count is >= baseline, defeating the shrinkage detector.
+    """
+
+    def test_construct_revision_prompt_combines_baseline_and_feedback(self) -> None:
+        """Result starts with baseline, contains the marker, and ends with feedback."""
+        baseline = "You are the planner. Read the spec and produce a plan."
+        feedback = "Address axis 2 (Existing Solution Search) more rigorously."
+
+        result = construct_revision_prompt(
+            agent_type="planner",
+            baseline_context=baseline,
+            feedback=feedback,
+        )
+
+        assert result.startswith(baseline), (
+            f"Result must start with baseline_context. Got: {result[:80]!r}"
+        )
+        assert "\n\n## REVISION FEEDBACK\n" in result, (
+            "Result must contain the REVISION FEEDBACK marker between baseline and feedback."
+        )
+        assert result.endswith(feedback), (
+            f"Result must end with feedback. Got tail: {result[-80:]!r}"
+        )
+
+    def test_construct_revision_prompt_preserves_baseline_word_count(self) -> None:
+        """Revision word count >= baseline word count (defeats shrinkage detector)."""
+        baseline = " ".join(["baseline_word"] * 1500)
+        feedback = " ".join(["feedback_word"] * 300)
+
+        result = construct_revision_prompt(
+            agent_type="planner",
+            baseline_context=baseline,
+            feedback=feedback,
+        )
+
+        baseline_word_count = len(baseline.split())
+        result_word_count = len(result.split())
+        assert result_word_count >= baseline_word_count, (
+            f"Revision word count ({result_word_count}) must be >= baseline "
+            f"({baseline_word_count}) to defeat the shrinkage detector."
+        )
+        # Sanity: should actually grow (baseline + marker + feedback)
+        assert result_word_count > baseline_word_count, (
+            "Combined prompt should grow beyond baseline (baseline + marker + feedback)."
+        )
+
+    def test_construct_revision_prompt_empty_feedback_still_returns_baseline_plus_marker(
+        self,
+    ) -> None:
+        """Empty feedback still produces a valid prompt with the REVISION FEEDBACK header."""
+        baseline = "Original prompt content for the agent to re-process."
+        feedback = ""
+
+        result = construct_revision_prompt(
+            agent_type="implementer",
+            baseline_context=baseline,
+            feedback=feedback,
+        )
+
+        assert result.startswith(baseline)
+        assert "## REVISION FEEDBACK" in result, (
+            "Marker must be present even when feedback is empty."
+        )
+        # Word count must still be >= baseline (the marker adds words, not removes them)
+        assert len(result.split()) >= len(baseline.split())
+
+    def test_construct_revision_prompt_with_special_chars_in_feedback(self) -> None:
+        """Feedback containing markdown, code fences, and unicode is passed through verbatim."""
+        baseline = "Baseline prompt content for the implementer."
+        feedback = (
+            "## BLOCKING Findings\n\n"
+            "1. **Missing input validation** in `parse_config()`\n"
+            "   ```python\n"
+            "   def parse_config(data):  # no validation!\n"
+            "       return json.loads(data)\n"
+            "   ```\n"
+            "2. Unicode test cases not handled: café, naïve, 北京, 🔥\n"
+            "3. Use `assert x == y`, not `==`\n"
+        )
+
+        result = construct_revision_prompt(
+            agent_type="implementer",
+            baseline_context=baseline,
+            feedback=feedback,
+        )
+
+        # Feedback must appear verbatim — no escaping, no munging
+        assert feedback in result, (
+            "Feedback string (including markdown, code fences, unicode) must be "
+            "embedded verbatim in the result."
+        )
+        # Spot-check the tricky bits explicitly
+        assert "```python" in result
+        assert "café" in result
+        assert "北京" in result
+        assert "🔥" in result
 
 
 class TestIssue907ContractLocks:

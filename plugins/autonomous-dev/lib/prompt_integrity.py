@@ -17,6 +17,7 @@ Usage:
         get_cross_issue_baseline,
         get_agent_prompt_template,
         clear_prompt_baselines,
+        construct_revision_prompt,
     )
 
     # At batch start
@@ -471,6 +472,45 @@ def validate_and_reload(
         reload_count=reload_count,
         reload_succeeded=False,
     )
+
+
+def construct_revision_prompt(
+    agent_type: str,
+    baseline_context: str,
+    feedback: str,
+) -> str:
+    """Construct a revision/remediation prompt that passes prompt-integrity checks.
+
+    Combines the full baseline context with the feedback suffix, ensuring the
+    resulting prompt meets the minimum word count threshold the prompt-integrity
+    hook measures against (Issue #1116).
+
+    Background: when re-invoking an agent for revision (plan-critic REVISE) or
+    remediation (reviewer/security-auditor BLOCKING), the coordinator previously
+    passed ONLY the new feedback to the second invocation. The prompt-integrity
+    hook detected this as compression vs the baseline word count and blocked
+    the re-invocation. By prepending the original baseline context to the
+    feedback, the combined prompt's word count is always >= baseline, defeating
+    the shrinkage detector while preserving full critique fidelity.
+
+    Args:
+        agent_type: Name of the agent being re-invoked (planner, implementer,
+            reviewer, etc.). Used only for diagnostic/contextual purposes — the
+            shape of the returned prompt is the same regardless of agent.
+        baseline_context: The full original prompt context that was passed on
+            the first invocation. Must not be empty for the integrity guarantee
+            to hold.
+        feedback: The critique / BLOCKING findings to address in the revision.
+            May be empty — the function still returns baseline + marker so the
+            agent at least re-runs against its original prompt.
+
+    Returns:
+        Combined prompt string in the form:
+        ``baseline_context + "\\n\\n## REVISION FEEDBACK\\n" + feedback``.
+        Word count is guaranteed to be >= ``len(baseline_context.split())``.
+    """
+    del agent_type  # reserved for future per-agent prompt shaping; not used today
+    return f"{baseline_context}\n\n## REVISION FEEDBACK\n{feedback}"
 
 
 def _get_baselines_path(state_dir: Optional[Path] = None) -> Path:

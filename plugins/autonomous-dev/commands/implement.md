@@ -42,9 +42,9 @@ user-invocable: true
 
 #### Pipeline Integrity — Output Fidelity and Isolation
 - ❌ You MUST NOT paraphrase, summarize, or condense agent output when passing it to the next stage. Pass the FULL agent output text verbatim. If output exceeds context limits, pass the first 2000 words plus the final summary/conclusion section — never your own restatement. The anti-pattern: "The implementer changed X, Y, Z" instead of the implementer's actual output. STEP 10 agents (reviewer, security-auditor) need the real output to do real reviews.
-- ❌ You MUST NOT skip validation agents (reviewer, security-auditor, doc-master) under context pressure — BLOCK the pipeline instead and suggest `/clear` then `/implement --resume $RUN_ID`
-- ❌ You MUST NOT pass fewer than 50% of the implementer's output words to the reviewer — if you must truncate, include the first 3000 words plus the full summary/conclusion. Log the word counts: "Implementer output: N words → Reviewer input: M words (ratio: M/N)"
+- ❌ You MUST NOT skip validation agents (reviewer, security-auditor, doc-master) under context pressure — BLOCK the pipeline instead and suggest `/clear` then `/implement --resume $RUN_ID`. You MUST NOT pass fewer than 50% of the implementer's output words to the reviewer — if you must truncate, include the first 3000 words plus the full summary/conclusion. Log the word counts: "Implementer output: N words → Reviewer input: M words (ratio: M/N)"
 - ❌ You MUST NOT leak implementer output, code diffs, reviewer feedback, research findings, or planner rationale to the spec-validator agent (STEP 8.5 context boundary violation)
+- ❌ You MUST NOT pass only feedback to revision/remediation re-invocations — always combine baseline context with feedback via `construct_revision_prompt()` (`from prompt_integrity import construct_revision_prompt`). Reason: prompt-integrity hook detects shrinkage and BLOCKS the re-invocation (Issue #1116). Applies to STEP 5.5b plan-critic REVISE and STEP 11 reviewer/security-auditor BLOCKING remediation.
 
 ### Pipeline Progress Protocol
 
@@ -637,7 +637,7 @@ If no matching file with "Verdict: PROCEED" is found, proceed to 5.5b.
 **Parse verdict from plan-critic output**:
 
 - **PROCEED** → continue to 5.5c (structural validation)
-- **REVISE** → pass the plan-critic feedback to the planner, re-invoke planner once (same prompt as STEP 5 plus feedback), then accept the revised plan and continue to 5.5c regardless of a second critique
+- **REVISE** → pass the plan-critic feedback to the planner, re-invoke planner once (same prompt as STEP 5 plus feedback), then accept the revised plan and continue to 5.5c regardless of a second critique. **The re-invocation prompt MUST use `construct_revision_prompt(agent_type="planner", baseline_context=<full original STEP 5 prompt>, feedback=<plan-critic critique text>)`** (`from prompt_integrity import construct_revision_prompt`). Passing only the critique text causes prompt-integrity to fire on shrinkage and block the re-invocation (Issue #1116).
 - **BLOCKED** → BLOCK the pipeline with message:
   ```
   BLOCKED (STEP 5.5): Plan-critic returned BLOCKED verdict.
@@ -1218,7 +1218,7 @@ Parse the reviewer verdict (`APPROVE` or `REQUEST_CHANGES`) and security-auditor
 For each cycle:
 1. **Collect BLOCKING findings** — Extract ALL findings with severity BLOCKING from the failing validator(s). Pass them VERBATIM to the implementer (do not summarize, paraphrase, or reorder).
 2. **VERBATIM PASSING REQUIRED**: Pass ALL BLOCKING findings VERBATIM to the implementer. Do NOT summarize, reword, or condense. Include the full validator output as critique history. The implementer needs the exact finding text to understand what to fix.
-3. **Re-invoke implementer in REMEDIATION MODE** — **Agent**(subagent_type="implementer", model="opus") with prompt: "REMEDIATION MODE — Fix the following BLOCKING findings. Critique history: {full validator output verbatim}. BLOCKING findings: {findings verbatim}." The coordinator MUST NOT apply fixes directly. Even for trivial one-line fixes, the implementer agent must be re-invoked. If context limits prevent implementer re-invocation, BLOCK the pipeline and suggest `/clear` then `/implement --resume`.
+3. **Re-invoke implementer in REMEDIATION MODE** — **Agent**(subagent_type="implementer", model="opus") with prompt: "REMEDIATION MODE — Fix the following BLOCKING findings. Critique history: {full validator output verbatim}. BLOCKING findings: {findings verbatim}." **The re-invocation prompt MUST be constructed via `construct_revision_prompt(agent_type="implementer", baseline_context=<full original STEP 8 prompt>, feedback=<BLOCKING findings>)`** (`from prompt_integrity import construct_revision_prompt`). Passing only the BLOCKING findings causes prompt-integrity to fire on shrinkage and block the re-invocation (Issue #1116). The coordinator MUST NOT apply fixes directly. Even for trivial one-line fixes, the implementer agent must be re-invoked. If context limits prevent implementer re-invocation, BLOCK the pipeline and suggest `/clear` then `/implement --resume`.
 4. **Run pytest** — Verify 0 failures after remediation fixes.
 5. **Re-run failing validators AND security-auditor** — If reviewer failed, re-run reviewer. If security-auditor failed, re-run security-auditor. **security-auditor MUST always re-run after remediation, even if it passed originally**, because remediation changes the code it certified — a PASS from STEP 10 is stale and cannot be accepted when code was modified in STEP 11. Do NOT invoke doc-master during remediation. After both validators return, overwrite the artifact files with the final post-remediation outputs:
    ```bash
