@@ -1,6 +1,6 @@
 """Regression tests for unified_pre_tool false-positive blocks.
 
-Covers three independent surgical fixes landed together in one batch:
+Covers four independent surgical fixes:
 
 - Issue #1032: ``_detect_env_spoofing`` falsely blocking commands whose
   heredoc body merely mentions a protected env var name (e.g. writing
@@ -20,6 +20,10 @@ Covers three independent surgical fixes landed together in one batch:
   ``_is_plugin_source_path`` helper, which uses component-adjacency
   on the resolved parts to reject look-alikes like
   ``/tmp/plugins/autonomous-dev/settings.local.json``.
+- Issue #918: Coordinator blocked on READ of settings.local.json — the
+  settings-write guard MUST NOT fire for Read-tool calls. Regression
+  class ``TestIssue918ReadToolNeverBlocksSettings`` locks this in via
+  end-to-end dispatch tests.
 
 Import pattern mirrors ``test_settings_write_via_intent.py``.
 """
@@ -27,8 +31,12 @@ Import pattern mirrors ``test_settings_write_via_intent.py``.
 from __future__ import annotations
 
 import importlib
+import json
 import sys
+import tempfile
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -201,3 +209,269 @@ class TestIssue1111SelfMaintenanceBranch:
     def test_1111_empty_path_returns_false(self) -> None:
         """Empty string input returns False (does not raise)."""
         assert upt._is_plugin_source_path("") is False
+
+
+# ---------------------------------------------------------------------------
+# Issue #918 — Read tool MUST NOT trigger settings.json write-protect guard
+# ---------------------------------------------------------------------------
+
+
+class TestIssue918ReadToolNeverBlocksSettings:
+    """Read-tool dispatch to settings.json paths MUST never produce a deny decision.
+
+    Issue #918 reports that the coordinator was blocked on a Read operation
+    targeting .claude/settings.local.json.  Research confirmed the production
+    code is already correctly tool-name-gated: the ``settings_json_write_block``
+    deviation is triggered at exactly two locations in unified_pre_tool.py:
+
+    - Line 4457: ``if tool_name in ("Write", "Edit"):``  — the Write/Edit gate
+    - Line 4685: ``if tool_name == "Bash":``             — the Bash gate
+
+    A Read tool call with tool_name="Read" cannot structurally reach either
+    gate.  These tests lock that invariant in place so no future refactor can
+    accidentally widen the gate to include "Read".
+
+    The ``_run_hook`` helper follows the canonical end-to-end dispatch pattern
+    used by ``TestInfraProtectionInMainFlow`` in
+    ``test_infrastructure_protection.py``: patch sys.stdin with the hook JSON
+    payload, capture sys.stdout, call ``upt.main()``, parse the output JSON.
+    """
+
+    # ------------------------------------------------------------------
+    # End-to-end dispatch helper (mirrors test_infrastructure_protection.py)
+    # ------------------------------------------------------------------
+
+    def _run_hook(self, tool_name: str, tool_input: dict, **extra_fields: object) -> dict:
+        """Invoke upt.main() with a synthesised PreToolUse payload.
+
+        Returns the parsed JSON object that the hook writes to stdout.
+        An empty dict is returned when the hook produces no JSON output
+        (which itself indicates an error — callers should assert on a
+        non-empty result).
+
+        Args:
+            tool_name: The PreToolUse ``tool_name`` field.
+            tool_input: The PreToolUse ``tool_input`` dict.
+            **extra_fields: Additional top-level payload fields (e.g.
+                ``session_id``, ``hook_event_name``).
+
+        Returns:
+            Parsed JSON dict from the hook's stdout.
+        """
+        payload = {
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "session_id": extra_fields.pop("session_id", "test-918"),
+            "hook_event_name": extra_fields.pop("hook_event_name", "PreToolUse"),
+            **extra_fields,
+        }
+        input_data = json.dumps(payload)
+        captured = StringIO()
+
+        with patch("sys.stdin", StringIO(input_data)), \
+             patch("sys.stdout", captured), \
+             pytest.raises(SystemExit):
+            upt.main()
+
+        output_text = captured.getvalue().strip()
+        lines = [line for line in output_text.split("\n") if line.strip()]
+        if not lines:
+            return {}
+        try:
+            return json.loads(lines[-1])
+        except json.JSONDecodeError:
+            return {}
+
+    def _get_decision(self, result: dict) -> str:
+        """Extract the permissionDecision string from the hook output dict."""
+        return result.get("hookSpecificOutput", {}).get("permissionDecision", "")
+
+    # ------------------------------------------------------------------
+    # Test 1: Read on settings.local.json — no pipeline active
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_read_settings_local_no_block(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """END-TO-END: Read tool on .claude/settings.local.json MUST be allowed.
+
+        This is the canonical regression test for Issue #918.  Simulates the
+        exact payload that was reported to trigger an erroneous block:
+        tool_name="Read", file_path=".claude/settings.local.json".
+
+        With no active pipeline the settings-write guard never fires (it only
+        blocks when ``_is_pipeline_active()`` returns True).  But even with a
+        live pipeline, Read cannot reach the guard — this test covers the
+        no-pipeline baseline.
+        """
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: False)
+
+        result = self._run_hook(
+            "Read",
+            {"file_path": ".claude/settings.local.json"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "allow", (
+            f"Read on settings.local.json must be 'allow', got {decision!r}. "
+            f"Full hook output: {result}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 2: Read on settings.local.json — pipeline ACTIVE (worst case)
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_read_settings_local_no_block_pipeline_active(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """END-TO-END: Read tool MUST be allowed even when /implement pipeline is active.
+
+        Worst-case scenario: an active pipeline is running.  The settings-write
+        guard at line 4525 only executes inside ``if tool_name in ("Write", "Edit"):``
+        (line 4457), so Read tool calls CANNOT reach it regardless of pipeline state.
+        """
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: True)
+
+        result = self._run_hook(
+            "Read",
+            {"file_path": ".claude/settings.local.json"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "allow", (
+            f"Read on settings.local.json must be 'allow' even during active pipeline, "
+            f"got {decision!r}. Full hook output: {result}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 3: Read on settings.json (without .local)
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_read_settings_json_no_block(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """END-TO-END: Read tool on .claude/settings.json MUST be allowed.
+
+        Extends test #1 to the non-.local variant.  The same structural
+        argument applies: only tool_name "Write", "Edit", and "Bash" can
+        reach the settings-write guard.
+        """
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: True)
+
+        result = self._run_hook(
+            "Read",
+            {"file_path": ".claude/settings.json"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "allow", (
+            f"Read on settings.json must be 'allow', got {decision!r}. "
+            f"Full hook output: {result}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 4: Read on an infrastructure-protected file
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_read_other_protected_no_block(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Defense-in-depth: Read tool on a write-protected infrastructure file is allowed.
+
+        ``plugins/autonomous-dev/hooks/unified_pre_tool.py`` is an
+        infrastructure-protected file (in the ``/hooks/`` segment).  The
+        infrastructure-protection guard at line 4457 only fires for Write/Edit,
+        not for Read.  This test confirms reading infra files is always allowed.
+        """
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: False)
+
+        result = self._run_hook(
+            "Read",
+            {"file_path": "plugins/autonomous-dev/hooks/unified_pre_tool.py"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "allow", (
+            f"Read on infrastructure file must be 'allow', got {decision!r}. "
+            f"Full hook output: {result}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 5: Write to settings.local.json WITH active pipeline STILL blocks
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_write_settings_local_still_blocks_when_pipeline_active(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sanity / no-regression: Write to settings.local.json MUST still block.
+
+        Proves the legitimate Issue #557 guard has not been weakened by our
+        test additions.  With an active pipeline, a Write to
+        ``.claude/settings.local.json`` must produce a deny decision with the
+        ``settings_json_write_block`` category.
+        """
+        # Ensure the path is NOT treated as a template or plugin-source path
+        monkeypatch.setattr(upt, "_is_settings_template_path", lambda _: False)
+        monkeypatch.setattr(upt, "_is_self_maintenance_mode", lambda: False)
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: True)
+        # Suppress infrastructure-protection check so only the settings guard fires
+        monkeypatch.setattr(upt, "_is_protected_infrastructure", lambda _: False)
+
+        result = self._run_hook(
+            "Write",
+            {"file_path": ".claude/settings.local.json", "content": "{}"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "deny", (
+            f"Write to settings.local.json during active pipeline MUST be 'deny', "
+            f"got {decision!r}.  The Issue #557 guard must remain intact. "
+            f"Full hook output: {result}"
+        )
+        reason = result.get("hookSpecificOutput", {}).get("permissionDecisionReason", "")
+        assert "BLOCKED" in reason, (
+            f"Deny reason must contain 'BLOCKED'. Got: {reason!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 6: Bash redirect to settings.local.json WITH active pipeline STILL blocks
+    # ------------------------------------------------------------------
+
+    def test_918_dispatch_bash_write_settings_local_still_blocks_when_pipeline_active(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sanity / no-regression: Bash redirect to settings.local.json MUST still block.
+
+        Proves the Bash-path guard at line 4685/4911 is intact.  With an
+        active pipeline, ``echo '{}' > .claude/settings.local.json`` MUST
+        produce a deny decision.
+        """
+        monkeypatch.setattr(upt, "_is_pipeline_active", lambda: True)
+
+        result = self._run_hook(
+            "Bash",
+            {"command": "echo '{}' > .claude/settings.local.json"},
+            session_id="test-918",
+            hook_event_name="PreToolUse",
+        )
+
+        assert result, "Hook must produce JSON output"
+        decision = self._get_decision(result)
+        assert decision == "deny", (
+            f"Bash redirect to settings.local.json during active pipeline MUST be 'deny', "
+            f"got {decision!r}.  The Issue #557 Bash guard must remain intact. "
+            f"Full hook output: {result}"
+        )
