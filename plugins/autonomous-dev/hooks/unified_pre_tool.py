@@ -1100,8 +1100,17 @@ def _is_autonomous_dev_repo(file_path: str) -> bool:
         current = Path(file_path).resolve().parent
     except (OSError, ValueError):
         return False
+    # Don't let the walk-up reach the user's home directory: the global
+    # autonomous-dev install at ~/.claude/commands/implement.md is meant for
+    # the user's tooling, not to mark every project under ~ as autonomous-dev.
+    try:
+        home = Path.home().resolve()
+    except (OSError, ValueError):
+        home = None
     # Walk up at most 10 levels to find repo root
     for _ in range(10):
+        if home is not None and current == home:
+            break
         marker = current / ".claude" / "commands" / "implement.md"
         if marker.exists():
             return True
