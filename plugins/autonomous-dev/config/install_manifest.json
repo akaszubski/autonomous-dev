@@ -108,6 +108,8 @@
         "plugins/autonomous-dev/hooks/auto_test.py",
         "plugins/autonomous-dev/hooks/conversation_archiver.hook.json",
         "plugins/autonomous-dev/hooks/conversation_archiver.py",
+        "plugins/autonomous-dev/hooks/enforce_file_organization.hook.json",
+        "plugins/autonomous-dev/hooks/enforce_file_organization.py",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.hook.json",
         "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
         "plugins/autonomous-dev/hooks/enforce_prunable_threshold.py",

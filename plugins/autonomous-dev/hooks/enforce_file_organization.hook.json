@@ -1,0 +1,14 @@
+{
+  "name": "enforce_file_organization",
+  "type": "guard",
+  "description": "Block Write/Edit creating files in repo root outside allow-list",
+  "interpreter": "python3",
+  "active": true,
+  "registrations": [
+    {
+      "event": "PreToolUse",
+      "matcher": "Write|Edit",
+      "timeout": 5
+    }
+  ]
+}

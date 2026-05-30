@@ -488,7 +488,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 ### Reference
 - [Commands](plugins/autonomous-dev/commands/) - All 24 commands
-- [Hooks](docs/HOOKS.md) - 30 active hooks
+- [Hooks](docs/HOOKS.md) - 31 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
 - [Libraries](docs/LIBRARIES.md) - 210 Python utilities
 - [Scripts](docs/SCRIPTS.md) - Operational tooling (deploy, validate, benchmark, mine)

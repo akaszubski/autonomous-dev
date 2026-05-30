@@ -29,7 +29,7 @@ This registry provides a comprehensive view of:
 
 ### Unified Hooks
 
-The plugin uses 30 active hooks (files on disk in `plugins/autonomous-dev/hooks/`, 62 archived):
+The plugin uses 31 active hooks (files on disk in `plugins/autonomous-dev/hooks/`, 62 archived):
 
 | Hook File | Lifecycle/Trigger | Status | Purpose |
 |-----------|------------------|--------|---------|
@@ -48,6 +48,7 @@ The plugin uses 30 active hooks (files on disk in `plugins/autonomous-dev/hooks/
 | validate_project_alignment | PreCommit | Enabled | Validate PROJECT.md alignment |
 | validate_session_quality | Stop | Enabled | Validate session quality and completeness |
 | plan_gate | PreToolUse | Enabled | Pre-implementation planning gate — blocks complex Write/Edit when no valid plan exists in .claude/plans/. Exempts documentation files and simple edits (<100 lines). Validates WHY+SCOPE, Existing Solutions, Minimal Path sections. Escape hatch: SKIP_PLAN_CHECK=1. Fails open. (Issue #814) |
+| enforce_file_organization | PreToolUse | Enabled | Blocks Write/Edit creating files at repo root outside an allow-list (README.md, pyproject.toml, CLAUDE.md, top-level config files like *.json/*.toml/*.yaml, hidden files). Allow-list extends via plugins/autonomous-dev/templates/project-structure.json (Root directory > allowed_files). Block message suggests destination folder by extension (.py/.sh → scripts/, .md → docs/, .log/.jsonl → logs/, test_*.py → tests/unit/). Escape hatch: universal AUTONOMOUS_DEV_BYPASS=1 / .claude/.bypass. Standalone (not wired into unified_pre_tool.py); stdlib-only; fails open. (Issue #1034) |
 | plan_mode_exit_detector | PostToolUse | Enabled | Detect ExitPlanMode calls and write marker; implements staged plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done → /implement allowed. **AC#3 fast-path (Issue #937/#970)**: if `.claude/plan_critic_verdict.json` holds a PROCEED verdict at ExitPlanMode time, the marker is born `stage: "critique_done"` (not `"plan_exited"`), the verdict file is consumed, and the user is immediately unblocked. Without a PROCEED verdict the marker is born `stage: "plan_exited"` as before. **Per Issue #926, the *enforcement* of this marker moved from UserPromptSubmit to PreToolUse (`unified_pre_tool.py`); marker writer behavior otherwise unchanged** |
 | session_activity_logger | PostToolUse + PreToolUse (Task\|Agent) | Enabled | Structured JSONL activity logging for continuous improvement. PreToolUse registration (Task\|Agent matcher) caches subagent invocation data via `subagent_invocation_cache.py` for cross-hook SubagentStop correlation (Issue #1087). PostToolUse registration handles tool-call logging unchanged. |
 | task_completed_handler | TaskCompleted | Enabled | Log task completion events to activity JSONL for pipeline observability |

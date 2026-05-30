@@ -207,6 +207,19 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 - Fails open: any exception or invalid input results in allow
 - Block message includes `REQUIRED NEXT ACTION` directive pointing to `/plan`
 
+**enforce_file_organization.py** (Issue #1034 — PreToolUse, Write/Edit tools):
+- Blocks Write/Edit operations that would create files at the repo root outside an allow-list (e.g. `README.md`, `pyproject.toml`, `CLAUDE.md`)
+- Allow-list sources: built-in defaults (consolidated standard root files), plus `plugins/autonomous-dev/templates/project-structure.json` under `["structure"]["Root directory"]["allowed_files"]` (falls back to `.claude/templates/project-structure.json` for installed-only repos)
+- Hardcoded extension allow-list at root: `.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`, `.lock` (config files always pass)
+- Hidden files (basename starts with `.`) always pass
+- Files in any subdirectory always pass — the gate is repo-root-only
+- Block message includes a suggested folder when the extension maps to a standard directory: `.py`/`.sh` → `scripts/`, `.md` → `docs/`, `.log`/`.jsonl` → `logs/`, `test_*.py`/`*_test.py` → `tests/unit/`
+- Block message format: `File placement violation: <basename> cannot be created in repo root. Suggested location: <folder>/<basename>. REQUIRED NEXT ACTION: Re-issue Write with file_path=<folder>/<basename>.`
+- Escape hatch: universal `AUTONOMOUS_DEV_BYPASS=1` env var or `.claude/.bypass` file (Issue #969)
+- Stdlib-only, standalone (not wired into `unified_pre_tool.py`); fails open on every error path
+- Repo root resolved via `git rev-parse --show-toplevel` — non-git contexts skip enforcement
+- Replaces the GenAI-based `archived/enforce_file_organization.py`; deterministic heuristics only, no `--fix` mode
+
 ### PreCommit
 
 | Hook | Purpose | Key Env Vars |

@@ -264,7 +264,7 @@ INTENT_CLASSIFICATION_PROMPT  # (Feature vs refactor vs docs)
 COMPLEXITY_ASSESSMENT_PROMPT  # (Simple vs complex changes)
 DESCRIPTION_VALIDATION_PROMPT # (Accurate vs misleading docs)
 DOC_GENERATION_PROMPT         # (Auto-generate descriptions)
-FILE_ORGANIZATION_PROMPT      # (Semantic file placement)
+FILE_ORGANIZATION_PROMPT      # (Semantic file placement — legacy; file org enforcement moved to stdlib-only enforce_file_organization.py hook, Issue #1034)
 # Refactor semantic analysis prompts (Issue #515):
 DOC_CODE_DRIFT_PROMPT         # (Doc-code contradiction detection via covers: frontmatter)
 HOLLOW_TEST_PROMPT            # (Meaningful vs hollow test detection)
@@ -493,7 +493,7 @@ export GENAI_TEST_GENERATION=true|false     # Intent classification
 export GENAI_DOC_UPDATE=true|false          # Complexity assessment
 export GENAI_DOCS_VALIDATE=true|false       # Description validation
 export GENAI_DOC_AUTOFIX=true|false         # Doc generation
-export GENAI_FILE_ORGANIZATION=true|false   # File placement
+export GENAI_FILE_ORGANIZATION=true|false   # File placement (legacy — file org is now enforced by the stdlib-only enforce_file_organization.py hook; this flag no longer controls enforcement; bypass via AUTONOMOUS_DEV_BYPASS=1 instead)
 
 # Debug flags
 export DEBUG_GENAI=true   # Verbose GenAI logging

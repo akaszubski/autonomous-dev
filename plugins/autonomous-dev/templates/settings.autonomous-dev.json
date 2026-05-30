@@ -120,6 +120,11 @@
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/plan_gate.py\"",
             "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/enforce_file_organization.py\"",
+            "timeout": 5
           }
         ]
       },
