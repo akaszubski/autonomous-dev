@@ -212,6 +212,66 @@ rather scope to a single repo, run:
 
 ---
 
+### Step 1.7: Claude Code version + compound-bash compatibility check
+
+Check whether the installed Claude Code version requires per-prefix Bash allow entries and
+warn the user if their global settings are missing them.
+
+```bash
+CC_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -n "$CC_VERSION" ]; then
+  python3 -c "
+import sys, json
+from pathlib import Path
+
+version_str = '$CC_VERSION'
+parts = version_str.split('.')
+try:
+    v = tuple(int(x) for x in parts[:3])
+except ValueError:
+    sys.exit(0)
+
+if v < (2, 1, 77):
+    sys.exit(0)
+
+settings_path = Path.home() / '.claude' / 'settings.json'
+if not settings_path.exists():
+    sys.exit(0)
+
+try:
+    data = json.loads(settings_path.read_text())
+except (json.JSONDecodeError, OSError):
+    sys.exit(0)
+
+allow_list = data.get('permissions', {}).get('allow', [])
+has_bare_bash = 'Bash' in allow_list
+has_prefix_bash = any(e.startswith('Bash(') for e in allow_list)
+
+if has_bare_bash and not has_prefix_bash:
+    print()
+    print('WARNING: Claude Code $CC_VERSION detected — compound-bash auto-approve changed.')
+    print()
+    print('  Your ~/.claude/settings.json has a bare \"Bash\" allow entry but no per-prefix')
+    print('  Bash(<tool>:*) entries. As of CC 2.1.77, compound commands like')
+    print('  \"git status && echo done\" are split before matching, so each subcommand must')
+    print('  match its own allow entry. Without per-prefix entries you will see a permission')
+    print('  prompt on every /implement subcommand.')
+    print()
+    print('  Recommended fix: merge the granular allow list into ~/.claude/settings.json:')
+    print()
+    print('    bash scripts/deploy-all.sh --global-settings')
+    print()
+    print('  Or manually copy the \"permissions.allow\" array from:')
+    print('    plugins/autonomous-dev/templates/settings.granular-bash.json')
+    print()
+    print('  See TROUBLESHOOTING.md § \"Permission prompts after upgrading Claude Code\"')
+    print()
+"
+fi
+```
+
+---
+
 ### Step 2: Detect Project Type
 
 After files are installed, detect the project type and generate PROJECT.md inline. Follow these steps:
