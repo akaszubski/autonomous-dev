@@ -279,11 +279,29 @@ a slash command to unstick it, set `AUTONOMOUS_DEV_BYPASS=1` or `touch .claude/.
 — every hook honors this and falls through to allow with a logged audit trail.
 See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969).
 
-### Per-repo opt-out (permanent)
+### Per-repo enforcement control
 
-autonomous-dev installs hooks into `~/.claude/` globally, so they fire in **every**
-repo where you run Claude Code — including repos that aren't part of the
-autonomous-dev SDLC. To permanently silence autonomous-dev in a repo:
+autonomous-dev installs hooks into `~/.claude/` globally. Four states control
+per-repo enforcement, in order of precedence:
+
+| State | How | Enforcement |
+|---|---|---|
+| Bypass (highest priority) | `touch .claude/.bypass` OR `AUTONOMOUS_DEV_BYPASS=1` | OFF — all hooks fall through (Issue #969) |
+| Plugin source auto-detect | Repo contains `plugins/autonomous-dev/.claude-plugin/marketplace.json` | ON — autonomous-dev itself |
+| Opt-in via `.enforce` | `touch .claude/.enforce` (commit to repo) | ON — consumer repo opted into SDLC enforcement |
+| Default | None of the above | OFF |
+
+**Opt a repo in** (e.g., spektiv, realign):
+
+```bash
+cd ~/Dev/<repo>
+mkdir -p .claude
+touch .claude/.enforce
+git add .claude/.enforce
+git commit -m "chore: opt into autonomous-dev SDLC enforcement"
+```
+
+**Opt a repo out** (permanent silence):
 
 ```bash
 cd /path/to/repo
@@ -291,18 +309,12 @@ mkdir -p .claude
 touch .claude/.bypass
 ```
 
-That single file disables all autonomous-dev enforcement in that repo. Every
-hook checks for it and falls through. Equivalent to setting `AUTONOMOUS_DEV_BYPASS=1`
-in your environment, but scoped to a single repo and persistent across sessions.
+To temporarily re-enable in a bypassed repo: `rm .claude/.bypass`.
+To temporarily disable in an enforced repo: `touch .claude/.bypass` (bypass wins).
 
-**When to use it:** any repo where you want Claude Code's default behavior, not
-autonomous-dev's gated SDLC pipeline. Stand-alone scripts, scratch experiments,
-client work, repos owned by others.
-
-**To re-enable:** `rm .claude/.bypass`.
-
-**Tip:** add `.claude/.bypass` content explaining why it's there, so future-you
-remembers. Example: see `/Users/<you>/Dev/<repo>/.claude/.bypass` after `touch`.
+Note: `.claude/.enforce` extends enforcement gates (TDD, quality, plan-exit). It does NOT extend
+protected-infrastructure semantics — those apply only to the autonomous-dev source tree itself,
+by design. Consumer repos have no `plugins/autonomous-dev/` tree to protect.
 
 ### Uninstalling autonomous-dev
 

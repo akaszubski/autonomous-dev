@@ -39,6 +39,15 @@ from typing import Optional
 
 
 # =============================================================================
+# Constants
+# =============================================================================
+
+# Marker file for consumer repos to opt into autonomous-dev SDLC enforcement.
+# Symmetric to hook_bypass.BYPASS_FILE_RELATIVE (the opt-out marker).
+# Walk depth matches hook_bypass.WALK_DEPTH_LIMIT = 30.
+ENFORCE_FILE_RELATIVE = Path(".claude") / ".enforce"
+
+# =============================================================================
 # Data Structures
 # =============================================================================
 
@@ -96,18 +105,57 @@ def _reset_cache() -> None:
 # =============================================================================
 
 
-def is_autonomous_dev_repo() -> bool:
-    """
-    Detect if current repository is autonomous-dev.
+def _has_enforce_marker() -> bool:
+    """Check if ``.claude/.enforce`` exists in cwd or any ancestor directory.
 
-    Detection Strategy:
-        1. Look for plugins/autonomous-dev/ directory
-        2. Verify .claude-plugin/marketplace.json exists
-        3. Traverse up directory tree to find repo root
-        4. Cache result for performance
+    Walks up to 30 levels (matches ``hook_bypass.WALK_DEPTH_LIMIT``). The walk
+    mirrors the pattern used by ``hook_bypass._flag_file_in_chain``.
 
     Returns:
-        True if current repo is autonomous-dev, False otherwise
+        True if ``.claude/.enforce`` is found anywhere up the directory chain,
+        False on any error or if the marker is not found within 30 levels.
+    """
+    try:
+        current = Path.cwd().resolve()
+    except (OSError, PermissionError):
+        return False
+
+    for _ in range(30):
+        candidate = current / ENFORCE_FILE_RELATIVE
+        try:
+            if candidate.is_file():
+                return True
+        except (OSError, PermissionError):
+            # Permission errors — keep walking up
+            pass
+
+        parent = current.parent
+        if parent == current:
+            # Filesystem root reached
+            return False
+        current = parent
+
+    return False
+
+
+def is_autonomous_dev_repo() -> bool:
+    """
+    Detect if current repository is autonomous-dev or a consumer repo with
+    the opt-in ``.claude/.enforce`` marker.
+
+    Detection Strategy:
+        1. Plugin marker: ``plugins/autonomous-dev/.claude-plugin/marketplace.json``
+           (the autonomous-dev source repo itself)
+        2. Enforce marker: ``.claude/.enforce`` in walk-up from cwd (consumer repos
+           that have opted into SDLC enforcement)
+        3. Cache result for performance
+
+    The ``matched_via`` field in the audit log indicates which signal matched:
+    ``"plugin_marker"`` | ``"enforce_marker"`` | ``"none"``.
+
+    Returns:
+        True if current repo is autonomous-dev or a consumer repo opted in via
+        ``.claude/.enforce``, False otherwise.
 
     Thread Safety:
         Results are cached with thread-safe locking.
@@ -123,7 +171,11 @@ def is_autonomous_dev_repo() -> bool:
         >>> is_autonomous_dev_repo()
         True
 
-        >>> # In user project
+        >>> # In consumer repo with .claude/.enforce
+        >>> is_autonomous_dev_repo()
+        True
+
+        >>> # In unrelated user project
         >>> is_autonomous_dev_repo()
         False
     """
@@ -134,8 +186,10 @@ def is_autonomous_dev_repo() -> bool:
         if _cached_is_autonomous_dev is not None:
             return _cached_is_autonomous_dev
 
-    # Perform detection
-    result = _detect_autonomous_dev()
+    # Split-result pattern: detect which signal matched for audit log
+    plugin_match = _detect_autonomous_dev()
+    enforce_match = (not plugin_match) and _has_enforce_marker()
+    result = plugin_match or enforce_match
 
     # Cache result (thread-safe)
     with _cache_lock:
@@ -145,12 +199,17 @@ def is_autonomous_dev_repo() -> bool:
     try:
         from security_utils import audit_log
 
+        matched_via = (
+            "plugin_marker" if plugin_match
+            else ("enforce_marker" if enforce_match else "none")
+        )
         audit_log(
             "repo_detection",
             "success",
             {
                 "operation": "is_autonomous_dev_repo",
                 "result": result,
+                "matched_via": matched_via,
                 "cwd": str(Path.cwd()),
             },
         )

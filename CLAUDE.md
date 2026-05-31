@@ -15,14 +15,15 @@ For purpose, scope, and architecture see [`.claude/PROJECT.md`](.claude/PROJECT.
 
 ## Maintainer Escape Hatches
 
-When working **on autonomous-dev itself**, the hook stack can occasionally deadlock — a `/implement` run leaves stuck state, the state-deletion guard (#803) blocks cleanup, and the documented env-var bypasses (`PIPELINE_CLEANUP_PHASE=1`, `ENFORCEMENT_LEVEL=off`, `SKIP_AGENT_COMPLETENESS_GATE=1`) don't propagate to hook subprocesses mid-session (Issue #779). Two file-based escape hatches work mid-session:
+When working **on autonomous-dev itself**, the hook stack can occasionally deadlock — a `/implement` run leaves stuck state, the state-deletion guard (#803) blocks cleanup, and the documented env-var bypasses (`PIPELINE_CLEANUP_PHASE=1`, `ENFORCEMENT_LEVEL=off`, `SKIP_AGENT_COMPLETENESS_GATE=1`) don't propagate to hook subprocesses mid-session (Issue #779). Three file-based mechanisms work mid-session — two escape hatches and one opt-in:
 
 | Marker | Scope | Use when |
 |---|---|---|
 | `.claude/.bypass` | **Universal** — disables ALL hooks for any session whose cwd is in this directory tree (walks up 30 levels) | Emergency. Disables protections including test/security/docs gates. Remove (`rm .claude/.bypass`) as soon as the immediate blocker is past. |
+| `.claude/.enforce` | **Opt-IN** for consumer repos (spektiv, realign) | Touch + commit `.claude/.enforce` in the repo. Activates enforcement gates (TDD, quality, plan-exit) in that repo. Does NOT extend protected-infrastructure semantics. |
 | Self-maintenance mode (auto) | **Targeted** — relaxes only state-deletion (#803) when cwd is inside the canonical autonomous-dev source (detected by `plugins/autonomous-dev/.claude-plugin/marketplace.json`) | Automatic. No action needed. Other gates (test, security, doc-master, prompt-integrity, workflow-enforcement) remain enforced — dogfooding is preserved. |
 
-The two are complementary: self-maintenance mode is the routine path; `.claude/.bypass` is the nuclear option. If you reach for `.claude/.bypass` more than once in a blue moon, file an issue — the targeted relaxation should grow to cover the case instead.
+The three are complementary: self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.enforce` opts a consumer repo (spektiv, realign) into SDLC enforcement; `.claude/.bypass` is the nuclear escape hatch. If you reach for `.claude/.bypass` more than once in a blue moon, file an issue — the targeted relaxation should grow to cover the case instead.
 
 ## Architecture
 

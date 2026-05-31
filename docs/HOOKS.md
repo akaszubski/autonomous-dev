@@ -80,9 +80,10 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 **Project Detection Guard** (Issue #662 — non-native MCP tools only):
 - Runs immediately after the native tool fast path, before the 4-layer enforcement stack
 - Calls `repo_detector.is_autonomous_dev_repo()` on the current working directory
-- Non-autonomous-dev projects: returns immediate allow, skipping all enforcement layers
+- Returns `True` for two cases: (1) autonomous-dev source repo (detected via `plugins/autonomous-dev/.claude-plugin/marketplace.json`); (2) consumer repos that opted in via `.claude/.enforce` marker (walks up to 30 ancestor levels — Issue #969 companion feature). The `matched_via` audit field (`"plugin_marker"` | `"enforce_marker"` | `"none"`) records which signal fired.
+- Unmanaged projects (no marker of either kind): returns immediate allow, skipping all enforcement layers
 - Fail-closed: when `repo_detector` is unavailable at load time, `_is_adev_project()` returns `True` so enforcement continues rather than being silently skipped
-- Has no effect in autonomous-dev repos — all enforcement layers run normally
+- Has no effect in autonomous-dev repos or opted-in consumer repos — all enforcement layers run normally
 
 **unified_pre_tool.py 6-Layer Architecture** (for MCP/external tools in autonomous-dev repos):
 - **Layer 0 (Sandbox)**: Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
