@@ -30,6 +30,9 @@ MAX_ISSUES=8
 CLUSTER_FILTER=""
 DRY=0
 REPO="akaszubski/autonomous-dev"
+# Issue #1133: default is single /implement --issues ... --no-worktree run for
+# the whole cluster (one PR). --no-cluster preserves the legacy per-issue loop.
+NO_CLUSTER=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --budget) shift 2 ;;  # accepted for backwards-compat; ignored (subscription auth)
     --dry) DRY=1; shift ;;
     --repo) REPO="$2"; shift 2 ;;
+    --no-cluster) NO_CLUSTER=1; shift ;;
     *) echo "unknown flag: $1"; exit 2 ;;
   esac
 done
@@ -120,35 +124,64 @@ if (( DRY )); then
   exit 0
 fi
 
-# Run /implement one issue at a time — avoids /implement --batch's worktree
-# strategy, which fails on this repo because .claude/* is gitignored and
+# Issue #1133: By default, invoke /implement --issues <all> --no-worktree once
+# for the whole cluster. The in-place mode (--no-worktree) avoids the worktree
+# strategy that fails on this repo because .claude/* is gitignored and
 # `git worktree add` skips untracked files (hooks → empty → PreToolUse deadlock).
-# Single-issue mode runs in-place on master with full harness, no worktree.
+# One PR is opened for the cluster (Closes #N for every issue).
+# --no-cluster preserves the legacy per-issue loop (single /implement <N> calls).
 SUCCESSES=()
 FAILURES=()
-for n in ${FINAL//,/ }; do
-  echo "--- /implement $n ---" | tee -a "$LOG_FILE"
-  # Clear stale per-issue pipeline state.
+
+if (( NO_CLUSTER )); then
+  # Legacy path: single-issue mode runs in-place on master with full harness.
+  for n in ${FINAL//,/ }; do
+    echo "--- /implement $n ---" | tee -a "$LOG_FILE"
+    # Clear stale per-issue pipeline state.
+    rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
+
+    ISSUE_EVENTS="$LOG_DIR/${TS}-${n}.events.json"
+    if claude \
+        --print \
+        --permission-mode acceptEdits \
+        --output-format stream-json \
+        --include-hook-events \
+        --verbose \
+        --name "scheduled-${TS}-${n}" \
+        --setting-sources user,project,local \
+        "/implement $n" \
+        > "$ISSUE_EVENTS" 2>>"$LOG_FILE"; then
+      SUCCESSES+=("$n")
+      echo "  ok: $n" | tee -a "$LOG_FILE"
+    else
+      FAILURES+=("$n")
+      echo "  FAILED: $n (see $ISSUE_EVENTS)" | tee -a "$LOG_FILE"
+    fi
+  done
+else
+  # Default path (Issue #1133): single cluster invocation, --no-worktree.
+  CLUSTER_ARGS="${FINAL//,/ }"
+  echo "--- /implement --issues $CLUSTER_ARGS --no-worktree ---" | tee -a "$LOG_FILE"
   rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
 
-  ISSUE_EVENTS="$LOG_DIR/${TS}-${n}.events.json"
+  CLUSTER_EVENTS="$LOG_DIR/${TS}-cluster.events.json"
   if claude \
       --print \
       --permission-mode acceptEdits \
       --output-format stream-json \
       --include-hook-events \
       --verbose \
-      --name "scheduled-${TS}-${n}" \
+      --name "scheduled-${TS}-cluster" \
       --setting-sources user,project,local \
-      "/implement $n" \
-      > "$ISSUE_EVENTS" 2>>"$LOG_FILE"; then
-    SUCCESSES+=("$n")
-    echo "  ok: $n" | tee -a "$LOG_FILE"
+      "/implement --issues $CLUSTER_ARGS --no-worktree" \
+      > "$CLUSTER_EVENTS" 2>>"$LOG_FILE"; then
+    for n in $CLUSTER_ARGS; do SUCCESSES+=("$n"); done
+    echo "  ok: cluster ($CLUSTER_ARGS)" | tee -a "$LOG_FILE"
   else
-    FAILURES+=("$n")
-    echo "  FAILED: $n (see $ISSUE_EVENTS)" | tee -a "$LOG_FILE"
+    for n in $CLUSTER_ARGS; do FAILURES+=("$n"); done
+    echo "  FAILED: cluster ($CLUSTER_ARGS) (see $CLUSTER_EVENTS)" | tee -a "$LOG_FILE"
   fi
-done
+fi
 
 echo "Done. ok=${#SUCCESSES[@]} fail=${#FAILURES[@]} log=$LOG_FILE" | tee -a "$LOG_FILE"
 echo "  successes: ${SUCCESSES[*]:-none}" | tee -a "$LOG_FILE"

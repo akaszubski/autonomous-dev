@@ -17,6 +17,18 @@ Invoke the implementer agent to process each feature in the batch file sequentia
 
 Process multiple features from a file with automatic worktree isolation.
 
+## No-Worktree Mode (Issue #1133)
+
+When `--no-worktree` is added to `--batch` or `--issues`, the batch runs **in-place on the current branch** instead of creating a git worktree:
+
+- **When to use**: Repos where `.claude/*` is gitignored — `git worktree add` produces a worktree with empty `.claude/hooks/` and `.claude/config/`, deadlocking the PreToolUse hook stack. autonomous-dev itself is the canonical example.
+- **What it does**: Skips `git worktree add`, runs the per-issue pipeline serially on the current branch, produces **one commit per issue** (per-issue commit format: `feat(scope): #N <title>\n\nCloses #N`), then opens a **single multi-issue PR** via `open_cluster_pr()` at the end of the batch (PR title: `feat: cluster #N1+#N2+...`).
+- **Signaling**: Sets `BATCH_NO_WORKTREE=1` in the environment. The `unified_pre_tool.py` `_is_batch_context(cwd)` helper recognizes this env var alongside the `.worktrees/batch-*` cwd signal, so all batch hook gates (CIA completion, doc-master completion, agent completeness) keep firing.
+- **Pre-condition (HARD GATE)**: Working tree MUST be clean. The pre-staged check is extended to ALSO block on `git diff --name-only` (unstaged tracked changes), not just `git diff --cached`. In-place mode runs `git reset --hard HEAD` between failed issues, which would otherwise silently discard local work.
+- **Cleanup on per-issue failure**: `git reset --hard HEAD` reverts tracked-file changes for that issue. `.claude/` files are gitignored — they are untracked from git's perspective and are therefore NOT touched by `git reset --hard`.
+- **Batch state**: Persisted at `<cwd>/.claude/batch_state.json` with `"no_worktree": true` so `--resume` can re-enter the in-place flow.
+- **NOT for**: single-issue runs, `--fix`, `--light`, `--resume` (resume reads the stored state's `no_worktree` flag automatically).
+
 ## Batch Mode Progress Protocol
 
 Batch mode adds two layers on top of the full pipeline's progress protocol:

@@ -39,6 +39,56 @@ pytest --cov=plugins/autonomous-dev/hooks --cov=plugins/autonomous-dev/lib --cov
 
 ---
 
+## Manual perf-smoke procedure (Issue #1133 AC8)
+
+When changing in-place cluster mode (`/implement --batch ... --no-worktree`, `scripts/drain-all.sh --cluster-mode`, or `scripts/triage-and-implement.sh` default flow), run this manual perf-smoke against a real 3-issue cluster to verify the cluster mode achieves the ≥40% wall-clock reduction acceptance target vs. running each issue serially.
+
+**Setup**:
+
+1. Pick a real 3-issue cluster from `/triage --auto-improvement` (any cluster with `issue_numbers` of length 3, no PRs open, no closed-state issues). Record the issue numbers as `N1 N2 N3`.
+2. Confirm the working tree is clean: `git diff --quiet && git diff --cached --quiet || echo DIRTY`.
+3. Reset to a known-good baseline commit so both runs start from the same state.
+
+**Run A — cluster mode** (one cluster invocation, `--no-worktree`):
+
+```bash
+git checkout master && git pull
+START_A=$(date +%s)
+bash scripts/drain-all.sh --cluster-mode --limit 3
+END_A=$(date +%s)
+echo "Cluster mode duration: $((END_A - START_A))s"
+# Hard-reset so Run B starts from the same baseline as Run A.
+git reset --hard origin/master
+```
+
+**Run B — per-issue baseline** (the legacy `--no-cluster` per-issue loop):
+
+```bash
+git checkout master && git pull
+START_B=$(date +%s)
+for n in N1 N2 N3; do
+  rm -f /tmp/implement_pipeline_state.json /tmp/implement_pipeline_state.lock 2>/dev/null || true
+  claude --print --permission-mode acceptEdits "/implement $n"
+done
+END_B=$(date +%s)
+echo "Per-issue baseline duration: $((END_B - START_B))s"
+```
+
+**Acceptance criterion** (AC8): The cluster-mode duration MUST be at least 40% lower than the per-issue baseline:
+
+```bash
+python3 -c "
+A = (END_A - START_A); B = (END_B - START_B)
+ratio = (B - A) / B if B else 0
+print(f'Cluster {A}s vs Baseline {B}s — reduction {ratio*100:.1f}% (target ≥40%)')
+assert ratio >= 0.40, 'FAIL: cluster mode did not achieve ≥40% wall-clock reduction'
+"
+```
+
+If the reduction is below 40%, file a regression issue with both event-stream logs (`logs/drain-all/*.events.json`) attached and the timing measurements above. Common causes: cluster-mode lost per-issue parallelism (unlikely — both modes are serial), hook gates fire redundantly per-issue inside the cluster, or doc-master / CIA runs are not being shared across the cluster's commits.
+
+---
+
 ## Periodic Maintenance
 
 These tasks aren't part of the per-commit workflow — they're run on a maintainer cadence (roughly monthly) to keep load-bearing infrastructure calibrated. Per-event automations have periodic-aggregation counterparts; this is where the periodic side lives.

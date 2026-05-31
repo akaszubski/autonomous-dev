@@ -19,7 +19,7 @@ Commands were consolidated from many to a focused set. Individual agent commands
 
 | Command | Time | Description |
 |---------|------|-------------|
-| `/implement` | 15-30min | Smart implementation with three modes: full pipeline (default), quick (--quick), batch (--batch/--issues/--resume) |
+| `/implement` | 15-30min | Smart implementation with three modes: full pipeline (default), quick (--quick), batch (--batch/--issues/--resume). Modifier `--no-worktree` (Issue #1133) runs `--batch`/`--issues` clusters in-place on the current branch (one commit per issue, one cluster PR) — required for repos where `.claude/*` is gitignored. |
 | `/align` | 5-20min | Unified alignment (4 modes: `--project`, `--docs`, `--retrofit`, `--content`) |
 | `/setup` | 2-5min | Interactive setup wizard |
 | `/sync` | 1-2min | Smart sync (auto-detects: dev env, marketplace, or plugin dev) |

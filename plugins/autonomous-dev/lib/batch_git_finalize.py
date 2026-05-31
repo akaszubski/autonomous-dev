@@ -154,16 +154,23 @@ def batch_git_finalize(
     target_branch: str = "master",
     auto_stash: bool = True,
     cleanup: bool = True,
+    mode: str = "worktree",
 ) -> Dict[str, Any]:
     """Finalize batch: commit changes, merge to target branch, cleanup worktree.
 
     Args:
-        worktree_path: Absolute path to worktree directory.
+        worktree_path: Absolute path to worktree directory (in worktree mode)
+            or current working directory (in no_worktree mode).
         features: List of feature descriptions.
         issue_numbers: Optional GitHub issue numbers for "Closes #N".
         target_branch: Branch to merge into (default: master).
         auto_stash: Auto-stash uncommitted changes on target branch.
         cleanup: Remove worktree after successful merge.
+        mode: ``"worktree"`` (default) runs the full commit→merge→cleanup
+            sequence. ``"no_worktree"`` (Issue #1133) skips the merge and
+            worktree-cleanup steps — only the per-issue commit is performed
+            in-place on the current branch. The cluster PR is opened
+            separately via :func:`open_cluster_pr`.
 
     Returns:
         Dict with success, commit_sha, merged, worktree_removed, conflicts, error.
@@ -175,7 +182,32 @@ def batch_git_finalize(
         "worktree_removed": False,
         "conflicts": [],
         "error": None,
+        "mode": mode,
     }
+
+    # Issue #1133: no_worktree mode — commit in place, skip merge/cleanup
+    if mode == "no_worktree":
+        if not worktree_path.exists():
+            result["error"] = f"Working tree path not found: {worktree_path}"
+            return result
+        if not (worktree_path / ".git").exists():
+            result["error"] = f"Not a git directory: {worktree_path}"
+            return result
+
+        commit_ok, commit_sha, commit_err = commit_batch_changes(
+            worktree_path, features, issue_numbers
+        )
+        if not commit_ok:
+            result["error"] = commit_err
+            return result
+
+        result["commit_sha"] = commit_sha
+        # In no_worktree mode, "merged" is implicit (we committed directly
+        # to the current branch) and worktree_removed is N/A.
+        result["merged"] = True
+        result["worktree_removed"] = False
+        result["success"] = True
+        return result
 
     # Validate worktree
     if not worktree_path.exists():
@@ -323,3 +355,75 @@ def batch_git_finalize(
 
     result["success"] = True
     return result
+
+
+def open_cluster_pr(
+    issue_numbers: List[int],
+    issue_titles: List[str],
+    base_branch: str = "master",
+) -> Dict[str, Any]:
+    """Open a single multi-issue PR for a cluster of issues.
+
+    Issue #1133: In ``--no-worktree`` cluster mode, one PR is opened at the
+    end of the batch that closes all issues in the cluster. The PR title
+    uses the ``feat: cluster #N1+#N2+...`` shorthand; the body lists each
+    issue with its title and appends ``Closes #N`` lines so GitHub will
+    auto-close every issue when the PR merges.
+
+    Args:
+        issue_numbers: Issue numbers to include in the PR (must be the
+            same length as ``issue_titles``).
+        issue_titles: Human-readable titles, one per issue_number.
+        base_branch: Target branch for the PR (default: ``master``).
+
+    Returns:
+        ``{"success": True, "pr_url": "..."}`` on success or
+        ``{"success": False, "error": "..."}`` on failure. Network /
+        subprocess errors are caught and returned in the error field —
+        callers should NOT treat them as exceptions.
+    """
+    if not issue_numbers:
+        return {"success": False, "error": "Cannot open cluster PR with empty issue list"}
+
+    if len(issue_numbers) != len(issue_titles):
+        return {
+            "success": False,
+            "error": (
+                f"issue_numbers ({len(issue_numbers)}) and issue_titles "
+                f"({len(issue_titles)}) must be the same length"
+            ),
+        }
+
+    title = f"feat: cluster {'+'.join(f'#{n}' for n in issue_numbers)}"
+    body_lines = ["## Batch summary", ""]
+    for n, t in zip(issue_numbers, issue_titles):
+        body_lines.append(f"- #{n} {t}")
+    body_lines.extend(["", "## Closes"])
+    for n in issue_numbers:
+        body_lines.append(f"Closes #{n}")
+    body = "\n".join(body_lines)
+
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "create",
+                "--title",
+                title,
+                "--body",
+                body,
+                "--base",
+                base_branch,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode == 0:
+            return {"success": True, "pr_url": result.stdout.strip()}
+        return {"success": False, "error": result.stderr.strip() or "gh pr create failed"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "gh pr create timed out after 60s"}
+    except FileNotFoundError:
+        return {"success": False, "error": "gh CLI not installed or not on PATH"}

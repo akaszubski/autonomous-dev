@@ -330,6 +330,7 @@ def parse_implement_flags(args: List[str]) -> Dict[str, Any]:
         "batch_file": None,
         "issues": None,
         "resume_id": None,
+        "no_worktree": False,
     }
 
     i = 0
@@ -339,6 +340,14 @@ def parse_implement_flags(args: List[str]) -> Dict[str, Any]:
         if arg == "--quick":
             result["quick"] = True
             result["mode"] = "quick"
+            i += 1
+
+        elif arg == "--no-worktree":
+            # Issue #1133: Modifier flag (not a mode) — process clusters of
+            # GitHub issues serially in-place on the current branch when
+            # `git worktree add` is unusable (e.g., gitignored .claude/* in
+            # autonomous-dev self-maintenance).
+            result["no_worktree"] = True
             i += 1
 
         elif arg == "--batch":
@@ -403,6 +412,19 @@ def parse_implement_flags(args: List[str]) -> Dict[str, Any]:
                 feature_parts.append(args[i])
                 i += 1
             result["feature"] = " ".join(feature_parts)
+
+    # Issue #1133: --no-worktree is a MODIFIER, not a mode. It requires
+    # --batch or --issues (cluster modes). Reject all other combinations.
+    # Check this BEFORE the missing-feature check below so that bare
+    # `--no-worktree` raises the more informative FlagConflictError
+    # rather than the generic "no feature description" message.
+    if result["no_worktree"] and result["mode"] not in ("batch_file", "batch_issues"):
+        raise FlagConflictError(
+            "--no-worktree requires --batch or --issues. Usage:\n"
+            "  /implement --batch features.txt --no-worktree\n"
+            "  /implement --issues 1 2 3 --no-worktree\n"
+            "Not valid with --quick, --resume, --fix, --light, or a bare feature description."
+        )
 
     # Validate mode-specific requirements
     if result["mode"] == "full_pipeline" and not result["feature"]:
@@ -882,6 +904,12 @@ def route_implement_mode(flags: Dict[str, Any]) -> Dict[str, Any]:
     """
     mode = flags["mode"]
 
+    # Issue #1133: --no-worktree modifier short-circuits batch routing to
+    # an in-place runner that skips git worktree creation. Only valid for
+    # batch_file/batch_issues (enforced in parse_implement_flags).
+    if flags.get("no_worktree") and mode in ("batch_file", "batch_issues"):
+        return run_batch_no_worktree_mode(flags)
+
     if mode == "full_pipeline":
         return run_full_pipeline(flags["feature"])
 
@@ -899,6 +927,136 @@ def route_implement_mode(flags: Dict[str, Any]) -> Dict[str, Any]:
 
     else:
         raise InvalidArgumentError(f"Unknown mode: {mode}")
+
+
+# =============================================================================
+# In-Place Batch Mode (Issue #1133 — --no-worktree modifier)
+# =============================================================================
+
+def _generate_batch_id(mode: str, issues: Optional[List[int]] = None) -> str:
+    """Generate a batch ID for in-place batch mode.
+
+    Mirrors the timestamping scheme used by run_batch_file_mode /
+    run_batch_issues_mode so resume tooling can recognize the ID.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if mode == "batch_issues" and issues:
+        issues_str = "-".join(str(i) for i in issues[:3])
+        if len(issues) > 3:
+            issues_str += f"-plus{len(issues) - 3}"
+        return f"batch-issues-{issues_str}-noworktree-{timestamp}"
+    return f"batch-noworktree-{timestamp}"
+
+
+def run_batch_no_worktree_mode(flags: Dict[str, Any]) -> Dict[str, Any]:
+    """Run batch mode in-place on current branch (no git worktree).
+
+    Issue #1133: When `.claude/*` is gitignored (e.g., autonomous-dev
+    self-maintenance), ``git worktree add`` produces a worktree missing
+    hook infrastructure (PreToolUse deadlock). This entry point processes
+    a cluster of issues serially on the current branch, with one commit
+    per issue, then opens a single multi-issue PR.
+
+    Follows the BATCH_AUTO_APPROVE env-var precedent (see
+    enable_batch_auto_approve above) for signaling batch context to
+    unified_pre_tool.py via the BATCH_NO_WORKTREE env var.
+
+    Pre-conditions enforced by the coordinator (see implement-batch.md
+    No-Worktree Mode section): the working tree MUST be clean — both
+    ``git diff --cached --name-only`` and ``git diff --name-only`` empty.
+
+    Args:
+        flags: Parsed flags dict. Must include mode in
+            ("batch_file", "batch_issues") and ``no_worktree=True``.
+
+    Returns:
+        Dictionary mirroring run_batch_issues_mode's shape but with
+        worktree_path=str(Path.cwd()) and worktree_created=False.
+    """
+    mode = flags.get("mode")
+    if mode not in ("batch_file", "batch_issues"):
+        raise InvalidArgumentError(
+            f"run_batch_no_worktree_mode requires batch mode (got: {mode!r})"
+        )
+
+    # Validate inputs in the same way the worktree path does
+    issues: Optional[List[int]] = flags.get("issues")
+    batch_file: Optional[str] = flags.get("batch_file")
+    if mode == "batch_issues":
+        if not issues:
+            raise MissingArgumentError(
+                "batch_issues + --no-worktree requires a non-empty issues list."
+            )
+        validate_issue_numbers(issues)
+    else:  # batch_file
+        if not batch_file:
+            raise MissingArgumentError(
+                "batch_file + --no-worktree requires a features file path."
+            )
+        validate_features_file(batch_file)
+
+    # Signal batch context to unified_pre_tool.py (parallels
+    # BATCH_AUTO_APPROVE precedent). The hook checks this env var to keep
+    # batch CIA / doc-master / agent-completeness gates active even
+    # though the cwd does NOT contain ".worktrees/batch-".
+    os.environ["BATCH_NO_WORKTREE"] = "1"
+
+    # Issue #323: enable batch auto-approval like the worktree path
+    batch_auto_approve = enable_batch_auto_approve()
+
+    # Generate batch ID and validate it
+    batch_id = _generate_batch_id(mode, issues)
+    validate_batch_id(batch_id)
+
+    # Collect features for the persisted state
+    if mode == "batch_issues":
+        features = fetch_issue_titles(issues)
+    else:
+        features = []
+        batch_file_path = Path(batch_file)
+        if batch_file_path.exists():
+            for line in batch_file_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    features.append(line)
+
+    # Persist batch state for --resume in <cwd>/.claude/batch_state.json.
+    # We use Path.cwd() rather than a worktree path because, by design,
+    # no worktree is created in this mode.
+    cwd = Path.cwd()
+    claude_dir = cwd / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    state_path = claude_dir / "batch_state.json"
+
+    state: Dict[str, Any] = {
+        "batch_id": batch_id,
+        "mode": mode,
+        "no_worktree": True,
+        "features": features,
+        "issues": issues if issues is not None else [],
+        "batch_file": batch_file,
+        "total_features": len(features),
+        "current_index": 0,
+        "completed_features": [],
+        "failed_features": [],
+    }
+    state_path.write_text(json.dumps(state, indent=2))
+
+    return {
+        "mode": mode,
+        "batch_id": batch_id,
+        "no_worktree": True,
+        "issues": issues,
+        "batch_file": batch_file,
+        "features": features,
+        "feature_count": len(features),
+        "worktree_created": False,
+        "worktree_path": str(cwd),
+        "state_path": str(state_path),
+        "batch_auto_approve": batch_auto_approve,
+        "fallback": False,
+        "status": "ready",
+    }
 
 
 # =============================================================================

@@ -1,7 +1,26 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-04-26
+**Last Updated**: 2026-05-31
 **For**: Users and developers encountering common issues
+
+---
+
+## Worktree-gitignore deadlock — use `--no-worktree` (Issue #1133)
+
+**Symptom**: `/implement --batch features.txt` or `/implement --issues 1 2 3` fails with PreToolUse hook denials immediately after `git worktree add`. The worktree's `.claude/hooks/` directory is empty; the hook stack cannot find the gates and refuses to allow the pipeline to proceed.
+
+**Cause**: `git worktree add` only copies tracked files. If your repo gitignores `.claude/*` (autonomous-dev itself does — its `.claude/` is the install target, not source), the new worktree has NO hooks, NO config, and the PreToolUse fallback denies every tool call.
+
+**Fix**: Pass `--no-worktree` to skip worktree creation and run the cluster in-place on the current branch:
+
+```bash
+/implement --issues 1131 1132 1133 --no-worktree
+/implement --batch features.txt --no-worktree
+```
+
+In `--no-worktree` mode the batch runs serially on the current branch (one commit per issue), then opens a single multi-issue PR. The `BATCH_NO_WORKTREE=1` env var keeps batch hook gates (CIA / doc-master / agent-completeness) active. Pre-condition: working tree MUST be clean (both staged and unstaged), because the failure-cleanup path runs `git reset --hard HEAD` between issues.
+
+When to use: any repo where `.claude/*` is gitignored. For the autonomous-dev source repo itself, prefer `bash scripts/drain-all.sh --cluster-mode` (which invokes `--no-worktree` automatically against the top triage cluster) or `bash scripts/triage-and-implement.sh` (cluster mode is the default; pass `--no-cluster` for the legacy per-issue loop).
 
 ---
 

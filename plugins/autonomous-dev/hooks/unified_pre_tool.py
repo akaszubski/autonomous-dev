@@ -1492,6 +1492,35 @@ def _is_plugin_source_path(file_path: str) -> bool:
         return False
 
 
+def _is_batch_context(cwd: str) -> bool:
+    """Return True when the current invocation is part of a batch.
+
+    Issue #1133: Batch context can be signaled two ways:
+
+    1. **Worktree mode** (the original): the current working directory is
+       inside a ``.worktrees/batch-*`` directory. This is the default for
+       ``/implement --batch`` and ``/implement --issues`` in repos where
+       ``.claude/*`` is NOT gitignored.
+    2. **In-place mode** (no-worktree, Issue #1133): the environment
+       variable ``BATCH_NO_WORKTREE`` is set to ``1`` / ``true`` / ``yes``.
+       This mirrors the ``BATCH_AUTO_APPROVE`` precedent (Issue #323) for
+       repos like autonomous-dev where ``.claude/`` is gitignored.
+
+    Centralizing the check ensures all three batch-context gates (CIA
+    completion, doc-master completion, agent completeness) fire
+    consistently regardless of which batch mode is active.
+
+    Args:
+        cwd: Current working directory string.
+
+    Returns:
+        True if either signal indicates batch context.
+    """
+    if ".worktrees/batch-" in cwd:
+        return True
+    return os.environ.get("BATCH_NO_WORKTREE", "").strip().lower() in ("1", "true", "yes")
+
+
 def _is_pipeline_active() -> bool:
     """Check if the /implement pipeline is currently active.
 
@@ -4931,7 +4960,7 @@ def main():
                         if _phase_e_cia is None or not _phase_e_cia[0]:
                             try:
                                 cwd = os.getcwd()
-                                if ".worktrees/batch-" in cwd:
+                                if _is_batch_context(cwd):
                                     if os.environ.get("SKIP_BATCH_CIA_GATE", "").strip().lower() not in ("1", "true", "yes"):
                                         _batch_cia_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
                                         _batch_cia_result = _check_batch_cia_completions(_batch_cia_session_id)
@@ -4961,7 +4990,7 @@ def main():
                         if _phase_e_dm is None or not _phase_e_dm[0]:
                             try:
                                 cwd = os.getcwd()
-                                if ".worktrees/batch-" in cwd:
+                                if _is_batch_context(cwd):
                                     if os.environ.get("SKIP_BATCH_DOC_MASTER_GATE", "").strip().lower() not in ("1", "true", "yes"):
                                         _batch_dm_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
                                         _batch_dm_result = _check_batch_doc_master_completions(_batch_dm_session_id)
@@ -5023,7 +5052,7 @@ def main():
                                 if not _skip_gate_via_env and not _skip_gate_via_file and not _skip_gate_via_command:
                                     _agent_gate_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
                                     cwd = os.getcwd()
-                                    if ".worktrees/batch-" in cwd:
+                                    if _is_batch_context(cwd):
                                         # Batch mode: check all issues in the state file
                                         try:
                                             hook_dir = Path(__file__).resolve().parent
