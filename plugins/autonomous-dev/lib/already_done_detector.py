@@ -288,8 +288,9 @@ def check_issue_already_implemented(
       4. For closes matches, require the commit to be an ancestor of HEAD;
          otherwise downgrade to "stale_branch" and skip.
       5. Return the first valid "closes" match.
-      6. Fall back to symbol pickaxe search (returns classification "mention")
-         only when no commit references #N at all.
+      6. Fall back to symbol pickaxe search only when no commit references
+         #N at all. Pickaxe matches are advisory-only and return None (not
+         MatchResult) — per docstring contract, only "closes" reaches callers.
 
     Returns None when no qualifying match is found. The caller should treat
     None as "issue is NOT already done — proceed normally".
@@ -330,9 +331,11 @@ def check_issue_already_implemented(
     for sym in _extract_symbols(title, body, max_count=5):
         result = _git_log_pickaxe(repo_root, sym)
         if result is not None:
-            sha, subject = result
-            # Pickaxe results have no body-level closure marker — classify as mention.
-            # Per spec, only "closes" matches are returned, so skip.
-            # (Kept here for future extension; pickaxe is currently advisory only.)
-            return MatchResult(sha=sha, subject=subject, classification="mention")
+            # Pickaxe results have no body-level closure marker.
+            # Per docstring (lines 304-307), only 'closes' classifications are
+            # returned to the caller. Pickaxe is advisory-only; treat as no match.
+            # Issue #1131: previously returned MatchResult(classification="mention")
+            # which violated the docstring contract and caused 38 false-positive
+            # skips in /implement --issues batches.
+            return None
     return None
