@@ -279,6 +279,43 @@ a slash command to unstick it, set `AUTONOMOUS_DEV_BYPASS=1` or `touch .claude/.
 — every hook honors this and falls through to allow with a logged audit trail.
 See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969).
 
+### Per-repo opt-out (permanent)
+
+autonomous-dev installs hooks into `~/.claude/` globally, so they fire in **every**
+repo where you run Claude Code — including repos that aren't part of the
+autonomous-dev SDLC. To permanently silence autonomous-dev in a repo:
+
+```bash
+cd /path/to/repo
+mkdir -p .claude
+touch .claude/.bypass
+```
+
+That single file disables all autonomous-dev enforcement in that repo. Every
+hook checks for it and falls through. Equivalent to setting `AUTONOMOUS_DEV_BYPASS=1`
+in your environment, but scoped to a single repo and persistent across sessions.
+
+**When to use it:** any repo where you want Claude Code's default behavior, not
+autonomous-dev's gated SDLC pipeline. Stand-alone scripts, scratch experiments,
+client work, repos owned by others.
+
+**To re-enable:** `rm .claude/.bypass`.
+
+**Tip:** add `.claude/.bypass` content explaining why it's there, so future-you
+remembers. Example: see `/Users/<you>/Dev/<repo>/.claude/.bypass` after `touch`.
+
+### Uninstalling autonomous-dev
+
+| Scope | Command | Removes |
+|---|---|---|
+| Project-local | `/sync --uninstall` | `<repo>/.claude/` (hooks, agents, commands, lib, config — anything autonomous-dev deployed) |
+| Globally | `rm -rf ~/.claude/{hooks,lib,config,agents,commands,skills}` | Global plugin install. **Warning**: this removes ALL Claude Code customisation under those paths, not just autonomous-dev. Back up first. |
+| Per-repo silence (no removal) | `touch .claude/.bypass` (see above) | Nothing — just disables enforcement |
+
+`/sync --uninstall` is the recommended path for clean removal from a single
+project. The "per-repo silence" approach is best when autonomous-dev is correctly
+installed but you don't want it active in this particular tree.
+
 ### Batch Processing
 
 ```bash
