@@ -130,16 +130,16 @@ class TestCommitMessageGrepIssueRef:
 
 
 class TestPickaxeSymbolMatch:
-    """AC3: pickaxe path is best-effort; documented as 'mention' classification."""
+    """AC3: pickaxe path is advisory-only; must return None per docstring contract."""
 
     def test_pickaxe_does_not_return_when_no_issue_reference(
         self, tmp_path: Path
     ) -> None:
         """When commit introduces `my_function` and the title references it,
         the pickaxe path may find a match. Because the commit does not contain
-        an explicit closure marker for the issue, the detector returns it with
-        classification 'mention' (or None — both are acceptable per spec; the
-        contract is only that 'anti' is never returned)."""
+        an explicit closure marker for the issue, the detector MUST return None.
+        Per docstring (lines 304-307), only 'closes' classifications are ever
+        returned to the caller — pickaxe is advisory-only (Issue #1131)."""
         content = "def my_function():\n    pass\n"
         _git_init_with_commit(
             tmp_path,
@@ -154,11 +154,45 @@ class TestPickaxeSymbolMatch:
             repo_root=tmp_path,
         )
 
-        # Pickaxe is allowed to find this; classification must NOT be "anti".
-        if result is not None:
-            assert isinstance(result, MatchResult)
-            assert result.classification in {"closes", "mention"}
-            assert len(result.sha) > 0
+        # Pickaxe-only matches MUST return None — docstring contract at lines 304-307.
+        assert result is None, (
+            "Pickaxe-only matches must NOT return MatchResult — docstring "
+            "contract at already_done_detector.py:304-307 (Issue #1131)"
+        )
+
+    def test_pickaxe_only_match_returns_none_per_docstring_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression test for Issue #1131.
+
+        When grep finds no commits referencing the issue but pickaxe finds a symbol
+        hit, the function MUST return None — not MatchResult(classification='mention').
+        The docstring (lines 304-307) promises only 'closes' classifications reach
+        the caller. Pickaxe is advisory-only.
+
+        This test MUST FAIL without the fix at line 337 and PASS with it.
+        """
+        # Set up a temp git repo with a commit whose body references a symbol
+        # but contains NO #999 reference in the commit message.
+        # The symbol `batch_mode_detector` is in the issue title, so pickaxe
+        # will find the commit — but there is no closure marker.
+        content = "def batch_mode_detector():\n    pass\n"
+        _git_init_with_commit(
+            tmp_path,
+            "feat: add batch_mode_detector utility",
+            content=content,
+        )
+
+        result = check_issue_already_implemented(
+            issue_number=999,
+            title="Fix `batch_mode_detector` symbol",
+            body="",
+            repo_root=tmp_path,
+        )
+        assert result is None, (
+            "Pickaxe-only matches must NOT return MatchResult — docstring "
+            "contract at already_done_detector.py:304-307 (Issue #1131)"
+        )
 
 
 class TestNoMatchReturnsNone:
