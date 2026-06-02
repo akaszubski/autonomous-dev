@@ -9,7 +9,7 @@
 #   ./scripts/deploy-to-repos.sh --dry-run    # Show what would be deployed
 #
 # Configuration:
-#   REMOTE_HOST - SSH host for Mac Studio (default: andrewkaszubski@10.55.0.2)
+#   REMOTE_HOST - SSH host for Mac Studio (auto-detects: 10.55.0.2 on LAN, 100.103.205.63 via Tailscale)
 #   REPOS       - Space-separated repo names under ~/Dev/ (default: anyclaude realign spektiv)
 #
 # IMPORTANT: Never use brace expansion with cp -rf to deploy.
@@ -22,7 +22,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLUGIN_SRC="$REPO_DIR/plugins/autonomous-dev"
 
-REMOTE_HOST="${REMOTE_HOST:-andrewkaszubski@10.55.0.2}"
+# Auto-detect: LAN first (3s timeout), fall back to Tailscale.
+if [ -z "${REMOTE_HOST:-}" ]; then
+    if ssh -o ConnectTimeout=3 -o BatchMode=yes andrewkaszubski@10.55.0.2 true 2>/dev/null; then
+        REMOTE_HOST="andrewkaszubski@10.55.0.2"
+    else
+        REMOTE_HOST="andrewkaszubski@100.103.205.63"
+    fi
+fi
 REPOS="${REPOS:-anyclaude realign spektiv}"
 SUBDIRS="hooks commands agents lib templates config skills scripts"
 
