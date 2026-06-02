@@ -616,7 +616,7 @@ If research came from the issue body (ISSUE_RESEARCH_HIT), prefix the research c
 
 #### 5.5a — Pre-Validated Plan Check
 
-Search `.claude/plans/` for a file whose name or content matches the current feature description (case-insensitive substring match). If a matching file is found AND that file contains the string "Verdict: PROCEED" in its Critique History section:
+Search `.claude/plans/` for a file whose name or content matches the current feature description (case-insensitive substring match). If a matching file is found AND that file contains the string `"Verdict: PROCEED"` OR `"**PROCEED**"` anywhere in its Critique History section (the prose-header format and the bold table-cell format are both valid — plan-critic may write either depending on where in the file the verdict appears):
 
 - **Skip plan-critic invocation** and continue to 5.5c (structural validation still runs)
 - Log: `Plan validation: SKIPPED (pre-validated plan: {path})`
@@ -626,7 +626,7 @@ from pipeline_completion_state import record_plan_critic_skipped
 record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM)
 ```
 
-If no matching file with "Verdict: PROCEED" is found, proceed to 5.5b.
+If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proceed to 5.5b.
 
 #### 5.5b — Budget Plan-Critic Invocation
 

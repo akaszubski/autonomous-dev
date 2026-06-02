@@ -73,3 +73,25 @@ def test_implement_md_constrained_plan_critic_uses_sonnet() -> None:
         "implement.md plan-critic call should specify model=\"sonnet\" "
         f"(constrained-budget fast-path). Found: {matches}"
     )
+
+
+def test_implement_md_step_55a_gate_mentions_both_verdict_formats() -> None:
+    """STEP 5.5a gate must document both plan-critic verdict formats.
+
+    plan-critic writes verdicts as:
+    - "Verdict: PROCEED" (prose/section-header format, in fenced block)
+    - "**PROCEED**" (bold table-cell format, in Critique History table)
+
+    The gate prose must reference BOTH so the coordinator accepts pre-validated
+    plans regardless of which format appears in the plan file. Regression guard
+    for Issue #1135.
+    """
+    content = _read_command("implement.md")
+    assert "Verdict: PROCEED" in content, (
+        "implement.md STEP 5.5a gate must mention 'Verdict: PROCEED' "
+        "(prose-header format)"
+    )
+    assert "**PROCEED**" in content, (
+        "implement.md STEP 5.5a gate must mention '**PROCEED**' "
+        "(bold table-cell format used in Critique History)"
+    )
