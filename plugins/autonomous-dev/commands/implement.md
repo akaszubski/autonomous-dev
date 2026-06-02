@@ -600,6 +600,22 @@ Check the merged research against these criteria:
 
 If gaps are found, append a "**Research Gaps**" section to the merged research summary before passing to STEP 5. The planner MUST be made aware of gaps so it can flag them in the architecture plan. This step is performed inline by the coordinator.
 
+### STEP 4.7: Pre-Validated Plan Detection (inline — no agent)
+
+**Progress**: Output step banner (STEP 4.7/15 — Pre-Validated Plan Detection). No agent invoked.
+
+Search `.claude/plans/` for a file whose name or content matches the current feature description (case-insensitive substring match). If a matching file is found AND that file contains the string `"Verdict: PROCEED"` OR `"**PROCEED**"` anywhere in its contents (the prose-header format and the bold table-cell format are both valid — mirrors the 5.5a acceptance criteria introduced in Issue #1135):
+
+- **Store in coordinator state**: set `PRE_VALIDATED_PLAN_PATH` to the matching file path; set `PRE_VALIDATED_PLAN_CONTENT` to the full file content. If multiple files match, select the most recently modified (highest mtime).
+- Log: `STEP 4.7: Pre-validated plan detected: {path} — planner will be seeded with this plan's scope.`
+
+If no matching PROCEED-verdict file is found:
+
+- Set `PRE_VALIDATED_PLAN_PATH = None`, `PRE_VALIDATED_PLAN_CONTENT = None`.
+- Log: `STEP 4.7: No pre-validated plan found — planner runs from scratch.`
+
+This step is performed inline by the coordinator. It does NOT skip or modify STEP 5.5a; that gate retains its own search as an independent cross-check.
+
 ### STEP 5: Planner (1 agent)
 
 **Progress**: Output step banner (STEP 5/15 — Planning, Agent: planner (Opus)). Output agent completion after.
@@ -609,6 +625,16 @@ If gaps are found, append a "**Research Gaps**" section to the merged research s
 If research came from the issue body (ISSUE_RESEARCH_HIT), prefix the research context with: "Research from GitHub Issue #$ISSUE_NUMBER:" followed by the extracted research sections from `detect_issue_research()`. The planner should treat this identically to merged research from STEP 4.
 
 **Agent**(subagent_type="planner", model="opus") — Pass merged research + feature description + PROJECT.md GOALS and SCOPE sections (verbatim). Read `.claude/PROJECT.md` and extract the GOALS section and SCOPE section (both IN Scope and OUT of Scope). Include them in the planner prompt as: "PROJECT.md GOALS: [verbatim text]. PROJECT.md SCOPE (In Scope): [verbatim items]. PROJECT.md SCOPE (Out of Scope): [verbatim items]. The plan MUST align with these scope boundaries." Output: file-by-file plan, dependencies, edge cases, testing strategy.
+
+**When `PRE_VALIDATED_PLAN_PATH` is set (detected in STEP 4.7)**: PREFIX the planner prompt with the following block BEFORE all other context:
+
+> **Pre-validated plan available**: A plan at `{PRE_VALIDATED_PLAN_PATH}` already has a PROCEED verdict (composite ≥ 3.0 from plan-critic). Use it as your primary starting point. Refine ONLY if necessary. DO NOT re-scope or expand beyond what this plan covers. DO NOT introduce new files, new modules, new environment variables, or new abstractions not present in the pre-validated plan unless you explicitly justify the deviation. Pre-validated plan content follows:
+>
+> ```
+> {PRE_VALIDATED_PLAN_CONTENT}
+> ```
+>
+> Output: a refined plan that respects the pre-validated scope. If you deviate from the pre-validated plan on any point, state the deviation explicitly under a "## Deviations from Pre-Validated Plan" section and justify each one.
 
 ### STEP 5.5: Plan Validation Gate — HARD GATE
 

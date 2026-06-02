@@ -1,6 +1,8 @@
 ## [Unreleased]
 
 ### Fixed
+- **Pre-validated plan content now seeded to planner at STEP 5** (Issue #1138): `commands/implement.md` STEP 5.5a correctly detected pre-validated plans (after Issue #1135) but the planner had already run from scratch before detection occurred. New STEP 4.7 "Pre-Validated Plan Detection (inline)" searches `.claude/plans/` before the planner is dispatched. When a PROCEED-verdict plan is found, its path and content are stored in coordinator state (`PRE_VALIDATED_PLAN_PATH`, `PRE_VALIDATED_PLAN_CONTENT`) and injected into the STEP 5 planner prompt with a "refine, DO NOT re-scope" directive. Planner continues to be invoked unconditionally (Option A); skipping the planner entirely is deferred. Regression test in `tests/unit/commands/test_pre_validated_plan_detection.py`.
+
 - **Pre-validated plan skip gate now matches both verdict formats** (Issue #1135): `commands/implement.md` STEP 5.5a previously checked only for `"Verdict: PROCEED"` (prose/header format), but `plan-critic` accumulates Critique History table rows using `**PROCEED**` (bold markdown cell). Plans with table-format verdicts were never recognized as pre-validated. Gate description updated to accept either format. Regression test added. `docs/ARCHITECTURE-OVERVIEW.md` STEP 5.5 description updated to document both accepted verdict formats and corrected budget-mode axis count from 3 to 4 (Operational Integration Test was added in Issue #1067 but the architecture overview was not updated at that time).
 
 ### Added
