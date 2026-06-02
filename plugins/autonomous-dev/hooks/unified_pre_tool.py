@@ -335,6 +335,7 @@ GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'r
 # Non-prefix vars that don't start with CLAUDE_ are listed individually
 PROTECTED_ENV_VARS = {
     'PIPELINE_STATE_FILE', 'ENFORCEMENT_LEVEL', 'AUTONOMOUS_DEV_COMMAND',
+    'INTENT_CLASSIFIER_ENFORCE',
 }
 
 # Prefix-based protection: any env var starting with these prefixes is protected (Issue #606)

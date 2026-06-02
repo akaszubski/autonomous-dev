@@ -230,6 +230,8 @@ Single env var rollback: `INTENT_CLASSIFIER_ENFORCE=false` (or unset) reverts al
 
 Setting this to `true` requires `INTENT_CLASSIFIER_ENABLED=true` and an active session-mode artifact. If the artifact is missing, expired, or the classifier fell back to fail-open, the hooks enforce normally (fail-safe direction is always enforce).
 
+**Inline spoofing protection (Issue #1134)**: `INTENT_CLASSIFIER_ENFORCE` is listed in `unified_pre_tool.py`'s `PROTECTED_ENV_VARS` set. The hook blocks inline env var overrides of the form `INTENT_CLASSIFIER_ENFORCE=false git push` or `export INTENT_CLASSIFIER_ENFORCE=false` in Bash tool calls. To legitimately change this variable, set it in your shell environment before launching the Claude Code session — process-level environment changes take effect at the next session start (env vars do not propagate to hook subprocesses mid-session, see Issue #779).
+
 ### Rollout to Enforce Mode
 
 Before flipping `INTENT_CLASSIFIER_ENFORCE` from `false` to `true`, the observed false-negative (FN) rate of intent-classifier-driven session-mode skipping must be measured against real production telemetry. The gating script is `scripts/measure_intent_classifier.py --validate-from-telemetry` (Issue #1077, Phase B of the mode-gating rollout plan).

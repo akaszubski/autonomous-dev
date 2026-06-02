@@ -475,3 +475,29 @@ class TestIssue918ReadToolNeverBlocksSettings:
             f"got {decision!r}.  The Issue #557 Bash guard must remain intact. "
             f"Full hook output: {result}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1134 — INTENT_CLASSIFIER_ENFORCE must be in PROTECTED_ENV_VARS
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1134IntentClassifierEnforceProtected:
+    """INTENT_CLASSIFIER_ENFORCE must be protected from inline env-var spoofing."""
+
+    def test_1134_inline_assignment_blocked(self) -> None:
+        """Real inline INTENT_CLASSIFIER_ENFORCE spoofing MUST block (Issue #1134 follow-up from #1058)."""
+        result = upt._detect_env_spoofing("INTENT_CLASSIFIER_ENFORCE=false git push")
+        assert result is not None
+        assert "BLOCKED" in result
+        assert "INTENT_CLASSIFIER_ENFORCE" in result
+
+    def test_1134_export_form_blocked(self) -> None:
+        """export form of INTENT_CLASSIFIER_ENFORCE assignment MUST also block."""
+        result = upt._detect_env_spoofing("export INTENT_CLASSIFIER_ENFORCE=false")
+        assert result is not None
+        assert "INTENT_CLASSIFIER_ENFORCE" in result
+
+    def test_1134_plain_command_not_blocked(self) -> None:
+        """Plain commands with no env-var assignment MUST NOT trigger the spoofing detector (no false positive)."""
+        assert upt._detect_env_spoofing("python3 run.py") is None
