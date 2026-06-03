@@ -341,8 +341,15 @@ PROTECTED_ENV_VARS = {
 # Prefix-based protection: any env var starting with these prefixes is protected (Issue #606)
 PROTECTED_ENV_PREFIXES: "tuple[str, ...]" = ('CLAUDE_',)
 
-# Exceptions to prefix-based protection (escape hatch for legitimate user CLAUDE_ vars)
-PROTECTED_ENV_PREFIX_EXCEPTIONS: "frozenset[str]" = frozenset()
+# Issue #1137: CLAUDE_SESSION_ID is non-privileged framework correlation metadata
+# (Claude Code-generated UUID, NOT an authentication token). Legitimate tooling
+# (baseline failure capture, activity-log scoping, nested subshell propagation per
+# Issue #904) needs to export it. The compensating control against log-attribution
+# spoofing is _SAFE_SESSION_ID_RE sanitization in unified_prompt_validator.py
+# (around lines 554-558, Issue #1024).
+# REVOCATION CONDITION: remove from this exceptions set if CLAUDE_SESSION_ID
+# ever gains authentication, authorization, or other privilege-bearing semantics.
+PROTECTED_ENV_PREFIX_EXCEPTIONS: "frozenset[str]" = frozenset({"CLAUDE_SESSION_ID"})
 
 # Code file extensions subject to workflow enforcement
 CODE_EXTENSIONS = {
