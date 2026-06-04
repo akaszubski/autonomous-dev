@@ -312,9 +312,11 @@ touch .claude/.bypass
 To temporarily re-enable in a bypassed repo: `rm .claude/.bypass`.
 To temporarily disable in an enforced repo: `touch .claude/.bypass` (bypass wins).
 
-Note: `.claude/.enforce` extends enforcement gates (TDD, quality, plan-exit). It does NOT extend
+Note: `.claude/.enforce` extends enforcement gates (TDD, quality, plan-exit, and — as of Issue #1142 — direct production-code write/edit outside the `/implement` pipeline). It does NOT extend
 protected-infrastructure semantics — those apply only to the autonomous-dev source tree itself,
-by design. Consumer repos have no `plugins/autonomous-dev/` tree to protect.
+by design. Consumer repos have no `plugins/autonomous-dev/` tree to protect. The production-code
+gate blocks non-trivial direct edits (≥5 lines or new function/class) to code files when no
+pipeline is active; one-shot bypass: `touch /tmp/skip_write_pipeline_gate`.
 
 ### Uninstalling autonomous-dev
 

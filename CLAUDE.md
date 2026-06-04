@@ -20,7 +20,7 @@ When working **on autonomous-dev itself**, the hook stack can occasionally deadl
 | Marker | Scope | Use when |
 |---|---|---|
 | `.claude/.bypass` | **Universal** — disables ALL hooks for any session whose cwd is in this directory tree (walks up 30 levels) | Emergency. Disables protections including test/security/docs gates. Remove (`rm .claude/.bypass`) as soon as the immediate blocker is past. |
-| `.claude/.enforce` | **Opt-IN** for consumer repos (spektiv, realign) | Touch + commit `.claude/.enforce` in the repo. Activates enforcement gates (TDD, quality, plan-exit) in that repo. Does NOT extend protected-infrastructure semantics. |
+| `.claude/.enforce` | **Opt-IN** for consumer repos (spektiv, realign) | Touch + commit `.claude/.enforce` in the repo. Activates enforcement gates (TDD, quality, plan-exit, and production-code write/edit gate — Issue #1142) in that repo. Does NOT extend protected-infrastructure semantics. |
 | Self-maintenance mode (auto) | **Targeted** — relaxes only state-deletion (#803) when cwd is inside the canonical autonomous-dev source (detected by `plugins/autonomous-dev/.claude-plugin/marketplace.json`) | Automatic. No action needed. Other gates (test, security, doc-master, prompt-integrity, workflow-enforcement) remain enforced — dogfooding is preserved. |
 
 The three are complementary: self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.enforce` opts a consumer repo (spektiv, realign) into SDLC enforcement; `.claude/.bypass` is the nuclear escape hatch. If you reach for `.claude/.bypass` more than once in a blue moon, file an issue — the targeted relaxation should grow to cover the case instead.

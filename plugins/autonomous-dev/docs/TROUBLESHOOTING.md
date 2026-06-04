@@ -133,6 +133,42 @@ hooks.
 
 ---
 
+## Production-Code Edit Blocked Outside /implement (Issue #1142)
+
+**Symptom**: A Write or Edit to a `.py`, `.ts`, `.js`, `.go`, `.rs`, or similar production-code file is denied with a message like:
+
+```
+WORKFLOW ENFORCEMENT: Direct production-code edit outside /implement pipeline.
+Run /implement --fix "fix in <file>" for a targeted fix, or /implement "<feature>" for a new feature.
+Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate
+```
+
+**Cause**: The repo has `.claude/.enforce` committed and no `/implement` pipeline is active. As of Issue #1142, `unified_pre_tool.py` blocks non-trivial direct edits (≥5 lines changed OR a new function/class introduced) to production-code files when enforcement is enabled. This closes the gap where production-code edits in opted-in consumer repos (spektiv, realign, etc.) proceeded without any pipeline gate firing.
+
+**Fix options** (choose the appropriate level):
+
+1. **Recommended — route through the pipeline** (enforces full SDLC):
+   ```bash
+   /implement --fix "describe the fix"   # targeted bug fix
+   /implement "describe the feature"     # new feature
+   ```
+
+2. **One-shot bypass** (allows a single edit, file consumed on first check):
+   ```bash
+   touch /tmp/skip_write_pipeline_gate
+   # Now retry the Write/Edit — bypass is consumed and gate re-enables
+   ```
+
+3. **Universal bypass** (disables ALL hook enforcement — use with caution):
+   ```bash
+   AUTONOMOUS_DEV_BYPASS=1 <your command>
+   # or: touch .claude/.bypass  (persists until removed)
+   ```
+
+**Not applicable when**: `.claude/.enforce` is absent from the repo, or the pipeline is already active (in that case the gate is a no-op). Test files (`test_*.py`, files under `tests/` or `test/`) are always excluded from this gate.
+
+---
+
 ## Universal Escape: Unstick Any Blocked Hook (Issue #969)
 
 **When to use**: A hook is blocking your work and you cannot run a slash command
