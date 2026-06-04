@@ -316,6 +316,27 @@ Helper invoked by agents to record completion state. Not typically used directly
 
 ---
 
+## Worktree Maintenance
+
+### `scripts/cleanup-worktrees.sh` — **Stale worktree recovery** (Issue #1130)
+
+```bash
+bash scripts/cleanup-worktrees.sh --dry-run   # preview: shows what would be removed
+bash scripts/cleanup-worktrees.sh             # remove merged worktrees
+```
+
+Removes entries under `.worktrees/` whose branch is already merged into `master`. Skips the main worktree, unmerged branches, and detached HEADs that are unreachable from `master`. Safe to run at any time — each removed worktree is cleaned up with `git worktree remove`.
+
+**When to run**: when `.worktrees/` accumulates stale entries after many `/implement --batch` or `/implement --issues` runs. Dry-run output shows `removed=N skipped=M` summary without making changes.
+
+**Flags:**
+- `--dry-run` — print what would be removed, make no changes
+- `-h|--help` — show usage
+
+**See also**: [TROUBLESHOOTING.md — Stale worktrees](#stale-worktrees-cleanup) for the symptom-based entry point.
+
+---
+
 ## Legacy / Migration
 
 Some scripts are one-shot migrations kept for historical reference:
