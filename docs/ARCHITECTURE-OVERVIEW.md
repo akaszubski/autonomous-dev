@@ -11,7 +11,7 @@ covers:
 
 Complete technical architecture for the autonomous-dev plugin, including agents, skills, libraries, hooks, and model tier strategy.
 
-**Component Counts**: 16 agents (18 archived), 20 skills, 24 active commands, 224 libraries, 31 active hooks (62 archived).
+**Component Counts**: 16 agents (18 archived), 20 skills, 24 active commands, 219 libraries, 25 active hooks (62 archived).
 
 **Last Updated**: 2026-04-25
 
@@ -132,7 +132,7 @@ Unified hooks using dispatcher pattern for quality enforcement. See [HOOKS.md](H
 3. **Research**: researcher agent finds patterns (Haiku model)
 3.5. **Research Self-Critique** (STEP 4.5, inline — no agent): One FEEDBACK pass on merged research output before passing to planner; implements Self-Refine pattern (GENERATE → FEEDBACK → REFINE). Also applied at `/advise` STEP 4.5 (post-analysis critique) and `/refactor --deep` STEP 1.5 (findings critique).
 4. **Planning**: planner agent creates architecture plan
-4.5. **Plan Validation Gate** (STEP 5.5, HARD GATE — Issues #855, #878, #880, #889-#893): Adversarial plan review before acceptance tests. Checks `.claude/plans/` for a pre-validated plan (Verdict: PROCEED); if absent, invokes plan-critic with a constrained budget (1 round, 3 axes: Assumption Audit, Existing Solution Search, Minimalism Pressure). When invoked from `/plan` (multi-round mode), plan-critic iterates planner with verbatim feedback until convergence at composite ≥3.0. Scoring is a 1-5 Likert scale per-axis; verdict mapping is deterministic (≥3.0 with no axis below 2 → PROCEED; <3.0 or any axis at 1 → REVISE; <2.0 or 2+ axes at 1 → BLOCKED). plan-critic is in `SEQUENTIAL_REQUIRED` ordering pairs (`planner → plan-critic`, `plan-critic → implementer`); skip is recorded via `record_plan_critic_skipped()` so the agent completeness gate excludes plan-critic when a pre-validated plan exists. Structural validation always runs: plan must contain ≥1 file path, an acceptance-criteria section, and a testing-strategy section.
+4.5. **Plan Validation Gate** (STEP 5.5, HARD GATE — Issues #855, #878, #880, #889-#893, #1135): Adversarial plan review before acceptance tests. Checks `.claude/plans/` for a pre-validated plan containing either `"Verdict: PROCEED"` (prose/header format) or `"**PROCEED**"` (bold table-cell format in Critique History) — both are accepted (Issue #1135); if absent, invokes plan-critic with a constrained budget (1 round, 4 axes: Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test — Issue #1067). When invoked from `/plan` (multi-round mode), plan-critic iterates planner with verbatim feedback until convergence at composite ≥3.0. Scoring is a 1-5 Likert scale per-axis; verdict mapping is deterministic (≥3.0 with no axis below 2 → PROCEED; <3.0 or any axis at 1 → REVISE; <2.0 or 2+ axes at 1 → BLOCKED). plan-critic is in `SEQUENTIAL_REQUIRED` ordering pairs (`planner → plan-critic`, `plan-critic → implementer`); skip is recorded via `record_plan_critic_skipped()` so the agent completeness gate excludes plan-critic when a pre-validated plan exists. Structural validation always runs: plan must contain ≥1 file path, an acceptance-criteria section, and a testing-strategy section.
 5. **Pause Control** (v3.45.0): Optional human-in-the-loop after planning
 6. **Acceptance Tests** (Issue #404, default): test-master writes specification-driven acceptance tests
    - Default mode: validation-first approach (specification → acceptance tests → implementation)

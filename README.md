@@ -110,7 +110,7 @@ The solution is **deterministic rails**: a software layer that gates and validat
 | 3 | **Isolated Sub-Agents** | Specialist agents, each spawned with fresh context and constrained tools. Model selection per agent (Haiku/Sonnet/Opus) |
 | 4 | **Virtual File System** | Git worktree isolation for batch mode. `checkpoint.py` + `artifacts.py` persist outputs to `.claude/artifacts/` per phase |
 | 5 | **Human-in-the-Loop** | Plan mode (STEP 5) requires user approval before implementation. `pause_controller.py` for explicit gates |
-| 6 | **Hook Enforcement** | 27 hooks with JSON `{"decision": "block"}` hard gates — not prompt-level nudges. Research-confirmed: nudges produce unreliable compliance. Includes `plan_gate.py` (blocks complex Write/Edit without validated plan) and Layer 6 prompt quality gate (blocks anti-pattern prompts to `agents/*.md` and `commands/*.md`) |
+| 6 | **Hook Enforcement** | 25 hooks with JSON `{"decision": "block"}` hard gates — not prompt-level nudges. Research-confirmed: nudges produce unreliable compliance. Includes `plan_gate.py` (blocks complex Write/Edit without validated plan) and Layer 6 prompt quality gate (blocks anti-pattern prompts to `agents/*.md` and `commands/*.md`) |
 | 7 | **State Persistence** | `CheckpointManager` for resume after failure. `batch_state_manager.py` for multi-feature recovery. `/implement --resume` |
 | 8 | **Context Management** | Progressive skill injection loads domain knowledge per-step. `/clear` between features. Agent isolation prevents context rot |
 | 9 | **Deterministic Ordering** | `agent_ordering_gate.py` enforces pipeline sequence. "You MUST NOT run STEP 10 before STEP 8 test gate passes" |
@@ -499,9 +499,9 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 |-----------|-------|---------|
 | Commands | 24 | Slash commands for workflows |
 | Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
-| Skills | 19 | Domain knowledge (added: planning-workflow, prompt-engineering) |
-| Hooks | 30 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
-| Libraries | 210 | Python utilities |
+| Skills | 20 | Domain knowledge (added: planning-workflow, prompt-engineering) |
+| Hooks | 25 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
+| Libraries | 219 | Python utilities |
 
 ---
 
@@ -527,7 +527,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 ### Prompt & Agent Design
 - [Prompt Engineering](docs/PROMPT-ENGINEERING.md) - Constraint budgets (MOSAIC), register shifting, HARD GATE patterns
 - [Agents Reference](docs/AGENTS.md) - All 16 specialist agents with model tiers
-- [Skills Reference](docs/SKILLS.md) - All 19 progressive skill packages with trigger conditions
+- [Skills Reference](docs/SKILLS.md) - All 20 progressive skill packages with trigger conditions
 
 ### Testing
 - [Testing Strategy](docs/TESTING-STRATEGY.md) - Diamond testing model (acceptance-first, 6 layers)
@@ -537,9 +537,9 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 ### Reference
 - [Commands](plugins/autonomous-dev/commands/) - All 24 commands
-- [Hooks](docs/HOOKS.md) - 31 active hooks
+- [Hooks](docs/HOOKS.md) - 25 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
-- [Libraries](docs/LIBRARIES.md) - 210 Python utilities
+- [Libraries](docs/LIBRARIES.md) - 219 Python utilities
 - [Scripts](docs/SCRIPTS.md) - Operational tooling (deploy, validate, benchmark, mine)
 - [Label Taxonomy](docs/LABEL-TAXONOMY.md) - GitHub labels + `[BYPASS]`/`[INCOMPLETE]`/`[ORDERING]` finding tags
 

@@ -24,6 +24,25 @@ When to use: any repo where `.claude/*` is gitignored. For the autonomous-dev so
 
 ---
 
+## Stale worktrees accumulating in `.worktrees/` — run `cleanup-worktrees.sh` {#stale-worktrees-cleanup}
+
+**Symptom**: `.worktrees/` contains many entries (e.g. 30–50 directories) left over from previous `/implement --batch` or `/implement --issues` sessions. `git worktree list` shows dozens of rows; disk usage is elevated. No active pipeline is running.
+
+**Cause**: Each batch issue gets its own worktree under `.worktrees/<branch-name>/`. After the batch PR is merged, the worktrees for merged branches are not automatically pruned — they persist until explicitly cleaned up.
+
+**Fix**: Run the recovery script from the repo root:
+
+```bash
+bash scripts/cleanup-worktrees.sh --dry-run   # preview: shows removed=N skipped=M
+bash scripts/cleanup-worktrees.sh             # remove merged-branch worktrees
+```
+
+The script removes worktrees whose branch is merged into `master`. It skips the main worktree, unmerged branches, and detached HEADs that are not reachable from `master`. Idempotent — safe to re-run.
+
+**Not to be confused with**: the worktree-gitignore deadlock (Issue #1133) above, which prevents worktree creation. The stale-worktree symptom is disk accumulation AFTER successful batches, not a pipeline failure.
+
+---
+
 ## Hook Recovery Telemetry (Issue #970)
 
 When a `unified_pre_tool.py` deny gate blocks a tool call, it now emits a

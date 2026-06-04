@@ -10,6 +10,7 @@ This script enforces the DOGFOODING architecture:
 Run: python scripts/validate_structure.py
 """
 
+import re
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -17,6 +18,17 @@ from typing import List, Tuple
 # Root directory
 ROOT = Path(__file__).parent.parent
 PLUGIN = ROOT / "plugins" / "autonomous-dev"
+
+# Issue #1140: paths and regex for component-count drift check
+CLAUDE_MD = ROOT / "CLAUDE.md"
+SUMMARY_RE = re.compile(
+    r"Component counts:\s*"
+    r"(?P<agents>\d+)\s+agents,\s*"
+    r"(?P<skills>\d+)\s+skills,\s*"
+    r"(?P<commands>\d+)\s+commands,\s*"
+    r"(?P<hooks>\d+)\s+hooks,\s*"
+    r"(?P<libraries>\d+)\s+libraries"
+)
 
 # User-facing files that MUST be in plugin docs (by filename)
 USER_DOC_FILES = {
@@ -177,6 +189,94 @@ def check_claude_not_tracked() -> List[str]:
     return errors
 
 
+def _count_agents() -> int:
+    """Count agent markdown files (flat, no dotfiles)."""
+    return len(
+        [
+            f
+            for f in (PLUGIN / "agents").iterdir()
+            if f.is_file() and f.suffix == ".md" and not f.name.startswith(".")
+        ]
+    )
+
+
+def _count_commands() -> int:
+    """Count command markdown files (flat, no dotfiles)."""
+    return len(
+        [
+            f
+            for f in (PLUGIN / "commands").iterdir()
+            if f.is_file() and f.suffix == ".md" and not f.name.startswith(".")
+        ]
+    )
+
+
+def _count_skills() -> int:
+    """Count real skills: subdirectories with a SKILL.md sentinel, excluding 'archived/'."""
+    skills_dir = PLUGIN / "skills"
+    return sum(
+        1
+        for d in skills_dir.iterdir()
+        if d.is_dir() and d.name != "archived" and (d / "SKILL.md").exists()
+    )
+
+
+def _count_hooks() -> int:
+    """Count hook Python files (flat, excluding __init__.py)."""
+    return len(
+        [
+            f
+            for f in (PLUGIN / "hooks").iterdir()
+            if f.is_file() and f.suffix == ".py" and f.name != "__init__.py"
+        ]
+    )
+
+
+def _count_libraries() -> int:
+    """Count library Python files recursively, excluding __pycache__, htmlcov, __init__.py."""
+    lib_dir = PLUGIN / "lib"
+    return sum(
+        1
+        for f in lib_dir.rglob("*.py")
+        if f.is_file()
+        and "__pycache__" not in f.parts
+        and "htmlcov" not in f.parts
+        and f.name != "__init__.py"
+    )
+
+
+def check_component_count_drift() -> List[str]:
+    """Check CLAUDE.md prose component counts against live file counts (Issue #1140).
+
+    Returns:
+        List of error strings (empty if all counts match).
+    """
+    errors: List[str] = []
+    if not CLAUDE_MD.exists():
+        return ["❌ CLAUDE.md missing — cannot verify component counts"]
+    text = CLAUDE_MD.read_text()
+    m = SUMMARY_RE.search(text)
+    if not m:
+        return [
+            "❌ Canonical 'Component counts:' summary line missing or malformed in CLAUDE.md"
+        ]
+    claimed = {k: int(m.group(k)) for k in ("agents", "skills", "commands", "hooks", "libraries")}
+    actual = {
+        "agents": _count_agents(),
+        "skills": _count_skills(),
+        "commands": _count_commands(),
+        "hooks": _count_hooks(),
+        "libraries": _count_libraries(),
+    }
+    for name in ("agents", "skills", "commands", "hooks", "libraries"):
+        if claimed[name] != actual[name]:
+            errors.append(
+                f"❌ Component count drift: '{name}' claims {claimed[name]} in CLAUDE.md,"
+                f" actual is {actual[name]}"
+            )
+    return errors
+
+
 def main() -> int:
     """Run all structure validations."""
     print("🔍 Validating dogfooding architecture...\n")
@@ -188,6 +288,7 @@ def main() -> int:
     all_errors.extend(check_no_duplicates())
     all_errors.extend(check_root_cleanliness())
     all_errors.extend(check_claude_not_tracked())
+    all_errors.extend(check_component_count_drift())
 
     # Report results
     if all_errors:
@@ -208,6 +309,7 @@ def main() -> int:
         print("  ✓ .claude/ automations gitignored (installed)")
         print("  ✓ No duplicates")
         print("  ✓ Clean root directory")
+        print("  ✓ Component counts in CLAUDE.md match live file counts")
         return 0
 
 

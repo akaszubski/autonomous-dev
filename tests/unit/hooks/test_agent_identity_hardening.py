@@ -178,11 +178,13 @@ class TestSubshellEnvSpoofingDetection:
         assert result is None
 
     def test_double_quoted_subshell_blocked(self):
-        """bash -c with double quotes should also be caught."""
-        cmd = 'bash -c "CLAUDE_SESSION_ID=fake python3 test.py"'
+        """bash -c with double quotes should also be caught for other CLAUDE_* vars."""
+        # CLAUDE_SESSION_ID is now in PROTECTED_ENV_PREFIX_EXCEPTIONS (Issue #1137);
+        # use CLAUDE_AGENT_NAME which remains protected by the prefix rule.
+        cmd = 'bash -c "CLAUDE_AGENT_NAME=fake python3 test.py"'
         result = hook._detect_env_spoofing(cmd)
         assert result is not None
-        assert "CLAUDE_SESSION_ID" in result
+        assert "CLAUDE_AGENT_NAME" in result
 
 
 # ---------------------------------------------------------------------------
@@ -673,6 +675,60 @@ class TestEscalationDetection:
         # The tracker itself still escalates — the fix is that the caller
         # skips calling it when session_id == "unknown"
         assert result is True
+
+
+# ---------------------------------------------------------------------------
+# TestSessionIdException (Issue #1137)
+# ---------------------------------------------------------------------------
+
+class TestSessionIdException:
+    """Issue #1137: CLAUDE_SESSION_ID is in PROTECTED_ENV_PREFIX_EXCEPTIONS.
+
+    Verifies that legitimate `export CLAUDE_SESSION_ID=...` calls (baseline
+    failure capture, activity-log scoping per Issue #904) are allowed across
+    all four Bash assignment patterns, while other CLAUDE_* vars remain
+    blocked by the prefix-protection defense (Issue #606).
+    """
+
+    def test_session_id_is_not_protected(self):
+        """CLAUDE_SESSION_ID must NOT be protected by the prefix rule."""
+        assert hook._is_protected_env_var("CLAUDE_SESSION_ID") is False
+
+    def test_session_id_inline_assignment_allowed(self):
+        """Inline: CLAUDE_SESSION_ID=abc some_cmd — must be allowed."""
+        result = hook._detect_env_spoofing("CLAUDE_SESSION_ID=abc123 echo hi")
+        assert result is None, f"Expected no violation, got: {result!r}"
+
+    def test_session_id_export_allowed(self):
+        """Export: export CLAUDE_SESSION_ID=abc — must be allowed."""
+        result = hook._detect_env_spoofing("export CLAUDE_SESSION_ID=abc123")
+        assert result is None, f"Expected no violation, got: {result!r}"
+
+    def test_session_id_env_command_allowed(self):
+        """env command: env CLAUDE_SESSION_ID=abc some_cmd — must be allowed."""
+        result = hook._detect_env_spoofing("env CLAUDE_SESSION_ID=abc123 echo hi")
+        assert result is None, f"Expected no violation, got: {result!r}"
+
+    def test_session_id_bash_c_allowed(self):
+        """bash -c subshell: bash -c 'CLAUDE_SESSION_ID=abc some_cmd' — must be allowed."""
+        result = hook._detect_env_spoofing("bash -c 'CLAUDE_SESSION_ID=abc123 echo hi'")
+        assert result is None, f"Expected no violation, got: {result!r}"
+
+    @pytest.mark.parametrize("var", ["CLAUDE_AGENT_NAME", "CLAUDE_USER_ID", "CLAUDE_INTERNAL_FOO"])
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            "{var}=abc echo hi",
+            "export {var}=abc",
+            "env {var}=abc echo hi",
+            "bash -c '{var}=abc echo hi'",
+        ],
+    )
+    def test_other_claude_vars_still_blocked(self, var, pattern):
+        """Regression guard: other CLAUDE_* vars must remain blocked under all 4 patterns."""
+        cmd = pattern.format(var=var)
+        result = hook._detect_env_spoofing(cmd)
+        assert result is not None, f"Expected violation for {cmd!r}, got None"
 
 
 # ---------------------------------------------------------------------------

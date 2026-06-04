@@ -50,7 +50,7 @@ Re-sync dogfood repos after upstream changes without full reinstall.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/validate_structure.py` | Plugin directory layout, dogfooding architecture, no duplicates |
+| `scripts/validate_structure.py` | Plugin directory layout, dogfooding architecture, no duplicates. Also enforces the canonical `"Component counts:"` line in `CLAUDE.md` against live file counts (Issue #1140): blocks if agents/skills/commands/hooks/libraries counts diverge. |
 | `scripts/validate_manifest.py` | `install_manifest.json` in sync with source files |
 | `scripts/validate_hook_paths.py` | All hook paths in settings.*.json exist on disk |
 | `scripts/validate_component_classifications.py` | Component classifications match registry |
@@ -313,6 +313,27 @@ One-time setup for the GitHub MCP server (if you want gh via MCP rather than CLI
 ### `scripts/agent_tracker.py`
 
 Helper invoked by agents to record completion state. Not typically used directly.
+
+---
+
+## Worktree Maintenance
+
+### `scripts/cleanup-worktrees.sh` — **Stale worktree recovery** (Issue #1130)
+
+```bash
+bash scripts/cleanup-worktrees.sh --dry-run   # preview: shows what would be removed
+bash scripts/cleanup-worktrees.sh             # remove merged worktrees
+```
+
+Removes entries under `.worktrees/` whose branch is already merged into `master`. Skips the main worktree, unmerged branches, and detached HEADs that are unreachable from `master`. Safe to run at any time — each removed worktree is cleaned up with `git worktree remove`.
+
+**When to run**: when `.worktrees/` accumulates stale entries after many `/implement --batch` or `/implement --issues` runs. Dry-run output shows `removed=N skipped=M` summary without making changes.
+
+**Flags:**
+- `--dry-run` — print what would be removed, make no changes
+- `-h|--help` — show usage
+
+**See also**: [TROUBLESHOOTING.md — Stale worktrees](#stale-worktrees-cleanup) for the symptom-based entry point.
 
 ---
 
