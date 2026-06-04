@@ -119,8 +119,15 @@ class TestComponentCounts:
         )
 
     def test_library_count(self, claude_md):
-        actual = sum(1 for _ in (PLUGIN / "lib").rglob("*.py")
-                     if "__pycache__" not in str(_))
+        # Per validate_structure.py:_count_libraries() (Issue #1140) — exclude
+        # __init__.py (package markers) and htmlcov/ (coverage artifact).
+        actual = sum(
+            1 for f in (PLUGIN / "lib").rglob("*.py")
+            if f.is_file()
+            and "__pycache__" not in f.parts
+            and "htmlcov" not in f.parts
+            and f.name != "__init__.py"
+        )
         documented = _extract_number(claude_md, r"(\d+)\s+libraries")
         assert documented is not None, "Docs missing library count"
         assert actual == documented, (
@@ -128,13 +135,20 @@ class TestComponentCounts:
         )
 
     def test_active_hook_count(self, claude_md):
-        py = _count_files(PLUGIN / "hooks", "*.py", exclude_dirs=["archived"])
-        sh = _count_files(PLUGIN / "hooks", "*.sh", exclude_dirs=["archived"])
-        actual = py + sh
+        # Per validate_structure.py:_count_hooks() (Issue #1140) — only .py files,
+        # excluding __init__.py. Shell hooks are tooling, not counted here.
+        hooks_dir = PLUGIN / "hooks"
+        actual = sum(
+            1 for f in hooks_dir.iterdir()
+            if f.is_file()
+            and f.suffix == ".py"
+            and f.name != "__init__.py"
+            and not f.name.startswith(".")
+        )
         documented = _extract_number(claude_md, r"(\d+)\s+active hooks?")
         assert documented is not None, "Docs missing hook count"
         assert actual == documented, (
-            f"Active hooks: {actual} on disk ({py} py + {sh} sh), {documented} in docs"
+            f"Active hooks: {actual} on disk (.py only), {documented} in docs"
         )
 
     def test_archived_hook_count(self, claude_md):
