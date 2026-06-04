@@ -134,6 +134,15 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Scoped to autonomous-dev repos (detected via `_is_autonomous_dev_repo()`) — does not affect user projects
 - User-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`) and most config files (`.json`/`.yaml`) are unaffected; deployment manifests (`install_manifest.json`), policy files, and settings templates are protected
 
+**Production-Code Write/Edit Gate for Consumer Repos** (Issue #1142 — `_check_write_pipeline_required`):
+- Fires when (a) `.claude/.enforce` is present in the repo, (b) no `/implement` pipeline is active, (c) the file has a production-code extension (`CODE_EXTENSIONS` — `.py`, `.ts`, `.js`, `.go`, `.rs`, `.java`, `.rb`, `.sh`, etc.), and (d) the edit is non-trivial (Tier 2: diff ≥ 5 lines OR new function/class detected by `_has_significant_additions()`)
+- Test files (`/tests/`, `/test/`, `test_*.py`, `*_test.py`) are excluded — Tier 0f pass-through
+- Block message directs: `Run /implement --fix "<description>" for a targeted fix, or /implement "<feature>" for a new feature`
+- One-shot operator bypass: `touch /tmp/skip_write_pipeline_gate` (consumed on first check — mirrors `/tmp/skip_agent_completeness_gate` pattern)
+- Also bypassed by `.claude/.bypass` or `AUTONOMOUS_DEV_BYPASS=1` (universal escape hatches)
+- Distinct from the Infrastructure Protection gate above: that gate protects autonomous-dev's own `hooks/*.py`, `agents/*.md`, etc.; this gate protects production code in any consumer repo that has opted in via `.claude/.enforce`
+- Fails open on all check errors; does not fire when `.claude/.enforce` is absent
+
 **Prompt Quality Gate** (Issue #842 — Layer 6, Write/Edit to agents/*.md and commands/*.md only):
 - Blocks writes to `agents/*.md` or `commands/*.md` when the resulting content contains prompt anti-patterns detected by `prompt_quality_rules.py`
 - Only enforced during active pipeline sessions (`_is_pipeline_active()` must return true); fails open on all errors

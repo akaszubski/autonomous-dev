@@ -197,6 +197,7 @@ _agent_type: str = ""
 # Fail-closed: if the detector is unavailable, _is_adev_project_fn is None and
 # _is_adev_project() returns True — enforcement is never silently skipped.
 _is_adev_project_fn = None
+_enforce_marker_fn = None
 try:
     _hook_dir = Path(__file__).resolve().parent
     _repo_detector_candidates = [
@@ -211,9 +212,13 @@ try:
                 _rd_mod = importlib.util.module_from_spec(_rd_spec)
                 _rd_spec.loader.exec_module(_rd_mod)
                 _is_adev_project_fn = _rd_mod.is_autonomous_dev_repo
+                # Issue #1142: Also capture _has_enforce_marker for the
+                # consumer-repo production-code Write/Edit gate.
+                _enforce_marker_fn = _rd_mod._has_enforce_marker
             break
 except Exception:
     _is_adev_project_fn = None  # Fallback: fail closed (always enforce)
+    _enforce_marker_fn = None
 
 _REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
 
@@ -228,6 +233,22 @@ def _is_adev_project() -> bool:
     if _is_adev_project_fn is None:
         return True
     return _is_adev_project_fn()
+
+
+def _check_enforce_marker() -> bool:
+    """Return True if .claude/.enforce is found in cwd or any ancestor.
+
+    Fail-closed (returns True to enforce) when the marker function could not
+    be loaded or raises — mirrors _is_adev_project pattern above.
+
+    Issue: #1142.
+    """
+    if _enforce_marker_fn is None:
+        return True   # fail-closed: enforce when detection broken
+    try:
+        return bool(_enforce_marker_fn())
+    except Exception:
+        return True   # fail-closed
 
 
 def is_running_under_uv() -> bool:
@@ -1796,6 +1817,86 @@ def _has_significant_additions(old_string: str, new_string: str, file_path: str 
     if added >= SIGNIFICANT_LINE_THRESHOLD:
         return True, "Significant code change detected", f"+{added} lines"
     return False, "", ""
+
+
+def _check_write_pipeline_required(
+    tool_name: str,
+    file_path: str,
+    old_string: str,
+    new_string: str,
+) -> "tuple[bool, str, str]":
+    """Decide if a Write/Edit on production code requires the /implement pipeline.
+
+    Returns:
+        (block, tier_label, directive)
+        - block: True means caller MUST emit a deny decision.
+        - tier_label: one of "no_enforce_marker", "pipeline_active",
+          "operator_bypass", "no_path", "tier0_non_code", "tier0_test_file",
+          "tier1_trivial", "tier2_substantive", "wpg_check_error".
+        - directive: human-readable REQUIRED NEXT ACTION (empty when block False).
+
+    Issue #1142. Closes gap where consumer-repo production code edits proceed
+    with no hook firing even when .claude/.enforce is committed.
+    """
+    # Tier 0a: opt-in marker absent — gate not applicable
+    if not _check_enforce_marker():
+        return (False, "no_enforce_marker", "")
+
+    # Tier 0b: pipeline already active — already in-flow, allow
+    try:
+        if _is_pipeline_active():
+            return (False, "pipeline_active", "")
+    except Exception:
+        pass  # fall through; if we cannot tell, continue with other checks
+
+    # Tier 0c: one-shot operator bypass (mirrors /tmp/skip_agent_completeness_gate pattern)
+    skip_file = Path("/tmp/skip_write_pipeline_gate")
+    try:
+        if skip_file.exists():
+            try:
+                skip_file.unlink()
+            except OSError:
+                pass  # fail-open on unlink — bypass still consumed
+            return (False, "operator_bypass", "")
+    except OSError:
+        pass
+
+    # Tier 0d: no path provided
+    if not file_path:
+        return (False, "no_path", "")
+
+    # Tier 0e: non-code extension — not applicable
+    suffix = Path(file_path).suffix.lower()
+    if suffix not in CODE_EXTENSIONS:
+        return (False, "tier0_non_code", "")
+
+    # Tier 0f: test file — excluded (reuse pattern from _is_protected_infrastructure)
+    fp_lower = file_path.lower()
+    if "/tests/" in fp_lower or "/test/" in fp_lower:
+        return (False, "tier0_test_file", "")
+    basename = Path(file_path).name
+    if basename.startswith("test_") or basename.endswith("_test.py"):
+        return (False, "tier0_test_file", "")
+
+    # Tier classification: significant additions OR diff >= threshold lines
+    is_significant, _desc, _detail = _has_significant_additions(
+        old_string or "", new_string or "", file_path
+    )
+    diff_lines = abs(
+        len((new_string or "").splitlines()) - len((old_string or "").splitlines())
+    )
+
+    if not is_significant and diff_lines < SIGNIFICANT_LINE_THRESHOLD:
+        return (False, "tier1_trivial", "")
+
+    # Tier 2 — substantive edit, block and direct to pipeline
+    file_name = Path(file_path).name
+    directive = (
+        f"Run /implement --fix \"fix in {file_name}\" for a targeted fix, "
+        f"or /implement \"<feature>\" for a new feature. "
+        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate"
+    )
+    return (True, "tier2_substantive", directive)
 
 
 def _strip_quoted_segments(command: str) -> str:
@@ -4526,6 +4627,56 @@ def main():
                     except Exception:
                         pass  # Never fail the hook for cache writes
                     sys.exit(0)
+
+                # Issue #1142: Production-code Write/Edit gate for consumer repos
+                # opted in via .claude/.enforce. The infra gate above only covers
+                # autonomous-dev protected paths; this gate covers production code
+                # in spektiv/realign/etc. Runs only when tool is Write or Edit and
+                # the universal bypass / pipeline-active checks are not already met.
+                try:
+                    _wpg_block, _wpg_tier, _wpg_directive = _check_write_pipeline_required(
+                        tool_name,
+                        file_path,
+                        tool_input.get("old_string", ""),
+                        tool_input.get("new_string", tool_input.get("content", "")),
+                    )
+                except Exception:
+                    # Fail-closed on any unexpected exception
+                    _wpg_block, _wpg_tier, _wpg_directive = (
+                        True,
+                        "wpg_check_error",
+                        "Run /implement to make changes. Production-code gate detection errored; defaulting to enforce.",
+                    )
+
+                if _wpg_block:
+                    _wpg_file_name = Path(file_path).name if file_path else "unknown"
+                    _wpg_block_reason = (
+                        f"BLOCKED: Substantive edit to '{_wpg_file_name}' requires the /implement pipeline "
+                        f"(this repo opted in via .claude/.enforce). "
+                        f"REQUIRED NEXT ACTION: {_wpg_directive}. "
+                        f"Do NOT direct-edit production code in enforced repos."
+                    )
+                    _log_deviation(_wpg_file_name, tool_name, f"write_pipeline_gate_block:{_wpg_tier}")
+                    _log_pretool_activity(tool_name, tool_input, "deny", _wpg_block_reason)
+                    output_decision(
+                        "deny", _wpg_block_reason,
+                        system_message=(
+                            f"BLOCKED: Substantive edit to '{_wpg_file_name}' denied. "
+                            f"Run /implement (this repo has .claude/.enforce)."
+                        ),
+                    )
+                    try:
+                        _update_deny_cache(file_path)  # telemetry — does NOT prevent multi-Edit bypass
+                    except Exception:
+                        pass
+                    sys.exit(0)
+                elif _wpg_tier == "tier1_trivial":
+                    # Telemetry: log Tier-1 trivial allows so multi-Edit splitting is detectable.
+                    try:
+                        _log_pretool_activity(tool_name, tool_input, "allow",
+                                              f"write_pipeline_gate: {_wpg_tier}")
+                    except Exception:
+                        pass
 
                 # Issue #557: Block settings.json writes during active pipeline
                 if file_path:
