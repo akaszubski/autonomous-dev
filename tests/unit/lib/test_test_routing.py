@@ -272,9 +272,11 @@ class TestGetChangedFiles:
 
     @patch("test_routing.subprocess.run")
     def test_empty_diff_returns_empty(self, mock_run):
+        # Three calls: git diff HEAD, git ls-files --others, git diff HEAD~1 (fallback)
         mock_run.side_effect = [
-            MagicMock(stdout=""),
-            MagicMock(stdout=""),
+            MagicMock(returncode=0, stdout=""),
+            MagicMock(returncode=0, stdout=""),
+            MagicMock(returncode=0, stdout=""),  # fallback also empty
         ]
         files = get_changed_files()
         assert files == []
@@ -283,6 +285,80 @@ class TestGetChangedFiles:
     def test_git_not_found_returns_empty(self, mock_run):
         files = get_changed_files()
         assert files == []
+
+    def test_get_changed_files_falls_back_to_head_tilde_1_when_head_diff_empty(self, tmp_path):
+        """HEAD~1 fallback fires when HEAD diff is empty (committed-but-no-working-changes).
+
+        Build a real temp git repo: init, first commit, second commit modifying
+        lib/foo.py. Since all changes are committed and there is no working-tree
+        diff, git diff HEAD returns nothing. The fallback (git diff HEAD~1)
+        should surface the files changed in the most-recent commit.
+        """
+        import subprocess as sp
+
+        # Set up git repo
+        sp.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
+
+        # First commit (initial)
+        readme = tmp_path / "README.md"
+        readme.write_text("initial")
+        sp.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "commit", "-m", "initial commit"], cwd=tmp_path, check=True, capture_output=True)
+
+        # Second commit modifying lib/foo.py
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+        foo = lib_dir / "foo.py"
+        foo.write_text("def foo(): pass")
+        sp.run(["git", "add", "lib/foo.py"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "commit", "-m", "add lib/foo.py"], cwd=tmp_path, check=True, capture_output=True)
+
+        # Working tree is clean: git diff HEAD returns nothing.
+        # The HEAD~1 fallback should surface lib/foo.py.
+        files = get_changed_files(cwd=tmp_path)
+        assert "lib/foo.py" in files, f"Expected lib/foo.py in fallback result, got: {files}"
+
+    @patch("test_routing.subprocess.run")
+    def test_get_changed_files_skips_fallback_when_head_diff_non_empty(self, mock_run):
+        """No fallback invocation when git diff HEAD already has results.
+
+        Only 2 subprocess.run calls should be made (git diff HEAD + git ls-files),
+        NOT 3 (which would include the HEAD~1 fallback).
+        """
+        # First call (git diff HEAD) returns a file; second (git ls-files) empty.
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="lib/bar.py\n"),
+            MagicMock(returncode=0, stdout=""),
+        ]
+        files = get_changed_files()
+        assert "lib/bar.py" in files
+        # Only 2 calls: no fallback needed
+        assert mock_run.call_count == 2, (
+            f"Expected 2 subprocess.run calls (no fallback), got {mock_run.call_count}"
+        )
+
+    def test_get_changed_files_returns_empty_when_head_tilde_1_unavailable(self, tmp_path):
+        """Single-commit repo has no HEAD~1; fallback must return [] without raising.
+
+        This simulates shallow clones and brand-new repos with only one commit.
+        """
+        import subprocess as sp
+
+        # Set up git repo with only one commit (no HEAD~1)
+        sp.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
+
+        readme = tmp_path / "README.md"
+        readme.write_text("only commit")
+        sp.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "commit", "-m", "only commit"], cwd=tmp_path, check=True, capture_output=True)
+
+        # Working tree is clean, HEAD~1 does not exist -> should return []
+        files = get_changed_files(cwd=tmp_path)
+        assert files == [], f"Expected empty list for single-commit repo, got: {files}"
 
 
 # ---------------------------------------------------------------------------
@@ -321,3 +397,41 @@ class TestRouteTests:
         missing = tmp_path / "nope.json"
         result = route_tests(config_path=missing)
         assert result["full_suite"] is True
+
+    def test_route_tests_categorizes_correctly_when_fallback_resolves(self, tmp_path, config_path):
+        """Integration test: route_tests() works end-to-end when HEAD~1 fallback resolves.
+
+        Builds a real temp git repo with a committed change to a lib/*.py file.
+        The working tree is clean so get_changed_files() must use the HEAD~1
+        fallback. route_tests() should then categorize the result as 'lib' and
+        set full_suite=False.
+        """
+        import subprocess as sp
+
+        sp.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
+
+        # First commit
+        readme = tmp_path / "README.md"
+        readme.write_text("initial")
+        sp.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "commit", "-m", "initial commit"], cwd=tmp_path, check=True, capture_output=True)
+
+        # Second commit: add plugins/autonomous-dev/lib/repo_detector.py
+        lib_dir = tmp_path / "plugins" / "autonomous-dev" / "lib"
+        lib_dir.mkdir(parents=True)
+        detector = lib_dir / "repo_detector.py"
+        detector.write_text("def detect(): pass")
+        sp.run(["git", "add", str(detector.relative_to(tmp_path))], cwd=tmp_path, check=True, capture_output=True)
+        sp.run(["git", "commit", "-m", "add repo_detector"], cwd=tmp_path, check=True, capture_output=True)
+
+        result = route_tests(cwd=tmp_path, config_path=config_path)
+
+        # Fallback should surface the lib file, classify it as 'lib', not full_suite
+        assert "lib" in result["categories"], (
+            f"Expected 'lib' in categories from fallback, got: {result['categories']}"
+        )
+        assert result["full_suite"] is False, (
+            f"Expected full_suite=False for lib change, got: {result}"
+        )

@@ -103,7 +103,32 @@ def get_changed_files(cwd: Optional[Path] = None) -> List[str]:
         ]
 
         all_files = list(set(files + untracked))
-        return sorted(all_files)
+        if all_files:
+            return sorted(all_files)
+
+        # Fallback: when HEAD diff and untracked are both empty (e.g., all
+        # changes are already committed and the coordinator cwd differs from
+        # the worktree), try git diff HEAD~1 to surface the most-recent commit.
+        try:
+            result_fallback = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD~1"],
+                capture_output=True,
+                text=True,
+                cwd=str(cwd) if cwd else None,
+                timeout=30,
+            )
+            if result_fallback.returncode == 0:
+                fallback_files = [
+                    f.strip()
+                    for f in result_fallback.stdout.strip().split("\n")
+                    if f.strip()
+                ]
+                if fallback_files:
+                    return sorted(set(fallback_files))
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+        return []
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return []
 
