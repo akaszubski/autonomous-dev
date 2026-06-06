@@ -281,42 +281,43 @@ See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uni
 
 ### Per-repo enforcement control
 
-autonomous-dev installs hooks into `~/.claude/` globally. Four states control
-per-repo enforcement, in order of precedence:
+autonomous-dev installs hooks into `~/.claude/` globally. Phase 1 (Issue #1142+)
+flipped the polarity from opt-IN via `.claude/.enforce` to default-ON subject
+to a single `.claude/.bypass` opt-out marker. Three states control per-repo
+enforcement, in order of precedence:
 
 | State | How | Enforcement |
 |---|---|---|
-| Bypass (highest priority) | `touch .claude/.bypass` OR `AUTONOMOUS_DEV_BYPASS=1` | OFF — all hooks fall through (Issue #969) |
-| Plugin source auto-detect | Repo contains `plugins/autonomous-dev/.claude-plugin/marketplace.json` | ON — autonomous-dev itself |
-| Opt-in via `.enforce` | `touch .claude/.enforce` (commit to repo) | ON — consumer repo opted into SDLC enforcement |
-| Default | None of the above | OFF |
+| Bypass (highest priority) | `touch .claude/.bypass` OR `AUTONOMOUS_DEV_BYPASS=1` | OFF — all hooks fall through (Issue #969). Also the supported durable per-repo opt-out. |
+| Plugin source auto-detect | Repo contains `plugins/autonomous-dev/.claude-plugin/marketplace.json` | ON — autonomous-dev itself (self-maintenance mode relaxes only state-deletion). |
+| Default | None of the above | ON — default-on production-code Write/Edit gate. |
 
-**Opt a repo in** (e.g., spektiv, realign):
-
-```bash
-cd ~/Dev/<repo>
-mkdir -p .claude
-touch .claude/.enforce
-git add .claude/.enforce
-git commit -m "chore: opt into autonomous-dev SDLC enforcement"
-```
-
-**Opt a repo out** (permanent silence):
+**Opt a repo out** (permanent silence or durable opt-out):
 
 ```bash
 cd /path/to/repo
 mkdir -p .claude
 touch .claude/.bypass
+git add .claude/.bypass
+git commit -m "chore: opt out of autonomous-dev SDLC enforcement"
 ```
 
 To temporarily re-enable in a bypassed repo: `rm .claude/.bypass`.
-To temporarily disable in an enforced repo: `touch .claude/.bypass` (bypass wins).
 
-Note: `.claude/.enforce` extends enforcement gates (TDD, quality, plan-exit, and — as of Issue #1142 — direct production-code write/edit outside the `/implement` pipeline). It does NOT extend
-protected-infrastructure semantics — those apply only to the autonomous-dev source tree itself,
-by design. Consumer repos have no `plugins/autonomous-dev/` tree to protect. The production-code
-gate blocks non-trivial direct edits (≥5 lines or new function/class) to code files when no
-pipeline is active; one-shot bypass: `touch /tmp/skip_write_pipeline_gate`.
+The default-on production-code gate (Phase 1, Issue #1142+) blocks Write/Edit
+to code-file extensions (`.py`, `.ts`, `.js`, `.go`, `.rs`, etc.) when no
+`/implement` pipeline is active and the edit is non-trivial. The classifier
+returns one of three tiers:
+
+- `fix` (<20 lines, no AST signal) → directive `/implement --fix`
+- `light` (new function / control-flow / 20-99 lines) → directive `/implement --light`
+- `full` (new class / ≥100 lines) → directive `/implement`
+
+Test files (`test_*.py`, files under `tests/` or `test/`) are always exempt.
+One-shot operator bypass: `touch /tmp/skip_write_pipeline_gate` (consumed on
+first check). Bash commands writing to code files (`cat > X.py`, `sed -i X.py`,
+`tee X.py`, heredocs) are subject to the same gate; `git apply` and
+`patch < diff` are excluded as user-driven patch tooling.
 
 ### Uninstalling autonomous-dev
 

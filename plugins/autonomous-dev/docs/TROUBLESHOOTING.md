@@ -133,24 +133,27 @@ hooks.
 
 ---
 
-## Production-Code Edit Blocked Outside /implement (Issue #1142)
+## Production-Code Edit Blocked Outside /implement (Issue #1142 + Phase 1)
 
 **Symptom**: A Write or Edit to a `.py`, `.ts`, `.js`, `.go`, `.rs`, or similar production-code file is denied with a message like:
 
 ```
-WORKFLOW ENFORCEMENT: Direct production-code edit outside /implement pipeline.
-Run /implement --fix "fix in <file>" for a targeted fix, or /implement "<feature>" for a new feature.
-Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate
+BLOCKED: Write/Edit to code file '<name>' requires the /implement pipeline.
+File: <path>
+Tier: <fix|light|full>.
+REQUIRED NEXT ACTION: Run /implement [--fix|--light] "<brief description of change>".
+Per-repo opt-out: touch .claude/.bypass && git commit.
 ```
 
-**Cause**: The repo has `.claude/.enforce` committed and no `/implement` pipeline is active. As of Issue #1142, `unified_pre_tool.py` blocks non-trivial direct edits (≥5 lines changed OR a new function/class introduced) to production-code files when enforcement is enabled. This closes the gap where production-code edits in opted-in consumer repos (spektiv, realign, etc.) proceeded without any pipeline gate firing.
+**Cause**: Phase 1 (Issue #1142+) flipped the gate to default-on. `unified_pre_tool.py` now blocks non-trivial direct edits to production-code files unless `/implement` is active OR the repo has committed `.claude/.bypass`. The classifier returns one of three tiers (`fix` / `light` / `full`) each mapped to the matching `/implement` variant.
 
 **Fix options** (choose the appropriate level):
 
 1. **Recommended — route through the pipeline** (enforces full SDLC):
    ```bash
-   /implement --fix "describe the fix"   # targeted bug fix
-   /implement "describe the feature"     # new feature
+   /implement --fix "describe the fix"     # tier=fix (<20 lines, no AST signal)
+   /implement --light "describe the change" # tier=light (new func / control-flow / 20-99 lines)
+   /implement "describe the feature"       # tier=full (new class OR ≥100 lines)
    ```
 
 2. **One-shot bypass** (allows a single edit, file consumed on first check):
@@ -159,13 +162,19 @@ Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate
    # Now retry the Write/Edit — bypass is consumed and gate re-enables
    ```
 
-3. **Universal bypass** (disables ALL hook enforcement — use with caution):
+3. **Durable per-repo opt-out** (consumer repo that does not want SDLC enforcement):
    ```bash
-   AUTONOMOUS_DEV_BYPASS=1 <your command>
-   # or: touch .claude/.bypass  (persists until removed)
+   touch .claude/.bypass
+   git add .claude/.bypass
+   git commit -m "chore: opt out of autonomous-dev SDLC enforcement"
    ```
 
-**Not applicable when**: `.claude/.enforce` is absent from the repo, or the pipeline is already active (in that case the gate is a no-op). Test files (`test_*.py`, files under `tests/` or `test/`) are always excluded from this gate.
+4. **Emergency universal bypass** (disables ALL hook enforcement):
+   ```bash
+   AUTONOMOUS_DEV_BYPASS=1 <your command>
+   ```
+
+**Not applicable when**: `.claude/.bypass` is present (gate skipped), or the pipeline is already active (gate is a no-op). Test files (`test_*.py`, files under `tests/` or `test/`) are always excluded from this gate. Bash commands writing to code files (`cat > X.py`, `sed -i X.py`, `tee X.py`, heredocs) are subject to the same gate; `git apply` and `patch < diff` are excluded as user-driven patch tooling.
 
 ---
 

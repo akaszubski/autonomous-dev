@@ -259,8 +259,26 @@ class TestInfraProtectionInMainFlow:
             assert decision == "allow"
         os.unlink(f.name)
 
-    def test_write_src_not_protected(self, monkeypatch):
-        """Write to src/app.py should be allowed (not protected infra)."""
+    def test_write_src_not_protected(self, monkeypatch, tmp_path):
+        """Write to src/app.py should be allowed because src/ is NOT
+        infrastructure-protected (test isolates the infrastructure-protection
+        check from the orthogonal default-on Write/Edit gate).
+
+        Issue #1142 Phase 1 flipped the Write/Edit gate to default-on, so
+        ``src/app.py`` (a .py code file) now triggers that gate too. To preserve
+        this test's ORIGINAL semantic intent — "src/ is not in the protected
+        infrastructure list" — we create a ``.claude/.bypass`` marker in
+        tmp_path. The universal bypass short-circuits the write-pipeline-gate
+        but is unrelated to infrastructure-protection, so this test isolates
+        the infrastructure-protection check in its original form.
+
+        For the parallel test of the tier-aware gate behavior, see
+        ``test_write_src_blocked_by_tier_gate`` below.
+        """
+        bypass_dir = tmp_path / ".claude"
+        bypass_dir.mkdir()
+        (bypass_dir / ".bypass").write_text("")
+        monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
 
@@ -268,6 +286,41 @@ class TestInfraProtectionInMainFlow:
 
         decision = result["hookSpecificOutput"]["permissionDecision"]
         assert decision == "allow"
+
+    def test_write_src_blocked_by_tier_gate(self, monkeypatch, tmp_path):
+        """Write to src/app.py is blocked by the default-on tier-aware
+        Write/Edit gate when no ``.claude/.bypass`` marker is present
+        (Issue #1142 Phase 1 polarity flip).
+
+        Parallel test for the new default-on gate behavior. Complements
+        ``test_write_src_not_protected`` which verifies that src/ is NOT
+        infrastructure-protected (separate orthogonal check).
+        """
+        # No .claude/.bypass marker. No pipeline active.
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+
+        result = self._run_hook(
+            "Write",
+            {
+                "file_path": "src/app.py",
+                "content": (
+                    "def new_feature(data: list) -> dict:\n"
+                    "    return {item: process(item) for item in data}\n"
+                ),
+            },
+        )
+
+        decision = result["hookSpecificOutput"]["permissionDecision"]
+        assert decision == "deny", (
+            f"Write to src/app.py without .bypass marker should be denied by "
+            f"the default-on tier-aware gate, got '{decision}'."
+        )
+        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "/implement" in reason, (
+            f"Expected '/implement' directive in reason, got: {reason}"
+        )
 
     def test_read_agents_allowed(self, monkeypatch):
         """Read from agents/foo.md should be allowed (Read not blocked)."""

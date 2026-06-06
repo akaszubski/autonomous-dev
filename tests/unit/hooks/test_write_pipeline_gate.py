@@ -1,18 +1,21 @@
 """
-Unit tests for the Write/Edit pipeline gate added in Issue #1142.
+Unit tests for the Write/Edit pipeline gate (Issue #1142 + Phase 1 polarity flip).
 
-Tests _check_write_pipeline_required() directly as a pure function
-and validates that the correct tier/block values are returned for each
-path through the decision tree.
+Tests `_check_write_pipeline_required()` directly as a pure function.
+
+Phase 1 (Issue #1142+) flipped the polarity from opt-IN via `.claude/.enforce`
+to default-ON subject to the existing `.claude/.bypass` universal opt-out.
+The line-count "significant additions" heuristic was replaced by
+`classify_edit_tier()` which returns `fix` / `light` / `full` tiers.
+
+This file covers the post-flip ACs (excluding deleted AC1 and AC9 which
+specifically tested the marker mechanism that no longer exists).
 
 Issue: #1142
-Date: 2026-06-05
-Agent: implementer
 """
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -29,15 +32,6 @@ import unified_pre_tool as hook
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_enforce_active(monkeypatch) -> None:
-    """Patch _enforce_marker_fn so _check_enforce_marker() returns True."""
-    monkeypatch.setattr(hook, "_enforce_marker_fn", lambda: True)
-
-
-def _make_enforce_inactive(monkeypatch) -> None:
-    """Patch _enforce_marker_fn so _check_enforce_marker() returns False."""
-    monkeypatch.setattr(hook, "_enforce_marker_fn", lambda: False)
-
 
 def _make_pipeline_active(monkeypatch) -> None:
     """Patch _is_pipeline_active so it returns True."""
@@ -53,47 +47,23 @@ def _make_pipeline_inactive(monkeypatch) -> None:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def default_state(monkeypatch, tmp_path):
-    """
-    Default state for each test:
-    - .enforce marker active (consumer repo opted in)
+    """Default state for each test:
     - pipeline NOT active
     - no /tmp/skip_write_pipeline_gate file
     """
-    _make_enforce_active(monkeypatch)
     _make_pipeline_inactive(monkeypatch)
-    # Ensure the skip file is absent before each test
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     if skip_file.exists():
         skip_file.unlink()
 
 
 # ---------------------------------------------------------------------------
-# AC1 — No .enforce marker: gate does nothing
-# ---------------------------------------------------------------------------
-
-class TestNoEnforceMarker:
-    """Gate must be a no-op when .claude/.enforce is absent."""
-
-    def test_no_enforce_marker_allows_substantive_edit(self, monkeypatch):
-        """When .enforce is absent, even a large edit is allowed (tier not applicable)."""
-        _make_enforce_inactive(monkeypatch)
-        big_new = "\n".join(f"def func_{i}(): pass" for i in range(20))
-        block, tier, directive = hook._check_write_pipeline_required(
-            "Edit",
-            "/home/user/app/main.py",
-            "",
-            big_new,
-        )
-        assert block is False
-        assert tier == "no_enforce_marker"
-        assert directive == ""
-
-
-# ---------------------------------------------------------------------------
 # AC2 — Pipeline active: gate is a no-op
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineActive:
     """Gate must allow all edits while /implement pipeline is running."""
@@ -115,6 +85,7 @@ class TestPipelineActive:
 # ---------------------------------------------------------------------------
 # AC3 — One-shot operator bypass
 # ---------------------------------------------------------------------------
+
 
 class TestOperatorBypass:
     """Touch /tmp/skip_write_pipeline_gate: next call skips the gate, file is deleted."""
@@ -154,12 +125,14 @@ class TestOperatorBypass:
             "Edit", "/home/user/app/service.py", "", big_new
         )
         assert block2 is True
-        assert tier2 == "tier2_substantive"
+        # Tier is now one of fix / light / full (Phase 1 tier names).
+        assert tier2 in ("fix", "light", "full")
 
 
 # ---------------------------------------------------------------------------
 # AC4 — Non-code extensions: tier0_non_code
 # ---------------------------------------------------------------------------
+
 
 class TestNonCodeExtensions:
     """Markdown, JSON, YAML, images, etc. must pass through without blocking."""
@@ -184,6 +157,7 @@ class TestNonCodeExtensions:
 # AC5 — Test files: tier0_test_file
 # ---------------------------------------------------------------------------
 
+
 class TestTestFileExclusions:
     """Test files inside tests/ or named test_*.py / *_test.py are excluded."""
 
@@ -203,65 +177,48 @@ class TestTestFileExclusions:
 
 
 # ---------------------------------------------------------------------------
-# AC6 — Tier 1: trivial edit (< 5 lines, no significant patterns) — allowed
+# AC6 — Tier "fix": tiny edit, no AST signal
 # ---------------------------------------------------------------------------
 
-class TestTier1Trivial:
-    """Small edits with no new functions/classes must be allowed (Tier 1)."""
 
-    def test_four_line_addition_is_tier1(self):
-        """4-line addition is below SIGNIFICANT_LINE_THRESHOLD of 5."""
+class TestFixTier:
+    """Small edits with no new functions/classes classify as `fix`."""
+
+    def test_one_line_const_change_is_fix(self):
+        old = "TIMEOUT = 30\n"
+        new = "TIMEOUT = 60\n"
+        block, tier, directive = hook._check_write_pipeline_required(
+            "Edit",
+            "/home/user/app/settings.py",
+            old,
+            new,
+        )
+        assert block is True
+        assert tier == "fix"
+        assert "/implement --fix" in directive
+
+    def test_few_line_addition_no_function_is_fix(self):
         old = "x = 1\n"
-        new = "x = 1\na = 2\nb = 3\nc = 4\nd = 5\n"  # 5 lines but diff is +4 from old
-        # actual diff: new has 5 lines, old has 1 line → diff = 4 (< 5 threshold)
+        new = "x = 1\na = 2\nb = 3\nc = 4\nd = 5\n"
         block, tier, _ = hook._check_write_pipeline_required(
             "Edit",
             "/home/user/app/config.py",
             old,
             new,
         )
-        assert block is False
-        assert tier == "tier1_trivial"
-
-    def test_single_line_change_is_tier1(self):
-        """Changing one line (no new functions) is Tier 1."""
-        old = "TIMEOUT = 30\n"
-        new = "TIMEOUT = 60\n"
-        block, tier, _ = hook._check_write_pipeline_required(
-            "Edit",
-            "/home/user/app/settings.py",
-            old,
-            new,
-        )
-        assert block is False
-        assert tier == "tier1_trivial"
-
-
-# ---------------------------------------------------------------------------
-# AC7 — Tier 2: substantive edit — blocked
-# ---------------------------------------------------------------------------
-
-class TestTier2Substantive:
-    """Large edits or new function/class definitions must be blocked (Tier 2)."""
-
-    def test_five_line_addition_is_tier2(self):
-        """5-line addition meets SIGNIFICANT_LINE_THRESHOLD → Tier 2 block."""
-        old = ""
-        new = "a = 1\nb = 2\nc = 3\nd = 4\ne = 5\n"  # 5 lines added
-        block, tier, directive = hook._check_write_pipeline_required(
-            "Edit",
-            "/home/user/app/models.py",
-            old,
-            new,
-        )
         assert block is True
-        assert tier == "tier2_substantive"
-        assert "/implement" in directive
+        assert tier == "fix"
 
-    def test_new_function_definition_is_tier2(self):
-        """A new def foo(): block triggers _has_significant_additions → Tier 2."""
+
+# ---------------------------------------------------------------------------
+# AC7 — Tier "light": new function OR control-flow OR 20-99 lines
+# ---------------------------------------------------------------------------
+
+
+class TestLightTier:
+    def test_new_function_is_light(self):
         old = "x = 1\n"
-        new = "x = 1\n\ndef new_handler():\n    pass\n"
+        new = "x = 1\n\ndef new_handler():\n    return 1\n"
         block, tier, directive = hook._check_write_pipeline_required(
             "Edit",
             "/home/user/app/handlers.py",
@@ -269,13 +226,66 @@ class TestTier2Substantive:
             new,
         )
         assert block is True
-        assert tier == "tier2_substantive"
-        assert "skip_write_pipeline_gate" in directive
+        assert tier == "light"
+        assert "/implement --light" in directive
 
-    def test_tier2_directive_mentions_file_name(self):
-        """The directive must mention the target file name."""
+    def test_twenty_line_addition_is_light(self):
         old = ""
-        new = "\n".join(f"line_{i} = {i}" for i in range(10))
+        new = "\n".join(f"x_{i} = {i}" for i in range(25))
+        block, tier, _ = hook._check_write_pipeline_required(
+            "Edit",
+            "/home/user/app/models.py",
+            old,
+            new,
+        )
+        assert block is True
+        assert tier == "light"
+
+
+# ---------------------------------------------------------------------------
+# AC8 — Tier "full": new class OR >=100 lines
+# ---------------------------------------------------------------------------
+
+
+class TestFullTier:
+    def test_new_class_is_full(self):
+        old = "x = 1\n"
+        new = "x = 1\n\nclass Brand:\n    pass\n"
+        block, tier, directive = hook._check_write_pipeline_required(
+            "Edit",
+            "/home/user/app/handlers.py",
+            old,
+            new,
+        )
+        assert block is True
+        assert tier == "full"
+        assert "/implement" in directive
+        # `full` directive must be bare /implement, not --fix or --light.
+        assert "--fix" not in directive
+        assert "--light" not in directive
+
+    def test_hundred_plus_line_addition_is_full(self):
+        old = ""
+        new = "\n".join(f"x_{i} = {i}" for i in range(120))
+        block, tier, _ = hook._check_write_pipeline_required(
+            "Write",
+            "/home/user/app/utils.py",
+            old,
+            new,
+        )
+        assert block is True
+        assert tier == "full"
+
+
+# ---------------------------------------------------------------------------
+# AC — directive mentions file name
+# ---------------------------------------------------------------------------
+
+
+class TestDirectiveMentionsFile:
+    def test_directive_mentions_file_name(self):
+        old = ""
+        new = "\n".join(f"line_{i} = {i}" for i in range(30))
         block, tier, directive = hook._check_write_pipeline_required(
             "Write",
             "/home/user/app/utils.py",
@@ -290,6 +300,7 @@ class TestTier2Substantive:
 # AC8 — No path: gate passes through
 # ---------------------------------------------------------------------------
 
+
 class TestNoPath:
     """When file_path is empty/None, gate returns (False, 'no_path', '')."""
 
@@ -299,27 +310,3 @@ class TestNoPath:
         )
         assert block is False
         assert tier == "no_path"
-
-
-# ---------------------------------------------------------------------------
-# AC9 — Fail-closed when _enforce_marker_fn is None
-# ---------------------------------------------------------------------------
-
-class TestFailClosed:
-    """When _enforce_marker_fn is None (import failure), _check_enforce_marker returns True."""
-
-    def test_none_enforce_marker_fn_fails_closed(self, monkeypatch):
-        """_check_enforce_marker() returns True when function is unavailable."""
-        monkeypatch.setattr(hook, "_enforce_marker_fn", None)
-        result = hook._check_enforce_marker()
-        assert result is True
-
-    def test_none_enforce_marker_fn_triggers_gate(self, monkeypatch):
-        """When _enforce_marker_fn is None, a substantive edit IS blocked (fail-closed)."""
-        monkeypatch.setattr(hook, "_enforce_marker_fn", None)
-        _make_pipeline_inactive(monkeypatch)
-        big_new = "\n".join(f"def func_{i}(): pass" for i in range(20))
-        block, tier, _ = hook._check_write_pipeline_required(
-            "Edit", "/home/user/app/service.py", "", big_new
-        )
-        assert block is True

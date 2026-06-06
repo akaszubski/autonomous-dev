@@ -213,6 +213,7 @@
         "plugins/autonomous-dev/lib/doc_master_auto_apply.py",
         "plugins/autonomous-dev/lib/doc_update_risk_classifier.py",
         "plugins/autonomous-dev/lib/doc_verdict_validator.py",
+        "plugins/autonomous-dev/lib/edit_tier_classifier.py",
         "plugins/autonomous-dev/lib/enforcement_decision.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",
         "plugins/autonomous-dev/lib/error_messages.py",

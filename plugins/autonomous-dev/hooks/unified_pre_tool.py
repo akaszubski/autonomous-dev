@@ -197,7 +197,6 @@ _agent_type: str = ""
 # Fail-closed: if the detector is unavailable, _is_adev_project_fn is None and
 # _is_adev_project() returns True — enforcement is never silently skipped.
 _is_adev_project_fn = None
-_enforce_marker_fn = None
 try:
     _hook_dir = Path(__file__).resolve().parent
     _repo_detector_candidates = [
@@ -212,15 +211,33 @@ try:
                 _rd_mod = importlib.util.module_from_spec(_rd_spec)
                 _rd_spec.loader.exec_module(_rd_mod)
                 _is_adev_project_fn = _rd_mod.is_autonomous_dev_repo
-                # Issue #1142: Also capture _has_enforce_marker for the
-                # consumer-repo production-code Write/Edit gate.
-                _enforce_marker_fn = _rd_mod._has_enforce_marker
             break
 except Exception:
     _is_adev_project_fn = None  # Fallback: fail closed (always enforce)
-    _enforce_marker_fn = None
 
 _REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
+
+
+# Phase 1 (Issue #1142): defensive import of edit_tier_classifier for the
+# default-on Write/Edit gate. Replaces the old `.enforce` opt-in marker check
+# and the line-count-only "significant additions" heuristic.
+_classify_edit_tier_fn = None
+_detect_bash_code_file_write_fn = None
+try:
+    _etc_path = Path(__file__).resolve().parent.parent / "lib" / "edit_tier_classifier.py"
+    if _etc_path.exists():
+        import importlib.util as _etc_ilu
+        _etc_spec = _etc_ilu.spec_from_file_location("edit_tier_classifier", str(_etc_path))
+        if _etc_spec and _etc_spec.loader:
+            _etc_mod = importlib.util.module_from_spec(_etc_spec)
+            _etc_spec.loader.exec_module(_etc_mod)
+            _classify_edit_tier_fn = _etc_mod.classify_edit_tier
+            _detect_bash_code_file_write_fn = _etc_mod.detect_bash_code_file_write
+except Exception:
+    # Fail-closed: if classifier is unavailable, the gate degrades to a
+    # conservative "always full" decision via the local helper below.
+    _classify_edit_tier_fn = None
+    _detect_bash_code_file_write_fn = None
 
 
 def _is_adev_project() -> bool:
@@ -235,20 +252,19 @@ def _is_adev_project() -> bool:
     return _is_adev_project_fn()
 
 
-def _check_enforce_marker() -> bool:
-    """Return True if .claude/.enforce is found in cwd or any ancestor.
+def _safe_classify_edit_tier(file_path: str, old_string: str, new_string: str) -> tuple:
+    """Defensive wrapper around classify_edit_tier.
 
-    Fail-closed (returns True to enforce) when the marker function could not
-    be loaded or raises — mirrors _is_adev_project pattern above.
-
-    Issue: #1142.
+    Returns (tier, reason). On classifier unavailability or exception,
+    fails CLOSED with ("full", "classifier_unavailable") so the gate
+    routes the model to the full /implement pipeline (most conservative).
     """
-    if _enforce_marker_fn is None:
-        return True   # fail-closed: enforce when detection broken
+    if _classify_edit_tier_fn is None:
+        return ("full", "classifier_unavailable")
     try:
-        return bool(_enforce_marker_fn())
+        return _classify_edit_tier_fn(file_path, old_string, new_string)
     except Exception:
-        return True   # fail-closed
+        return ("full", "classifier_error")
 
 
 def is_running_under_uv() -> bool:
@@ -1830,18 +1846,18 @@ def _check_write_pipeline_required(
     Returns:
         (block, tier_label, directive)
         - block: True means caller MUST emit a deny decision.
-        - tier_label: one of "no_enforce_marker", "pipeline_active",
-          "operator_bypass", "no_path", "tier0_non_code", "tier0_test_file",
-          "tier1_trivial", "tier2_substantive", "wpg_check_error".
+        - tier_label: one of "pipeline_active", "operator_bypass", "no_path",
+          "tier0_non_code", "tier0_test_file", "fix", "light", "full",
+          "wpg_check_error".
         - directive: human-readable REQUIRED NEXT ACTION (empty when block False).
 
-    Issue #1142. Closes gap where consumer-repo production code edits proceed
-    with no hook firing even when .claude/.enforce is committed.
+    Phase 1 (Issue #1142+): default-on. The previous opt-IN check via
+    `.claude/.enforce` was removed; per-repo opt-OUT is now via the existing
+    `.claude/.bypass` marker (already short-circuited at line ~4532). The old
+    line-count heuristic is replaced by `classify_edit_tier()` which returns
+    one of three tiers — `fix` / `light` / `full` — each mapped to the
+    matching `/implement` variant in the directive.
     """
-    # Tier 0a: opt-in marker absent — gate not applicable
-    if not _check_enforce_marker():
-        return (False, "no_enforce_marker", "")
-
     # Tier 0b: pipeline already active — already in-flow, allow
     try:
         if _is_pipeline_active():
@@ -1878,25 +1894,107 @@ def _check_write_pipeline_required(
     if basename.startswith("test_") or basename.endswith("_test.py"):
         return (False, "tier0_test_file", "")
 
-    # Tier classification: significant additions OR diff >= threshold lines
-    is_significant, _desc, _detail = _has_significant_additions(
-        old_string or "", new_string or "", file_path
-    )
-    diff_lines = abs(
-        len((new_string or "").splitlines()) - len((old_string or "").splitlines())
-    )
+    # Tier classification via AST-based classifier (Phase 1, #1142+).
+    tier, reason = _safe_classify_edit_tier(file_path, old_string or "", new_string or "")
 
-    if not is_significant and diff_lines < SIGNIFICANT_LINE_THRESHOLD:
-        return (False, "tier1_trivial", "")
-
-    # Tier 2 — substantive edit, block and direct to pipeline
+    # Map tier -> /implement variant (the 3-door menu).
     file_name = Path(file_path).name
+    if tier == "fix":
+        flag = "--fix "
+    elif tier == "light":
+        flag = "--light "
+    else:
+        # full (or unknown fallback) -> bare /implement
+        tier = "full" if tier not in ("fix", "light", "full") else tier
+        flag = ""
     directive = (
-        f"Run /implement --fix \"fix in {file_name}\" for a targeted fix, "
-        f"or /implement \"<feature>\" for a new feature. "
-        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate"
+        f"Run /implement {flag}\"<brief description of change to {file_name}>\". "
+        f"Per-repo opt-out: touch .claude/.bypass && git commit. "
+        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
     )
-    return (True, "tier2_substantive", directive)
+    return (True, tier, directive)
+
+
+def _check_bash_code_file_pipeline_required(command: str) -> "tuple[bool, str, str, str]":
+    """Decide if a Bash command writing to a code file requires /implement.
+
+    Mirrors `_check_write_pipeline_required` for the Bash tool path. Detects
+    cat >, sed -i, tee, heredocs, python -c open(), awk redirects, etc.,
+    targeting code files (CODE_EXTENSIONS).
+
+    Returns:
+        (block, tier_label, directive, target_path)
+        - target_path: the detected code-file path (empty when no match).
+        Block is False when the command does not target a code file, the
+        command is excluded user-patch tooling (`git apply`, `patch < diff`),
+        or the pipeline is already active / operator bypass is set.
+
+    Phase 1 (Issue #1142+).
+    """
+    if not command:
+        return (False, "no_command", "", "")
+
+    # Pipeline active — allow (the model is in-flow).
+    try:
+        if _is_pipeline_active():
+            return (False, "pipeline_active", "", "")
+    except Exception:
+        pass
+
+    # One-shot operator bypass.
+    skip_file = Path("/tmp/skip_write_pipeline_gate")
+    try:
+        if skip_file.exists():
+            try:
+                skip_file.unlink()
+            except OSError:
+                pass
+            return (False, "operator_bypass", "", "")
+    except OSError:
+        pass
+
+    # Detect the code-file write target.
+    if _detect_bash_code_file_write_fn is None:
+        return (False, "detector_unavailable", "", "")
+    try:
+        target, pattern = _detect_bash_code_file_write_fn(command)
+    except Exception:
+        return (False, "detector_error", "", "")
+
+    if not target:
+        return (False, "no_code_target", "", "")
+
+    # Test files: pass.
+    target_lower = target.lower()
+    if "/tests/" in target_lower or "/test/" in target_lower:
+        return (False, "tier0_test_file", "", target)
+    basename = Path(target).name
+    if basename.startswith("test_") or basename.endswith("_test.py"):
+        return (False, "tier0_test_file", "", target)
+
+    # Classify — for in-place edits like sed -i we cannot see the patch,
+    # so we pass empty old/new and let the classifier return its safe
+    # default (`light` for non-Python, classifier behavior for .py).
+    tier, _reason = _safe_classify_edit_tier(target, "", "")
+    # For Bash patterns we conservatively floor at `light` — a one-shot
+    # `sed -i X.py` or `cat > X.py` is not a "fix-tier" edit.
+    if tier == "fix":
+        tier = "light"
+
+    if tier == "light":
+        flag = "--light "
+    elif tier == "full":
+        flag = ""
+    else:
+        flag = "--light "
+        tier = "light"
+    directive = (
+        f"Run /implement {flag}\"<brief description of change to {basename}>\" "
+        f"instead of Bash-writing to code files (pattern: {pattern}). "
+        f"Per-repo opt-out: touch .claude/.bypass && git commit. "
+        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
+    )
+    return (True, tier, directive, target)
 
 
 def _strip_quoted_segments(command: str) -> str:
@@ -4628,11 +4726,14 @@ def main():
                         pass  # Never fail the hook for cache writes
                     sys.exit(0)
 
-                # Issue #1142: Production-code Write/Edit gate for consumer repos
-                # opted in via .claude/.enforce. The infra gate above only covers
-                # autonomous-dev protected paths; this gate covers production code
-                # in spektiv/realign/etc. Runs only when tool is Write or Edit and
-                # the universal bypass / pipeline-active checks are not already met.
+                # Issue #1142+ (Phase 1 polarity flip): Default-on production-code
+                # Write/Edit gate. Replaces the previous opt-IN check via
+                # `.claude/.enforce`. Per-repo opt-out is now via the existing
+                # `.claude/.bypass` marker (already short-circuited at line ~4532).
+                # The gate runs unless the pipeline is active, a one-shot operator
+                # bypass is set, the file is non-code or a test, or the edit
+                # classifies as no-change. Tier is one of "fix" / "light" / "full"
+                # and is mapped to the matching /implement variant in the directive.
                 try:
                     _wpg_block, _wpg_tier, _wpg_directive = _check_write_pipeline_required(
                         tool_name,
@@ -4651,18 +4752,20 @@ def main():
                 if _wpg_block:
                     _wpg_file_name = Path(file_path).name if file_path else "unknown"
                     _wpg_block_reason = (
-                        f"BLOCKED: Substantive edit to '{_wpg_file_name}' requires the /implement pipeline "
-                        f"(this repo opted in via .claude/.enforce). "
-                        f"REQUIRED NEXT ACTION: {_wpg_directive}. "
-                        f"Do NOT direct-edit production code in enforced repos."
+                        f"BLOCKED: Write/Edit to code file '{_wpg_file_name}' requires the /implement pipeline. "
+                        f"File: {file_path} "
+                        f"Tier: {_wpg_tier}. "
+                        f"REQUIRED NEXT ACTION: {_wpg_directive} "
+                        f"Per-repo opt-out: touch .claude/.bypass && git commit."
                     )
                     _log_deviation(_wpg_file_name, tool_name, f"write_pipeline_gate_block:{_wpg_tier}")
                     _log_pretool_activity(tool_name, tool_input, "deny", _wpg_block_reason)
                     output_decision(
                         "deny", _wpg_block_reason,
                         system_message=(
-                            f"BLOCKED: Substantive edit to '{_wpg_file_name}' denied. "
-                            f"Run /implement (this repo has .claude/.enforce)."
+                            f"BLOCKED: Write/Edit to '{_wpg_file_name}' denied (tier: {_wpg_tier}). "
+                            f"Run /implement to make changes. "
+                            f"Per-repo opt-out: touch .claude/.bypass && git commit."
                         ),
                     )
                     try:
@@ -4670,8 +4773,8 @@ def main():
                     except Exception:
                         pass
                     sys.exit(0)
-                elif _wpg_tier == "tier1_trivial":
-                    # Telemetry: log Tier-1 trivial allows so multi-Edit splitting is detectable.
+                elif _wpg_tier in ("operator_bypass", "pipeline_active"):
+                    # Telemetry: log fast-path allows so we can detect over-bypass.
                     try:
                         _log_pretool_activity(tool_name, tool_input, "allow",
                                               f"write_pipeline_gate: {_wpg_tier}")
@@ -4873,6 +4976,52 @@ def main():
             if tool_name == "Bash":
                 command = tool_input.get("command", "")
                 if command:
+                    # Phase 1 (Issue #1142+): Bash-to-code-file gate.
+                    # Mirror the default-on Write/Edit gate above for Bash
+                    # commands that write to code files (cat>, sed -i, tee,
+                    # heredocs, python -c open(), awk redirect, base64 -d).
+                    # User-driven patch tooling (`git apply`, `patch < diff`)
+                    # is excluded by the detector. The gate respects the
+                    # universal `.claude/.bypass` (checked at line ~4532
+                    # earlier) and the one-shot operator bypass.
+                    try:
+                        (
+                            _b2b_block,
+                            _b2b_tier,
+                            _b2b_directive,
+                            _b2b_target,
+                        ) = _check_bash_code_file_pipeline_required(command)
+                    except Exception:
+                        _b2b_block = False
+                        _b2b_tier = "wpg_check_error"
+                        _b2b_directive = ""
+                        _b2b_target = ""
+                    if _b2b_block:
+                        _b2b_basename = Path(_b2b_target).name if _b2b_target else "unknown"
+                        _b2b_reason = (
+                            f"BLOCKED: Bash command writes to code file '{_b2b_basename}' "
+                            f"which requires the /implement pipeline. "
+                            f"File: {_b2b_target} "
+                            f"Tier: {_b2b_tier}. "
+                            f"REQUIRED NEXT ACTION: {_b2b_directive} "
+                            f"Per-repo opt-out: touch .claude/.bypass && git commit."
+                        )
+                        _log_deviation(_b2b_basename, tool_name, f"bash_code_file_gate_block:{_b2b_tier}")
+                        _log_pretool_activity(tool_name, tool_input, "deny", _b2b_reason)
+                        output_decision(
+                            "deny", _b2b_reason,
+                            system_message=(
+                                f"BLOCKED: Bash write to code file '{_b2b_basename}' denied (tier: {_b2b_tier}). "
+                                f"Run /implement to make changes. "
+                                f"Per-repo opt-out: touch .claude/.bypass && git commit."
+                            ),
+                        )
+                        try:
+                            _update_deny_cache(_b2b_target)
+                        except Exception:
+                            pass
+                        sys.exit(0)
+
                     # Issue #803: Cross-tool workaround detection.
                     # If a Write/Edit was recently denied, check if this Bash command
                     # targets the same path via heredoc, redirect, etc.
