@@ -15,15 +15,14 @@ For purpose, scope, and architecture see [`.claude/PROJECT.md`](.claude/PROJECT.
 
 ## Maintainer Escape Hatches
 
-When working **on autonomous-dev itself**, the hook stack can occasionally deadlock — a `/implement` run leaves stuck state, the state-deletion guard (#803) blocks cleanup, and the documented env-var bypasses (`PIPELINE_CLEANUP_PHASE=1`, `ENFORCEMENT_LEVEL=off`, `SKIP_AGENT_COMPLETENESS_GATE=1`) don't propagate to hook subprocesses mid-session (Issue #779). Three file-based mechanisms work mid-session — two escape hatches and one opt-in:
+When working **on autonomous-dev itself**, the hook stack can occasionally deadlock — a `/implement` run leaves stuck state, the state-deletion guard (#803) blocks cleanup, and the documented env-var bypasses (`PIPELINE_CLEANUP_PHASE=1`, `ENFORCEMENT_LEVEL=off`, `SKIP_AGENT_COMPLETENESS_GATE=1`) don't propagate to hook subprocesses mid-session (Issue #779). Two file-based mechanisms work mid-session:
 
 | Marker | Scope | Use when |
 |---|---|---|
-| `.claude/.bypass` | **Universal** — disables ALL hooks for any session whose cwd is in this directory tree (walks up 30 levels) | Emergency. Disables protections including test/security/docs gates. Remove (`rm .claude/.bypass`) as soon as the immediate blocker is past. |
-| `.claude/.enforce` | **Opt-IN** for consumer repos (spektiv, realign) | Touch + commit `.claude/.enforce` in the repo. Activates enforcement gates (TDD, quality, plan-exit, and production-code write/edit gate — Issue #1142) in that repo. Does NOT extend protected-infrastructure semantics. |
+| `.claude/.bypass` | **Universal** — disables ALL hooks for any session whose cwd is in this directory tree (walks up 30 levels) | (1) **Emergency**: disables ALL protections including test/security/docs gates. Remove (`rm .claude/.bypass`) as soon as the immediate blocker is past. (2) **Durable per-repo opt-out**: consumer repos that do not want autonomous-dev SDLC enforcement can commit `.claude/.bypass` permanently — this is the supported way to opt out of the default-on production-code Write/Edit gate (Phase 1, Issue #1142+). |
 | Self-maintenance mode (auto) | **Targeted** — relaxes only state-deletion (#803) when cwd is inside the canonical autonomous-dev source (detected by `plugins/autonomous-dev/.claude-plugin/marketplace.json`) | Automatic. No action needed. Other gates (test, security, doc-master, prompt-integrity, workflow-enforcement) remain enforced — dogfooding is preserved. |
 
-The three are complementary: self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.enforce` opts a consumer repo (spektiv, realign) into SDLC enforcement; `.claude/.bypass` is the nuclear escape hatch. If you reach for `.claude/.bypass` more than once in a blue moon, file an issue — the targeted relaxation should grow to cover the case instead.
+Self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.bypass` is the universal escape hatch (emergency kill, or durable per-repo opt-out). The Phase 1 polarity flip (Issue #1142+) replaced the previous `.claude/.enforce` opt-IN marker with default-ON enforcement subject to `.claude/.bypass` opt-out. If you reach for `.claude/.bypass` as an *emergency* more than once in a blue moon, file an issue — targeted relaxation should grow to cover the case instead.
 
 ## Architecture
 
@@ -32,7 +31,7 @@ The three are complementary: self-maintenance mode is the routine path for auton
 - **Agents**: 16 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
 - **Skills**: 20 domain packages, progressively injected per-step to prevent context bloat
 
-Component counts: 16 agents, 20 skills, 24 commands, 25 hooks, 219 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
+Component counts: 16 agents, 20 skills, 24 commands, 25 hooks, 220 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
 
 ## Commands
 

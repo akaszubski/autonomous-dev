@@ -489,14 +489,68 @@ class TestNativeToolMainBypass:
             mock_auth.assert_called_once()
             mock_batch.assert_called_once()
 
-    def test_native_tool_allow_despite_suggest_enforcement(self, monkeypatch):
-        """Native Edit with significant code change must get 'allow' even at suggest level.
+    def test_native_tool_blocked_by_default_on_write_gate_new_function(
+        self, monkeypatch, tmp_path
+    ):
+        """Native Edit adding a new function to production code must be DENIED by
+        the default-on tier-aware Write/Edit gate (Issue #1142 Phase 1).
 
-        Before the fix, this would return 'ask' because validate_agent_authorization
-        detects the significant code change and suggests /implement.
+        Phase 1 polarity flip: the previous opt-IN check via ``.claude/.enforce``
+        was replaced with a default-on gate. Per-repo opt-out is now via
+        ``.claude/.bypass``. The new gate runs regardless of ENFORCEMENT_LEVEL,
+        so the formerly-allowed "Native Edit at suggest level" case now denies.
+
+        New-function edit -> tier="light" -> directive points to ``/implement --light``.
         """
+        # No .claude/.bypass marker in tmp_path or ancestors. No pipeline active.
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "suggest")
-        monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        tool_input = {
+            "file_path": "/project/src/main.py",
+            "old_string": "pass",
+            "new_string": (
+                "def new_feature(data: list) -> dict:\n"
+                "    result = {}\n"
+                "    for item in data:\n"
+                "        result[item] = process(item)\n"
+                "    return result\n"
+                "    # extra line\n"
+                "    # more lines\n"
+            ),
+        }
+        decision, reason = _run_main_with_tool("Edit", tool_input)
+        assert decision == "deny", (
+            f"Native Edit got '{decision}' instead of 'deny' for new-function "
+            f"edit without bypass marker.\nReason: {reason}\n"
+            f"The default-on tier-aware gate should fire."
+        )
+        # New function -> light tier -> /implement --light directive
+        assert "Tier: light" in reason or "tier: light" in reason, (
+            f"Expected tier='light' in reason, got: {reason}"
+        )
+        assert "/implement --light" in reason, (
+            f"Expected '/implement --light' directive in reason, got: {reason}"
+        )
+
+    def test_native_tool_allowed_with_bypass_marker_new_function(
+        self, monkeypatch, tmp_path
+    ):
+        """Native Edit to code file with new function is ALLOWED when the
+        universal ``.claude/.bypass`` marker is present in the cwd ancestor chain.
+
+        Companion positive test for the polarity-flipped default-on gate
+        (Issue #1142 Phase 1). The universal bypass short-circuits all hooks
+        BEFORE the write-pipeline-gate runs (Issue #969).
+        """
+        # Create the .claude/.bypass marker in tmp_path, then chdir into it.
+        bypass_dir = tmp_path / ".claude"
+        bypass_dir.mkdir()
+        (bypass_dir / ".bypass").write_text("")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ENFORCEMENT_LEVEL", "suggest")
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
         tool_input = {
             "file_path": "/project/src/main.py",
@@ -513,19 +567,62 @@ class TestNativeToolMainBypass:
         }
         decision, reason = _run_main_with_tool("Edit", tool_input)
         assert decision == "allow", (
-            f"Native Edit got '{decision}' instead of 'allow' at suggest level.\n"
-            f"Reason: {reason}\n"
-            f"The fast-path should bypass validate_agent_authorization entirely."
+            f"Native Edit got '{decision}' instead of 'allow' with "
+            f".claude/.bypass marker present.\nReason: {reason}"
         )
 
-    def test_native_tool_allow_despite_block_enforcement(self, monkeypatch):
-        """Native Edit with significant code change must get 'allow' even at block level.
+    def test_native_tool_blocked_by_default_on_write_gate_new_class(
+        self, monkeypatch, tmp_path
+    ):
+        """Native Edit adding a new class to production code must be DENIED by
+        the default-on tier-aware Write/Edit gate (Issue #1142 Phase 1).
 
-        Before the fix, this would return 'deny' because validate_agent_authorization
-        blocks significant code changes outside the pipeline at block level.
+        New-class edit -> tier="full" -> directive points to bare ``/implement``.
+        The gate fires regardless of ENFORCEMENT_LEVEL (the new gate is always
+        on; ENFORCEMENT_LEVEL no longer controls it).
         """
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
-        monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        tool_input = {
+            "file_path": "/project/src/handler.py",
+            "old_string": "pass",
+            "new_string": (
+                "class RequestHandler:\n"
+                "    def handle(self, request):\n"
+                "        data = request.json()\n"
+                "        result = self.process(data)\n"
+                "        return Response(result)\n"
+                "    def process(self, data):\n"
+                "        return data\n"
+            ),
+        }
+        decision, reason = _run_main_with_tool("Edit", tool_input)
+        assert decision == "deny", (
+            f"Native Edit got '{decision}' instead of 'deny' for new-class "
+            f"edit without bypass marker.\nReason: {reason}\n"
+            f"The default-on tier-aware gate should fire."
+        )
+        # New class -> full tier -> bare /implement directive
+        assert "Tier: full" in reason or "tier: full" in reason, (
+            f"Expected tier='full' in reason, got: {reason}"
+        )
+        assert "/implement" in reason, (
+            f"Expected '/implement' directive in reason, got: {reason}"
+        )
+
+    def test_native_tool_allowed_with_bypass_marker_new_class(
+        self, monkeypatch, tmp_path
+    ):
+        """Native Edit to code file with new class is ALLOWED when the universal
+        ``.claude/.bypass`` marker is present (companion positive test)."""
+        bypass_dir = tmp_path / ".claude"
+        bypass_dir.mkdir()
+        (bypass_dir / ".bypass").write_text("")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
         tool_input = {
             "file_path": "/project/src/handler.py",
@@ -542,9 +639,8 @@ class TestNativeToolMainBypass:
         }
         decision, reason = _run_main_with_tool("Edit", tool_input)
         assert decision == "allow", (
-            f"Native Edit got '{decision}' instead of 'allow' at block level.\n"
-            f"Reason: {reason}\n"
-            f"The fast-path should bypass validate_agent_authorization entirely."
+            f"Native Edit got '{decision}' instead of 'allow' with "
+            f".claude/.bypass marker present.\nReason: {reason}"
         )
 
     def test_native_tool_bypass_reason_format(self):

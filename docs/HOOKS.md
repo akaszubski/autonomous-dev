@@ -82,10 +82,10 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 **Project Detection Guard** (Issue #662 — non-native MCP tools only):
 - Runs immediately after the native tool fast path, before the 4-layer enforcement stack
 - Calls `repo_detector.is_autonomous_dev_repo()` on the current working directory
-- Returns `True` for two cases: (1) autonomous-dev source repo (detected via `plugins/autonomous-dev/.claude-plugin/marketplace.json`); (2) consumer repos that opted in via `.claude/.enforce` marker (walks up to 30 ancestor levels — Issue #969 companion feature). The `matched_via` audit field (`"plugin_marker"` | `"enforce_marker"` | `"none"`) records which signal fired.
-- Unmanaged projects (no marker of either kind): returns immediate allow, skipping all enforcement layers
+- Returns `True` only when the autonomous-dev source repo is detected via `plugins/autonomous-dev/.claude-plugin/marketplace.json`. Phase 1 (Issue #1142+) removed the `.claude/.enforce` opt-in path; the `matched_via` audit field is now `"plugin_marker"` | `"none"`.
+- Unmanaged projects (no plugin marker): returns immediate allow, skipping all enforcement layers
 - Fail-closed: when `repo_detector` is unavailable at load time, `_is_adev_project()` returns `True` so enforcement continues rather than being silently skipped
-- Has no effect in autonomous-dev repos or opted-in consumer repos — all enforcement layers run normally
+- Has no effect in autonomous-dev repos — all enforcement layers run normally. Consumer-repo Write/Edit gating is now handled by the default-on production-code gate below (subject to `.claude/.bypass` opt-out).
 
 **unified_pre_tool.py 6-Layer Architecture** (for MCP/external tools in autonomous-dev repos):
 - **Layer 0 (Sandbox)**: Command classification (SAFE/BLOCKED/NEEDS_APPROVAL)
@@ -134,14 +134,16 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Scoped to autonomous-dev repos (detected via `_is_autonomous_dev_repo()`) — does not affect user projects
 - User-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`) and most config files (`.json`/`.yaml`) are unaffected; deployment manifests (`install_manifest.json`), policy files, and settings templates are protected
 
-**Production-Code Write/Edit Gate for Consumer Repos** (Issue #1142 — `_check_write_pipeline_required`):
-- Fires when (a) `.claude/.enforce` is present in the repo, (b) no `/implement` pipeline is active, (c) the file has a production-code extension (`CODE_EXTENSIONS` — `.py`, `.ts`, `.js`, `.go`, `.rs`, `.java`, `.rb`, `.sh`, etc.), and (d) the edit is non-trivial (Tier 2: diff ≥ 5 lines OR new function/class detected by `_has_significant_additions()`)
+**Production-Code Write/Edit Gate — Default-On, Tier-Aware** (Issue #1142 + Phase 1 polarity flip — `_check_write_pipeline_required`):
+- Phase 1 (Issue #1142+) flipped the polarity from opt-IN via `.claude/.enforce` to default-ON subject to `.claude/.bypass` opt-out. The previous `.enforce` marker has been removed.
+- Fires when (a) no `/implement` pipeline is active, (b) the file has a production-code extension (`CODE_EXTENSIONS` — `.py`, `.ts`, `.js`, `.go`, `.rs`, `.java`, `.rb`, `.sh`, etc.), and (c) the edit classifies as `fix`, `light`, or `full` via `classify_edit_tier()` (Python AST diff for `.py`; line-count fallback returning `light` as safe default for other languages)
+- Tier mapping: `fix` (<20 lines, no AST signal) → `/implement --fix`; `light` (new function / control-flow / 20-99 lines) → `/implement --light`; `full` (new class OR ≥100 lines) → `/implement`. AST edge cases (comment-only, formatting-only, import reordering, type-hint-only, docstring-only) all classify as `fix`.
 - Test files (`/tests/`, `/test/`, `test_*.py`, `*_test.py`) are excluded — Tier 0f pass-through
-- Block message directs: `Run /implement --fix "<description>" for a targeted fix, or /implement "<feature>" for a new feature`
+- Block message format: `BLOCKED: Write/Edit to code file '<name>' requires the /implement pipeline. File: <path>. Tier: <tier>. REQUIRED NEXT ACTION: Run /implement [--fix|--light] "<description>". Per-repo opt-out: touch .claude/.bypass && git commit.`
 - One-shot operator bypass: `touch /tmp/skip_write_pipeline_gate` (consumed on first check — mirrors `/tmp/skip_agent_completeness_gate` pattern)
-- Also bypassed by `.claude/.bypass` or `AUTONOMOUS_DEV_BYPASS=1` (universal escape hatches)
-- Distinct from the Infrastructure Protection gate above: that gate protects autonomous-dev's own `hooks/*.py`, `agents/*.md`, etc.; this gate protects production code in any consumer repo that has opted in via `.claude/.enforce`
-- Fails open on all check errors; does not fire when `.claude/.enforce` is absent
+- Durable per-repo opt-out: `touch .claude/.bypass && git commit` (universal `.claude/.bypass` opt-out at line ~4532 short-circuits ALL hooks, including this gate)
+- **Bash-to-code-file detection**: `cat > X.py`, `cat >> X.py`, `sed -i ... X.py`, `tee X.py`, `tee -a X.py`, heredocs into code files (`<< 'EOF' > X.py`), `python -c "open('X.py','w')..."`, `python3 -c` with `open()` or `Path.write_text`, base64-decoded heredocs (`echo "<b64>" | base64 -d > X.py`), and `awk '...' > X.py` are subject to the same gate as Write/Edit. Excluded: `git apply` and `patch < diff` (user-driven patch tooling).
+- Fails closed on classifier errors (returns `("full", "classifier_error")`) so the most conservative tier directs the model to the full pipeline.
 
 **Prompt Quality Gate** (Issue #842 — Layer 6, Write/Edit to agents/*.md and commands/*.md only):
 - Blocks writes to `agents/*.md` or `commands/*.md` when the resulting content contains prompt anti-patterns detected by `prompt_quality_rules.py`
