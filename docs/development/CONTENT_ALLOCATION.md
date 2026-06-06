@@ -9,6 +9,7 @@
 | `~/.claude/CLAUDE.md` (global) | every turn, every repo | Assistant default behaviour; user's machines, SSH, session history queries | Anything project-specific |
 | `CLAUDE.md` (this repo) | every turn, this repo | Hard rules, gates, canonical paths, pointers, top-N gotchas | Vision, purpose, architecture, history, current state, deep reference |
 | `.claude/PROJECT.md` | session start | Purpose, GOALS, SCOPE, CONSTRAINTS, alignment criteria, pipeline philosophy | Behaviour rules; operational sequences; full architecture diagrams; current state |
+| → note | `.claude/PROJECT.md` is a **symlink** to the repo-root `PROJECT.md` (git mode `120000`). Edit the root file; the symlink resolves automatically. Do NOT replace the symlink with a copy. |
 | `memory/MEMORY.md` + `memory/*.md` | MEMORY auto-loaded; files retrievable | Durable lessons (with *why*), findings, calibration, active state | Hard rules; full architecture |
 | `docs/RUNBOOK.md` | on demand | Operational sequences (periodic maintenance, batch finalize, resumes, common queries) | Architecture; rules |
 | `docs/ARCHITECTURE-OVERVIEW.md` | on demand | High-level system architecture, layers, pipeline diagram | Behaviour rules; deep component internals |
