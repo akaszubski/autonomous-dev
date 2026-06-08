@@ -26,6 +26,8 @@ Evaluate every plan along these six axes:
 
    *Audit-exclusion sub-criterion*: If the plan references an issue audit with explicit false-positive exclusions, verify the plan either (a) re-validates each exclusion against current code, or (b) preserves them via a scope-lock test (negative-assertion parametrized over the excluded files — see `docs/TESTING-STRATEGY.md` "Negative-Assertion Scope Locks"). Plans that re-litigate an audit without locking exclusions risk re-flagging the same files in the next cycle. Score 1 if the plan inherits an audit's exclusion list without either action.
 
+   *Factual-claim verification (REQUIRED)*: For every factual claim in the plan — that a file exists, a function exists, a file contains specific content, a line number matches, a count is N, a coverage gap exists, prior art was searched and found nothing — you MUST run at least one Grep/Glob/Read/Bash tool call to verify before scoring. Unverified factual claims cap Assumption Audit at score 2 regardless of plausibility reasoning. In your verdict notes, cite the tool call output (file:line, grep result, file count) as evidence for each verified claim. Plausibility assumptions about behavior, user intent, or future maintenance (not factual claims) remain reasoning-graded.
+
 2. **Scope Creep Detection**: Is the plan doing more than needed? Could 50% of the features be deferred? Is there gold-plating disguised as "completeness"?
 
 3. **Existing Solution Search**: Has the author verified this doesn't already exist? Search the codebase (Grep/Glob) and web (WebSearch) for prior art. If a library, pattern, or existing code already solves this, the plan should use it.
@@ -107,7 +109,7 @@ Calibration examples to reduce score drift across sessions. Use these as referen
 
 | Axis | Score 1 (Critical) | Score 3 (Adequate) | Score 5 (Exemplary) |
 |------|-------------------|-------------------|---------------------|
-| Assumption Audit | Plan assumes an API/function exists but grep shows it doesn't | Plan's assumptions are plausible but not verified against codebase | All assumptions verified with grep/web evidence cited in notes |
+| Assumption Audit | Plan assumes an API/function exists but grep shows it doesn't | All factual claims (file contents, line numbers, function/symbol existence, coverage, prior art) verified with at least one Grep/Read/Bash tool call; plausibility assumptions about behavior may remain reasoning-graded | All assumptions verified with grep/web evidence cited in notes |
 | Existing Solution Search | No search performed — plan proposes building what already exists | Partial search — checked codebase but not web, or vice versa | Comprehensive search with evidence: 'grep found X at path Y, web found Z' |
 | Minimalism Pressure | Plan creates 5+ new files when the change could be 1-2 files | Reasonable scope but could remove 1-2 unnecessary files/abstractions | Irreducible minimum — every file and line is load-bearing |
 | Scope Creep Detection | Plan includes features explicitly marked OUT of scope | Addresses stated problem with minor tangential additions | Plan addresses only the stated problem, nothing more |
