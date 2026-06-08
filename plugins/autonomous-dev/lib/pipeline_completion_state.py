@@ -1175,6 +1175,169 @@ def clear_session(session_id: str) -> None:
         pass
 
 
+# ---------------------------------------------------------------------------
+# Phase 2 (Issue #1146): Sliding-window tier-1 ring buffer
+# ---------------------------------------------------------------------------
+#
+# The classifier emits Tier-1 (`fix`) allows for small individual edits. A
+# series of Tier-1 allows to the same file within a short window can sum to
+# a Tier-2 (`light`) sized change without any single edit triggering the
+# gate ("emergent bypass via tool-call granularity mismatch"). The ring
+# buffer records timestamp + lines-added for each recent Tier-1 allow, per
+# (session, file). The gate queries it before returning an allow and
+# escalates to Tier-2 deny when the cumulative window exceeds the existing
+# `TIER_LIGHT_LINE_THRESHOLD` (20 lines).
+#
+# Design choices (locked in plan + Round 3 plan-critic):
+#   - Soft FIFO cap = 10 entries per (session, file). On append we
+#     prune-then-cap so the oldest entry drops first.
+#   - TTL pruning: entries older than ``window_seconds`` are dropped on
+#     every read. The default window is 60 s (matches plan).
+#   - No new state file. Buffers nest inside the existing per-session
+#     state under key ``"tier1_ring_buffers"`` keyed by file_path. The
+#     existing atomic write primitives (``_write_state`` with
+#     ``fcntl.LOCK_EX`` and ``os.replace``-style overwrite) provide
+#     concurrency safety. ``clear_session`` already unlinks the whole
+#     state file — buffers are wiped with the rest.
+
+_TIER1_RING_BUFFER_KEY = "tier1_ring_buffers"
+_TIER1_RING_BUFFER_CAP = 10
+
+
+def record_tier1_allow(
+    session_id: str,
+    file_path: str,
+    lines_added: int,
+    *,
+    run_id: Optional[str] = None,
+) -> None:
+    """Append a Tier-1 allow to the ring buffer for ``(session_id, file_path)``.
+
+    Reuses the existing atomic-write primitive in this module so we benefit
+    from the same locking guarantees the rest of the pipeline state has.
+    Soft FIFO cap of ``_TIER1_RING_BUFFER_CAP`` entries per file — the
+    oldest entry drops when the cap is exceeded.
+
+    Args:
+        session_id: The pipeline session identifier.
+        file_path: The target file path (used as the per-buffer key).
+        lines_added: How many lines this Tier-1 allow added. Must be
+            non-negative; negative values are clamped to 0.
+        run_id: Optional per-invocation run identifier. Passed through to
+            the underlying state read/write so per-run isolation works
+            consistently with the rest of this module.
+
+    Issues: #1146
+    """
+    if not session_id or not file_path:
+        return
+    lines_added = max(0, int(lines_added))
+
+    state = _ensure_state(session_id, run_id=run_id)
+    buffers = state.setdefault(_TIER1_RING_BUFFER_KEY, {})
+    entries = buffers.setdefault(file_path, [])
+
+    entries.append({"ts": time.time(), "lines": lines_added})
+
+    # Soft FIFO drop-oldest cap.
+    if len(entries) > _TIER1_RING_BUFFER_CAP:
+        del entries[: len(entries) - _TIER1_RING_BUFFER_CAP]
+
+    buffers[file_path] = entries
+    state[_TIER1_RING_BUFFER_KEY] = buffers
+    _write_state(session_id, state, run_id=run_id)
+
+
+def get_recent_tier1_allows(
+    session_id: str,
+    file_path: str,
+    *,
+    window_seconds: int = 60,
+    run_id: Optional[str] = None,
+) -> list:
+    """Return the ring-buffer entries for ``(session_id, file_path)`` newer than ``window_seconds``.
+
+    Performs read-time pruning: drops entries older than the window from
+    the in-memory copy returned to the caller. Does NOT rewrite the state
+    file from a pure read — callers that want the pruning to persist
+    should call :func:`record_tier1_allow` (which writes) or
+    :func:`clear_tier1_ring_buffer`.
+
+    Args:
+        session_id: The pipeline session identifier.
+        file_path: The file path whose ring buffer to fetch.
+        window_seconds: Only return entries whose timestamp is within
+            this many seconds of the current wall clock. Default 60.
+        run_id: Optional per-invocation run identifier.
+
+    Returns:
+        A list of ``{"ts": float, "lines": int}`` dicts sorted oldest
+        first. Empty list when the buffer is missing, stale, or the
+        session has no recorded allows.
+
+    Issues: #1146
+    """
+    if not session_id or not file_path:
+        return []
+
+    state = _read_state(session_id, run_id=run_id)
+    buffers = state.get(_TIER1_RING_BUFFER_KEY, {})
+    if not isinstance(buffers, dict):
+        return []
+    entries = buffers.get(file_path, [])
+    if not isinstance(entries, list):
+        return []
+
+    cutoff = time.time() - max(0, int(window_seconds))
+    fresh = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        ts = entry.get("ts")
+        if not isinstance(ts, (int, float)):
+            continue
+        if ts >= cutoff:
+            lines = entry.get("lines", 0)
+            if not isinstance(lines, (int, float)):
+                lines = 0
+            fresh.append({"ts": float(ts), "lines": int(lines)})
+    return fresh
+
+
+def clear_tier1_ring_buffer(
+    session_id: str,
+    file_path: str,
+    *,
+    run_id: Optional[str] = None,
+) -> None:
+    """Drop the ring buffer for ``(session_id, file_path)``.
+
+    Called by the classifier after an escalation deny so a single
+    threshold trigger does not keep firing on subsequent edits — the
+    deny itself is the signal; afterwards the counter resets.
+
+    Args:
+        session_id: The pipeline session identifier.
+        file_path: The file path whose buffer to clear.
+        run_id: Optional per-invocation run identifier.
+
+    Issues: #1146
+    """
+    if not session_id or not file_path:
+        return
+
+    state = _read_state(session_id, run_id=run_id)
+    if not state:
+        return
+    buffers = state.get(_TIER1_RING_BUFFER_KEY)
+    if not isinstance(buffers, dict):
+        return
+    if file_path in buffers:
+        buffers.pop(file_path, None)
+        state[_TIER1_RING_BUFFER_KEY] = buffers
+        _write_state(session_id, state, run_id=run_id)
+
+
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     """Garbage-collect stale state files and orphaned lockfiles in /tmp.
 

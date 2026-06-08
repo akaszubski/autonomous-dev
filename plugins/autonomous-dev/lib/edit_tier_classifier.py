@@ -33,6 +33,33 @@ import re
 from pathlib import Path
 from typing import Tuple
 
+# Phase 2 (Issue #1153): shared heredoc-strip utility. Defensive import so
+# this module remains usable from contexts where the lib/ directory is not on
+# sys.path (e.g., when loaded by importlib.util from the hook). When the
+# import fails we fall back to a no-op strip — preserving existing behavior
+# rather than crashing the classifier.
+try:
+    from heredoc_utils import strip_heredoc_content as _strip_heredoc_content
+except Exception:  # pragma: no cover — defensive
+    try:
+        import importlib.util as _hu_ilu
+        _hu_path = Path(__file__).resolve().parent / "heredoc_utils.py"
+        if _hu_path.exists():
+            _hu_spec = _hu_ilu.spec_from_file_location("heredoc_utils", str(_hu_path))
+            if _hu_spec and _hu_spec.loader:
+                _hu_mod = _hu_ilu.module_from_spec(_hu_spec)
+                _hu_spec.loader.exec_module(_hu_mod)
+                _strip_heredoc_content = _hu_mod.strip_heredoc_content
+            else:
+                def _strip_heredoc_content(command: str) -> str:  # type: ignore[misc]
+                    return command
+        else:
+            def _strip_heredoc_content(command: str) -> str:  # type: ignore[misc]
+                return command
+    except Exception:
+        def _strip_heredoc_content(command: str) -> str:  # type: ignore[misc]
+            return command
+
 
 # Tier thresholds (verbatim from plan).
 TIER_FULL_LINE_THRESHOLD = 100
@@ -392,6 +419,124 @@ def _path_is_code_file(path: str) -> bool:
     return suffix in _BASH_CODE_EXTENSIONS
 
 
+# Phase 2 item (3) (Issue #1154): chained-statement variable resolution.
+#
+# Resolves `VAR=value; cat > "$VAR"` style commands so the downstream
+# regex matchers see the literal target path. Scope is intentionally
+# narrow:
+#   - In-scope separators: ';' and '\n'.
+#   - In-scope RHS form: single literal token (`OUT=foo.py`, `OUT='foo.py'`).
+#   - Out-of-scope RHS (residual evasion paths — documented):
+#       * Command substitution: `$(cmd)`, backticks.
+#       * Default-value/conditional assignment: `${VAR:-default}`, `: ${VAR:=foo}`.
+#       * Array expansion / concatenation.
+#   - In-scope LHS dereference forms: `"$NAME"`, `${NAME}`, `$NAME`.
+#
+# This pre-pass runs BEFORE pattern matching so the existing Pattern 3,
+# Pattern 4, etc., see the resolved literal — no per-pattern changes.
+
+# Variable assignment: VAR=value at start of segment or after ; / newline.
+# RHS may be a bareword, single-quoted, or double-quoted literal — NO
+# command substitution, NO default-value forms.
+_CHAINED_ASSIGN_RE = re.compile(
+    r"""
+    (?:^|[;\n])             # segment boundary
+    \s*
+    ([A-Za-z_][A-Za-z0-9_]*) # variable name
+    =
+    (                       # value (one of three literal forms)
+        '[^'\n]*'           #   single-quoted
+        | "[^"$`\\\n]*"       #   double-quoted, NO $/`/\\/newline (rejects $(...) , `...`, expansions)
+        | [^\s;'\"<>|&`$]+   #   bareword: NO whitespace, separators, redirects, $, or `
+    )
+    """,
+    re.VERBOSE,
+)
+
+
+def _resolve_chained_assignments(command: str) -> str:
+    """Substitute simple chained variable assignments into their dereferences.
+
+    See module-level comment for the in-scope grammar. Out-of-scope forms
+    are left unresolved on purpose — the result is the input with the
+    in-scope substitutions applied. Out-of-scope RHS values (anything
+    containing ``$``, backtick, etc., in either the bareword or double-
+    quoted form) are NOT collected, so the dereference sites for those
+    variables stay literal ``"$OUT"`` and downstream patterns will not
+    spuriously match.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        A new command string with ``"$VAR"`` / ``${VAR}`` / ``$VAR``
+        replaced by the literal RHS for each in-scope assignment. The
+        substitution is positional — only dereferences AFTER the
+        assignment in the original string are replaced.
+    """
+    if not command:
+        return command
+    if "=" not in command:
+        return command
+
+    out_chars = list(command)
+
+    for m in _CHAINED_ASSIGN_RE.finditer(command):
+        name = m.group(1)
+        raw_value = m.group(2)
+
+        # Strip quotes from the value (single or double). After this point
+        # the value is a plain literal token. Note the regex already
+        # rejects $ / backtick inside the double-quoted form, so we cannot
+        # arrive here with command substitution.
+        if raw_value.startswith("'") and raw_value.endswith("'"):
+            value = raw_value[1:-1]
+        elif raw_value.startswith('"') and raw_value.endswith('"'):
+            value = raw_value[1:-1]
+        else:
+            value = raw_value
+
+        # Reject empty values — substitution is pointless.
+        if not value:
+            continue
+
+        # Build a regex that matches the three in-scope LHS dereference
+        # forms. ``\b`` after $NAME prevents matching $FOOBAR when name is
+        # FOO.
+        deref_pat = re.compile(
+            r'(?:"\$' + re.escape(name) + r'"|\$\{' + re.escape(name) +
+            r'\}|\$' + re.escape(name) + r'(?![A-Za-z0-9_]))'
+        )
+
+        # Substitute only at positions AFTER the assignment site to avoid
+        # spurious replacement when the same variable name appears earlier
+        # for an unrelated purpose. Operate on the current out_chars buffer
+        # so chained renames see prior substitutions.
+        current = "".join(out_chars)
+        # Locate the assignment in the CURRENT buffer (positions may have
+        # shifted after a prior substitution). Fall back to the original
+        # match end if not found.
+        cur_assign_re = re.compile(
+            r'(?:^|[;\n])\s*' + re.escape(name) + r'='
+        )
+        am = cur_assign_re.search(current)
+        if am is None:
+            search_from = m.end()
+        else:
+            # Skip past the assignment + RHS by finding the end-of-token.
+            # Conservative: start search at am.end() — substitutions of
+            # the RHS itself are harmless (RHS contains no dereferences in
+            # the in-scope grammar).
+            search_from = am.end()
+
+        prefix = current[:search_from]
+        suffix = current[search_from:]
+        substituted_suffix = deref_pat.sub(value, suffix)
+        out_chars = list(prefix + substituted_suffix)
+
+    return "".join(out_chars)
+
+
 def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     """Return (target_path, pattern_name) if the bash command writes a code file.
 
@@ -409,8 +554,27 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     if _bash_excluded(command):
         return ("", "")
 
+    # Phase 2 (Issue #1153): strip heredoc bodies before scanning so a
+    # literal `cat > X.py` example sitting inside a heredoc body (e.g. inside
+    # a `gh issue create --body <<HD ... HD` payload) does NOT produce a
+    # false-positive code-file write detection. Same precedent as
+    # unified_pre_tool.py:_check_state_file_deletion (#866). The plan
+    # specifies prepending before Pattern 3 (cat redirect) and Pattern 4
+    # (heredoc redirect); in practice the user-supplied content inside a
+    # heredoc body can also fall through to the generic Pattern 8 redirect
+    # catch-all, so we apply the strip to the buffer used by ALL pattern
+    # matchers. Patterns 1/2 (tee / sed -i) are also driven by user-content
+    # so they likewise scan the stripped buffer.
+    #
+    # Phase 2 (Issue #1154): resolve in-scope chained-statement variable
+    # assignments so `OUT=foo.py; cat > "$OUT"` is detected. The pre-pass is
+    # intentionally narrow — see _resolve_chained_assignments docstring for
+    # the residual evasion paths.
+    stripped = _strip_heredoc_content(command)
+    stripped = _resolve_chained_assignments(stripped)
+
     # Pattern 1: tee / tee -a TARGET
-    m = re.search(r"\btee\s+(?:-a\s+)?([^\s;&|<>]+)", command)
+    m = re.search(r"\btee\s+(?:-a\s+)?([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
         if _path_is_code_file(target):
@@ -420,7 +584,7 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     # captures the last positional arg that looks like a path.
     m = re.search(
         r"\bsed\s+(?:-[A-Za-z]*i[A-Za-z]*)(?:\s+'[^']*'|\s+\"[^\"]*\"|\s+\S+)+\s+([^\s;&|<>]+)",
-        command,
+        stripped,
     )
     if m:
         target = m.group(1)
@@ -428,20 +592,40 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
             return (target, "sed -i")
 
     # Pattern 3: cat > / cat >> / cat -- > TARGET (with optional heredoc later)
-    m = re.search(r"\bcat\s+(?:--\s+)?[>]{1,2}\s*([^\s;&|<>]+)", command)
+    # Scans the heredoc-stripped + variable-resolved buffer (#1153, #1154).
+    m = re.search(r"\bcat\s+(?:--\s+)?[>]{1,2}\s*([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
         if _path_is_code_file(target):
             return (target, "cat redirect")
 
-    # Pattern 4: heredoc into code file: << 'EOF' > X.py (or <<EOF > X.py)
-    m = re.search(r"<<\s*[\'\"]?\w+[\'\"]?\s*[>]{1,2}\s*([^\s;&|<>]+)", command)
+    # Pattern 4: heredoc into code file: << 'EOF' > X.py (or <<EOF > X.py).
+    #
+    # IMPORTANT: this pattern matches the redirect on the heredoc OPENER
+    # line itself, NOT inside the heredoc body. The opener line is shell
+    # syntax that the shell executes — the body is user-supplied text. So
+    # this pattern scans the ORIGINAL ``command`` (not ``stripped``) because
+    # ``_strip_heredoc_content`` removes the opener line along with the body
+    # (the regex is greedy from ``<<DELIM`` through ``\nDELIM\n``).
+    #
+    # The chained-assignment resolver still helps here when the form is
+    # ``OUT=foo.py; cat <<EOF > "$OUT"`` — we apply variable resolution to
+    # the original command (without the body strip) for this pattern.
+    pattern4_buf = _resolve_chained_assignments(command)
+    m = re.search(
+        r"<<\s*[\'\"]?\w+[\'\"]?\s*[>]{1,2}\s*([^\s;&|<>]+)", pattern4_buf
+    )
     if m:
         target = m.group(1)
         if _path_is_code_file(target):
             return (target, "heredoc redirect")
 
-    # Pattern 5: python -c "..." or python3 -c "..." containing open(..., 'w')
+    # Pattern 5: python -c "..." or python3 -c "..." containing open(..., 'w').
+    # Note: we deliberately scan the ORIGINAL ``command`` for the python -c
+    # wrapper because the python snippet body is a quoted string the shell
+    # passes verbatim — NOT a heredoc body the user might paste example code
+    # into. The example we are protecting against in #1153 is a heredoc body
+    # mentioning shell redirects, not a python -c invocation.
     py_c_match = re.search(
         r"python3?\s+-c\s+(?:\"([^\"]+)\"|'([^']+)')",
         command,
@@ -471,7 +655,7 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     #   echo "<b64>" | base64 -d > X.py
     m = re.search(
         r"\bbase64\s+(?:-d|--decode)\b[^|;]*[>]{1,2}\s*([^\s;&|<>]+)",
-        command,
+        stripped,
     )
     if m:
         target = m.group(1)
@@ -479,15 +663,16 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
             return (target, "base64 decode redirect")
 
     # Pattern 7: awk '...' > X.py
-    m = re.search(r"\bawk\s+[\'\"][^\'\"]+[\'\"][^|;]*[>]{1,2}\s*([^\s;&|<>]+)", command)
+    m = re.search(r"\bawk\s+[\'\"][^\'\"]+[\'\"][^|;]*[>]{1,2}\s*([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
         if _path_is_code_file(target):
             return (target, "awk redirect")
 
     # Pattern 8: generic redirect to code file (catch-all). Skip stderr
-    # redirects (2>, 2>>).
-    for m in re.finditer(r"(?<![0-9])[>]{1,2}\s*([^\s;&|<>]+)", command):
+    # redirects (2>, 2>>). Scans the heredoc-stripped + variable-resolved
+    # buffer to avoid false positives on heredoc-body content (#1153).
+    for m in re.finditer(r"(?<![0-9])[>]{1,2}\s*([^\s;&|<>]+)", stripped):
         target = m.group(1)
         if target in {"/dev/null", "/dev/stderr", "/dev/stdout", "&1", "&2"}:
             continue
@@ -497,9 +682,100 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     return ("", "")
 
 
+# Heredoc opener — captures the delimiter word so we can pair it with the
+# closing line. Mirrors the strip regex in ``heredoc_utils`` but extracts
+# the body instead of removing it. Used by ``extract_heredoc_body_for_redirect``
+# (Issue #1154 remediation) to feed the body into the AST classifier so a
+# `cat > X.py << EOF\nclass X: pass\nEOF` style fresh-file write classifies
+# as ``tier=full`` (new class), not the line-count default of ``light``/``fix``.
+_HEREDOC_BODY_RE = re.compile(
+    r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n(.*?\n)[ \t]*\1\b",
+    re.DOTALL,
+)
+
+
+def extract_heredoc_body_for_redirect(command: str) -> str:
+    """Return the first heredoc body in a Bash command, or "" if none.
+
+    Used by the hook's Bash code-file gate (Issue #1154 remediation) to
+    classify ``cat > X.py << EOF\\n<body>\\nEOF`` style fresh-file writes
+    using the AST analysis on the body content. The body is the new file's
+    full content, so feeding it through ``classify_edit_tier(path, "", body)``
+    correctly returns ``tier=full`` for new-class / new-function content.
+
+    Conservative: returns the first heredoc body found. If multiple heredocs
+    are nested (the AC2 ``gh issue create --body-file - <<HD ... HD`` shape),
+    the OUTER body is returned; the inner heredoc is part of the outer body
+    text. The detector itself (``detect_bash_code_file_write``) is responsible
+    for not matching nested-heredoc-body content (Pattern 3 scans the
+    heredoc-stripped buffer), so this helper is only invoked AFTER a code-file
+    target has been detected — meaning the outer body genuinely IS the
+    file's new content.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        The heredoc body text, or empty string when no heredoc is found
+        or the regex engine raises.
+    """
+    if not command or "<<" not in command:
+        return ""
+    try:
+        m = _HEREDOC_BODY_RE.search(command)
+    except re.error:
+        return ""
+    if m is None:
+        return ""
+    # Group 2 is the body (everything between the opener line and the
+    # closing delimiter line). Trailing newline is preserved so line counts
+    # match what the AST parser sees.
+    return m.group(2) or ""
+
+
+# Patterns that represent fresh-file creation (write the entire file in one
+# shot, not an incremental edit). For these patterns, when we can extract a
+# heredoc body, we feed the body through the classifier so a new-class /
+# new-function signal upgrades the tier from the line-count default.
+#
+# NOT included (intentionally): ``sed -i`` (in-place edit, not a fresh file),
+# ``tee -a`` (append, not truncate). Pattern 1 ``tee`` without ``-a`` IS a
+# fresh-file form but we don't currently distinguish; the line-count fallback
+# (`light`) is the safe default for tee.
+_FRESH_FILE_WRITE_PATTERNS = frozenset(
+    {
+        "cat redirect",
+        "heredoc redirect",
+        "base64 decode redirect",
+        "awk redirect",
+        "redirect",
+    }
+)
+
+
+def is_fresh_file_write_pattern(pattern: str) -> bool:
+    """Return True if ``pattern`` represents a fresh-file (whole-file) write.
+
+    Used by the hook (Issue #1154 remediation) to decide whether to try
+    upgrading the tier from the line-count default by re-classifying with
+    the heredoc body as ``new_string``. Membership-check only — pure
+    function.
+
+    Args:
+        pattern: The pattern name returned by ``detect_bash_code_file_write``.
+
+    Returns:
+        True when the pattern truncates/creates the target file
+        (semantic ``>`` write); False for append-only or in-place forms.
+    """
+    return pattern in _FRESH_FILE_WRITE_PATTERNS
+
+
 __all__ = [
     "classify_edit_tier",
     "detect_bash_code_file_write",
+    "extract_heredoc_body_for_redirect",
+    "is_fresh_file_write_pattern",
     "TIER_FULL_LINE_THRESHOLD",
     "TIER_LIGHT_LINE_THRESHOLD",
 ]

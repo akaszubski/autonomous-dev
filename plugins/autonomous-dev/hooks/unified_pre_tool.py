@@ -223,6 +223,12 @@ _REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
 # and the line-count-only "significant additions" heuristic.
 _classify_edit_tier_fn = None
 _detect_bash_code_file_write_fn = None
+# Phase 2 remediation (Issue #1154): helpers for upgrading the tier of a
+# Bash fresh-file write by feeding the heredoc body through the AST
+# classifier. Defensively bound — if absent (older lib/), the hook falls
+# back to the previous line-count behavior.
+_extract_heredoc_body_fn = None
+_is_fresh_file_write_pattern_fn = None
 try:
     _etc_path = Path(__file__).resolve().parent.parent / "lib" / "edit_tier_classifier.py"
     if _etc_path.exists():
@@ -233,11 +239,44 @@ try:
             _etc_spec.loader.exec_module(_etc_mod)
             _classify_edit_tier_fn = _etc_mod.classify_edit_tier
             _detect_bash_code_file_write_fn = _etc_mod.detect_bash_code_file_write
+            _extract_heredoc_body_fn = getattr(
+                _etc_mod, "extract_heredoc_body_for_redirect", None
+            )
+            _is_fresh_file_write_pattern_fn = getattr(
+                _etc_mod, "is_fresh_file_write_pattern", None
+            )
 except Exception:
     # Fail-closed: if classifier is unavailable, the gate degrades to a
     # conservative "always full" decision via the local helper below.
     _classify_edit_tier_fn = None
     _detect_bash_code_file_write_fn = None
+    _extract_heredoc_body_fn = None
+    _is_fresh_file_write_pattern_fn = None
+
+
+# Phase 2 (Issue #1153): defensive import of the shared heredoc-strip
+# utility. Mirrors the pattern above. The shared module is used here at
+# three call sites (formerly the private `_strip_heredoc_content` at the
+# two sites that called it + the inline-duplicated regex inside the
+# state-file deletion check). When the shared module fails to load we
+# fall back to a no-op strip — preserving existing behavior with one
+# minor false-positive risk that was already there before this refactor.
+_strip_heredoc_fn = None
+try:
+    _heredoc_path = (
+        Path(__file__).resolve().parent.parent / "lib" / "heredoc_utils.py"
+    )
+    if _heredoc_path.exists():
+        import importlib.util as _heredoc_ilu
+        _heredoc_spec = _heredoc_ilu.spec_from_file_location(
+            "heredoc_utils", str(_heredoc_path)
+        )
+        if _heredoc_spec and _heredoc_spec.loader:
+            _heredoc_mod = importlib.util.module_from_spec(_heredoc_spec)
+            _heredoc_spec.loader.exec_module(_heredoc_mod)
+            _strip_heredoc_fn = _heredoc_mod.strip_heredoc_content
+except Exception:
+    _strip_heredoc_fn = None
 
 
 def _is_adev_project() -> bool:
@@ -265,6 +304,85 @@ def _safe_classify_edit_tier(file_path: str, old_string: str, new_string: str) -
         return _classify_edit_tier_fn(file_path, old_string, new_string)
     except Exception:
         return ("full", "classifier_error")
+
+
+# Phase 2 (Issue #1146): sliding-window helpers.
+#
+# Tier-2 threshold mirrored locally so the hook does not need to import the
+# constant from the classifier module — easier wiring under the defensive-
+# import scheme above. Kept in sync with
+# ``edit_tier_classifier.py:TIER_LIGHT_LINE_THRESHOLD``.
+_TIER_LIGHT_LINE_THRESHOLD_LOCAL = 20
+
+# Defensive dynamic-load of the sliding-window ring-buffer API from
+# ``pipeline_completion_state``. Module is already loaded elsewhere in this
+# file, but we cannot guarantee the import has happened by the time the
+# helpers are called. We resolve lazily on first call to dodge import-order
+# issues with the existing late-import pattern in this file.
+def _count_added_lines_for_sliding_window(old_string: str, new_string: str) -> int:
+    """Compute lines-added for the sliding-window record.
+
+    Mirrors the classifier's ``_count_added_lines`` but kept local to the
+    hook so the sliding-window mechanism is self-contained — the classifier
+    must remain a pure module with no state.
+    """
+    old_lines = len(old_string.splitlines()) if old_string else 0
+    new_lines = len(new_string.splitlines()) if new_string else 0
+    return max(0, new_lines - old_lines)
+
+
+def _load_tier1_ring_buffer_api():
+    """Lazy resolve the ring-buffer API from ``pipeline_completion_state``.
+
+    Returns a 3-tuple ``(record, get, clear)`` of callables, or ``(None,
+    None, None)`` when the module is not importable. Callers MUST treat
+    a ``None`` triple as "skip the sliding-window check" — failures here
+    never worsen the gate behavior.
+    """
+    try:
+        import pipeline_completion_state as _pcs  # type: ignore[import-not-found]
+        return (
+            getattr(_pcs, "record_tier1_allow", None),
+            getattr(_pcs, "get_recent_tier1_allows", None),
+            getattr(_pcs, "clear_tier1_ring_buffer", None),
+        )
+    except Exception:
+        return (None, None, None)
+
+
+def _record_tier1_allow(session_id: str, file_path: str, lines_added: int) -> None:
+    """Record a Tier-1 (fix-tier) classifier decision into the ring buffer."""
+    rec, _, _ = _load_tier1_ring_buffer_api()
+    if rec is None:
+        return
+    try:
+        rec(session_id, file_path, lines_added)
+    except Exception:
+        pass
+
+
+def _get_recent_tier1_allows(
+    session_id: str, file_path: str, *, window_seconds: int = 60
+) -> list:
+    """Return the recent Tier-1 ring-buffer entries for ``(session_id, file_path)``."""
+    _, get, _ = _load_tier1_ring_buffer_api()
+    if get is None:
+        return []
+    try:
+        return get(session_id, file_path, window_seconds=window_seconds)
+    except Exception:
+        return []
+
+
+def _clear_tier1_ring_buffer(session_id: str, file_path: str) -> None:
+    """Drop the ring buffer for ``(session_id, file_path)`` after escalation."""
+    _, _, clr = _load_tier1_ring_buffer_api()
+    if clr is None:
+        return
+    try:
+        clr(session_id, file_path)
+    except Exception:
+        pass
 
 
 def is_running_under_uv() -> bool:
@@ -1840,8 +1958,26 @@ def _check_write_pipeline_required(
     file_path: str,
     old_string: str,
     new_string: str,
+    *,
+    session_id: "Optional[str]" = None,
 ) -> "tuple[bool, str, str]":
     """Decide if a Write/Edit on production code requires the /implement pipeline.
+
+    Args:
+        tool_name: The tool name ("Write" or "Edit").
+        file_path: The target file path.
+        old_string: The pre-edit content (empty string for new-file Write).
+        new_string: The post-edit content.
+        session_id: Optional pipeline session id used by the Phase 2
+            sliding-window check. When provided, ``fix`` tier blocks are
+            recorded into the per-session ring buffer; when the rolling
+            cumulative-lines-added across the last 60 s window for the
+            same ``(session_id, file_path)`` crosses
+            ``TIER_LIGHT_LINE_THRESHOLD`` the returned tier label is
+            escalated from ``fix`` to ``light`` with reason marker
+            ``cumulative_sliding_window``. When ``None`` the sliding
+            window is skipped — preserving the Phase 1 contract for
+            callers that have not been updated yet (#1146).
 
     Returns:
         (block, tier_label, directive)
@@ -1857,6 +1993,9 @@ def _check_write_pipeline_required(
     line-count heuristic is replaced by `classify_edit_tier()` which returns
     one of three tiers — `fix` / `light` / `full` — each mapped to the
     matching `/implement` variant in the directive.
+
+    Phase 2 (Issue #1146): sliding-window escalation for emergent bypass via
+    tool-call granularity mismatch. See ``session_id`` arg above.
     """
     # Tier 0b: pipeline already active — already in-flow, allow
     try:
@@ -1897,6 +2036,38 @@ def _check_write_pipeline_required(
     # Tier classification via AST-based classifier (Phase 1, #1142+).
     tier, reason = _safe_classify_edit_tier(file_path, old_string or "", new_string or "")
 
+    # Phase 2 (Issue #1146): sliding-window cumulative escalation.
+    # When the classifier returns ``fix`` (Tier-1) AND a session_id is
+    # available, query the per-(session, file) ring buffer. If the rolling
+    # sum of lines-added in the last 60 s plus this edit's added lines
+    # crosses the Tier-2 threshold (20), ESCALATE the returned tier label
+    # from ``fix`` to ``light`` and tag the reason. The ring buffer is
+    # then dropped so a single threshold trigger does not keep firing on
+    # subsequent edits.
+    #
+    # On allow paths (``fix`` not escalated): record this edit's added
+    # lines so the NEXT call sees the cumulative.
+    escalated_by_sliding_window = False
+    if tier == "fix" and session_id:
+        try:
+            new_lines = _count_added_lines_for_sliding_window(old_string or "", new_string or "")
+            existing = _get_recent_tier1_allows(session_id, file_path, window_seconds=60)
+            existing_sum = sum(int(e.get("lines", 0)) for e in existing)
+            if existing_sum + new_lines >= _TIER_LIGHT_LINE_THRESHOLD_LOCAL:
+                tier = "light"
+                reason = (
+                    f"cumulative_sliding_window: existing_sum={existing_sum} "
+                    f"new={new_lines} >= threshold={_TIER_LIGHT_LINE_THRESHOLD_LOCAL}"
+                )
+                escalated_by_sliding_window = True
+                # Reset so the deny does not keep firing on subsequent edits.
+                _clear_tier1_ring_buffer(session_id, file_path)
+            else:
+                _record_tier1_allow(session_id, file_path, new_lines)
+        except Exception:
+            # Sliding-window check failures must NEVER worsen the gate.
+            pass
+
     # Map tier -> /implement variant (the 3-door menu).
     file_name = Path(file_path).name
     if tier == "fix":
@@ -1912,15 +2083,31 @@ def _check_write_pipeline_required(
         f"Per-repo opt-out: touch .claude/.bypass && git commit. "
         f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
     )
+    if escalated_by_sliding_window:
+        directive = (
+            f"cumulative_sliding_window: {reason}. " + directive
+        )
     return (True, tier, directive)
 
 
-def _check_bash_code_file_pipeline_required(command: str) -> "tuple[bool, str, str, str]":
+def _check_bash_code_file_pipeline_required(
+    command: str,
+    *,
+    session_id: "Optional[str]" = None,
+) -> "tuple[bool, str, str, str]":
     """Decide if a Bash command writing to a code file requires /implement.
 
     Mirrors `_check_write_pipeline_required` for the Bash tool path. Detects
     cat >, sed -i, tee, heredocs, python -c open(), awk redirects, etc.,
     targeting code files (CODE_EXTENSIONS).
+
+    Args:
+        command: The raw Bash command string.
+        session_id: Optional pipeline session id used by the Phase 2
+            sliding-window check. When provided and the detected tier is
+            ``fix``-equivalent (the classifier's safe default for empty
+            old/new is ``light``, so this rarely fires through this path —
+            see ``_check_write_pipeline_required`` for the primary site).
 
     Returns:
         (block, tier_label, directive, target_path)
@@ -1930,6 +2117,7 @@ def _check_bash_code_file_pipeline_required(command: str) -> "tuple[bool, str, s
         or the pipeline is already active / operator bypass is set.
 
     Phase 1 (Issue #1142+).
+    Phase 2 (Issue #1146): ``session_id`` arg for sliding-window symmetry.
     """
     if not command:
         return (False, "no_command", "", "")
@@ -1975,11 +2163,50 @@ def _check_bash_code_file_pipeline_required(command: str) -> "tuple[bool, str, s
     # Classify — for in-place edits like sed -i we cannot see the patch,
     # so we pass empty old/new and let the classifier return its safe
     # default (`light` for non-Python, classifier behavior for .py).
+    #
+    # Phase 2 remediation (Issue #1154): for fresh-file write patterns
+    # (cat redirect, heredoc redirect, etc.) we additionally try to extract
+    # the heredoc body and run the AST classifier against it. The body IS
+    # the new file's content, so a `class X: pass` body correctly upgrades
+    # to ``tier=full`` (new class) — matching the spec for the chained
+    # heredoc form `OUT=foo.py; cat > "$OUT" << EOF\nclass X: pass\nEOF`.
+    #
+    # Constraints honored:
+    # - The detector (``detect_bash_code_file_write``) already strips heredoc
+    #   bodies before scanning patterns 1/2/3/6/7/8 (Issue #1153), so this
+    #   re-classify ONLY fires AFTER a code-file target has been detected
+    #   from the SHELL syntax (not the body). AC2 is preserved: a
+    #   `gh issue create --body-file - <<HD ... HD` payload returns
+    #   ``target=""`` from the detector and never reaches this branch.
+    # - On any extraction or classification error we silently fall back to
+    #   the original (empty-old, empty-new) tier — same as pre-remediation.
     tier, _reason = _safe_classify_edit_tier(target, "", "")
+    body_classified = False
+    if (
+        _extract_heredoc_body_fn is not None
+        and _is_fresh_file_write_pattern_fn is not None
+        and _is_fresh_file_write_pattern_fn(pattern)
+    ):
+        try:
+            body = _extract_heredoc_body_fn(command)
+        except Exception:
+            body = ""
+        if body:
+            body_tier, _body_reason = _safe_classify_edit_tier(target, "", body)
+            # Only ELEVATE the tier — never weaken. fix < light < full.
+            _ranks = {"fix": 0, "light": 1, "full": 2}
+            if _ranks.get(body_tier, 0) > _ranks.get(tier, 0):
+                tier = body_tier
+                body_classified = True
     # For Bash patterns we conservatively floor at `light` — a one-shot
-    # `sed -i X.py` or `cat > X.py` is not a "fix-tier" edit.
+    # `sed -i X.py` or `cat > X.py` is not a "fix-tier" edit. Body-classified
+    # decisions are already >= light (we only elevate), so this floor is a
+    # no-op for them; the explicit check keeps the invariant readable.
     if tier == "fix":
         tier = "light"
+    # body_classified is captured for future telemetry / debug-log integration
+    # (Phase 3 — Issue #1155). Not yet wired into the directive text.
+    _ = body_classified
 
     if tier == "light":
         flag = "--light "
@@ -2034,30 +2261,26 @@ def _strip_quoted_segments(command: str) -> str:
 def _strip_heredoc_content(command: str) -> str:
     """Remove heredoc content from a command string.
 
-    Strips content between heredoc delimiters (<<EOF...EOF, <<'EOF'...EOF,
-    <<"EOF"...EOF) to prevent false-positive detection when keywords appear
-    inside heredoc bodies (e.g., commit messages passed via heredoc).
+    Thin wrapper around the shared ``heredoc_utils.strip_heredoc_content``
+    helper. Kept under the original private name so existing internal call
+    sites (``_detect_env_spoofing`` and ``_detect_gh_issue_create``) do not
+    need to be touched as part of the Phase 2 extraction.
 
     Args:
         command: The raw Bash command string.
 
     Returns:
-        Command with heredoc body content replaced by empty strings.
-    """
-    import re
+        Command with heredoc body content replaced by empty strings. Falls
+        back to the input unchanged when the shared module failed to load
+        (no-op strip) to preserve the existing scan behavior.
 
+    Issue: #1153
+    """
+    if _strip_heredoc_fn is None:
+        return command
     try:
-        # Match heredoc start: <<EOF, <<'EOF', <<"EOF", <<-EOF, <<-'EOF', etc.
-        # Capture the delimiter word, then remove everything up to the matching
-        # delimiter on its own line (or end of string).
-        result = re.sub(
-            r"<<-?\s*['\"]?(\w+)['\"]?.*?\n(.*?\n)*?\1\b",
-            "",
-            command,
-            flags=re.DOTALL,
-        )
-        return result
-    except re.error:
+        return _strip_heredoc_fn(command)
+    except Exception:
         return command
 
 
@@ -3679,10 +3902,10 @@ def _check_bash_state_deletion(command: str) -> "Optional[Tuple[str, str]]":
     # Strip heredoc bodies and --body/--message quoted args so that text content
     # (e.g. issue descriptions mentioning deletion commands) is not scanned.
     # Issue #866: false positive when gh issue create heredoc body mentions rm.
+    # Issue #1153 (Phase 2): inline regex unified with shared heredoc_utils.
 
     # Strip heredoc bodies: <<'EOF'...EOF, <<EOF...EOF, <<"EOF"...EOF, <<-EOF...EOF
-    _heredoc_pat = r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n.*?\n\s*\1\b"
-    command = re.sub(_heredoc_pat, "", command, flags=re.DOTALL)
+    command = _strip_heredoc_content(command)
 
     # Strip --body '...' / --body "..." / --body "$(cat ...)" argument values
     _body_pat = r"""--body\s+(?:'[^']*'|"[^"]*"|\$\([^)]*\))"""
@@ -3776,10 +3999,8 @@ def _check_rm_rf_unresolved_vars(command: str) -> "Optional[Tuple[str, str]]":
         # Strip heredoc bodies and --body/--message quoted args so user-supplied
         # text content (issue descriptions, PR bodies, etc.) doesn't trigger a
         # false positive. Mirrors the sanitization in _check_bash_state_deletion.
-        scrubbed = command
-
-        _heredoc_pat = r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n.*?\n\s*\1\b"
-        scrubbed = re.sub(_heredoc_pat, "", scrubbed, flags=re.DOTALL)
+        # Issue #1153 (Phase 2): inline regex unified with shared heredoc_utils.
+        scrubbed = _strip_heredoc_content(command)
 
         _body_pat = r"""--body\s+(?:'[^']*'|"[^"]*"|\$\([^)]*\))"""
         scrubbed = re.sub(_body_pat, '--body ""', scrubbed)
@@ -4735,11 +4956,17 @@ def main():
                 # classifies as no-change. Tier is one of "fix" / "light" / "full"
                 # and is mapped to the matching /implement variant in the directive.
                 try:
+                    # Phase 2 (Issue #1146): pass session_id so the
+                    # sliding-window can scope its ring buffer per session.
+                    _wpg_session_id = (
+                        os.getenv("CLAUDE_SESSION_ID") or _session_id or None
+                    )
                     _wpg_block, _wpg_tier, _wpg_directive = _check_write_pipeline_required(
                         tool_name,
                         file_path,
                         tool_input.get("old_string", ""),
                         tool_input.get("new_string", tool_input.get("content", "")),
+                        session_id=_wpg_session_id,
                     )
                 except Exception:
                     # Fail-closed on any unexpected exception
@@ -4985,12 +5212,18 @@ def main():
                     # universal `.claude/.bypass` (checked at line ~4532
                     # earlier) and the one-shot operator bypass.
                     try:
+                        # Phase 2 (Issue #1146): pass session_id for symmetry.
+                        _b2b_session_id = (
+                            os.getenv("CLAUDE_SESSION_ID") or _session_id or None
+                        )
                         (
                             _b2b_block,
                             _b2b_tier,
                             _b2b_directive,
                             _b2b_target,
-                        ) = _check_bash_code_file_pipeline_required(command)
+                        ) = _check_bash_code_file_pipeline_required(
+                            command, session_id=_b2b_session_id
+                        )
                     except Exception:
                         _b2b_block = False
                         _b2b_tier = "wpg_check_error"

@@ -237,6 +237,7 @@
         "plugins/autonomous-dev/lib/hardware_calibrator.py",
         "plugins/autonomous-dev/lib/headless_mode.py",
         "plugins/autonomous-dev/lib/health_check.py",
+        "plugins/autonomous-dev/lib/heredoc_utils.py",
         "plugins/autonomous-dev/lib/hook_activator.py",
         "plugins/autonomous-dev/lib/hook_bypass.py",
         "plugins/autonomous-dev/lib/hook_exit_codes.py",
