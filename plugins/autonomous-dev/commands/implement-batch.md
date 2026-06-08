@@ -669,6 +669,65 @@ Same as BATCH FILE MODE:
 
    The coordinator MUST also follow the **Pre-Dispatch Ordering Protocol** defined in [implement.md](implement.md) before every agent dispatch within each issue's pipeline. The hook is a backstop; the protocol is first-line defense. Issue #850.
 
+### Post-Dispatch Completion Recording Protocol — REQUIRED (Issue #1174)
+
+Symmetric to the Pre-Dispatch Ordering Protocol; same session-ID fallback chain. After EVERY Agent tool returns inside a per-issue pipeline, the batch coordinator MUST synchronously call `record_agent_completion()` BEFORE the next Pre-Dispatch Ordering check. This closes the race documented in Issue #1174 (widening of Issue #852): SubagentStop fires asynchronously, the next pre-dispatch check is synchronous, and a stale read forces manual `record_agent_completion()` injections to satisfy the ordering gate. Recording synchronously at the call site eliminates dependence on SubagentStop timing.
+
+```bash
+python3 -c "
+import sys, os, json, time
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+
+# Reuse the same session-ID fallback chain as Pre-Dispatch (Issue #904):
+#   1. CLAUDE_SESSION_ID env var
+#   2. ${PIPELINE_STATE_FILE}['session_id'] sentinel (mtime < 3600s)
+#   3. 'unknown'
+def _resolve_session_id():
+    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
+    if sid and sid != 'unknown':
+        return sid
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    try:
+        if os.path.exists(sentinel):
+            mtime = os.path.getmtime(sentinel)
+            if time.time() - mtime < 3600:
+                with open(sentinel) as _f:
+                    _state = json.load(_f)
+                _recovered = str(_state.get('session_id', '')).strip()
+                if _recovered and _recovered != 'unknown':
+                    return _recovered
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
+    return 'unknown'
+
+from pipeline_completion_state import record_agent_completion
+# Issue #1174: synchronously record completion of the agent that just returned
+# so the next Pre-Dispatch Ordering check (within this per-issue pipeline) sees
+# fresh state. Safe to call when SubagentStop also fires —
+# record_agent_completion is fcntl-locked, tri-scope, last-write-wins (#1046).
+record_agent_completion(
+    _resolve_session_id(),
+    '<AGENT_TYPE>',
+    issue_number=ISSUE_NUMBER,
+    success=True,
+)
+print(f'POST-DISPATCH OK: recorded <AGENT_TYPE> for issue #{int(<ISSUE_NUMBER>)}')
+"
+```
+
+Replace `<AGENT_TYPE>` with the agent that just returned. Replace `ISSUE_NUMBER` with the current issue number being processed in the batch.
+
+**Exception clause**: doc-master in batch mode already satisfies this protocol via the `record_doc_verdict` + `record_agent_completion` block near line 205 (Issue #852). Do NOT double-call for that site.
+
+**Idempotency**: Safe when SubagentStop also fires for the same agent — tri-scope, fcntl-locked, last-write-wins (Issue #1046).
+
+**HARD GATE**: After every Agent dispatch inside a per-issue pipeline, the next observable action MUST be the post-dispatch `record_agent_completion()` call.
+
+**FORBIDDEN**: Dispatching the next Agent within a per-issue pipeline without first synchronously recording the previous Agent's completion.
+
    **CRITICAL**: Each issue gets a NEW `create_pipeline()` call. Do NOT reuse pipeline state across issues. Create a new pipeline, run the separate pipeline for that issue, then clear/cleanup before starting the next.
 
    **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the mode-appropriate agent verification (8 in default mode, 9 in `--tdd-first` mode) before the next issue starts.

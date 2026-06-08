@@ -171,6 +171,67 @@ Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `
 
 **FORBIDDEN**: Dispatching an Agent tool call when the pre-dispatch ordering check returns `passed=False`.
 
+### Post-Dispatch Completion Recording Protocol — REQUIRED
+
+After EVERY Agent tool returns, you MUST synchronously call `record_agent_completion()` BEFORE doing anything else — especially before the next Pre-Dispatch Ordering check. This closes the race documented in Issue #1174 (widening of Issue #852): the SubagentStop hook that normally records foreground-agent completions fires asynchronously, but the next pre-dispatch ordering check is synchronous and reads stale state, so the gate falsely sees the just-returned agent as "not yet run". The symptom is manual `record_agent_completion()` injections scattered through coordinator transcripts to satisfy the gate. The fix is structural: record completion synchronously at the call site, eliminating dependence on SubagentStop timing.
+
+```bash
+python3 -c "
+import sys, os, json, time
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+
+# Reuse the same session-ID fallback chain as Pre-Dispatch (Issue #904):
+#   1. CLAUDE_SESSION_ID env var
+#   2. ${PIPELINE_STATE_FILE}['session_id'] sentinel (mtime < 3600s)
+#   3. 'unknown'
+def _resolve_session_id():
+    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
+    if sid and sid != 'unknown':
+        return sid
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    try:
+        if os.path.exists(sentinel):
+            mtime = os.path.getmtime(sentinel)
+            if time.time() - mtime < 3600:
+                with open(sentinel) as _f:
+                    _state = json.load(_f)
+                _recovered = str(_state.get('session_id', '')).strip()
+                if _recovered and _recovered != 'unknown':
+                    return _recovered
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
+    return 'unknown'
+
+from pipeline_completion_state import record_agent_completion
+# Issue #1174: synchronously record completion of the agent that just returned
+# so the next Pre-Dispatch Ordering check sees fresh state. Safe to call when
+# SubagentStop also fires — record_agent_completion is fcntl-locked, tri-scope,
+# last-write-wins (Issue #1046).
+record_agent_completion(
+    _resolve_session_id(),
+    '<AGENT_TYPE>',
+    issue_number=ISSUE_NUMBER_OR_0,
+    success=True,
+)
+print(f'POST-DISPATCH OK: recorded <AGENT_TYPE>')
+"
+```
+
+Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with the current issue number or `0`. The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
+
+**Idempotency note**: Safe to call when SubagentStop also fires asynchronously for the same agent — `record_agent_completion` is fcntl-locked, tri-scope, last-write-wins per Issue #1046. Both writes converge to the same final state.
+
+**Exception clause**: Agents where the coordinator already records completion with extra state — doc-master at the verdict-collection points in STEP 12 (the `record_doc_verdict` + `record_agent_completion` block near line 1387) and STEP 12.5 (near line 1614), and batch-mode doc-master (`implement-batch.md` near line 205) — already satisfy this protocol via Issue #852's fix. Do NOT double-call `record_agent_completion` for those sites; the existing verdict-aware call covers the protocol.
+
+**Fix/Resume delegation**: Fix mode (`implement-fix.md`) and Resume mode (`implement-resume.md`) inherit this protocol implicitly via shared coordinator instructions; explicit per-file delegation is deferred to a follow-up issue. Soft-nudge acknowledgement: this section is a coordinator nudge — hook-layer post-dispatch enforcement (in `unified_pre_tool.py` Layer 4 or a new `post_subagent_completion.py` hook) is a durable follow-up tracked separately.
+
+**HARD GATE**: After every Agent dispatch, the next observable action MUST be the post-dispatch `record_agent_completion()` call shown above. Skipping it leaves the ordering gate dependent on async SubagentStop timing, which is exactly the race this protocol exists to close.
+
+**FORBIDDEN**: Dispatching the next Agent without first synchronously recording the previous Agent's completion via `record_agent_completion()`.
+
 ARGUMENTS: {{ARGUMENTS}}
 
 ---
