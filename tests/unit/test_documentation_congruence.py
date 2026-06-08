@@ -82,43 +82,43 @@ class TestComponentCounts:
     """ARCHITECTURE-OVERVIEW.md component counts must match reality."""
 
     @pytest.fixture
-    def claude_md(self) -> str:
+    def architecture_overview_md(self) -> str:
         return _read(ROOT / "docs" / "ARCHITECTURE-OVERVIEW.md")
 
-    def test_active_agent_count(self, claude_md):
+    def test_active_agent_count(self, architecture_overview_md):
         actual = _count_files(PLUGIN / "agents", "*.md", exclude_dirs=["archived"])
-        documented = _extract_number(claude_md, r"(\d+)\s+agents?\s*\(")
+        documented = _extract_number(architecture_overview_md, r"(\d+)\s+agents?\s*\(")
         assert documented is not None, "Docs missing agent count"
         assert actual == documented, (
             f"Active agents: {actual} on disk, {documented} in docs"
         )
 
-    def test_archived_agent_count(self, claude_md):
+    def test_archived_agent_count(self, architecture_overview_md):
         actual = _count_files(PLUGIN / "agents" / "archived", "*.md")
-        documented = _extract_number(claude_md, r"\((\d+)\s+archived\)")
+        documented = _extract_number(architecture_overview_md, r"\((\d+)\s+archived\)")
         assert documented is not None, "Docs missing archived agent count"
         assert actual == documented, (
             f"Archived agents: {actual} on disk, {documented} in docs"
         )
 
-    def test_skill_count(self, claude_md):
+    def test_skill_count(self, architecture_overview_md):
         actual = sum(1 for _ in PLUGIN.glob("skills/*/SKILL.md")
                      if "archived" not in str(_))
-        documented = _extract_number(claude_md, r"(\d+)\s+skills?")
+        documented = _extract_number(architecture_overview_md, r"(\d+)\s+skills?")
         assert documented is not None, "Docs missing skill count"
         assert actual == documented, (
             f"Skills: {actual} on disk, {documented} in docs"
         )
 
-    def test_command_count(self, claude_md):
+    def test_command_count(self, architecture_overview_md):
         actual = _count_files(PLUGIN / "commands", "*.md", exclude_dirs=["archived"])
-        documented = _extract_number(claude_md, r"(\d+)\s+active commands?")
+        documented = _extract_number(architecture_overview_md, r"(\d+)\s+active commands?")
         assert documented is not None, "Docs missing command count"
         assert actual == documented, (
             f"Commands: {actual} on disk, {documented} in docs"
         )
 
-    def test_library_count(self, claude_md):
+    def test_library_count(self, architecture_overview_md):
         # Per validate_structure.py:_count_libraries() (Issue #1140) — exclude
         # __init__.py (package markers) and htmlcov/ (coverage artifact).
         actual = sum(
@@ -128,13 +128,13 @@ class TestComponentCounts:
             and "htmlcov" not in f.parts
             and f.name != "__init__.py"
         )
-        documented = _extract_number(claude_md, r"(\d+)\s+libraries")
+        documented = _extract_number(architecture_overview_md, r"(\d+)\s+libraries")
         assert documented is not None, "Docs missing library count"
         assert actual == documented, (
             f"Libraries: {actual} on disk, {documented} in docs"
         )
 
-    def test_active_hook_count(self, claude_md):
+    def test_active_hook_count(self, architecture_overview_md):
         # Per validate_structure.py:_count_hooks() (Issue #1140) — only .py files,
         # excluding __init__.py. Shell hooks are tooling, not counted here.
         hooks_dir = PLUGIN / "hooks"
@@ -145,18 +145,18 @@ class TestComponentCounts:
             and f.name != "__init__.py"
             and not f.name.startswith(".")
         )
-        documented = _extract_number(claude_md, r"(\d+)\s+active hooks?")
+        documented = _extract_number(architecture_overview_md, r"(\d+)\s+active hooks?")
         assert documented is not None, "Docs missing hook count"
         assert actual == documented, (
             f"Active hooks: {actual} on disk (.py only), {documented} in docs"
         )
 
-    def test_archived_hook_count(self, claude_md):
+    def test_archived_hook_count(self, architecture_overview_md):
         archived_dir = PLUGIN / "hooks" / "archived"
         actual = sum(1 for f in archived_dir.iterdir()
                      if f.suffix in (".py", ".sh") and not f.name.endswith(",cover"))
         # Extract from pattern like "21 active hooks (62 archived)"
-        documented = _extract_number(claude_md, r"hooks?\s*\((\d+)\s+archived\)")
+        documented = _extract_number(architecture_overview_md, r"hooks?\s*\((\d+)\s+archived\)")
         assert documented is not None, "Docs missing archived hook count"
         assert actual == documented, (
             f"Archived hooks: {actual} on disk, {documented} in docs"
@@ -176,6 +176,23 @@ class TestComponentCounts:
         )
         assert actual == documented, (
             f"Settings templates: {actual} on disk, {documented} in docs"
+        )
+
+    def test_claude_md_component_count_drift(self):
+        """Real CLAUDE.md must pass scripts/validate_structure.py::check_component_count_drift().
+
+        Closes the per-commit-coverage gap: check_component_count_drift() existed
+        since #1140 but was only exercised by unit tests with monkeypatched inputs.
+        Real CLAUDE.md was validated only when someone ran /health-check.
+        """
+        import importlib.util
+        script_path = ROOT / "scripts" / "validate_structure.py"
+        spec = importlib.util.spec_from_file_location("validate_structure", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        errors = mod.check_component_count_drift()
+        assert errors == [], (
+            f"CLAUDE.md component-count drift detected:\n" + "\n".join(errors)
         )
 
 
@@ -233,6 +250,65 @@ class TestCommandDocumentation:
             assert base in active_files or any(base.startswith(p) for p in flag_prefixes), (
                 f"README.md references {ref} but no command file exists for it"
             )
+
+
+# ---------------------------------------------------------------------------
+# 3b. COMMANDS.md sync with on-disk user-invocable commands
+# ---------------------------------------------------------------------------
+
+class TestCommandsMdSync:
+    """plugins/autonomous-dev/docs/COMMANDS.md must enumerate every
+    user-invocable command and only user-invocable commands."""
+
+    @pytest.fixture
+    def user_invocable_commands(self) -> set[str]:
+        """Parse frontmatter for `user-invocable: true` commands."""
+        cmds = set()
+        for f in (PLUGIN / "commands").glob("*.md"):
+            if "archived" in str(f) or f.name == "README.md":
+                continue
+            text = f.read_text(encoding="utf-8")
+            # Frontmatter is between first two `---` lines
+            m = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
+            if not m:
+                continue
+            if re.search(r"^user-invocable:\s*true\b", m.group(1), re.MULTILINE):
+                cmds.add(f.stem)
+        return cmds
+
+    @pytest.fixture
+    def commands_md_table_rows(self) -> list[str]:
+        """Extract command names from Active Commands table in COMMANDS.md."""
+        text = _read(PLUGIN / "docs" / "COMMANDS.md")
+        # Slice from "## Active Commands" to next "## " header
+        m = re.search(r"^## Active Commands\s*$(.*?)^## ", text, re.DOTALL | re.MULTILINE)
+        assert m, "COMMANDS.md missing '## Active Commands' section"
+        section = m.group(1)
+        # Match table rows like "| `/cmd-name` | ..."
+        rows = re.findall(r"^\|\s*`/([\w-]+)`\s*\|", section, re.MULTILINE)
+        return rows
+
+    def test_commands_md_row_count_matches_disk(
+        self, user_invocable_commands, commands_md_table_rows
+    ):
+        """Row count in Active Commands table = user-invocable file count on disk."""
+        assert len(commands_md_table_rows) == len(user_invocable_commands), (
+            f"COMMANDS.md has {len(commands_md_table_rows)} active rows; "
+            f"disk has {len(user_invocable_commands)} user-invocable commands.\n"
+            f"In file not in table: {sorted(user_invocable_commands - set(commands_md_table_rows))}\n"
+            f"In table not on disk: {sorted(set(commands_md_table_rows) - user_invocable_commands)}"
+        )
+
+    def test_every_user_invocable_command_is_documented(
+        self, user_invocable_commands, commands_md_table_rows
+    ):
+        """Every user-invocable command on disk must appear in COMMANDS.md table."""
+        documented = set(commands_md_table_rows)
+        missing = user_invocable_commands - documented
+        assert not missing, (
+            f"User-invocable commands on disk but missing from COMMANDS.md table: "
+            f"{sorted(missing)}"
+        )
 
 
 # ---------------------------------------------------------------------------
