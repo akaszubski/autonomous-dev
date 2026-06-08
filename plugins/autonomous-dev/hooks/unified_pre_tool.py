@@ -1497,10 +1497,20 @@ def _get_pipeline_mode_from_state() -> str:
 
     Issue #697: Needed to filter ordering prerequisites by pipeline mode.
     In --fix mode, planner is not part of the pipeline.
+    Issue #849: PIPELINE_MODE env-var takes precedence at all call-sites.
+    Issue #1173: mtime-TTL fallback closes the indeterminate-session gap where
+    stale fix-mode state would leak into a fresh --light run.
 
     Returns:
         Pipeline mode string, defaulting to "full".
     """
+    # Issue #849/#1173: env-var takes precedence (eliminates call-site asymmetry
+    # where line 1108 honors PIPELINE_MODE but other call-sites went through this
+    # function and silently ignored it).
+    env_mode = os.getenv("PIPELINE_MODE", "").strip()
+    if env_mode:
+        return env_mode
+
     pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json")
     try:
         state_path = Path(pipeline_state_file)
@@ -1512,6 +1522,14 @@ def _get_pipeline_mode_from_state() -> str:
             # Session staleness check (Issue #862)
             if _is_stale_session(state, state_path):
                 return "full"  # Stale session — safe default
+            # Issue #1173: mtime-TTL fallback. When session_id is indeterminate
+            # (e.g. 'unknown'), _is_stale_session() returns False and stale mode
+            # would otherwise leak. Treat state older than the TTL as expired
+            # regardless of session identity.
+            import time as _time
+            mtime = state_path.stat().st_mtime
+            if _time.time() - mtime >= _PIPELINE_STATE_TTL_SECONDS:
+                return "full"
             return state.get("mode", "full")
     except Exception:
         pass
@@ -1684,6 +1702,12 @@ def _is_batch_context(cwd: str) -> bool:
     return os.environ.get("BATCH_NO_WORKTREE", "").strip().lower() in ("1", "true", "yes")
 
 
+# Issue #1173 — 30-min TTL for pipeline state staleness. Used by
+# _is_pipeline_active() (mtime liveness check) and _get_pipeline_mode_from_state()
+# (mtime-based fallback when session-id is indeterminate).
+_PIPELINE_STATE_TTL_SECONDS = 1800
+
+
 def _is_pipeline_active() -> bool:
     """Check if the /implement pipeline is currently active.
 
@@ -1759,7 +1783,7 @@ def _is_pipeline_active() -> bool:
             import time as _time
             mtime = state_path.stat().st_mtime
             age_seconds = _time.time() - mtime
-            if age_seconds < 1800:  # 30 minutes since last agent activity
+            if age_seconds < _PIPELINE_STATE_TTL_SECONDS:  # 30 minutes since last agent activity
                 return True
     except Exception:
         pass

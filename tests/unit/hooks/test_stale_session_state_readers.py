@@ -3,11 +3,16 @@
 Validates that _get_current_issue_number() and _get_pipeline_mode_from_state()
 correctly ignore stale state files from other sessions, preventing false ordering
 blocks caused by a stale issue_number leaking across session boundaries.
+
+Issue #1173: extended with mtime-TTL fallback test and PIPELINE_MODE env-var
+precedence test. Closes the gap where `session_id='unknown'` would let stale
+`mode='fix'` leak into a fresh `--light` run.
 """
 
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -197,4 +202,74 @@ class TestGetPipelineModeFromStateStaleness:
         assert result == "fix", (
             "When stored session_id is 'unknown', the function should read from "
             "state (accepted gap — TTL guard is the secondary protection)."
+        )
+
+    def test_pipeline_mode_mtime_ttl_returns_full_for_old_state(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Issue #1173 regression: stale state (mtime older than TTL) returns 'full'.
+
+        Reproduces the original bug: a `--light` session reads a state file left
+        behind by an abandoned `--fix` run from hours/days ago. session_id is
+        'unknown' (indeterminate), so the session-staleness guard does not fire.
+        Without the mtime-TTL fallback the function returns 'fix' and the
+        ordering gate then forces a reviewer agent that --light deliberately
+        omits.
+
+        With the fix: any state older than _PIPELINE_STATE_TTL_SECONDS (30 min)
+        is treated as expired and the function returns 'full', regardless of
+        session_id.
+        """
+        state_path = tmp_path / "state.json"
+        state = _make_state(session_id="unknown", mode="fix")
+        _write_state_file(state_path, state)
+
+        # Age the file past the 30-minute TTL (1801s old).
+        old_ts = time.time() - 1801
+        os.utime(state_path, (old_ts, old_ts))
+
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+        monkeypatch.delenv("PIPELINE_MODE", raising=False)
+
+        result = unified_pre_tool._get_pipeline_mode_from_state()
+
+        assert result == "full", (
+            f"Expected 'full' (TTL expired) but got {result!r}. "
+            "Stale state older than _PIPELINE_STATE_TTL_SECONDS must not leak "
+            "its mode into a new session (Issue #1173)."
+        )
+
+    def test_pipeline_mode_env_var_overrides_stale_state(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Issue #1173 / #849: PIPELINE_MODE env-var takes precedence over the
+        state file at every call-site.
+
+        Previously line 1108 of unified_pre_tool.py read PIPELINE_MODE directly
+        while other call-sites went through _get_pipeline_mode_from_state(),
+        which ignored the env var. This asymmetry meant that exporting
+        PIPELINE_MODE=light from a `--light` invocation only worked at one
+        call-site; the ordering gate's call-site still read the stale state.
+        After the fix, all call-sites honor PIPELINE_MODE consistently.
+        """
+        state_path = tmp_path / "state.json"
+        # Fresh-mtime state with mode='fix' — would leak without the env-var guard.
+        state = _make_state(session_id="session-A", mode="fix")
+        _write_state_file(state_path, state)
+
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "session-A")
+        monkeypatch.setenv("PIPELINE_MODE", "light")
+
+        result = unified_pre_tool._get_pipeline_mode_from_state()
+
+        assert result == "light", (
+            f"Expected 'light' (PIPELINE_MODE env override) but got {result!r}. "
+            "PIPELINE_MODE env-var must take precedence over state-file mode "
+            "(Issue #849 call-site asymmetry / Issue #1173 light pipeline regression)."
         )
