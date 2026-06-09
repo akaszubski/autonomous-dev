@@ -60,6 +60,8 @@ STEP 3   Research cache check
 STEP 3.5 Fully-specified detection (may skip STEP 4)
 STEP 4   Research (researcher-local + researcher in parallel)
 STEP 4.5 Research completeness critique (inline)
+STEP 4.7 Pre-validated plan detection (inline)
+STEP 4.8 Plan freshness re-verification (inline, conditional)
 STEP 5   Planning (planner)
 STEP 5.5 Plan validation gate (plan-critic + structural checks) HARD GATE
 STEP 6   Acceptance tests generation

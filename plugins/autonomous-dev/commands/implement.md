@@ -677,6 +677,58 @@ If no matching PROCEED-verdict file is found:
 
 This step is performed inline by the coordinator. It does NOT skip or modify STEP 5.5a; that gate retains its own search as an independent cross-check.
 
+### STEP 4.8: Plan Freshness Re-Verification (inline — no agent)
+
+**Progress**: Output step banner (STEP 4.8/15 — Plan Freshness Re-Verification). No agent invoked.
+
+**Rationale (Issue #1175)**: A plan stored in `.claude/plans/` may have been validated days or weeks ago. Files it references may since have been moved, renamed, or deleted. STEP 4.7 will happily seed the planner with a stale plan, and STEP 5.5c's structural validation only checks that the *new* plan contains *some* file paths — it does not re-verify the *pre-validated* plan's references against current disk reality. This is the complementary T2 fix to the prompt-integrity work in Issue #1172.
+
+**Activation gate** — run this step ONLY when BOTH of the following are true (AND, not OR — do not over-activate):
+
+1. `PRE_VALIDATED_PLAN_PATH` is set (i.e. STEP 4.7 found a pre-validated plan), AND
+2. The plan file's mtime age exceeds 86400 seconds (24 hours): `time.time() - Path(PRE_VALIDATED_PLAN_PATH).stat().st_mtime > 86400`.
+
+If either condition fails, output `STEP 4.8: SKIPPED — plan is fresh or no pre-validated plan.` and continue to STEP 5.
+
+**Verification logic** (inline, performed by the coordinator):
+
+```python
+from pathlib import Path
+from plan_freshness import extract_referenced_paths, verify_paths_exist
+
+paths = extract_referenced_paths(PRE_VALIDATED_PLAN_CONTENT)
+missing = verify_paths_exist(paths, Path(REPO_ROOT))
+```
+
+The helpers live in `plugins/autonomous-dev/lib/plan_freshness.py`. The path-extraction regex mirrors STEP 5.5c (`[\w/.-]+\.(py|md|json|yaml|sh|ts|js)`) — keep the two in sync.
+
+**Pass path** — if `missing == []`: log `STEP 4.8: PASS — N/N referenced paths exist.` (where N = `len(paths)`) and continue to STEP 5.
+
+**Failure path** — if any referenced paths are missing, re-invoke the planner **exactly once** with a revision prompt that surfaces the staleness findings:
+
+```python
+from prompt_integrity import construct_revision_prompt
+
+feedback = (
+    "Plan freshness re-verification (STEP 4.8) found the following paths in the "
+    "pre-validated plan that no longer exist on disk:\n\n"
+    + "\n".join(f"- {p}" for p in missing)
+    + "\n\nRevise the plan to reflect current file locations. Do not invent paths; "
+    "use Grep/Glob to locate the moved/renamed files if appropriate."
+)
+
+revision_prompt = construct_revision_prompt(
+    agent_type="planner",
+    baseline_context=<full STEP 5 baseline prompt>,
+    feedback=feedback,
+)
+# Re-invoke planner ONCE with revision_prompt, then continue to STEP 5 regardless.
+```
+
+This mirrors the single-revision semantics of STEP 5.5b — one re-invocation, no loop. After the single re-invocation, continue to STEP 5 with the revised plan. Structural validation in STEP 5.5c remains the final gate.
+
+This step is performed inline by the coordinator. No agent is invoked for the freshness check itself.
+
 ### STEP 5: Planner (1 agent)
 
 **Progress**: Output step banner (STEP 5/15 — Planning, Agent: planner (Opus)). Output agent completion after.

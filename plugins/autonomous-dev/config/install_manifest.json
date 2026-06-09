@@ -279,6 +279,7 @@
         "plugins/autonomous-dev/lib/pipeline_intent_validator.py",
         "plugins/autonomous-dev/lib/pipeline_state.py",
         "plugins/autonomous-dev/lib/pipeline_timing_analyzer.py",
+        "plugins/autonomous-dev/lib/plan_freshness.py",
         "plugins/autonomous-dev/lib/plan_validator.py",
         "plugins/autonomous-dev/lib/plugin_updater.py",
         "plugins/autonomous-dev/lib/pool_config.py",
