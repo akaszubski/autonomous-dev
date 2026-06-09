@@ -7,14 +7,39 @@ infinite loop prevention, transcript path validation, duration computation,
 and JSONL activity logging.
 """
 
+import glob
 import io
 import json
 import os
 import sys
 from pathlib import Path
+from typing import Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _clean_subagent_stop_markers():
+    """Clean /tmp dedup markers before each test (Issue #1176 isolation).
+
+    The SubagentStop dedup guard persists markers at
+    /tmp/subagent_stop_seen_*.marker that survive across pytest runs.
+    Without cleanup, tests using fixed session_id/agent_name inputs
+    take the dedup-skip branch on second/third runs and bypass the
+    code paths they intend to exercise.
+    """
+    for marker in glob.glob("/tmp/subagent_stop_seen_*.marker"):
+        try:
+            os.unlink(marker)
+        except OSError:
+            pass
+    yield
+    for marker in glob.glob("/tmp/subagent_stop_seen_*.marker"):
+        try:
+            os.unlink(marker)
+        except OSError:
+            pass
 
 # Portable project root detection
 _current = Path.cwd()
@@ -693,3 +718,176 @@ class TestIssue907MultiTurnWordCount:
         missing = tmp_path / "does_not_exist.jsonl"
         from unified_session_tracker import _count_words_in_transcript
         assert _count_words_in_transcript(missing) == 0
+
+
+class TestDedupGuard:
+    """Tests for Issue #1176 SubagentStop dedup guard.
+
+    Validates that _try_claim_subagent_stop_marker() and the main() wiring
+    correctly suppress duplicate SubagentStop firings caused by dual hook
+    registration.
+    """
+
+    def test_first_claim_succeeds(self, tmp_path: Path) -> None:
+        """First call with a fresh key claims the marker and returns True."""
+        # Reset module sweep timestamp so the sweep does not skip
+        ust._LAST_SWEEP_TS = 0.0
+        result = ust._try_claim_subagent_stop_marker(
+            "key_a_unique", marker_dir=tmp_path
+        )
+        assert result is True, "First claim should succeed"
+
+        # Marker file must exist on disk
+        markers = list(tmp_path.glob("subagent_stop_seen_*.marker"))
+        assert len(markers) == 1, f"Expected 1 marker, found {len(markers)}"
+        assert "key_a_unique" in markers[0].name
+
+    def test_second_claim_returns_false(self, tmp_path: Path) -> None:
+        """Second call with the same key returns False (duplicate detected)."""
+        ust._LAST_SWEEP_TS = 0.0
+        first = ust._try_claim_subagent_stop_marker(
+            "key_b_dup", marker_dir=tmp_path
+        )
+        second = ust._try_claim_subagent_stop_marker(
+            "key_b_dup", marker_dir=tmp_path
+        )
+        assert first is True
+        assert second is False, "Second claim with same key must return False"
+
+    def test_concurrent_claim_only_one_wins(self, tmp_path: Path) -> None:
+        """Two threads racing for the same key: exactly one wins."""
+        import threading
+
+        ust._LAST_SWEEP_TS = 0.0
+        barrier = threading.Barrier(2)
+        results: List[bool] = []
+        results_lock = threading.Lock()
+
+        def claim() -> None:
+            barrier.wait()  # Synchronize so both threads call simultaneously
+            outcome = ust._try_claim_subagent_stop_marker(
+                "key_concurrent", marker_dir=tmp_path
+            )
+            with results_lock:
+                results.append(outcome)
+
+        t1 = threading.Thread(target=claim)
+        t2 = threading.Thread(target=claim)
+        t1.start()
+        t2.start()
+        t1.join(timeout=5)
+        t2.join(timeout=5)
+
+        assert len(results) == 2, "Both threads must complete"
+        winners = [r for r in results if r is True]
+        losers = [r for r in results if r is False]
+        assert len(winners) == 1, (
+            f"Exactly one thread must win (got {len(winners)} winners, "
+            f"results={results})"
+        )
+        assert len(losers) == 1, (
+            f"Exactly one thread must lose (got {len(losers)} losers, "
+            f"results={results})"
+        )
+
+    def test_open_called_with_exclusive_create_flags(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """os.open is invoked with O_WRONLY|O_CREAT|O_EXCL and mode 0o600."""
+        ust._LAST_SWEEP_TS = 0.0
+        captured: Dict = {}
+        real_open = os.open
+
+        def fake_open(path, flags, mode=0o777, *args, **kwargs):
+            captured["path"] = path
+            captured["flags"] = flags
+            captured["mode"] = mode
+            # Delegate to real os.open so behavior is preserved
+            return real_open(path, flags, mode, *args, **kwargs)
+
+        monkeypatch.setattr(ust.os, "open", fake_open)
+
+        result = ust._try_claim_subagent_stop_marker(
+            "key_flags_check", marker_dir=tmp_path
+        )
+
+        assert result is True
+        assert "flags" in captured, "os.open must have been called"
+        expected_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        assert captured["flags"] == expected_flags, (
+            f"flags must be O_WRONLY|O_CREAT|O_EXCL (got {captured['flags']:o})"
+        )
+        assert captured["mode"] == 0o600, (
+            f"mode must be 0o600 (got {oct(captured['mode'])})"
+        )
+
+    def test_main_dedup_writes_skip_entry(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Integration: main() called twice with same payload — second writes
+        a __dedup_skip__ entry instead of running normal processing."""
+        # Isolate marker dir so test does not collide with /tmp state
+        monkeypatch.setattr(ust, "_DEFAULT_MARKER_DIR", tmp_path / "markers")
+        (tmp_path / "markers").mkdir()
+        ust._LAST_SWEEP_TS = 0.0
+
+        # Isolate log dir
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        # Use a unique session/agent to avoid collisions with prior runs.
+        # Note: agent_transcript_path is empty so the fallback key path is
+        # exercised (AC #5).
+        payload = json.dumps({
+            "agent_type": "implementer",
+            "last_assistant_message": "Done",
+            "session_id": "session-dedup-test-1176",
+            "stop_hook_active": False,
+            "hook_event_name": "SubagentStop",
+        })
+
+        def run_main_once() -> None:
+            with patch("sys.stdin", io.StringIO(payload)):
+                with patch("sys.stdout", new_callable=io.StringIO):
+                    with patch.object(ust, "_find_log_dir", return_value=log_dir):
+                        with patch.object(
+                            ust, "_get_session_date", return_value="2026-06-09"
+                        ):
+                            with patch.object(
+                                ust, "track_basic_session", return_value=True
+                            ):
+                                with patch.object(
+                                    ust,
+                                    "track_pipeline_completion",
+                                    return_value=True,
+                                ):
+                                    ust.main()
+
+        # First call: normal processing
+        run_main_once()
+        # Second call: duplicate — should write skip entry
+        run_main_once()
+
+        log_file = log_dir / "2026-06-09.jsonl"
+        assert log_file.exists(), "JSONL log file must exist"
+        entries = [
+            json.loads(line)
+            for line in log_file.read_text().strip().split("\n")
+            if line
+        ]
+        assert len(entries) == 2, (
+            f"Expected exactly 2 entries (1 normal + 1 skip), got {len(entries)}"
+        )
+
+        # First entry: normal processing
+        assert entries[0]["subagent_type"] == "implementer", (
+            f"First entry must be normal (got {entries[0]['subagent_type']!r})"
+        )
+        assert not entries[0]["subagent_type"].startswith("__dedup_skip__")
+
+        # Second entry: dedup skip marker
+        assert entries[1]["subagent_type"].startswith("__dedup_skip__:"), (
+            f"Second entry must be a dedup skip marker (got "
+            f"{entries[1]['subagent_type']!r})"
+        )
+        assert entries[1]["subagent_type"] == "__dedup_skip__:implementer"

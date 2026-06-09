@@ -60,6 +60,8 @@ except ImportError:
         return None
 
 
+import glob
+import hashlib
 import json
 import os
 import re
@@ -736,6 +738,106 @@ def update_project_progress() -> bool:
 
 
 # ============================================================================
+# SubagentStop Dedup Guard (Issue #1176)
+# ============================================================================
+#
+# SubagentStop fires twice per agent due to dual hook registration in some
+# settings templates. The duplicate firing pollutes JSONL logs, double-counts
+# durations, and triggers downstream consumers (ghost-agent detection,
+# pipeline completion state, plan-critic stage advance) twice.
+#
+# This guard uses an atomic file-based marker in /tmp keyed by a hash of the
+# agent_transcript_path (falling back to session_id:agent_name when missing).
+# os.open(O_CREAT|O_EXCL) is atomically race-safe — only one caller can
+# successfully create the marker; subsequent callers see FileExistsError and
+# return False so main() can write a debuggable skip entry and exit early.
+#
+# Markers are swept after TTL_SECONDS (default 300s) to prevent /tmp pollution.
+# Sweep is gated to at most once per 60s via _LAST_SWEEP_TS.
+
+_LAST_SWEEP_TS: float = 0.0
+_DEFAULT_MARKER_DIR = Path("/tmp")
+_MARKER_PREFIX = "subagent_stop_seen_"
+_MARKER_SUFFIX = ".marker"
+
+
+def _try_claim_subagent_stop_marker(
+    key: str,
+    ttl_seconds: int = 300,
+    *,
+    marker_dir: Optional[Path] = None,
+) -> bool:
+    """Atomically claim a SubagentStop dedup marker.
+
+    Uses ``os.open(O_CREAT|O_EXCL)`` to ensure only one caller wins when
+    multiple firings race for the same key.
+
+    Args:
+        key: Already-hashed key (e.g., sha256(transcript_path)[:16]).
+            Sanitized defensively in case it contains path-unsafe chars.
+        ttl_seconds: How long markers are considered fresh before sweep
+            removes them. Default 300s (firings arrive within ms; 300s
+            is generous and prevents /tmp accumulation).
+        marker_dir: Directory for marker files. Defaults to /tmp.
+            Parameter exists for test hermeticity.
+
+    Returns:
+        True if marker was successfully claimed (first/only caller for
+        this key), False if another caller has already claimed it.
+        Fails OPEN (returns True) on unexpected errors to ensure
+        legitimate firings are not silently dropped.
+    """
+    global _LAST_SWEEP_TS
+    base_dir = marker_dir if marker_dir is not None else _DEFAULT_MARKER_DIR
+
+    # Defensive: sanitize key (caller passes pre-hashed; this guards against
+    # accidental path-traversal injection if the API is later misused).
+    safe_key = re.sub(r"[^a-zA-Z0-9_\-]", "_", key)[:32]
+    if not safe_key:
+        return True  # Fail open on empty key
+
+    marker_path = base_dir / f"{_MARKER_PREFIX}{safe_key}{_MARKER_SUFFIX}"
+
+    # Sweep stale markers, gated to <=1/60s to avoid per-firing glob overhead.
+    now = time.time()
+    if now - _LAST_SWEEP_TS > 60:
+        _LAST_SWEEP_TS = now
+        try:
+            pattern = str(base_dir / f"{_MARKER_PREFIX}*{_MARKER_SUFFIX}")
+            for stale in glob.glob(pattern):
+                try:
+                    if now - os.path.getmtime(stale) > ttl_seconds:
+                        os.unlink(stale)
+                except OSError:
+                    pass  # Best-effort sweep; race with another sweeper is fine
+        except Exception:
+            pass  # Sweep failure must not block claim
+
+    # Atomic claim attempt.
+    try:
+        fd = os.open(
+            str(marker_path),
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+    except Exception as e:
+        # Fail OPEN: better to allow a duplicate log entry than to silently
+        # drop a legitimate SubagentStop firing.
+        try:
+            print(
+                f"unified_session_tracker: dedup guard fail-open: {e}",
+                file=sys.stderr,
+            )
+        except Exception:
+            pass
+        return True
+
+
+# ============================================================================
 # JSONL Activity Logging
 # ============================================================================
 
@@ -901,6 +1003,30 @@ def main() -> int:
             agent_output = os.environ.get("CLAUDE_AGENT_OUTPUT", "")
             session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
             agent_transcript_path_raw = ""
+
+        # Issue #1176: Dedup guard — SubagentStop fires twice per agent due to
+        # dual hook registration. Claim a marker BEFORE any downstream side
+        # effects (cache pop, JSONL write, stage advance) so duplicates exit
+        # early. Key prefers agent_transcript_path (unique per firing pair);
+        # falls back to session_id:agent_name when transcript_path is empty.
+        dedup_key_source = agent_transcript_path_raw or f"{session_id}:{agent_name}"
+        dedup_key = hashlib.sha256(dedup_key_source.encode("utf-8")).hexdigest()[:16]
+        if not _try_claim_subagent_stop_marker(dedup_key):
+            # Duplicate firing — log a debug entry and exit.
+            try:
+                _write_jsonl_entry(
+                    subagent_type=f"__dedup_skip__:{agent_name}",
+                    duration_ms=0,
+                    result_word_count=0,
+                    agent_transcript_path=_validate_transcript_path(
+                        agent_transcript_path_raw
+                    ),
+                    session_id=session_id,
+                    success=True,
+                )
+            except Exception:
+                pass  # Non-blocking: skip entry is advisory only
+            return 0
 
         # Issue #1087: Recover missing subagent_type and duration_ms via the
         # subagent invocation cache populated by session_activity_logger on

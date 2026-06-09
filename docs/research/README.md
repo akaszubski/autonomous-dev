@@ -17,9 +17,9 @@ Catalog of research findings for autonomous development.
 | pipeline_efficiency_analyzer | 2026-04-08 | 0 | [PIPELINE_EFFICIENCY_ANALYZER.md](PIPELINE_EFFICIENCY_ANALYZER.md) |
 | pipeline_time_budgets | 2026-04-08 | 0 | [PIPELINE_TIME_BUDGETS.md](PIPELINE_TIME_BUDGETS.md) |
 | plan-freshness-reverification-step-4-8-1175 | 2026-06-09 | 10 | [PLAN_FRESHNESS_REVERIFICATION_STEP_4_8_1175.md](PLAN_FRESHNESS_REVERIFICATION_STEP_4_8_1175.md) |
-| sessions.db v2 schema (merged) + JSONL replay migration plan | 2026-05-02 | 5 | [SESSIONS_DB_SCHEMA_V2.md](SESSIONS_DB_SCHEMA_V2.md) |
+| subagentstop-double-fire-dedup-1176 | 2026-06-09 | 10 | [SUBAGENTSTOP_DOUBLE_FIRE_DEDUP_1176.md](SUBAGENTSTOP_DOUBLE_FIRE_DEDUP_1176.md) |
 | subagentstop-foreground-unreliability-1174 | 2026-06-09 | 9 | [SUBAGENTSTOP_FOREGROUND_UNRELIABILITY_1174.md](SUBAGENTSTOP_FOREGROUND_UNRELIABILITY_1174.md) |
 
 ---
 
-*Last updated: 2026-06-09 09:52:26*
+*Last updated: 2026-06-09 22:17:37*
