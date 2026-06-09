@@ -79,6 +79,8 @@ STEP_ORDER = {
     "test-master": 4,
     "implementer": 5,
     "pytest-gate": 5.5,
+    # Issue #1158 — runs at implement.md STEP 8.5, after test gate, before reviewer
+    "spec-validator": 5.7,
     "reviewer": 6.0,
     "security-auditor": 6.1,
     "doc-master": 6.0,
@@ -97,6 +99,11 @@ SEQUENTIAL_REQUIRED = [
     ("pytest-gate", "reviewer"),
     ("pytest-gate", "security-auditor"),
     ("pytest-gate", "doc-master"),
+    # Issue #1158 — spec-validator runs at STEP 8.5 between pytest-gate and reviewer.
+    # CIA pair omitted (transitive via implementer → CIA).
+    ("implementer", "spec-validator"),
+    ("pytest-gate", "spec-validator"),
+    ("spec-validator", "reviewer"),
     ("reviewer", "security-auditor"),
     # Issue #957: continuous-improvement-analyst MUST run as the final step,
     # after implementer, reviewer, and doc-master have all completed.

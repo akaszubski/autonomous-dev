@@ -2687,3 +2687,31 @@ class TestMissingSecurityReview:
         )
         assert findings[0].pattern_id == "missing_security_review"
 
+
+def test_spec_validator_registered_in_step_order_and_sequential_pairs():
+    """Issue #1158: spec-validator must be registered in STEP_ORDER and SEQUENTIAL_REQUIRED.
+
+    Closes audit D4. The /implement command's STEP 8.5 invokes spec-validator
+    after pytest-gate and before reviewer. The pipeline_intent_validator must
+    know about this agent for step-ordering and sequential-pair enforcement.
+    """
+    import pipeline_intent_validator as piv
+
+    # STEP_ORDER registration: spec-validator at 5.7 (between pytest-gate 5.5 and reviewer 6.0)
+    assert piv.STEP_ORDER["spec-validator"] == 5.7, (
+        f"spec-validator must be at step 5.7, got {piv.STEP_ORDER.get('spec-validator')}"
+    )
+    assert 5.5 < piv.STEP_ORDER["spec-validator"] < 6.0, (
+        "spec-validator must sort between pytest-gate (5.5) and reviewer (6.0)"
+    )
+
+    # SEQUENTIAL_REQUIRED registration: three new pairs
+    required_pairs = {
+        ("implementer", "spec-validator"),
+        ("pytest-gate", "spec-validator"),
+        ("spec-validator", "reviewer"),
+    }
+    actual_pairs = set(piv.SEQUENTIAL_REQUIRED)
+    missing = required_pairs - actual_pairs
+    assert not missing, f"Missing sequential pairs for spec-validator: {missing}"
+
