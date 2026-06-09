@@ -46,6 +46,12 @@ yarn-error.log
 .DS_Store
 Thumbs.db
 
+# sessions_v2.db migration artifacts (Issue #1157)
+# Database file lives at ~/.claude/archive/sessions_v2.db (outside repo) but
+# guard against accidental in-repo copies during migration testing.
+sessions_v2*.db
+sessions_v2*.db-journal
+
 # Environment
 .env
 .env.local
