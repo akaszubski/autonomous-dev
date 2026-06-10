@@ -167,10 +167,23 @@ class TestHookPipelineModeReading:
     """Verify the hook file reads pipeline mode from state file."""
 
     def test_hook_uses_state_file_fallback(self):
-        """unified_pre_tool.py should call _get_pipeline_mode_from_state()
-        as a fallback when PIPELINE_MODE env var is not set.
+        """unified_pre_tool.py must resolve pipeline mode via
+        ``_get_pipeline_mode_from_state()`` and the helper itself must
+        honor the ``PIPELINE_MODE`` env var.
 
-        This is a structural test that validates the fix was applied.
+        History:
+          - Issue #849 introduced the ``env or helper`` pattern at call sites.
+          - Issue #1173 moved the env-var read INSIDE the helper so all
+            call sites benefit from the override uniformly (the previous
+            asymmetry was the actual #849 bug class).
+          - Issue #1177 removed the now-dead outer
+            ``os.environ.get("PIPELINE_MODE") or ...`` short-circuit at
+            both remaining call sites since the helper already honors it.
+
+        Post-#1177 contract — both must hold:
+          1. The hook calls ``_get_pipeline_mode_from_state()``.
+          2. The helper itself reads ``PIPELINE_MODE`` (preserving the
+             #849 override path).
         """
         hook_path = (
             REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
@@ -178,13 +191,21 @@ class TestHookPipelineModeReading:
         assert hook_path.exists(), "unified_pre_tool.py must exist"
         source = hook_path.read_text()
 
-        # The fix: env var OR state file fallback
-        assert (
-            'os.environ.get("PIPELINE_MODE") or _get_pipeline_mode_from_state()'
-            in source
-        ), (
-            "Hook must fall back to _get_pipeline_mode_from_state() when "
-            "PIPELINE_MODE env var is not set (Issue #849 fix)"
+        # (1) Hook still calls the resolver helper at least once.
+        assert "_get_pipeline_mode_from_state()" in source, (
+            "Hook must call _get_pipeline_mode_from_state() to resolve "
+            "pipeline mode (Issue #849)."
+        )
+
+        # (2) The PIPELINE_MODE env-var override is preserved — but now
+        # internalized in the helper (#1173). Without this, the #849
+        # override path is gone entirely.
+        assert 'os.getenv("PIPELINE_MODE"' in source or \
+               'os.environ.get("PIPELINE_MODE"' in source, (
+            "PIPELINE_MODE env-var read must remain somewhere in the "
+            "hook source — #1173 moved it inside "
+            "_get_pipeline_mode_from_state(), removing it entirely "
+            "would break the #849 override contract."
         )
 
     def test_hook_does_not_default_to_full(self):

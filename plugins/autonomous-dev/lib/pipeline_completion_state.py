@@ -290,6 +290,12 @@ def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
 def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> None:
     """Write state file atomically with file locking.
 
+    The state file is chmod'd to ``0o600`` (owner read/write only) immediately
+    after open. This narrows the previously world-readable default in /tmp
+    and protects session-scoped HMAC + completion data from unprivileged
+    inspection on multi-user systems. chmod failure is non-fatal: the write
+    still proceeds. (#1169)
+
     Args:
         session_id: The pipeline session identifier.
         state: The state dict to write.
@@ -299,6 +305,15 @@ def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) 
     path = _state_file_path(session_id, run_id=run_id)
     try:
         with open(path, "w") as f:
+            # #1169: tighten permissions to 0o600 before holding the lock so
+            # the file is never world-readable, even during the brief window
+            # before the lock is released. Failure here is non-fatal — chmod
+            # can legitimately fail on filesystems that don't support POSIX
+            # modes (e.g. tmpfs mounted noexec/nosuid on some configs).
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
                 json.dump(state, f, indent=2)
@@ -1195,13 +1210,89 @@ def clear_session(session_id: str) -> None:
 #     every read. The default window is 60 s (matches plan).
 #   - No new state file. Buffers nest inside the existing per-session
 #     state under key ``"tier1_ring_buffers"`` keyed by file_path. The
-#     existing atomic write primitives (``_write_state`` with
-#     ``fcntl.LOCK_EX`` and ``os.replace``-style overwrite) provide
-#     concurrency safety. ``clear_session`` already unlinks the whole
-#     state file — buffers are wiped with the rest.
+#     ring-buffer mutators run under ``_locked_rmw`` (#1170) — an
+#     external lockfile guards the read-modify-write sequence so two
+#     concurrent writers cannot lose entries via interleaved RMW. The
+#     prior reliance on ``_write_state``'s ``fcntl.LOCK_EX`` alone only
+#     covered the WRITE half of RMW and was racy. ``clear_session``
+#     already unlinks the whole state file — buffers are wiped with
+#     the rest.
 
 _TIER1_RING_BUFFER_KEY = "tier1_ring_buffers"
 _TIER1_RING_BUFFER_CAP = 10
+
+
+def _locked_rmw(
+    session_id: str,
+    mutator,
+    *,
+    run_id: Optional[str] = None,
+) -> None:
+    """Read-modify-write the per-session state under an external lockfile.
+
+    The original ring-buffer mutators read state, mutated it in-process,
+    then called ``_write_state`` which only took ``fcntl.LOCK_EX`` for
+    the write half. Two concurrent callers could each read the same
+    pre-mutation state, both mutate, and the later writer would
+    silently clobber the earlier writer's append. Symptom: lost
+    Tier-1 ring buffer entries under concurrent classifier calls and
+    spurious gate misses.
+
+    The fix is a coarse mutex external to the JSON file itself: a
+    sibling lockfile at ``/tmp/pipeline_agent_completions_{key}.lock``
+    serializes the entire R-M-W. The lockfile is opened in ``"a+"``
+    mode so it auto-creates and is never truncated. Failure to acquire
+    is fail-open — we proceed with the unlocked path rather than
+    block the gate. (#1170)
+
+    Args:
+        session_id: The pipeline session identifier (used as the lock
+            key when ``run_id`` is unset).
+        mutator: Callable ``(state: dict) -> None`` that mutates
+            ``state`` in place. Return value is ignored.
+        run_id: Optional per-invocation run identifier. When provided,
+            the lockfile key matches the state file's per-run key for
+            scope parity.
+
+    Issues: #1170
+    """
+    if run_id:
+        key = run_id
+    else:
+        key = hashlib.sha256(session_id.encode()).hexdigest()[:8]
+    lock_path = Path(f"/tmp/pipeline_agent_completions_{key}.lock")
+
+    try:
+        # "a+" auto-creates the lockfile and never truncates — important
+        # because losing the fd here would lose the lock for any other
+        # process that's already blocked on it.
+        with open(lock_path, "a+") as lock_fh:
+            try:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+            except OSError:
+                # Fail-open: a flock failure is rare (typically NFS) and
+                # the gate must keep functioning. Drop straight into the
+                # unlocked R-M-W path.
+                state = _read_state(session_id, run_id=run_id)
+                mutator(state)
+                _write_state(session_id, state, run_id=run_id)
+                return
+
+            try:
+                state = _read_state(session_id, run_id=run_id)
+                mutator(state)
+                _write_state(session_id, state, run_id=run_id)
+            finally:
+                # Release even on mutator exception so the lockfile does
+                # not stay held — every other concurrent caller would
+                # deadlock otherwise.
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        # Lockfile couldn't be opened (permissions, full /tmp). Fall
+        # back to the unlocked path — never raise out of state code.
+        state = _read_state(session_id, run_id=run_id)
+        mutator(state)
+        _write_state(session_id, state, run_id=run_id)
 
 
 def record_tier1_allow(
@@ -1233,19 +1324,32 @@ def record_tier1_allow(
         return
     lines_added = max(0, int(lines_added))
 
-    state = _ensure_state(session_id, run_id=run_id)
-    buffers = state.setdefault(_TIER1_RING_BUFFER_KEY, {})
-    entries = buffers.setdefault(file_path, [])
+    def _mutator(state: dict) -> None:
+        # _ensure_state behavior inlined for the empty-state path so the
+        # locked RMW does not need a second read.
+        if not state:
+            from datetime import datetime, timezone
 
-    entries.append({"ts": time.time(), "lines": lines_added})
+            state.update({
+                "session_id": session_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "validation_mode": "sequential",
+                "completions": {},
+                "prompt_baselines": {},
+            })
+        buffers = state.setdefault(_TIER1_RING_BUFFER_KEY, {})
+        entries = buffers.setdefault(file_path, [])
 
-    # Soft FIFO drop-oldest cap.
-    if len(entries) > _TIER1_RING_BUFFER_CAP:
-        del entries[: len(entries) - _TIER1_RING_BUFFER_CAP]
+        entries.append({"ts": time.time(), "lines": lines_added})
 
-    buffers[file_path] = entries
-    state[_TIER1_RING_BUFFER_KEY] = buffers
-    _write_state(session_id, state, run_id=run_id)
+        # Soft FIFO drop-oldest cap.
+        if len(entries) > _TIER1_RING_BUFFER_CAP:
+            del entries[: len(entries) - _TIER1_RING_BUFFER_CAP]
+
+        buffers[file_path] = entries
+        state[_TIER1_RING_BUFFER_KEY] = buffers
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
 def get_recent_tier1_allows(
@@ -1326,16 +1430,17 @@ def clear_tier1_ring_buffer(
     if not session_id or not file_path:
         return
 
-    state = _read_state(session_id, run_id=run_id)
-    if not state:
-        return
-    buffers = state.get(_TIER1_RING_BUFFER_KEY)
-    if not isinstance(buffers, dict):
-        return
-    if file_path in buffers:
-        buffers.pop(file_path, None)
-        state[_TIER1_RING_BUFFER_KEY] = buffers
-        _write_state(session_id, state, run_id=run_id)
+    def _mutator(state: dict) -> None:
+        if not state:
+            return
+        buffers = state.get(_TIER1_RING_BUFFER_KEY)
+        if not isinstance(buffers, dict):
+            return
+        if file_path in buffers:
+            buffers.pop(file_path, None)
+            state[_TIER1_RING_BUFFER_KEY] = buffers
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
@@ -1379,6 +1484,10 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     patterns = [
         ("/tmp/pipeline_agent_completions_*.json", "state_files_removed"),
         ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
+        # The "pipeline_*.lock" glob also matches the per-session R-M-W
+        # lockfiles introduced in #1170
+        # (/tmp/pipeline_agent_completions_*.lock), so orphaned R-M-W
+        # locks are reaped on the same cadence as state files.
         ("/tmp/pipeline_*.lock", "lockfiles_removed"),
     ]
 

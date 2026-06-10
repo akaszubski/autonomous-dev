@@ -62,20 +62,33 @@ def session_id(tmp_path, monkeypatch):
 
 
 def test_spec_issue849_1_hook_reads_mode_from_state_file():
-    """unified_pre_tool.py falls back to _get_pipeline_mode_from_state()
-    when PIPELINE_MODE env var is not set."""
+    """unified_pre_tool.py resolves pipeline mode via
+    ``_get_pipeline_mode_from_state()``, which itself honors
+    ``PIPELINE_MODE``.
+
+    History:
+      - #849 introduced the `env or helper` pattern at call sites.
+      - #1173 moved the env-var read INSIDE the helper.
+      - #1177 removed the now-dead outer short-circuit at both call sites.
+
+    Post-#1177 the spec is: (a) the hook calls the helper, and (b) the
+    PIPELINE_MODE env var read still exists somewhere in the file so the
+    override path is preserved.
+    """
     hook_path = (
         REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
     )
     source = hook_path.read_text()
 
-    # The fix: env var OR state file fallback (not a hardcoded "full" default)
-    assert (
-        'os.environ.get("PIPELINE_MODE") or _get_pipeline_mode_from_state()'
-        in source
-    ), (
-        "Hook must fall back to _get_pipeline_mode_from_state() when "
-        "PIPELINE_MODE env var is not set"
+    assert "_get_pipeline_mode_from_state()" in source, (
+        "Hook must call _get_pipeline_mode_from_state() to resolve "
+        "pipeline mode (#849)."
+    )
+
+    assert ('os.getenv("PIPELINE_MODE"' in source
+            or 'os.environ.get("PIPELINE_MODE"' in source), (
+        "PIPELINE_MODE env-var read disappeared entirely — #1173 moved "
+        "it inside the helper; removing it removes the #849 override."
     )
 
 

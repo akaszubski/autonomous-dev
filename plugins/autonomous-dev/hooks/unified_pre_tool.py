@@ -69,7 +69,7 @@ import shlex
 import sys
 import os
 from pathlib import Path
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 # Module-level session_id extracted from hook stdin (set in main()).
 # Logging functions fall back to this when CLAUDE_SESSION_ID env var is absent.
@@ -331,6 +331,16 @@ def _count_added_lines_for_sliding_window(old_string: str, new_string: str) -> i
     return max(0, new_lines - old_lines)
 
 
+# #1166: module-level cache so we resolve the ring-buffer API exactly
+# once per process. Previously every Write/Edit/Bash classification ran
+# the full importlib lookup, which was measurable in tight gate loops.
+# Module is shared with the cache helpers below — module-private by
+# convention, not enforcement.
+_PCS_MODULE_CACHE = None  # type: ignore[var-annotated]
+_PCS_API_CACHE: Tuple = (None, None, None)
+_PCS_RESOLVED = False
+
+
 def _load_tier1_ring_buffer_api():
     """Lazy resolve the ring-buffer API from ``pipeline_completion_state``.
 
@@ -338,16 +348,32 @@ def _load_tier1_ring_buffer_api():
     None, None)`` when the module is not importable. Callers MUST treat
     a ``None`` triple as "skip the sliding-window check" — failures here
     never worsen the gate behavior.
+
+    The triple is cached at module level after the first successful OR
+    failed resolution (#1166). Subsequent calls return the cached value
+    without re-importing. The failure path also sets the sentinel so we
+    do not pay the importlib cost every gate invocation when the module
+    is genuinely unavailable.
     """
+    global _PCS_MODULE_CACHE, _PCS_API_CACHE, _PCS_RESOLVED
+    if _PCS_RESOLVED:
+        return _PCS_API_CACHE
     try:
         import pipeline_completion_state as _pcs  # type: ignore[import-not-found]
-        return (
+        _PCS_MODULE_CACHE = _pcs
+        _PCS_API_CACHE = (
             getattr(_pcs, "record_tier1_allow", None),
             getattr(_pcs, "get_recent_tier1_allows", None),
             getattr(_pcs, "clear_tier1_ring_buffer", None),
         )
     except Exception:
-        return (None, None, None)
+        _PCS_API_CACHE = (None, None, None)
+    finally:
+        # Set even on the failure path so subsequent calls skip the
+        # import attempt — the gate must not re-pay importlib cost on
+        # every classification when the module is missing.
+        _PCS_RESOLVED = True
+    return _PCS_API_CACHE
 
 
 def _record_tier1_allow(session_id: str, file_path: str, lines_added: int) -> None:
@@ -1372,7 +1398,8 @@ def _is_stale_session(state: dict, state_path: "Path") -> bool:
     _is_pipeline_active() provides a secondary staleness guard.
     """
     stored_sid = state.get("session_id", "")
-    current_sid = os.getenv("CLAUDE_SESSION_ID") or _session_id
+    # #1171: sanitize untrusted env-var input before equality compare.
+    current_sid = _resolve_session_id_safe(_session_id) or "unknown"
 
     if not stored_sid or stored_sid == "unknown" or not current_sid or current_sid == "unknown":
         return False  # Cannot determine, fall through to TTL/HMAC
@@ -1768,7 +1795,8 @@ def _is_pipeline_active() -> bool:
             if state.get("hmac") is not None:
                 try:
                     from pipeline_state import verify_state_hmac
-                    sid = os.getenv("CLAUDE_SESSION_ID") or _session_id
+                    # #1171: sanitize untrusted env-var before HMAC verify.
+                    sid = _resolve_session_id_safe(_session_id) or "unknown"
                     if not verify_state_hmac(state, sid):
                         _log_deviation("pipeline_state", "hmac_check", "pipeline_state_hmac_invalid")
                         return False  # Fail closed: tampered state = not active
@@ -1822,7 +1850,8 @@ def _is_explicit_implement_active() -> bool:
         if state.get("hmac") is not None:
             try:
                 from pipeline_state import verify_state_hmac
-                sid = os.getenv("CLAUDE_SESSION_ID") or _session_id
+                # #1171: sanitize untrusted env-var before HMAC verify.
+                sid = _resolve_session_id_safe(_session_id) or "unknown"
                 if not verify_state_hmac(state, sid):
                     _log_deviation("pipeline_state", "hmac_check", "explicit_implement_hmac_invalid")
                     return False  # Fail closed: tampered state = not active
@@ -1875,7 +1904,8 @@ def _has_alignment_passed() -> bool:
         if state.get("hmac") is not None:
             try:
                 from pipeline_state import verify_state_hmac
-                sid = os.getenv("CLAUDE_SESSION_ID") or _session_id
+                # #1171: sanitize untrusted env-var before HMAC verify.
+                sid = _resolve_session_id_safe(_session_id) or "unknown"
                 if not verify_state_hmac(state, sid):
                     _log_deviation(
                         "pipeline_state", "hmac_check", "alignment_gate_hmac_invalid"
@@ -2981,10 +3011,15 @@ def _check_pipeline_agent_completions(session_id: str) -> "Optional[str]":
         if mod is None or not hasattr(mod, "verify_pipeline_agent_completions"):
             return None  # Fail-open
 
-        # Determine pipeline mode from env (set by coordinator)
-        pipeline_mode = os.environ.get("PIPELINE_MODE") or _get_pipeline_mode_from_state()
+        # Determine pipeline mode. #1177: env-var handled internally by
+        # _get_pipeline_mode_from_state() since #1173 — the previous
+        # outer `os.environ.get("PIPELINE_MODE") or ...` short-circuit
+        # was dead code (the helper already reads the same env var at
+        # its first line).
+        pipeline_mode = _get_pipeline_mode_from_state()
         issue_number = 0
         try:
+            # NOTE(#1177-followup): env-var read here may also be dead; audit deferred.
             issue_number = int(os.environ.get("PIPELINE_ISSUE_NUMBER", "0"))
         except (ValueError, TypeError):
             pass
@@ -3347,7 +3382,8 @@ def _log_deviation(file_name: str, tool_name: str, reason: str) -> None:
             "file": file_name,
             "tool": tool_name,
             "reason": reason,
-            "session_id": os.getenv("CLAUDE_SESSION_ID") or _session_id,
+            # #1171: sanitize untrusted env-var before writing to JSON log.
+            "session_id": _resolve_session_id_safe(_session_id) or "unknown",
         }
         with open(log_dir / "deviations.jsonl", "a") as f:
             f.write(_json.dumps(entry) + "\n")
@@ -3401,6 +3437,7 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
                     ))
         # Issue #528: If /implement was explicitly invoked, block coordinator code writes
         if impl_active and tool_name in ("Write", "Edit", "Bash"):
+            # NOTE(#1177-followup): env-var read here may also be dead; audit deferred.
             level = os.getenv("ENFORCEMENT_LEVEL", "block").strip().lower()
             if level != "off" and _is_code_file_target(tool_name, tool_input):
                 block_reason = (
@@ -3620,7 +3657,8 @@ def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reaso
             "hook": "PreToolUse",
             "decision": decision,
             "reason": reason[:300],
-            "session_id": os.getenv("CLAUDE_SESSION_ID") or _session_id,
+            # #1171: sanitize untrusted env-var before writing to JSON log.
+            "session_id": _resolve_session_id_safe(_session_id) or "unknown",
             "agent": _get_active_agent_name() or "main",
             **summary,
         }
@@ -3693,6 +3731,33 @@ def _sanitize_session_id(raw: str) -> str:
     # Layer 4: Length cap — prevent PATH_MAX exhaustion on macOS (1024) and Linux (4096)
     sanitized = sanitized[:128]
     return sanitized if sanitized else 'unknown'
+
+
+def _resolve_session_id_safe(input_session_id: Optional[str]) -> Optional[str]:
+    """Resolve and sanitize the active session id.
+
+    Centralizes the "read CLAUDE_SESSION_ID env var, fall back to the
+    already-sanitized module-level ``_session_id``, then sanitize the
+    result" pattern that was previously duplicated at 8 sites. The env
+    var is untrusted process input — without sanitizing here, the raw
+    value would flow into filesystem paths and HMAC computations.
+
+    Args:
+        input_session_id: Fallback session id when the env var is unset
+            (typically ``_session_id`` from the hook's per-invocation
+            scope, which is itself already sanitized at line 4856).
+
+    Returns:
+        A sanitized session id string, OR ``None`` if the resolved value
+        is empty or the literal ``"unknown"`` after sanitization. Callers
+        that need ``"unknown"`` semantics use ``... or "unknown"`` at the
+        call site to preserve prior behavior.
+
+    Issues: #1171
+    """
+    env_raw = os.getenv("CLAUDE_SESSION_ID") or input_session_id or ""
+    sanitized = _sanitize_session_id(env_raw)
+    return sanitized if sanitized and sanitized != "unknown" else None
 
 
 def _update_deny_cache(file_path: str) -> None:
@@ -4982,9 +5047,8 @@ def main():
                 try:
                     # Phase 2 (Issue #1146): pass session_id so the
                     # sliding-window can scope its ring buffer per session.
-                    _wpg_session_id = (
-                        os.getenv("CLAUDE_SESSION_ID") or _session_id or None
-                    )
+                    # #1171: sanitize untrusted env-var before use.
+                    _wpg_session_id = _resolve_session_id_safe(_session_id)
                     _wpg_block, _wpg_tier, _wpg_directive = _check_write_pipeline_required(
                         tool_name,
                         file_path,
@@ -5237,9 +5301,8 @@ def main():
                     # earlier) and the one-shot operator bypass.
                     try:
                         # Phase 2 (Issue #1146): pass session_id for symmetry.
-                        _b2b_session_id = (
-                            os.getenv("CLAUDE_SESSION_ID") or _session_id or None
-                        )
+                        # #1171: sanitize untrusted env-var before use.
+                        _b2b_session_id = _resolve_session_id_safe(_session_id)
                         (
                             _b2b_block,
                             _b2b_tier,
@@ -5607,6 +5670,7 @@ def main():
                                 # Security fix: Only match at START of command (not in commit messages)
                                 _skip_gate_via_command = bool(re.match(r'(?i)SKIP_AGENT_COMPLETENESS_GATE=[1]', command.strip())) or bool(re.match(r'(?i)skip_agent_completeness_gate=true', command.strip()))
                                 # Log bypass activations for audit trail
+                                # NOTE(#1177-followup): env-var read here may also be dead; audit deferred.
                                 _skip_gate_via_env = os.environ.get("SKIP_AGENT_COMPLETENESS_GATE", "").strip().lower() in ("1", "true", "yes")
                                 if _skip_gate_via_file:
                                     _log_pretool_activity(tool_name, tool_input, "allow", "bypass: file-based gate skip consumed")
@@ -5639,7 +5703,10 @@ def main():
                                             if _batch_agent_mod is not None and hasattr(_batch_agent_mod, "_read_state") and hasattr(_batch_agent_mod, "verify_pipeline_agent_completions"):
                                                 _batch_agent_state = _batch_agent_mod._read_state(_agent_gate_session_id)
                                                 _batch_agent_completions = _batch_agent_state.get("completions", {}) if _batch_agent_state else {}
-                                                _batch_agent_pipeline_mode = os.environ.get("PIPELINE_MODE") or _get_pipeline_mode_from_state()
+                                                # #1177: env-var handled internally by
+                                                # _get_pipeline_mode_from_state() since #1173 — outer
+                                                # `os.environ.get("PIPELINE_MODE") or ...` was dead.
+                                                _batch_agent_pipeline_mode = _get_pipeline_mode_from_state()
                                                 _batch_agent_failures: list = []
                                                 for _batch_agent_key in _batch_agent_completions:
                                                     if _batch_agent_key == "0":
