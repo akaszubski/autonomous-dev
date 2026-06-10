@@ -608,13 +608,17 @@ class TestHookRegistration:
     # cross-test-module imports — if the regression test renames the constant,
     # mypy/pyflakes will not flag a stale import here.
     #
-    # The dogfooding templates (settings.autonomous-dev.json,
-    # settings.local.json) are intentionally NOT in this set — they redeclare
-    # global hooks on purpose so they work without configure_global_settings.py
-    # having been run first.
+    # The dogfooding template settings.autonomous-dev.json is intentionally
+    # NOT in this set — it redeclares global hooks on purpose so it works
+    # without configure_global_settings.py having been run first.
+    #
+    # settings.local.json joined this set with Issue #1183: its hooks block
+    # is now empty ({}) — hooks live exclusively in settings.json — so it
+    # must NOT register conversation_archiver (or any other hook).
     _GLOBAL_FREE_TEMPLATES = (
         "settings.default.json",
         "settings.granular-bash.json",
+        "settings.local.json",
         "settings.permission-batching.json",
         "settings.strict-mode.json",
     )
@@ -635,8 +639,8 @@ class TestHookRegistration:
         """conversation_archiver must be registered in dogfooding templates.
 
         conversation_archiver is a global hook. Per Issue #944, it is REQUIRED
-        in the dogfooding templates (settings.autonomous-dev.json,
-        settings.local.json) but FORBIDDEN in the templates listed in
+        in the dogfooding template (settings.autonomous-dev.json) but
+        FORBIDDEN in the templates listed in
         ``_GLOBAL_FREE_TEMPLATES`` (default, granular-bash, permission-batching,
         strict-mode) — those rely on the global ~/.claude/settings.json
         registration to avoid double execution.
@@ -662,8 +666,7 @@ class TestHookRegistration:
         assert checked_non_global_free >= 1, (
             "Expected at least one non-global-free (dogfooding) template "
             "containing conversation_archiver, found none. "
-            "Check templates/ — has settings.autonomous-dev.json or "
-            "settings.local.json been removed?"
+            "Check templates/ — has settings.autonomous-dev.json been removed?"
         )
 
     def test_archiver_absent_from_global_free_templates(self):
