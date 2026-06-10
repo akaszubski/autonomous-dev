@@ -1408,6 +1408,31 @@ This ensures deferred findings are tracked as searchable artifacts, not lost in 
 - ❌ Deferring a finding to "future work" without filing a GitHub issue
 - ❌ Logging findings only in Stop hook messages (these are not searchable artifacts)
 
+**Security-Auditor Advisory Finding Tracking**
+
+After the STEP 11 gate completes (final security-auditor verdict reached, post-remediation if applicable), the coordinator MUST parse the security-auditor verbatim output for an `ADVISORY-FINDINGS:` block and file GitHub issues for each Low/Medium finding listed:
+
+1. Read the final security-auditor output from `.claude/logs/activity/validators/$RUN_ID/security-auditor.txt`.
+2. Extract the `ADVISORY-FINDINGS:` block.
+   - If the block is absent: log `[ADVISORY-MALFORMED]`, re-invoke security-auditor ONCE with a clarifying suffix ("Your previous output omitted the required ADVISORY-FINDINGS block — re-emit with the block included"). If still malformed after re-invocation, BLOCK the pipeline.
+   - If the block is the literal `ADVISORY-FINDINGS: none`: skip filing (no findings to track).
+3. For each `- [Low]` or `- [Medium]` line in the block:
+   a. **Dedup query**:
+      ```bash
+      gh issue list --label security --label auto-improvement --state open --search "<summary>" --json title,number
+      ```
+      Skip filing if a matching open issue exists. If the `gh issue list --search` query errors, assume no duplicate and proceed to file.
+   b. **File the issue**:
+      ```bash
+      gh issue create --title "[Security advisory] <summary>" --body "<verbatim finding line + RUN_ID context>" --label security --label auto-improvement
+      ```
+      If `gh` auth fails or the call errors, capture stderr, log `[ADVISORY-FILE-FAILED] <summary>` per finding, and continue with the remaining findings — do NOT block the pipeline (degraded but functional).
+
+**FORBIDDEN** — Security-auditor advisory finding violations:
+- ❌ Acknowledging a Low or Medium security-auditor finding without creating a tracking issue
+- ❌ Accepting a security-auditor PASS that omits the ADVISORY-FINDINGS block (malformed output) — re-invoke once, then BLOCK
+- ❌ Proceeding past STEP 11 without parsing the ADVISORY-FINDINGS block from the final security-auditor verbatim output
+
 ### STEP 11.5: Skill Effectiveness Gate (Conditional)
 
 **Progress**: Output step banner only if skill files were modified.

@@ -31,6 +31,7 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
 - ❌ You MUST NOT skip categories because "not applicable" without stating why
 - ❌ You MUST NOT issue PASS when any Critical or High severity finding exists
 - ❌ You MUST NOT use generic "no vulnerabilities found" without specific checks performed
+- ❌ You MUST NOT defer a Low/Medium finding to "follow-up" without emitting it in the ADVISORY-FINDINGS block.
 
 **OWASP Top 10 Checklist** (mark each ✅ or ❌ with finding):
 1. **A01: Broken Access Control** — Authorization checks, path traversal, CORS
@@ -81,6 +82,25 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
 
 Document your security assessment with: overall status (PASS/FAIL), vulnerabilities found (severity, issue, location, attack vector, recommendation), security checks completed, and optional recommendations.
 
+### Advisory Findings Block (REQUIRED for Low/Medium severity findings not blocking PASS)
+
+You MUST emit an `ADVISORY-FINDINGS:` block at the end of every security audit, regardless of the overall verdict. This block enumerates all Low and Medium severity findings that do NOT block PASS but MUST be tracked by the coordinator for follow-up issue filing.
+
+**Required format** (one line per finding):
+
+```
+ADVISORY-FINDINGS:
+- [Low] <summary>: <file>:<line> — <one-sentence recommendation>
+- [Medium] <summary>: <file>:<line> — <one-sentence recommendation>
+```
+
+**When there are no advisory findings**, you MUST emit the literal block:
+
+```
+ADVISORY-FINDINGS: none
+```
+
+The absence of any `ADVISORY-FINDINGS:` block (neither populated nor `none`) is malformed output and will cause the coordinator to re-invoke this agent. Severity `[Critical]` and `[High]` findings MUST NOT appear in this block — they cause FAIL and are tracked via the remediation loop instead.
 
 ## Common Vulnerabilities to Check
 
