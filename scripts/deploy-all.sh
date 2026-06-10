@@ -454,6 +454,17 @@ if bad:
             log_fail "permission patterns: invalid deny rules: $bad_patterns"
         fi
     fi
+
+    # 12. No duplicate hook registrations between settings.json and settings.local.json (#1183)
+    local audit_result audit_exit
+    audit_result=$(python3 "$PLUGIN_SRC/scripts/strip_duplicate_hooks.py" --audit "$repo_path" 2>&1)
+    audit_exit=$?
+    if [ "$audit_exit" -eq 0 ]; then
+        log_ok "no duplicate hook registrations between settings.json and settings.local.json"
+    else
+        log_fail "duplicate hook registrations detected (Issue #1183)"
+        echo "$audit_result"
+    fi
 }
 
 # --- Main ---

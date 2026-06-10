@@ -118,6 +118,54 @@ def _count_lifecycle_events(settings_path: Path) -> int:
         return 0
 
 
+def _detect_stale_local_warnings(
+    user_path: Path, template_hooks: Dict[str, Any]
+) -> list:
+    """Detect hook refs in settings.local.json that duplicate template hooks.
+
+    Both ``settings.json`` and ``settings.local.json`` are project-tier
+    settings; Claude Code merges them, so any hook basename present in BOTH
+    fires twice (Issue #1183, root-cause follow-up to #1176).
+
+    The current ``templates/settings.local.json`` carries no hooks, so a
+    legacy ``settings.local.json`` on an upgrading repo is the only way
+    this warning fires.
+
+    Args:
+        user_path: Path to the user's ``settings.json``. Sibling
+            ``settings.local.json`` is inspected next to it.
+        template_hooks: The canonical hooks dict that will be written to
+            ``settings.json`` (used to derive expected basenames).
+
+    Returns:
+        Sorted list of hook basenames present in BOTH ``settings.local.json``
+        and the template's canonical hooks. Empty list when no overlap or
+        when ``settings.local.json`` is missing/malformed.
+    """
+    local_path = user_path.parent / "settings.local.json"
+    if not local_path.exists():
+        return []
+
+    _setup_imports()
+    try:
+        from settings_merger import extract_hook_refs
+    except ImportError:
+        return []
+
+    try:
+        local_data = json.loads(local_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(local_data, dict):
+        return []
+
+    canonical_settings = {"hooks": template_hooks}
+    canonical_refs = extract_hook_refs(canonical_settings)
+    local_refs = extract_hook_refs(local_data)
+    return sorted(canonical_refs & local_refs)
+
+
 def _replace_hooks(
     user_path: Path, template_path: Path, *, dry_run: bool = False
 ) -> Dict[str, Any]:
@@ -196,6 +244,17 @@ def _replace_hooks(
     if deny_synced:
         deny_msg = f", deny list synced ({deny_errors_fixed} invalid patterns fixed)"
 
+    # Issue #1183: detect legacy settings.local.json that still registers
+    # canonical hooks → would cause same-tier duplicate firings.
+    stale_local_warnings = _detect_stale_local_warnings(user_path, template_hooks)
+    stale_msg = ""
+    if stale_local_warnings:
+        stale_msg = (
+            f"; WARNING: settings.local.json still registers "
+            f"{len(stale_local_warnings)} duplicate hooks — "
+            f"re-run sync after upgrade"
+        )
+
     return {
         "success": True,
         "hooks_added": hooks_added,
@@ -204,10 +263,12 @@ def _replace_hooks(
         "total_lifecycle_events": total_events,
         "deny_synced": deny_synced,
         "deny_errors_fixed": deny_errors_fixed,
+        "stale_local_warnings": stale_local_warnings,
         "message": (
             f"Hooks replaced: {total_events} lifecycle events "
             f"({hooks_added} added, {hooks_preserved} updated)"
             f"{deny_msg}"
+            f"{stale_msg}"
         ),
     }
 

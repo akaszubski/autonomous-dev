@@ -119,25 +119,25 @@ def test_spec_issue944_1_dogfood_template_untouched():
     )
 
 
-def test_spec_issue944_1_settings_local_untouched():
-    """AC1-subtle: settings.local.json MUST be untouched (deferred per plan)."""
-    result = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--name-only",
-            "HEAD",
-            "--",
-            "plugins/autonomous-dev/templates/settings.local.json",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
+def test_spec_issue944_1_settings_local_hooks_block_is_empty():
+    """settings.local.json MUST carry an empty hooks block.
+
+    Original Issue #944 plan deferred touching ``templates/settings.local.json``
+    pending a follow-up audit. Issue #1183 closes that deferral as the
+    root-cause fix for the SubagentStop double-fire bug-class (Issue #1176):
+    both ``settings.json`` and ``settings.local.json`` are project-tier
+    settings, so any hook registered in both fires twice. The new contract is
+    that ``settings.local.json`` carries ONLY permissions and user
+    customizations; hooks live exclusively in ``settings.json``.
+    """
+    data = json.loads(
+        (TEMPLATES_DIR / "settings.local.json").read_text(encoding="utf-8")
     )
-    assert result.stdout.strip() == "", (
-        "settings.local.json was modified — preserved/deferred list per "
-        "plan-critic."
+    hooks_block = data.get("hooks")
+    assert hooks_block in ({}, None), (
+        f"templates/settings.local.json must have empty hooks block per "
+        f"Issue #1183 (root-cause fix for #1176 double-fire); "
+        f"got: {hooks_block!r}"
     )
 
 

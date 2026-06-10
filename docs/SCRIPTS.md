@@ -18,7 +18,7 @@ bash scripts/deploy-all.sh
 bash scripts/deploy-all.sh --global-settings  # also register hooks in ~/.claude/settings.json
 ```
 
-Deploys the plugin to all configured targets: local machine + all dogfooding repos + Mac Studio via SSH. Auto-detects Mac Studio reachability (LAN `10.55.0.2` with 3s probe; falls back to Tailscale `100.103.205.63`). Idempotent — safe to re-run. Performs per-target validation (hooks parse, match source SHA, all registered). Exits non-zero if any target fails validation.
+Deploys the plugin to all configured targets: local machine + all dogfooding repos + Mac Studio via SSH. Auto-detects Mac Studio reachability (LAN `10.55.0.2` with 3s probe; falls back to Tailscale `100.103.205.63`). Idempotent — safe to re-run. Performs 12 per-target validation checks (hooks parse, match source SHA, all registered, no duplicate hook registrations between `settings.json` and `settings.local.json` — Issue #1183 check #12 via `strip_duplicate_hooks.py --audit`). Exits non-zero if any target fails validation.
 
 **Default behavior (Issue #995)**: Hook FILES are cached to `~/.claude/hooks/` (library cache for future foreign-repo opt-in), but hooks are **NOT** registered in `~/.claude/settings.json` by default. Per-repo `<repo>/.claude/settings.json` registration is unchanged — autonomous-dev itself continues to work. To also register hooks globally, pass `--global-settings`.
 
