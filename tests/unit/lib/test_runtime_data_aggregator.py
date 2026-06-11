@@ -30,6 +30,8 @@ from runtime_data_aggregator import (
     collect_github_signals,
     collect_session_signals,
     compute_priority,
+    fetch_issues_with_label,
+    fetch_open_issues_with_label,
     normalize_severity,
     persist_report,
     scrub_secrets,
@@ -433,6 +435,198 @@ class TestCollectGithubSignals:
         assert signals == []
         assert health.status == "error"
         assert "timed out" in health.error_message
+
+
+# =============================================================================
+# TestFetchIssuesWithLabel (Issue #1201 — closed-state + closed_within_days)
+# =============================================================================
+
+class TestFetchIssuesWithLabel:
+    """Tests for fetch_issues_with_label (Issue #1201).
+
+    Exercises the new ``state="closed"`` / ``closed_within_days=`` code path,
+    including the conditional ``closedAt`` JSON field inclusion, post-filter
+    by cutoff, and the fail-open behavior on null/missing/malformed
+    ``closedAt`` values.
+    """
+
+    @patch("runtime_data_aggregator.subprocess.run")
+    def test_closed_within_days_filters_out_old_issue(
+        self, mock_run: MagicMock
+    ) -> None:
+        """state='closed' + closed_within_days=90 drops issues closed >90d ago."""
+        recent_iso = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        old_iso = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps([
+                {
+                    "number": 100,
+                    "title": "Recently closed",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "closedAt": recent_iso,
+                },
+                {
+                    "number": 200,
+                    "title": "Long-ago closed",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "closedAt": old_iso,
+                },
+            ]),
+            stderr="",
+        )
+
+        issues, health = fetch_issues_with_label(
+            state="closed", closed_within_days=90,
+        )
+
+        assert health.status == "ok"
+        numbers = sorted(i["number"] for i in issues)
+        assert numbers == [100], (
+            f"Expected only the recently-closed issue (#100); got {numbers}"
+        )
+
+        # Verify the gh argv shape: --state closed and closedAt requested.
+        cmd = mock_run.call_args[0][0]
+        assert "--state" in cmd and cmd[cmd.index("--state") + 1] == "closed"
+        json_fields = cmd[cmd.index("--json") + 1]
+        assert "closedAt" in json_fields, (
+            "closedAt MUST be requested when state != 'open' to enable "
+            "post-filtering"
+        )
+
+    @patch("runtime_data_aggregator.subprocess.run")
+    def test_missing_closed_at_kept_fail_open(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Issues with missing/empty closedAt are kept (fail-open).
+
+        Covers the line ``if not closed_at: filtered.append(issue)`` —
+        e.g., state='all' returns mixed open/closed issues where the
+        open ones have an empty ``closedAt``.
+        """
+        recent_iso = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps([
+                {
+                    "number": 1,
+                    "title": "Still open",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "closedAt": "",  # Empty string — fail-open keep
+                },
+                {
+                    "number": 2,
+                    "title": "No closedAt key",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    # closedAt key entirely missing — fail-open keep
+                },
+                {
+                    "number": 3,
+                    "title": "Recently closed",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "closedAt": recent_iso,
+                },
+            ]),
+            stderr="",
+        )
+
+        issues, health = fetch_issues_with_label(
+            state="all", closed_within_days=90,
+        )
+
+        assert health.status == "ok"
+        numbers = sorted(i["number"] for i in issues)
+        assert numbers == [1, 2, 3], (
+            f"All three issues must be kept (#1 empty closedAt, "
+            f"#2 missing closedAt, #3 recent); got {numbers}"
+        )
+
+    @patch("runtime_data_aggregator.subprocess.run")
+    def test_malformed_closed_at_kept_fail_open(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Malformed closedAt strings are kept (fail-open).
+
+        Covers the line ``if dt is None: filtered.append(issue)`` — when
+        ``_parse_iso_ts`` cannot parse the timestamp we MUST over-include
+        rather than silently drop the issue.
+        """
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps([
+                {
+                    "number": 42,
+                    "title": "Garbled closedAt",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                    "closedAt": "not-a-timestamp-at-all",
+                },
+            ]),
+            stderr="",
+        )
+
+        issues, health = fetch_issues_with_label(
+            state="closed", closed_within_days=30,
+        )
+
+        assert health.status == "ok"
+        numbers = [i["number"] for i in issues]
+        assert numbers == [42], (
+            f"Malformed closedAt must fail-open (keep the issue); got {numbers}"
+        )
+
+    @patch("runtime_data_aggregator.subprocess.run")
+    def test_fetch_open_issues_alias_delegates_with_state_open(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Backward-compat alias forwards state='open' to gh argv.
+
+        Ensures ``fetch_open_issues_with_label`` (preserved for pre-#1201
+        callers in ``issue_triage_analyzer`` and ``collect_github_signals``)
+        still passes ``--state open`` and does NOT include ``closedAt`` in
+        the JSON field list.
+        """
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps([
+                {
+                    "number": 7,
+                    "title": "Open issue",
+                    "body": "...",
+                    "labels": [{"name": "auto-improvement"}],
+                    "createdAt": "2026-01-01T00:00:00Z",
+                },
+            ]),
+            stderr="",
+        )
+
+        issues, health = fetch_open_issues_with_label()
+
+        assert health.status == "ok"
+        assert len(issues) == 1
+
+        cmd = mock_run.call_args[0][0]
+        assert "--state" in cmd, "alias MUST pass --state to gh"
+        assert cmd[cmd.index("--state") + 1] == "open", (
+            f"alias MUST pass --state open (got {cmd[cmd.index('--state') + 1]!r})"
+        )
+        json_fields = cmd[cmd.index("--json") + 1]
+        assert "closedAt" not in json_fields, (
+            "state='open' MUST NOT request closedAt (it is irrelevant and the "
+            "branch in fetch_issues_with_label gates inclusion on state != 'open')"
+        )
 
 
 # =============================================================================

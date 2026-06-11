@@ -138,36 +138,248 @@ Present the analysis report to the user with:
 - Suggestions (optimization opportunities)
 - Issue candidates (ready to file)
 
-### STEP 5: Auto-File Issues (if --auto-file)
+**TUNABLE THRESHOLDS**: The promotion thresholds applied below
+(`PROMOTION_FREQUENCY_MIN=3`, `PROMOTION_DISTINCT_SESSIONS_MIN=2`,
+`PROMOTION_ERROR_FREQUENCY_MIN=2`, `PROMOTION_WINDOW_DAYS=90`,
+`MATCH_RATE_ALARM_THRESHOLD=0.50`, `CLOSED_LOOKBACK_DAYS=90`) live in
+`plugins/autonomous-dev/lib/macro_promotion.py`. They are intentional and
+documented (Sentry-style volume AND breadth, Google SRE dual-window
+precedent). **Re-evaluation gate**: revisit these values after the user has
+reviewed the first 2 digests. Do NOT change them inside individual /improve
+runs.
 
-If `--auto-file` flag is set:
+### STEP 5: Auto-File Issues — Macro Promotion + Direction-Guard Digest (if --auto-file)
 
-1. Verify no duplicate issues exist in the **autonomous-dev repo** (not current repo):
+If `--auto-file` flag is set, run the macro-promotion coordinator. CIA
+findings are NOT filed one-per-finding anymore — they are clustered cross-
+session by `collect_cia_findings` (Issue #1200), gated by the macro-
+promotion thresholds (Issue #1201), and either appended to an existing
+matching open issue or created as a new issue. Non-promoted findings are
+HELD (no side effect) and surfaced in the digest only.
+
+**HARD GATE**:
+
+> **FORBIDDEN** — one issue per finding / per-finding filing. Only
+> threshold-crossing promoted clusters get issues.
+>
+> **REQUIRED** — Every /improve --auto-file run MUST end with a printed
+> 5-section digest (ACTIONS TAKEN / Recurrence-after-close / Match-rate /
+> Findings-per-session / Error-without-other-channel), persisted to
+> `.claude/logs/aggregated_reports.jsonl`. The digest is anti-habituation:
+> all 5 sections render even when their respective signal is empty.
+
+Steps (run from the repo root resolved via `git rev-parse`):
+
+1. Resolve the absolute findings directory (worktree safety, mirrors #1200):
+
    ```bash
-   gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state open
+   PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+   FINDINGS_DIR="${PROJECT_ROOT}/.claude/logs/findings"
    ```
 
-2. For each non-duplicate finding with severity >= warning:
+2. Write the hook-contract context file BEFORE any `gh` call. The
+   gh-filing hook expects this file to exist; create it once at the top of
+   the step and clean it up at the end. **DO NOT REMOVE** — this contract
+   is what marks the subsequent `gh issue create` calls as legitimate /improve
+   side effects and is depended on by `unified_pre_tool.py`.
+
    ```bash
    python3 -c "
-   import json; from datetime import datetime, timezone
+   import json
+   from datetime import datetime, timezone
    with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
-       json.dump({'command': 'improve', 'timestamp': datetime.now(timezone.utc).isoformat()}, f)
+       json.dump(
+           {'command': 'improve', 'timestamp': datetime.now(timezone.utc).isoformat()},
+           f,
+       )
    "
-   gh issue create -R akaszubski/autonomous-dev \
-     --title "[CI-{severity}] {title}" \
-     --label "continuous-improvement,auto-improvement" \
-     --body "{evidence + rule violated + suggested fix + **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)}"
    ```
 
-3. After all issues are filed, clean up the context file:
+3. Run the macro-promotion coordinator inline. The library does NO `gh`
+   calls, NO filesystem writes — it returns a list of `PromotionDecision`
+   records that this step executes.
+
+   ```bash
+   python3 - <<'PY'
+   import json, os, sys, subprocess
+   from datetime import datetime, timezone
+   from pathlib import Path
+
+   PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT",
+                                       subprocess.check_output(
+                                           ["git", "rev-parse", "--show-toplevel"],
+                                           text=True).strip()))
+   FINDINGS_DIR = PROJECT_ROOT / ".claude" / "logs" / "findings"
+
+   for _p in ("plugins/autonomous-dev/lib", ".claude/lib"):
+       full = PROJECT_ROOT / _p
+       if full.is_dir():
+           sys.path.insert(0, str(full))
+
+   from runtime_data_aggregator import (
+       AggregatedReport, collect_cia_findings, fetch_issues_with_label,
+       persist_report,
+   )
+   from macro_promotion import (
+       CLOSED_LOOKBACK_DAYS, PROMOTION_WINDOW_DAYS,
+       build_digest, decide_promotions, detect_recurrence_after_close,
+       format_digest,
+   )
+
+   # Collect cross-session CIA findings (Issue #1200 contract).
+   signals, cia_health = collect_cia_findings(
+       FINDINGS_DIR, window_days=PROMOTION_WINDOW_DAYS,
+   )
+
+   # Fetch open + recently-closed auto-improvement issues.
+   open_issues, open_health = fetch_issues_with_label(state="open")
+   closed_issues, closed_health = fetch_issues_with_label(
+       state="closed", closed_within_days=CLOSED_LOOKBACK_DAYS,
+   )
+
+   decisions = decide_promotions(signals, open_issues)
+   recurrence = detect_recurrence_after_close(signals, closed_issues)
+
+   # Side effects per decision.
+   create_failures = 0
+   for d in decisions:
+       if d.route == "hold":
+           continue
+       evidence = (
+           f"Cross-session CIA evidence ({datetime.now(timezone.utc).isoformat()}):\n"
+           f"- root_cause_tag: {d.signal.signal_type}\n"
+           f"- frequency (cluster size): {d.signal.frequency}\n"
+           f"- distinct_sessions: {d.signal.raw_data.get('distinct_sessions', 0)}\n"
+           f"- file_refs: "
+           f"{', '.join(d.signal.raw_data.get('file_refs_union', [])) or '(none)'}\n"
+           f"- max_severity_label: {d.signal.raw_data.get('max_severity_label', 'info')}\n"
+       )
+       if d.route == "append":
+           # TOCTOU mitigation: re-classify immediately before each action to
+           # catch a same-tag issue that opened/closed between fetch and now.
+           from macro_promotion import classify_route
+           fresh_open, _ = fetch_issues_with_label(state="open")
+           route_now, matched_now = classify_route(d.signal, fresh_open)
+           if route_now == "append" and matched_now is not None:
+               target = matched_now
+               rc = subprocess.call([
+                   "gh", "issue", "comment", str(target),
+                   "-R", "akaszubski/autonomous-dev",
+                   "--body", evidence,
+               ])
+               if rc != 0:
+                   create_failures += 1
+           else:
+               # FINDING-1 fix (Issue #1201 remediation): the originally
+               # matched open issue has been closed in the window between
+               # fetch and action. Pivot to CREATE instead of commenting on
+               # a stale (closed) issue, which would silently route the
+               # finding to a closed issue not surfaced in normal open views.
+               tag = d.signal.signal_type
+               max_label = d.signal.raw_data.get("max_severity_label", "info")
+               title = f"[CI-{max_label}-{tag}] {d.signal.description}"[:200]
+               rc = subprocess.call([
+                   "gh", "issue", "create",
+                   "-R", "akaszubski/autonomous-dev",
+                   "--title", title,
+                   "--label", "continuous-improvement,auto-improvement",
+                   "--body", evidence,
+               ])
+               if rc != 0:
+                   create_failures += 1
+       elif d.route == "create":
+           # TOCTOU mitigation before CREATE: re-fetch and re-classify; if a
+           # matching open issue now exists, SWITCH to append.
+           from macro_promotion import classify_route
+           fresh_open, _ = fetch_issues_with_label(state="open")
+           route_now, matched_now = classify_route(d.signal, fresh_open)
+           if route_now == "append" and matched_now is not None:
+               rc = subprocess.call([
+                   "gh", "issue", "comment", str(matched_now),
+                   "-R", "akaszubski/autonomous-dev",
+                   "--body", evidence,
+               ])
+               if rc != 0:
+                   create_failures += 1
+               continue
+           tag = d.signal.signal_type
+           max_label = d.signal.raw_data.get("max_severity_label", "info")
+           title = f"[CI-{max_label}-{tag}] {d.signal.description}"[:200]
+           rc = subprocess.call([
+               "gh", "issue", "create",
+               "-R", "akaszubski/autonomous-dev",
+               "--title", title,
+               "--label", "continuous-improvement,auto-improvement",
+               "--body", evidence,
+           ])
+           if rc != 0:
+               create_failures += 1
+
+   # Build digest. open_auto_improvement_count is the latest open count.
+   open_count_for_digest = open_health.signal_count if open_health.status == "ok" else len(open_issues)
+   # FINDING-2 fix (Issue #1201 remediation): summing per-cluster
+   # distinct_sessions across all signals double-counts sessions that
+   # appeared in multiple clusters. The aggregated signals do not preserve
+   # the actual session-id set, so the union is not reconstructable from
+   # this layer. Use max() as a lower-bound APPROXIMATION (the largest
+   # single cluster's session count is guaranteed >= the union's lower
+   # bound). This keeps the displayed findings-per-session ratio truthful
+   # (slightly conservative) while still triggering the emission-failure
+   # alarm correctly when the numerator is zero.
+   distinct_sessions_observed = max(
+       (int(s.raw_data.get("distinct_sessions", 0)) for s in signals),
+       default=0,
+   )
+   counts = build_digest(
+       decisions, recurrence,
+       open_auto_improvement_count=open_count_for_digest,
+       findings_observed=len(signals),
+       distinct_sessions_observed=distinct_sessions_observed,
+       create_failures=create_failures,
+   )
+   digest_body = format_digest(counts)
+
+   # Print the digest body verbatim so the user sees it inline.
+   print("\n=== /improve --auto-file digest (Issue #1201) ===")
+   print(digest_body)
+   print("=================================================\n")
+
+   # Persist as a single JSONL line. We synthesize an AggregatedReport so
+   # the persistence path mirrors aggregate().
+   now = datetime.now(timezone.utc)
+   report = AggregatedReport(
+       signals=signals,
+       source_health=[cia_health, open_health, closed_health],
+       window_start=(now.replace(microsecond=0)).isoformat(),
+       window_end=now.isoformat(),
+       top_n=len(signals),
+   )
+   persist_report(report, PROJECT_ROOT / ".claude" / "logs" / "aggregated_reports.jsonl")
+   PY
+   ```
+
+4. Clean up the hook-contract context file:
+
    ```bash
    rm -f /tmp/autonomous_dev_cmd_context.json
    ```
 
-4. Report filed issues with URLs.
+5. Report appended/created issues with URLs. Surface any create_failures
+   loudly (they appear in the digest's `Create failures:` line and reference
+   `#1203`).
 
 **Important**: Issues always go to `akaszubski/autonomous-dev` regardless of which repo this session ran in. The findings are about the automation tooling, not the user's project.
+
+**Additional HARD GATE FORBIDDEN bullets**:
+- FORBIDDEN: silently swallowing `gh issue create` failures. Surface them
+  in the digest (`create_failures` field) and continue with remaining
+  decisions.
+- FORBIDDEN: filing a new issue without first re-classifying via
+  `classify_route(signal, fresh_open_issues)` — TOCTOU mitigation against
+  a race window between fetch and create.
+- FORBIDDEN: changing the macro-promotion thresholds inside a single
+  /improve run. They live in `macro_promotion.py` and are revisited per
+  the re-evaluation gate documented in that module.
 
 ## What It Detects
 

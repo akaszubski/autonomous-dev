@@ -114,13 +114,21 @@ Findings are emitted as structured records (severity / root_cause_tag / title / 
        ↓
   findings emitted via append_finding() → .claude/logs/findings/YYYY-MM.jsonl
        ↓
-  /improve --auto-file (C3 promotion layer)
+  /improve --auto-file (C3 promotion layer — macro-promotion, Issue #1201)
        ↓
   collect_cia_findings() aggregates across 90-day window by root_cause_tag + title cluster
        ↓
-       ├── HIGH confidence → auto-applied to agent prompts / skill files
-       ├── MEDIUM confidence → filed as GitHub issue (autonomous-dev or consumer repo)
-       └── LOW confidence / hooks / core code → human review required
+  decide_promotions() applies macro-promotion gate per signal:
+    volume+breadth gate: frequency >= 3 AND distinct_sessions >= 2
+    error fast-path:     max_severity_label == "error" AND frequency >= 2
+       ↓
+       ├── gate crossed + open issue exists (same tag) → APPEND evidence comment
+       ├── gate crossed + no matching open issue → CREATE new issue
+       └── below threshold → HOLD (no side effect, surfaced in digest only)
+       ↓
+  format_digest() emits 5-section direction-guard digest every run
+  (ACTIONS TAKEN / Recurrence-after-close / Match-rate /
+   Findings-per-session / Error-without-other-channel)
        ↓
   benchmark run (before + after)
        ↓

@@ -259,6 +259,7 @@
         "plugins/autonomous-dev/lib/issue_scope_detector.py",
         "plugins/autonomous-dev/lib/issue_triage_analyzer.py",
         "plugins/autonomous-dev/lib/logging_utils.py",
+        "plugins/autonomous-dev/lib/macro_promotion.py",
         "plugins/autonomous-dev/lib/math_utils.py",
         "plugins/autonomous-dev/lib/mcp_permission_validator.py",
         "plugins/autonomous-dev/lib/mcp_profile_manager.py",

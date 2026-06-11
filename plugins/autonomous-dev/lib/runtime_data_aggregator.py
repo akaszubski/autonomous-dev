@@ -576,36 +576,47 @@ def collect_ci_signals(
         )
 
 
-def fetch_open_issues_with_label(
+def fetch_issues_with_label(
     repo: str = "akaszubski/autonomous-dev",
     label: str = "auto-improvement",
     limit: int = 200,
+    state: str = "open",
+    closed_within_days: Optional[int] = None,
 ) -> Tuple[List[Dict[str, Any]], SourceHealth]:
-    """Fetch raw open GitHub issues with a given label via the ``gh`` CLI.
+    """Fetch raw GitHub issues with a given label via the ``gh`` CLI.
 
-    Returns the full raw issue dicts (``number``, ``title``, ``body``, ``labels``,
-    ``createdAt``) without any signal wrapping. This is the low-level building block used
-    by :func:`collect_github_signals` and by the issue-triage analyzer.
+    Generalizes :func:`fetch_open_issues_with_label` to support open/closed/all
+    state filters (Issue #1201). When ``state != "open"``, the ``--json`` field
+    list is extended to include ``closedAt`` so post-filtering by
+    ``closed_within_days`` is possible. When ``closed_within_days`` is set,
+    issues whose ``closedAt`` is older than ``now - timedelta(days=closed_within_days)``
+    are dropped from the result.
 
     Args:
         repo: GitHub repository in ``owner/repo`` format.
         label: Label to filter on (e.g., ``"auto-improvement"``).
         limit: Maximum number of issues to request (``--limit`` to gh).
+        state: One of ``"open"``, ``"closed"``, ``"all"`` (passed to ``gh issue list --state``).
+        closed_within_days: When set, drop issues closed more than N days ago.
+            Only meaningful for ``state != "open"``.
 
     Returns:
         Tuple of (issues, source_health). On failure ``issues`` is empty and
         ``source_health.status`` is ``"error"`` with a populated ``error_message``.
     """
     source_name = "github"
+    json_fields = "number,title,body,labels,createdAt"
+    if state != "open":
+        json_fields = json_fields + ",closedAt"
     try:
         result = subprocess.run(
             [
                 "gh", "issue", "list",
                 "--repo", repo,
                 "--label", label,
-                "--state", "open",
+                "--state", state,
                 "--limit", str(limit),
-                "--json", "number,title,body,labels,createdAt",
+                "--json", json_fields,
             ],
             capture_output=True,
             timeout=30,
@@ -632,6 +643,27 @@ def fetch_open_issues_with_label(
                 error_message="Unexpected gh JSON shape (expected list)",
             )
 
+        # Post-filter by closed_within_days when applicable.
+        if closed_within_days is not None and state != "open":
+            cutoff = datetime.now(timezone.utc) - timedelta(days=closed_within_days)
+            filtered: List[Dict[str, Any]] = []
+            for issue in issues:
+                if not isinstance(issue, dict):
+                    continue
+                closed_at = issue.get("closedAt", "")
+                # Issues still open (state=all) have empty closedAt — keep them.
+                if not closed_at:
+                    filtered.append(issue)
+                    continue
+                dt = _parse_iso_ts(closed_at)
+                if dt is None:
+                    # Unparseable: keep (fail-open) — we'd rather over-include.
+                    filtered.append(issue)
+                    continue
+                if dt >= cutoff:
+                    filtered.append(issue)
+            issues = filtered
+
         if not issues:
             return [], SourceHealth(source=source_name, status="empty", signal_count=0)
 
@@ -654,6 +686,30 @@ def fetch_open_issues_with_label(
             source=source_name, status="error", signal_count=0,
             error_message=str(e)[:200],
         )
+
+
+def fetch_open_issues_with_label(
+    repo: str = "akaszubski/autonomous-dev",
+    label: str = "auto-improvement",
+    limit: int = 200,
+) -> Tuple[List[Dict[str, Any]], SourceHealth]:
+    """Backward-compatible alias for ``fetch_issues_with_label(state="open")``.
+
+    Preserved for callers in :mod:`issue_triage_analyzer` and
+    :func:`collect_github_signals` that pre-date Issue #1201's macro promotion
+    work. New callers should use :func:`fetch_issues_with_label` directly.
+
+    Args:
+        repo: GitHub repository in ``owner/repo`` format.
+        label: Label to filter on.
+        limit: Maximum number of issues to request.
+
+    Returns:
+        Tuple of (issues, source_health).
+    """
+    return fetch_issues_with_label(
+        repo=repo, label=label, limit=limit, state="open",
+    )
 
 
 def collect_github_signals(
