@@ -405,7 +405,7 @@ These agents provide specialized functionality for alignment, git operations, pr
   - **Full mode** (10-15 tool calls): Comprehensive post-batch or standalone analysis
     - Parses session logs using `pipeline_intent_validator` library
     - Detects HARD GATE violations, missing agents, hook layer failures, rule bypasses
-    - Routes each finding to the correct repo (`autonomous-dev`, `consumer`, or `both`) based on where the fix lives, then files deduped GitHub issues for actionable findings (severity >= warning)
+    - Emits structured finding records via `cia_finding_store.append_finding()` to `.claude/logs/findings/YYYY-MM.jsonl` (Issue #1200); does NOT file GitHub issues directly — routing, deduplication, and issue filing is delegated to `/improve --auto-file` (C3 promotion layer)
 **Detection Coverage**:
   - Pipeline completeness (all required agents ran)
   - Gate integrity (test gates passed, no stubs)
@@ -417,7 +417,7 @@ These agents provide specialized functionality for alignment, git operations, pr
   - Token efficiency analysis (tokens-per-word ratio, per-invocation budget; check #13)
   - Pipeline efficiency analysis (cross-run model tier recommendations, token trend detection, IQR outlier detection via `pipeline_efficiency_analyzer.py`; check #14)
   - Validator diversity (Jaccard overlap between reviewer and security-auditor findings; `[VALIDATOR-OVERLAP]` when Jaccard > 0.8 AND total findings ≥ 6; `[VALIDATOR-BLIND-SPOT]` when both validators return zero findings with artifacts present; info severity, never blocks; check #15)
-  - Cross-repo finding routing (Issue #739): each finding is annotated with `target_repo: autonomous-dev | consumer | both` based on where the fix lives; issues are filed to the correct repo using `-R akaszubski/autonomous-dev` for framework findings or no `-R` flag for consumer findings; `both` findings produce two cross-referenced issues
+  - Cross-repo finding routing (Issue #739, updated #1200): each finding record includes `target_repo: autonomous-dev | consumer | both` as a pass-through field; `/improve --auto-file` (C3) reads this field and files issues to the correct repo — framework findings via `-R akaszubski/autonomous-dev`, consumer findings without `-R`, `both` findings fan out to two cross-referenced issues
 **Excluded**: Feature code quality, security vulnerabilities, documentation completeness (handled by other agents)
 **Mission**: "Is autonomous-dev's automation working correctly?"
 

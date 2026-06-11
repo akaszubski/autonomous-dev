@@ -54,6 +54,72 @@ except ImportError:
 
 
 # ============================================================================
+# Regression Guard — protects against re-introduction of real-repo writes
+# ============================================================================
+#
+# Bug history (Issue #1200, STEP 8 cycle 3):
+# Several tests in this file call `auto_apply_doc_update()` with fixtures whose
+# `file_path` is RELATIVE (e.g., "CHANGELOG.md", "README.md", "test.md"). The
+# library `doc_master_auto_apply.py` resolves relative paths against CWD; when
+# pytest is run from the repo root, that CWD IS the repo root, so an unpatched
+# call to `auto_apply_doc_update(low_risk_changelog_update, batch_mode=True)`
+# silently OVERWRITES the real `CHANGELOG.md` with 3 lines of fixture content
+# (827 lines deleted). The hazard was discovered after two CHANGELOG-dependent
+# tests kept "re-failing" across remediation cycles because the unit-tier run
+# kept truncating CHANGELOG.md as a side effect.
+#
+# This module-scoped autouse fixture snapshots the real repo CHANGELOG.md at
+# module setup and asserts identical content at module teardown — catching ANY
+# future re-introduction of a real-repo write in this module, regardless of
+# which test causes it. This IS the regression test for the bug fix (satisfies
+# the per-project "regression test on every bug fix" rule).
+
+@pytest.fixture(autouse=True, scope="module")
+def _guard_repo_changelog_unchanged():
+    """Snapshot real repo CHANGELOG.md and assert unchanged at module teardown.
+
+    Yields control to the test module. At teardown, re-reads
+    `<repo_root>/CHANGELOG.md` and asserts byte-for-byte equality with the
+    snapshot taken at setup. A mismatch indicates one of the tests in this
+    module wrote to the real repo CHANGELOG.md — almost certainly because a
+    call site reaches a real `open(..., 'w')` without `builtins.open` patched
+    and without an absolute `tmp_path`-based `file_path`.
+
+    REPO_ROOT = parents[3] because this file lives at
+    `tests/unit/lib/test_doc_master_auto_apply.py` →
+    lib → unit → tests → repo_root (3 hops).
+    """
+    repo_root = Path(__file__).resolve().parents[3]
+    changelog_path = repo_root / "CHANGELOG.md"
+
+    snapshot: Optional[bytes] = None
+    if changelog_path.exists():
+        snapshot = changelog_path.read_bytes()
+
+    yield
+
+    if snapshot is None:
+        # No CHANGELOG existed at setup — assert one wasn't created.
+        assert not changelog_path.exists(), (
+            f"Test in this module created {changelog_path} that didn't exist "
+            f"at module setup — a relative-path file_path leaked to a real "
+            f"write. See Issue #1200 STEP 8 cycle 3 bug history."
+        )
+        return
+
+    current = changelog_path.read_bytes() if changelog_path.exists() else b""
+    assert current == snapshot, (
+        f"REGRESSION: real repo {changelog_path} was modified during this "
+        f"test module run. A test reached a real file write — almost "
+        f"certainly an unpatched `auto_apply_doc_update()` call with a "
+        f"relative `file_path` fixture. See Issue #1200 STEP 8 cycle 3.\n"
+        f"  snapshot size = {len(snapshot)} bytes\n"
+        f"  current size  = {len(current)} bytes\n"
+        f"  first 200 chars of current = {current[:200]!r}"
+    )
+
+
+# ============================================================================
 # Test Fixtures
 # ============================================================================
 
@@ -492,8 +558,18 @@ def test_file_write_preserves_existing_content(mock_file_system):
 # Test DocUpdateResult Structure
 # ============================================================================
 
-def test_doc_update_result_structure(low_risk_changelog_update):
-    """Test that DocUpdateResult contains expected fields"""
+@patch('builtins.open', new_callable=mock_open)
+def test_doc_update_result_structure(mock_file, low_risk_changelog_update):
+    """Test that DocUpdateResult contains expected fields.
+
+    NOTE: `builtins.open` is patched because this test exercises
+    `auto_apply_doc_update()` with a fixture whose `file_path="CHANGELOG.md"`
+    is RELATIVE — without the patch, the call resolves to the real repo
+    CHANGELOG.md and overwrites it with 3 lines of fixture content (the
+    test-isolation bug fixed under Issue #1200, STEP 8 remediation cycle 3).
+    Patching is appropriate here because the test only asserts result-object
+    shape, not file-write semantics.
+    """
     # Act
     result = auto_apply_doc_update(
         update=low_risk_changelog_update,

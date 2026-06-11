@@ -83,7 +83,7 @@ python3 scripts/run_reviewer_benchmark.py
 14. **Pipeline efficiency analysis** — Cross-run model tier recommendations and token trends via `pipeline_efficiency_analyzer.py`
 15. **Validator diversity** — Jaccard overlap between reviewer and security-auditor findings; high overlap with ≥6 total findings emits `[VALIDATOR-OVERLAP]`
 
-Findings are labeled `auto-improvement` and filed to `akaszubski/autonomous-dev` (framework bugs) or the active consumer repo (app-code bugs).
+Findings are emitted as structured records (severity / root_cause_tag / title / evidence / file_refs / session_id / ts) to monthly JSONL files at `.claude/logs/findings/YYYY-MM.jsonl` via `cia_finding_store.append_finding()` (Issue #1200). Cross-session aggregation, deduplication, routing, and GitHub issue filing are handled by `/improve --auto-file` (the C3 promotion layer) — CIA does **not** file issues directly.
 
 ### `/retrospective` — Intent evolution detection
 
@@ -110,12 +110,16 @@ Findings are labeled `auto-improvement` and filed to `akaszubski/autonomous-dev`
 ```
   session logs
        ↓
-  /improve → continuous-improvement-analyst (7 checks)
+  /improve → continuous-improvement-analyst (CIA, 15 checks)
        ↓
-  weakness diagnosis (root cause traced to specific file/section)
+  findings emitted via append_finding() → .claude/logs/findings/YYYY-MM.jsonl
+       ↓
+  /improve --auto-file (C3 promotion layer)
+       ↓
+  collect_cia_findings() aggregates across 90-day window by root_cause_tag + title cluster
        ↓
        ├── HIGH confidence → auto-applied to agent prompts / skill files
-       ├── MEDIUM confidence → filed as GitHub issue
+       ├── MEDIUM confidence → filed as GitHub issue (autonomous-dev or consumer repo)
        └── LOW confidence / hooks / core code → human review required
        ↓
   benchmark run (before + after)

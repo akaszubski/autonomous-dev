@@ -366,20 +366,20 @@ ENFORCE_WORKFLOW=false  # Disables bypass detection
 
 ## Cross-Repo Finding Routing
 
-The continuous-improvement-analyst routes each finding to the repository where the fix belongs:
+The continuous-improvement-analyst **emits** each finding as a structured record (not a GitHub issue) via `cia_finding_store.append_finding()`. The `target_repo` field on the record encodes where the fix belongs; `/improve --auto-file` (C3) reads that field and creates the actual GitHub issue(s) downstream.
 
-| Target | When | Filing Command |
-|--------|------|----------------|
-| `autonomous-dev` | Fix lives in `plugins/autonomous-dev/` (agents, hooks, commands, lib, skills) | `gh issue create -R akaszubski/autonomous-dev` |
-| `consumer` | Fix lives in consumer product code (outside `plugins/autonomous-dev/`) | `gh issue create` (no `-R` flag) |
-| `both` | Fix requires changes in both repos | Two issues with cross-references |
+| `target_repo` value | When | Upstream action by CIA |
+|---------------------|------|------------------------|
+| `autonomous-dev` | Fix lives in `plugins/autonomous-dev/` (agents, hooks, commands, lib, skills) | Emit record with `target_repo: "autonomous-dev"` |
+| `consumer` | Fix lives in consumer product code (outside `plugins/autonomous-dev/`) | Emit record with `target_repo: "consumer"` |
+| `both` | Fix requires changes in both repos | Emit a SINGLE record with `target_repo: "both"` — `/improve --auto-file` fans out to two issues |
 
 **Decision heuristic**: Ask "where does the code that needs changing live?" If it's agent behavior, hook logic, or pipeline ordering → framework repo. If it's app tests, app config, or app code → consumer repo. If the root cause is in the framework but the symptom manifests as bad data in the consumer → both.
 
 **Examples**:
-- doc-master outputs docs for wrong scope → file in `autonomous-dev` (agent prompt issue)
-- Missing unit test for new API endpoint → file in consumer repo (app-code gap)
-- CHANGELOG has wrong test count because doc-master miscounted → file in BOTH repos
+- doc-master outputs docs for wrong scope → emit `target_repo: "autonomous-dev"` (agent prompt issue)
+- Missing unit test for new API endpoint → emit `target_repo: "consumer"` (app-code gap)
+- CHANGELOG has wrong test count because doc-master miscounted → emit `target_repo: "both"`
 
 **For human contributors**: When manually filing improvement issues found during code review or testing, apply the same heuristic. Framework bugs should always be fixed once in autonomous-dev, not patched per-repo.
 

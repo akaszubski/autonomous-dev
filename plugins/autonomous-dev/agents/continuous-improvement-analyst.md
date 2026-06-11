@@ -79,11 +79,7 @@ Models predictably game evaluations. Detect these patterns:
       ```bash
       grep '"hook":"BudgetWarning"' .claude/logs/activity/*.jsonl 2>/dev/null | tail -20
       ```
-    - Budget violation escalation: if an agent has 3+ consecutive `BudgetWarning` entries with `"level": "exceeded"`, file or comment on a `[BUDGET-EXCEEDED]` issue
-    - For each finding, use find-or-create+comment dedup:
-      - Search: `gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state open --search "[TIMING] {agent_type}"`
-      - If found: `gh issue comment {number} --body "..."`
-      - If not found: `gh issue create --title "[TIMING] {agent}: {finding_type}" --label "auto-improvement" --body-file <temp>` (include `**Plugin Version**: $(python3 -c "import sys;sys.path.insert(0,'plugins/autonomous-dev/lib');from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)` in the body)
+    - Budget violation escalation: if an agent has 3+ consecutive `BudgetWarning` entries with `"level": "exceeded"`, emit a `[BUDGET-EXCEEDED]` finding via `append_finding()` (see "Finding Emission Contract" below). Routing/dedup/filing is `/improve --auto-file`'s responsibility, not CIA's.
     - Circuit breaker: max 3 timing issues per run
     - 3-consecutive-violation minimum before filing (use `check_consecutive_violations()`)
     - Print timing summary table to CLI output via `format_timing_report(timings, findings)` where `timings` is the raw list from `extract_agent_timings(events)` and `findings` is the list returned by `analyze_timings(timings, ...)`
@@ -138,7 +134,7 @@ Each finding must be routed to the repository where the fix belongs. Ask: **"Whe
 **Decision heuristic**:
 - Fix in `plugins/autonomous-dev/{agents,commands,hooks,lib,skills}/` → route to `akaszubski/autonomous-dev`
 - Fix in consumer product code (outside `plugins/autonomous-dev/`) → route to the consumer/active repo
-- Fix needed in both repos → file two issues with cross-references
+- Fix needed in both repos → emit a single record with `target_repo: "both"` (cross-repo fan-out is `/improve --auto-file`'s responsibility — C3)
 - Symptom in consumer, root cause in framework → route to `both`
 
 **Special case**: If running in the autonomous-dev repo itself, all findings target `autonomous-dev` — no cross-repo routing needed.
@@ -153,7 +149,7 @@ Each finding must be routed to the repository where the fix belongs. Ask: **"Whe
 | Coordinator logic issues (stash verification, context passing) | `autonomous-dev` | Coordinator commands are framework code |
 | Missing tests for consumer feature code | `consumer` | Tests for app code belong in app repo |
 | Pre-existing test failures in consumer code | `consumer` | App test fixes belong in app repo |
-| Data fix in consumer + rule fix in framework | `both` | File two issues with cross-references |
+| Data fix in consumer + rule fix in framework | `both` | Emit one record; `/improve --auto-file` (C3) fans out cross-repo |
 
 ### Routing Examples
 
@@ -162,6 +158,16 @@ Each finding must be routed to the repository where the fix belongs. Ask: **"Whe
 - Missing behavioral test for new feature code → `consumer` only (app-code gap, not a framework issue)
 - Stash-based verification has no machine-readable artifact → `autonomous-dev` (coordinator logic issue)
 - Pre-existing test failures in consumer repo → `consumer` only (app test fixes belong in app repo)
+
+### Finding Emission Contract
+
+REQUIRED: every finding MUST be emitted through `cia_finding_store.append_finding(...)`. The store writes to `.claude/logs/findings/YYYY-MM.jsonl` with 0600 perms. On write failure the function returns `False` and emits a stderr breadcrumb — the finding still appears in your report.
+
+Required record fields (7): `severity`, `root_cause_tag`, `title`, `evidence`, `file_refs`, `session_id`, `ts`.
+
+Severity vocabulary: `info` | `warning` | `error` ONLY. Anything else is normalized to `info` by the store.
+
+FORBIDDEN: any direct GitHub issue filing or commenting via the gh CLI's issue-creation or issue-comment subcommands. Those belong to `/improve --auto-file` (C3), not to CIA. Issue routing/dedup/filing is downstream — CIA only captures records.
 
 ---
 
@@ -265,84 +271,45 @@ If analyzing a batch session, identify systemic issues:
 - Increasing speed suggesting decreasing thoroughness
 - Gaming escalation (early issues clean, later issues start weakening tests)
 
-### Step 5: Dedup and file issues
+### Step 5: Emit findings via append_finding()
 
-Check existing issues: `gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state open`
+CIA does NOT file GitHub issues directly. Issue #1200 (C2) moved routing/dedup/filing to `/improve --auto-file` (C3). For each finding with severity >= warning, apply finding routing (see "Finding Routing" section above to populate `target_repo`), then emit a record via `cia_finding_store.append_finding`. The store handles secret scrubbing, length clamping, atomic appends, and 0600 file perms.
 
-For each finding with severity >= warning, apply finding routing (see "Finding Routing" section above) then file if no duplicate exists:
+```python
+## Problem
+import os, sys
+from pathlib import Path
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from cia_finding_store import append_finding
 
-**For `target_repo: autonomous-dev`** — use `-R akaszubski/autonomous-dev`:
-```bash
-gh issue create -R akaszubski/autonomous-dev \
-  --title "[CI] {description}" \
-  --label "auto-improvement" \
-  --body "## Problem
-{description with evidence}
-
-**Repo**: $(basename $(git rev-parse --show-toplevel))
-**Session**: $(date +%Y-%m-%dT%H:%M:%S)
-
-## Evidence
-{relevant log entries or agent output}
-
-## Suggested Fix
-{actionable recommendation}
-
-**Plugin Version**: $(python3 -c "import sys;sys.path.insert(0,'plugins/autonomous-dev/lib');from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)
-
----
-*Filed automatically by continuous-improvement-analyst*"
-```
-
-**For `target_repo: consumer`** — omit `-R` flag (defaults to active repo):
-```bash
-gh issue create \
-  --title "[CI] {description}" \
-  --label "auto-improvement" \
-  --body "## Problem
-{description with evidence}
-
-**Repo**: $(basename $(git rev-parse --show-toplevel))
-**Session**: $(date +%Y-%m-%dT%H:%M:%S)
+findings_dir = (
+    Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
+    / ".claude" / "logs" / "findings"
+)
 
 ## Evidence
-{relevant log entries or agent output}
+append_finding(
+    {
+        "severity": "warning",          # info | warning | error
+        "root_cause_tag": "GAMING",     # INCOMPLETE | GATE | ORDERING | GAMING | ...
+        "title": "<short title>",       # <= 200 chars
+        "evidence": "<file:line refs + before/after diff>",  # <= 2000 chars
+        "file_refs": ["plugins/autonomous-dev/agents/foo.md:42"],
+        "session_id": "<session id>",
+        "ts": "<ISO-8601 UTC>",
+        # Optional pass-through fields (preserved verbatim by the store):
+        # "target_repo": "autonomous-dev" | "consumer" | "both",
+    },
+    findings_dir=findings_dir,
+)
 
 ## Suggested Fix
-{actionable recommendation}
-
-**Plugin Version**: $(python3 -c "import sys;sys.path.insert(0,'plugins/autonomous-dev/lib');from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)
-
----
-*Filed automatically by continuous-improvement-analyst*"
+# For target_repo "both": emit a SINGLE record with "target_repo": "both"
+# as a pass-through field. Do NOT emit two records.
+# /improve --auto-file is responsible for cross-repo fan-out (C3).
 ```
 
-**For `target_repo: both`** — emit TWO `gh issue create` commands, one per repo, with cross-references:
-```bash
-# Issue 1: framework repo (created first to capture issue number)
-FRAMEWORK_ISSUE=$(gh issue create -R akaszubski/autonomous-dev \
-  --title "[CI] {description} (framework side)" \
-  --label "auto-improvement" \
-  --body "## Problem
-{description — framework-side fix}
-
-**Plugin Version**: $(python3 -c "import sys;sys.path.insert(0,'plugins/autonomous-dev/lib');from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)
-
----
-*Filed automatically by continuous-improvement-analyst*" | grep -oE '[0-9]+$')
-
-# Issue 2: consumer repo (cross-reference framework issue)
-gh issue create \
-  --title "[CI] {description} (consumer side)" \
-  --label "auto-improvement" \
-  --body "## Problem
-{description — consumer-side fix}
-
-See also: akaszubski/autonomous-dev#${FRAMEWORK_ISSUE} (framework-side fix)
-
----
-*Filed automatically by continuous-improvement-analyst*"
-```
+KEEP the human-readable ISSUE-CANDIDATE table in the final report (see "Output format" below) — readers want surfaced candidates without consulting the JSONL store.
 
 ### Step 5.5: Pipeline Efficiency Analysis (Check 14)
 
@@ -389,7 +356,7 @@ Interpret the returned JSON:
 
 ### Step 6: Auto-trigger trends analysis (every 10 issues)
 
-After filing issues, verify the total count of auto-improvement issues:
+After emitting findings, verify the total count of auto-improvement issues:
 ```bash
 ISSUE_COUNT=$(gh issue list -R akaszubski/autonomous-dev --label auto-improvement --state all --limit 1000 --json number | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
 echo "Total auto-improvement issues: $ISSUE_COUNT"
@@ -398,10 +365,7 @@ echo "Total auto-improvement issues: $ISSUE_COUNT"
 If `ISSUE_COUNT` is a multiple of 10 (i.e., `ISSUE_COUNT % 10 == 0`) AND the most recent `[TRENDS]` issue is older than 7 days (or doesn't exist):
 
 1. Run the full trends analysis (same as `/improve --trends` — see STEP T1-T5 in `commands/improve.md`)
-2. File a trends summary issue:
-```bash
-gh issue create -R akaszubski/autonomous-dev   --title "[TRENDS] Aggregate analysis at $ISSUE_COUNT issues — $(date +%Y-%m-%d)"   --label "auto-improvement,trends"   --body "{full trends report with recurring patterns, enforcement promotions, metrics}"
-```
+2. Emit a `[TRENDS]` finding at severity `info` via `append_finding()` (same code shape as Step 5). The `root_cause_tag` MUST be `"TRENDS"` and the `evidence` MUST contain the full trends report (recurring patterns, enforcement promotions, metrics). Routing/filing is `/improve --auto-file`'s responsibility (C3).
 
 This ensures trends surface automatically without manual `/improve --trends` runs. The 10-issue threshold balances signal (enough data for patterns) against noise (not every session).
 

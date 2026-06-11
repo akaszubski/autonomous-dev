@@ -534,7 +534,8 @@ class TestAggregate:
         report = aggregate(tmp_path, window_days=7, top_n=10)
 
         assert isinstance(report, AggregatedReport)
-        assert len(report.source_health) == 4
+        # Issue #1200 added a 5th source: cia_findings
+        assert len(report.source_health) == 5
         assert report.window_start
         assert report.window_end
         assert report.top_n == 10
@@ -552,7 +553,8 @@ class TestAggregate:
 
         report = aggregate(tmp_path, window_days=7)
         assert report.signals == []
-        assert len(report.source_health) == 4
+        # Issue #1200 added a 5th source: cia_findings
+        assert len(report.source_health) == 5
 
     @patch("runtime_data_aggregator.collect_github_signals")
     def test_partial_failures(self, mock_gh: MagicMock, tmp_path: Path) -> None:

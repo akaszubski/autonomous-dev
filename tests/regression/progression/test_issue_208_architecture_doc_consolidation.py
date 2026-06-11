@@ -417,6 +417,7 @@ class TestBrokenReferenceRemoval:
         # test artifacts, files with ARCHITECTURE in name (e.g., MCP-ARCHITECTURE.md),
         # scripts that reference the pattern for validation, marketplace/cache files,
         # skills documentation (contains examples), plugin lib README (internal docs),
+        # logs/ (ephemeral pipeline session artifacts, not docs),
         # and the fixture_test_files set above (Issue #928).
         disallowed_refs = [
             f
@@ -434,6 +435,7 @@ class TestBrokenReferenceRemoval:
             and ".mcp" not in f.parts  # MCP configuration
             and "skills" not in f.parts  # Exclude skill documentation (contains examples)
             and f.name != "README.md"  # Exclude READMEs with internal doc references
+            and "logs" not in f.parts  # Exclude ephemeral pipeline session-log artifacts
             and f.name not in fixture_test_files  # Issue #928: tests using path as fixture
         ]
 

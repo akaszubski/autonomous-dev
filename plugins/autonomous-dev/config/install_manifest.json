@@ -193,6 +193,7 @@
         "plugins/autonomous-dev/lib/brownfield_retrofit.py",
         "plugins/autonomous-dev/lib/bugfix_detector.py",
         "plugins/autonomous-dev/lib/checkpoint.py",
+        "plugins/autonomous-dev/lib/cia_finding_store.py",
         "plugins/autonomous-dev/lib/claude_md_updater.py",
         "plugins/autonomous-dev/lib/code_patcher.py",
         "plugins/autonomous-dev/lib/code_path_analyzer.py",

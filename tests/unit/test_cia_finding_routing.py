@@ -39,11 +39,47 @@ class TestCIAFindingRouting:
                 f"CIA must list '{value}' as a valid target_repo value"
 
     def test_has_filing_commands_with_repo_flag(self):
-        """AC3: CIA emits filing commands with repo flag for framework findings."""
-        # Should have gh issue create with -R flag for autonomous-dev
-        assert re.search(r"gh\s+issue\s+create\s+.*-R\s+akaszubski/autonomous-dev", self.cia_content) or \
-               re.search(r"--repo\s+akaszubski/autonomous-dev", self.cia_content), \
-            "CIA must emit gh issue create with -R akaszubski/autonomous-dev for framework findings"
+        """AC3 (Issue #1200 C2): CIA emits findings via append_finding(), NOT via gh CLI.
+
+        Updated contract: routing/dedup/filing was moved out of CIA into
+        ``/improve --auto-file`` (C3). CIA now emits a structured record per
+        finding through :func:`cia_finding_store.append_finding`. The
+        ``target_repo`` value (``autonomous-dev`` | ``consumer`` | ``both``)
+        is a pass-through field on the emitted record — the downstream
+        promotion layer uses it to pick the ``-R`` repo flag at file time.
+
+        This test locks the inverse of the OLD behavior: there must be zero
+        ``gh issue create`` / ``gh issue comment`` invocations in the prompt,
+        AND the prompt must explicitly instruct emission via append_finding()
+        with target_repo as a pass-through.
+        """
+        # NEW contract: zero direct filing commands of either kind.
+        assert "gh issue create" not in self.cia_content, (
+            "CIA prompt must not contain `gh issue create` — filing moved to "
+            "/improve --auto-file (Issue #1200 C2/C3)"
+        )
+        assert "gh issue comment" not in self.cia_content, (
+            "CIA prompt must not contain `gh issue comment` — commenting moved "
+            "to /improve --auto-file (Issue #1200 C2/C3)"
+        )
+
+        # NEW contract: emission goes through append_finding().
+        assert "append_finding" in self.cia_content, (
+            "CIA prompt must instruct emission via append_finding() "
+            "(Issue #1200 C2 finding-store contract)"
+        )
+
+        # NEW contract: target_repo is a pass-through field on the emitted
+        # record so the downstream promoter can fan out cross-repo without
+        # re-routing.
+        assert re.search(
+            r"target_repo.*(?:pass-through|pass\s*through)",
+            self.cia_content,
+            re.IGNORECASE | re.DOTALL,
+        ), (
+            "CIA prompt must describe target_repo as a pass-through field on "
+            "the emitted record (downstream /improve --auto-file owns routing)"
+        )
 
     def test_has_at_least_4_routing_examples(self):
         """AC4: At least 4 routing examples in the prompt."""
@@ -64,41 +100,64 @@ class TestCIAFindingRouting:
             "WORKFLOW-DISCIPLINE.md must have a 'Cross-repo finding routing' subsection"
 
     def test_both_target_creates_framework_issue_first(self):
-        """Regression test (Issue #742): for target_repo: both, framework issue is created first.
+        """Issue #1200 C2 update: ``target_repo: both`` emits a SINGLE record.
 
-        The consumer issue body cross-references the framework issue number via ${FRAMEWORK_ISSUE}.
-        This only works if the framework issue is created first so the variable is populated.
-        Previously the order was reversed — consumer was created first but referenced a
-        framework_issue_number that didn't exist yet.
+        Original Issue #742 regression: for ``target_repo: both``, the
+        framework issue had to be filed first so the consumer issue body
+        could cross-reference ``${FRAMEWORK_ISSUE}``. That ordering
+        constraint lived in the CIA prompt's bash block.
+
+        Issue #1200 C2 collapsed that two-issue dance into a single emitted
+        record. CIA now emits one ``append_finding`` call with
+        ``target_repo: "both"`` as a pass-through; the downstream
+        ``/improve --auto-file`` layer (C3) is responsible for cross-repo
+        fan-out and the framework-first ordering. Putting the ordering rule
+        in the promoter (one place) eliminates the failure mode that
+        Issue #742 fixed (two places drifting out of sync).
+
+        This test locks the new contract: the prompt explicitly states that
+        ``target_repo: both`` must emit a SINGLE record (not two), and the
+        cross-repo fan-out responsibility is delegated to
+        ``/improve --auto-file``.
         """
-        # Find the 'target_repo: both' shell block
-        both_block_match = re.search(
-            r"target_repo: both.*?```bash(.*?)```",
+        # The prompt must explicitly forbid the old "two records for both"
+        # pattern and instruct a single emission instead.
+        # We accept either "SINGLE record" or "single record" phrasing and
+        # require the words to be near a "both" mention so we are actually
+        # locking the both-path contract.
+        both_single_record = re.search(
+            r"target_repo[^\n]{0,40}\"?both\"?.*?(?:SINGLE|single)\s+record",
             self.cia_content,
-            re.DOTALL,
+            re.DOTALL | re.IGNORECASE,
         )
-        assert both_block_match, "Must have a 'target_repo: both' bash code block"
-        shell_block = both_block_match.group(1)
-
-        # Framework issue command must appear before consumer issue command
-        framework_pos = shell_block.find("gh issue create -R akaszubski/autonomous-dev")
-        consumer_pos = shell_block.find("gh issue create \\\n  --title")
-
-        assert framework_pos != -1, "Framework gh issue create command must be present"
-        assert consumer_pos != -1, "Consumer gh issue create command must be present"
-        assert framework_pos < consumer_pos, (
-            "Framework issue must be created BEFORE consumer issue so "
-            "${FRAMEWORK_ISSUE} is populated when the consumer body is rendered"
+        assert both_single_record, (
+            "CIA prompt must instruct emitting a SINGLE record with "
+            "target_repo: \"both\" (not two records). Cross-repo fan-out "
+            "is /improve --auto-file's responsibility (Issue #1200 C2/C3)."
         )
 
-        # Consumer body must use ${FRAMEWORK_ISSUE} (not a placeholder)
-        assert "${FRAMEWORK_ISSUE}" in shell_block, (
-            "Consumer issue body must reference ${FRAMEWORK_ISSUE} — "
-            "the captured number from the framework issue created first"
+        # The promoter (C3 / /improve --auto-file) must be named as the
+        # owner of cross-repo fan-out so future readers know where the
+        # framework-first ordering rule lives now.
+        assert re.search(
+            r"/improve\s+--auto-file.*(?:cross-repo|fan-out|fan\s*out|C3)",
+            self.cia_content,
+            re.DOTALL | re.IGNORECASE,
+        ), (
+            "CIA prompt must delegate cross-repo fan-out for target_repo: "
+            "\"both\" to /improve --auto-file (C3). The framework-first "
+            "ordering rule from Issue #742 now lives there, not in CIA."
         )
 
-        # Consumer body must NOT reference the old unresolvable placeholder
-        assert "{framework_issue_number}" not in shell_block, (
-            "Consumer issue body must not use {framework_issue_number} literal placeholder — "
-            "use ${FRAMEWORK_ISSUE} shell variable instead"
+        # The OLD pattern (two gh issue create calls with the ${FRAMEWORK_ISSUE}
+        # shell-variable dance) MUST be gone — that is precisely what Issue
+        # #1200 C2 removed.
+        assert "${FRAMEWORK_ISSUE}" not in self.cia_content, (
+            "CIA prompt must not retain the ${FRAMEWORK_ISSUE} shell-variable "
+            "dance — Issue #1200 C2 moved cross-repo fan-out to "
+            "/improve --auto-file (C3)."
+        )
+        assert "gh issue create" not in self.cia_content, (
+            "CIA prompt must not invoke `gh issue create` directly — filing "
+            "moved to /improve --auto-file (Issue #1200 C2/C3)."
         )

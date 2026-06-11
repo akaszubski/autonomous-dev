@@ -52,6 +52,16 @@ SEVERITY_WEIGHTS: Dict[str, float] = {
 
 DEFAULT_WEIGHT = 1.0
 
+# Issue #1200: severity-label → float map for the cia_findings collector.
+# Mirrors the {info, warning, error} vocabulary used by append_finding.
+# Deliberately separate from collect_ci_signals's `sev_map` (which uses
+# {critical, warning, info}); the two collectors have different contracts.
+CIA_FINDING_SEVERITY_MAP: Dict[str, float] = {
+    "info": 0.33,
+    "warning": 0.66,
+    "error": 1.0,
+}
+
 BENCHMARK_ACCURACY_THRESHOLD = 0.70
 
 SECRET_PATTERNS: List[Tuple[str, str]] = [
@@ -691,6 +701,237 @@ def collect_github_signals(
 
 
 # =============================================================================
+# CIA Findings Collector (Issue #1200)
+# =============================================================================
+
+
+def _parse_iso_ts(ts_str: str) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp into a tz-aware datetime, or None on failure."""
+    if not isinstance(ts_str, str) or not ts_str.strip():
+        return None
+    text = ts_str.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def collect_cia_findings(
+    findings_dir: Path,
+    window_days: int = 90,
+) -> Tuple[List[AggregatedSignal], SourceHealth]:
+    """Collect CIA findings from ``.claude/logs/findings/YYYY-MM.jsonl`` files.
+
+    Algorithm:
+    1. Validate that ``findings_dir`` is absolute (worktree-safety regression).
+    2. Enumerate only monthly files whose filename month falls inside the
+       window (chronological filename sort).
+    3. Stream-parse with a :data:`MAX_LINES` guard; skip malformed lines and
+       records with no ``ts`` or with ``ts < cutoff``.
+    4. Group records by ``root_cause_tag``; within each tag, cluster by
+       title-token Jaccard similarity using
+       :func:`issue_triage_analyzer.cluster_within_tag` (so the contract
+       matches the existing triage analyzer).
+    5. Emit one :class:`AggregatedSignal` per sub-cluster with:
+
+       * ``signal_type`` = ``root_cause_tag``
+       * ``frequency`` = cluster size
+       * ``severity`` = ``CIA_FINDING_SEVERITY_MAP[max_severity_label]``
+       * ``raw_data`` = ``{distinct_sessions, file_refs_union,
+         sub_cluster_size, max_severity_label, root_cause_tag}``
+
+    Args:
+        findings_dir: ABSOLUTE path to the findings root directory.
+        window_days: Number of days to look back.
+
+    Returns:
+        Tuple of (signals, source_health). Status is ``"empty"`` when no
+        signals were produced (including when the directory does not exist),
+        ``"ok"`` on success, and ``"error"`` if a top-level exception was
+        caught.
+    """
+    source_name = "cia_findings"
+
+    if not isinstance(findings_dir, Path):
+        findings_dir = Path(findings_dir)
+    if not findings_dir.is_absolute():
+        raise ValueError("findings_dir must be absolute (worktree safety)")
+
+    try:
+        # Import lazily so the runtime_data_aggregator module doesn't have a
+        # hard import-time dependency on issue_triage_analyzer (and the
+        # circular-import risk: issue_triage_analyzer already imports from
+        # runtime_data_aggregator).
+        try:
+            from .issue_triage_analyzer import cluster_within_tag  # type: ignore
+        except ImportError:
+            _lib_dir = Path(__file__).parent.resolve()
+            if str(_lib_dir) not in sys.path:
+                sys.path.insert(0, str(_lib_dir))
+            from issue_triage_analyzer import cluster_within_tag  # type: ignore
+
+        if not findings_dir.exists():
+            return [], SourceHealth(source=source_name, status="empty", signal_count=0)
+
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=window_days)
+        cutoff_month = (cutoff.year, cutoff.month)
+
+        # Enumerate ``YYYY-MM.jsonl`` files chronologically; skip files whose
+        # month is strictly before the cutoff month.
+        monthly_files: List[Path] = []
+        for p in sorted(findings_dir.glob("*.jsonl")):
+            stem = p.stem  # e.g. "2026-06"
+            parts = stem.split("-")
+            if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+                continue
+            year, month = int(parts[0]), int(parts[1])
+            if (year, month) < cutoff_month:
+                continue
+            monthly_files.append(p)
+
+        # Stream parse records.
+        records: List[Dict[str, Any]] = []
+        total_lines = 0
+        for monthly in monthly_files:
+            try:
+                with open(monthly, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if total_lines >= MAX_LINES:
+                            break
+                        total_lines += 1
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                        if not isinstance(rec, dict):
+                            continue
+                        ts_str = rec.get("ts", "")
+                        dt = _parse_iso_ts(ts_str)
+                        if dt is None:
+                            # Missing/malformed ts → skip per spec.
+                            continue
+                        if dt < cutoff:
+                            continue
+                        # Default missing session_id to literal "unknown".
+                        if not rec.get("session_id"):
+                            rec["session_id"] = "unknown"
+                        records.append(rec)
+            except (OSError, PermissionError):
+                continue
+            if total_lines >= MAX_LINES:
+                break
+
+        if not records:
+            return [], SourceHealth(source=source_name, status="empty", signal_count=0)
+
+        # Group by root_cause_tag.
+        by_tag: Dict[str, List[Dict[str, Any]]] = {}
+        for rec in records:
+            tag = str(rec.get("root_cause_tag", "UNTAGGED"))
+            by_tag.setdefault(tag, []).append(rec)
+
+        severity_order = {"info": 0, "warning": 1, "error": 2}
+        severity_inv = {v: k for k, v in severity_order.items()}
+
+        signals: List[AggregatedSignal] = []
+        for tag in sorted(by_tag):
+            bucket = by_tag[tag]
+            # Build synthetic ``issue``-shaped dicts for cluster_within_tag:
+            # the function needs ``number`` (int) and ``title`` (str) only.
+            synthetic_issues = [
+                {"number": i, "title": str(rec.get("title", ""))}
+                for i, rec in enumerate(bucket)
+            ]
+            sub_clusters = cluster_within_tag(synthetic_issues)
+
+            for cluster in sub_clusters:
+                cluster_records = [bucket[idx] for idx in cluster]
+                titles = [str(rec.get("title", "")) for rec in cluster_records]
+                # Pick the shortest non-empty title as the description (so
+                # the signal stays human-readable in reports).
+                non_empty_titles = [t for t in titles if t]
+                if non_empty_titles:
+                    description = min(non_empty_titles, key=len)
+                else:
+                    description = ""
+                description = _sanitize_string(description)[:200]
+
+                # Max severity across the cluster.
+                max_sev_int = 0
+                for rec in cluster_records:
+                    sev = str(rec.get("severity", "info"))
+                    max_sev_int = max(max_sev_int, severity_order.get(sev, 0))
+                max_sev_label = severity_inv[max_sev_int]
+                severity_float = CIA_FINDING_SEVERITY_MAP[max_sev_label]
+
+                # Distinct sessions + file_refs union.
+                distinct_sessions = {
+                    str(rec.get("session_id", "unknown")) for rec in cluster_records
+                }
+                file_refs_union: set = set()
+                for rec in cluster_records:
+                    refs = rec.get("file_refs", [])
+                    if isinstance(refs, (list, tuple)):
+                        for ref in refs:
+                            if ref:
+                                file_refs_union.add(str(ref))
+
+                # Latest ts in cluster (already parseable since we filtered).
+                latest_ts = ""
+                latest_dt: Optional[datetime] = None
+                for rec in cluster_records:
+                    dt = _parse_iso_ts(str(rec.get("ts", "")))
+                    if dt is None:
+                        continue
+                    if latest_dt is None or dt > latest_dt:
+                        latest_dt = dt
+                        latest_ts = str(rec.get("ts", ""))
+
+                signals.append(
+                    AggregatedSignal(
+                        source=source_name,
+                        signal_type=tag,
+                        description=description,
+                        frequency=len(cluster_records),
+                        severity=severity_float,
+                        raw_data={
+                            "root_cause_tag": tag,
+                            "distinct_sessions": len(distinct_sessions),
+                            "file_refs_union": sorted(file_refs_union),
+                            "sub_cluster_size": len(cluster_records),
+                            "max_severity_label": max_sev_label,
+                        },
+                        timestamp=latest_ts,
+                    )
+                )
+
+        health = SourceHealth(
+            source=source_name,
+            status="ok" if signals else "empty",
+            signal_count=len(signals),
+        )
+        return signals, health
+
+    except ValueError:
+        # Re-raise programmer errors (absolute-path guard).
+        raise
+    except Exception as e:
+        return [], SourceHealth(
+            source=source_name, status="error", signal_count=0,
+            error_message=str(e)[:200],
+        )
+
+
+# =============================================================================
 # Persistence
 # =============================================================================
 
@@ -746,16 +987,26 @@ def aggregate(
     patterns_path = (
         project_root / "plugins" / "autonomous-dev" / "config" / "known_bypass_patterns.json"
     )
+    findings_dir = project_root / ".claude" / "logs" / "findings"
 
     # Collect from all sources
     session_signals, session_health = collect_session_signals(logs_activity_dir, window_days)
     benchmark_signals, benchmark_health = collect_benchmark_signals(benchmark_path, window_days)
     ci_signals, ci_health = collect_ci_signals(logs_activity_dir, patterns_path, window_days)
     github_signals, github_health = collect_github_signals(repo)
+    # Issue #1200: CIA findings — use a 90-day window minimum so single
+    # findings don't drop off the report after one week.
+    cia_signals, cia_health = collect_cia_findings(
+        findings_dir, window_days=max(window_days, 90),
+    )
 
     # Merge all signals
-    all_signals = session_signals + benchmark_signals + ci_signals + github_signals
-    all_health = [session_health, benchmark_health, ci_health, github_health]
+    all_signals = (
+        session_signals + benchmark_signals + ci_signals + github_signals + cia_signals
+    )
+    all_health = [
+        session_health, benchmark_health, ci_health, github_health, cia_health,
+    ]
 
     # Sort by priority (highest first) and cap at top_n
     all_signals.sort(key=compute_priority, reverse=True)
