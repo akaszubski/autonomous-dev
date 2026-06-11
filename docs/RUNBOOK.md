@@ -116,7 +116,37 @@ A periodic-aggregation pass:
 - Identifies gaps, duplicates, dependencies, drift that per-event scope cannot see.
 - Outputs either **updates** (docs reconciled in place) or a **ranked work queue** (triaged issues, baseline snapshot).
 
-This is the architectural layer that catches drift no per-event hook can see — by design, per-event automations have a single-commit blast radius. Periodic passes are additive: they do not replace or modify per-event hooks. Implementations land incrementally — pick one, generalize the pattern, then port to the other variants.
+This is the architectural layer that catches drift no per-event hook can see — by design, per-event automations have a single-commit blast radius. Periodic passes are additive: they do not replace or modify per-event hooks. Implementations land incrementally — pick one, generalize the pattern, then port to the other variants. The weekly drain sequence — the human-triggered PROPOSE-mode governance loop — is documented in [Weekly Drain Sequence (PROPOSE mode)](#weekly-drain-sequence-propose-mode) below.
+
+### Weekly Drain Sequence (PROPOSE mode)
+
+The weekly drain is the human-triggered governance loop that turns accumulated CIA findings into merged, deployed improvements. It is intentionally human-gated: one digest reviewed per cycle, no plugin scheduling dependency (`/schedule` is an optional harness capability, not a prerequisite).
+
+**Step sequence:**
+
+1. `/triage --auto-improvement` — groups accumulated CIA findings by root cause, sequences dependencies, drops noise, and emits a ranked work queue.
+2. Review the output; select the top cluster.
+3. `/implement --issues <cluster>` — runs the full SDLC pipeline on the selected cluster.
+4. `/improve --auto-file` — collects CIA findings, runs the macro-promotion layer, emits the 5-section direction-guard digest, and persists the report to `.claude/logs/aggregated_reports.jsonl`.
+5. `bash scripts/deploy-all.sh` — **MANDATORY final step.** Handles local install, Mac Studio remote deploy, validation, and integrity checks. The validation exit code is both a digest metric and an AUTO-flip prerequisite (see below).
+6. Review the digest. The first two weekly reviews **double as the threshold-recalibration checkpoint** for the tunable promotion thresholds (`PROMOTION_FREQUENCY_MIN`, `PROMOTION_DISTINCT_SESSIONS_MIN`, and related constants) in `plugins/autonomous-dev/lib/macro_promotion.py` — that file's inline re-evaluation comment block names this checkpoint as its trigger.
+
+**PROPOSE mode governance:** Human triggers weekly; reviews one digest per cycle; no plugin scheduling dependency — `/schedule` is an optional harness capability, not a prerequisite for this loop. The loop is intentionally human-gated pending the AUTO-flip criteria below.
+
+**AUTO-flip criteria** (all four must be true before automating the drain):
+
+- `#1041 closed`
+- `#1195 closed`
+- 2 consecutive PROPOSE drains with zero `.claude/.bypass` events (proxy: pipeline ran without emergency hook-disable overrides)
+- `bash scripts/deploy-all.sh` validation exit 0 on both of those runs
+
+**Direction guards** (reviewed each cycle):
+
+1. PROJECT.md alignment gate unchanged — `/implement` STEP 2 runs on every drain; features that drift from scope are blocked before any code is written.
+2. Worktree isolation — each cluster runs in its own worktree; partial work cannot contaminate the trunk.
+3. Nothing merges on red — validation failures in `deploy-all.sh` stop the deploy; the cycle does not advance until the gate is green.
+4. Digest metrics reviewed each cycle: open `auto-improvement` issue count trend; recurrence-after-close rate (the `FIX DIDN'T STICK:` loud-line from the digest, surfaced by `detect_recurrence_after_close` in `macro_promotion.py`); test count trend; `deploy-all.sh` validation pass rate; `.claude/.bypass` event count — **alarm if > 0** (if non-zero, investigate before considering AUTO-flip).
+5. The digest shape: the 5-section anti-habituation artifact produced by `format_digest` in `macro_promotion.py`: (1) ACTIONS TAKEN — Promoted/Appended/Held/Expired + create-failure surfacing; (2) Recurrence-after-close including `FIX DIDN'T STICK:` lines; (3) Match-rate with count-gated alarm (<50% matched while >20 open auto-improvement issues); (4) Findings-per-session with CIA-emission-failure alarm (0 vs ~5/session baseline); (5) Error-without-other-channel. All 5 sections render even when empty — absence of an expected signal is loud by design.
 
 ---
 
