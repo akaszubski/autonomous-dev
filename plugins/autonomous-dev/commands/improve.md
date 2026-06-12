@@ -364,14 +364,26 @@ Steps (run from the repo root resolved via `git rev-parse`):
        top_n=len(signals),
    )
    persist_report(report, PROJECT_ROOT / ".claude" / "logs" / "aggregated_reports.jsonl")
+
+   # Issue #1204: clean up the hook-contract context file inside the same
+   # Bash tool call (via this python3 block) so no standalone `rm` is needed.
+   # The #1203 standalone-prior-write contract is preserved — the context
+   # WRITE happened in its own Bash call (Step 2 above), and is consumed
+   # here at the end of all `gh issue create`/`gh issue comment` side effects.
+   try:
+       (Path("/tmp/autonomous_dev_cmd_context.json")).unlink()
+   except FileNotFoundError:
+       pass
    PY
    ```
 
-4. Clean up the hook-contract context file:
-
-   ```bash
-   rm -f /tmp/autonomous_dev_cmd_context.json
-   ```
+4. The hook-contract context file is cleaned up INSIDE the python3 block
+   above. The `subprocess.call(["gh", "issue", ...])` invocations spawn
+   `gh` directly (no Bash tool boundary involved), so the `rm` cleanup
+   step that used to live here as a separate Bash invocation surfaced a
+   user-visible permission prompt for no operational gain (Issue #1204).
+   The python3 block ends with the context-file unlink so the cleanup runs
+   in the same Bash tool call that drove the create/comment side effects.
 
 5. Report appended/created issues with URLs. Surface any create_failures
    loudly (they appear in the digest's `Create failures:` line and reference
@@ -476,13 +488,24 @@ METRICS:
 - Pipeline completion rate: [N]% (across recent sessions)
 ```
 
-If `--auto-file` is also set, create a single summary issue:
+If `--auto-file` is also set, create a single summary issue. The
+context-file WRITE MUST be a STANDALONE prior Bash call (#1203 contract);
+the trailing `rm` cleanup MUST be chained onto the consuming
+`gh issue create` via `;` so the single create-approval covers cleanup
+(#1204).
+
+First, as its OWN STANDALONE Bash call, write the hook-contract context
+file:
 ```bash
 python3 -c "
 import json; from datetime import datetime, timezone
 with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
     json.dump({'command': 'improve', 'timestamp': datetime.now(timezone.utc).isoformat()}, f)
 "
-gh issue create -R akaszubski/autonomous-dev   --title "[TRENDS] Aggregate analysis $(date +%Y-%m-%d)"   --label "auto-improvement,trends"   --body "{full trend report + **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)}"
-rm -f /tmp/autonomous_dev_cmd_context.json
+```
+
+Then, as a separate Bash call, create the issue with the cleanup chained
+via `;`:
+```bash
+gh issue create -R akaszubski/autonomous-dev   --title "[TRENDS] Aggregate analysis $(date +%Y-%m-%d)"   --label "auto-improvement,trends"   --body "{full trend report + **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)}"; rm -f /tmp/autonomous_dev_cmd_context.json
 ```

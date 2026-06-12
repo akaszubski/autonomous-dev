@@ -219,21 +219,29 @@ the context at evaluation time and will block (see #1203).
    ISSUE_EOF
    ```
 
-3. **Step 6c — Create the issue** (separate Bash tool call AFTER 6a and 6b):
-   ```bash
-   gh issue create --title "feat: <sanitized item title>" --body-file /tmp/plan_issue_N.md
-   ```
-   The cleanup of `/tmp/plan_issue_N.md` MAY be chained onto the same call
-   (`...; rm -f /tmp/plan_issue_N.md`) — but the context-file cleanup MUST
-   remain separate (Step 6d) so the context survives across all create calls.
+3. **Step 6c — Create the issue** (separate Bash tool call AFTER 6a and 6b).
+   Per-issue temp-file cleanup MUST be chained onto the same call via `;`,
+   and the final iteration of the per-issue loop MUST also chain
+   `/tmp/autonomous_dev_cmd_context.json` into the same `; rm -f ...` clause.
+   Standalone `rm` calls re-introduce a user-visible permission prompt
+   (Issue #1204).
 
-4. **Step 6d — Clean up the context file** AFTER all issues are created
-   (separate Bash call):
+   Mid-loop iterations (every iteration EXCEPT the last) chain only their own
+   per-issue temp file:
    ```bash
-   rm -f /tmp/plan_issue_*.md /tmp/autonomous_dev_cmd_context.json
+   gh issue create --title "feat: <sanitized item title>" --body-file /tmp/plan_issue_N.md; rm -f /tmp/plan_issue_N.md
    ```
 
-5. Collect created issue URLs (e.g., `https://github.com/owner/repo/issues/101`)
+   Final iteration of the loop chains the glob+context cleanup so the
+   context-file write from Step 6a is removed only after the LAST
+   `gh issue create` succeeds (preserving the #1203 standalone-prior-write
+   contract — the WRITE in 6a stays its own call; only the cleanup rides
+   the last create):
+   ```bash
+   gh issue create --title "feat: <sanitized item title>" --body-file /tmp/plan_issue_N.md; rm -f /tmp/plan_issue_*.md /tmp/autonomous_dev_cmd_context.json
+   ```
+
+4. Collect created issue URLs (e.g., `https://github.com/owner/repo/issues/101`)
    and display them to the user.
 
 **Non-blocking error handling**: If `gh issue create` fails for any reason (not installed, not authenticated, network error), log a warning and continue to Step 7. Do NOT halt or block plan file creation. Suggest running `/plan-to-issues` manually.

@@ -102,10 +102,12 @@ Generate a markdown body with EXACTLY these 4 sections (no more, no less):
 4. **Acceptance Criteria**: Checkboxes for verifiable conditions
 5. **Plugin Version**: Include the plugin version stamp: `$(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)`
 
-Capture the current Unix timestamp:
+Capture a collision-safe Unix timestamp (nanoseconds — unique even across concurrent runs):
 ```bash
-RUN_TS=$(date +%s)
+RUN_TS=$(date +%s%N)
 ```
+
+Temp files use the `RUN_TS=$(date +%s%N)` unique suffix for collision-safety across concurrent runs.
 
 Write the body to a temp file (CWE-78 prevention — never inline body as shell argument):
 ```bash
@@ -114,19 +116,16 @@ cat > /tmp/create_issue_body_${RUN_TS}.md << 'ISSUE_EOF'
 ISSUE_EOF
 ```
 
-**Quick Step 4: Create the issue**
+**Quick Step 4: Create the issue (chained cleanup — #1204)**
+
+The trailing `rm` is chained onto the `gh issue create` call via `;` so the single Bash approval covers the cleanup AND the cleanup runs even on failure paths. The context-file WRITE above (in STEP 0) remains a separate prior call, preserving the #1203 contract.
 ```bash
-gh issue create --title "TITLE" --body-file /tmp/create_issue_body_${RUN_TS}.md
+gh issue create --title "TITLE" --body-file /tmp/create_issue_body_${RUN_TS}.md; rm -f /tmp/autonomous_dev_cmd_context.json /tmp/create_issue_body_${RUN_TS}.md
 ```
 
-**Quick Step 5: Display result + cleanup**
+**Quick Step 5: Display result**
 
-Show the created issue URL. If the duplicate scan in Quick Step 2 found matching issues, display them as informational below the URL (no prompt, no blocking).
-
-Clean up context and temp files:
-```bash
-rm -f /tmp/autonomous_dev_cmd_context.json /tmp/create_issue_body_${RUN_TS}.md
-```
+Show the created issue URL. If the duplicate scan in Quick Step 2 found matching issues, display them as informational below the URL (no prompt, no blocking). Cleanup already happened as part of Quick Step 4.
 
 **END** — Do not proceed to STEP 1 or any subsequent steps.
 
@@ -160,7 +159,7 @@ Verify the researcher agent completed successfully:
 
 If research failed, clean up the context file and stop:
 ```bash
-rm -f /tmp/autonomous_dev_cmd_context.json
+rm -f /tmp/autonomous_dev_cmd_context.json  # unavoidable: no preceding Bash call to chain onto (error-exit path)
 ```
 Do NOT proceed to STEP 2.
 
@@ -245,7 +244,7 @@ Verify the issue-creator agent completed successfully:
 
 If issue creation failed, clean up the context file and stop:
 ```bash
-rm -f /tmp/autonomous_dev_cmd_context.json
+rm -f /tmp/autonomous_dev_cmd_context.json  # unavoidable: no preceding Bash call to chain onto (error-exit path)
 ```
 Do NOT proceed to STEP 3.
 
@@ -276,19 +275,19 @@ Reply with option number.
 
 **If user chooses option 2 (skip)**: Clean up the context file before exiting:
 ```bash
-rm -f /tmp/autonomous_dev_cmd_context.json
+rm -f /tmp/autonomous_dev_cmd_context.json  # unavoidable: no preceding Bash call to chain onto (user-cancel exit path)
 ```
 
 **--quick mode**: No prompts. Create issue, show info after.
 
-**3B: Create GitHub issue via gh CLI**
+**3B: Create GitHub issue via gh CLI (chained cleanup — #1204)**
 
 Extract the issue title and body from the issue-creator agent output.
 
-Use the Bash tool to execute:
+Use the Bash tool to execute. The trailing `rm` is chained onto the same call via `;` so the single Bash approval covers cleanup AND the cleanup runs on failure paths (the context-file WRITE in STEP 0 remains a standalone prior call per the #1203 contract):
 
 ```bash
-gh issue create --title "TITLE_HERE" --body "BODY_HERE"
+gh issue create --title "TITLE_HERE" --body "BODY_HERE"; rm -f /tmp/autonomous_dev_cmd_context.json
 ```
 
 **Security**: Title and body are validated by issue-creator agent. If gh CLI fails, provide manual fallback.
@@ -297,10 +296,7 @@ gh issue create --title "TITLE_HERE" --body "BODY_HERE"
 
 ### CHECKPOINT 3: Validate Issue Creation
 
-Clean up the context file after issue creation:
-```bash
-rm -f /tmp/autonomous_dev_cmd_context.json
-```
+The context file was cleaned up as part of STEP 3B (chained `; rm -f ...`), so no separate cleanup is needed here.
 
 Verify the gh CLI command succeeded:
 - Issue created successfully

@@ -183,8 +183,11 @@ If `--auto-file` flag is set, file issues for IMMEDIATE findings only:
    evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT
    bundle the context write and `gh issue create` into one Bash tool
    call** — the hook would not see the context at evaluation time and
-   would block (see #1203). The context-file write, the issue creates,
-   and the cleanup MUST be separate Bash tool calls.
+   would block (see #1203). The context-file WRITE MUST be a separate
+   Bash tool call PRECEDING any `gh issue create`; the cleanup MAY (and
+   SHOULD) chain onto the consuming command via `;` so the single
+   create-approval covers cleanup (Issue #1204) — standalone `rm`
+   re-introduces a user-visible permission prompt.
 
    Step 2a — write the context file ONCE before any creates (its OWN
    STANDALONE Bash tool call):
@@ -197,22 +200,30 @@ If `--auto-file` flag is set, file issues for IMMEDIATE findings only:
    ```
 
    Step 2b — for each IMMEDIATE finding, create the issue (separate Bash
-   call from the context write):
+   call from the context write). Mid-loop iterations do NOT chain the
+   context cleanup; the FINAL `gh issue create` call chains
+   `; rm -f /tmp/autonomous_dev_cmd_context.json` so the cleanup runs
+   even if the final create fails (Issue #1204):
    ```bash
+   # Mid-loop iteration (NON-FINAL — no chained cleanup):
    gh issue create -R akaszubski/autonomous-dev \
      --title "[RETRO] {finding title}" \
      --label "retrospective,auto-improvement" \
      --body "{evidence + proposed edit}
 
 **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)"
+
+   # FINAL iteration (chains context-file cleanup via `;`):
+   gh issue create -R akaszubski/autonomous-dev \
+     --title "[RETRO] {finding title}" \
+     --label "retrospective,auto-improvement" \
+     --body "{evidence + proposed edit}
+
+**Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)"; rm -f /tmp/autonomous_dev_cmd_context.json
    ```
 
-3. Clean up (separate Bash call AFTER all creates):
-   ```bash
-   rm -f /tmp/autonomous_dev_cmd_context.json
-   ```
-
-4. Report filed issues with URLs.
+3. Report filed issues with URLs. Cleanup happens inline via the `;`-chain
+   on the final create (no separate cleanup step needed).
 
 ## What It Detects
 

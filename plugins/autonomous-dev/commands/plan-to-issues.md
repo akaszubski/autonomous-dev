@@ -181,22 +181,29 @@ For each confirmed item, use the Bash tool:
    call** — the hook would not see the context at evaluation time and
    would block (see #1203).
 
-4. Create the issue (separate Bash call from step 3):
+4. Create the issue (separate Bash call from step 3). Each `gh issue create`
+   call MUST end with `; rm -f /tmp/plan_issue_${N}.md` (per-issue temp file);
+   the final call also chains `/tmp/autonomous_dev_cmd_context.json` (context
+   file). Standalone `rm` calls re-introduce a user-visible permission prompt
+   (Issue #1204). The #1203 standalone-prior-write contract is preserved —
+   the context-file WRITE in step 3 stays its own call; only the cleanup rides
+   the final create.
+
+   Mid-loop iterations (every iteration EXCEPT the last):
    ```bash
-   gh issue create --title "SANITIZED_TITLE" --body-file /tmp/plan_issue_N.md
+   gh issue create --title "SANITIZED_TITLE" --body-file /tmp/plan_issue_N.md; rm -f /tmp/plan_issue_N.md
+   ```
+
+   Final iteration of the loop (chains context-file cleanup):
+   ```bash
+   gh issue create --title "SANITIZED_TITLE" --body-file /tmp/plan_issue_N.md; rm -f /tmp/plan_issue_N.md /tmp/autonomous_dev_cmd_context.json
    ```
 
 5. Sleep 1 second between calls (GitHub rate limiting)
 
 6. Collect created issue numbers and URLs
 
-7. After all issues are created, clean up the context file (separate Bash
-   call from the last `gh issue create`):
-   ```bash
-   rm -f /tmp/autonomous_dev_cmd_context.json
-   ```
-
-**Error handling**: If `gh issue create` fails for one issue, log the error and continue with the remaining issues. Report failures in the summary. Ensure marker cleanup happens even on partial failure.
+**Error handling**: If `gh issue create` fails for one issue, log the error and continue with the remaining issues. Report failures in the summary. The trailing `; rm -f ...` clause runs even when `gh issue create` fails, so per-issue cleanup happens on partial failure paths too. Note: if the FINAL create fails, the context-file cleanup ALSO runs (via the same `;`-chain), so the context never leaks across runs.
 
 ---
 
@@ -218,7 +225,7 @@ Research cached for reuse by /implement.
 ```
 
 **Cleanup**:
-- Remove temp files: `rm -f /tmp/plan_issue_*.md`
+- Per-issue temp files (`/tmp/plan_issue_${N}.md`) and the context file (`/tmp/autonomous_dev_cmd_context.json`) are removed inline via the `; rm -f ...` clauses chained onto each `gh issue create` call in STEP 4 (Issue #1204). No separate cleanup call is needed.
 - Consume plan_mode_exit marker if present: delete `.claude/plan_mode_exit.json`
 
 If any issues failed to create, list them separately:

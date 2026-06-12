@@ -158,9 +158,10 @@ If `--issues` was passed, pipe findings into GitHub issues:
 evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT bundle
 the context write and `gh issue create` into one Bash tool call** — the
 hook would not see the context at evaluation time and would block
-(see #1203). The context-file write, the issue creates, and the cleanup
-MUST be separate Bash tool calls (cleanup MAY ride the same call as the
-last `gh issue create` if no further create calls follow).
+(see #1203). The context-file WRITE MUST be a separate Bash tool call
+PRECEDING any `gh issue create`. The trailing cleanup `rm` MUST be
+chained onto the FINAL `gh issue create` call via `;` (Issue #1204) —
+standalone `rm` re-introduces a user-visible permission prompt.
 
 Step 1: write the command context file (its OWN Bash tool call, BEFORE
 any `gh issue create`):
@@ -173,25 +174,23 @@ with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
 "
 ```
 
-Step 2: create the issues (separate Bash calls, AFTER step 1):
+Step 2: create the issues (separate Bash calls, AFTER step 1). Mid-loop
+iterations do NOT chain the context-file cleanup; the FINAL `gh issue create`
+call chains `; rm -f /tmp/autonomous_dev_cmd_context.json` so the cleanup
+runs even if the final create fails AND no separate Bash approval is
+required for `rm` (Issue #1204):
 ```bash
-# Example for individual HIGH finding (include plugin version in body):
+# Example for individual HIGH finding (NON-FINAL — no chained cleanup):
 gh issue create --title "Refactor: [genai] Doc-code drift in docs/SECURITY.md" \
   --body "Found by /refactor --deep analysis...
 
 **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)" --label "refactor"
 
-# Example for aggregated LOW/MEDIUM:
+# Example for FINAL create (aggregated LOW/MEDIUM — chains context cleanup):
 gh issue create --title "Refactor sweep: N optimization opportunities" \
   --body "Aggregated findings from /refactor analysis...
 
-**Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)" --label "refactor"
-```
-
-Step 3: clean up the context file (separate Bash call AFTER all creates):
-```bash
-# Clean up context file after issue creation
-rm -f /tmp/autonomous_dev_cmd_context.json
+**Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)" --label "refactor"; rm -f /tmp/autonomous_dev_cmd_context.json
 ```
 
 If `--issues` was NOT passed, skip this step.
