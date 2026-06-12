@@ -179,13 +179,26 @@ If `--auto-file` flag is set, file issues for IMMEDIATE findings only:
    gh issue list -R akaszubski/autonomous-dev --label retrospective --state open
    ```
 
-2. For each IMMEDIATE finding:
+2. **Prior-call ordering contract (Issue #1203)**: the PreToolUse hook
+   evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT
+   bundle the context write and `gh issue create` into one Bash tool
+   call** — the hook would not see the context at evaluation time and
+   would block (see #1203). The context-file write, the issue creates,
+   and the cleanup MUST be separate Bash tool calls.
+
+   Step 2a — write the context file ONCE before any creates (its OWN
+   STANDALONE Bash tool call):
    ```bash
    python3 -c "
    import json; from datetime import datetime, timezone
    with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
        json.dump({'command': 'retrospective', 'timestamp': datetime.now(timezone.utc).isoformat()}, f)
    "
+   ```
+
+   Step 2b — for each IMMEDIATE finding, create the issue (separate Bash
+   call from the context write):
+   ```bash
    gh issue create -R akaszubski/autonomous-dev \
      --title "[RETRO] {finding title}" \
      --label "retrospective,auto-improvement" \
@@ -194,7 +207,7 @@ If `--auto-file` flag is set, file issues for IMMEDIATE findings only:
 **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)"
    ```
 
-3. Clean up:
+3. Clean up (separate Bash call AFTER all creates):
    ```bash
    rm -f /tmp/autonomous_dev_cmd_context.json
    ```

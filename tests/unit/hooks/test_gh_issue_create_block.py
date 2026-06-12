@@ -172,15 +172,25 @@ class TestGhIssueCreateAllowThrough:
             result = hook._detect_gh_issue_create(cmd)
             assert result is None
 
-    def test_fresh_marker_allows(self, no_pipeline, no_agent, tmp_path):
-        """Fresh marker file (< 1 hour) should allow through."""
+    def test_fresh_marker_has_no_effect(self, no_pipeline, no_agent, tmp_path):
+        """Marker file presence MUST NOT grant allow (Issue #1203 dead-code removal).
+
+        Pre-#1203, a fresh marker file at GH_ISSUE_MARKER_PATH granted a 1-hour
+        bypass via a READ allow-through. That allow-through was dead code:
+        nothing has written the marker since #627 (the WRITE was blocked by
+        _detect_gh_issue_marker_creation). #1203 removed the READ. The WRITE
+        blocker remains as defense-in-depth.
+        """
         marker = tmp_path / "fresh_marker"
         marker.touch()  # Creates with current time
 
-        with patch.object(hook, "GH_ISSUE_MARKER_PATH", str(marker)):
+        with patch.object(hook, "GH_ISSUE_MARKER_PATH", str(marker)), \
+             patch.object(hook, "_is_issue_command_active", return_value=False):
             cmd = 'gh issue create --title "test"'
             result = hook._detect_gh_issue_create(cmd)
-            assert result is None
+            # Marker presence MUST no longer grant allow; expect BLOCKED.
+            assert result is not None, "Marker presence must NOT grant allow (#1203)"
+            assert "BLOCKED" in result
 
 
 # ---------------------------------------------------------------------------
@@ -853,3 +863,195 @@ class TestGhIssueMarkerCreationBlocking:
         cmd = "wc -l /tmp/autonomous_dev_gh_issue_allowed.marker"
         result = hook._detect_gh_issue_marker_creation(cmd)
         assert result is None, "wc must not be blocked"
+
+
+# ---------------------------------------------------------------------------
+# TestPlanCommandAllowed — Issue #1203 (plan added to GH_ISSUE_COMMANDS)
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+class TestPlanCommandAllowed:
+    """Issue #1203 Change A: 'plan' added to GH_ISSUE_COMMANDS.
+
+    plan.md STEP 6 files issues by design when there are >=2 independent work
+    items. Whitelisting 'plan' as a recognized command is the minimal fix to
+    let the gh issue create calls in plan.md pass through the hook.
+    """
+
+    def test_plan_command_in_context_allows(
+        self, no_pipeline, no_agent, no_marker, tmp_path
+    ):
+        """Context file with command='plan' must allow gh issue create."""
+        ctx = tmp_path / "ctx.json"
+        ctx.write_text(_json.dumps({"command": "plan", "timestamp": "now"}))
+        with patch.object(hook, "GH_ISSUE_COMMAND_CONTEXT_PATH", str(ctx)):
+            cmd = 'gh issue create --title "feat: split"'
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is None, "plan command context must allow"
+
+    def test_unknown_command_blocked(
+        self, no_pipeline, no_agent, no_marker, tmp_path
+    ):
+        """Context file with an unknown command must NOT allow (fail-closed)."""
+        ctx = tmp_path / "ctx.json"
+        ctx.write_text(_json.dumps({"command": "evil-cmd", "timestamp": "now"}))
+        with patch.object(hook, "GH_ISSUE_COMMAND_CONTEXT_PATH", str(ctx)):
+            cmd = 'gh issue create --title "test"'
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is not None, "unknown command must NOT allow"
+            assert "BLOCKED" in result
+
+
+# ---------------------------------------------------------------------------
+# TestBypassFalsePositive — Issue #1203 Change C (argv-aware backtick/$())
+# ---------------------------------------------------------------------------
+
+
+class TestBypassFalsePositive:
+    """Issue #1203 Change C: backtick/$() detection is argv-aware.
+
+    The original bypass detector scanned the RAW command, matching backtick or
+    $() substrings that lived INSIDE a --body/--title/--body-file argument
+    value — false-positive blocking legitimate gh issue comment calls (and
+    other gh subcommands) whose body contained backtick-quoted prose.
+    The fix tokenizes via shlex.split, strips body/title/message argument
+    values, then runs the regex on the reconstructed command.
+    """
+
+    def test_gh_issue_comment_backticked_body_not_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue comment with prose backticks (NO create pattern) must NOT trip bypass.
+
+        The live-confirmed false positive: backtick-quoted prose in a body that
+        does NOT reference 'gh issue create'. Stripping body values + the
+        Tier-B value scan (which requires the create pattern to fire) keeps
+        this allowed.
+        """
+        cmd = (
+            'gh issue comment 1203 -R akaszubski/autonomous-dev '
+            '--body "Diagnosis includes `some helper` mention in prose"'
+        )
+        assert hook._contains_gh_issue_create_bypass(cmd) is False, (
+            "prose backticks WITHOUT the create pattern must not trip bypass"
+        )
+
+    def test_gh_issue_comment_dollar_subst_in_body_not_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue comment with $(echo ...) inside --body must NOT trip bypass.
+
+        The Tier-B value scan only fires when the substitution content matches
+        'gh issue create'. Benign $(echo ...) prose stays allowed.
+        """
+        cmd = (
+            'gh issue comment 1203 -R r '
+            '--body "see $(echo something) here"'
+        )
+        assert hook._contains_gh_issue_create_bypass(cmd) is False
+
+    def test_gh_issue_comment_attached_body_arg_not_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """--body=VALUE attached-form strips the value AND scans it for embedded bypass.
+
+        Prose backticks WITHOUT the create pattern stay allowed.
+        """
+        cmd = (
+            'gh issue comment 1203 -R r '
+            '--body="prose with `some thing` backticks"'
+        )
+        assert hook._contains_gh_issue_create_bypass(cmd) is False
+
+    def test_actual_backtick_bypass_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """True backtick bypass (at command position) must STILL be blocked."""
+        cmd = "RESULT=`gh issue create --title 'x' --body 'y'`"
+        assert hook._contains_gh_issue_create_bypass(cmd) is True
+
+    def test_actual_dollar_subst_bypass_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """True $() bypass (at command position) must STILL be blocked."""
+        cmd = "RESULT=$(gh issue create --title 'x')"
+        assert hook._contains_gh_issue_create_bypass(cmd) is True
+
+    def test_malformed_shell_falls_back_to_raw_regex(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """shlex ValueError on malformed shell must fall back to raw-regex (preserve blocking)."""
+        # Unclosed quote => shlex raises ValueError
+        cmd = "RESULT=`gh issue create --title 'unterminated"
+        # Fallback raw regex should still match the backtick form.
+        assert hook._contains_gh_issue_create_bypass(cmd) is True
+
+    # ------------------------------------------------------------------
+    # FINDING-2 (Issue #1203 remediation cycle 1): adversarial cases for
+    # substitution INSIDE body-flag values that DO contain the create
+    # pattern. These execute at shell runtime when the body is double-
+    # quoted (and even single-quoted is blocked, fail-closed, because
+    # shlex.split(posix=True) discards quote-type info).
+    # ------------------------------------------------------------------
+
+    def test_dollar_subst_create_inside_body_value_is_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """FINDING-2: --body "$(gh issue create ...)" MUST be blocked.
+
+        In bash, $() inside double quotes executes — this WOULD create the
+        issue at shell runtime. Pre-#1203-cycle-1 this was missed because the
+        argv-aware stripper removed the value before the regex scan.
+        """
+        cmd = 'gh issue comment 1203 --body "$(gh issue create -t x)"'
+        assert hook._contains_gh_issue_create_bypass(cmd) is True, (
+            "$(gh issue create) inside a body value executes at runtime — must block"
+        )
+
+    def test_backtick_create_inside_body_value_is_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """FINDING-2: --body "`gh issue create ...`" MUST be blocked.
+
+        Backticks inside double quotes ALSO execute in bash — equally dangerous
+        as the $() form.
+        """
+        cmd = 'gh issue comment 1203 --body "see `gh issue create -t x`"'
+        assert hook._contains_gh_issue_create_bypass(cmd) is True, (
+            "backticks inside a body value execute at runtime — must block"
+        )
+
+    def test_attached_body_with_dollar_subst_create_is_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """FINDING-2: --body="$(gh issue create ...)" attached form MUST be blocked."""
+        cmd = 'gh issue comment 1203 --body="$(gh issue create -t x)"'
+        assert hook._contains_gh_issue_create_bypass(cmd) is True
+
+    def test_title_with_dollar_subst_create_is_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """FINDING-2: substitution inside --title value is equally dangerous."""
+        cmd = 'gh issue comment 1203 --title "$(gh issue create -t x)" --body ok'
+        assert hook._contains_gh_issue_create_bypass(cmd) is True
+
+    def test_single_quoted_create_pattern_in_body_blocked_failclosed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """FINDING-2: single-quoted prose containing `gh issue create` in
+        backticks — fail-closed (documented tradeoff).
+
+        Single quotes in bash never execute substitutions, so this is technically
+        safe prose. But shlex.split(posix=True) discards quote-type information,
+        so the implementation cannot distinguish single vs double quotes. We
+        fail closed to guarantee no real bypass possible. The cost is one
+        flavor of prose false positive (markdown code-formatting of the
+        create command in a single-quoted body). Live-confirmed FP (prose
+        backticks WITHOUT the create pattern) is preserved as allowed.
+        """
+        cmd = "gh issue comment 1203 --body 'see `gh issue create` mention'"
+        assert hook._contains_gh_issue_create_bypass(cmd) is True, (
+            "fail-closed: single-quoted backticks-with-create-pattern still blocks"
+        )

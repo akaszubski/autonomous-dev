@@ -177,11 +177,20 @@ Steps (run from the repo root resolved via `git rev-parse`):
    FINDINGS_DIR="${PROJECT_ROOT}/.claude/logs/findings"
    ```
 
-2. Write the hook-contract context file BEFORE any `gh` call. The
-   gh-filing hook expects this file to exist; create it once at the top of
-   the step and clean it up at the end. **DO NOT REMOVE** — this contract
-   is what marks the subsequent `gh issue create` calls as legitimate /improve
-   side effects and is depended on by `unified_pre_tool.py`.
+2. Write the hook-contract context file BEFORE any `gh` call, in its OWN
+   STANDALONE Bash tool call. The gh-filing hook expects this file to
+   exist; create it once at the top of the step and clean it up at the
+   end. **DO NOT REMOVE** — this contract is what marks the subsequent
+   `gh issue create` calls as legitimate /improve side effects and is
+   depended on by `unified_pre_tool.py`.
+
+   **Prior-call ordering contract (Issue #1203)**: PreToolUse hook
+   evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT
+   bundle the context write and `gh issue create` into one Bash tool
+   call** — the hook would not see the context at evaluation time and
+   would block. The context write below MUST be its OWN Bash call,
+   separate from the macro-promotion python3 block in Step 3 (which
+   itself invokes `gh issue create`/`gh issue comment` via subprocess).
 
    ```bash
    python3 -c "

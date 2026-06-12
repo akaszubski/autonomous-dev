@@ -154,6 +154,16 @@ If `--issues` was passed, pipe findings into GitHub issues:
 **HIGH/CRITICAL findings**: Create one GitHub issue per finding using `gh issue create`.
 **LOW/MEDIUM findings**: Aggregate into a single "Refactor sweep findings" issue.
 
+**Prior-call ordering contract (Issue #1203)**: the PreToolUse hook
+evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT bundle
+the context write and `gh issue create` into one Bash tool call** — the
+hook would not see the context at evaluation time and would block
+(see #1203). The context-file write, the issue creates, and the cleanup
+MUST be separate Bash tool calls (cleanup MAY ride the same call as the
+last `gh issue create` if no further create calls follow).
+
+Step 1: write the command context file (its OWN Bash tool call, BEFORE
+any `gh issue create`):
 ```bash
 # Create command context file to allow gh issue create through the hook (Issue #599)
 python3 -c "
@@ -161,7 +171,10 @@ import json; from datetime import datetime, timezone
 with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
     json.dump({'command': 'refactor', 'timestamp': datetime.now(timezone.utc).isoformat()}, f)
 "
+```
 
+Step 2: create the issues (separate Bash calls, AFTER step 1):
+```bash
 # Example for individual HIGH finding (include plugin version in body):
 gh issue create --title "Refactor: [genai] Doc-code drift in docs/SECURITY.md" \
   --body "Found by /refactor --deep analysis...
@@ -173,7 +186,10 @@ gh issue create --title "Refactor sweep: N optimization opportunities" \
   --body "Aggregated findings from /refactor analysis...
 
 **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)" --label "refactor"
+```
 
+Step 3: clean up the context file (separate Bash call AFTER all creates):
+```bash
 # Clean up context file after issue creation
 rm -f /tmp/autonomous_dev_cmd_context.json
 ```

@@ -164,7 +164,9 @@ For each confirmed item, use the Bash tool:
    - Limit to 256 characters
    - Escape double quotes
 
-3. Before the first issue, create the command context file to allow gh issue create (Issue #599):
+3. Before the first issue, create the command context file to allow gh
+   issue create (Issue #599). **MUST be its OWN STANDALONE Bash tool
+   call**, run BEFORE any `gh issue create` invocation:
    ```bash
    python3 -c "
    import json; from datetime import datetime, timezone
@@ -173,7 +175,13 @@ For each confirmed item, use the Bash tool:
    "
    ```
 
-4. Create the issue:
+   **Prior-call ordering contract (Issue #1203)**: the PreToolUse hook
+   evaluates each Bash invocation BEFORE it runs. **FORBIDDEN: Do NOT
+   bundle the context write and `gh issue create` into one Bash tool
+   call** — the hook would not see the context at evaluation time and
+   would block (see #1203).
+
+4. Create the issue (separate Bash call from step 3):
    ```bash
    gh issue create --title "SANITIZED_TITLE" --body-file /tmp/plan_issue_N.md
    ```
@@ -182,7 +190,8 @@ For each confirmed item, use the Bash tool:
 
 6. Collect created issue numbers and URLs
 
-7. After all issues are created, clean up the context file:
+7. After all issues are created, clean up the context file (separate Bash
+   call from the last `gh issue create`):
    ```bash
    rm -f /tmp/autonomous_dev_cmd_context.json
    ```

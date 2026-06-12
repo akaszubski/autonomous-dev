@@ -192,12 +192,11 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Fail-open: when no pipeline context exists (`current_issue == 0`), the guard passes; detection errors never block
 - Required next action on block: `mv {file_path} tests/archived/` — spec tests from other issues must be archived, not deleted
 
-**GitHub Issue Creation Gate** (Issue #599):
+**GitHub Issue Creation Gate** (Issue #599, hardened Issue #1203):
 - Direct `gh issue create` in Bash is blocked outside approved contexts to enforce the `/create-issue` pipeline (research, duplicate detection, proper formatting)
 - Allow-through 1: an active `/implement` pipeline is present (`/tmp/implement_pipeline_state.json`)
 - Allow-through 2: the current agent is `continuous-improvement-analyst` or `issue-creator` (authorized for direct issue creation)
-- Allow-through 3: a fresh marker file exists at `GH_ISSUE_MARKER_PATH` (`/tmp/autonomous_dev_gh_issue_allowed.marker`, valid for 1 hour) — written only by the active `/implement` pipeline (commands no longer write this file; see Issue #627)
-- Allow-through 4 (Issue #630, #647, #663): a command context file exists at `GH_ISSUE_COMMAND_CONTEXT_PATH` (`/tmp/autonomous_dev_cmd_context.json`, valid for 1 hour) with a `command` field set to one of `create-issue`, `plan-to-issues`, `improve`, `refactor`, or `retrospective` — the hook auto-writes this file in the `NATIVE_TOOLS` fast path when it detects a `Skill` tool invocation for one of these commands (before any downstream Bash `gh issue create` check fires); uses file mtime for age check (harder to spoof than an embedded JSON timestamp)
+- Allow-through 3 (Issue #630, #647, #663): a command context file exists at `GH_ISSUE_COMMAND_CONTEXT_PATH` (`/tmp/autonomous_dev_cmd_context.json`) with a `command` field set to one of `create-issue`, `plan-to-issues`, `improve`, `refactor`, `retrospective`, or `plan` — the hook auto-writes this file in the `NATIVE_TOOLS` fast path when it detects a `Skill` tool invocation for one of these commands (before any downstream Bash `gh issue create` check fires); uses file mtime for age check (harder to spoof than an embedded JSON timestamp). **Prior-call ordering contract (#1203)**: the context file MUST be written in a separate Bash tool call prior to any `gh issue create` call — bundling write and create into one Bash invocation leaves the context absent at hook-evaluation time and blocks. Note: the prior marker-file allow-through (Allow-through 3 in pre-#1203 versions) was removed in #1203 because it was dead code — nothing writes the marker file anymore (writes are blocked by the Marker File Creation Guard since #627)
 - Block message directs the user to `/create-issue` or `/create-issue --quick`; also includes a FORBIDDEN clause explicitly prohibiting suggestions to run `! gh issue create` or any other bypass method (the `!` prefix runs commands outside the hook system)
 - Fails open on any detection error to avoid blocking legitimate work
 
@@ -207,7 +206,7 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Allowed (not blocked): read-only verbs (`cat`, `ls`, `stat`, `test`, `head`, `tail`, `wc`, `file`, `readlink`, `[`), delete (`rm`), reference-only mentions (`grep`; `echo`/`printf` without a redirect targeting the marker file)
 - Allow-through 1: active `/implement` pipeline (the pipeline legitimately writes the marker when authorizing issue creation)
 - Allow-through 2: agent name in `GH_ISSUE_AGENTS` (`continuous-improvement-analyst`, `issue-creator`)
-- Allow-through 3: issue-creating command is active (`_is_issue_command_active()`) — commands such as `/create-issue`, `/plan-to-issues`, `/improve`, `/refactor`, `/retrospective`
+- Allow-through 3: issue-creating command is active (`_is_issue_command_active()`) — commands such as `/create-issue`, `/plan-to-issues`, `/improve`, `/refactor`, `/retrospective`, `/plan`
 - No marker-file allow-through (circular — the guard protects the marker itself)
 - Fails open on any detection error to avoid blocking legitimate work
 

@@ -55,7 +55,9 @@ Parse the ARGUMENTS to detect mode flags:
 
 Extract the feature request (everything except flags).
 
-**Create command context file immediately** (before any agents are spawned):
+**Create command context file immediately, in its OWN separate Bash tool
+call** (before any agents are spawned and before any `gh issue create`
+calls):
 ```bash
 python3 -c "
 import json; from datetime import datetime, timezone
@@ -64,6 +66,15 @@ with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
 "
 ```
 This context file allows the `issue-creator` agent to run `gh issue create` later. It MUST be created here, before STEP 1, because agents spawned in STEP 1-2 may need it. The context file is cleaned up at CHECKPOINT 3 or on early exit.
+
+**Prior-call ordering contract (Issue #1203)**: The PreToolUse hook
+evaluates each Bash invocation BEFORE it runs. The context-file write
+above MUST be a STANDALONE Bash tool call. **FORBIDDEN: Do NOT bundle the
+context write and `gh issue create` into one Bash tool call** — at hook
+evaluation time the context file would not yet exist on disk and the
+`gh issue create` call would be blocked. See #1203. The cleanup of the
+context file MAY ride the same call as the last `gh issue create` only
+when no further `gh issue create` calls follow in this command run.
 
 ---
 

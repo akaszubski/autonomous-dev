@@ -184,7 +184,16 @@ Record `N/A — single work item` in the `## Linked Issues` section of the plan 
 
 Issue creation uses quick mode: Summary + Implementation Approach + Acceptance Criteria only (no full template).
 
-1. Create the command context file (required by hook):
+**Prior-call ordering contract (Issue #1203)**: PreToolUse hook
+evaluates each Bash invocation BEFORE it runs. The command-context file
+MUST be written in its OWN Bash tool call, separate from and BEFORE any
+`gh issue create` call. **FORBIDDEN: Do NOT bundle the context write
+and `gh issue create` into one Bash tool call** — the hook will not see
+the context at evaluation time and will block (see #1203).
+
+1. **Step 6a — Write the command context file (its OWN Bash tool call, prior
+   to any `gh issue create`).** This call MUST be a standalone Bash
+   invocation with no `&&` chain to a subsequent `gh issue create`:
    ```bash
    python3 -c "
    import json; from datetime import datetime, timezone
@@ -193,7 +202,9 @@ Issue creation uses quick mode: Summary + Implementation Approach + Acceptance C
    "
    ```
 
-2. For each independent work item, write the issue body and create the issue:
+2. **Step 6b — Write each issue body to a temp file** (one Bash call per
+   body, or grouped — the body writes do NOT need to be separate from each
+   other; they just need to be separate from the `gh issue create` calls):
    ```bash
    cat > /tmp/plan_issue_N.md << 'ISSUE_EOF'
    ## Summary
@@ -206,17 +217,24 @@ Issue creation uses quick mode: Summary + Implementation Approach + Acceptance C
    - [ ] <criterion 1>
    - [ ] <criterion 2>
    ISSUE_EOF
-   gh issue create --title "feat: <sanitized item title>" --body-file /tmp/plan_issue_N.md
    ```
 
-3. Collect created issue URLs (e.g., `https://github.com/owner/repo/issues/101`).
+3. **Step 6c — Create the issue** (separate Bash tool call AFTER 6a and 6b):
+   ```bash
+   gh issue create --title "feat: <sanitized item title>" --body-file /tmp/plan_issue_N.md
+   ```
+   The cleanup of `/tmp/plan_issue_N.md` MAY be chained onto the same call
+   (`...; rm -f /tmp/plan_issue_N.md`) — but the context-file cleanup MUST
+   remain separate (Step 6d) so the context survives across all create calls.
 
-4. Clean up temp files:
+4. **Step 6d — Clean up the context file** AFTER all issues are created
+   (separate Bash call):
    ```bash
    rm -f /tmp/plan_issue_*.md /tmp/autonomous_dev_cmd_context.json
    ```
 
-5. Display created issue URLs to the user.
+5. Collect created issue URLs (e.g., `https://github.com/owner/repo/issues/101`)
+   and display them to the user.
 
 **Non-blocking error handling**: If `gh issue create` fails for any reason (not installed, not authenticated, network error), log a warning and continue to Step 7. Do NOT halt or block plan file creation. Suggest running `/plan-to-issues` manually.
 

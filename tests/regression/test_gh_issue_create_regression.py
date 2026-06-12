@@ -59,30 +59,51 @@ class TestGhIssueCreateRegression:
             result = hook._detect_gh_issue_create('gh issue create --title "remediation"')
             assert result is None
 
-    def test_marker_file_allows_then_stale_blocks(self, tmp_path):
-        """Regression: marker file allows when fresh, blocks when stale.
+    def test_marker_presence_no_longer_grants_allow(self, tmp_path):
+        """Regression (#1203): marker file presence MUST NOT grant allow.
 
-        Commands like /create-issue touch a marker before calling gh issue create.
-        The marker must expire after 1 hour to prevent stale markers from
-        permanently bypassing the block.
+        Pre-#1203, the hook had a READ allow-through that granted a 1-hour
+        bypass when GH_ISSUE_MARKER_PATH existed and was fresh. That code
+        path was dead — nothing has written the marker since #627 made the
+        WRITE blocked by _detect_gh_issue_marker_creation. #1203 removed the
+        READ allow-through; the WRITE blocker stays as defense-in-depth.
+
+        This test locks the change: a fresh marker on disk MUST be blocked
+        without an issue-command-active context.
         """
         marker = tmp_path / "marker"
-        marker.touch()
+        marker.touch()  # fresh mtime
 
         with patch.object(hook, "_is_pipeline_active", return_value=False), \
              patch.object(hook, "_get_active_agent_name", return_value=""), \
+             patch.object(hook, "_is_issue_command_active", return_value=False), \
              patch.object(hook, "GH_ISSUE_MARKER_PATH", str(marker)):
-            # Fresh marker allows
+            # Fresh marker MUST still be blocked.
             result = hook._detect_gh_issue_create('gh issue create --title "test"')
-            assert result is None
+            assert result is not None, (
+                "Issue #1203: marker presence must NOT grant allow"
+            )
+            assert "BLOCKED" in result
 
-            # Make marker stale (> 1 hour)
+            # Stale marker is also blocked (sanity).
             old_time = time.time() - 7200
             os.utime(str(marker), (old_time, old_time))
-
-            # Stale marker blocks
             result = hook._detect_gh_issue_create('gh issue create --title "test"')
             assert result is not None
+            assert "BLOCKED" in result
+
+    def test_marker_write_still_blocked(self):
+        """Regression (#1203): the marker WRITE blocker is preserved.
+
+        #1203 removed the marker READ allow-through but explicitly kept
+        _detect_gh_issue_marker_creation (the WRITE blocker) as
+        defense-in-depth. This test verifies the WRITE blocker still fires.
+        """
+        with patch.object(hook, "_is_pipeline_active", return_value=False), \
+             patch.object(hook, "_get_active_agent_name", return_value=""):
+            cmd = "touch /tmp/autonomous_dev_gh_issue_allowed.marker"
+            result = hook._detect_gh_issue_marker_creation(cmd)
+            assert result is not None, "Marker WRITE blocker must remain"
             assert "BLOCKED" in result
 
     def test_non_create_gh_commands_never_blocked(self):

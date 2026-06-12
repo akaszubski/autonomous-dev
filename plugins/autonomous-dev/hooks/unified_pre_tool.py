@@ -506,11 +506,20 @@ GH_ISSUE_AGENTS = {'continuous-improvement-analyst', 'issue-creator'}
 # Marker file path for allowing gh issue create from commands (Issue #599)
 GH_ISSUE_MARKER_PATH = "/tmp/autonomous_dev_gh_issue_allowed.marker"
 
-# Command context file for issue-creating commands (Issue #630)
-GH_ISSUE_COMMAND_CONTEXT_PATH = "/tmp/autonomous_dev_cmd_context.json"
+# Command context file for issue-creating commands (Issue #630).
+# Issue #1203: support env-var override (GH_ISSUE_CMD_CONTEXT_PATH) so subprocess
+# runtime tests can isolate the path without writing the real /tmp file. Mirrors
+# the PIPELINE_STATE_FILE precedent (see line ~1758).
+GH_ISSUE_COMMAND_CONTEXT_PATH = os.getenv(
+    "GH_ISSUE_CMD_CONTEXT_PATH",
+    "/tmp/autonomous_dev_cmd_context.json",
+)
 
-# Commands that are authorized to create GitHub issues (Issue #630)
-GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'retrospective'}
+# Commands that are authorized to create GitHub issues (Issue #630).
+# Issue #1203: 'plan' added — plan.md STEP 6 files issues by design per its own
+# HARD GATE (>=2 independent work items). Whitelisting here is the minimal fix
+# vs rerouting plan.md to use a different mechanism.
+GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'retrospective', 'plan'}
 
 # Environment variables protected from inline spoofing in Bash commands (Issue #557)
 # Non-prefix vars that don't start with CLAUDE_ are listed individually
@@ -2639,19 +2648,129 @@ def _contains_gh_issue_create_bypass(command: str) -> bool:
         if re.search(shell_wrapper_pattern, command, re.IGNORECASE | re.DOTALL):
             return True
 
+        # Patterns 4 and 5: backtick / $() command substitution at command position.
+        # Issue #1203: previously these were RAW regex scans, which produced
+        # false positives when the user passed a backtick-quoted body to
+        # `gh issue comment` (live-confirmed). Make argv-aware: tokenize via
+        # shlex.split, strip the VALUE token that follows --body/--title/
+        # --body-file (and the --body=VALUE attached-value form), rejoin, then
+        # apply the original regex on the reconstructed string. The reconstructed
+        # form still contains the bypass when it lives at command position (e.g.
+        # `RESULT=\`gh issue create...\``) but no longer contains backtick/$()
+        # substrings that were merely body-argument content.
+        # Mirrors _detect_git_bypass shlex precedent (~line 624). `sh -c
+        # "gh issue create..."` and subprocess wrappers are caught by Patterns
+        # 1-3 above and remain blocked unchanged. On shlex ValueError
+        # (malformed shell), fall back to the original raw-regex behavior so
+        # we never weaken blocking on garbled inputs.
+        # Argument flags whose VALUES carry user-authored prose (commit
+        # messages, issue/PR bodies, titles). False positives lived in these
+        # values pre-#1203. -m / --message are git's commit message flags;
+        # --body / --title / --body-file are gh's body-content flags.
+        BODY_FLAGS = ("--body", "--title", "--body-file", "-m", "--message")
+
+        def _strip_body_arg_values(cmd: str) -> "tuple[str, list[str]]":
+            """Strip --body/--title/--body-file argument VALUES from cmd.
+
+            Tokenize, drop VALUE tokens that immediately follow a body flag and
+            drop --body=VALUE / --title=VALUE attached-value tokens entirely,
+            then rejoin remaining tokens with single spaces. The resulting
+            string preserves command structure (the gh-comment binary, the
+            flags, the rest of argv) but no longer contains the body's prose
+            content where false-positive backticks would live.
+
+            Returns a tuple of (stripped_command, dropped_values) where
+            dropped_values are the raw value tokens that were removed. Callers
+            inspect dropped_values for embedded bypass patterns — see the
+            two-tier scan in the parent function for the FINDING-1 fix.
+            """
+            try:
+                toks = shlex.split(cmd, posix=True)
+            except ValueError:
+                raise  # propagate to outer except for raw-regex fallback
+            out: list[str] = []
+            dropped: list[str] = []
+            i = 0
+            while i < len(toks):
+                t = toks[i]
+                if t in BODY_FLAGS:
+                    # drop flag AND its value; capture the value for embedded-bypass scan
+                    if i + 1 < len(toks):
+                        dropped.append(toks[i + 1])
+                    i += 2
+                    continue
+                attached_flag = next(
+                    (flag for flag in BODY_FLAGS if t.startswith(flag + "=")), None
+                )
+                if attached_flag is not None:
+                    # drop --body=VALUE / --title=VALUE attached form;
+                    # capture the VALUE portion (everything after the '=') for the scan
+                    dropped.append(t[len(attached_flag) + 1 :])
+                    i += 1
+                    continue
+                out.append(t)
+                i += 1
+            return " ".join(out), dropped
+
+        try:
+            stripped_for_subst, dropped_values = _strip_body_arg_values(command)
+        except ValueError:
+            # Malformed shell — fall back to the original raw-regex behavior
+            # so we never weaken blocking on garbled inputs.
+            backtick_pattern = r'`\s*gh\s+issue\s+create\b'
+            if re.search(backtick_pattern, command, re.IGNORECASE | re.DOTALL):
+                return True
+            dollar_subst_pattern = r'\$\(\s*gh\s+issue\s+create\b'
+            if re.search(dollar_subst_pattern, command, re.IGNORECASE | re.DOTALL):
+                return True
+            return False
+
+        # Patterns 4 & 5 (Tier A — command-position substitution).
+        # After body-value stripping, any remaining backtick/$() substitution is
+        # at command position (e.g. RESULT=`gh issue create...` or
+        # FOO=$(gh issue create...)). These ALWAYS execute at shell runtime
+        # and must be blocked.
         # Pattern 4: Backtick command substitution: `gh issue create ...`
-        # Only matches when gh issue create is the direct command inside backticks
-        # (i.e., gh appears right after the opening backtick, with optional whitespace).
-        backtick_pattern = r'`\s*gh\s+issue\s+create\b'
-        if re.search(backtick_pattern, command, re.IGNORECASE | re.DOTALL):
+        backtick_cmd_pos = r'`\s*gh\s+issue\s+create\b'
+        if re.search(backtick_cmd_pos, stripped_for_subst, re.IGNORECASE | re.DOTALL):
             return True
 
-        # Pattern 5: $(...) command substitution with gh issue create as the direct command
-        # e.g. $(gh issue create --title "test")
-        # NOT matched: $(cat <<'EOF'\ngh issue create\nEOF\n) — heredoc body, not a command
-        dollar_subst_pattern = r'\$\(\s*gh\s+issue\s+create\b'
-        if re.search(dollar_subst_pattern, command, re.IGNORECASE | re.DOTALL):
+        # Pattern 5: $(...) command substitution with gh issue create as the
+        # direct command, e.g. $(gh issue create --title "test").
+        # NOT matched: $(cat <<'EOF'\ngh issue create\nEOF\n) — heredoc body.
+        dollar_subst_cmd_pos = r'\$\(\s*gh\s+issue\s+create\b'
+        if re.search(dollar_subst_cmd_pos, stripped_for_subst, re.IGNORECASE | re.DOTALL):
             return True
+
+        # Pattern 6 (Tier B — FINDING-1 fix, Issue #1203 remediation cycle 1).
+        # Substitution inside body-flag VALUES. In POSIX shell, both $() and
+        # backticks INSIDE DOUBLE QUOTES execute (and create the issue). Inside
+        # single quotes they do NOT execute (single quotes are literal).
+        # shlex.split(posix=True) discards quote-type info, so we cannot tell
+        # which quoting style produced each dropped value. Per the FINDING-1
+        # guidance, we fail closed: any dropped value containing a backtick or
+        # $() substitution with `gh issue create` AT COMMAND POSITION inside
+        # the substitution is blocked. Match the same precision as the
+        # Tier-A command-position scan (`\s*gh\s+issue\s+create` at the start
+        # of the substitution opener) so that:
+        #   - `--body "$(gh issue create -t x)"`     → BLOCKED (real bypass)
+        #   - `--body "$(echo x)"`                    → ALLOWED (benign)
+        #   - `--body "see \`some helper\`"`           → ALLOWED (no create pattern)
+        #   - `git commit -m "$(cat <<EOF ... EOF)"` → ALLOWED (cat is command;
+        #       gh issue create inside heredoc body is just text)
+        # Tradeoff: a single-quoted body containing literal
+        # `` `gh issue create` `` as code-formatted prose will be blocked even
+        # though shell would not execute it. The fail-closed posture is the
+        # safer choice — the live-confirmed false positive (prose backticks
+        # or $() WITHOUT the create pattern at command position in the
+        # substitution) is still allowed.
+        value_backtick_cmd_pos = r'`\s*gh\s+issue\s+create\b'
+        value_dollar_cmd_pos = r'\$\(\s*gh\s+issue\s+create\b'
+        for val in dropped_values:
+            if re.search(value_backtick_cmd_pos, val, re.IGNORECASE | re.DOTALL):
+                return True
+            if re.search(value_dollar_cmd_pos, val, re.IGNORECASE | re.DOTALL):
+                return True
 
         return False
     except re.error:
@@ -2818,18 +2937,20 @@ def _detect_gh_issue_create(command: str) -> "Optional[str]":
         if agent_name in GH_ISSUE_AGENTS:
             return None
 
-        # Allow-through 3: Marker file exists and is fresh (< 1 hour)
-        try:
-            marker_path = Path(GH_ISSUE_MARKER_PATH)
-            if marker_path.exists():
-                import time
-                age = time.time() - marker_path.stat().st_mtime
-                if age < 3600:
-                    return None
-        except OSError:
-            pass  # Marker check failed, continue to block
-
-        # Allow-through 4: Issue-creating command is active (Issue #630)
+        # Allow-through 3: Issue-creating command is active (Issue #630).
+        # Prior-call ordering contract (Issue #1203): the command context file
+        # MUST be written in a PRIOR Bash tool call (separate from the gh issue
+        # create call), because PreToolUse evaluates each Bash invocation BEFORE
+        # it runs — bundling "write context && gh issue create" into one Bash
+        # call leaves the context absent at hook-evaluation time and blocks.
+        # See #1203 plan and the six issue-creating command markdowns.
+        # Out-of-scope caveat: cross-session /tmp context leak between concurrent
+        # sessions is tracked separately as Issue #1206.
+        # NOTE: a prior marker-file READ allow-through (writing
+        # GH_ISSUE_MARKER_PATH would grant a 1h pass) was removed in #1203
+        # because nothing writes the marker anymore (the WRITE has been blocked
+        # by _detect_gh_issue_marker_creation since #627) — that allow-through
+        # was dead code. The WRITE blocker is kept as defense-in-depth.
         if _is_issue_command_active():
             return None
 

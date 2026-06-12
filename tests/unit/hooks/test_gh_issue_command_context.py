@@ -127,3 +127,26 @@ class TestIsIssueCommandActive:
             "unified_pre_tool.GH_ISSUE_COMMAND_CONTEXT_PATH", str(ctx_file)
         ):
             assert _is_issue_command_active() is True
+
+    def test_returns_true_for_plan_command(self, tmp_path):
+        """Issue #1203 Change A: 'plan' must be in GH_ISSUE_COMMANDS.
+
+        plan.md STEP 6 files issues by design when >=2 independent work items
+        are produced. Whitelisting 'plan' here is the minimal fix so the gh
+        issue create calls in plan.md pass through.
+        """
+        assert "plan" in GH_ISSUE_COMMANDS, (
+            "Issue #1203 Change A: 'plan' must be in GH_ISSUE_COMMANDS"
+        )
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text(
+            json.dumps({
+                "command": "plan",
+                "timestamp": "2026-06-11T00:00:00+00:00",
+            }),
+            encoding="utf-8",
+        )
+        with patch(
+            "unified_pre_tool.GH_ISSUE_COMMAND_CONTEXT_PATH", str(ctx_file)
+        ):
+            assert _is_issue_command_active() is True
