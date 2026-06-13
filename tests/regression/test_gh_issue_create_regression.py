@@ -124,3 +124,126 @@ class TestGhIssueCreateRegression:
             ]:
                 result = hook._detect_gh_issue_create(cmd)
                 assert result is None, f"Command should not be blocked: {cmd}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1215 — argv-position-aware direct match (live-evidence regressions)
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1215LiveEvidenceRegression:
+    """Live-evidence regression for Issue #1215.
+
+    During the 2026-06-12 cluster-drain batch, the #1203 and #1204 commits
+    were blocked by ``_detect_gh_issue_create`` because their commit message
+    bodies mentioned the literal command name in prose. Both required
+    workarounds: ``git commit -F /tmp/file`` AND body-rewriting with neutral
+    phrasing like ``issue-creation call`` instead of the literal command
+    name. The fix is to make the direct-match path argv-position-aware
+    (``shlex.split`` + leading-verb check) so prose substrings inside
+    git-commit message bodies no longer falsely match.
+
+    These tests use the EXACT prose from the #1203 and #1204 commit messages
+    (c448acb and aaadfd9) to lock the fix against future regression. If
+    either test fails, the false-positive blocking has come back.
+    """
+
+    def test_regression_issue_1203_actual_commit_body_allowed(self):
+        """Regression for Issue #1215: the #1203 commit body MUST NOT block.
+
+        The actual commit ``c448acb`` body was rewritten at write-time with
+        the literal command name replaced by ``issue-creation call``
+        because of the false positive. With the #1215 fix in place, the
+        original prose (with the literal command name) is allowed.
+        """
+        # Body excerpt from c448acb, with the literal command name restored
+        # in the (3) defect description — this is the prose that was
+        # originally going to be in the commit before the workaround.
+        body_excerpt = (
+            "fix(security): #1203 gh-filing allowance four-defect fix\n\n"
+            "Defects fixed: (1) TOCTOU-inverse bundled-call (primary, above).\n"
+            "(2) /plan double-broken — 'plan' was missing from GH_ISSUE_COMMANDS.\n"
+            "(3) bypass-detector false-positive — the backtick / $() regex matched\n"
+            "prose inside --body argument VALUES, blocking legitimate "
+            "gh issue create calls (live-confirmed).\n"
+            "(4) dead marker READ allow-through — removed.\n"
+        )
+        cmd = f'git commit -m "{body_excerpt}"'
+        with patch.object(hook, "_is_pipeline_active", return_value=False), \
+             patch.object(hook, "_get_active_agent_name", return_value=""), \
+             patch.object(hook, "_is_issue_command_active", return_value=False), \
+             patch.object(hook, "GH_ISSUE_MARKER_PATH", "/tmp/nonexistent_marker_test"):
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is None, (
+                "Issue #1215: the #1203 commit body MUST NOT be blocked; "
+                f"got: {result!r}"
+            )
+
+    def test_regression_issue_1204_actual_commit_body_allowed(self):
+        """Regression for Issue #1215: the #1204 commit body MUST NOT block.
+
+        The actual ``aaadfd9`` commit body contains prose about chaining ``rm``
+        cleanup onto consuming commands; the command name appears in
+        contextual prose ("gh issue create" in the explanation of why the rm
+        cleanup matters). The #1215 fix lets the original prose stand.
+        """
+        body_excerpt = (
+            "fix(skills): #1204 chain rm cleanup onto consuming command\n\n"
+            "Skills that create temp files (/create-issue, /plan, /plan-to-issues,\n"
+            "/improve, /refactor, /retrospective) previously emitted a SEPARATE\n"
+            "standalone rm cleanup Bash call after the file-consuming command.\n"
+            "The single user approval for the gh issue create call now covers the\n"
+            "trailing rm in the same Bash tool call. The user sees ONE prompt for\n"
+            "the gh issue create instead of two prompts.\n"
+        )
+        cmd = f'git commit -m "{body_excerpt}"'
+        with patch.object(hook, "_is_pipeline_active", return_value=False), \
+             patch.object(hook, "_get_active_agent_name", return_value=""), \
+             patch.object(hook, "_is_issue_command_active", return_value=False), \
+             patch.object(hook, "GH_ISSUE_MARKER_PATH", "/tmp/nonexistent_marker_test"):
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is None, (
+                "Issue #1215: the #1204 commit body MUST NOT be blocked; "
+                f"got: {result!r}"
+            )
+
+    def test_regression_issue_1215_commit_body_with_substring_allowed(self):
+        """Bonus regression: the #1215 commit body itself MUST NOT block.
+
+        This is the eat-our-own-dogfood case: the commit that fixes #1215
+        will (presumably) mention the literal command name in its body when
+        describing what the fix does. The fix MUST allow itself to be
+        committed.
+        """
+        body_excerpt = (
+            "fix(security): #1215 argv-position-aware direct match for "
+            "gh issue create gate\n\n"
+            "The pre-tool hook used a raw substring scan that produced false "
+            "positives when the literal 'gh issue create' substring appeared "
+            "in prose inside git-commit -m bodies. This fix mirrors the #1203 "
+            "shlex-aware pattern from _contains_gh_issue_create_bypass onto "
+            "_detect_gh_issue_create.\n"
+        )
+        cmd = f'git commit -m "{body_excerpt}"'
+        with patch.object(hook, "_is_pipeline_active", return_value=False), \
+             patch.object(hook, "_get_active_agent_name", return_value=""), \
+             patch.object(hook, "_is_issue_command_active", return_value=False), \
+             patch.object(hook, "GH_ISSUE_MARKER_PATH", "/tmp/nonexistent_marker_test"):
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is None, (
+                "Issue #1215: the fix commit itself MUST NOT be blocked; "
+                f"got: {result!r}"
+            )
+
+    def test_regression_real_gh_issue_create_command_still_blocked(self):
+        """Sanity: the real command at argv[0] MUST STILL be blocked post-#1215."""
+        cmd = 'gh issue create --title "test" --body "details"'
+        with patch.object(hook, "_is_pipeline_active", return_value=False), \
+             patch.object(hook, "_get_active_agent_name", return_value=""), \
+             patch.object(hook, "_is_issue_command_active", return_value=False), \
+             patch.object(hook, "GH_ISSUE_MARKER_PATH", "/tmp/nonexistent_marker_test"):
+            result = hook._detect_gh_issue_create(cmd)
+            assert result is not None, (
+                "Issue #1215: the real command at argv[0] must STILL be blocked"
+            )
+            assert "BLOCKED" in result

@@ -2597,6 +2597,257 @@ def _track_spoofing_escalation(
         return False
 
 
+# ---------------------------------------------------------------------------
+# Module-level body/message flag helpers (hoisted from
+# _contains_gh_issue_create_bypass per Issue #1215 so both the bypass detector
+# AND the direct detector can use them).
+#
+# BODY_FLAGS lists argument flags whose VALUES carry user-authored prose
+# (commit messages, issue/PR bodies, titles). False positives lived in these
+# values pre-#1203:
+#   - --body / --title / --body-file are gh's body-content flags
+#   - -m / --message / -F / --file are git commit's message flags
+# A single combined set is harmless: stripping a flag the current tool does
+# not recognize is a no-op (the loop just skips the next token), and the
+# union covers every body/message false-positive surface.
+# ---------------------------------------------------------------------------
+
+GH_ISSUE_BODY_FLAGS: "tuple[str, ...]" = (
+    # gh issue / pr family
+    "--body",
+    "--title",
+    "--body-file",
+    # git commit family (Issue #1215)
+    "-m",
+    "--message",
+    "-F",
+    "--file",
+)
+
+
+def _strip_body_arg_values(cmd: str) -> "tuple[str, list[str]]":
+    """Strip body/title/message argument VALUES from a tokenized command.
+
+    Tokenize via shlex.split(posix=True). Drop VALUE tokens that immediately
+    follow a body flag (separate-value form), and drop ``--flag=VALUE`` /
+    ``--body=VALUE`` attached-value tokens entirely. Rejoin remaining tokens
+    with single spaces. The resulting string preserves command structure
+    (the leading verb, the flags, the rest of argv) but no longer contains
+    the body's prose content where false-positive substring matches would
+    live.
+
+    The flag set is the union of gh-family flags
+    (``--body``/``--title``/``--body-file``) and git-commit-family flags
+    (``-m``/``--message``/``-F``/``--file``). Applying a foreign-flag strip
+    is harmless because shlex tokenization only treats a token as a flag
+    when it appears in flag position; unrecognized flags simply pass
+    through as normal tokens.
+
+    Args:
+        cmd: The raw Bash command string (will be tokenized).
+
+    Returns:
+        Tuple ``(stripped_command, dropped_values)`` where dropped_values
+        are the raw VALUE tokens that were removed. Callers may inspect
+        dropped_values for embedded bypass patterns (Tier-B scan in
+        ``_contains_gh_issue_create_bypass``).
+
+    Raises:
+        ValueError: When shlex.split fails (malformed shell, unterminated
+            quotes). Callers must catch and fall back to raw-regex behavior
+            to preserve fail-closed blocking on garbled input.
+    """
+    toks = shlex.split(cmd, posix=True)  # may raise ValueError; let caller catch
+    out: list[str] = []
+    dropped: list[str] = []
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        if t in GH_ISSUE_BODY_FLAGS:
+            # drop flag AND its value; capture the value for embedded-bypass scan
+            if i + 1 < len(toks):
+                dropped.append(toks[i + 1])
+            i += 2
+            continue
+        attached_flag = next(
+            (flag for flag in GH_ISSUE_BODY_FLAGS if t.startswith(flag + "=")),
+            None,
+        )
+        if attached_flag is not None:
+            # drop --body=VALUE / --message=VALUE attached form;
+            # capture VALUE portion (everything after the '=') for the scan
+            dropped.append(t[len(attached_flag) + 1:])
+            i += 1
+            continue
+        out.append(t)
+        i += 1
+    return " ".join(out), dropped
+
+
+# Shell wrappers whose -c argument carries a sub-command. When the leading
+# verb (argv[0]) is one of these AND argv[1] == "-c", the substring scan
+# inside argv[2] is handled by _contains_gh_issue_create_bypass — do not
+# double-flag from _detect_gh_issue_create's direct-match argv check.
+_SHELL_WRAPPERS: "frozenset[str]" = frozenset({
+    "sh", "bash", "zsh", "dash", "ksh",
+    "/bin/sh", "/bin/bash", "/bin/zsh", "/bin/dash", "/bin/ksh",
+    "/usr/bin/sh", "/usr/bin/bash", "/usr/bin/zsh",
+    "/usr/local/bin/sh", "/usr/local/bin/bash", "/usr/local/bin/zsh",
+})
+
+
+_STATEMENT_SEPARATORS: "frozenset[str]" = frozenset({"|", ";", "&&", "||", "&", "\n"})
+
+
+def _split_statements(command: str) -> "list[str]":
+    """Split a Bash command string into top-level statement strings.
+
+    Walks the source command character-by-character respecting single and
+    double quotes (so a separator inside a quoted body is NOT a split point).
+    Recognized top-level separators: ``;``, ``&&``, ``||``, ``|``, ``&``,
+    and newline. The resulting statement strings preserve their interior
+    structure (quoting, flags, values) for the caller to feed to shlex.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        List of statement substrings with surrounding whitespace stripped.
+        Empty statements are dropped.
+    """
+    out: "list[str]" = []
+    buf: "list[str]" = []
+    i = 0
+    n = len(command)
+    in_single = False
+    in_double = False
+    while i < n:
+        c = command[i]
+        # Quote handling: single quotes are literal (no escapes); double
+        # quotes honor backslash escapes for the closing quote.
+        if c == "'" and not in_double:
+            in_single = not in_single
+            buf.append(c)
+            i += 1
+            continue
+        if c == '"' and not in_single:
+            in_double = not in_double
+            buf.append(c)
+            i += 1
+            continue
+        if in_single or in_double:
+            # Inside a quoted region, preserve everything verbatim
+            # (including backslash-escapes inside double quotes).
+            if c == "\\" and in_double and i + 1 < n:
+                buf.append(c)
+                buf.append(command[i + 1])
+                i += 2
+                continue
+            buf.append(c)
+            i += 1
+            continue
+        # Two-character separators take precedence over single-char ones.
+        if i + 1 < n and command[i:i + 2] in ("&&", "||"):
+            stmt = "".join(buf).strip()
+            if stmt:
+                out.append(stmt)
+            buf = []
+            i += 2
+            continue
+        if c in (";", "|", "&", "\n"):
+            stmt = "".join(buf).strip()
+            if stmt:
+                out.append(stmt)
+            buf = []
+            i += 1
+            continue
+        buf.append(c)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _gh_issue_create_at_command_position(command: str) -> bool:
+    """Argv-position check: is ``gh issue create`` the command at argv[0]?
+
+    Per Issue #1215, a raw substring scan of the Bash command falsely matched
+    the gh-issue-create command name when it appeared in prose inside a
+    ``git commit -m "..."`` body. This helper mirrors the shlex-aware
+    treatment that ``_contains_gh_issue_create_bypass`` uses for backtick/$()
+    detection and applies it to the direct ``gh issue create`` match path.
+
+    Detection rules:
+    1. Split the raw command into top-level statements on Bash statement
+       separators (``;``, ``&&``, ``||``, ``|``, ``&``, newline) that live
+       OUTSIDE quoted regions. This catches multi-statement forms like
+       ``cat <<EOF ... EOF; gh issue create ...`` where the gh call is the
+       leading verb of a later statement.
+    2. For each statement, strip body/message argument VALUES via
+       ``_strip_body_arg_values`` so prose inside ``-m``/``--body``/``-F``
+       cannot match.
+    3. Tokenize via shlex.split(posix=True). Take argv[0] as the command
+       verb (skipping leading env-var assignments like ``FOO=bar``). If
+       verb is ``gh`` AND the next two argv tokens are ``issue`` then
+       ``create`` (case-insensitive), the command IS at command position →
+       return True.
+    4. If the verb is a shell wrapper (``sh``, ``bash``, ``/bin/sh``...) with
+       ``-c`` followed by a sub-command, leave detection to the bypass
+       detector — skip this statement here. (The bypass detector already
+       catches this pattern with shlex-stripping.)
+    5. Any other verb (``git``, ``python3``, ``cat``, etc.) → skip statement.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        True if ``gh issue create`` is at argv command position in at least
+        one statement, False otherwise. Raises no exceptions — on
+        shlex.ValueError for a given statement, that statement is skipped
+        (caller's raw-regex fallback preserves fail-closed blocking for the
+        whole-command malformed case).
+    """
+    statements = _split_statements(command)
+    for stmt in statements:
+        try:
+            stripped_cmd, _dropped = _strip_body_arg_values(stmt)
+        except ValueError:
+            # Malformed statement — skip; whole-command fallback handles it.
+            continue
+        try:
+            seg = shlex.split(stripped_cmd, posix=True)
+        except ValueError:
+            continue
+        if not seg:
+            continue
+
+        # Skip leading env-var assignments (FOO=bar gh issue create ...).
+        idx = 0
+        while idx < len(seg) and "=" in seg[idx] and not seg[idx].startswith("-"):
+            idx += 1
+        if idx >= len(seg):
+            continue
+        verb = seg[idx]
+
+        # Shell-wrapper case (sh -c "gh issue create ..."): handled by the
+        # bypass detector — do NOT double-flag here.
+        if verb in _SHELL_WRAPPERS:
+            continue
+
+        # The only case that counts as command-position is verb == "gh"
+        # with the next two tokens "issue" then "create" (case-insensitive).
+        if verb.lower() == "gh":
+            if (
+                idx + 2 < len(seg)
+                and seg[idx + 1].lower() == "issue"
+                and seg[idx + 2].lower() == "create"
+            ):
+                return True
+
+    return False
+
+
 def _contains_gh_issue_create_bypass(command: str) -> bool:
     """Detect subprocess-wrapped 'gh issue create' bypass patterns (Issue #618).
 
@@ -2663,55 +2914,12 @@ def _contains_gh_issue_create_bypass(command: str) -> bool:
         # 1-3 above and remain blocked unchanged. On shlex ValueError
         # (malformed shell), fall back to the original raw-regex behavior so
         # we never weaken blocking on garbled inputs.
-        # Argument flags whose VALUES carry user-authored prose (commit
-        # messages, issue/PR bodies, titles). False positives lived in these
-        # values pre-#1203. -m / --message are git's commit message flags;
-        # --body / --title / --body-file are gh's body-content flags.
-        BODY_FLAGS = ("--body", "--title", "--body-file", "-m", "--message")
-
-        def _strip_body_arg_values(cmd: str) -> "tuple[str, list[str]]":
-            """Strip --body/--title/--body-file argument VALUES from cmd.
-
-            Tokenize, drop VALUE tokens that immediately follow a body flag and
-            drop --body=VALUE / --title=VALUE attached-value tokens entirely,
-            then rejoin remaining tokens with single spaces. The resulting
-            string preserves command structure (the gh-comment binary, the
-            flags, the rest of argv) but no longer contains the body's prose
-            content where false-positive backticks would live.
-
-            Returns a tuple of (stripped_command, dropped_values) where
-            dropped_values are the raw value tokens that were removed. Callers
-            inspect dropped_values for embedded bypass patterns — see the
-            two-tier scan in the parent function for the FINDING-1 fix.
-            """
-            try:
-                toks = shlex.split(cmd, posix=True)
-            except ValueError:
-                raise  # propagate to outer except for raw-regex fallback
-            out: list[str] = []
-            dropped: list[str] = []
-            i = 0
-            while i < len(toks):
-                t = toks[i]
-                if t in BODY_FLAGS:
-                    # drop flag AND its value; capture the value for embedded-bypass scan
-                    if i + 1 < len(toks):
-                        dropped.append(toks[i + 1])
-                    i += 2
-                    continue
-                attached_flag = next(
-                    (flag for flag in BODY_FLAGS if t.startswith(flag + "=")), None
-                )
-                if attached_flag is not None:
-                    # drop --body=VALUE / --title=VALUE attached form;
-                    # capture the VALUE portion (everything after the '=') for the scan
-                    dropped.append(t[len(attached_flag) + 1 :])
-                    i += 1
-                    continue
-                out.append(t)
-                i += 1
-            return " ".join(out), dropped
-
+        # Argv-aware body-value stripping is handled by the module-level
+        # _strip_body_arg_values helper (hoisted in Issue #1215 so both this
+        # bypass detector AND _detect_gh_issue_create can share it). The flag
+        # set GH_ISSUE_BODY_FLAGS combines gh's --body/--title/--body-file
+        # with git commit's -m/--message/-F/--file to cover the union of
+        # false-positive surfaces.
         try:
             stripped_for_subst, dropped_values = _strip_body_arg_values(command)
         except ValueError:
@@ -2917,8 +3125,48 @@ def _detect_gh_issue_create(command: str) -> "Optional[str]":
         stripped = _strip_heredoc_content(command)
         stripped = _strip_quoted_segments(stripped)
 
-        # Check 1: Direct 'gh issue create' in the stripped command
-        direct_match = bool(re.search(r'\bgh\s+issue\s+create\b', stripped, re.IGNORECASE))
+        # Check 1: Direct 'gh issue create' in the stripped command.
+        #
+        # Issue #1215: the raw substring scan produced a false positive when
+        # the substring appeared in prose inside a git-commit body that
+        # escaped the simple quote stripper (e.g., shell-escaped quotes,
+        # ANSI-C $'...' quoting, or unquoted prose between -m and the next
+        # argument). The fix is argv-position-aware: require that
+        # ``gh issue create`` lives at argv[0] of some pipeline segment, NOT
+        # merely as a substring of the rendered command. The shlex-aware
+        # helper mirrors the bypass detector's #1203 treatment.
+        #
+        # Fail-closed: on malformed shell (shlex ValueError), the helper
+        # returns False AND we then check the raw-regex fallback against the
+        # quote-stripped command. This preserves blocking on garbled input
+        # where a true bypass form like
+        # ``RESULT=`gh issue create --title 'unterminated`` would still trip
+        # the regex scan even though shlex cannot parse it. The bypass
+        # detector independently scans the raw command for the same family
+        # of forms.
+        argv_match = _gh_issue_create_at_command_position(command)
+
+        # Raw-regex fallback ONLY when the shlex-aware path could not parse.
+        # We detect the unparseable case by attempting the same shlex call
+        # and catching ValueError. When shlex parses cleanly but argv_match
+        # is False, the substring is genuinely NOT at command position and
+        # the direct-match path stays False (true argv-blind false positive
+        # avoided).
+        try:
+            shlex.split(command, posix=True)
+            shlex_parsed = True
+        except ValueError:
+            shlex_parsed = False
+
+        if shlex_parsed:
+            direct_match = argv_match
+        else:
+            # Malformed shell — fall back to the original raw-regex behavior
+            # on the quote-stripped command so true bypass forms with garbled
+            # syntax still trip the gate.
+            direct_match = bool(
+                re.search(r'\bgh\s+issue\s+create\b', stripped, re.IGNORECASE)
+            )
 
         # Check 2: Subprocess bypass patterns in the RAW command (Issue #618).
         # These wrappers embed 'gh issue create' inside quoted strings, which

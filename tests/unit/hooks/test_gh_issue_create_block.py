@@ -1055,3 +1055,366 @@ class TestBypassFalsePositive:
         assert hook._contains_gh_issue_create_bypass(cmd) is True, (
             "fail-closed: single-quoted backticks-with-create-pattern still blocks"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestProseFalsePositive — Issue #1215 (argv-position check in direct match)
+# ---------------------------------------------------------------------------
+
+
+class TestProseFalsePositive:
+    """Issue #1215: ``_detect_gh_issue_create`` is argv-position-aware.
+
+    Pre-#1215, the direct-match path scanned the quote-stripped command for
+    the literal substring ``gh issue create``. When prose containing the
+    substring escaped the simple quote stripper (shell-escaped quotes,
+    ANSI-C ``$'...'`` quoting, or substrings between unquoted argv tokens),
+    the gate falsely blocked the ``git commit`` itself. The #1203 and #1204
+    commits were blocked by this — both required ``git commit -F /tmp/file``
+    workarounds plus body-rewriting with neutral phrasing.
+
+    The fix uses ``shlex.split`` to tokenize the command into statements and
+    argv tokens, then requires that ``gh`` is the leading verb (argv[0] after
+    leading env-var assignments) AND the next two tokens are ``issue`` /
+    ``create`` (case-insensitive) before declaring a direct match. Body-flag
+    VALUES (``-m`` / ``--message`` / ``-F`` / ``--file`` for git;
+    ``--body`` / ``--title`` / ``--body-file`` for gh) are stripped before
+    tokenization so substring matches inside argument values cannot fire.
+
+    The four required cells (per Issue #1215 spec):
+        1. ``-m`` short flag with the substring in the body
+        2. ``-m`` short flag with a multi-line body containing the substring
+        3. ``-F`` short flag (file-from-disk form)
+        4. ``--message`` long flag with the substring inline
+    """
+
+    def test_git_commit_m_short_flag_with_substring_in_body_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Cell 1: ``git commit -m "...gh issue create..."`` MUST NOT be blocked.
+
+        The substring appears as PROSE inside the message body; the leading
+        verb is ``git``, not ``gh``. Pre-#1215 this could fire when the
+        message body bypassed the quote stripper (e.g., unquoted prose
+        between ``-m`` and the next argument).
+        """
+        cmd = (
+            'git commit -m "Reference the gh issue create command in prose, '
+            'as the #1203 and #1204 commit bodies did."'
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "git commit -m with substring in prose MUST NOT be blocked "
+            f"(Issue #1215); got: {result!r}"
+        )
+
+    def test_git_commit_m_multi_line_body_with_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Cell 2: multi-line ``-m`` body with substring in prose MUST NOT block.
+
+        The verb is ``git``; the entire body is one argv value; no real
+        ``gh issue create`` invocation exists. Note: the substring is bare
+        prose, NOT wrapped in backticks — backticks-with-create-pattern
+        inside a body value remains fail-closed by the bypass detector
+        (documented FINDING-2 tradeoff because shlex.split(posix=True)
+        discards quote-type info and a double-quoted backtick form would
+        execute at shell runtime). The realistic prose case (no backticks)
+        is what the #1203 and #1204 commit bodies looked like.
+        """
+        cmd = (
+            'git commit -m "fix(security): #1203 gh-filing allowance four-defect fix\n\n'
+            "(3) bypass-detector false-positive — the regex matched prose inside\n"
+            "--body argument VALUES, blocking legitimate gh-issue-comment calls\n"
+            '(the literal gh issue create substring lived only in prose, not at argv[0])."'
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "git commit -m with multi-line body containing the substring in prose "
+            f"MUST NOT be blocked (Issue #1215); got: {result!r}"
+        )
+
+    def test_git_commit_F_file_from_disk_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Cell 3: ``git commit -F /tmp/file_with_prose.txt`` MUST NOT be blocked.
+
+        The hook only sees the file PATH, not the file contents. Even if the
+        file on disk contains the substring, the path itself is a normal
+        argv value. The verb is ``git``.
+        """
+        cmd = "git commit -F /tmp/some_body_with_gh_issue_create_in_filename.txt"
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "git commit -F with path argument MUST NOT be blocked "
+            f"(Issue #1215); got: {result!r}"
+        )
+
+    def test_git_commit_long_message_flag_with_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Cell 4: ``git commit --message "...gh issue create..."`` MUST NOT block.
+
+        The long-flag form ``--message`` is git's equivalent of ``-m``. The
+        substring is prose inside the body; argv[0] is ``git``.
+        """
+        cmd = (
+            'git commit --message "long-flag form of -m with the gh issue create '
+            'substring inline in prose body"'
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "git commit --message with substring in body MUST NOT be blocked "
+            f"(Issue #1215); got: {result!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # Adversarial: true bypass forms MUST still be blocked post-#1215
+    # ------------------------------------------------------------------
+
+    def test_sh_c_bypass_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """sh -c "gh issue create ..." stays blocked (bypass detector)."""
+        cmd = 'sh -c "gh issue create --title X --body Y"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+    def test_backtick_at_command_position_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """RESULT=`gh issue create ...` stays blocked (bypass detector)."""
+        cmd = "RESULT=`gh issue create --title test --body details`"
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+    def test_subprocess_wrapper_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """python3 -c with subprocess.run(['gh','issue','create',...]) stays blocked."""
+        cmd = (
+            'python3 -c "import subprocess; '
+            "subprocess.run(['gh', 'issue', 'create', '--title', 'x'])\""
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+    def test_heredoc_piped_to_gh_issue_create_still_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """cat <<EOF ... EOF | gh issue create ... stays blocked.
+
+        Pipe-position verb is ``gh issue create`` — the argv-position check
+        sees ``gh`` as the leading verb of the second pipeline segment.
+        """
+        cmd = (
+            "cat <<'EOF' | gh issue create --title test --body details\n"
+            "body content\n"
+            "EOF"
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None, (
+            "heredoc piped to gh issue create is a real invocation — must block"
+        )
+        assert "BLOCKED" in result
+
+    def test_unterminated_quote_falls_back_to_raw_regex(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Malformed shell (unterminated quote) with the substring → fail-closed.
+
+        shlex.split raises ValueError on unterminated quotes. The
+        ``_detect_gh_issue_create`` direct-match path then falls back to the
+        raw-regex scan on the quote-stripped command. For a true bypass form
+        with garbled syntax this preserves blocking.
+        """
+        # Unterminated single-quote AROUND the create pattern → shlex fails →
+        # raw-regex fallback on the stripped command catches the substring.
+        cmd = "RESULT=`gh issue create --title 'unterminated"
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None, (
+            "unterminated-quote forms with the literal command at argv "
+            "position must fail closed"
+        )
+        assert "BLOCKED" in result
+
+    def test_git_commit_unterminated_quote_with_substring_blocked_failclosed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """Documented tradeoff: unterminated-quote git commit with the substring blocks.
+
+        Per the Issue #1215 spec scenario 9: ``git commit -m "unterminated``
+        with the substring in prose hits the raw-regex fallback (shlex
+        cannot parse). The substring matches the raw regex; the call is
+        blocked. The user fix is to terminate the quote — this is a
+        deliberately fail-closed posture, not a regression.
+        """
+        cmd = 'git commit -m "fix gh issue create '  # unterminated quote
+        result = hook._detect_gh_issue_create(cmd)
+        # Fail-closed: blocked. The user can fix the unterminated quote.
+        assert result is not None, (
+            "unterminated quote with the substring is fail-closed (#1215 spec)"
+        )
+        assert "BLOCKED" in result
+
+    def test_attached_message_flag_with_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """``--message=VALUE`` attached form strips the value before substring scan."""
+        cmd = (
+            'git commit --message="long-form attached, gh issue create in prose"'
+        )
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "--message=VALUE attached form must strip the body value "
+            f"(Issue #1215); got: {result!r}"
+        )
+
+    def test_pipeline_segment_gh_issue_create_real_command_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """``cat /tmp/body.md | gh issue create ...`` MUST be blocked.
+
+        Two pipeline segments. argv[0] of segment 2 is ``gh issue create``.
+        """
+        cmd = 'cat /tmp/body.md | gh issue create --title "real"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+    def test_env_var_assignment_before_real_command_blocked(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """``FOO=bar gh issue create ...`` MUST be blocked.
+
+        The argv-position helper skips leading env-var assignments and lands
+        on ``gh`` as the verb. Without this, FOO=bar would mask the bypass.
+        """
+        cmd = 'FOO=bar gh issue create --title "test"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None
+        assert "BLOCKED" in result
+
+
+# ---------------------------------------------------------------------------
+# TestGhIssueCreateAtCommandPosition — unit tests for the argv helper
+# ---------------------------------------------------------------------------
+
+
+class TestGhIssueCreateAtCommandPosition:
+    """Unit tests for ``_gh_issue_create_at_command_position`` (Issue #1215)."""
+
+    def test_bare_gh_issue_create_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "gh issue create --title x"
+        ) is True
+
+    def test_gh_issue_list_not_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "gh issue list --state open"
+        ) is False
+
+    def test_gh_pr_create_not_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "gh pr create --title x"
+        ) is False
+
+    def test_git_commit_with_substring_not_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            'git commit -m "fix gh issue create gate"'
+        ) is False
+
+    def test_env_var_prefix_gh_issue_create_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "FOO=bar gh issue create --title x"
+        ) is True
+
+    def test_pipeline_segment_gh_issue_create_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "cat body.md | gh issue create --title x"
+        ) is True
+
+    def test_semicolon_then_gh_issue_create_detected(self):
+        assert hook._gh_issue_create_at_command_position(
+            "export FOO=bar; gh issue create --title x"
+        ) is True
+
+    def test_sh_wrapper_not_detected_at_this_layer(self):
+        """sh -c "gh issue create ..." is bypass-detector territory, not direct."""
+        assert hook._gh_issue_create_at_command_position(
+            'sh -c "gh issue create --title x"'
+        ) is False
+
+    def test_empty_command(self):
+        assert hook._gh_issue_create_at_command_position("") is False
+
+    def test_case_insensitive_match(self):
+        assert hook._gh_issue_create_at_command_position(
+            "GH Issue Create --title x"
+        ) is True
+
+
+# ---------------------------------------------------------------------------
+# TestStripBodyArgValues — unit tests for the hoisted body-stripping helper
+# ---------------------------------------------------------------------------
+
+
+class TestStripBodyArgValues:
+    """Unit tests for ``_strip_body_arg_values`` (hoisted in Issue #1215)."""
+
+    def test_strip_dash_m_short_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            'git commit -m "prose body"'
+        )
+        assert "prose body" not in stripped
+        assert "prose body" in dropped
+
+    def test_strip_long_message_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            'git commit --message "long form body"'
+        )
+        assert "long form body" not in stripped
+        assert "long form body" in dropped
+
+    def test_strip_dash_F_file_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            "git commit -F /tmp/body.txt"
+        )
+        assert "/tmp/body.txt" not in stripped
+        assert "/tmp/body.txt" in dropped
+
+    def test_strip_long_file_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            "git commit --file /tmp/body.txt"
+        )
+        assert "/tmp/body.txt" not in stripped
+        assert "/tmp/body.txt" in dropped
+
+    def test_strip_attached_message_form(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            'git commit --message="attached form body"'
+        )
+        assert "attached form body" not in stripped
+        assert "attached form body" in dropped
+
+    def test_strip_gh_body_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue comment 123 --body "comment text"'
+        )
+        assert "comment text" not in stripped
+        assert "comment text" in dropped
+
+    def test_strip_gh_title_flag(self):
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue create --title "title prose"'
+        )
+        assert "title prose" not in stripped
+        assert "title prose" in dropped
+
+    def test_malformed_shell_raises(self):
+        """Unterminated quote raises ValueError for caller fallback."""
+        with pytest.raises(ValueError):
+            hook._strip_body_arg_values('git commit -m "unterminated')

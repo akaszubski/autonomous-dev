@@ -354,3 +354,85 @@ class TestRuntimeTrueBypassesStillBlocked:
         cmd = 'gh issue comment 1203 --body "see `gh issue create -t bypass`"'
         parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
         assert _decision(parsed) == "deny", _reason(parsed)
+
+
+# ---------------------------------------------------------------------------
+# Issue #1215 — argv-position-aware direct match
+# ---------------------------------------------------------------------------
+
+class TestRuntimeIssue1215GitCommitProseAllowed:
+    """Issue #1215: a ``git commit -m "..."`` whose message body contains the
+    literal substring ``gh issue create`` (in prose) MUST be allowed.
+
+    Pre-#1215 the direct-match path scanned the quote-stripped command for
+    the substring, which produced false positives whenever the body's
+    prose escaped the stripper (escaped quotes, ANSI-C ``$'...'`` quoting,
+    or unquoted prose). The #1203 and #1204 commits both required
+    workarounds (``git commit -F /tmp/file`` plus body-rewriting with
+    neutral phrasing).
+
+    These subprocess-runtime tests invoke the real hook binary the same way
+    Claude Code does and assert on the stdout decision JSON. They catch
+    future regressions where the unit-level mock and the real hook diverge.
+    """
+
+    def test_runtime_allow_git_commit_m_with_substring_in_body(self, runtime_hook_env):
+        """git commit -m with the substring in prose MUST not be denied."""
+        cmd = (
+            'git commit -m "fix: discuss the gh issue create gate behavior — '
+            'argv-position-aware match (#1215)"'
+        )
+        parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
+        assert rc == 0
+        assert _decision(parsed) != "deny", (
+            "git commit -m with the substring in prose MUST NOT be denied "
+            f"(Issue #1215); reason={_reason(parsed)!r}"
+        )
+
+    def test_runtime_allow_git_commit_F_path_argument(self, runtime_hook_env):
+        """git commit -F /tmp/file MUST NOT be denied (only path is visible)."""
+        cmd = "git commit -F /tmp/some_body_with_gh_issue_create_in_filename.txt"
+        parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
+        assert rc == 0
+        assert _decision(parsed) != "deny", (
+            "git commit -F with path argument MUST NOT be denied "
+            f"(Issue #1215); reason={_reason(parsed)!r}"
+        )
+
+    def test_runtime_allow_git_commit_long_message_flag(self, runtime_hook_env):
+        """git commit --message "...gh issue create..." MUST NOT be denied."""
+        cmd = (
+            'git commit --message "long-flag form with the gh issue create '
+            'substring inline in prose body"'
+        )
+        parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
+        assert rc == 0
+        assert _decision(parsed) != "deny", (
+            "git commit --message with substring in body MUST NOT be denied "
+            f"(Issue #1215); reason={_reason(parsed)!r}"
+        )
+
+    def test_runtime_allow_git_commit_multi_line_body_with_substring(
+        self, runtime_hook_env
+    ):
+        """git commit -m with multi-line body containing the substring MUST allow."""
+        cmd = (
+            'git commit -m "fix(security): #1215 argv-position-aware match\n\n'
+            "The bypass-detector false-positive — the regex matched prose\n"
+            'inside --body argument VALUES containing gh issue create text."'
+        )
+        parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
+        assert rc == 0
+        assert _decision(parsed) != "deny", (
+            "git commit -m with multi-line body containing the substring "
+            f"MUST NOT be denied (Issue #1215); reason={_reason(parsed)!r}"
+        )
+
+    def test_runtime_real_gh_issue_create_still_denied(self, runtime_hook_env):
+        """Sanity: the real command at argv[0] MUST STILL be denied post-#1215."""
+        cmd = 'gh issue create --title "test" --body "details"'
+        parsed, rc = _run_hook(runtime_hook_env["env"], "Bash", cmd)
+        assert _decision(parsed) == "deny", (
+            "the real gh issue create command MUST STILL be denied "
+            f"post-#1215; reason={_reason(parsed)!r}"
+        )
