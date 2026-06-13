@@ -406,6 +406,22 @@
       },
       "severity": "warning",
       "constraint": "Research skip is valid per-issue when /create-issue provided rich content. Flag as WARNING (not CRITICAL) when >50% of batch issues skip research."
+    },
+    {
+      "id": "git_stash_mid_pipeline",
+      "name": "git stash mid-pipeline state manipulation",
+      "description": "Coordinator uses git stash mid-pipeline to compare baselines or temporarily hide implementer changes. This is uncontrolled state manipulation — the pipeline spec captures baseline at STEP 1 and should not require stash workarounds.",
+      "issue": "#1139",
+      "hard_gate": "STEP 1 baseline capture + #990 baseline_scope record_baseline_scope",
+      "detection": {
+        "type": "log_pattern",
+        "indicators": [
+          "Bash tool call with command starting with 'git stash' when pipeline state file exists and explicitly_invoked=true",
+          "Two paired git stash + git stash pop calls within a single pipeline run",
+          "Coordinator output contains: 'stash', 'compare baseline', 'temporarily remove'"
+        ]
+      },
+      "severity": "warning"
     }
   ],
   "expected_end_states": {

@@ -5944,6 +5944,31 @@ def main():
                     except Exception:
                         pass  # Don't block on check failure
 
+                    # Issue #1139: Warn when git stash is used mid-pipeline without
+                    # a recorded baseline_cmd.  Advisory only — NEVER blocks.
+                    try:
+                        _gs_cmd = command.lstrip()
+                        # Strip leading VAR=val env prefixes (e.g. "FOO=bar git stash ...")
+                        while _gs_cmd and "=" in _gs_cmd.split(" ", 1)[0] and "/" not in _gs_cmd.split(" ", 1)[0]:
+                            _gs_cmd = _gs_cmd.split(" ", 1)[1] if " " in _gs_cmd else ""
+                        if _gs_cmd.startswith("git stash"):
+                            _gs_state_path = os.environ.get(
+                                "PIPELINE_STATE_FILE",
+                                "/tmp/implement_pipeline_state.json",
+                            )
+                            if Path(_gs_state_path).exists():
+                                _bg_lib_dir = Path(__file__).resolve().parent.parent / "lib"
+                                _bg_spec = importlib.util.spec_from_file_location(
+                                    "baseline_guardrail",
+                                    str(_bg_lib_dir / "baseline_guardrail.py"),
+                                )
+                                if _bg_spec and _bg_spec.loader:
+                                    _bg_mod = importlib.util.module_from_spec(_bg_spec)
+                                    _bg_spec.loader.exec_module(_bg_mod)
+                                    _bg_mod.warn_if_baseline_missing(_gs_state_path)
+                    except Exception:
+                        pass  # Never block the hook on guardrail errors
+
                     # Issue #712: Batch CIA completion gate
                     # Block git commit in batch worktrees when issues are missing CIA
                     # Phase E (Issue #999): session-mode wrap — low-risk

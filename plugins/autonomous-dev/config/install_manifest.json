@@ -179,6 +179,7 @@
         "plugins/autonomous-dev/lib/auto_inject_memory.py",
         "plugins/autonomous-dev/lib/auto_install_deps.py",
         "plugins/autonomous-dev/lib/autoresearch_engine.py",
+        "plugins/autonomous-dev/lib/baseline_guardrail.py",
         "plugins/autonomous-dev/lib/batch_agent_verifier.py",
         "plugins/autonomous-dev/lib/batch_git_finalize.py",
         "plugins/autonomous-dev/lib/batch_issue_closer.py",
