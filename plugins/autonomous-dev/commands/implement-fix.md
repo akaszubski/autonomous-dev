@@ -52,7 +52,7 @@ Output structured progress at each step. Same format conventions as the full pip
 **Step Banner**: `STEP FN/5 — Step Name` with agent info where applicable.
 **Timing**: Capture `FIX_START=$(date +%s)` at pipeline start. Capture per-step timing.
 **Gate Results**: `GATE: name — PASS/BLOCKED`
-**Final Summary** (after STEP F4, before STEP F5 launches in background):
+**Final Summary** (after STEP F6 persists the CIA report, before STEP F6.5 cleanup):
 ```
 ========================================
 FIX COMPLETE
@@ -65,9 +65,10 @@ F2    Test context        —                                  5s      done
 F3    Implementation      implementer (Opus)                 2:30    done
 F3    Test gate           —                                  8s      PASS
 F4    Review + docs       reviewer, doc-master               45s     done
-F5    CI analysis         continuous-improvement-analyst     bg      launched
+F5    CI analysis         continuous-improvement-analyst     30s     done
+F6    Persist CIA report  — (coordinator Write, #1209)       1s      done
 ========================================
-Total: 3:31 | Tests: N passed, M failed | Files changed: N
+Total: 4:02 | Tests: N passed, M failed | Files changed: N | CIA: .claude/local/cia-DATE-issue-NNNN-fix.md
 ========================================
 ```
 
@@ -537,20 +538,73 @@ After the parallel agents complete, parse the doc-master output:
 
 ## Step F5: Continuous Improvement
 
-### STEP F5: Continuous Improvement (background)
+### STEP F5: Continuous Improvement
 
-**Progress**: Output step banner (STEP F5/5 — Continuous Improvement). Output agent launch confirmation.
+**Progress**: Output step banner (STEP F5/5 — Continuous Improvement). Output agent launch confirmation. After the agent returns, proceed to STEP F6 (Persist CIA Report) BEFORE pipeline state cleanup.
 
-**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, and fix pipeline completeness.
+**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet") — Examines session logs for bypasses, test drift, and fix pipeline completeness.
+
+CIA MUST run synchronously (NOT `run_in_background=true`) so the coordinator can capture its return value for STEP F6. Issue #1209 documented three consecutive fix pipelines (#1283, #1287, #1288 on 2026-06-11) where CIA attempted to self-persist via Bash and produced 30-byte placeholder reports because the OS/sandbox silently dropped the subprocess write. The coordinator-side capture-and-persist path (STEP F6) is the only reliable persistence mechanism.
 
 **FORBIDDEN** — You MUST NOT do any of the following (violations = pipeline failure):
 - ❌ You MUST NOT skip STEP F5 for any reason (time pressure, context limits, "already reported")
-- ❌ You MUST NOT clean up pipeline state before launching the analyst
+- ❌ You MUST NOT skip STEP F6 (Persist CIA Report) — the CIA output is lost if not persisted by the coordinator
+- ❌ You MUST NOT launch CIA with `run_in_background=true` in --fix mode — STEP F6 needs the synchronous return value (#1209)
+- ❌ You MUST NOT clean up pipeline state before STEP F6 completes
 - ❌ You MUST NOT inline the analysis yourself instead of invoking the agent
+- ❌ You MUST NOT instruct CIA to write its own report via Bash, `python3 -c "...write_text(...)"`, or `cat > .../cia-*.md << EOF` — those writes silently fail at the OS/sandbox level (#1209)
 
-After launching the analyst and confirming the agent task ID is valid, cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
+### STEP F6: Persist CIA Report — HARD GATE (#1209)
 
-**FORBIDDEN** (Issue #559): Cleaning up pipeline state before confirming the STEP F5 analyst agent launch succeeded. The analyst reads pipeline state — cleanup before launch loses context.
+**Progress**: Output step banner (STEP F6 — Persist CIA Report). Output the persisted file path and byte count after.
+
+After the CIA agent (STEP F5) returns, capture its full output text. This is the only reliable way to persist the CIA report to `.claude/local/` — see #1209 for evidence that CIA-internal Bash/subprocess writes silently fail at the OS/sandbox level.
+
+**Compute the report path**:
+
+```bash
+TODAY=$(date +%Y-%m-%d)
+ISSUE_NUMBER=$(python3 -c "
+import json, os
+state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+try:
+    with open(state_path) as f:
+        print(int(json.load(f).get('issue_number', 0) or 0))
+except Exception:
+    print(0)
+")
+CIA_REPORT_PATH=".claude/local/cia-${TODAY}-issue-${ISSUE_NUMBER}-fix.md"
+mkdir -p .claude/local
+echo "CIA report path: $CIA_REPORT_PATH"
+```
+
+**Persist via the Write tool from the coordinator (parent session)** — pass the captured CIA output text as the file content. Do NOT delegate the write to CIA via Bash. Do NOT use `python3 -c "...write_text(...)"`, `cat > ... << EOF`, or any subprocess write — those silently fail at the OS/sandbox level (#1209).
+
+**Evidence — Persist-failure detection (>100 bytes required)**:
+
+```bash
+BYTES=$(wc -c < "$CIA_REPORT_PATH" 2>/dev/null || echo 0)
+if [ "$BYTES" -lt 100 ]; then
+    echo "[CIA-PERSIST-FAILED] $CIA_REPORT_PATH is only $BYTES bytes (expected >100, typical CIA reports are 500-5000 words)"
+    echo "[CIA-PERSIST-FAILED] This indicates either CIA returned an empty output or the Write tool failed. Surface to user."
+else
+    echo "CIA report persisted: $CIA_REPORT_PATH ($BYTES bytes)"
+fi
+```
+
+CIA reports typically range 500-5000 words (3,000-30,000 bytes). A persisted file under 100 bytes indicates a `[CIA-PERSIST-FAILED]` condition — either CIA returned empty output (re-invoke CIA once) or the coordinator failed to capture/Write the output (surface to user).
+
+**FORBIDDEN**:
+- ❌ Delegating the report write to CIA via Bash, `python3 -c`, heredoc, or any subagent tool (#1209 silent-failure mode)
+- ❌ Using a path scheme other than `.claude/local/cia-YYYY-MM-DD-issue-NNNN-fix.md`
+- ❌ Proceeding to pipeline state cleanup without verifying the persisted file is >100 bytes
+- ❌ Logging `[CIA-PERSIST-FAILED]` and silently continuing — the failure MUST be surfaced to the user
+
+### STEP F6.5: Pipeline State Cleanup
+
+After STEP F6 has persisted the CIA report and verified the file size, cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
+
+**FORBIDDEN** (Issue #559): Cleaning up pipeline state before STEP F5 + F6 complete. The analyst reads pipeline state — cleanup before launch loses context. The coordinator reads CIA output — cleanup before persist loses the report.
 
 ---
 

@@ -394,3 +394,16 @@ This ensures trends surface automatically without manual `/improve --trends` run
 ```
 
 Omit `### Validator Diversity` entirely when artifact files are missing (`files_present: false`).
+
+---
+
+## Report Persistence (#1209)
+
+Output your CIA report as the FINAL assistant message of your agent turn. The coordinator (parent session) captures your output via the Agent tool's return value and persists it to `.claude/local/cia-YYYY-MM-DD-issue-NNNN-fix.md` via the Write tool.
+
+**FORBIDDEN — You MUST NOT do any of the following**:
+- ❌ You MUST NOT attempt to write `.claude/local/cia-*.md` via Bash, `python3 -c "...write_text(...)"`, `cat > .../cia-*.md << EOF`, or any subagent tool — those writes silently fail at the OS/sandbox level (#1209). Three consecutive `--fix` pipelines on 2026-06-11 (#1283, #1287, #1288) confirmed the failure mode: the PreToolUse hook returns `decision=allow`, the Bash subprocess exits 0, the post-write `ls` check reports the file exists, but the file retains its 30-byte placeholder content. The sandbox blocks the subprocess write silently — invisible to the hook and to your `ls` check.
+- ❌ You MUST NOT delegate the persist to a downstream Bash command — only the coordinator's Write tool from the parent session reliably reaches the path.
+- ❌ You MUST NOT rely on `SKIP_AGENT_COMPLETENESS_GATE=1` (or any env-var) to "enable" the write. That bypass only affects the hook's static Bash scan; it does not affect the OS-level subprocess write sandbox that is the root cause of #1209.
+
+The canonical persistence path is: CIA outputs the report as final assistant message → coordinator captures via Agent tool return value → coordinator Writes via Write tool from the parent session. This is the only working path.
