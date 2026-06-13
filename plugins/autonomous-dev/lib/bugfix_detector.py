@@ -65,6 +65,39 @@ def is_bugfix_commit(message: str) -> bool:
     return bool(_BUGFIX_COMMIT_PATTERN.match(first_line))
 
 
+def get_test_count_for_dirs(dirs: list[str], project_root: Path | None = None) -> int:
+    """Count test functions in the specified test subdirectories.
+
+    Mirrors get_test_count() but restricts the scan to only the given
+    relative subdirectories (e.g. ["tests/unit", "tests/integration"]).
+    Used for baseline_count that must match CANONICAL_BASELINE_CMD scope.
+
+    Args:
+        dirs: Relative directory paths (e.g. ["tests/unit", "tests/integration"]).
+            Resolved against project_root. Non-existent dirs are silently skipped.
+        project_root: Root for relative path resolution. Defaults to Path(".").
+
+    Returns:
+        Total count of def test_* functions found in any .py file under the dirs.
+    """
+    if project_root is None:
+        project_root = Path(".")
+
+    count = 0
+    for rel_dir in dirs:
+        target_dir = project_root / rel_dir
+        if not target_dir.is_dir():
+            continue
+        for py_file in target_dir.rglob("*.py"):
+            try:
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                count += len(_TEST_FUNCTION_PATTERN.findall(content))
+            except OSError:
+                continue
+
+    return count
+
+
 def get_test_count(project_root: Path) -> int:
     """Count test functions by scanning the tests/ directory.
 

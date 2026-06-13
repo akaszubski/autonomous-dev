@@ -928,6 +928,128 @@ def get_pipeline_base_commit(
 
 
 # =============================================================================
+# BASELINE SCOPE HELPERS (Issue #990)
+# =============================================================================
+#
+# In the #972 run, the coordinator's STEP 5 test gate initially reported 188
+# "new failures" that were pre-existing failures in test directories outside
+# the baseline scope. The mismatch arose because the coordinator captured a
+# baseline test count using one directory set (e.g., `tests/unit/ tests/integration/`)
+# but the implementer ran tests against a broader set (e.g., adding
+# `tests/regression/ tests/property/`). Directories never in the baseline
+# appeared as regressions.
+#
+# The fix: normalize test scope at STEP 1 by recording the exact pytest
+# invocation used for baseline capture in the sentinel. The implementer
+# MUST use this recorded scope — not a self-chosen broader one — when
+# running pytest at STEP 8.
+
+#: The canonical baseline pytest command — stored as a list for shell-injection
+#: safety (never joined into a shell string). Callers that need a string form
+#: must join explicitly: ``" ".join(CANONICAL_BASELINE_CMD)``.
+CANONICAL_BASELINE_CMD: List[str] = [
+    "pytest",
+    "tests/unit",
+    "tests/integration",
+    "-q",
+    "--tb=no",
+]
+
+
+def record_baseline_scope(
+    state_path: str,
+    baseline_cmd: List[str],
+    baseline_count: int,
+) -> bool:
+    """Persist baseline test scope into the pipeline sentinel JSON.
+
+    Reads the existing sentinel at ``state_path``, merges ``baseline_cmd``
+    and ``baseline_count`` under those exact key names, and writes back
+    atomically (temp-file + os.replace). Overwrites any existing
+    ``baseline_cmd``/``baseline_count`` keys — re-baselining within a
+    session is intentional.
+
+    ``baseline_cmd`` is stored as a list (not a shell string) to eliminate
+    shell-injection ambiguity when it is later read back and passed directly
+    to ``subprocess.run``.
+
+    Args:
+        state_path: Absolute path to the pipeline sentinel JSON file.
+        baseline_cmd: The exact pytest invocation used for baseline capture,
+            as a list of strings (e.g., ``["pytest", "tests/unit", "-q",
+            "--tb=no"]``).
+        baseline_count: The total number of tests found by the baseline run.
+
+    Returns:
+        True on success, False on any IO or JSON error. NEVER raises.
+    """
+    import tempfile
+
+    if not os.path.exists(state_path):
+        return False
+    try:
+        with open(state_path) as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    state["baseline_cmd"] = list(baseline_cmd)
+    state["baseline_count"] = int(baseline_count)
+
+    try:
+        parent = os.path.dirname(state_path) or "."
+        fd, tmp_path = tempfile.mkstemp(dir=parent, suffix=".tmp", prefix=".baseline_")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(state, f)
+            os.replace(tmp_path, state_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return False
+    except (OSError, json.JSONDecodeError):
+        return False
+    return True
+
+
+def get_baseline_scope(state_path: str) -> Optional[Dict[str, Any]]:
+    """Return the recorded baseline test scope from the pipeline sentinel.
+
+    Returns a dict with keys ``baseline_cmd`` (list of str) and
+    ``baseline_count`` (int), or ``None`` if either field is missing or
+    malformed (wrong type, empty list, non-integer count). NEVER raises.
+
+    Args:
+        state_path: Absolute path to the pipeline sentinel JSON file.
+
+    Returns:
+        ``{"baseline_cmd": [...], "baseline_count": N}`` if both fields are
+        present and well-formed; ``None`` otherwise.
+    """
+    if not os.path.exists(state_path):
+        return None
+    try:
+        with open(state_path) as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    cmd = state.get("baseline_cmd")
+    count = state.get("baseline_count")
+
+    if not isinstance(cmd, list) or len(cmd) == 0:
+        return None
+    if not all(isinstance(item, str) for item in cmd):
+        return None
+    if not isinstance(count, int):
+        return None
+
+    return {"baseline_cmd": cmd, "baseline_count": count}
+
+
+# =============================================================================
 # RUN_ID GENERATION AND LOCKFILE HELPERS (Issue #1047)
 # =============================================================================
 

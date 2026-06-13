@@ -518,11 +518,27 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.
     if _os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
-from bugfix_detector import get_test_count
+from bugfix_detector import get_test_count_for_dirs
 from pathlib import Path
-print(get_test_count(Path('.')))
+print(get_test_count_for_dirs(['tests/unit', 'tests/integration'], Path('.')))
 ")
 echo "Baseline test count: $BASELINE_TEST_COUNT"
+
+# BASELINE SCOPE RECORD (Issue #990). Record the exact pytest invocation used
+# for baseline capture into the pipeline sentinel so the implementer (STEP 8)
+# uses the SAME scope — not a broader one — eliminating false "new-failure"
+# reports caused by directories outside the baseline set.
+python3 -c "
+import sys, os as _os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
+    if _os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_state import record_baseline_scope, CANONICAL_BASELINE_CMD
+state_path = _os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+ok = record_baseline_scope(state_path, CANONICAL_BASELINE_CMD, int('$BASELINE_TEST_COUNT' or 0))
+print(f'Baseline scope recorded: {CANONICAL_BASELINE_CMD!r} (ok={ok})')
+"
 ```
 
 **Baseline Failing Tests Capture** (for fix-forward classification in STEP 8 — Issue #860; timeout handling — Issue #1094):
@@ -957,7 +973,7 @@ If `--tdd-first`: **Agent**(subagent_type="test-master", model="opus") — Pass 
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
 
-**Agent**(subagent_type="implementer", model=PLANNER_RECOMMENDED_MODEL) — Pass planner output + acceptance tests (or test-master output if TDD). Must write WORKING code, no stubs. Use the model recommended by the planner (see STEP 5). Default to "opus" if planner did not specify.
+**Agent**(subagent_type="implementer", model=PLANNER_RECOMMENDED_MODEL) — Pass planner output + acceptance tests (or test-master output if TDD). Must write WORKING code, no stubs. Use the model recommended by the planner (see STEP 5). Default to "opus" if planner did not specify. When running pytest, use the EXACT scope from the sentinel's `baseline_cmd` field (call `get_baseline_scope` from `pipeline_state`) — do NOT broaden the directory set.
 
 **Ghost Invocation Detection** — After the implementer agent returns, verify the output is non-trivial. Count the words in the implementer's result. If the result word count is fewer than 50 words AND the agent completed in less than 10 seconds, treat it as a ghost invocation — the agent was invoked but did not actually execute implementation work:
 1. Log: `[GHOST-INVOCATION-DETECTED] Implementer returned <N> words in <T>s — retrying once with same prompt`
