@@ -286,6 +286,47 @@ The evidence manifest is a Markdown table that lists every file you created or m
 
 **Pass criteria**: The feature produces correct, usable output for at least one realistic input AND returns a helpful error for at least one invalid input. If either check fails, fix the implementation before proceeding.
 
+## HARD GATE: Consecutive-Run Test Isolation (Issue #1184)
+
+**Trigger condition**: When your implementation or tests touch shared filesystem state, run the affected test module(s) twice consecutively without clearing `/tmp` between runs. Both runs must pass.
+
+**Detect shared state** — before declaring implementation complete, grep for these patterns in modified source and test files:
+
+```bash
+grep -n "/tmp/" <modified_file>
+grep -n "tempfile.mkdtemp\|tempfile.mktemp\|os.path.join.*tmp" <modified_file>
+grep -n "session_id.*=.*[\"']" tests/          # fixed session_id literals
+```
+
+Also inspect module-level `dict` or `set` variables in any hook code you modified — these persist across test collection.
+
+If any pattern matches, run the consecutive-run check:
+
+```bash
+pytest tests/path/to/affected_module.py -q && pytest tests/path/to/affected_module.py -q
+```
+
+**If the second run regresses**, add an `autouse` fixture or `setup_method` that clears the shared state before each test. Example from Issue #1176 (fixed `subagent_stop_seen_*.marker` files):
+
+```python
+@pytest.fixture(autouse=True)
+def _clear_subagent_stop_markers():
+    """Remove any persisted /tmp/subagent_stop_seen_*.marker files left by prior runs."""
+    import glob, os
+    for marker in glob.glob("/tmp/subagent_stop_seen_*.marker"):
+        try:
+            os.unlink(marker)
+        except OSError:
+            pass
+    yield
+```
+
+**FORBIDDEN** — You MUST NOT do any of the following:
+1. ❌ You MUST NOT declare implementation complete without the consecutive-run check when any trigger pattern matches
+2. ❌ You MUST NOT claim "fresh /tmp" without verifying — /tmp is NOT cleared between pytest invocations
+3. ❌ You MUST NOT skip the second run because "the first run passed"
+4. ❌ You MUST NOT leave fixed `session_id`, `agent_name`, or file-path literals in tests without an autouse cleanup fixture
+
 ## HARD GATE: Error Recovery with Retry Budget (Issue #708)
 
 **You get max 2 retries per approach.** If the same error (or substantially similar error) appears twice, you MUST pivot to a different approach.
