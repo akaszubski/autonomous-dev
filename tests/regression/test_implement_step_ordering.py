@@ -1484,3 +1484,188 @@ class TestPromptIntegrityDocUpdateRetryContext1031:
             "STEP 14 must reference Issue #1031 inline so the motivation for "
             "the env-var set/unset is discoverable when reading the spec."
         )
+
+
+class TestPreFlightReconnaissance936And1129:
+    """STEP 0a Pre-Flight Reconnaissance must codify allowed vs FORBIDDEN
+    coordinator actions before STEP 1 (Issues #936, #1129).
+
+    Issue #936: /implement --issues #926 started a full pipeline run before
+    verifying that the issue's work had already been merged. ~10 minutes of
+    pipeline execution wasted. Fix: add a mandatory issue-state + merge-status
+    pre-flight check at STEP 0a, before STEP 1.
+
+    Issue #1129: Coordinator did extensive file exploration (Read on hook
+    files, Grep for settings logic) BEFORE invoking STEP 1 (researchers). This
+    is a FORBIDDEN coordinator behavior — investigation must be delegated to
+    researcher-local and researcher agents. Fix: add an explicit FORBIDDEN
+    pre-flight list at STEP 0a and extend the COORDINATOR FORBIDDEN LIST at
+    the top of implement.md.
+    """
+
+    def test_step_0a_pre_flight_reconnaissance_section_exists_for_936_1129(
+        self, implement_text: str
+    ) -> None:
+        """STEP 0a header must exist and reference both #936 and #1129."""
+        assert "### STEP 0a:" in implement_text, (
+            "STEP 0a header missing — required by Issues #936 and #1129 to "
+            "codify the boundary between legitimate pre-flight checks and "
+            "FORBIDDEN coordinator investigation."
+        )
+        assert "Pre-Flight Reconnaissance" in implement_text, (
+            "STEP 0a must be titled 'Pre-Flight Reconnaissance' per the "
+            "Issue #936/#1129 spec."
+        )
+        # Extract STEP 0a section (between STEP 0a header and the next ### header)
+        step_0a_section = _section_text(
+            IMPLEMENT_MD.read_text().splitlines(),
+            "### STEP 0a:",
+            "### STEP 1:",
+        )
+        assert "#936" in step_0a_section, (
+            "STEP 0a must reference Issue #936 inline so the motivation for "
+            "the issue-state and merge-status checks is discoverable."
+        )
+        assert "#1129" in step_0a_section, (
+            "STEP 0a must reference Issue #1129 inline so the motivation for "
+            "the FORBIDDEN pre-flight investigation list is discoverable."
+        )
+
+    def test_step_0a_has_issue_state_check_for_936(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 0a must perform an issue state check and BLOCK on CLOSED."""
+        step_0a_section = _section_text(
+            implement_lines, "### STEP 0a:", "### STEP 1:"
+        )
+        assert "gh issue view" in step_0a_section, (
+            "STEP 0a must reference 'gh issue view' (the source of issue state) "
+            "per Issue #936 — even if it reuses STEP 0's ISSUE_DATA fetch."
+        )
+        assert "CLOSED" in step_0a_section, (
+            "STEP 0a must check for the CLOSED state per Issue #936."
+        )
+        # BLOCK message must reference #936 so failures are traceable.
+        block_pattern = re.compile(
+            r"BLOCKED.*STEP 0a.*Issue #936", re.DOTALL
+        )
+        assert block_pattern.search(step_0a_section), (
+            "STEP 0a must include a BLOCK message that references "
+            "'STEP 0a, Issue #936' so the closure-block path is traceable."
+        )
+
+    def test_step_0a_has_merge_status_check_for_936(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 0a must perform a merge-status check via git log --grep."""
+        step_0a_section = _section_text(
+            implement_lines, "### STEP 0a:", "### STEP 1:"
+        )
+        assert "git log" in step_0a_section, (
+            "STEP 0a must use 'git log' to detect already-merged work "
+            "per Issue #936."
+        )
+        assert "--grep" in step_0a_section, (
+            "STEP 0a must use 'git log --grep' to search recent commits "
+            "for the issue number per Issue #936."
+        )
+        # WARNING handling must reference #936 so the merge-WARNING path is traceable.
+        warning_pattern = re.compile(
+            r"WARNING.*STEP 0a.*Issue #936", re.DOTALL
+        )
+        assert warning_pattern.search(step_0a_section), (
+            "STEP 0a must include a WARNING message that references "
+            "'STEP 0a, Issue #936' for the merge-status path."
+        )
+
+    def test_step_0a_forbids_source_exploration_for_1129(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 0a must include a FORBIDDEN section per Issue #1129."""
+        step_0a_section = _section_text(
+            implement_lines, "### STEP 0a:", "### STEP 1:"
+        )
+        assert "FORBIDDEN" in step_0a_section, (
+            "STEP 0a must include a FORBIDDEN section per Issue #1129 "
+            "listing prohibited pre-STEP-1 investigation actions."
+        )
+        # The FORBIDDEN list must enumerate the prohibited action classes.
+        for keyword in ("source code", "grep", "hook files"):
+            assert keyword in step_0a_section.lower() or keyword in step_0a_section, (
+                f"STEP 0a FORBIDDEN section missing keyword '{keyword}' — "
+                f"required by Issue #1129 to explicitly forbid that "
+                f"investigation pattern."
+            )
+        assert "#1129" in step_0a_section, (
+            "STEP 0a FORBIDDEN section must reference Issue #1129 inline."
+        )
+
+    def test_coordinator_forbidden_list_references_step_0a_for_1129(
+        self, implement_text: str
+    ) -> None:
+        """The top-of-file COORDINATOR FORBIDDEN LIST must reference STEP 0a."""
+        coord_match = re.search(
+            r"\*\*COORDINATOR FORBIDDEN LIST\*\*.*?(?=\n### )",
+            implement_text,
+            re.DOTALL,
+        )
+        assert coord_match, (
+            "COORDINATOR FORBIDDEN LIST block not found in implement.md"
+        )
+        coord_block = coord_match.group(0)
+
+        assert "#1129" in coord_block, (
+            "COORDINATOR FORBIDDEN LIST must reference Issue #1129 — the "
+            "pre-STEP-1 file-exploration prohibition belongs at the "
+            "coordinator level, not just inside STEP 0a."
+        )
+        assert "STEP 0a" in coord_block, (
+            "COORDINATOR FORBIDDEN LIST must reference 'STEP 0a' so the "
+            "pre-flight ordering relationship is enforced at the "
+            "coordinator level (Issues #936, #1129)."
+        )
+        assert "#936" in coord_block, (
+            "COORDINATOR FORBIDDEN LIST must reference Issue #936 — the "
+            "STEP 0a Pre-Flight Reconnaissance mandate belongs at the "
+            "coordinator level."
+        )
+        # The entry must tie pre-STEP-1 actions (exploration / source inspection)
+        # to the prohibition.
+        assert (
+            "file exploration" in coord_block
+            or "code grepping" in coord_block
+            or "source inspection" in coord_block
+        ), (
+            "COORDINATOR FORBIDDEN LIST must explicitly mention 'file "
+            "exploration', 'code grepping', or 'source inspection' per "
+            "Issue #1129."
+        )
+
+    def test_force_flag_documented_for_936(self, implement_text: str) -> None:
+        """STEP 0 prose must document --force with its narrow scope."""
+        # Find STEP 0 section (from '### STEP 0:' to next '### STEP' header)
+        lines = implement_text.splitlines()
+        step_0_section = _section_text(lines, "### STEP 0:", "### STEP 0a:")
+
+        assert "--force" in step_0_section, (
+            "STEP 0 must document the --force flag per Issue #936."
+        )
+        # Narrow scope: --force only bypasses the STEP 0a closed-issue BLOCK
+        # (and the merge-status WARNING). It does NOT bypass other HARD GATEs.
+        assert "STEP 0a" in step_0_section, (
+            "STEP 0's --force documentation must reference STEP 0a "
+            "so the narrow scope is unambiguous."
+        )
+        assert (
+            "closed-issue" in step_0_section.lower()
+            or "closed issue" in step_0_section.lower()
+        ), (
+            "STEP 0's --force documentation must mention the 'closed-issue' "
+            "BLOCK that --force bypasses (Issue #936)."
+        )
+        # Must explicitly state --force does NOT bypass test/security gates.
+        assert "does NOT bypass" in step_0_section or "not bypass" in step_0_section, (
+            "STEP 0's --force documentation must explicitly state that "
+            "--force does NOT bypass test gates, security gates, or other "
+            "HARD GATEs (Issue #936)."
+        )

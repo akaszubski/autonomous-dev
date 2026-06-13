@@ -37,8 +37,8 @@ user-invocable: true
 - ❌ You MUST NOT declare "good enough" on failing tests (STEP 8 HARD GATE is absolute)
 - ❌ You MUST NOT run STEP 10 before STEP 8 test gate passes
 - ❌ You MUST NOT parallelize agents from different pipeline phases (e.g., implementer + reviewer) — within-phase parallel validation in STEP 10 is permitted for low-risk changesets per STEP 10 routing rules
-- ❌ You MUST NOT treat STEP 13 as the final step (STEP 14 and STEP 15 are mandatory; STEP 12.5 CIA must complete before STEP 13) — Issue #1211
-- ❌ You MUST NOT clean up pipeline state before STEP 15 launches; STEP 12.5 CIA must dispatch before STEP 13 commit — Issue #1211
+- ❌ You MUST NOT treat STEP 13 as the final step (STEP 14 and STEP 15 are mandatory; STEP 12.5 CIA must dispatch before STEP 13 commit; you MUST NOT clean up pipeline state before STEP 15 launches) — Issue #1211
+- ❌ You MUST NOT start STEP 1 before STEP 0a Pre-Flight Reconnaissance completes — issue state, merge-status, and pre-validated plan detection are mandatory checks (#936); and you MUST NOT perform pre-STEP-1 file exploration, code grepping, or source inspection — pre-flight is limited to issue/git state, alignment read, and pipeline state, with investigation delegated to STEP 4 researchers (#1129)
 
 #### Pipeline Integrity — Output Fidelity and Isolation
 - ❌ You MUST NOT paraphrase, summarize, or condense agent output when passing it to the next stage. Pass the FULL agent output text verbatim. If output exceeds context limits, pass the first 2000 words plus the final summary/conclusion section — never your own restatement. The anti-pattern: "The implementer changed X, Y, Z" instead of the implementer's actual output. STEP 10 agents (reviewer, security-auditor) need the real output to do real reviews.
@@ -401,6 +401,72 @@ print(f'PIPELINE_BASE_COMMIT recorded: $PIPELINE_BASE_COMMIT (ok={ok})')
 "
 export PIPELINE_BASE_COMMIT
 ```
+
+**--force flag (narrow scope, Issue #936)**: Recognize `--force` in ARGUMENTS. `--force` bypasses ONLY the STEP 0a closed-issue BLOCK and the STEP 0a merge-status WARNING. It does NOT bypass test gates, security gates, or any other HARD GATE in the pipeline. Use ONLY when the issue is intentionally being re-opened or worked on a different surface. Detection: `FORCE_FLAG=$(echo "ARGUMENTS" | grep -oE '\-\-force' | head -1)`. Pass `FORCE_FLAG` to STEP 0a.
+
+---
+
+### STEP 0a: Pre-Flight Reconnaissance — HARD GATE
+
+**Progress**: Output step banner (STEP 0a/15 — Pre-Flight Reconnaissance). Output gate result after.
+
+**Activation**: This step runs for ALL pipeline modes (full, light, fix, batch). It executes BEFORE STEP 1 and codifies the boundary between legitimate pre-flight checks (issue state, merge status, alignment read, plan detection, pipeline state read) and FORBIDDEN coordinator investigation (file reads, grep, source exploration). Closes Issues #936 (coordinator started pipeline on a merged issue, wasting ~10 min) and #1129 (coordinator did file exploration before STEP 1).
+
+**Required pre-flight checks (in order)**:
+
+(a) **Issue state check** — Issue #936. If ARGUMENTS contains an issue reference (`#NNN`), the coordinator MUST reuse the `ISSUE_DATA` already fetched in STEP 0's Issue Body Fetching block (do not re-invoke `gh issue view`) and extract `state`:
+
+```bash
+ISSUE_STATE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state',''))" 2>/dev/null)
+```
+
+If `ISSUE_STATE` equals `CLOSED` AND `FORCE_FLAG` is unset, **BLOCK** the pipeline and emit:
+
+```
+BLOCKED (STEP 0a, Issue #936): Issue #{N} is CLOSED.
+Options:
+  A) Reopen: gh issue reopen {N}
+  B) Force: re-run with --force (BLOCKS only the closure check; the merge-check still runs)
+  C) Cancel
+```
+
+If `FORCE_FLAG` is set, emit a notice (`STEP 0a: --force bypassed closed-issue BLOCK for #{N}`) and continue. The merge-status check (b) still runs.
+
+(b) **Merge-status check** — Issue #936. Search recent commits for issue references:
+
+```bash
+MERGE_HITS=$(git log --oneline --grep "#${ISSUE_NUMBER}" -10 2>/dev/null)
+```
+
+If `MERGE_HITS` is non-empty AND any matching commit is within 30 days (`git log --since='30 days ago' --oneline --grep "#${ISSUE_NUMBER}"`), emit a **WARNING** (not BLOCK by default):
+
+```
+WARNING (STEP 0a, Issue #936): Issue #{N} appears in N recent commit(s):
+  [list commit SHAs and subjects]
+The work may already be merged. Options:
+  A) Continue pipeline (--force or explicit "continue")
+  B) Cancel
+```
+
+If `FORCE_FLAG` is set, log the warning and continue without prompting. Otherwise, the coordinator MUST pause and wait for the user to reply `continue` (or re-run with `--force`) before proceeding.
+
+(c) **Alignment read** (allowed). Read `.claude/PROJECT.md` to preview `GOALS`/`SCOPE`/`CONSTRAINTS` for downstream STEP 2 alignment validation. This is the same read STEP 2 performs; loading it at 0a is an optimization, not a violation. Store as `PROJECT_MD_PREVIEW` for STEP 2 to reuse.
+
+(d) **Pre-validated plan detection** (allowed). Glob `.claude/plans/*.md` for a name match against the feature description (kebab-case slug). Set `PRE_VALIDATED_PLAN_PATH` if found; STEP 4.7 / 5.5a will consult this. Example: feature `Add pre-flight check` → plans matching `*pre-flight-check*.md`.
+
+(e) **Pipeline state read** (allowed, resume mode only). If `--resume <id>` was specified, read `/tmp/implement_pipeline_${id}.json` or `/tmp/pipeline_state_${id}.json` to restore prior state. Also read `.claude/local/criteria_registry.json` if present (acceptance criteria registry).
+
+**FORBIDDEN pre-flight actions** — Issue #1129. The coordinator MUST NOT perform investigative actions before STEP 1. Specifically, before STEP 1 dispatches:
+
+1. You MUST NOT read source code files (`plugins/autonomous-dev/lib/*.py`, `plugins/autonomous-dev/hooks/*.py`, `agents/*.md`, repo source code).
+2. You MUST NOT grep the codebase for symbols, functions, or implementation details.
+3. You MUST NOT glob patterns over source directories — anything outside `.claude/plans/`, `.claude/local/`, `.claude/PROJECT.md`, `/tmp/implement_pipeline_*.json` is FORBIDDEN.
+4. You MUST NOT use Bash to inspect source code (`cat`, `head`, `tail` on source files; or hook files such as `unified_pre_tool.py`).
+5. You MUST NOT invoke any tool call whose purpose is investigation rather than orchestration.
+
+**Exception**: reading pipeline state files (`/tmp/implement_pipeline_*.json`, `.claude/local/criteria_registry.json`) and `.claude/plans/*.md` is allowed (these are orchestration artifacts, not investigation targets).
+
+**Reason**: the coordinator's job is to orchestrate agents, not to investigate. Investigation MUST be delegated to `researcher-local` and `researcher` at STEP 4. Pre-STEP-1 investigation (i) consumes coordinator context that should be reserved for orchestration, (ii) produces no audit trail (no researcher output, no JSONL trace), (iii) signals the coordinator "thinks it already knows the answer" — exactly the failure mode researcher agents prevent. (#1129)
 
 ---
 
