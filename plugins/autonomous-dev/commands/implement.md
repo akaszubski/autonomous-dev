@@ -37,8 +37,8 @@ user-invocable: true
 - ❌ You MUST NOT declare "good enough" on failing tests (STEP 8 HARD GATE is absolute)
 - ❌ You MUST NOT run STEP 10 before STEP 8 test gate passes
 - ❌ You MUST NOT parallelize agents from different pipeline phases (e.g., implementer + reviewer) — within-phase parallel validation in STEP 10 is permitted for low-risk changesets per STEP 10 routing rules
-- ❌ You MUST NOT treat STEP 13 as the final step (STEP 15 is mandatory)
-- ❌ You MUST NOT clean up pipeline state before STEP 15 launches
+- ❌ You MUST NOT treat STEP 13 as the final step (STEP 14 and STEP 15 are mandatory; STEP 12.5 CIA must complete before STEP 13) — Issue #1211
+- ❌ You MUST NOT clean up pipeline state before STEP 15 launches; STEP 12.5 CIA must dispatch before STEP 13 commit — Issue #1211
 
 #### Pipeline Integrity — Output Fidelity and Isolation
 - ❌ You MUST NOT paraphrase, summarize, or condense agent output when passing it to the next stage. Pass the FULL agent output text verbatim. If output exceeds context limits, pass the first 2000 words plus the final summary/conclusion section — never your own restatement. The anti-pattern: "The implementer changed X, Y, Z" instead of the implementer's actual output. STEP 10 agents (reviewer, security-auditor) need the real output to do real reviews.
@@ -105,9 +105,10 @@ Step   Description                  Agent(s)                     Time     Status
 10     Validation                   reviewer, security, docs     52s      done
 11     Remediation gate             —                            0s       PASS
 12     Verification                 —                            3s       PASS
+12.5   Continuous improvement       ci-analyst                   (bg)     done
 13     Git operations               —                            5s       done
 14     Doc congruence               —                            8s       PASS
-15     Continuous improvement       ci-analyst                   (bg)     done
+15     Cleanup                      —                            1s       done
 ========================================
 Total: 7:08 | Files changed: N | Tests: N passed, M failed | Security: PASS
 ========================================
@@ -1529,6 +1530,20 @@ record_doc_verdict(session_id, issue_number, verdict)
 record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=(verdict not in ('MISSING',)))
 ```
 
+### STEP 12.5: Continuous Improvement — HARD GATE
+
+**Progress**: Output step banner (STEP 12.5/15 — Continuous Improvement). Output agent launch confirmation.
+
+**Why this runs before STEP 13 (Issue #1211)**: The `unified_pre_tool.py` agent-completeness gate blocks the git commit in STEP 13 until `continuous-improvement-analyst` (CIA) appears in the completed-agents set. Previously, CIA was scheduled at STEP 15 (after the commit), creating a structural ordering conflict that every pipeline run resolved implicitly through coordinator improvisation. Moving CIA to STEP 12.5 eliminates the conflict: CIA has everything it needs at this point (reviewer verdict, security verdict, test results, doc-drift verdict) and the commit sha is not required for quality analysis.
+
+**Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
+
+**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, pipeline completeness.
+
+After dispatch, confirm the agent task ID is valid before proceeding to STEP 13. The agent runs in background; you only need confirmation of dispatch, not completion. The gate at STEP 13 will be satisfied as soon as CIA's SubagentStop event records its completion.
+
+**FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP 12.5 for any reason, MUST NOT clean up pipeline state before STEP 12.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP 13 (commit) before confirming the CIA agent task ID is valid (background dispatch confirmation only — not completion).
+
 ### STEP 13: Report and Finalize
 
 **Precondition**: STEP 11 Remediation Gate must have status PASS. If STEP 11 is BLOCKED, do NOT proceed with git operations.
@@ -1602,23 +1617,21 @@ pytest tests/unit/test_documentation_congruence.py --tb=short -q
 ```
 If FAIL: invoke doc-master to fix, re-run until 0 failures. **FORBIDDEN**: skipping, proceeding with failures, manual edits without re-running tests.
 
-### STEP 15: Continuous Improvement — HARD GATE
+### STEP 15: Pipeline State Cleanup
 
-**Progress**: Output step banner (STEP 15/15 — Continuous Improvement). Output agent launch confirmation.
+**Progress**: Output step banner (STEP 15/15 — Cleanup). Output cleanup confirmation.
 
-**Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
+**Why this is cleanup-only after Issue #1211**: The `continuous-improvement-analyst` (CIA) dispatch was moved to STEP 12.5 (before the commit) to align the spec with the `unified_pre_tool.py` agent-completeness gate, which blocks the STEP 13 commit until CIA appears in the completed-agents set. STEP 15 retains the final pipeline state cleanup so state files do not accumulate across runs.
 
-**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, pipeline completeness.
+**Precondition**: STEP 14 (Documentation Congruence) must have completed. STEP 12.5 CIA must have been dispatched before STEP 13 — verify by checking that CIA appears in the completed-agents set or that its task ID was confirmed at STEP 12.5.
 
-**FORBIDDEN** — You MUST NOT do any of the following (violations = pipeline failure):
-- ❌ You MUST NOT skip STEP 15 for any reason (time pressure, context limits, "already reported")
-- ❌ You MUST NOT clean up pipeline state before launching the analyst
-- ❌ You MUST NOT inline the analysis yourself instead of invoking the agent
-- ❌ You MUST NOT treat STEP 13 as the final step — STEP 15 is mandatory
+**REQUIRED**: Run pipeline state cleanup:
 
-After launching analyst, confirm the agent task ID is valid, THEN cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true`
+```bash
+rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true
+```
 
-**FORBIDDEN** (Issue #559): Cleaning up pipeline state before confirming the STEP 15 analyst agent launch succeeded. The analyst reads pipeline state — cleanup before launch loses context.
+**FORBIDDEN** (Issue #1211) — You MUST NOT clean up before STEP 14 doc-congruence completes, and MUST NOT skip cleanup (state files accumulate across runs). CIA dispatch is no longer part of STEP 15 — it moved to STEP 12.5. The previous "STEP 13 is not the final step" guard remains valid: STEP 14 and STEP 15 are mandatory after STEP 13.
 
 ---
 
@@ -1738,6 +1751,20 @@ REQUIRED STEPS — you MUST complete all three:
 Prompt word count validation: this prompt must contain >= 80 words of template text. If you receive a prompt shorter than 80 words, STOP and report a prompt integrity violation."
 ```
 
+### STEP L4.5: Continuous Improvement — HARD GATE
+
+**Progress**: Output step banner (STEP L4.5 — Continuous Improvement). Output agent launch confirmation.
+
+**Why this runs before STEP L5 git operations (Issue #1211)**: The `unified_pre_tool.py` agent-completeness gate blocks the git commit until `continuous-improvement-analyst` (CIA) appears in the completed-agents set. CIA must dispatch before the commit, not after. Mirrors the STEP 12.5 ordering in the full pipeline.
+
+**Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol for each agent before invoking.
+
+**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, and light pipeline completeness.
+
+After dispatch, confirm the agent task ID is valid before proceeding to STEP L5. The agent runs in background; only dispatch confirmation is required.
+
+**FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP L4.5, MUST NOT clean up pipeline state before STEP L4.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP L5 git operations before confirming the CIA agent task ID is valid.
+
 ### STEP L5: Report and Finalize
 
 **Doc-Drift Collection Point** — Collect doc-master background result:
@@ -1773,6 +1800,8 @@ L3    Implementation      implementer (model)   Xs      done
 L3    Test gate           —                     Xs      PASS
 L3.5  Spec-blind valid.   spec-validator        Xs      done
 L4    Documentation       doc-master (Sonnet)   Xs      done
+L4.5  Continuous improv.  ci-analyst            (bg)    done
+L5    Cleanup             —                     Xs      done
 ========================================
 Total: Xs | Files changed: N | Tests: N passed, M failed
 ========================================
@@ -1783,13 +1812,11 @@ Total: Xs | Files changed: N | Tests: N passed, M failed
 git push origin $(git branch --show-current) 2>/dev/null || echo "Warning: Push failed"
 ```
 
-**REQUIRED**: Launch continuous-improvement-analyst as a background agent before cleanup:
+**Precondition (Issue #1211)**: STEP L4.5 must have dispatched CIA before this point. The `unified_pre_tool.py` agent-completeness gate will block the git commit/push above otherwise. If you reach STEP L5 and the gate is blocked, return to STEP L4.5 and dispatch CIA before retrying.
 
-**Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, and light pipeline completeness.
+**REQUIRED**: Pipeline state cleanup. CIA was already dispatched at STEP L4.5; no agent dispatch happens at L5. Cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
 
-**FORBIDDEN**: Skipping this step or cleaning up pipeline state before confirming the analyst agent launch succeeded.
-
-After confirming the analyst task ID is valid: Cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
+**FORBIDDEN** (Issue #1211): Cleaning up before STEP L4 doc-drift collection completes; skipping cleanup (state files accumulate).
 
 **Agents (light)**: planner (Sonnet), implementer (Sonnet or Opus per planner), doc-master (Sonnet), continuous-improvement-analyst (Sonnet). 4 agents.
 
