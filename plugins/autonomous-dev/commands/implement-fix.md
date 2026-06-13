@@ -36,6 +36,7 @@ Step ordering and post-completion behavior are strictly constrained.
 - ❌ You MUST NOT parallelize agents from different pipeline phases (e.g., running F3 and F4 concurrently)
 - ❌ You MUST NOT clean up pipeline state before STEP F5 launches
 - ❌ You MUST NOT perform any file edits after agents complete — the coordinator's only permitted post-agent actions are: outputting the final summary, git operations (add, commit, push), and launching STEP F5
+- ❌ You MUST NOT skip STEP F4.7 when the changeset matches the activation trigger (SQL, ORM models, execution/order/trade/payment paths) — even if the unit tests pass green. The 4-fix chain #1285 → #1288 happened with all-green unit tests. (#1210)
 
 ### Output Fidelity
 
@@ -535,6 +536,81 @@ After the parallel agents complete, parse the doc-master output:
 2. **Shallow Verdict Detection**: Count the words in the doc-master output. If the output is fewer than 100 words, treat it as `DOC-VERDICT-SHALLOW` — the output is too short to confirm a real semantic sweep occurred. Log `[DOC-VERDICT-SHALLOW] doc-master produced N words (minimum: 100)` and retry once with reduced context (same as empty-output retry logic above). If retry also produces fewer than 100 words or no verdict, log `[DOC-VERDICT-SHALLOW-RETRY-FAILED] doc-master still shallow after retry — proceeding with warning`.
 3. If `DOCS-DRIFT-FOUND`: BLOCK. Display the stale documentation files. User must address before proceeding.
 4. If doc-master made fixes: stage them with `git add`
+
+## Step F4.7: PROD Verification Checklist (conditional)
+
+### STEP F4.7: PROD Verification Checklist (conditional) — HARD GATE (#1210)
+
+**Progress**: Output step banner (STEP F4.7/5 — PROD Verification). Output the activation-trigger evaluation. If skipped, output the SKIPPED line and proceed to STEP F5. Otherwise, output the verification checklist with the recommended query, the recording format, and the soft-gate warning.
+
+**Motivation (#1210)**: The #1285 → #1286 → #1287 → #1288 chain on 2026-06-11 was four consecutive `--fix` pipelines that all chased the same PROD writeback failure for trade #321. Every fix was validated GREEN in unit tests yet failed in PROD because the test fixtures diverged from real PROD data:
+
+- **#1285**: PASS unit tests; PROD: Fill recovery never ran at startup. Test covered only the 1102-handler path.
+- **#1286**: PASS unit tests; PROD: IBKR symbol != market_key mismatch still broke. Fixture used market_key on both sides.
+- **#1287**: PASS unit tests; PROD: `status='open'` failed Postgres uppercase enum. Fixture injected lowercase strings; no real Postgres.
+- **#1288**: PASS unit tests; PROD: Disabled duplicate row shadowed enabled row. No duplicate row in test data.
+
+A mandatory PROD verification step after deploy would have caught the regression at #1285 and collapsed the chain to a single fix. STEP F4.7 closes that gap.
+
+#### Activation Trigger — When This Step is REQUIRED
+
+This step is **REQUIRED** when the changed files (the diff captured at STEP F4) include **any** of the following:
+
+- SQL or migration files: `*.sql`, paths under `migrations/`, paths under `alembic/`
+- Database schema or model files: `*model*.py` carrying SQLAlchemy / Django / Pydantic ORM markers
+- Execution / order / trade code: file or directory names matching `*trade*`, `*order*`, `*exec*`, `*execution*`
+- Payment / financial code: file or directory names matching `*payment*`, `*billing*`, `*financial*`, `*transaction*`
+- Any file under a `prod/`, `production/`, `live/`, or `mainnet/` directory
+
+Match is **substring, case-insensitive** against the full relative path.
+
+If **none** of these patterns match the changeset, this step is SKIPPED. Output:
+
+```
+STEP F4.7: SKIPPED — no DB/execution paths in changeset.
+```
+
+Then proceed directly to STEP F5.
+
+#### REQUIRED Checklist — Within 10 Minutes of Git Commit
+
+When the trigger matches, the coordinator MUST emit the following verification checklist as part of the step output. The coordinator MUST derive a **recommended query** from the fix's commit message and the changed lines (e.g., the predicate that was modified) and emit it on line 2 of the checklist.
+
+```
+[STEP F4.7] PROD VERIFICATION REQUIRED (#1210)
+Within 10 minutes of git commit:
+1. SSH to PROD (or invoke the PROD verification script)
+2. Run the minimal query that exercises the fixed predicate:
+     {RECOMMENDED_QUERY}
+   (Derived from the fix's commit message + changed lines. Edit if the
+    actual fixed predicate differs.)
+3. Record the result as a comment on the GitHub issue using:
+     VERIFIED: {query} → {result}
+   If the result diverges from expected, record instead:
+     UNVERIFIED-MISMATCH: {query} → {observed} vs expected {expected}
+4. If result does not match expected: file a follow-up issue
+   IMMEDIATELY — do not wait for the watchdog. Reference the original
+   --fix issue and the diverging query/result.
+```
+
+#### Soft Gate — Initial Rollout
+
+This step is a **SOFT GATE** for the initial rollout per #1210 — the coordinator emits the checklist as a warning but does **NOT** block pipeline completion if the verification has not yet been recorded. The intent is to roll the discipline out gradually before hardening to a BLOCK.
+
+After emitting the checklist, the coordinator MUST also emit:
+
+```
+[STEP-F4.7-WARNING] PROD verification required within 10 minutes; no enforcement yet — will harden to BLOCK in a follow-up.
+```
+
+Hardening this gate to BLOCK is deferred to a follow-up issue (the `stop_quality_gate` hook can require a `VERIFIED:` line in the issue comment or commit message before closing the pipeline). Do NOT wire the hook in this commit.
+
+**FORBIDDEN** — You MUST NOT do any of the following (#1210):
+
+- ❌ You MUST NOT skip STEP F4.7 when the changeset matches the activation trigger — even if every unit test passes green. The 4-fix chain #1285 → #1288 happened with all-green unit tests.
+- ❌ You MUST NOT emit only the SKIPPED line without showing the trigger evaluation (the reader needs to see WHICH patterns were checked and which did not match).
+- ❌ You MUST NOT omit the recommended query from the checklist when the step activates — the operator needs the exact query to run, not a placeholder.
+- ❌ You MUST NOT omit the `[STEP-F4.7-WARNING]` line — even though the gate is SOFT, the warning is what makes the discipline visible. The warning line is REQUIRED whenever the checklist is emitted.
 
 ## Step F5: Continuous Improvement
 

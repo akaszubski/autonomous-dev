@@ -484,3 +484,130 @@ class TestLightModeSecurityEscalation1181:
             "LIGHT PIPELINE MODE FORBIDDEN paragraph must reference Issue "
             "#1181 inline."
         )
+
+
+# --- Issue #1210: --fix mode PROD verification (STEP F4.7) ---
+
+IMPLEMENT_FIX_MD = REPO_ROOT / "plugins" / "autonomous-dev" / "commands" / "implement-fix.md"
+
+
+@pytest.fixture(scope="module")
+def implement_fix_text() -> str:
+    """Return the implement-fix.md text content (cached per module)."""
+    assert IMPLEMENT_FIX_MD.exists(), f"Expected {IMPLEMENT_FIX_MD} to exist"
+    return IMPLEMENT_FIX_MD.read_text()
+
+
+@pytest.fixture(scope="module")
+def implement_fix_lines() -> list[str]:
+    """Return the implement-fix.md text as a list of lines (cached per module)."""
+    return IMPLEMENT_FIX_MD.read_text().splitlines()
+
+
+class TestImplementFixProdVerification1210:
+    """STEP F4.7 must enforce a PROD verification checklist for --fix pipelines (#1210).
+
+    Issue #1210: The #1285 → #1286 → #1287 → #1288 chain on 2026-06-11 was four
+    consecutive --fix pipelines that all chased the same PROD writeback failure.
+    Each fix validated green in unit tests yet failed in PROD due to test-vs-PROD
+    data divergence. A mandatory PROD verification step after deploy would have
+    caught the regression at #1285 and collapsed the chain.
+
+    These tests lock the spec text for STEP F4.7 so the checklist gate cannot
+    be silently removed in a future edit.
+    """
+
+    def test_implement_fix_has_step_f4_7_prod_verification_for_1210(
+        self, implement_fix_text: str
+    ) -> None:
+        """STEP F4.7 header + activation trigger + recording format must be present (#1210)."""
+        # 1. STEP F4.7 header must appear
+        assert "### STEP F4.7:" in implement_fix_text, (
+            "STEP F4.7 header missing — required by Issue #1210 to enforce "
+            "PROD verification after --fix deploy."
+        )
+
+        # 2. The header (or section body) must mention "PROD Verification" (case-insensitive)
+        assert "prod verification" in implement_fix_text.lower(), (
+            "STEP F4.7 must mention 'PROD Verification' so the section's "
+            "purpose is discoverable (#1210)."
+        )
+
+        # 3. Activation trigger keywords must be present (substring, case-insensitive)
+        lowered = implement_fix_text.lower()
+        for keyword in ("sql", "execution", "trade", "payment"):
+            assert keyword in lowered, (
+                f"STEP F4.7 activation trigger missing keyword {keyword!r} — "
+                f"required by Issue #1210 to define when PROD verification "
+                f"is mandatory."
+            )
+
+        # 4. Recording format must be present
+        assert "VERIFIED:" in implement_fix_text, (
+            "STEP F4.7 must define the 'VERIFIED: {query} → {result}' "
+            "recording format per Issue #1210."
+        )
+
+        # 5. #1210 must be referenced inline
+        assert "#1210" in implement_fix_text, (
+            "STEP F4.7 must reference Issue #1210 inline so the motivation "
+            "is discoverable."
+        )
+
+        # 6. At least one of the 4-fix-chain issues must be referenced as
+        #    motivating evidence
+        chain_issues = ("#1285", "#1286", "#1287", "#1288")
+        assert any(issue in implement_fix_text for issue in chain_issues), (
+            f"STEP F4.7 must reference at least one of the 4-fix chain "
+            f"issues {chain_issues} as motivating evidence per Issue #1210."
+        )
+
+    def test_implement_fix_forbidden_list_blocks_f4_7_skip_for_1210(
+        self, implement_fix_text: str
+    ) -> None:
+        """The top-of-file FORBIDDEN list must block skipping STEP F4.7 (#1210).
+
+        The Pipeline Integrity FORBIDDEN block at the top of implement-fix.md
+        must include a bullet that prohibits skipping STEP F4.7 when the
+        activation trigger matches, and that bullet must reference #1210.
+        """
+        # The Pipeline Integrity FORBIDDEN block is bounded by its heading
+        # and the next "### " or "## " heading. Capture it by regex.
+        pipeline_integrity_match = re.search(
+            r"### Pipeline Integrity.*?(?=\n## |\n### )",
+            implement_fix_text,
+            re.DOTALL,
+        )
+        assert pipeline_integrity_match, (
+            "Pipeline Integrity section not found in implement-fix.md — "
+            "required to host the STEP F4.7 skip prohibition (#1210)."
+        )
+        block = pipeline_integrity_match.group(0)
+
+        # The block must reference STEP F4.7
+        assert "STEP F4.7" in block, (
+            "Pipeline Integrity FORBIDDEN block must reference STEP F4.7 "
+            "to block coordinator from skipping PROD verification (#1210)."
+        )
+
+        # The block must reference Issue #1210 on the F4.7 bullet
+        assert "#1210" in block, (
+            "Pipeline Integrity FORBIDDEN block must reference Issue #1210 "
+            "on the STEP F4.7 skip prohibition so the motivation is "
+            "discoverable."
+        )
+
+    def test_implement_fix_step_f4_7_is_between_f4_and_f5_for_1210(
+        self, implement_fix_lines: list[str]
+    ) -> None:
+        """STEP F4.7 must appear between STEP F4 and STEP F5 in document order (#1210)."""
+        f4_line = _find_header_line(implement_fix_lines, "### STEP F4:")
+        f4_7_line = _find_header_line(implement_fix_lines, "### STEP F4.7:")
+        f5_line = _find_header_line(implement_fix_lines, "### STEP F5:")
+
+        assert f4_line < f4_7_line < f5_line, (
+            f"STEP F4.7 (line {f4_7_line}) must appear BETWEEN STEP F4 "
+            f"(line {f4_line}) and STEP F5 (line {f5_line}) per Issue #1210 "
+            f"placement. The PROD verification checklist must run after the "
+            f"reviewer/doc-master gate but before CIA dispatch."
+        )
