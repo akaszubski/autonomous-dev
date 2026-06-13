@@ -930,3 +930,230 @@ class TestPlanMdVerdictAuthorship1155:
             "so the planner knows this marker triggers the 5.5a fall-through "
             "(Issue #1155)."
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1149 — Single-Run Resume Protocol
+# ---------------------------------------------------------------------------
+
+IMPLEMENT_RESUME_MD = (
+    REPO_ROOT / "plugins" / "autonomous-dev" / "commands" / "implement-resume.md"
+)
+
+
+@pytest.fixture(scope="module")
+def implement_resume_text() -> str:
+    """Return the implement-resume.md text content (cached per module)."""
+    assert IMPLEMENT_RESUME_MD.exists(), f"Expected {IMPLEMENT_RESUME_MD} to exist"
+    return IMPLEMENT_RESUME_MD.read_text()
+
+
+class TestSingleRunResumeProtocol1149:
+    """implement-resume.md must document the single-run resume protocol (#1149).
+
+    Issue #1149: the coordinator improvised a "ratify the cached plan" path
+    when resuming after context-pressure interruption. The shortcut was
+    functionally correct in the observed session but not a codified code
+    path — there was no spec for HEAD-state verification, plan staleness,
+    or run-lock acquisition on resume. This test locks the codified
+    protocol so future edits cannot silently remove it.
+    """
+
+    def test_implement_resume_has_single_run_protocol_for_1149(
+        self, implement_resume_text: str
+    ) -> None:
+        """implement-resume.md must contain the codified Single-Run Resume Protocol.
+
+        The protocol section must define five required elements: an
+        activation condition, the four pre-resume checks (HEAD hash,
+        staging clean, alignment re-verification, run lock), the plan
+        staleness gate (with 24h and 4h thresholds), state restoration,
+        and a FORBIDDEN list — all referencing Issue #1149.
+        """
+        text = implement_resume_text
+
+        # Section header must exist
+        assert "Single-Run Resume Protocol" in text, (
+            "implement-resume.md must contain a 'Single-Run Resume Protocol' "
+            "section codifying the state-recovery sequence for run_id resume "
+            "(Issue #1149)."
+        )
+
+        # Issue reference must be inline (in or near the section header)
+        assert "#1149" in text, (
+            "implement-resume.md Single-Run Resume Protocol must reference "
+            "Issue #1149 inline so the codified protocol is discoverable from "
+            "the issue."
+        )
+
+        # Required protocol elements — keywords from each of the five sections
+        # of the codified protocol
+        required_keywords = [
+            "HEAD hash",        # pre-resume check 1
+            "staging",          # pre-resume check 2 (staging clean)
+            "alignment",        # pre-resume check 3 (alignment re-verification)
+            "run lock",         # pre-resume check 4 (run lock available)
+            "24 hour",          # staleness gate threshold
+            "plan-critic",      # staleness gate: re-run plan-critic on security-sensitive paths
+        ]
+        for kw in required_keywords:
+            assert kw.lower() in text.lower(), (
+                f"implement-resume.md Single-Run Resume Protocol must mention "
+                f"{kw!r} as a required check/threshold (Issue #1149)."
+            )
+
+        # FORBIDDEN list locks the known failure modes
+        assert "FORBIDDEN" in text, (
+            "implement-resume.md Single-Run Resume Protocol must include a "
+            "FORBIDDEN list of the failure modes the protocol is codifying "
+            "against (Issue #1149)."
+        )
+
+    def test_implement_md_step_0_cross_references_resume_protocol_for_1149(
+        self, implement_text: str
+    ) -> None:
+        """implement.md STEP 0 must cross-reference the Single-Run Resume Protocol.
+
+        STEP 0 routes `--resume <id>` based on the id form. The route to
+        the single-run branch (16-char hex / legacy timestamp) must point
+        to the codified protocol in implement-resume.md so the coordinator
+        cannot improvise a different recovery sequence (Issue #1149).
+        """
+        # Locate STEP 0
+        step_0_idx = implement_text.find("### STEP 0: Parse Mode and Route")
+        assert step_0_idx >= 0, "STEP 0 header must exist in implement.md"
+
+        # Look at the section that follows STEP 0 (until the next ### header)
+        rest = implement_text[step_0_idx:]
+        next_step_idx = rest.find("\n### ", 10)
+        step_0_section = rest if next_step_idx < 0 else rest[:next_step_idx]
+
+        # The cross-reference must mention either the protocol section name
+        # or the file path AND the issue
+        assert (
+            "Single-Run Resume Protocol" in step_0_section
+            or "implement-resume.md" in step_0_section
+        ), (
+            "implement.md STEP 0 must cross-reference either the "
+            "'Single-Run Resume Protocol' section or implement-resume.md "
+            "so the coordinator follows the codified protocol on run_id "
+            "resume (Issue #1149)."
+        )
+
+        assert "#1149" in step_0_section, (
+            "implement.md STEP 0 cross-reference to the Single-Run Resume "
+            "Protocol must include the #1149 issue reference so the codified "
+            "protocol is discoverable from STEP 0."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1040 — Documentation of SKIP_AGENT_COMPLETENESS_GATE bypass
+# ---------------------------------------------------------------------------
+
+CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+HOOKS_MD = REPO_ROOT / "docs" / "HOOKS.md"
+
+
+@pytest.fixture(scope="module")
+def claude_md_text() -> str:
+    """Return the repo-root CLAUDE.md text content (cached per module)."""
+    assert CLAUDE_MD.exists(), f"Expected {CLAUDE_MD} to exist"
+    return CLAUDE_MD.read_text()
+
+
+@pytest.fixture(scope="module")
+def hooks_md_text() -> str:
+    """Return the docs/HOOKS.md text content (cached per module)."""
+    assert HOOKS_MD.exists(), f"Expected {HOOKS_MD} to exist"
+    return HOOKS_MD.read_text()
+
+
+class TestBypassDocumentation1040:
+    """CLAUDE.md and docs/HOOKS.md must document the agent-completeness gate bypasses (#1040).
+
+    Issue #1040: the `SKIP_AGENT_COMPLETENESS_GATE` env var and
+    `/tmp/skip_agent_completeness_gate` file marker bypasses are
+    implemented in `unified_pre_tool.py` but were undocumented in the
+    operator-facing docs (CLAUDE.md, docs/HOOKS.md). An operator who
+    needs to commit a hotfix outside the normal pipeline would either
+    re-discover the bypass through code spelunking or improvise around
+    the gate. This test locks the documentation so the bypass remains
+    visible and the audit trail is discoverable.
+    """
+
+    def test_claude_md_documents_skip_gate_bypass_for_1040(
+        self, claude_md_text: str
+    ) -> None:
+        """CLAUDE.md Maintainer Escape Hatches must document the bypass forms.
+
+        The three bypass forms (env var, inline command-string env var,
+        file marker) and the audit-log location must be documented in
+        CLAUDE.md so an operator can find them without reading hook
+        source. Reference Issue #1040 inline.
+        """
+        text = claude_md_text
+
+        # Env var name must appear
+        assert "SKIP_AGENT_COMPLETENESS_GATE" in text, (
+            "CLAUDE.md must document the `SKIP_AGENT_COMPLETENESS_GATE` "
+            "env-var bypass (Issue #1040)."
+        )
+
+        # File marker form must appear
+        assert "/tmp/skip_agent_completeness_gate" in text, (
+            "CLAUDE.md must document the `/tmp/skip_agent_completeness_gate` "
+            "file marker bypass form (Issue #1040)."
+        )
+
+        # Issue reference must be inline
+        assert "#1040" in text, (
+            "CLAUDE.md bypass documentation must reference Issue #1040 inline "
+            "so the codified documentation is discoverable from the issue."
+        )
+
+        # Audit-log location should be referenced (any of these substrings)
+        lowered = text.lower()
+        assert (
+            "logs/activity" in lowered
+            or "activity/" in lowered
+            or "activity log" in lowered
+        ), (
+            "CLAUDE.md bypass documentation must point at the audit-log "
+            "location (`.claude/logs/activity/`) so operators know where "
+            "the bypass is recorded (Issue #1040)."
+        )
+
+    def test_hooks_md_documents_bypass_mechanisms_for_1040(
+        self, hooks_md_text: str
+    ) -> None:
+        """docs/HOOKS.md must document the bypass mechanisms with audit context.
+
+        The bypass mechanisms section must list the env-var form, file
+        marker form, and the audit-log behavior (so an operator can
+        distinguish legitimate skips from gaming). Reference Issue
+        #1040 inline.
+        """
+        text = hooks_md_text
+
+        # Env var name must appear
+        assert "SKIP_AGENT_COMPLETENESS_GATE" in text, (
+            "docs/HOOKS.md must document the `SKIP_AGENT_COMPLETENESS_GATE` "
+            "env-var bypass for the agent-completeness gate (Issue #1040)."
+        )
+
+        # Audit notion must appear (the bypass is logged, distinguishable
+        # from a legitimate pass)
+        lowered = text.lower()
+        assert "audit" in lowered, (
+            "docs/HOOKS.md bypass documentation must reference the audit "
+            "trail (so legitimate skips are distinguishable from gaming) "
+            "(Issue #1040)."
+        )
+
+        # Issue reference must be inline
+        assert "#1040" in text, (
+            "docs/HOOKS.md bypass documentation must reference Issue #1040 "
+            "inline so the codified documentation is discoverable from the "
+            "issue."
+        )
