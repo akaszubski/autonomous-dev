@@ -1,7 +1,7 @@
 """
 Tests for pipeline_completion_state.py — shared state for agent ordering enforcement.
 
-Issues: #625, #629, #632
+Issues: #625, #629, #632, #989
 """
 
 import json
@@ -21,6 +21,7 @@ from pipeline_completion_state import (
     _read_state,
     _state_file_path,
     clear_session,
+    ensure_sentinel_heartbeat,
     get_completed_agents,
     get_launched_agents,
     get_plan_critic_skipped,
@@ -304,3 +305,106 @@ class TestCorruptedFile:
         os.utime(path, (old_time, old_time))
         completed = get_completed_agents(session_id)
         assert completed == set()
+
+
+class TestSentinelHeartbeat:
+    """Regression tests for Issue #989 — ensure_sentinel_heartbeat recovery.
+
+    Validates that ensure_sentinel_heartbeat:
+    - returns True when the sentinel is healthy (exists, session_id matches).
+    - returns False AND recreates the file when the sentinel is missing.
+    - returns False AND recreates the file when the sentinel has a mismatched session_id.
+    - returns False AND recreates the file when the sentinel is corrupt JSON.
+    - never raises on any input.
+    """
+
+    def test_sentinel_healthy_returns_true(self, tmp_path):
+        """Sentinel exists with correct session_id → returns True without recreation."""
+        sentinel = tmp_path / "sentinel.json"
+        sentinel.write_text('{"session_id": "S1", "step": "STEP3"}')
+        result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
+        assert result is True
+
+    def test_sentinel_recreated_when_missing_between_steps(self, tmp_path):
+        """Regression for Issue #989: simulate clear_stale_state deleting the sentinel.
+
+        1. Create a sentinel for session 'S1'.
+        2. Delete it (simulating what clear_stale_state does on session_id mismatch).
+        3. Call ensure_sentinel_heartbeat → must return False AND recreate the file
+           with session_id='S1' and recovered=True.
+        """
+        sentinel = tmp_path / "implement_pipeline_state.json"
+        # Write a real sentinel
+        sentinel.write_text('{"session_id": "S1", "issue_number": 989}')
+        assert sentinel.exists()
+
+        # Simulate clear_stale_state deleting the file
+        sentinel.unlink()
+        assert not sentinel.exists()
+
+        # Heartbeat should detect absence and recreate
+        result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
+
+        assert result is False, "Must return False when sentinel was missing"
+        assert sentinel.exists(), "Sentinel must be recreated after heartbeat"
+
+        recovered_data = json.loads(sentinel.read_text())
+        assert recovered_data.get("session_id") == "S1", (
+            f"Recreated sentinel must have session_id='S1', got: {recovered_data!r}"
+        )
+        assert recovered_data.get("recovered") is True, (
+            f"Recreated sentinel must have recovered=True, got: {recovered_data!r}"
+        )
+        assert "recovered_at" in recovered_data, (
+            "Recreated sentinel must include recovered_at ISO timestamp"
+        )
+
+    def test_sentinel_recreated_when_session_id_mismatched(self, tmp_path):
+        """Sentinel exists but belongs to a different session → recreate for current owner."""
+        sentinel = tmp_path / "sentinel.json"
+        sentinel.write_text('{"session_id": "OLD_SESSION", "step": "STEP3"}')
+
+        result = ensure_sentinel_heartbeat("NEW_SESSION", state_path=str(sentinel))
+
+        assert result is False, "Must return False when session_id does not match"
+        assert sentinel.exists(), "Sentinel must be recreated"
+
+        data = json.loads(sentinel.read_text())
+        assert data.get("session_id") == "NEW_SESSION"
+        assert data.get("recovered") is True
+
+    def test_sentinel_recreated_when_corrupt(self, tmp_path):
+        """Corrupt sentinel (invalid JSON) → recreate."""
+        sentinel = tmp_path / "sentinel.json"
+        sentinel.write_text("{{not valid json}}")
+
+        result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
+
+        assert result is False
+        assert sentinel.exists()
+        data = json.loads(sentinel.read_text())
+        assert data.get("session_id") == "S1"
+        assert data.get("recovered") is True
+
+    def test_sentinel_never_raises(self, tmp_path):
+        """ensure_sentinel_heartbeat must not raise on any input."""
+        # Nonexistent directory — write will fail gracefully
+        bad_path = "/nonexistent_dir_998877/sentinel.json"
+        try:
+            result = ensure_sentinel_heartbeat("S1", state_path=bad_path)
+        except Exception as exc:
+            pytest.fail(f"ensure_sentinel_heartbeat raised unexpectedly: {exc}")
+        # Result is False (recreation attempted but failed — graceful)
+        assert isinstance(result, bool)
+
+    def test_sentinel_healthy_not_overwritten(self, tmp_path):
+        """A healthy sentinel must not be overwritten (content preserved)."""
+        sentinel = tmp_path / "sentinel.json"
+        original_content = '{"session_id": "S1", "issue_number": 42, "step": "STEP5"}'
+        sentinel.write_text(original_content)
+
+        result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
+
+        assert result is True
+        # Content must be unchanged
+        assert sentinel.read_text() == original_content

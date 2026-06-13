@@ -24,7 +24,7 @@ import json
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -1492,6 +1492,91 @@ def clear_tier1_ring_buffer(
             state[_TIER1_RING_BUFFER_KEY] = buffers
 
     _locked_rmw(session_id, _mutator, run_id=run_id)
+
+
+def ensure_sentinel_heartbeat(
+    session_id: str,
+    state_path: Optional[str] = None,
+) -> bool:
+    """Verify the pipeline sentinel file is intact; recreate it if missing or mismatched.
+
+    Called after each SubagentStop agent completion to guard against
+    ``clear_stale_state`` (in hook_recovery.py) deleting the sentinel when a
+    subprocess runs with a different ``CLAUDE_SESSION_ID`` than the one that
+    created the file.
+
+    Behaviour:
+    - If ``state_path`` exists, is parseable JSON, and its ``session_id``
+      field matches ``session_id`` → sentinel is healthy, return ``True``.
+    - Otherwise (missing, corrupt, or session_id mismatch) → emit a structured
+      log line to stderr, recreate a minimal sentinel, and return ``False``.
+
+    The function NEVER raises.  All failure modes degrade gracefully.
+
+    Args:
+        session_id: The expected owner's session id (e.g. from
+            ``CLAUDE_SESSION_ID`` or the pipeline state file itself).
+        state_path: Absolute path to the sentinel file.  Defaults to the
+            ``PIPELINE_STATE_FILE`` env var, falling back to the canonical
+            ``/tmp/implement_pipeline_state.json``.
+
+    Returns:
+        ``True`` when the sentinel was already healthy.
+        ``False`` when the sentinel was absent or mismatched and was recreated.
+
+    Issues: #989
+    """
+    if state_path is None:
+        state_path = os.environ.get(
+            "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        )
+
+    sentinel = Path(state_path)
+
+    try:
+        if sentinel.exists():
+            try:
+                raw = sentinel.read_text(encoding="utf-8")
+                data = json.loads(raw)
+            except (OSError, json.JSONDecodeError, ValueError):
+                data = None
+
+            if isinstance(data, dict) and data.get("session_id") == session_id:
+                return True  # Sentinel healthy.
+    except Exception:
+        # Defensive: any unexpected error falls through to recreation.
+        pass
+
+    # Sentinel is missing, corrupt, or owned by a different session.
+    try:
+        import sys as _sys_hb
+
+        _sys_hb.stderr.write(
+            f"[SENTINEL-HEARTBEAT-MISSING] state_path={state_path}"
+            f" recovering_for_session={session_id}\n"
+        )
+        _sys_hb.stderr.flush()
+    except Exception:
+        pass
+
+    try:
+        recovered_sentinel = {
+            "session_id": session_id,
+            "recovered": True,
+            "recovered_at": datetime.now(timezone.utc).isoformat(),
+        }
+        sentinel.write_text(
+            json.dumps(recovered_sentinel, indent=2), encoding="utf-8"
+        )
+        try:
+            os.chmod(sentinel, 0o600)
+        except OSError:
+            pass
+    except Exception:
+        # NEVER raise — sentinel recreation is best-effort.
+        pass
+
+    return False
 
 
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:

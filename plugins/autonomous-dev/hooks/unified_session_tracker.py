@@ -1123,6 +1123,17 @@ def main() -> int:
         except Exception:
             pass  # Non-blocking: ordering state is advisory
 
+        # Sentinel heartbeat check (Issue #989): after recording completion,
+        # verify the /tmp/implement_pipeline_state.json sentinel still exists
+        # with the correct session_id. If clear_stale_state() deleted it (e.g.,
+        # because a subprocess ran with a different CLAUDE_SESSION_ID), recreate
+        # a minimal sentinel so downstream steps can still record completions.
+        try:
+            from pipeline_completion_state import ensure_sentinel_heartbeat
+            ensure_sentinel_heartbeat(session_id)
+        except Exception:
+            pass  # Non-blocking: heartbeat is a recovery guard, never a gate
+
         # Plan-critic stage advance (Staged Plan-Exit Pipeline)
         if agent_name == "plan-critic":
             suggestion = _advance_plan_mode_stage()
