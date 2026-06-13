@@ -18,15 +18,20 @@ LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "
 sys.path.insert(0, str(LIB_DIR))
 
 from pipeline_completion_state import (
+    _read_state,
     _state_file_path,
     clear_session,
     get_completed_agents,
     get_launched_agents,
+    get_plan_critic_skipped,
     get_prompt_baseline,
+    get_research_skipped,
     get_validation_mode,
     record_agent_completion,
     record_agent_launch,
+    record_plan_critic_skipped,
     record_prompt_baseline,
+    record_research_skipped,
     set_validation_mode,
 )
 
@@ -113,6 +118,112 @@ class TestValidationMode:
         set_validation_mode(session_id, "parallel")
         mode = get_validation_mode(session_id)
         assert mode == "parallel"
+
+    def test_set_validation_mode_accepts_issue_number_kwarg(self, session_id):
+        """Regression for #1214: set_validation_mode must accept issue_number
+        kwarg without TypeError, even though validation mode is session-scoped
+        and the value is intentionally ignored."""
+        # The coordinator passes issue_number by reflex (parity with the rest
+        # of the module). Before #1214 this raised TypeError mid-pipeline.
+        set_validation_mode(session_id, "sequential", issue_number=1292)
+        assert get_validation_mode(session_id) == "sequential"
+
+        # Verify a non-zero issue number does not "leak" into the stored
+        # state — mode is session-scoped only.
+        set_validation_mode(session_id, "parallel", issue_number=999)
+        assert get_validation_mode(session_id) == "parallel"
+
+    def test_set_validation_mode_accepts_run_id_kwarg(self, session_id, tmp_path, monkeypatch):
+        """#1214 symmetry: set_validation_mode must accept run_id kwarg and
+        route writes to the run-id-scoped state file. Reading via the legacy
+        path (no run_id) must NOT return the run-id-scoped value."""
+        run_id = f"test-1214-{os.getpid()}-{time.time_ns()}"
+
+        # Default-path reads "sequential" (no state yet).
+        assert get_validation_mode(session_id) == "sequential"
+
+        # Write to the run-id-scoped state file.
+        set_validation_mode(session_id, "parallel", run_id=run_id)
+
+        # Read it back via the same run_id — must round-trip.
+        assert get_validation_mode(session_id, run_id=run_id) == "parallel"
+
+        # Legacy-path read (no run_id) must still return the default,
+        # proving the run-id-scoped write is isolated.
+        assert get_validation_mode(session_id) == "sequential"
+
+        # Clean up the run-id state file
+        run_id_path = _state_file_path(session_id, run_id=run_id)
+        if run_id_path.exists():
+            run_id_path.unlink()
+
+
+class TestRecordResearchSkipped1213:
+    """Regression tests for Issue #1213 — record_research_skipped multi-scope write."""
+
+    def test_record_research_skipped_writes_under_issue_number_zero_when_explicit(
+        self, session_id
+    ):
+        """Core regression test for #1213: when issue_number is non-zero, the
+        marker must ALSO be queryable under issue_number=0 (the commit-gate
+        fallback key). Writer compensates so the reader contract is preserved."""
+        record_research_skipped(session_id, issue_number=1292)
+
+        # Per-issue lookup must still work (no regression).
+        assert get_research_skipped(session_id, issue_number=1292) is True
+
+        # Fallback "0" scope lookup must now ALSO work — this is the #1213 fix.
+        # Before the fix, the commit-time gate queried "0" and found nothing,
+        # incorrectly reporting researcher/researcher-local as missing.
+        assert get_research_skipped(session_id, issue_number=0) is True
+
+    def test_record_research_skipped_no_zero_write_when_already_zero(self, session_id):
+        """When the caller already passes issue_number=0 (or omits it), the
+        state must contain exactly ONE key in research_skipped — no spurious
+        duplicate write."""
+        record_research_skipped(session_id, issue_number=0)
+
+        # Inspect the raw state to confirm structure: exactly one key, "0".
+        state = _read_state(session_id)
+        assert state, "state file should exist after record_research_skipped"
+        research_skipped = state.get("research_skipped", {})
+        assert research_skipped == {"0": True}, (
+            f"Expected exactly one key '0': True, got {research_skipped!r}"
+        )
+
+    def test_record_research_skipped_unrelated_issue_not_marked(self, session_id):
+        """Sanity: writing for issue 1292 does NOT mark some other issue
+        (1293) as skipped. The "0" scope is the explicit fallback; arbitrary
+        per-issue scopes must remain isolated."""
+        record_research_skipped(session_id, issue_number=1292)
+        assert get_research_skipped(session_id, issue_number=1293) is False
+
+
+class TestRecordPlanCriticSkipped1213:
+    """Regression tests for Issue #1213 — record_plan_critic_skipped multi-scope write."""
+
+    def test_record_plan_critic_skipped_writes_under_issue_number_zero_when_explicit(
+        self, session_id
+    ):
+        """Symmetric to record_research_skipped #1213 fix: when issue_number
+        is non-zero, the plan_critic_skipped marker must ALSO be queryable
+        under issue_number=0."""
+        record_plan_critic_skipped(session_id, issue_number=1292)
+
+        assert get_plan_critic_skipped(session_id, issue_number=1292) is True
+        assert get_plan_critic_skipped(session_id, issue_number=0) is True
+
+    def test_record_plan_critic_skipped_no_zero_write_when_already_zero(self, session_id):
+        """When issue_number=0, state contains exactly one key — no spurious
+        duplicate."""
+        record_plan_critic_skipped(session_id, issue_number=0)
+
+        state = _read_state(session_id)
+        assert state, "state file should exist after record_plan_critic_skipped"
+        plan_critic_skipped = state.get("plan_critic_skipped", {})
+        assert plan_critic_skipped == {"0": True}, (
+            f"Expected exactly one key '0': True, got {plan_critic_skipped!r}"
+        )
 
 
 class TestClearSession:

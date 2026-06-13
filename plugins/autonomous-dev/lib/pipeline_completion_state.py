@@ -710,28 +710,53 @@ def get_prompt_baseline(session_id: str, agent_type: str) -> Optional[int]:
     return int(value) if value is not None else None
 
 
-def set_validation_mode(session_id: str, mode: str) -> None:
+def set_validation_mode(
+    session_id: str,
+    mode: str,
+    *,
+    issue_number: int = 0,  # noqa: ARG001 — accepted for call-signature parity (#1214)
+    run_id: Optional[str] = None,
+) -> None:
     """Set the validation mode for ordering enforcement.
+
+    Validation mode is a session-scoped (not issue-scoped) setting. The
+    ``issue_number`` parameter is accepted for call-signature parity with
+    the rest of the module's API (record_agent_completion, record_agent_launch,
+    record_research_skipped, etc.) and is intentionally discarded — callers
+    that pass it by reflex no longer get a TypeError mid-pipeline. (#1214)
 
     Args:
         session_id: The pipeline session identifier.
         mode: "sequential" or "parallel".
+        issue_number: Accepted-but-ignored. Validation mode is session-scoped;
+            this parameter exists only so the function shares its kwargs with
+            the rest of the module. (#1214)
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path.
+            (#1041 — symmetry with the rest of the module's API)
     """
-    state = _ensure_state(session_id)
+    state = _ensure_state(session_id, run_id=run_id)
     state["validation_mode"] = mode
-    _write_state(session_id, state)
+    _write_state(session_id, state, run_id=run_id)
 
 
-def get_validation_mode(session_id: str) -> str:
+def get_validation_mode(
+    session_id: str,
+    *,
+    run_id: Optional[str] = None,
+) -> str:
     """Get the validation mode for ordering enforcement.
 
     Args:
         session_id: The pipeline session identifier.
+        run_id: Optional per-invocation run identifier. When set, the run-id-
+            scoped state file is used instead of the legacy sha256 path.
+            (#1041 — symmetry with the rest of the module's API)
 
     Returns:
         "sequential" (default) or "parallel".
     """
-    state = _read_state(session_id)
+    state = _read_state(session_id, run_id=run_id)
     if not state:
         return "sequential"
     return state.get("validation_mode", "sequential")
@@ -994,18 +1019,33 @@ def record_research_skipped(
     Called by the coordinator after STEP 3.5 determines that research
     agents should be skipped (fully-specified change detection).
 
+    When ``issue_number`` is non-zero, the marker is recorded under BOTH
+    ``str(issue_number)`` AND ``"0"`` in a single atomic write. The "0"
+    fallback key is required because the commit-time gate
+    (verify_pipeline_agent_completions) is invoked from a hook that does
+    not parse the issue number out of the commit message and therefore
+    queries with ``issue_number=0``. Writing under both keys preserves
+    the existing reader contract — get_research_skipped() looks up
+    whichever key the caller supplies. This mirrors the multi-scope
+    auto-write pattern already used by record_agent_completion(). (#1213)
+
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path. (#1041)
 
-    Issues: #802
+    Issues: #802, #1213
     """
     state = _ensure_state(session_id, run_id=run_id)
     research_skipped = state.setdefault("research_skipped", {})
     issue_key = str(issue_number)
     research_skipped[issue_key] = True
+    # #1213: Also write to the "0" fallback scope so the commit-time gate
+    # (which calls verify_pipeline_agent_completions with issue_number=0)
+    # can see the marker. No-op when issue_number is already 0.
+    if issue_number != 0:
+        research_skipped["0"] = True
     _write_state(session_id, state, run_id=run_id)
 
 
@@ -1047,18 +1087,29 @@ def record_plan_critic_skipped(
     Called by the coordinator at STEP 5.5a when a pre-validated plan
     is found in `.claude/plans/`, bypassing plan-critic invocation.
 
+    When ``issue_number`` is non-zero, the marker is recorded under BOTH
+    ``str(issue_number)`` AND ``"0"`` in a single atomic write. Symmetric
+    to the record_research_skipped() fix in #1213 — same writer-compensates-
+    for-reader rationale: the commit-time gate queries with
+    ``issue_number=0`` and the reader contract is preserved.
+
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path. (#1041)
 
-    Issues: #878
+    Issues: #878, #1213
     """
     state = _ensure_state(session_id, run_id=run_id)
     plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
     issue_key = str(issue_number)
     plan_critic_skipped[issue_key] = True
+    # #1213: Also write to the "0" fallback scope so the commit-time gate
+    # (which calls verify_pipeline_agent_completions with issue_number=0)
+    # can see the marker. No-op when issue_number is already 0.
+    if issue_number != 0:
+        plan_critic_skipped["0"] = True
     _write_state(session_id, state, run_id=run_id)
 
 
