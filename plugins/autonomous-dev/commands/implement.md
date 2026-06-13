@@ -1229,6 +1229,8 @@ Validation mode: sequential (security-sensitive files detected: [list of matched
 
 Invoke reviewer, security-auditor, and doc-master in a SINGLE message (all three parallel). Pass STEP 8 test results to the reviewer along with the implementer output (see VERBATIM PASSING requirement below).
 
+**Single-message dispatch requirement (Issue #1148)**: The coordinator MUST emit all three Agent tool calls in a single content block of a single assistant message — three separate tool calls in three separate messages is FORBIDDEN. Sequential emission defeats the purpose of parallel mode: the routing decision (parallel) is meaningless if the dispatch is sequential. Concretely, the assistant message that initiates STEP 10 parallel mode contains exactly one `<function_calls>` block, and that block contains three sibling Agent invocations (reviewer, security-auditor, doc-master). Do not await the reviewer before dispatching the security-auditor; do not await the security-auditor before dispatching doc-master.
+
 **VERBATIM PASSING REQUIRED**: Pass the FULL implementer output from STEP 8 to the reviewer, including the STEP 8 test results (pass/fail/skip counts, coverage, any failure details). Do NOT summarize, condense, or paraphrase. If the output is too long, pass the first 3000 words plus the complete file change list and test results section. If the implementer output contains an Evidence Manifest section, it MUST be included in the passed content. When truncating long output, preserve the Evidence Manifest in addition to the file change list and test results. Log word counts: "Implementer output: N words → Reviewer input: M words (ratio: M/N)".
 
 - **Agent**(subagent_type="reviewer", model="sonnet") — Pass file list + planner summary + FULL implementer output + STEP 8 test results + PROJECT.md SCOPE (In Scope and Out of Scope, verbatim). The reviewer SHOULD flag any implementation that introduces functionality listed in Out of Scope or not covered by In Scope. **FEEDBACK pass required**: Before finalizing the verdict, the reviewer MUST perform one self-critique pass: (1) audit findings for false positives — findings that reflect correct behavior MUST be removed; (2) calibrate severity — BLOCKING findings MUST be truly blocking, not stylistic; (3) verify coverage — all changed files MUST appear in the review. Revise findings if any criterion fails. Output: APPROVE or REQUEST_CHANGES.
@@ -1262,7 +1264,7 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 
 **FORBIDDEN** — Parallel mode violations:
 - ❌ You MUST NOT use parallel mode when any security-sensitive file is in the changeset
-- ❌ You MUST NOT skip any of the three validators (reviewer, security-auditor, doc-master) in parallel mode
+- ❌ You MUST NOT skip any of the three validators (reviewer, security-auditor, doc-master) in parallel mode; you MUST NOT emit reviewer and security-auditor in sequential messages or await one validator's verdict before dispatching another — all three Agent tool calls go in a single assistant message (the routing decision is meaningless if the dispatch is sequential) (#1148)
 
 **Validator artifact write** — After reviewer and security-auditor both return, persist their verbatim outputs:
 ```bash
@@ -1642,6 +1644,16 @@ Fast pipeline for low-risk changes: markdown, config, docs, simple edits, rename
 **When to use**: `--light` flag, or coordinator MAY suggest it when the feature description clearly involves only markdown/config/docs/typos/renames and no new logic or security-sensitive code.
 
 **When NOT to use**: New features with logic, security-sensitive changes, API changes, hook/agent modifications that need security review.
+
+**Light-mode activation precondition (Issue #1181)**: Before entering LIGHT pipeline, the coordinator MUST verify the changeset does NOT contain any security-sensitive paths. Use the same pattern set as STEP 10's parallel-mode routing: `hooks/*.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `*.env*`, `*secret*`, `config/auto_approve_policy.json`, `templates/settings.*.json`, `*trading*`, `*payment*`, `*billing*`, `*financial*`, `*transaction*`, `*wallet*`, `*crypto*`, `*permission*`, `*session*`, `*credential*`, `*password*`, `*oauth*`, `*sso*`, `*jwt*`, `*rbac*`, `migrations/`, `*migrate*`, `alembic/`. If security-sensitive paths are detected, the coordinator MUST escalate to FULL pipeline mode and output:
+
+```
+--light requested but security-sensitive paths detected: [list]. Escalating to FULL pipeline.
+```
+
+The escalation MUST occur before STEP L0. Once LIGHT mode begins, partial-dispatching security-auditor alongside LIGHT's normal step set is forbidden (see the FORBIDDEN paragraph that follows). The precondition exists because LIGHT mode lacks STEP 10's sequential security-auditor flow; improvising a security-auditor dispatch inside LIGHT mode inverts the security→docs ordering enforced by FULL pipeline STEP 10 (the failure mode observed in session 09f09286 pipeline 1, where doc-master was dispatched 98s before security-auditor). (#1181)
+
+**FORBIDDEN — LIGHT-mode security improvisation (Issue #1181)**: You MUST NOT improvise a security-auditor dispatch inside LIGHT pipeline mode; if security-sensitive paths are detected, escalate to FULL mode at the precondition check above. You MUST NOT partial-dispatch security-auditor alongside LIGHT's normal step set, and you MUST NOT dispatch doc-master while a security-auditor dispatch is also pending — the LIGHT step set does not enforce the security→docs ordering that FULL pipeline STEP 10 provides. (#1181)
 
 ### STEP L0: Pre-Staged Files Check — HARD GATE
 

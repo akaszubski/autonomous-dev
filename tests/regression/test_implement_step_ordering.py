@@ -1,4 +1,4 @@
-"""Regression tests for /implement pipeline step ordering — Issue #1211.
+"""Regression tests for /implement pipeline step ordering — Issues #1211, #1148, #1181.
 
 Issue #1211: The `unified_pre_tool.py` agent-completeness gate blocks the
 git commit (STEP 13) until `continuous-improvement-analyst` (CIA) has
@@ -6,11 +6,23 @@ completed. Previously the pipeline spec placed CIA at STEP 15, after the
 commit, which created a structural ordering conflict that every standard
 pipeline run resolved implicitly through coordinator improvisation.
 
-Fix: Move CIA dispatch to STEP 12.5 (before STEP 13 commit). Repurpose
+Fix #1211: Move CIA dispatch to STEP 12.5 (before STEP 13 commit). Repurpose
 STEP 15 as cleanup-only.
 
-These tests lock the corrected ordering in the spec file so that any future
-edit that re-introduces the conflict trips a regression.
+Issue #1148: When STEP 10 selects parallel validation mode, reviewer and
+security-auditor were still emitted in sequential assistant messages —
+defeating the parallel routing decision. Fix: spec must explicitly require
+single-message dispatch of all three validators.
+
+Issue #1181: The `--light` pipeline lacks STEP 10's sequential security
+flow. A LIGHT run that detected security-sensitive paths improvised a
+partial security-auditor dispatch and ended up dispatching doc-master 98s
+BEFORE security-auditor (session 09f09286 pipeline 1). Fix: LIGHT mode must
+escalate to FULL pipeline when security-sensitive paths are detected; the
+spec must forbid improvising security-auditor inside LIGHT mode.
+
+These tests lock the corrected spec text so that any future edit that
+re-introduces a conflict trips a regression.
 """
 
 from __future__ import annotations
@@ -297,4 +309,178 @@ class TestLightPipelineCiaOrdering:
         assert l4_line < l4_5_line < l5_line, (
             f"STEP L4.5 (line {l4_5_line}) must appear between STEP L4 "
             f"(line {l4_line}) and STEP L5 (line {l5_line})."
+        )
+
+
+def _step_10_parallel_text(implement_lines: list[str]) -> str:
+    """Return the STEP 10 parallel-mode section text.
+
+    Bounded by the 'DEFAULT: Parallel mode' marker line and the
+    'SEQUENTIAL mode' marker line that follows.
+    """
+    start_idx: int | None = None
+    end_idx: int | None = None
+    for idx, line in enumerate(implement_lines):
+        if "DEFAULT: Parallel mode" in line and start_idx is None:
+            start_idx = idx
+        elif start_idx is not None and "SEQUENTIAL mode" in line:
+            end_idx = idx
+            break
+    assert start_idx is not None, "STEP 10 DEFAULT: Parallel mode marker not found"
+    if end_idx is None:
+        end_idx = len(implement_lines)
+    return "\n".join(implement_lines[start_idx:end_idx])
+
+
+def _light_pipeline_intro_text(implement_lines: list[str]) -> str:
+    """Return the LIGHT PIPELINE MODE intro text.
+
+    Bounded by '# LIGHT PIPELINE MODE' and the first '### STEP L0:' header.
+    """
+    start_idx: int | None = None
+    end_idx: int | None = None
+    for idx, line in enumerate(implement_lines):
+        if line.startswith("# LIGHT PIPELINE MODE") and start_idx is None:
+            start_idx = idx
+        elif start_idx is not None and line.startswith("### STEP L0:"):
+            end_idx = idx
+            break
+    assert start_idx is not None, "LIGHT PIPELINE MODE header not found"
+    assert end_idx is not None, "STEP L0 header not found after LIGHT PIPELINE MODE"
+    return "\n".join(implement_lines[start_idx:end_idx])
+
+
+class TestParallelDispatchSingleMessage1148:
+    """STEP 10 parallel mode must require single-message dispatch (Issue #1148)."""
+
+    def test_step_10_parallel_mode_requires_single_message_dispatch_for_1148(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 10 parallel mode prose must require single-message dispatch and reference #1148.
+
+        Issue #1148: When the coordinator selects parallel validation mode,
+        reviewer + security-auditor + doc-master MUST be invoked in a single
+        assistant message. Sequential emission defeats the parallel routing.
+        """
+        parallel_section = _step_10_parallel_text(implement_lines)
+
+        # The phrase 'single message' (case-insensitive) must appear
+        assert "single message" in parallel_section.lower(), (
+            "STEP 10 parallel mode must explicitly require single-message dispatch "
+            "of reviewer/security-auditor/doc-master (Issue #1148)."
+        )
+
+        # Issue #1148 must be referenced inline so motivation is discoverable
+        assert "#1148" in parallel_section, (
+            "STEP 10 parallel mode must reference Issue #1148 inline so the "
+            "motivation for the single-message rule is discoverable."
+        )
+
+    def test_step_10_parallel_mode_forbidden_list_blocks_sequential_for_1148(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 10 parallel mode FORBIDDEN list must block sequential emission (Issue #1148).
+
+        The FORBIDDEN block must include language that prevents the coordinator
+        from emitting reviewer and security-auditor in sequential messages when
+        parallel mode is selected.
+        """
+        parallel_section = _step_10_parallel_text(implement_lines)
+
+        # The FORBIDDEN block must exist in the parallel-mode section
+        assert "FORBIDDEN" in parallel_section, (
+            "STEP 10 parallel mode must have a FORBIDDEN block."
+        )
+
+        # The FORBIDDEN block must reference sequential emission of reviewer
+        # and security-auditor — the exact failure mode from Issue #1148.
+        lowered = parallel_section.lower()
+        assert "sequential message" in lowered or "sequential messages" in lowered, (
+            "STEP 10 parallel mode FORBIDDEN block must explicitly forbid "
+            "emitting reviewer and security-auditor in sequential messages "
+            "when parallel mode is selected (Issue #1148)."
+        )
+        # The FORBIDDEN block must mention both validators by name
+        assert "reviewer" in lowered and "security-auditor" in lowered, (
+            "STEP 10 parallel mode FORBIDDEN block must name both reviewer "
+            "and security-auditor in the sequential-emission prohibition."
+        )
+
+
+class TestLightModeSecurityEscalation1181:
+    """LIGHT mode must escalate to FULL pipeline on security-sensitive paths (Issue #1181)."""
+
+    def test_light_mode_has_security_precondition_for_1181(
+        self, implement_lines: list[str]
+    ) -> None:
+        """LIGHT PIPELINE MODE must contain a security-sensitive activation precondition (Issue #1181).
+
+        Issue #1181: --light must escalate to FULL when security-sensitive
+        paths are detected. The spec must document this precondition before
+        STEP L0 so the coordinator routes correctly.
+        """
+        light_intro = _light_pipeline_intro_text(implement_lines)
+
+        # A precondition marker must exist
+        assert "precondition" in light_intro.lower(), (
+            "LIGHT PIPELINE MODE must contain an activation precondition "
+            "(Issue #1181)."
+        )
+
+        # Must reference security-sensitive paths
+        assert "security-sensitive" in light_intro.lower(), (
+            "LIGHT PIPELINE MODE precondition must reference security-sensitive "
+            "paths so the coordinator knows when to escalate (Issue #1181)."
+        )
+
+        # Must require escalation to FULL pipeline
+        assert "FULL pipeline" in light_intro or "FULL mode" in light_intro, (
+            "LIGHT PIPELINE MODE precondition must require escalation to FULL "
+            "pipeline mode when security-sensitive paths are detected (Issue #1181)."
+        )
+
+        # Must reference Issue #1181 inline
+        assert "#1181" in light_intro, (
+            "LIGHT PIPELINE MODE precondition must reference Issue #1181 inline "
+            "so the motivation for the security-sensitive escalation is discoverable."
+        )
+
+    def test_light_mode_forbidden_security_improvisation_for_1181(
+        self, implement_lines: list[str]
+    ) -> None:
+        """LIGHT mode must forbid improvising security-auditor dispatch (Issue #1181).
+
+        The LIGHT intro must contain a FORBIDDEN directive that blocks the
+        coordinator from partial-dispatching security-auditor inside LIGHT
+        mode (the failure mode observed in session 09f09286 pipeline 1).
+        """
+        light_intro = _light_pipeline_intro_text(implement_lines)
+
+        # FORBIDDEN block must exist in the LIGHT intro
+        assert "FORBIDDEN" in light_intro, (
+            "LIGHT PIPELINE MODE must contain a FORBIDDEN directive against "
+            "improvising security-auditor dispatch (Issue #1181)."
+        )
+
+        # Must specifically forbid improvising security-auditor
+        lowered = light_intro.lower()
+        assert "improvise" in lowered or "improvising" in lowered, (
+            "LIGHT PIPELINE MODE FORBIDDEN block must use 'improvise' language "
+            "to block partial security-auditor dispatch (Issue #1181)."
+        )
+        assert "security-auditor" in lowered, (
+            "LIGHT PIPELINE MODE FORBIDDEN block must name security-auditor "
+            "explicitly (Issue #1181)."
+        )
+
+        # Must reference Issue #1181 in the FORBIDDEN block
+        # (the precondition above already references #1181; the FORBIDDEN
+        # paragraph must also reference it so a future reader who lands on
+        # the FORBIDDEN can find the issue without scrolling.)
+        # Extract the FORBIDDEN paragraph and check inline
+        forbidden_idx = light_intro.find("FORBIDDEN")
+        forbidden_paragraph = light_intro[forbidden_idx:]
+        assert "#1181" in forbidden_paragraph, (
+            "LIGHT PIPELINE MODE FORBIDDEN paragraph must reference Issue "
+            "#1181 inline."
         )
