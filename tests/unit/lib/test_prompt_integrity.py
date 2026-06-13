@@ -241,6 +241,87 @@ class TestValidatePromptWordCount:
         assert "minimum" in result.reason
 
 
+class TestResearchSkipContext1002:
+    """Issue #1002 regression: REINVOCATION_CONTEXTS must include 'research-skip'.
+
+    When STEP 3.5 detects a fully-specified change and skips research, downstream
+    agent prompts (planner, implementer) legitimately lack the research-output
+    payload and appear compressed against their full-research baselines. Without
+    'research-skip' in REINVOCATION_CONTEXTS, prompt_integrity fires on every
+    downstream dispatch (3/3 = 100% rate in batch #995/#996/#997). The fix extends
+    the set so the coordinator's `PIPELINE_INVOCATION_CONTEXT=research-skip` env
+    var triggers the relaxed (40%, doubled) shrinkage threshold for those agents.
+    """
+
+    def test_reinvocation_contexts_includes_research_skip_for_1002(self) -> None:
+        """REINVOCATION_CONTEXTS set MUST include 'research-skip' after Issue #1002.
+
+        The coordinator (implement.md STEP 3.5) sets
+        PIPELINE_INVOCATION_CONTEXT=research-skip when research is skipped.
+        The hook (_detect_invocation_context) returns that string, and
+        validate_prompt_word_count() relaxes the shrinkage threshold only if
+        the context string is in REINVOCATION_CONTEXTS — so this membership
+        check is the single point of integration between the env var and the
+        threshold relaxation.
+        """
+        from prompt_integrity import REINVOCATION_CONTEXTS
+
+        assert "research-skip" in REINVOCATION_CONTEXTS, (
+            "REINVOCATION_CONTEXTS must include 'research-skip' per Issue #1002. "
+            "Without it, PIPELINE_INVOCATION_CONTEXT=research-skip set by STEP 3.5 "
+            "has no effect — prompt_integrity will fire on every downstream agent "
+            "dispatch in research-skip pipelines (3/3 rate observed pre-fix)."
+        )
+        # Original entries must remain (do not regress #789/#791).
+        assert "remediation" in REINVOCATION_CONTEXTS
+        assert "re-review" in REINVOCATION_CONTEXTS
+        assert "doc-update-retry" in REINVOCATION_CONTEXTS
+
+    def test_research_skip_context_gets_relaxed_threshold_for_1002(self) -> None:
+        """validate_prompt_word_count with invocation_context='research-skip'
+        applies the doubled (40%) threshold, so a 30% shrinkage that would
+        fail at the default 20% threshold passes for a research-skip pipeline.
+
+        This is the end-to-end behavior the coordinator depends on: setting
+        the env var must result in the relaxed threshold being applied.
+        """
+        # Baseline 200 words; prompt 140 words = 30% shrinkage.
+        # Both are above MIN_CRITICAL_AGENT_PROMPT_WORDS (80), so the critical-
+        # agent minimum check (which runs BEFORE the baseline shrinkage check)
+        # does not pre-empt the threshold logic under test.
+        # Default 20% threshold (max_shrinkage=0.20): FAIL.
+        # Relaxed 40% threshold (research-skip context): PASS.
+        prompt = " ".join(["word"] * 140)
+
+        # Sanity: without the context, this fails at the default 20% threshold.
+        result_no_ctx = validate_prompt_word_count(
+            "implementer",
+            prompt,
+            baseline_word_count=200,
+            max_shrinkage=0.20,
+        )
+        assert result_no_ctx.passed is False, (
+            "Sanity check: 30% shrinkage should fail at the default 20% threshold "
+            "without a reinvocation context."
+        )
+        assert result_no_ctx.shrinkage_pct == 30.0
+
+        # With research-skip context, the threshold is doubled to 40% and passes.
+        result_with_ctx = validate_prompt_word_count(
+            "implementer",
+            prompt,
+            baseline_word_count=200,
+            max_shrinkage=0.20,
+            invocation_context="research-skip",
+        )
+        assert result_with_ctx.passed is True, (
+            f"30% shrinkage with research-skip context should pass at the relaxed "
+            f"40% threshold per Issue #1002. Got: passed={result_with_ctx.passed}, "
+            f"shrinkage={result_with_ctx.shrinkage_pct}%, reason={result_with_ctx.reason}"
+        )
+        assert result_with_ctx.shrinkage_pct == 30.0
+
+
 class TestPromptBaselinePersistence:
     """Tests for recording and retrieving prompt baselines."""
 

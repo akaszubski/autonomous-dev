@@ -631,6 +631,16 @@ from pipeline_completion_state import record_research_skipped
 record_research_skipped(SESSION_ID, issue_number=ISSUE_NUM)
 ```
 
+**Set `PIPELINE_INVOCATION_CONTEXT` for downstream agents (Issue #1002)**: After recording research-skipped, set the env var so subsequent agent dispatches (planner, implementer, and any other downstream agents whose prompts would otherwise look compressed because the research payload is absent) use the relaxed prompt-shrinkage threshold (40%, doubled from the 20% default):
+
+```bash
+export PIPELINE_INVOCATION_CONTEXT=research-skip
+```
+
+The `_detect_invocation_context()` function in `unified_pre_tool.py` reads this env var first (before scanning prompt text for marker phrases), and `validate_prompt_word_count()` applies the relaxed threshold whenever the context is one of `REINVOCATION_CONTEXTS` (now includes `"research-skip"`). The env var persists for the duration of this pipeline run — it is NOT unset between agent dispatches because the research-skip context applies to ALL downstream agents in this run. It IS unset at STEP 15 cleanup (see cleanup commands). MUST NOT skip setting this env var when research is skipped — the prompt_integrity hook will fire on every downstream agent dispatch otherwise, costing one full agent re-invocation per dispatch (observed 3/3 = 100% firing rate in batch #995/#996/#997 before this fix).
+
+**Interaction with STEP 14 (Issue #1031)**: STEP 14's doc-master fix-forward dispatch will overwrite this env var with `doc-update-retry` for the duration of that single doc-master call, then unset it. After STEP 14 the variable is unset (not re-set to `research-skip`). This is acceptable because STEP 14 is near the end of the pipeline; no further downstream agent dispatches occur after STEP 14 (only STEP 15 cleanup follows, and STEP 12.5 CIA already ran before STEP 13 commit).
+
 Otherwise: proceed to STEP 4.
 
 **FORBIDDEN** — You MUST NOT skip research when:
@@ -1677,6 +1687,22 @@ pytest tests/unit/test_documentation_congruence.py --tb=short -q
 ```
 If FAIL: invoke doc-master to fix, re-run until 0 failures. **FORBIDDEN**: skipping, proceeding with failures, manual edits without re-running tests.
 
+**Set `PIPELINE_INVOCATION_CONTEXT` for fix-forward dispatch (Issue #1031)**: Before the doc-master Agent call in this step's fix-forward retry loop, set the env var to `doc-update-retry` so the relaxed prompt-shrinkage threshold (40%, doubled from the 20% default) applies to the count-fix invocation:
+
+```bash
+export PIPELINE_INVOCATION_CONTEXT=doc-update-retry
+```
+
+Reason: a STEP 14 "fix count discrepancy" prompt naturally lacks the marker phrases that `_detect_invocation_context()` scans for in prompt text (`"remediation mode"`, `"re-review"`, `"doc-update-retry"`, `"reduced context"`, `"retry with reduced"`), so explicit coordinator signaling via env var is the documented path. Without this, the third doc-master invocation observed in run 20260503-224744 (issue #1018, 253 words vs 335-word baseline = 24.5% shrinkage) was blocked by the hook and required regeneration of a longer prompt to retry successfully.
+
+After the doc-master returns (whether PASS or further FAIL), unset the env var so it does NOT leak into the next agent invocation:
+
+```bash
+unset PIPELINE_INVOCATION_CONTEXT
+```
+
+**Interaction with STEP 3.5 (Issue #1002)**: If STEP 3.5 set this env var to `research-skip` for this pipeline run, the `export` above overwrites it with `doc-update-retry` for the duration of the doc-master fix-forward call, then the `unset` clears it. After STEP 14 completes, the variable remains unset — it is NOT re-set to `research-skip`. This is acceptable because STEP 14 is near the end of the pipeline; no further downstream agent dispatches occur after STEP 14 (STEP 12.5 CIA already ran before STEP 13 commit; only STEP 15 cleanup follows).
+
 ### STEP 15: Pipeline State Cleanup
 
 **Progress**: Output step banner (STEP 15/15 — Cleanup). Output cleanup confirmation.
@@ -1689,7 +1715,10 @@ If FAIL: invoke doc-master to fix, re-run until 0 failures. **FORBIDDEN**: skipp
 
 ```bash
 rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true
+unset PIPELINE_INVOCATION_CONTEXT
 ```
+
+The `unset PIPELINE_INVOCATION_CONTEXT` line clears the env var that STEP 3.5 (Issue #1002) and/or STEP 14 (Issue #1031) may have set during this pipeline run, so a stale value cannot leak into the next pipeline invocation in the same shell session.
 
 **FORBIDDEN** (Issue #1211) — You MUST NOT clean up before STEP 14 doc-congruence completes, and MUST NOT skip cleanup (state files accumulate across runs). CIA dispatch is no longer part of STEP 15 — it moved to STEP 12.5. The previous "STEP 13 is not the final step" guard remains valid: STEP 14 and STEP 15 are mandatory after STEP 13.
 

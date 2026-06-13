@@ -73,10 +73,22 @@ MIN_CRITICAL_AGENT_PROMPT_WORDS = 80
 # that per-issue checks miss.
 MAX_CUMULATIVE_SHRINKAGE = 0.30  # 30% total drift threshold (Issue #870, calibrated from #812)
 
-# Known reinvocation context strings (Issue #789, #791).
-# These represent legitimate secondary agent invocations that produce
-# naturally shorter prompts, so the shrinkage threshold is relaxed.
-REINVOCATION_CONTEXTS = {"remediation", "re-review", "doc-update-retry"}
+# Known reinvocation context strings (Issue #789, #791, #1002).
+# These represent legitimate agent invocations that produce naturally shorter
+# prompts, so the shrinkage threshold is relaxed (doubled — 20% -> 40%).
+#
+# "remediation", "re-review", "doc-update-retry" are SECONDARY invocations
+# (the agent is run again after a failed first attempt), per #789/#791.
+#
+# "research-skip" (Issue #1002) is a PRIMARY-invocation case (not a retry):
+# when STEP 3.5 detects a fully-specified change and skips the research step,
+# downstream agents (planner, implementer) receive prompts that legitimately
+# lack the research-output payload. Without this entry, prompt_integrity would
+# fire on every research-skip pipeline (observed 3/3 = 100% rate in batch
+# #995/#996/#997). The coordinator sets PIPELINE_INVOCATION_CONTEXT=research-skip
+# at STEP 3.5 so the hook's env-var path applies the relaxed threshold to all
+# downstream agent dispatches in that pipeline run.
+REINVOCATION_CONTEXTS = {"remediation", "re-review", "doc-update-retry", "research-skip"}
 
 
 # Default baseline persistence location (relative to project root).

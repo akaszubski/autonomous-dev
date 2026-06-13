@@ -1351,3 +1351,136 @@ class TestEvidenceManifestGate1055:
             "cross-reference must reference Issue #1055 inline so the "
             "motivation for the mechanical conversion is discoverable."
         )
+
+
+class TestPromptIntegrityResearchSkipContext1002:
+    """Issue #1002 regression: STEP 3.5 must set PIPELINE_INVOCATION_CONTEXT
+    when research is skipped, and STEP 15 cleanup must unset it.
+
+    Without this, prompt_integrity fires on every downstream agent dispatch
+    in a research-skip pipeline (3/3 = 100% rate observed in batch
+    #995/#996/#997 before this fix), costing one full agent re-invocation per
+    issue. The coordinator-side env var is the documented control path
+    (Issue #789's design) — the alternative (scanning prompt text for marker
+    phrases) is unreliable because research-skip planner/implementer prompts
+    do not naturally contain any of the recognized markers.
+    """
+
+    def test_step_3_5_sets_research_skip_context_for_1002(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 3.5 section must set PIPELINE_INVOCATION_CONTEXT=research-skip
+        after recording research-skipped, and must reference Issue #1002 inline.
+
+        The env var is the integration point between the coordinator's
+        research-skip decision and the prompt_integrity hook's relaxed
+        threshold path (validated end-to-end by the unit test
+        test_research_skip_context_gets_relaxed_threshold_for_1002).
+        """
+        step_3_5_section = _section_text(
+            implement_lines, "### STEP 3.5:", "### STEP 4:"
+        )
+
+        # The env-var export must appear inside the STEP 3.5 section.
+        assert "PIPELINE_INVOCATION_CONTEXT=research-skip" in step_3_5_section, (
+            "STEP 3.5 must set PIPELINE_INVOCATION_CONTEXT=research-skip after "
+            "recording research-skipped (Issue #1002). Without this, "
+            "prompt_integrity fires on every downstream agent dispatch in a "
+            "research-skip pipeline."
+        )
+
+        # The export keyword must appear so the coordinator actually exports it.
+        assert "export PIPELINE_INVOCATION_CONTEXT" in step_3_5_section, (
+            "STEP 3.5 must use 'export PIPELINE_INVOCATION_CONTEXT=research-skip' "
+            "(not a bare assignment) so subprocesses inherit it (Issue #1002)."
+        )
+
+        # The motivation issue must be discoverable inline.
+        assert "#1002" in step_3_5_section, (
+            "STEP 3.5 must reference Issue #1002 inline so the motivation for "
+            "the env-var set is discoverable when reading the spec."
+        )
+
+    def test_step_15_unsets_invocation_context_for_1002(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 15 cleanup section must unset PIPELINE_INVOCATION_CONTEXT so a
+        stale value does not leak into the next pipeline invocation in the
+        same shell session (Issue #1002, also covers #1031 cleanup safety net)."""
+        start_idx = _find_header_line(implement_lines, "### STEP 15:")
+        # STEP 15 in the full pipeline ends at the '# LIGHT PIPELINE MODE'
+        # block or the next '### STEP' header.
+        section_end = len(implement_lines)
+        for idx in range(start_idx, len(implement_lines)):
+            line = implement_lines[idx]
+            if line.startswith("# LIGHT PIPELINE MODE"):
+                section_end = idx
+                break
+            if line.startswith("### STEP") and idx + 1 != start_idx:
+                section_end = idx
+                break
+        step_15_section = "\n".join(implement_lines[start_idx:section_end])
+
+        assert "unset PIPELINE_INVOCATION_CONTEXT" in step_15_section, (
+            "STEP 15 cleanup must include 'unset PIPELINE_INVOCATION_CONTEXT' "
+            "so a value set by STEP 3.5 (#1002) or STEP 14 (#1031) does not "
+            "leak into the next pipeline invocation in the same shell session."
+        )
+
+
+class TestPromptIntegrityDocUpdateRetryContext1031:
+    """Issue #1031 regression: STEP 14's doc-master fix-forward dispatch must
+    set PIPELINE_INVOCATION_CONTEXT=doc-update-retry so the relaxed (40%,
+    doubled) prompt-shrinkage threshold applies to the count-fix invocation.
+
+    Without this, a STEP 14 'fix count discrepancy' prompt naturally lacks
+    the marker phrases that _detect_invocation_context scans for in prompt
+    text, and the hook BLOCKS the legitimate fix-forward call. Observed in
+    run 20260503-224744 (issue #1018): doc-master invocation 3 at 253 words
+    vs 335-word baseline = 24.5% shrinkage, blocked at the 20% default
+    threshold, required prompt regeneration to retry.
+    """
+
+    def test_step_14_sets_doc_update_retry_context_for_1031(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 14 section must set PIPELINE_INVOCATION_CONTEXT=doc-update-retry
+        before the doc-master fix-forward dispatch and must reference Issue
+        #1031 inline.
+
+        The env-var path is preferred over prompt-text marker injection per
+        Issue #789's coordinator-control design: the coordinator owns the
+        invocation context signal, not the prompt body.
+        """
+        step_14_section = _section_text(
+            implement_lines, "### STEP 14:", "### STEP 15:"
+        )
+
+        # The env-var export must appear inside the STEP 14 section.
+        assert "PIPELINE_INVOCATION_CONTEXT=doc-update-retry" in step_14_section, (
+            "STEP 14 must set PIPELINE_INVOCATION_CONTEXT=doc-update-retry "
+            "before the doc-master fix-forward dispatch (Issue #1031). "
+            "Without this, the hook blocks the count-fix invocation because "
+            "the prompt naturally lacks the recognized marker phrases."
+        )
+
+        # The export keyword must appear.
+        assert "export PIPELINE_INVOCATION_CONTEXT" in step_14_section, (
+            "STEP 14 must use 'export PIPELINE_INVOCATION_CONTEXT=doc-update-retry' "
+            "(not a bare assignment) so the doc-master subprocess inherits it "
+            "(Issue #1031)."
+        )
+
+        # STEP 14 must unset the env var after the dispatch so the context
+        # does not leak into subsequent agent invocations.
+        assert "unset PIPELINE_INVOCATION_CONTEXT" in step_14_section, (
+            "STEP 14 must unset PIPELINE_INVOCATION_CONTEXT after the "
+            "doc-master fix-forward returns so the context does not leak "
+            "into subsequent invocations (Issue #1031)."
+        )
+
+        # The motivation issue must be discoverable inline.
+        assert "#1031" in step_14_section, (
+            "STEP 14 must reference Issue #1031 inline so the motivation for "
+            "the env-var set/unset is discoverable when reading the spec."
+        )
