@@ -241,6 +241,8 @@ When re-invoked with "REMEDIATION MODE" in the prompt, you are fixing BLOCKING f
 
 **After all tests pass, you MUST output a structured evidence manifest before declaring implementation complete.**
 
+**Coordinator-side enforcement (Issue #1055)**: As of 2026-06-13, the coordinator at `commands/implement.md` STEP 8 OUTPUT VALIDATION GATE checks for the Evidence Manifest table header (`| File | State | Verification Signal |`) and re-invokes the implementer once if missing. The advisory-only state has been converted to a mechanical gate. You MUST include the manifest table in your final output.
+
 The evidence manifest is a Markdown table that lists every file you created or modified, its state, and a verification signal the reviewer can check programmatically.
 
 **Format** (use this table structure):

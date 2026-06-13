@@ -1157,3 +1157,197 @@ class TestBypassDocumentation1040:
             "inline so the codified documentation is discoverable from the "
             "issue."
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1055 — Evidence Manifest coordinator-side gate
+# ---------------------------------------------------------------------------
+
+IMPLEMENTER_MD = (
+    REPO_ROOT / "plugins" / "autonomous-dev" / "agents" / "implementer.md"
+)
+
+
+@pytest.fixture(scope="module")
+def implementer_md_text() -> str:
+    """Return the implementer.md text content (cached per module)."""
+    assert IMPLEMENTER_MD.exists(), f"Expected {IMPLEMENTER_MD} to exist"
+    return IMPLEMENTER_MD.read_text()
+
+
+def _step_8_section_text(implement_lines: list[str]) -> str:
+    """Return the STEP 8 section text bounded by the STEP 8 header and STEP 8.5.
+
+    The STEP 8 section is where the Evidence Manifest output-validation gate
+    must live (between Plan-Implementation Alignment and STEP 8.5).
+    """
+    start_idx = _find_header_line(implement_lines, "### STEP 8:")
+    end_idx = len(implement_lines)
+    for idx in range(start_idx, len(implement_lines)):
+        if implement_lines[idx].startswith("### STEP 8.5:") and idx + 1 != start_idx:
+            end_idx = idx
+            break
+    return "\n".join(implement_lines[start_idx - 1:end_idx])
+
+
+class TestEvidenceManifestGate1055:
+    """STEP 8 OUTPUT VALIDATION GATE must check for the Evidence Manifest table (#1055).
+
+    Issue #1055: The implementer agent prompt defines a HARD GATE requiring a
+    structured Evidence Manifest table in full pipeline mode, but the gate was
+    prompt-advisory only — there was no coordinator or hook check that verified
+    the manifest was emitted. In the M1 batch (#1022) the reviewer explicitly
+    flagged the missing manifest, but the pipeline did not block.
+
+    Fix #1055: STEP 8 OUTPUT VALIDATION GATE: Evidence Manifest subsection
+    converts the advisory check into a mechanical coordinator-side gate. The
+    gate checks the implementer output for the literal table header
+    `| File | State | Verification Signal |`, re-invokes the implementer once
+    if missing, and BLOCKS the pipeline if still absent after the remediation
+    cycle. Full pipeline mode only — `--light` and `--fix` modes treat the
+    manifest as RECOMMENDED per the agent spec.
+
+    These tests lock the corrected spec text so the gate cannot be silently
+    re-downgraded to advisory.
+    """
+
+    def test_step_8_has_evidence_manifest_gate_for_1055(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 8 must contain the Evidence Manifest output validation gate (#1055).
+
+        The gate header, the marker substring (table header line), and the
+        #1055 issue reference must all appear inside the STEP 8 section so the
+        check is discoverable when reading the spec.
+        """
+        section = _step_8_section_text(implement_lines)
+
+        # 1. The gate header must appear as a subsection of STEP 8
+        assert "OUTPUT VALIDATION GATE: Evidence Manifest" in section, (
+            "STEP 8 must contain an 'OUTPUT VALIDATION GATE: Evidence Manifest' "
+            "subsection per Issue #1055 — converts the advisory-only check "
+            "into a mechanical coordinator-side gate."
+        )
+
+        # 2. The literal table header marker substring must appear
+        assert "| File | State | Verification Signal |" in section, (
+            "STEP 8 Evidence Manifest gate must specify the exact marker "
+            "substring `| File | State | Verification Signal |` per Issue "
+            "#1055 — this is the literal table header the coordinator searches "
+            "for in the implementer output."
+        )
+
+        # 3. Issue #1055 must be referenced inline
+        assert "#1055" in section, (
+            "STEP 8 Evidence Manifest gate must reference Issue #1055 inline "
+            "so the motivation for the gate is discoverable when reading the "
+            "spec."
+        )
+
+    def test_step_8_evidence_manifest_gate_has_remediation_path_for_1055(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 8 Evidence Manifest gate must document the remediation + BLOCK paths (#1055).
+
+        The gate prose must describe re-invocation of the implementer in
+        REMEDIATION MODE on the first failure and a BLOCK outcome if the
+        manifest is still missing after the remediation cycle. This locks the
+        spec text so the gate cannot be silently re-downgraded to a warning.
+        """
+        section = _step_8_section_text(implement_lines)
+
+        # The gate must mention re-invocation OR remediation language
+        lowered = section.lower()
+        assert "re-invoke" in lowered or "remediation" in lowered, (
+            "STEP 8 Evidence Manifest gate must document re-invocation in "
+            "REMEDIATION MODE on the first missing-manifest failure per "
+            "Issue #1055."
+        )
+
+        # The gate must include a BLOCK handling clause for the post-remediation
+        # failure case (still missing after the single cycle)
+        assert "BLOCK" in section, (
+            "STEP 8 Evidence Manifest gate must include a BLOCK handling "
+            "clause for the post-remediation failure case per Issue #1055."
+        )
+
+        # The exact BLOCKED message substring must appear so a future edit
+        # cannot soften the failure outcome to a warning
+        assert "BLOCKED: Implementer output is missing the Evidence Manifest" in section, (
+            "STEP 8 Evidence Manifest gate must contain the exact BLOCK "
+            "message string ('BLOCKED: Implementer output is missing the "
+            "Evidence Manifest...') per Issue #1055 so the failure outcome "
+            "cannot be silently softened."
+        )
+
+    def test_step_8_evidence_manifest_gate_is_full_pipeline_only_for_1055(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 8 Evidence Manifest gate must be full-pipeline-only (#1055).
+
+        Per the implementer agent spec, the Evidence Manifest is REQUIRED in
+        full pipeline mode but RECOMMENDED in `--light` and `--fix` modes.
+        The coordinator gate prose must explicitly note that the check does
+        NOT apply to `--light` and `--fix`.
+        """
+        section = _step_8_section_text(implement_lines)
+
+        # The gate must explicitly note "full pipeline mode only" activation
+        lowered = section.lower()
+        assert "full pipeline mode only" in lowered or "full pipeline mode" in lowered, (
+            "STEP 8 Evidence Manifest gate must explicitly state that it "
+            "activates in 'full pipeline mode only' per Issue #1055."
+        )
+
+        # The gate must explicitly mention BOTH --light AND --fix as
+        # non-applicable so the coordinator does not improvise activation
+        # on the wrong mode
+        assert "--light" in section, (
+            "STEP 8 Evidence Manifest gate must explicitly reference --light "
+            "as a non-applicable mode per Issue #1055."
+        )
+        assert "--fix" in section, (
+            "STEP 8 Evidence Manifest gate must explicitly reference --fix "
+            "as a non-applicable mode per Issue #1055."
+        )
+
+    def test_implementer_md_cross_references_coordinator_gate_for_1055(
+        self, implementer_md_text: str
+    ) -> None:
+        """agents/implementer.md HARD GATE section must cross-reference the coordinator (#1055).
+
+        The agent prompt's HARD GATE: Evidence Manifest Output section must
+        contain a cross-reference note pointing at the coordinator-side gate
+        in commands/implement.md STEP 8. This makes the mechanical-vs-advisory
+        status discoverable to the implementer agent at invocation time.
+        """
+        text = implementer_md_text
+
+        # The HARD GATE section header must exist (precondition for the
+        # cross-reference being meaningful)
+        assert "## HARD GATE: Evidence Manifest Output" in text, (
+            "agents/implementer.md must retain the 'HARD GATE: Evidence "
+            "Manifest Output' section header — the cross-reference note "
+            "lives inside that section (Issue #1055)."
+        )
+
+        # The cross-reference note must call out coordinator-side enforcement
+        assert "Coordinator-side enforcement" in text, (
+            "agents/implementer.md HARD GATE: Evidence Manifest Output must "
+            "contain a 'Coordinator-side enforcement' note pointing at the "
+            "mechanical gate in commands/implement.md STEP 8 (Issue #1055)."
+        )
+
+        # The cross-reference must mention STEP 8 explicitly
+        assert "STEP 8" in text, (
+            "agents/implementer.md HARD GATE: Evidence Manifest Output "
+            "cross-reference must mention STEP 8 explicitly so the agent "
+            "knows where the coordinator-side gate lives (Issue #1055)."
+        )
+
+        # The cross-reference must reference Issue #1055 inline
+        assert "#1055" in text, (
+            "agents/implementer.md HARD GATE: Evidence Manifest Output "
+            "cross-reference must reference Issue #1055 inline so the "
+            "motivation for the mechanical conversion is discoverable."
+        )

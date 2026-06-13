@@ -1085,6 +1085,56 @@ Plan-Implementation Alignment Check:
 - ❌ Skipping this gate
 - ❌ Treating >50% divergence as acceptable and continuing
 
+#### OUTPUT VALIDATION GATE: Evidence Manifest
+
+After tests pass and the Plan-Implementation Alignment gate succeeds, you MUST verify that the implementer emitted the structured Evidence Manifest table required by the implementer agent spec (`agents/implementer.md` HARD GATE: Evidence Manifest Output). Prior to Issue #1055 this gate was prompt-advisory only — the reviewer for cluster batch #1022 flagged the missing manifest but the coordinator advanced through STEP 8+ without blocking. This subsection converts that advisory check into a mechanical coordinator-side gate (#1055).
+
+**Mode activation** — this gate is REQUIRED in **full pipeline mode only**. It does NOT apply to `--light` mode and does NOT apply to `--fix` mode; per the agent spec those modes treat the manifest as RECOMMENDED rather than REQUIRED, so the gate MUST be skipped (with a one-line log: "Evidence Manifest gate skipped: mode=light|fix (#1055)").
+
+**Step 1 — Locate marker substring**
+
+You MUST search the full implementer output text for the Evidence Manifest table header marker:
+
+```
+| File | State | Verification Signal |
+```
+
+The marker is the exact literal table header line. The check is a substring presence test — the implementer agent prompt fixes this header verbatim, so no regex tolerance is needed.
+
+**Step 2 — Decide pass/remediation**
+
+If the marker IS present → PASS. Log: "Evidence Manifest gate: PASS (#1055)". Continue to STEP 8.5. If the marker IS NOT present → enter ONE remediation cycle (see Step 3). After remediation, you MUST re-verify the marker.
+
+**Step 3 — Remediation (max 1 cycle)**
+
+You MUST re-invoke the implementer in REMEDIATION MODE exactly once with this feedback verbatim:
+
+> Your output is missing the required Evidence Manifest table. The agent spec requires a structured manifest with the header `| File | State | Verification Signal |` listing each modified file. Add the manifest and re-output.
+
+The remediation prompt MUST be constructed via `construct_revision_prompt(agent_type="implementer", baseline_context=<full original STEP 8 prompt>, feedback=<missing-manifest feedback above>)` (`from prompt_integrity import construct_revision_prompt`). Direct passing of just the feedback string causes the prompt-integrity hook to fire on shrinkage and block the re-invocation (Issue #1116).
+
+**Step 4 — Post-remediation BLOCK path**
+
+After the single remediation cycle, you MUST re-verify the marker substring in the new implementer output. If the marker is now present → PASS. Log: "Evidence Manifest gate: PASS after 1 remediation cycle (#1055)". Continue to STEP 8.5. If the marker is still absent → BLOCK the pipeline with this exact message:
+
+```
+BLOCKED: Implementer output is missing the Evidence Manifest table after 1 remediation cycle. The agent spec requires this manifest in full pipeline mode (#1055).
+```
+
+You MUST NOT proceed to STEP 8.5. You MUST NOT synthesize the manifest yourself — the coordinator is a dispatcher, not a substitute.
+
+**Step 5 — Output gate report**
+
+```
+Evidence Manifest Gate (#1055):
+  Mode: full | light (skipped) | fix (skipped)
+  Marker present: yes | no | yes-after-remediation
+  Remediation cycles used: 0 | 1
+  Verdict: PASS | BLOCKED
+```
+
+**FORBIDDEN** — In full pipeline mode you MUST NOT proceed past STEP 8 without the implementer's Evidence Manifest table (the advisory-only state was the bug — #1055). You MUST NOT synthesize the manifest yourself, you MUST NOT exceed 1 remediation cycle, you MUST NOT run this gate in `--light` or `--fix` mode, and you MUST NOT treat the reviewer's independent flag as a substitute for this coordinator-side gate (the M1 batch #1022 failure is the canonical counter-example) (#1055).
+
 ### STEP 8.5: Spec-Blind Validation — HARD GATE
 
 **Progress**: Output step banner (STEP 8.5/15 — Spec-Blind Validation, Agent: spec-validator (Opus)). Output agent completion and verdict after.
