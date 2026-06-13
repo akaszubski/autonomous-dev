@@ -3408,7 +3408,8 @@ def _check_pipeline_agent_completions(session_id: str) -> "Optional[str]":
             f"REQUIRED NEXT ACTION: Run the missing agents before committing. "
             f"BYPASS (in order of reliability): "
             f"(1) `touch /tmp/skip_agent_completeness_gate` as a SEPARATE command first, "
-            f"then retry the commit — file-based, works mid-session; "
+            f"then retry the commit — file-based, works mid-session "
+            f"(chaining with && WILL NOT WORK — the hook intercepts compound commands before touch executes); "
             f"(2) export SKIP_AGENT_COMPLETENESS_GATE=1 BEFORE launching claude "
             f"(env vars don't propagate mid-session — Issue #779). (Issue #802)"
         )
@@ -6125,7 +6126,8 @@ def main():
                                                         f"REQUIRED NEXT ACTION: Run the missing agents for the listed issues before committing. "
                                                         f"BYPASS (in order of reliability): "
                                                         f"(1) `touch /tmp/skip_agent_completeness_gate` as a SEPARATE command first, "
-                                                        f"then retry the commit — file-based, works mid-session; "
+                                                        f"then retry the commit — file-based, works mid-session "
+                                                        f"(chaining with && WILL NOT WORK — the hook intercepts compound commands before touch executes); "
                                                         f"(2) export SKIP_AGENT_COMPLETENESS_GATE=1 BEFORE launching claude "
                                                         f"(env vars don't propagate mid-session — Issue #779). (Issue #853)"
                                                     )

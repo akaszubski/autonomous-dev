@@ -209,7 +209,17 @@ def _check_file_bypass() -> bool:
     Returns:
         True if bypass file was found (and consumed), False otherwise.
 
-    Issues: #802
+    **IMPORTANT — Chained && does not work**: The hook intercepts the entire
+    compound Bash command before any part of it executes. If you chain the
+    touch and git commit with ``&&`` (e.g.,
+    ``touch /tmp/skip_agent_completeness_gate && git commit -m "..."``), the
+    hook's pre-tool phase runs first and checks for the bypass file — but
+    ``touch`` has not executed yet, so the file is absent and the bypass has
+    no effect. You MUST run ``touch /tmp/skip_agent_completeness_gate`` as a
+    SEPARATE Bash call first, wait for it to complete, then run ``git commit``
+    as a second, separate Bash call. Chaining with ``&&`` WILL NOT WORK.
+
+    Issues: #802, #1212
     """
     try:
         if SKIP_GATE_FILE.exists():
@@ -1159,6 +1169,12 @@ def verify_pipeline_agent_completions(
     as a separate command, then retry — file-based, works mid-session;
     (2) export SKIP_AGENT_COMPLETENESS_GATE=1 BEFORE launching claude (env vars
     don't propagate mid-session — Issue #779). (Issue #802)
+
+    **IMPORTANT — Chaining with && WILL NOT WORK**: Run
+    ``touch /tmp/skip_agent_completeness_gate`` as a SEPARATE Bash call first,
+    then retry ``git commit`` in a second Bash call. The hook intercepts the
+    entire compound command before touch executes, so the bypass file is absent
+    when the gate checks it. (Issue #1212)
 
     Args:
         session_id: The pipeline session identifier.
