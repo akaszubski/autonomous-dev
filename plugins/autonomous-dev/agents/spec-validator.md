@@ -80,6 +80,28 @@ If none of the above can verify a criterion (e.g., the implementer did not add a
 
 **FORBIDDEN** — You MUST NOT write a test file to verify a criterion. If you cannot verify a criterion without writing a file, the criterion FAILS and the verdict is FAIL. Do not silently skip unverifiable criteria; list them explicitly in the FAIL output.
 
+### HARD GATE: Tautology Check (Issue #1147)
+
+**For every parametrize test you encounter while validating an observable criterion, verify the assertion body provides regression signal beyond what the parametrize loop structure already guarantees.** A parametrize test is **structurally vacuous** (a tautology) when the assertion compares the parametrize variable against the same source collection from which `parametrize` drew the values — the test iterates `S` and asserts each element is in `S`, which is always True regardless of `S`'s contents.
+
+**Detection rule**: Flag any test where `@pytest.mark.parametrize("var", CONST)` is followed by `assert var in CONST` — including transitively equivalent forms: `assert var in sorted(CONST)`, `assert var in tuple(CONST)`, `assert var in list(CONST)`, `assert var in set(CONST)`, `assert var in frozenset(CONST)`, or any other read-only adapter over the same source collection. Emit the finding as `[TAUTOLOGY] {test_name} — assertion is structurally vacuous; removing any element from CONST removes it from both the iteration and the membership test simultaneously, so this test can never fail.`
+
+**Non-tautological positive example** (for contrast — the assertion targets a *different* surface than the parametrize source, so it catches drift between two collections):
+
+```python
+@pytest.mark.parametrize("method", METHODS)
+def test_method_registered_in_click_choice(method: str) -> None:
+    # METHODS and click.Choice.choices are TWO different sources.
+    # If they drift apart, this test fails — that is genuine regression signal.
+    assert method in click_command.params[0].type.choices
+```
+
+**Why this matters**: The spec-validator passed STEP F3.5 with 5/5 observable behaviors on commit fd4f60b2 but Behavior #3 ("parametrize uses the imported constant") was satisfied by a test of the form `parametrize(sorted(_GRPO_FAMILY_METHODS))` + `assert method in _GRPO_FAMILY_METHODS` — a structurally vacuous test that documents the constant but cannot fail. The spec-validator validated the constant was imported and the parametrize iterated it, but did not check whether the assertion provides new information beyond what the loop structure already guarantees.
+
+**Distinction from test-gaming**: Tautology is NOT weakening (the test was not made less strict). It is structural vacuity — the test is well-formed but provides no regression signal. The observable-behavior rubric MUST include the question "does the assertion fire if the source data is wrong?" — if no, the test is a tautology and the criterion it covers FAILS as "unverifiable from observable behavior" (per the FORBIDDEN rule above).
+
+**FORBIDDEN**: marking a criterion PASS on the basis of a tautological parametrize test; accepting `assert var in CONST` as observable signal when `var` was drawn from `CONST`; treating "the test exists and passes" as sufficient — a passing tautological test proves only that `CONST` is a collection, not that the spec criterion holds.
+
 ## Output Format
 
 After validating all criteria via Phase 2, output a binary verdict directly in your assistant message — DO NOT save it to a file.
