@@ -108,6 +108,8 @@ Run plan-critic in a **sequential iterative loop**. Each round is a SEPARATE age
 - **REVISE**: Revise the plan based on feedback. Feed revised plan + critique into next round.
 - **BLOCKED**: Rethink approach. Either revise fundamentally and restart critique loop, or escalate to user.
 
+**Verdict authorship (Issue #1155)**: A `Verdict: PROCEED` line in a freshly-generated plan MUST come from a completed plan-critic round (round-table row, or section header `### Round N (plan-critic, ...)`). A self-assessed verdict from the planner — typically marked `provisional`, `(provisional)`, or `awaits plan-critic` — does NOT satisfy STEP 5.5a's skip condition in `/implement`. Concretely: if you write the plan file with a self-assessment such as `Verdict: PROCEED (provisional) — awaits plan-critic at /implement time`, the `/implement` 5.5a negative filter (Issue #1155) will detect the `provisional` marker, fall through to 5.5b, and invoke plan-critic as if the file did not exist. To make 5.5a skip legitimately, complete the adversarial loop here in STEP 5 and let plan-critic write the final `Verdict: PROCEED` line.
+
 **Score tracking**: Maintain a running table of scores across rounds:
 
 | Round | Verdict | Composite | Assumption | Scope | Existing | Minimalism | Uncertainty |

@@ -1,4 +1,4 @@
-"""Regression tests for /implement pipeline step ordering — Issues #1211, #1148, #1181.
+"""Regression tests for /implement pipeline step ordering — Issues #1211, #1148, #1181, #1210, #1073, #1145, #1155.
 
 Issue #1211: The `unified_pre_tool.py` agent-completeness gate blocks the
 git commit (STEP 13) until `continuous-improvement-analyst` (CIA) has
@@ -20,6 +20,33 @@ partial security-auditor dispatch and ended up dispatching doc-master 98s
 BEFORE security-auditor (session 09f09286 pipeline 1). Fix: LIGHT mode must
 escalate to FULL pipeline when security-sensitive paths are detected; the
 spec must forbid improvising security-auditor inside LIGHT mode.
+
+Issue #1210: The #1285 -> #1286 -> #1287 -> #1288 fix chain on 2026-06-11
+all chased the same PROD writeback failure. Each fix validated green in unit
+tests yet failed in PROD due to test-vs-PROD data divergence. Fix: STEP F4.7
+PROD verification checklist after deploy.
+
+Issue #1073: LIGHT mode deliberately skips plan-critic to trade scrutiny
+for speed. For most LIGHT plans this is correct, but a subset are complex
+enough that the minimalism axis alone would have caught real
+over-engineering (observed in #1072: 24:43 implementer run). Fix: insert
+STEP L2.6 as a budget plan-critic invocation gated on a complexity
+heuristic (plan_word_count > 400 OR estimated_file_changes > 5).
+
+Issue #1145: Plan-critic returned REVISE on the #1142 first plan (composite
+2.0/3.0). The default 3-round budget caught the initial problems but cannot
+catch a revision that addresses one finding while re-introducing another
+under pressure to satisfy the critic's checklist. Fix: for plans touching
+security-sensitive paths (hooks/*.py, lib/quality_persistence_enforcer.py,
+etc.), increase max rounds from 3 to 5.
+
+Issue #1155: The 5.5a skip triggered on the macro plan
+.claude/plans/1260-cycle5-audit-fixes.md which self-assessed its verdict
+as 'PROCEED (provisional)' and included the note 'Awaits plan-critic at
+/implement time.' Fix: 5.5a skip does NOT fire when the plan's Critique
+History contains 'provisional', '(provisional)', or 'awaits plan-critic'
+(case-insensitive). plan.md secondary edit documents the verdict-authorship
+contract.
 
 These tests lock the corrected spec text so that any future edit that
 re-introduces a conflict trips a regression.
@@ -610,4 +637,296 @@ class TestImplementFixProdVerification1210:
             f"(line {f4_line}) and STEP F5 (line {f5_line}) per Issue #1210 "
             f"placement. The PROD verification checklist must run after the "
             f"reviewer/doc-master gate but before CIA dispatch."
+        )
+
+
+# --- Issue #1073: LIGHT mode conditional plan-critic (STEP L2.6) ---
+
+
+def _light_pipeline_full_text(implement_lines: list[str]) -> str:
+    """Return the full LIGHT PIPELINE MODE block (from header to EOF).
+
+    Used by Issue #1073 tests to assert STEP L2.6 prose lives inside the LIGHT
+    pipeline block (not accidentally inserted into the FULL pipeline).
+    """
+    light_start: int | None = None
+    for idx, line in enumerate(implement_lines):
+        if line.startswith("# LIGHT PIPELINE MODE"):
+            light_start = idx
+            break
+    assert light_start is not None, "LIGHT PIPELINE MODE block not found"
+    return "\n".join(implement_lines[light_start:])
+
+
+def _step_l2_6_section_text(implement_lines: list[str]) -> str:
+    """Return the STEP L2.6 section bounded by its header and the next ### header."""
+    start_idx = _find_header_line(implement_lines, "### STEP L2.6:")
+    end_idx = len(implement_lines)
+    # 1-indexed -> 0-indexed for slicing
+    for idx in range(start_idx, len(implement_lines)):
+        if implement_lines[idx].startswith("### STEP") and idx + 1 != start_idx:
+            end_idx = idx
+            break
+    # start_idx is 1-indexed; slice from start_idx-1 to end_idx
+    return "\n".join(implement_lines[start_idx - 1:end_idx])
+
+
+class TestLightModeConditionalPlanCritic1073:
+    """STEP L2.6 must add a budget plan-critic invocation in LIGHT mode (Issue #1073).
+
+    Issue #1073: LIGHT mode (--light) deliberately skips plan-critic for speed.
+    For most light-mode plans this is correct, but a subset are complex enough
+    that the minimalism axis alone would have caught real over-engineering
+    (observed in #1072: implementer ran 24:43, ~8x average, due to a plan that
+    over-abstracted a single-use constant and split a parametrize-shaped test
+    into 13 individual functions).
+
+    Fix #1073: insert STEP L2.6 between STEP L2.5 (Plan Structural Validation)
+    and STEP L3 (Implementer). Activation: plan_word_count > 400 OR
+    estimated_file_changes > 5. Configuration: 1 round, minimalism axis only,
+    Haiku, 60s hard cap. Verdict: PROCEED continues, REVISE re-invokes planner
+    once (no loop), BLOCKED blocks.
+    """
+
+    def test_light_mode_has_step_l2_6_conditional_plan_critic_for_1073(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP L2.6 header must exist inside the LIGHT PIPELINE MODE block (Issue #1073)."""
+        # 1. STEP L2.6 header must appear
+        try:
+            l2_6_line = _find_header_line(implement_lines, "### STEP L2.6:")
+        except AssertionError:
+            pytest.fail(
+                "STEP L2.6 header missing from LIGHT PIPELINE MODE — required by "
+                "Issue #1073 to add a budget plan-critic for complex LIGHT plans."
+            )
+
+        # 2. Must be between STEP L2.5 and STEP L3
+        l2_5_line = _find_header_line(implement_lines, "### STEP L2.5:")
+        l3_line = _find_header_line(implement_lines, "### STEP L3:")
+        assert l2_5_line < l2_6_line < l3_line, (
+            f"STEP L2.6 (line {l2_6_line}) must appear BETWEEN STEP L2.5 "
+            f"(line {l2_5_line}) and STEP L3 (line {l3_line}) per Issue #1073."
+        )
+
+        # 3. STEP L2.6 must live inside the LIGHT PIPELINE MODE block
+        light_text = _light_pipeline_full_text(implement_lines)
+        assert "### STEP L2.6:" in light_text, (
+            "STEP L2.6 must live inside the LIGHT PIPELINE MODE block, not the "
+            "FULL pipeline — Issue #1073 targets LIGHT mode only."
+        )
+
+    def test_step_l2_6_activation_thresholds_for_1073(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP L2.6 prose must reference all four configuration knobs (Issue #1073)."""
+        section = _step_l2_6_section_text(implement_lines)
+
+        # Activation thresholds: word count threshold AND file count threshold
+        assert "400" in section, (
+            "STEP L2.6 must reference the 400-word activation threshold "
+            "(Issue #1073)."
+        )
+        assert "> 5" in section or " 5 " in section or "or 5" in section.lower(), (
+            "STEP L2.6 must reference the 5-file activation threshold "
+            "(Issue #1073)."
+        )
+
+        # Single-axis configuration: minimalism only
+        assert "minimalism" in section.lower(), (
+            "STEP L2.6 must restrict critique to the minimalism axis only "
+            "(Issue #1073)."
+        )
+
+        # Model selection: Haiku for budget
+        assert "haiku" in section.lower(), (
+            "STEP L2.6 must specify model='haiku' for the budget invocation "
+            "(Issue #1073)."
+        )
+
+        # Timeout budget: 60 seconds hard cap
+        assert "60" in section, (
+            "STEP L2.6 must specify a 60-second hard cap (Issue #1073)."
+        )
+
+    def test_step_l2_6_references_issue_1073(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP L2.6 section must reference Issue #1073 inline."""
+        section = _step_l2_6_section_text(implement_lines)
+        assert "#1073" in section, (
+            "STEP L2.6 must reference Issue #1073 inline so the motivation for "
+            "the LIGHT-mode budget plan-critic is discoverable when reading the "
+            "spec."
+        )
+
+
+# --- Issue #1145: Security-sensitive plan-critic rounds escalation (STEP 5.5b) ---
+
+
+def _step_5_5_section_text(implement_lines: list[str]) -> str:
+    """Return the STEP 5.5 section text bounded by its header and STEP 6."""
+    start_idx = _find_header_line(implement_lines, "### STEP 5.5:")
+    end_idx = len(implement_lines)
+    for idx in range(start_idx, len(implement_lines)):
+        if implement_lines[idx].startswith("### STEP 6:") and idx + 1 != start_idx:
+            end_idx = idx
+            break
+    return "\n".join(implement_lines[start_idx - 1:end_idx])
+
+
+class TestSecuritySensitivePlanCriticRounds1145:
+    """STEP 5.5b must escalate plan-critic rounds for security-sensitive plans (Issue #1145).
+
+    Issue #1145: Plan-critic returned REVISE on the #1142 first plan (composite
+    2.0/3.0), catching three independently actionable problems in a single
+    pass. #1142 was a hook modification to unified_pre_tool.py — a
+    security-enforcement file. The default 3-round budget caught the initial
+    problems but cannot catch a revision that addresses finding #1 while
+    re-introducing finding #2 under pressure to satisfy the critic's checklist.
+
+    Fix #1145: when the plan touches security-sensitive paths (hooks/*.py,
+    lib/quality_persistence_enforcer.py, lib/*security*, lib/*auth*,
+    lib/*token*, config/auto_approve_policy.json, templates/settings.*.json),
+    increase the maximum rounds from 3 to 5. The additional rounds fire ONLY
+    if the critic continues to return REVISE — a clean PROCEED still
+    terminates the loop normally.
+    """
+
+    def test_step_5_5b_has_security_sensitive_escalation_for_1145(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 5.5b must contain the 3-to-5 rounds escalation prose with #1145 reference."""
+        section = _step_5_5_section_text(implement_lines)
+
+        # Issue reference must be present
+        assert "#1145" in section, (
+            "STEP 5.5b must reference Issue #1145 inline so the security-sensitive "
+            "escalation motivation is discoverable when reading the spec."
+        )
+
+        # The escalation prose must mention both "3" and "5" rounds
+        lowered = section.lower()
+        assert "3 to 5" in lowered or "from 3 to 5" in lowered, (
+            "STEP 5.5b must contain '3 to 5' or 'from 3 to 5' to describe the "
+            "rounds escalation for security-sensitive plans (Issue #1145)."
+        )
+
+        # The escalation must reference the security-sensitive path patterns
+        # `hooks/*.py` is the canonical example cited in the issue body
+        assert "hooks/*.py" in section, (
+            "STEP 5.5b must reference the `hooks/*.py` pattern as a "
+            "security-sensitive trigger for the 3-to-5 rounds escalation "
+            "(Issue #1145)."
+        )
+
+        # The 5.5d FORBIDDEN block must also block the 3-round cap when
+        # security-sensitive paths are touched
+        assert "cap rounds at 3" in section.lower() or (
+            "rounds at 3" in section.lower() and "#1145" in section
+        ), (
+            "STEP 5.5d FORBIDDEN must include a directive against capping "
+            "rounds at 3 for security-sensitive plans (Issue #1145)."
+        )
+
+
+# --- Issue #1155: Plan-critic skip negative filter (STEP 5.5a) ---
+
+
+class TestPlanCriticSkipNegativeFilter1155:
+    """STEP 5.5a must filter self-assessed provisional verdicts (Issue #1155).
+
+    Issue #1155: The 5.5a skip triggers when a plan contains 'Verdict: PROCEED'.
+    The macro plan at .claude/plans/1260-cycle5-audit-fixes.md self-assessed its
+    verdict as 'PROCEED (provisional)' and included the note 'Awaits plan-critic
+    at /implement time.' The coordinator read the PROCEED marker, applied the
+    skip, and ran without plan-critic — exactly the failure mode this filter
+    prevents.
+
+    Fix #1155: the skip does NOT fire when the plan's Critique History contains
+    'provisional', '(provisional)', or 'awaits plan-critic' (case-insensitive).
+    The plan-critic verdict must come from a completed adversarial round, not
+    from the planner's self-assessment.
+    """
+
+    def test_step_5_5a_has_provisional_negative_filter_for_1155(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 5.5a must contain the negative-filter marker substrings (Issue #1155)."""
+        section = _step_5_5_section_text(implement_lines)
+
+        # The negative filter must reference the three marker substrings
+        # from the Issue #1155 spec.
+        lowered = section.lower()
+        assert "provisional" in lowered, (
+            "STEP 5.5a negative filter must reference the `provisional` marker "
+            "substring (Issue #1155)."
+        )
+        assert "awaits plan-critic" in lowered, (
+            "STEP 5.5a negative filter must reference the `awaits plan-critic` "
+            "marker substring (Issue #1155)."
+        )
+
+        # Inline reference to Issue #1155 so a future reader can find motivation
+        assert "#1155" in section, (
+            "STEP 5.5a must reference Issue #1155 inline so the motivation for "
+            "the negative filter is discoverable when reading the spec."
+        )
+
+        # The 5.5d FORBIDDEN block must include a directive that blocks the
+        # provisional-verdict skip
+        assert "self-assessed" in lowered or "not adversarial" in lowered, (
+            "STEP 5.5d FORBIDDEN must include a directive blocking the skip "
+            "on self-assessed provisional verdicts (Issue #1155)."
+        )
+
+
+PLAN_MD = REPO_ROOT / "plugins" / "autonomous-dev" / "commands" / "plan.md"
+
+
+@pytest.fixture(scope="module")
+def plan_text() -> str:
+    """Return the plan.md text content (cached per module)."""
+    assert PLAN_MD.exists(), f"Expected {PLAN_MD} to exist"
+    return PLAN_MD.read_text()
+
+
+class TestPlanMdVerdictAuthorship1155:
+    """plan.md must document verdict authorship — only plan-critic issues PROCEED (#1155)."""
+
+    def test_plan_md_documents_verdict_authorship_for_1155(
+        self, plan_text: str
+    ) -> None:
+        """plan.md must contain the verdict-authorship note referencing #1155.
+
+        Issue #1155 secondary edit: a `Verdict: PROCEED` line must come from a
+        completed plan-critic round, not from the planner's self-assessment.
+        plan.md is the natural location to document this contract because it
+        owns the round protocol that produces the verdict.
+        """
+        # The note must reference Issue #1155
+        assert "#1155" in plan_text, (
+            "plan.md must reference Issue #1155 inline so the verdict-authorship "
+            "contract is discoverable from the planner spec."
+        )
+
+        # The note must explicitly call out the self-assessed / planner-authored
+        # case as illegitimate
+        lowered = plan_text.lower()
+        assert "self-assessed" in lowered or "self-assessment" in lowered, (
+            "plan.md verdict-authorship note must distinguish self-assessed "
+            "verdicts from adversarial-round verdicts (Issue #1155)."
+        )
+
+        # The note must reference the three marker substrings that 5.5a's
+        # negative filter detects so a planner knows what NOT to write
+        assert "provisional" in lowered, (
+            "plan.md verdict-authorship note must reference `provisional` so "
+            "the planner knows this marker triggers the 5.5a fall-through "
+            "(Issue #1155)."
+        )
+        assert "awaits plan-critic" in lowered, (
+            "plan.md verdict-authorship note must reference `awaits plan-critic` "
+            "so the planner knows this marker triggers the 5.5a fall-through "
+            "(Issue #1155)."
         )

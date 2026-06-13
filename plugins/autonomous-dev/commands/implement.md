@@ -768,6 +768,8 @@ record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM)
 
 If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proceed to 5.5b.
 
+**Provisional-verdict negative filter (Issue #1155)**: The skip does NOT fire when the plan file's Critique History section contains any of `provisional`, `(provisional)`, or `awaits plan-critic` (case-insensitive substring match). These markers indicate the verdict was self-assessed by the planner, not issued by an adversarial plan-critic round. Concretely: the macro plan at `.claude/plans/1260-cycle5-audit-fixes.md` self-assessed its own verdict as `PROCEED (provisional)` and included the explicit note `Awaits plan-critic at /implement time.` The 5.5a skip read the `PROCEED` marker, applied the skip, and ran without adversarial review — exactly the failure mode this filter prevents. When the negative filter matches, fall through to 5.5b and invoke plan-critic as if the file did not exist. Rationale: a `Verdict: PROCEED` line in a freshly-generated plan MUST come from a completed plan-critic round (round-table row or section header `### Round N (plan-critic, ...)`), not from the planner's self-assessment.
+
 #### 5.5b — Budget Plan-Critic Invocation
 
 **When no pre-validated plan exists**, invoke the plan-critic agent with a constrained budget:
@@ -775,6 +777,8 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 - **Rounds**: 1 (single pass, no iterative critique)
 - **Axes**: 4 only — Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test
 - **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 4 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test. Output verdict: PROCEED, REVISE, or BLOCKED." (When running under --batch, include the BATCH CONTEXT block (worktree path + issue number) per implement-batch.md STEP B3.)
+
+**Security-sensitive escalation (Issue #1145)**: If the plan references any of `hooks/*.py`, `lib/quality_persistence_enforcer.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `config/auto_approve_policy.json`, or `templates/settings.*.json`, increase the maximum rounds from 3 to 5 rounds. The additional rounds fire ONLY if the critic continues to return REVISE — a clean PROCEED at any round still terminates the loop normally. Rationale: security-enforcement files (#1142 was a hook modification to `unified_pre_tool.py`) carry higher cost when a revision addresses one finding but re-introduces another under pressure to satisfy the critic's checklist; the extra two rounds amortize against catching that regression. Cost: one or two additional Sonnet invocations (~165s, ~$0.10 each).
 
 **Parse verdict from plan-critic output**:
 
@@ -813,6 +817,8 @@ If any requirement is missing:
 - ❌ You MUST NOT accept a plan that has no acceptance criteria section
 - ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/`
 - ❌ You MUST NOT skip structural validation for any reason (it always runs, even with a pre-validated plan)
+
+**Additional FORBIDDEN (Issues #1145, #1155)**: You MUST NOT cap rounds at 3 when the plan touches security-sensitive paths — go to 5 if the critic continues to return REVISE (#1145). You MUST NOT skip plan-critic on a plan whose Critique History contains `provisional`, `(provisional)`, or `awaits plan-critic` — the verdict is self-assessed, not adversarial (#1155).
 
 ### STEP 6: Generate Acceptance Tests (default mode only)
 
@@ -1702,6 +1708,41 @@ Resolve by providing a more specific feature description or invoking /implement 
 - ❌ You MUST NOT accept planner output with 0 specific file paths
 - ❌ You MUST NOT proceed to STEP L3 when the plan contains only vague language like "update relevant files" without naming specific paths
 - ❌ You MUST NOT skip structural validation for any reason (time pressure, simple feature, single-file change)
+
+### STEP L2.6: Conditional Plan-Critic for Complex Plans (Issue #1073)
+
+**Progress**: Output step banner only when complexity threshold is met (otherwise output the SKIP line).
+
+**Rationale (Issue #1073)**: LIGHT mode deliberately skips plan-critic to trade scrutiny for speed. For most light-mode use cases this is correct. However, a subset of light-mode plans are structurally complex enough that the minimalism axis alone would have caught real over-engineering before STEP L3 began. (Observed in the #1072 pipeline on 2026-05-08: implementer ran 24:43, ~8x average fix-mode duration; the plan over-abstracted a single-use prefix constant and split a parametrize-shaped test into 13 individual functions — both would have been flagged by minimalism.) This step adds a **budget plan-critic invocation** triggered by a complexity heuristic. It runs at most ONE round on the highest-signal axis only.
+
+**Activation heuristic** — Compute the plan word count and the number of files the plan proposes to create or modify. If EITHER condition holds, proceed to invocation:
+
+```
+if plan_word_count > 400 OR estimated_file_changes > 5:
+    invoke plan-critic
+```
+
+Estimate `estimated_file_changes` by counting distinct file paths in the plan that are marked CREATE or MODIFY (or are listed in a "Files to Create/Modify" section). Estimate `plan_word_count` via standard whitespace tokenization on the plan body.
+
+**Fast-path skip** — When NEITHER condition is met, output the skip line and continue to STEP L3:
+
+```
+STEP L2.6: SKIPPED — plan within complexity threshold (N words, M files).
+```
+
+**Plan-critic invocation** (only when activation heuristic fires). Configuration: **Rounds** 1 (single pass, NOT the 3–5 of full mode); **Axes** `["minimalism"]` (single highest-signal axis — the residual that motivated this step was over-abstraction, which is the minimalism axis's domain); **Model** `haiku` (cheap, fast — this is a budget invocation, not the full Opus-driven loop); **Timeout budget** 60 seconds hard cap.
+
+**Agent**(subagent_type="plan-critic", model="haiku") — Pass planner output. Instruct: "BUDGET PLAN-CRITIC (LIGHT mode, Issue #1073). Single-pass critique on the MINIMALISM axis only. Do NOT critique on assumption-audit, existing-solution-search, operational-integration-test, or uncertainty-quantification. Output verdict: PROCEED, REVISE, or BLOCKED. Hard timeout: 60 seconds." Cost budget: ~30–60 seconds added to complex LIGHT runs.
+
+**Verdict handling**. **PROCEED** → continue to STEP L3. **REVISE** → pass the plan-critic feedback to the planner, re-invoke planner ONCE with the feedback, accept the revised plan, continue to STEP L3. Do NOT loop — this is a single-revision budget invocation, not the full convergence loop. The re-invocation prompt MUST use `construct_revision_prompt(agent_type="planner", baseline_context=<full original STEP L2 prompt>, feedback=<plan-critic critique text>)` (`from prompt_integrity import construct_revision_prompt`) so prompt-integrity does not block on shrinkage. **BLOCKED** → BLOCK the pipeline with message:
+
+```
+BLOCKED (STEP L2.6, Issue #1073): Plan-critic returned BLOCKED verdict in LIGHT mode budget invocation.
+Reason: {plan-critic feedback}
+Resolution: Revise the feature description or run /implement without --light to get the full plan-critic loop.
+```
+
+**FORBIDDEN at STEP L2.6 (Issue #1073)**: You MUST NOT invoke plan-critic when neither activation condition is met (fast-path skip is mandatory below the threshold — invoking when not needed inverts the LIGHT-mode speed trade-off); you MUST NOT escalate beyond 1 round, add critique axes beyond `minimalism`, or use any model other than `haiku` (Sonnet/Opus are the FULL pipeline's tools).
 
 ### STEP L3: Implementer + Test Gate — HARD GATE
 
