@@ -69,7 +69,7 @@ import shlex
 import sys
 import os
 from pathlib import Path
-from typing import Dict, Tuple, List, Optional
+from typing import Any, Dict, Tuple, List, Optional
 
 # Module-level session_id extracted from hook stdin (set in main()).
 # Logging functions fall back to this when CLAUDE_SESSION_ID env var is absent.
@@ -216,6 +216,18 @@ except Exception:
     _is_adev_project_fn = None  # Fallback: fail closed (always enforce)
 
 _REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
+
+# Issue #1178: Prompt-integrity recovery telemetry — paired block + recovery
+# events written to hook-blocks.jsonl via log_block_event. The classifier is
+# inlined at the emission site (no helper); this constant only encodes the
+# substring -> category mapping in priority order.
+_PI_CATEGORY_MAP = (
+    ("shrank", "shrinkage_pct_over_threshold"),
+    ("slot", "slot_missing"),
+    ("below baseline", "word_count_below_baseline"),
+)
+_PI_BLOCK_EVENT_TYPE = "prompt_integrity_block"
+_PI_RECOVERY_EVENT_TYPE = "prompt_integrity_recovery"
 
 
 # Phase 1 (Issue #1142): defensive import of edit_tier_classifier for the
@@ -4250,7 +4262,12 @@ def _check_deny_cache(file_path: str, *, window_seconds: int = 60) -> bool:
     return False
 
 
-def _record_agent_denial(agent_type: str) -> None:
+def _record_agent_denial(
+    agent_type: str,
+    *,
+    block_event_id: "Optional[str]" = None,
+    block_timestamp_iso: "Optional[str]" = None,
+) -> None:
     """Record that an agent invocation was denied by prompt integrity (Issue #750).
 
     Writes a JSON file keyed by session_id so subsequent Write/Edit calls
@@ -4262,6 +4279,12 @@ def _record_agent_denial(agent_type: str) -> None:
 
     Args:
         agent_type: The agent type that was denied (e.g. 'implementer').
+        block_event_id: Optional uuid4 identifier paired with the
+            ``prompt_integrity_block`` telemetry row (Issue #1178). When set,
+            the recovery emission joins back to the original block via this id.
+        block_timestamp_iso: Optional ISO-8601 UTC timestamp captured at
+            block emission time (Issue #1178). When set, the recovery
+            emission computes block->recovery latency from this anchor.
     """
     import json as _json
     import tempfile as _tempfile
@@ -4272,6 +4295,13 @@ def _record_agent_denial(agent_type: str) -> None:
             "timestamp": _time.time(),
             "session_id": _session_id,
         }
+        # Issue #1178: telemetry fields are additive. _check_agent_denial only
+        # reads agent_type/session_id/timestamp; the new helpers below read
+        # the full dict. Unknown-key safety is verified by regression test.
+        if block_event_id is not None:
+            state["block_event_id"] = block_event_id
+        if block_timestamp_iso is not None:
+            state["block_timestamp_iso"] = block_timestamp_iso
         state_path = os.path.join(AGENT_DENY_STATE_DIR, f"adev-agent-deny-{_session_id}.json")
         # Path confinement: verify resolved path stays within AGENT_DENY_STATE_DIR
         resolved = os.path.realpath(state_path)
@@ -4336,6 +4366,156 @@ def _check_agent_denial(*, window_seconds: int = AGENT_DENY_TTL) -> "Optional[st
         return state.get("agent_type", "")
     except Exception:
         return None  # Fail-open
+
+
+def _read_agent_denial_record() -> "Optional[Dict[str, Any]]":
+    """Read the full agent-denial state dict for the current session (Issue #1178).
+
+    Mirrors ``_check_agent_denial`` for path resolution and session-id
+    matching, but returns the full state dict (including #1178 telemetry
+    fields ``block_event_id`` and ``block_timestamp_iso``) instead of just
+    the agent_type. Used by the recovery emission path to compute
+    block->recovery latency.
+
+    Fail-open: returns None on missing file, parse error, session mismatch,
+    or path-confinement violation.
+
+    Returns:
+        The full state dict, or None on any error / no record.
+    """
+    import json as _json
+    try:
+        state_path = os.path.join(
+            AGENT_DENY_STATE_DIR, f"adev-agent-deny-{_session_id}.json"
+        )
+        resolved = os.path.realpath(state_path)
+        base = os.path.realpath(AGENT_DENY_STATE_DIR)
+        if not resolved.startswith(base + os.sep) and resolved != base:
+            return None
+        if not os.path.exists(state_path):
+            return None
+        with open(state_path) as f:
+            state = _json.load(f)
+        if not isinstance(state, dict):
+            return None
+        if state.get("session_id") != _session_id:
+            return None
+        return state
+    except Exception:
+        return None
+
+
+def _consume_agent_denial_record() -> None:
+    """Delete the agent-denial state file after a successful recovery (Issue #1178).
+
+    Enforces the single-emit invariant: once a ``prompt_integrity_recovery``
+    event has been written for a given block, the denial state must be
+    cleared so subsequent allow-path invocations do not re-emit.
+
+    Fail-open: silently ignores OSError (e.g. file already removed).
+    """
+    try:
+        state_path = os.path.join(
+            AGENT_DENY_STATE_DIR, f"adev-agent-deny-{_session_id}.json"
+        )
+        resolved = os.path.realpath(state_path)
+        base = os.path.realpath(AGENT_DENY_STATE_DIR)
+        if not resolved.startswith(base + os.sep) and resolved != base:
+            return
+        if os.path.exists(state_path):
+            os.unlink(state_path)
+    except Exception:
+        pass
+
+
+# Issue #1178: regex for extracting the three numerics from a typical
+# prompt-integrity deny reason, e.g.
+#   "Prompt for 'researcher-local' shrank 27.6% from baseline (399 words -> 289 words)"
+# Capture groups: (1) shrinkage percent, (2) baseline words, (3) current words.
+# The arrow byte may be ASCII "->", a literal unicode "->", or a UTF-8 right-arrow.
+_PI_NUMERICS_RE = re.compile(
+    r"shrank\s+([0-9]+(?:\.[0-9]+)?)\s*%[^()]*\(\s*([0-9]+)\s*words\s*[^0-9]+\s*([0-9]+)\s*words",
+    re.IGNORECASE,
+)
+
+
+def _parse_pi_numerics(
+    reason: str,
+) -> "Tuple[Optional[float], Optional[int], Optional[int]]":
+    """Extract (shrinkage_pct, baseline_words, current_words) from a PI reason (Issue #1178).
+
+    Fail-open: returns ``(None, None, None)`` on any parse failure. Never raises.
+
+    Args:
+        reason: The deny reason string emitted by ``validate_prompt_integrity``.
+
+    Returns:
+        Tuple of (shrinkage_pct: float|None, baseline_words: int|None,
+        current_words: int|None). Any element that could not be parsed is None.
+    """
+    try:
+        if not isinstance(reason, str):
+            return (None, None, None)
+        m = _PI_NUMERICS_RE.search(reason)
+        if m is None:
+            return (None, None, None)
+        try:
+            pct = float(m.group(1))
+        except (TypeError, ValueError):
+            pct = None
+        try:
+            baseline = int(m.group(2))
+        except (TypeError, ValueError):
+            baseline = None
+        try:
+            current = int(m.group(3))
+        except (TypeError, ValueError):
+            current = None
+        return (pct, baseline, current)
+    except Exception:
+        return (None, None, None)
+
+
+def _emit_prompt_integrity_event(
+    event_type: str,
+    *,
+    agent_type: str,
+    block_event_id: str,
+    **kwargs: "Any",
+) -> None:
+    """Emit prompt-integrity telemetry row to hook-blocks.jsonl (Issue #1178).
+
+    Thin wrapper around ``log_block_event`` with privacy gating: the
+    ``block_reason_detail`` field is stripped unless the
+    ``HOOK_TELEMETRY_VERBOSE=1`` env var is set. Never raises — telemetry
+    must never break the underlying hook decision path.
+
+    Args:
+        event_type: One of ``_PI_BLOCK_EVENT_TYPE`` or
+            ``_PI_RECOVERY_EVENT_TYPE``.
+        agent_type: The agent type involved (e.g. ``"researcher-local"``).
+        block_event_id: uuid4 string joining the block and recovery rows.
+        **kwargs: Additional fields to include in the metadata payload.
+    """
+    try:
+        metadata = {
+            "event_type": event_type,
+            "block_event_id": block_event_id,
+            "agent_type": agent_type,
+            "session_id": _session_id,
+        }
+        metadata.update(kwargs)
+        if os.environ.get("HOOK_TELEMETRY_VERBOSE") != "1":
+            metadata.pop("block_reason_detail", None)
+        log_block_event(
+            hook_name="unified_pre_tool.py",
+            decision_shape="dict",
+            reason=f"{event_type}:{agent_type}",
+            metadata=metadata,
+        )
+    except Exception:
+        # Telemetry must never break the hook decision path.
+        pass
 
 
 def _check_bash_state_deletion(command: str) -> "Optional[Tuple[str, str]]":
@@ -6309,9 +6489,40 @@ def main():
             if tool_name in AGENT_TOOL_NAMES:
                 pi_decision, pi_reason = validate_prompt_integrity(tool_name, tool_input)
                 if pi_decision == "deny":
-                    # Issue #750: Record denial so subsequent Write/Edit workarounds are blocked
+                    # Issue #1178: paired block + recovery telemetry. Generate a
+                    # uuid4 block_event_id and capture a UTC anchor timestamp;
+                    # the recovery path joins back via the same id and computes
+                    # latency from this anchor.
+                    import uuid as _uuid
+                    from datetime import datetime as _dt, timezone as _tz
                     _pi_agent_type = tool_input.get("subagent_type", "")
-                    _record_agent_denial(_pi_agent_type)
+                    _block_event_id = str(_uuid.uuid4())
+                    _block_ts_iso = _dt.now(_tz.utc).isoformat()
+                    _pi_reason_lower = pi_reason.lower() if isinstance(pi_reason, str) else ""
+                    _category = next(
+                        (cat for substr, cat in _PI_CATEGORY_MAP if substr in _pi_reason_lower),
+                        "other",
+                    )
+                    _shrink_pct, _baseline_w, _current_w = _parse_pi_numerics(pi_reason)
+                    _emit_prompt_integrity_event(
+                        _PI_BLOCK_EVENT_TYPE,
+                        agent_type=_pi_agent_type,
+                        block_event_id=_block_event_id,
+                        timestamp=_block_ts_iso,
+                        block_reason_category=_category,
+                        shrinkage_pct=_shrink_pct,
+                        baseline_words=_baseline_w,
+                        current_words=_current_w,
+                        retry_count=0,
+                        block_reason_detail=pi_reason,
+                    )
+                    # Issue #750: Record denial so subsequent Write/Edit workarounds are blocked.
+                    # Issue #1178: persist block_event_id + ISO anchor for the recovery emission.
+                    _record_agent_denial(
+                        _pi_agent_type,
+                        block_event_id=_block_event_id,
+                        block_timestamp_iso=_block_ts_iso,
+                    )
                     _log_pretool_activity(tool_name, tool_input, "deny", pi_reason)
                     output_decision(
                         "deny", pi_reason,
@@ -6322,6 +6533,38 @@ def main():
                         ),
                     )
                     sys.exit(0)
+
+            # Layer 5 (continued): Prompt-integrity recovery emission (Issue #1178).
+            # If we reach this point with an Agent dispatch, pi_decision != "deny"
+            # (the deny branch sys.exit'd above). If a denial record exists for the
+            # same agent_type in this session, this dispatch IS the recovery — emit
+            # the paired recovery row and consume the state file to enforce the
+            # single-emit invariant.
+            if tool_name in AGENT_TOOL_NAMES:
+                _denial_record = _read_agent_denial_record()
+                if _denial_record and _denial_record.get("agent_type") == tool_input.get(
+                    "subagent_type", ""
+                ):
+                    from datetime import datetime as _dt, timezone as _tz
+                    _block_ts_iso = _denial_record.get("block_timestamp_iso")
+                    _block_event_id = _denial_record.get("block_event_id")
+                    if _block_ts_iso and _block_event_id:
+                        _now = _dt.now(_tz.utc)
+                        try:
+                            _block_dt = _dt.fromisoformat(_block_ts_iso)
+                            _latency_ms = int((_now - _block_dt).total_seconds() * 1000)
+                        except Exception:
+                            _latency_ms = None
+                        _emit_prompt_integrity_event(
+                            _PI_RECOVERY_EVENT_TYPE,
+                            agent_type=_denial_record.get("agent_type", ""),
+                            block_event_id=_block_event_id,
+                            timestamp=_now.isoformat(),
+                            recovery_strategy="template_reload+reconstruct",
+                            retry_count=1,
+                            latency_ms_from_block_to_recovery=_latency_ms,
+                        )
+                        _consume_agent_denial_record()  # single-emit invariant
 
             # Run extensions even for native tools
             ext_decision, ext_reason = _run_extensions(tool_name, tool_input)

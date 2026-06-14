@@ -95,6 +95,133 @@ class TimingFinding:
     recommendation: str = ""
 
 
+@dataclass
+class PromptIntegrityRecovery:
+    """A paired prompt-integrity block + recovery, joined by block_event_id (Issue #1178).
+
+    Captures the latency between a ``prompt_integrity_block`` deny decision and
+    the matching ``prompt_integrity_recovery`` allow decision after the
+    coordinator reloads the full agent template and re-dispatches.
+
+    Attributes:
+        block_event_id: uuid4 string joining the block and recovery rows.
+        agent_type: The agent type that was blocked then recovered.
+        block_timestamp_iso: ISO-8601 UTC timestamp of the original block.
+        recovery_timestamp_iso: ISO-8601 UTC timestamp of the recovery allow.
+        latency_ms: Block-to-recovery wall-clock latency in milliseconds.
+        block_reason_category: Categorical reason (e.g. shrinkage_pct_over_threshold).
+    """
+
+    block_event_id: str
+    agent_type: str
+    block_timestamp_iso: str
+    recovery_timestamp_iso: str
+    latency_ms: int
+    block_reason_category: str
+
+
+def load_prompt_integrity_events(log_path: Path) -> list[dict]:
+    """Read prompt-integrity rows from ``.claude/logs/hook-blocks.jsonl`` (Issue #1178).
+
+    Filters rows where ``metadata.event_type`` starts with
+    ``"prompt_integrity_"``. Missing file returns ``[]``; malformed JSON
+    lines are silently skipped so a single corrupted row does not break
+    the whole analysis.
+
+    Args:
+        log_path: Absolute path to ``hook-blocks.jsonl``.
+
+    Returns:
+        A list of full event dicts (with top-level ``metadata`` preserved).
+    """
+    if not log_path.exists():
+        return []
+    rows: list[dict] = []
+    try:
+        with log_path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                metadata = event.get("metadata")
+                if not isinstance(metadata, dict):
+                    continue
+                event_type = metadata.get("event_type", "")
+                if not isinstance(event_type, str):
+                    continue
+                if event_type.startswith("prompt_integrity_"):
+                    rows.append(event)
+    except OSError:
+        return []
+    return rows
+
+
+def extract_prompt_integrity_recoveries(
+    events: list[dict],
+) -> tuple[list[PromptIntegrityRecovery], int]:
+    """Pair prompt_integrity_block and prompt_integrity_recovery rows by id (Issue #1178).
+
+    O(1) pairing via dict keyed on ``block_event_id``. First pass builds a
+    block index; second pass walks recovery rows and emits a paired
+    ``PromptIntegrityRecovery`` for each match. Recovery rows without a
+    matching block are ignored (telemetry must not invent data). Block
+    rows without a matching recovery contribute to the second return value.
+
+    Args:
+        events: List of event dicts from ``load_prompt_integrity_events``.
+
+    Returns:
+        Tuple of (paired_recoveries, blocked_without_recovery).
+    """
+    blocks_by_id: dict[str, dict] = {}
+    recoveries_by_id: dict[str, dict] = {}
+
+    for event in events:
+        metadata = event.get("metadata") or {}
+        event_type = metadata.get("event_type", "")
+        block_event_id = metadata.get("block_event_id")
+        if not isinstance(block_event_id, str) or not block_event_id:
+            continue
+        if event_type == "prompt_integrity_block":
+            blocks_by_id[block_event_id] = metadata
+        elif event_type == "prompt_integrity_recovery":
+            recoveries_by_id[block_event_id] = metadata
+
+    paired: list[PromptIntegrityRecovery] = []
+    for block_event_id, recovery_meta in recoveries_by_id.items():
+        block_meta = blocks_by_id.get(block_event_id)
+        if block_meta is None:
+            continue
+        latency_raw = recovery_meta.get("latency_ms_from_block_to_recovery")
+        try:
+            latency_ms = int(latency_raw) if latency_raw is not None else 0
+        except (TypeError, ValueError):
+            latency_ms = 0
+        paired.append(
+            PromptIntegrityRecovery(
+                block_event_id=block_event_id,
+                agent_type=str(recovery_meta.get("agent_type", "")),
+                block_timestamp_iso=str(block_meta.get("timestamp", "")),
+                recovery_timestamp_iso=str(recovery_meta.get("timestamp", "")),
+                latency_ms=latency_ms,
+                block_reason_category=str(
+                    block_meta.get("block_reason_category", "other")
+                ),
+            )
+        )
+
+    blocked_without_recovery = sum(
+        1 for block_id in blocks_by_id if block_id not in recoveries_by_id
+    )
+    return paired, blocked_without_recovery
+
+
 def extract_agent_timings(events: list[PipelineEvent]) -> list[AgentTiming]:
     """Extract paired agent timings from pipeline events.
 
@@ -480,12 +607,23 @@ def analyze_timings(
 def format_timing_report(
     timings: list[AgentTiming],
     findings: list[TimingFinding],
+    *,
+    recoveries: "Optional[list[PromptIntegrityRecovery]]" = None,
+    blocked_without_recovery: int = 0,
 ) -> str:
     """Format timing data and findings as a Markdown report.
 
     Args:
         timings: List of AgentTiming from the current run.
         findings: List of TimingFinding from analysis.
+        recoveries: Optional list of PromptIntegrityRecovery rows
+            (Issue #1178). When non-None and non-empty, a new
+            "Prompt-Integrity Recovery Overhead" section is appended.
+            Defaults to None for backward-compatibility with all existing
+            callers.
+        blocked_without_recovery: Count of prompt_integrity_block events
+            that had no matching recovery row. Reported alongside
+            recoveries when the recovery section is rendered.
 
     Returns:
         Markdown-formatted report string with timing table and findings.
@@ -531,6 +669,38 @@ def format_timing_report(
     total_duration = sum(t.wall_clock_seconds for t in timings)
     lines.append("")
     lines.append(f"**Total pipeline duration**: {total_duration:.1f}s")
+
+    # Issue #1178: Prompt-integrity recovery overhead section. Default-None
+    # preserves backward-compat for the dozens of existing callers.
+    if recoveries:
+        total_ms = sum(r.latency_ms for r in recoveries)
+        mean_ms = total_ms // len(recoveries) if recoveries else 0
+
+        def _fmt_ms(ms: int) -> str:
+            seconds = ms // 1000
+            minutes = seconds // 60
+            remainder = seconds % 60
+            if minutes > 0:
+                return f"{minutes}m {remainder}s ({ms:,} ms)"
+            return f"{seconds}s ({ms:,} ms)"
+
+        agent_counts: dict[str, int] = {}
+        for r in recoveries:
+            agent_counts[r.agent_type] = agent_counts.get(r.agent_type, 0) + 1
+        breakdown = ", ".join(
+            f"{agent}={count}"
+            for agent, count in sorted(agent_counts.items())
+        )
+
+        lines.append("")
+        lines.append("## Prompt-Integrity Recovery Overhead")
+        lines.append(f"- Total recoveries: {len(recoveries)}")
+        lines.append(f"- Total overhead: {_fmt_ms(total_ms)}")
+        lines.append(f"- Mean per recovery: {_fmt_ms(mean_ms)}")
+        lines.append(
+            f"- Blocks without observed recovery: {blocked_without_recovery}"
+        )
+        lines.append(f"- Breakdown by agent: {breakdown}")
 
     return "\n".join(lines)
 

@@ -119,6 +119,13 @@ log is silenced. The deprecated `HOOK_RECOVERY_DISABLED=1` env var is
 honored as an alias (with a one-time stderr warning) so existing
 rollback procedures continue to work.
 
+**Verbose mode** (Issue #1178): `HOOK_TELEMETRY_VERBOSE=1` adds a
+`block_reason_detail` field to `prompt_integrity_block` event metadata,
+containing the raw deny-reason string from the prompt-integrity gate.
+Omitted by default for privacy (deny reasons may contain fragments of
+agent prompts). Safe to enable in local debugging sessions; do not set
+permanently in shared or CI environments.
+
 **Deprecation timeline for `hook-recovery.jsonl`**:
 
 - Now (Wave 1 — #972): Writes go to `hook-blocks.jsonl`; reads check
