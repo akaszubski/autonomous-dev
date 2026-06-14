@@ -358,19 +358,57 @@ def _compute_duration_ms() -> int:
     return 0
 
 
-# Shape mirrors conversation_archiver._extract_metadata (str-content legacy + list-of-blocks modern)
-def _count_words_in_transcript(transcript_path: "Path | str") -> int:
-    """Count total words across all assistant turns in a JSONL transcript.
+# Issue #1179: transcript-flush settling threshold. Reads below this word
+# count are suspected to be racing Claude Code's async JSONL write; we
+# poll-until-stable and re-read once.
+_TRANSCRIPT_FLUSH_THRESHOLD_WORDS = 10
 
-    Handles both content shapes:
-    - str-content (legacy): ``{"type": "assistant", "message": {"content": "text..."}}``
-    - list-of-blocks (modern): ``{"type": "assistant", "message": {"content": [{"type": "text", "text": "..."}]}}``
 
-    Args:
-        transcript_path: Path to JSONL transcript file.
+def _wait_for_transcript_flush(
+    path: "Path",
+    max_wait_seconds: float = 2.0,
+    poll_interval_seconds: float = 0.1,
+    stability_samples: int = 3,
+) -> None:
+    """Block until transcript file size stops changing or timeout elapses.
 
-    Returns:
-        Total word count of all assistant text content, or 0 on any failure.
+    Issue #1179: SubagentStop fires while Claude Code is still writing the
+    JSONL transcript async. Poll-until-stable adds ~0ms when the file is
+    already flushed (size stable from first sample), ~300ms in the race
+    case (stability_samples * poll_interval_seconds), capped at
+    max_wait_seconds.
+
+    Assumes the transcript is append-only; if Claude Code ever rotates or
+    truncates the file mid-write, settling may exit prematurely.
+
+    Returns silently on missing file or OSError — caller's second read
+    surfaces whatever is on disk.
+    """
+    if not path.exists():
+        return
+    deadline = time.monotonic() + max_wait_seconds
+    last_size = -1
+    stable_count = 0
+    while time.monotonic() < deadline:
+        try:
+            current_size = path.stat().st_size
+        except OSError:
+            return
+        if current_size == last_size:
+            stable_count += 1
+            if stable_count >= stability_samples:
+                return
+        else:
+            stable_count = 0
+            last_size = current_size
+        time.sleep(poll_interval_seconds)
+
+
+def _read_count(transcript_path: "Path | str") -> int:
+    """Internal: single-shot read of transcript JSONL and word tally.
+
+    Extracted from _count_words_in_transcript() for Issue #1179 so the
+    public function can read twice with a settling gap between reads.
     """
     try:
         path = Path(transcript_path)
@@ -406,6 +444,32 @@ def _count_words_in_transcript(transcript_path: "Path | str") -> int:
         return total
     except Exception:
         return 0
+
+
+# Shape mirrors conversation_archiver._extract_metadata (str-content legacy + list-of-blocks modern)
+def _count_words_in_transcript(transcript_path: "Path | str") -> int:
+    """Count total words across all assistant turns in a JSONL transcript.
+
+    Handles both content shapes:
+    - str-content (legacy): ``{"type": "assistant", "message": {"content": "text..."}}``
+    - list-of-blocks (modern): ``{"type": "assistant", "message": {"content": [{"type": "text", "text": "..."}]}}``
+
+    Args:
+        transcript_path: Path to JSONL transcript file.
+
+    Returns:
+        Total word count of all assistant text content, or 0 on any failure.
+
+    Issue #1179: if the first read returns fewer than
+    _TRANSCRIPT_FLUSH_THRESHOLD_WORDS, wait for the transcript file size
+    to stabilize and re-read once. The second read is returned directly
+    (the transcript is append-only, so second >= first).
+    """
+    count = _read_count(transcript_path)
+    if count < _TRANSCRIPT_FLUSH_THRESHOLD_WORDS:
+        _wait_for_transcript_flush(Path(transcript_path))
+        count = _read_count(transcript_path)
+    return count
 
 
 def _determine_success(output: str) -> bool:

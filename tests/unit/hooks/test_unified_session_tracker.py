@@ -891,3 +891,98 @@ class TestDedupGuard:
             f"{entries[1]['subagent_type']!r})"
         )
         assert entries[1]["subagent_type"] == "__dedup_skip__:implementer"
+
+
+class TestTranscriptFlushSettling:
+    """Issue #1179: transcript flush race in SubagentStop."""
+
+    def test_below_threshold_triggers_settling_and_rereads(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Transcript starts with 5 words; second read sees 920 words after settling."""
+        transcript = tmp_path / "transcript.jsonl"
+
+        # First read: only 5 words (preamble only — simulates race condition)
+        short_line = '{"type": "assistant", "message": {"content": "one two three four five"}}'
+        transcript.write_text(short_line)
+
+        # Build a long continuation (920 words across two turns)
+        long_line_1 = (
+            '{"type": "assistant", "message": {"content": "'
+            + " ".join(["word"] * 460)
+            + '"}}'
+        )
+        long_line_2 = (
+            '{"type": "assistant", "message": {"content": "'
+            + " ".join(["word"] * 455)
+            + '"}}'
+        )
+
+        def fake_wait(path, **kwargs):
+            """Simulate Claude Code finishing the async write during wait."""
+            with open(path, "a") as f:
+                f.write("\n" + long_line_1 + "\n" + long_line_2)
+
+        monkeypatch.setattr(ust, "_wait_for_transcript_flush", fake_wait)
+
+        result = ust._count_words_in_transcript(transcript)
+        # 5 (first read) + 460 + 455 written during wait = 920 from second read
+        assert result >= 900, (
+            f"Expected >= 900 words after settling re-read, got {result}"
+        )
+
+    def test_missing_file_returns_immediately(self, tmp_path: Path) -> None:
+        """_wait_for_transcript_flush() on a non-existent path returns quickly."""
+        import time
+
+        nonexistent = tmp_path / "does_not_exist.jsonl"
+        start = time.perf_counter()
+        ust._wait_for_transcript_flush(nonexistent)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 0.05, (
+            f"Expected < 50ms for missing file, got {elapsed:.3f}s"
+        )
+
+    def test_max_wait_caps_at_deadline(self, tmp_path: Path, monkeypatch) -> None:
+        """Ever-growing file never stabilizes; helper exits at deadline."""
+        import time as _time
+        from unittest.mock import patch, MagicMock
+
+        transcript = tmp_path / "growing.jsonl"
+        transcript.write_text("initial")
+
+        # Advance monotonic clock by 0.1s per call to simulate time passing
+        call_count = [0]
+
+        def fake_monotonic():
+            val = call_count[0] * 0.1
+            call_count[0] += 1
+            return val
+
+        # Return ever-incrementing file sizes so it never stabilizes
+        size_counter = [0]
+
+        def fake_stat(*args, **kwargs):
+            size_counter[0] += 1
+
+            class FakeStat:
+                st_size = size_counter[0] * 100
+
+            return FakeStat()
+
+        monkeypatch.setattr(_time, "monotonic", fake_monotonic)
+        monkeypatch.setattr(_time, "sleep", lambda _: None)
+
+        # Patch Path.stat at the class level — instance attribute is read-only on Py3.14
+        with patch("pathlib.Path.stat", fake_stat):
+            ust._wait_for_transcript_flush(
+                transcript,
+                max_wait_seconds=2.0,
+                poll_interval_seconds=0.0,
+                stability_samples=3,
+            )
+        # If we got here without hanging, the deadline cap worked.
+        # max_wait_seconds=2.0 with 0.1s steps → at most ~20 deadline checks + overhead
+        assert call_count[0] <= 100, (
+            f"Loop ran {call_count[0]} iterations — deadline cap may not be working"
+        )
