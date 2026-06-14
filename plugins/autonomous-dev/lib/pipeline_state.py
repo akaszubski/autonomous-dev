@@ -17,21 +17,36 @@ import json
 import os
 import re as _re
 import secrets
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+try:
+    # Normal package-style import (preferred when invoked from production code).
+    from .path_utils import find_project_root  # type: ignore
+except ImportError:  # pragma: no cover - fallback for scripts that load module by path
+    try:
+        from path_utils import find_project_root  # type: ignore
+    except ImportError:
+        # Last-resort no-op fallback: callers will hit the cwd-based fallback below.
+        def find_project_root(*_args: Any, **_kwargs: Any) -> Path:  # type: ignore
+            raise FileNotFoundError("path_utils.find_project_root unavailable")
+
 
 # =============================================================================
 # CONSTANTS
 # =============================================================================
 
-# Legacy sentinel file path used by unified_pre_tool.py (via PIPELINE_STATE_FILE
-# env var) and other hooks. This file is touched on every hook invocation during
-# active pipeline runs, making its mtime a reliable indicator of recent pipeline
-# activity. It is distinct from the HMAC-signed per-run state file created by
+# Legacy sentinel file name (Issue #1206). The full path is now per-repo:
+# <repo_root>/.claude/local/implement_pipeline_state.json. Resolve via
+# get_legacy_sentinel_path() — DO NOT hardcode the old /tmp/... literal.
+#
+# The sentinel is touched on every hook invocation during active pipeline runs,
+# making its mtime a reliable indicator of recent pipeline activity. It is
+# distinct from the HMAC-signed per-run state file created by
 # get_state_path(run_id) at /tmp/pipeline_state_{run_id}.json.
 #
 # Used by verify_state_hmac() for stale-state fail-open detection (Issue #753):
@@ -39,8 +54,110 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 # HMAC verification fails open to avoid blocking subsequent sessions.
 #
 # Cross-reference: unified_pre_tool.py PIPELINE_STATE_FILE env var,
-#                  pre_compact_batch_saver.sh, implement-fix.md
-LEGACY_SENTINEL_PATH: Path = Path("/tmp/implement_pipeline_state.json")
+#                  pre_compact_batch_saver.sh, implement-fix.md.
+#
+# Issue #1206: relocated from machine-global /tmp/implement_pipeline_state.json
+# to per-repo path so concurrent /implement sessions in different repos no
+# longer clobber each other's sentinels.
+LEGACY_SENTINEL_FILENAME: str = "implement_pipeline_state.json"
+
+
+def get_legacy_sentinel_path(repo_root: Optional[Path] = None) -> Path:
+    """Resolve the per-repo legacy sentinel file path.
+
+    Returns ``<repo_root>/.claude/local/implement_pipeline_state.json`` where
+    ``repo_root`` is determined by (in order):
+
+    1. The explicit ``repo_root`` argument if provided.
+    2. :func:`path_utils.find_project_root` (walks for ``.git`` or ``.claude``).
+    3. ``Path.cwd().resolve()`` if no marker file is found.
+
+    The parent directory is created with mode 0o700 if missing. The created
+    directory is owner-only because it can contain run-scoped state with
+    HMAC-signed content.
+
+    Args:
+        repo_root: Optional explicit repo root. When provided, the marker-file
+            walk is skipped and the path is computed directly under this root.
+
+    Returns:
+        The fully-qualified sentinel path. The file itself MAY or MAY NOT
+        exist; only the parent directory is created.
+
+    Issue #1206: per-repo isolation eliminates cross-repo collisions on the
+    machine-global ``/tmp/implement_pipeline_state.json`` location.
+    """
+    if repo_root is not None:
+        root = Path(repo_root).resolve()
+    else:
+        try:
+            root = find_project_root()
+        except FileNotFoundError:
+            root = Path.cwd().resolve()
+
+    sentinel_dir = root / ".claude" / "local"
+    try:
+        sentinel_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # mkdir() honors mode only when creating; force 0o700 on existing dirs too.
+        try:
+            sentinel_dir.chmod(0o700)
+        except OSError:
+            # Best effort; caller will still get a usable path.
+            pass
+    except OSError:
+        # Best effort: parent dir creation may fail (read-only FS, permissions);
+        # callers using the path for read operations still get a valid object.
+        pass
+
+    return sentinel_dir / LEGACY_SENTINEL_FILENAME
+
+
+def _atomic_write_json(
+    path: Path,
+    data: dict,
+    *,
+    indent: Optional[int] = None,
+) -> None:
+    """Atomically write a JSON dict to ``path`` using a temp file + rename.
+
+    Uses ``tempfile.mkstemp`` in the destination's parent directory so the
+    rename is on the same filesystem (atomic on POSIX). The temp file is
+    chmod'd to 0o600 BEFORE the rename so the destination inherits restrictive
+    permissions even if the directory has a permissive umask.
+
+    On exception, the temp file is unlinked and the exception re-raised so the
+    caller can decide how to handle persistence failure.
+
+    Args:
+        path: Destination file path. Parent directory MUST exist.
+        data: JSON-serialisable dict.
+        indent: Optional JSON pretty-print indent (passed through to
+            ``json.dump``). ``None`` produces the most compact form.
+
+    Raises:
+        OSError: From ``tempfile.mkstemp``, ``os.replace``, or ``os.chmod``.
+        TypeError: If ``data`` is not JSON-serialisable.
+    """
+    parent = path.parent
+    fd, tmp = tempfile.mkstemp(
+        dir=str(parent), suffix=".tmp", prefix=f".{path.name}_"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=indent)
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            # Non-fatal: permission tightening is best-effort on platforms
+            # like Windows or FUSE mounts that ignore chmod.
+            pass
+        os.replace(tmp, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # =============================================================================
@@ -324,18 +441,19 @@ def verify_state_hmac(state: dict, session_id: str) -> bool:
         return True
 
     # Stale state fail-open (Issue #753): checks the LEGACY SENTINEL file
-    # (/tmp/implement_pipeline_state.json), NOT the HMAC-signed per-run state
-    # file (/tmp/pipeline_state_{run_id}.json). The legacy sentinel is touched
-    # on every hook invocation during active pipeline runs (see
-    # unified_pre_tool.py PIPELINE_STATE_FILE env var). Its mtime is used as a
-    # proxy for "was the pipeline recently active?" — if >1 hour old, the
+    # (<repo>/.claude/local/implement_pipeline_state.json — was
+    # /tmp/implement_pipeline_state.json before Issue #1206), NOT the HMAC-
+    # signed per-run state file (/tmp/pipeline_state_{run_id}.json). The legacy
+    # sentinel is touched on every hook invocation during active pipeline runs
+    # (see unified_pre_tool.py PIPELINE_STATE_FILE env var). Its mtime is used
+    # as a proxy for "was the pipeline recently active?" — if >1 hour old, the
     # pipeline is considered stale and HMAC verification fails open. This
     # coupling is intentional: the sentinel mtime cannot be forged by editing
     # JSON content (unlike session_start in the state dict).
-    # Cross-reference: LEGACY_SENTINEL_PATH constant (this module).
+    # Cross-reference: get_legacy_sentinel_path() (this module).
     import time as _time
 
-    state_path = LEGACY_SENTINEL_PATH
+    state_path = get_legacy_sentinel_path()
     if state_path.exists():
         try:
             mtime = state_path.stat().st_mtime
@@ -794,20 +912,10 @@ def finalize_to_session(
     # Write atomically (temp file + os.replace)
     try:
         session_dir.mkdir(parents=True, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(session_dir), suffix=".tmp", prefix=".finalize_"
-        )
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(session_data, f, indent=2)
-            os.replace(tmp_path, str(session_file))
-        except Exception:
-            # Clean up temp file on error
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            return False
+    except OSError:
+        return False
+    try:
+        _atomic_write_json(session_file, session_data, indent=2)
     except Exception:
         return False
 
@@ -845,7 +953,8 @@ def cleanup_pipeline(run_id: str) -> None:
 # (PIPELINE_BASE_COMMIT). This restricts the diff to files actually changed by
 # the current run, ignoring any tree state that existed before the pipeline
 # began. The base commit is stored in the legacy sentinel state file
-# (PIPELINE_STATE_FILE, default /tmp/implement_pipeline_state.json) under the
+# (PIPELINE_STATE_FILE, default <repo>/.claude/local/implement_pipeline_state.json
+# — was /tmp/implement_pipeline_state.json before Issue #1206) under the
 # 'base_commit' key.
 
 
@@ -868,15 +977,15 @@ def set_pipeline_base_commit(
             disables anchoring — callers should fall back to plain HEAD diff
             in that case.
         state_path: Optional override for the state file path. Defaults to
-            the PIPELINE_STATE_FILE env var, falling back to
-            /tmp/implement_pipeline_state.json.
+            the PIPELINE_STATE_FILE env var, falling back to the per-repo
+            <repo>/.claude/local/implement_pipeline_state.json (Issue #1206).
 
     Returns:
         True if the base commit was successfully written, False if the state
         file does not exist or could not be read/written.
     """
     path = state_path or os.environ.get(
-        "PIPELINE_STATE_FILE", str(LEGACY_SENTINEL_PATH)
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     if not os.path.exists(path):
         return False
@@ -887,8 +996,7 @@ def set_pipeline_base_commit(
         return False
     state["base_commit"] = base_commit
     try:
-        with open(path, "w") as f:
-            json.dump(state, f)
+        _atomic_write_json(Path(path), state)
     except OSError:
         return False
     return True
@@ -905,14 +1013,14 @@ def get_pipeline_base_commit(
 
     Args:
         state_path: Optional override for the state file path. Defaults to
-            the PIPELINE_STATE_FILE env var, falling back to
-            /tmp/implement_pipeline_state.json.
+            the PIPELINE_STATE_FILE env var, falling back to the per-repo
+            <repo>/.claude/local/implement_pipeline_state.json (Issue #1206).
 
     Returns:
         The base commit SHA string if recorded and non-empty, otherwise None.
     """
     path = state_path or os.environ.get(
-        "PIPELINE_STATE_FILE", str(LEGACY_SENTINEL_PATH)
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     if not os.path.exists(path):
         return None
@@ -983,8 +1091,6 @@ def record_baseline_scope(
     Returns:
         True on success, False on any IO or JSON error. NEVER raises.
     """
-    import tempfile
-
     if not os.path.exists(state_path):
         return False
     try:
@@ -997,18 +1103,7 @@ def record_baseline_scope(
     state["baseline_count"] = int(baseline_count)
 
     try:
-        parent = os.path.dirname(state_path) or "."
-        fd, tmp_path = tempfile.mkstemp(dir=parent, suffix=".tmp", prefix=".baseline_")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(state, f)
-            os.replace(tmp_path, state_path)
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            return False
+        _atomic_write_json(Path(state_path), state)
     except (OSError, json.JSONDecodeError):
         return False
     return True

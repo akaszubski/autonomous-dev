@@ -3,11 +3,20 @@
 # PreCompact hook: saves batch AND pipeline state before context compaction
 # Creates .claude/compaction_recovery.json marker for post-compaction recovery
 # Always exits 0 (never blocks compaction)
+#
+# Issue #1206: PIPELINE_STATE_FILE default resolved via hooks/lib/_sentinel.sh
+# so the path is per-repo, not machine-global /tmp/...
+
+# Resolve script directory robustly so the `source` works whether the hook is
+# invoked via an absolute path, a symlink, or relative from the repo root.
+_PCBS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/_sentinel.sh
+. "$_PCBS_SCRIPT_DIR/lib/_sentinel.sh"
 
 BATCH_STATE=".claude/batch_state.json"
 RECOVERY_MARKER=".claude/compaction_recovery.json"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-.ralph-checkpoints}"
-PIPELINE_STATE_FILE="${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
+PIPELINE_STATE_FILE="${PIPELINE_STATE_FILE:-$(_default_sentinel)}"
 PIPELINE_STATE_DIR="${PIPELINE_STATE_DIR:-/tmp}"
 
 has_batch=false

@@ -472,6 +472,31 @@ except ImportError:
         sys.exit(0)
 
 
+# Issue #1206: per-repo sentinel path. Import from lib.pipeline_state so the
+# hook subprocess resolves the same sentinel path the coordinator session uses
+# (subject to CWD inheritance — see tests/integration/test_hook_pwd_inheritance.py).
+try:
+    from pipeline_state import get_legacy_sentinel_path  # type: ignore
+except ImportError:
+    def get_legacy_sentinel_path(repo_root=None):  # type: ignore
+        # Fallback: behave like the pre-#1206 hardcoded path so hooks still
+        # function in degraded environments where lib/ is not on sys.path.
+        return Path("/tmp/implement_pipeline_state.json")
+
+
+# Issue #1206: state-file write-protection tuple. Both the legacy machine-global
+# literal AND the new per-repo path must be protected:
+# - The legacy literal (``/tmp/implement_pipeline_state.json``) is retained so
+#   that orphaned sentinel files from pre-#1206 sessions still receive
+#   write-protection during the transition window.
+# - The new per-repo path is added so the current sentinel is protected at its
+#   actual location.
+LEGACY_SENTINEL_LITERALS: tuple = (
+    "/tmp/implement_pipeline_state.json",  # legacy orphan: pre-#1206 sessions
+    str(get_legacy_sentinel_path()),        # new per-repo: current sentinel
+)
+
+
 def load_env():
     """Load .env file from project root if it exists."""
     env_file = Path(os.getcwd()) / ".env"
@@ -1471,7 +1496,8 @@ def _get_current_issue_number() -> int:
     Resolution order:
         1. ``PIPELINE_ISSUE_NUMBER`` env var (set by Claude Code process)
         2. ``issue_number`` field in the pipeline state file
-           (``/tmp/implement_pipeline_state.json``, written by coordinator)
+           (``<repo>/.claude/local/implement_pipeline_state.json`` since
+           Issue #1206; was ``/tmp/implement_pipeline_state.json``)
         3. Issue number extracted from ``run_id`` field in the pipeline state
            file (Issue #869: batch mode run_ids follow pattern
            ``issue-{N}-YYYYMMDD-HHMMSS``)
@@ -1490,7 +1516,7 @@ def _get_current_issue_number() -> int:
 
     # 2. Fall back to pipeline state file
     pipeline_state_file = os.getenv(
-        "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     try:
         state_path = Path(pipeline_state_file)
@@ -1547,7 +1573,7 @@ def _get_pipeline_mode_from_state() -> str:
     if env_mode:
         return env_mode
 
-    pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json")
+    pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", str(get_legacy_sentinel_path()))
     try:
         state_path = Path(pipeline_state_file)
         if state_path.exists():
@@ -1764,7 +1790,7 @@ def _is_pipeline_active() -> bool:
         # Fixes #941: a parallel pipeline run does not refresh another
         # session's sentinel.
         pipeline_state_file = os.getenv(
-            "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+            "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
         )
         try:
             current_sid = os.environ.get("CLAUDE_SESSION_ID", "")
@@ -1787,7 +1813,7 @@ def _is_pipeline_active() -> bool:
         return True
 
     # Check pipeline state file
-    pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json")
+    pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", str(get_legacy_sentinel_path()))
     try:
         state_path = Path(pipeline_state_file)
         if state_path.exists():
@@ -1839,7 +1865,7 @@ def _is_explicit_implement_active() -> bool:
         True if /implement was explicitly invoked and session is within TTL
     """
     pipeline_state_file = os.getenv(
-        "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     try:
         state_path = Path(pipeline_state_file)
@@ -1894,7 +1920,7 @@ def _has_alignment_passed() -> bool:
         True if alignment has passed and HMAC is valid
     """
     pipeline_state_file = os.getenv(
-        "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     try:
         state_path = Path(pipeline_state_file)
@@ -4328,8 +4354,10 @@ def _check_bash_state_deletion(command: str) -> "Optional[Tuple[str, str]]":
     import re
 
     # Protected state file patterns
+    # Issue #1206: include both the legacy /tmp literal (orphan protection for
+    # pre-#1206 sessions) and the new per-repo path via LEGACY_SENTINEL_LITERALS.
     _STATE_FILE_PATTERNS = [
-        "/tmp/implement_pipeline_state.json",
+        *LEGACY_SENTINEL_LITERALS,
         "/tmp/.claude_deny_cache.jsonl",
     ]
     _STATE_FILE_GLOB_PREFIXES = [
@@ -5955,7 +5983,7 @@ def main():
                         if _gs_cmd.startswith("git stash"):
                             _gs_state_path = os.environ.get(
                                 "PIPELINE_STATE_FILE",
-                                "/tmp/implement_pipeline_state.json",
+                                str(get_legacy_sentinel_path()),
                             )
                             if Path(_gs_state_path).exists():
                                 _bg_lib_dir = Path(__file__).resolve().parent.parent / "lib"

@@ -130,6 +130,14 @@ try:
 except ImportError:
     HAS_VERSION_READER = False
 
+# Issue #1206: per-repo sentinel path resolver. Imported from lib.pipeline_state
+# so the hook subprocess uses the same path the coordinator uses (CWD-inherited).
+try:
+    from pipeline_state import get_legacy_sentinel_path  # type: ignore
+except ImportError:
+    def get_legacy_sentinel_path(repo_root=None):  # type: ignore
+        return Path("/tmp/implement_pipeline_state.json")
+
 # Issue #1087: subagent invocation cache for recovering missing
 # agent_type and duration_ms in SubagentStop payloads. Cache writes
 # happen in session_activity_logger.py on PreToolUse; we read here.
@@ -198,7 +206,7 @@ def _get_current_issue_number() -> int:
             pass
 
     pipeline_state_file = os.getenv(
-        "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
     )
     try:
         state_path = Path(pipeline_state_file)
@@ -1124,7 +1132,8 @@ def main() -> int:
             pass  # Non-blocking: ordering state is advisory
 
         # Sentinel heartbeat check (Issue #989): after recording completion,
-        # verify the /tmp/implement_pipeline_state.json sentinel still exists
+        # verify the <repo>/.claude/local/implement_pipeline_state.json sentinel
+        # (was /tmp/implement_pipeline_state.json pre-#1206) still exists
         # with the correct session_id. If clear_stale_state() deleted it (e.g.,
         # because a subprocess ran with a different CLAUDE_SESSION_ID), recreate
         # a minimal sentinel so downstream steps can still record completions.

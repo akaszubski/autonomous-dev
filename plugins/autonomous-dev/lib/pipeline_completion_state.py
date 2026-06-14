@@ -28,6 +28,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+try:
+    from .pipeline_state import get_legacy_sentinel_path  # type: ignore
+except ImportError:  # pragma: no cover - script-style import fallback
+    try:
+        from pipeline_state import get_legacy_sentinel_path  # type: ignore
+    except ImportError:
+        def get_legacy_sentinel_path(repo_root: Optional[Path] = None) -> Path:  # type: ignore
+            # Last-resort: behave like the pre-#1206 hardcoded fallback so the
+            # module still imports in environments without path_utils.
+            return Path("/tmp/implement_pipeline_state.json")
+
 # Regex for validating run_id values. Only alphanumerics, hyphens, and underscores
 # are permitted, with a maximum length of 64 characters. This prevents path
 # traversal attacks via run_id. (Security Finding 1 — CRITICAL A03/A01)
@@ -137,7 +148,7 @@ def _resolve_session_id_from_activity_log(
 
 def resolve_session_id(
     *,
-    sentinel_path: str = "/tmp/implement_pipeline_state.json",
+    sentinel_path: Optional[str] = None,
     max_age_seconds: int = 3600,
 ) -> str:
     """Resolve the current Claude session id via fallback chain.
@@ -164,7 +175,13 @@ def resolve_session_id(
     Used by ``commands/implement.md`` STEP 0, STEP 2, and the
     Pre-Dispatch Ordering Protocol to recover session id in subshell
     contexts that drop the env var (nested heredocs, pipe subshells).
+
+    Issue #1206: ``sentinel_path`` now defaults to the per-repo path
+    ``<repo>/.claude/local/implement_pipeline_state.json`` resolved at call
+    time so cross-repo concurrent sessions stay isolated.
     """
+    if sentinel_path is None:
+        sentinel_path = str(get_legacy_sentinel_path())
     env_sid = os.environ.get("CLAUDE_SESSION_ID", "")
     if env_sid:
         return env_sid
@@ -1533,18 +1550,18 @@ def ensure_sentinel_heartbeat(
         session_id: The expected owner's session id (e.g. from
             ``CLAUDE_SESSION_ID`` or the pipeline state file itself).
         state_path: Absolute path to the sentinel file.  Defaults to the
-            ``PIPELINE_STATE_FILE`` env var, falling back to the canonical
-            ``/tmp/implement_pipeline_state.json``.
+            ``PIPELINE_STATE_FILE`` env var, falling back to the per-repo
+            ``<repo>/.claude/local/implement_pipeline_state.json`` (Issue #1206).
 
     Returns:
         ``True`` when the sentinel was already healthy.
         ``False`` when the sentinel was absent or mismatched and was recreated.
 
-    Issues: #989
+    Issues: #989, #1206
     """
     if state_path is None:
         state_path = os.environ.get(
-            "PIPELINE_STATE_FILE", "/tmp/implement_pipeline_state.json"
+            "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
         )
 
     sentinel = Path(state_path)

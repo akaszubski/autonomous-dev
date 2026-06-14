@@ -253,17 +253,26 @@ class TestScopeOutPreservation:
             "literal path (scope-out per plan)"
         )
 
-    def test_pipeline_state_legacy_sentinel_unchanged(self) -> None:
-        """pipeline_state.py LEGACY_SENTINEL_PATH still points to literal path."""
+    def test_pipeline_state_legacy_sentinel_resolver_present(self) -> None:
+        """pipeline_state.py provides the per-repo resolver (Issue #1206 update).
+
+        Issue #1206 replaced the static LEGACY_SENTINEL_PATH constant with a
+        per-repo resolver. The sentinel semantic role (HMAC fail-open activity
+        indicator) is preserved; only the path resolution is now per-repo.
+        """
         lib_path = (
             REPO_ROOT / "plugins" / "autonomous-dev" / "lib" / "pipeline_state.py"
         )
         if not lib_path.exists():
             pytest.skip(f"Lib not found at {lib_path}")
         text = lib_path.read_text()
-        assert 'LEGACY_SENTINEL_PATH' in text, (
-            "pipeline_state.py must still define LEGACY_SENTINEL_PATH"
+        assert 'def get_legacy_sentinel_path' in text, (
+            "pipeline_state.py must define get_legacy_sentinel_path() resolver"
         )
-        assert '/tmp/implement_pipeline_state.json' in text, (
-            "pipeline_state.py LEGACY_SENTINEL_PATH must still reference the literal path"
+        assert 'LEGACY_SENTINEL_FILENAME' in text, (
+            "pipeline_state.py must define LEGACY_SENTINEL_FILENAME constant"
+        )
+        # Confirm the new resolver anchors under .claude/local
+        assert '.claude' in text and 'local' in text, (
+            "Resolver must anchor at <repo>/.claude/local/"
         )

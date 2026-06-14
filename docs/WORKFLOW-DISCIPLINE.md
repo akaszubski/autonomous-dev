@@ -137,7 +137,7 @@ When `/implement` is active, `unified_pre_tool.py` enforces that STEP 2 (PROJECT
 
 When the user explicitly invokes `/implement`, the hook enters a higher enforcement mode regardless of `ENFORCEMENT_LEVEL`:
 
-- **Detection**: `/implement` writes `{"explicitly_invoked": true, ...}` to `/tmp/implement_pipeline_state.json` on startup.
+- **Detection**: `/implement` writes `{"explicitly_invoked": true, ...}` to `<repo>/.claude/local/implement_pipeline_state.json` on startup (resolved by `pipeline_state.get_legacy_sentinel_path()`; was `/tmp/implement_pipeline_state.json` before Issue #1206).
 - **Behavior**: If `explicitly_invoked` is true and `ENFORCEMENT_LEVEL` is not `off`, the coordinator is blocked from writing code files directly. Code changes must be delegated to pipeline agents (`implementer`, `test-master`, `doc-master`).
 - **Scope**: Code files only (`.py`, `.js`, `.ts`, etc.). Config files, docs (`.md`), and non-code files are exempt.
 - **TTL**: Block expires 2 hours after session start. State file cleaned up after STEP 15.
@@ -282,7 +282,7 @@ ENFORCE_PIPELINE_ORDER=false  # Disable enforcement (not recommended)
 ```
 
 State tracking:
-- Session state file: `/tmp/implement_pipeline_state.json` (configurable via `PIPELINE_STATE_FILE`)
+- Session state file: `<repo>/.claude/local/implement_pipeline_state.json` (resolved by `pipeline_state.get_legacy_sentinel_path()`; configurable via `PIPELINE_STATE_FILE`; was `/tmp/implement_pipeline_state.json` before Issue #1206)
 - Tracks: agents_invoked, prerequisites_met, session_start timestamp
 - File locking ensures thread-safe concurrent operations
 - State resets when a new /implement session starts (>2 hours since last activity)

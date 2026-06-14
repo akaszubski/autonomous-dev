@@ -22,9 +22,15 @@ if [ -n "${RUN_ID:-}" ]; then
   exit 0
 fi
 
+# Issue #1206: PIPELINE_STATE_FILE default resolved via hooks/lib/_sentinel.sh
+# so the path is per-repo, not machine-global /tmp/...
+_SSB_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/_sentinel.sh
+. "$_SSB_SCRIPT_DIR/lib/_sentinel.sh"
+
 # Check if batch is in progress
 BATCH_STATE=".claude/batch_state.json"
-PIPELINE_STATE_FILE="${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
+PIPELINE_STATE_FILE="${PIPELINE_STATE_FILE:-$(_default_sentinel)}"
 PIPELINE_STATE_DIR="${PIPELINE_STATE_DIR:-/tmp}"
 
 if [ ! -f "$BATCH_STATE" ]; then

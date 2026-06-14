@@ -123,17 +123,21 @@ The bottleneck is implementation drain + plan-critic completion, not new design.
 
 ### Residuals remaining
 
-Cluster [1] reduced 29 → 8. Remaining issues each need significant code work or a separate plan:
+**Updated 2026-06-14**: 4 prior residuals (#989, #990, #1139, #1184) shipped after drain table — closed by commits `51df918`, `34e9560`, `2f6d29e`, `899ba8d`. Cluster [1] now **29 → 5 open**.
+
+| Order | Action | Retires | Status |
+|---|---|---|---|
+| 14 | Sentinel heartbeat recreates /tmp state mid-pipeline | #989 | DONE (`51df918`) |
+| 15 | Coordinator records pytest baseline scope in sentinel | #990 | DONE (`34e9560`) |
+| 16 | Git-stash mid-pipeline bypass detection | #1139 | DONE (`2f6d29e`) |
+| 17 | Implementer HARD GATE for consecutive-run test isolation | #1184 | DONE (`899ba8d`) |
+| 18 | Deny-reason text warns && chaining of bypass touch + git commit | #1212 | DONE (`785fc2a`) |
 
 | Issue | Type | Why heavier |
 |---|---|---|
-| #989 | sentinel residual | M0 SCOPE OUT (R7: legacy sentinel preserved as cross-run signal). Needs new design for the cross-run signal mechanism. |
-| #1206 | sentinel residual | Legacy `/tmp/implement_pipeline_state.json` is machine-global by design. Cross-repo collision needs per-repo prefix. |
-| #1139 | bypass detection | git stash mid-pipeline as coordinator state manipulation. Needs hook detection. |
-| #1184 | test state isolation | Consecutive-run regressions from shared /tmp. Needs per-run test fixture isolation. |
+| #1206 | sentinel residual | Legacy `/tmp/implement_pipeline_state.json` is machine-global by design. Cross-repo collision needs per-repo prefix (e.g., path-hash suffix). |
 | #983 | classifier accuracy | bugfix_detector misclassifies gh_issue_create_block flakiness. Covered by `phase2-classifier-robustness` plan — needs critique to PROCEED. |
 | #986 | classifier accuracy | Timing analyzer emits false WASTEFUL findings on user-pause spans. Same plan as #983. |
-| #990 | test scope | Coordinator vs implementer use different test scope at STEP 5. Needs shared `get_test_scope()` lib. |
 | #1178 | observability | prompt-integrity recovery latency invisible. Needs structured PromptIntegrityBlock/Recovery events + timing_analyzer integration. |
 | #1179 | race condition | result_word_count undercount from transcript partial-flush race. Needs SubagentStop settling delay + supplemental log. |
 

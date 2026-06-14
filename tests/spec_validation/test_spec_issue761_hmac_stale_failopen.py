@@ -27,12 +27,18 @@ if str(_LIB) not in sys.path:
 
 import pipeline_state as _ps
 from pipeline_state import (
-    LEGACY_SENTINEL_PATH,
+    LEGACY_SENTINEL_FILENAME,
     _compute_state_hmac,
+    get_legacy_sentinel_path,
     get_state_path,
     sign_state,
     verify_state_hmac,
 )
+
+# Issue #1206: LEGACY_SENTINEL_PATH constant was replaced by the per-repo
+# resolver get_legacy_sentinel_path(). The historical name is kept here as a
+# *value snapshot* for tests that still pin the resolved path.
+LEGACY_SENTINEL_PATH = get_legacy_sentinel_path()
 
 
 # ---------------------------------------------------------------------------
@@ -71,14 +77,20 @@ def _signed_state(run_id: str = "run-761", secret: str = "test-secret") -> dict:
 # ---------------------------------------------------------------------------
 
 def test_spec_issue761_1_legacy_sentinel_path_constant_value():
-    """LEGACY_SENTINEL_PATH must equal /tmp/implement_pipeline_state.json.
+    """Sentinel path must be per-repo (Issue #1206 update of the #761 spec).
 
-    Spec: 'adds a module-level constant to clarify which file is used as the
-    activity proxy'.
+    Spec: 'adds a module-level resolver to clarify which file is used as the
+    activity proxy'. Issue #1206 replaced the static constant with a per-repo
+    resolver to eliminate cross-repo collision on the machine-global path.
     """
-    assert LEGACY_SENTINEL_PATH == Path("/tmp/implement_pipeline_state.json"), (
-        f"LEGACY_SENTINEL_PATH is {LEGACY_SENTINEL_PATH}, "
-        "expected Path('/tmp/implement_pipeline_state.json')"
+    sentinel = get_legacy_sentinel_path()
+    assert sentinel.name == LEGACY_SENTINEL_FILENAME, (
+        f"sentinel filename changed: {sentinel.name}"
+    )
+    assert sentinel.parent.name == "local"
+    assert sentinel.parent.parent.name == ".claude"
+    assert sentinel != Path("/tmp/implement_pipeline_state.json"), (
+        "Issue #1206 regression: sentinel still resolves to machine-global /tmp."
     )
 
 
@@ -110,17 +122,30 @@ def test_spec_issue761_2_sentinel_path_distinct_from_hmac_state_paths():
 # ---------------------------------------------------------------------------
 
 def test_spec_issue761_3_verify_state_hmac_checks_legacy_sentinel_path():
-    """verify_state_hmac() must consult LEGACY_SENTINEL_PATH for stale detection.
+    """verify_state_hmac() must consult the legacy sentinel for stale detection.
 
-    Spec: 'adds documentation … to clarify that the stale fail-open logic …
-    uses the legacy sentinel file path as an activity proxy'.
+    Spec (updated by Issue #1206): 'adds documentation … to clarify that the
+    stale fail-open logic … uses the legacy sentinel file path as an activity
+    proxy'. Issue #1206 replaced the static LEGACY_SENTINEL_PATH constant with
+    a per-repo resolver; the sentinel path is now resolved at call time. To
+    make the assertion robust against test ordering side-effects on the
+    project-root cache, we resolve the expected path immediately before the
+    call and reset the cache to ensure both the test and the function see the
+    same CWD-derived path.
     """
+    # Reset cache so the resolver sees the current cwd, not a stale cached root.
+    import path_utils as _pu
+    _pu.reset_project_root_cache()
+
+    # Re-resolve the sentinel path at call time (matches verify_state_hmac()).
+    expected_sentinel = str(get_legacy_sentinel_path())
+
     state = _bogus_state()
     checked_paths: list = []
 
     def tracking_exists(self):
         checked_paths.append(str(self))
-        if str(self) == str(LEGACY_SENTINEL_PATH):
+        if str(self) == expected_sentinel:
             return True
         return False
 
@@ -133,14 +158,14 @@ def test_spec_issue761_3_verify_state_hmac_checks_legacy_sentinel_path():
          patch.object(Path, "stat", return_value=mock_stat):
         result = verify_state_hmac(state, "irrelevant-session")
 
-    assert str(LEGACY_SENTINEL_PATH) in checked_paths, (
-        f"verify_state_hmac() never checked LEGACY_SENTINEL_PATH "
-        f"({LEGACY_SENTINEL_PATH}). Paths checked: {checked_paths}"
+    assert expected_sentinel in checked_paths, (
+        f"verify_state_hmac() never checked the legacy sentinel "
+        f"({expected_sentinel}). Paths checked: {checked_paths}"
     )
-    # If LEGACY_SENTINEL_PATH was actually used, the stale check should have
-    # fired (sentinel mtime is 2hr old) and returned True.
+    # If the sentinel was actually used, the stale check should have fired
+    # (sentinel mtime is 2hr old) and returned True.
     assert result is True, (
-        "Stale LEGACY_SENTINEL_PATH should trigger fail-open"
+        "Stale legacy sentinel should trigger fail-open"
     )
 
 
@@ -338,13 +363,21 @@ def test_spec_issue761_10b_regression_test_file_contains_sentinel_pinning_class(
 
 
 def test_spec_issue761_10c_legacy_sentinel_path_is_exported_from_module():
-    """LEGACY_SENTINEL_PATH must be importable from pipeline_state.
+    """Sentinel resolver must be importable from pipeline_state (Issue #1206 update).
 
-    Spec: 'adds documentation … module-level constant'.
+    Spec: 'adds documentation … module-level resolver'. Issue #1206 replaced
+    the static LEGACY_SENTINEL_PATH constant with the get_legacy_sentinel_path
+    resolver function. The filename constant LEGACY_SENTINEL_FILENAME is
+    also exported.
     """
-    assert hasattr(_ps, "LEGACY_SENTINEL_PATH"), (
-        "LEGACY_SENTINEL_PATH must be a module-level attribute of pipeline_state"
+    assert hasattr(_ps, "get_legacy_sentinel_path"), (
+        "get_legacy_sentinel_path must be a module-level attribute of pipeline_state"
     )
-    assert isinstance(_ps.LEGACY_SENTINEL_PATH, Path), (
-        f"LEGACY_SENTINEL_PATH must be a Path instance, got {type(_ps.LEGACY_SENTINEL_PATH)}"
+    assert hasattr(_ps, "LEGACY_SENTINEL_FILENAME"), (
+        "LEGACY_SENTINEL_FILENAME must be a module-level attribute of pipeline_state"
     )
+    sentinel = _ps.get_legacy_sentinel_path()
+    assert isinstance(sentinel, Path), (
+        f"get_legacy_sentinel_path() must return a Path instance, got {type(sentinel)}"
+    )
+    assert isinstance(_ps.LEGACY_SENTINEL_FILENAME, str)

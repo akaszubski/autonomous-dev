@@ -23,12 +23,19 @@ if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
 from pipeline_state import (
-    LEGACY_SENTINEL_PATH,
+    LEGACY_SENTINEL_FILENAME,
     _compute_state_hmac,
+    get_legacy_sentinel_path,
     get_state_path,
     sign_state,
     verify_state_hmac,
 )
+
+# Backward-compatible alias for tests that pin the resolved sentinel path.
+# Issue #1206 replaced the module-level LEGACY_SENTINEL_PATH constant with the
+# per-repo resolver get_legacy_sentinel_path(). The historical name is kept
+# here as a *value snapshot* (NOT a reference to the now-removed constant).
+LEGACY_SENTINEL_PATH = get_legacy_sentinel_path()
 
 
 def _make_state(
@@ -164,15 +171,22 @@ class TestIssue761SentinelPathPinning:
     """
 
     def test_legacy_sentinel_path_constant_exists(self):
-        """LEGACY_SENTINEL_PATH constant must equal the known sentinel path.
+        """Sentinel resolver must produce a per-repo path under .claude/local/.
 
-        This pins the value so any change is caught automatically by the
-        test suite, preventing silent divergence from unified_pre_tool.py.
+        Issue #1206 relocated the sentinel from machine-global /tmp to a
+        per-repo path. The filename is unchanged; the directory is now
+        ``<repo>/.claude/local/``.
         """
-        assert LEGACY_SENTINEL_PATH == Path("/tmp/implement_pipeline_state.json"), (
-            f"LEGACY_SENTINEL_PATH changed unexpectedly: {LEGACY_SENTINEL_PATH}. "
-            "If intentional, update unified_pre_tool.py PIPELINE_STATE_FILE and "
-            "pre_compact_batch_saver.sh to match."
+        # Resolved path must end in the canonical filename
+        assert LEGACY_SENTINEL_PATH.name == LEGACY_SENTINEL_FILENAME, (
+            f"sentinel filename changed: {LEGACY_SENTINEL_PATH.name}"
+        )
+        # Parent directory must be .claude/local relative to some repo root
+        assert LEGACY_SENTINEL_PATH.parent.name == "local"
+        assert LEGACY_SENTINEL_PATH.parent.parent.name == ".claude"
+        # The machine-global /tmp location MUST no longer be the default.
+        assert LEGACY_SENTINEL_PATH != Path("/tmp/implement_pipeline_state.json"), (
+            "Issue #1206 regression: sentinel still resolves to machine-global /tmp."
         )
 
     def test_legacy_sentinel_path_is_not_hmac_state_path(self):
@@ -195,22 +209,26 @@ class TestIssue761SentinelPathPinning:
 
     @patch("pipeline_state._read_pipeline_secret", return_value=None)
     def test_verify_state_hmac_checks_legacy_sentinel_path(self, mock_secret):
-        """verify_state_hmac() must check LEGACY_SENTINEL_PATH for stale detection.
+        """verify_state_hmac() must check the legacy sentinel for stale detection.
 
-        This test patches Path() construction to track which path strings are
-        used, then verifies that the stale fail-open section references the
-        sentinel path (not the HMAC state path or an arbitrary path).
+        Issue #1206 replaced the static LEGACY_SENTINEL_PATH constant with the
+        per-repo resolver get_legacy_sentinel_path(). The sentinel path is
+        resolved at call time and depends on CWD; we re-resolve it immediately
+        before the call (and reset the project-root cache) to make the test
+        robust against test ordering side-effects.
         """
-        state = _make_state(session_start="")
+        # Reset cache so resolver sees current cwd, not a stale cached root.
+        import path_utils as _pu
+        _pu.reset_project_root_cache()
+        expected_sentinel = str(get_legacy_sentinel_path())
 
-        # Track which paths have exists() called on them
-        original_exists = Path.exists
+        state = _make_state(session_start="")
         checked_paths: list[str] = []
 
         def tracking_exists(self):
             checked_paths.append(str(self))
             # Return True only for the sentinel path so stale check proceeds
-            if str(self) == str(LEGACY_SENTINEL_PATH):
+            if str(self) == expected_sentinel:
                 return True
             return False
 
@@ -223,9 +241,9 @@ class TestIssue761SentinelPathPinning:
              patch.object(Path, "stat", return_value=mock_stat):
             result = verify_state_hmac(state, "different-session")
 
-        assert str(LEGACY_SENTINEL_PATH) in checked_paths, (
-            f"verify_state_hmac() did not check LEGACY_SENTINEL_PATH "
-            f"({LEGACY_SENTINEL_PATH}). Paths checked: {checked_paths}"
+        assert expected_sentinel in checked_paths, (
+            f"verify_state_hmac() did not check the legacy sentinel "
+            f"({expected_sentinel}). Paths checked: {checked_paths}"
         )
         assert result is True, (
             "Stale sentinel should trigger fail-open (confirms the sentinel "

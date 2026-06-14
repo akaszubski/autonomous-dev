@@ -181,42 +181,68 @@ def test_spec_1048_4c_gc_returns_required_keys() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC5: Security guards NOT migrated
+# AC5: Security guards NOT migrated (Issue #1206 update — see below)
 # ---------------------------------------------------------------------------
 def test_spec_1048_5_security_guard_keeps_literal_path() -> None:
-    """AC5: unified_pre_tool.py _check_bash_state_deletion still references literal path."""
+    """AC5 (Issue #1206 update): _check_bash_state_deletion still protects the
+    legacy literal path AND the new per-repo path.
+
+    Issue #1206 introduced LEGACY_SENTINEL_LITERALS — a module-level tuple
+    containing BOTH ``/tmp/implement_pipeline_state.json`` (orphan protection
+    for pre-#1206 sessions) and the new per-repo resolver result. The guard
+    function dereferences the tuple via ``*LEGACY_SENTINEL_LITERALS`` so it
+    protects both paths.
+    """
     text = (HOOKS_DIR / "unified_pre_tool.py").read_text()
     assert "_check_bash_state_deletion" in text, "guard function must still exist"
-    # Locate the function and verify the literal path is present in its body.
+    # The legacy literal MUST appear at module level (in LEGACY_SENTINEL_LITERALS).
+    assert "LEGACY_SENTINEL_LITERALS" in text, (
+        "LEGACY_SENTINEL_LITERALS tuple must be defined at module level"
+    )
+    assert f'"{LITERAL_PATH}"' in text or f"'{LITERAL_PATH}'" in text, (
+        f"The legacy literal '{LITERAL_PATH}' must remain in unified_pre_tool.py "
+        "(orphan protection per LEGACY_SENTINEL_LITERALS)"
+    )
+    # Locate the guard function and verify it dereferences the tuple.
     func_start = text.index("def _check_bash_state_deletion")
-    # Look for the next top-level def to bound the function body.
     next_def_match = re.search(r"\ndef [A-Za-z_]", text[func_start + 4:])
     func_end = func_start + 4 + (next_def_match.start() if next_def_match else len(text))
     body = text[func_start:func_end]
-    assert f'"{LITERAL_PATH}"' in body or f"'{LITERAL_PATH}'" in body, (
-        "_check_bash_state_deletion must still match the literal "
-        f"'{LITERAL_PATH}' path string"
+    assert "LEGACY_SENTINEL_LITERALS" in body, (
+        "_check_bash_state_deletion must dereference LEGACY_SENTINEL_LITERALS "
+        "so both the legacy /tmp path AND the new per-repo path are protected"
     )
 
 
 # ---------------------------------------------------------------------------
-# AC6: pipeline_state.py HMAC fail-open uses LEGACY_SENTINEL_PATH unchanged
+# AC6 (updated by Issue #1206): pipeline_state.py HMAC fail-open uses
+# get_legacy_sentinel_path() resolver. The original AC6 referenced a static
+# constant LEGACY_SENTINEL_PATH; Issue #1206 replaced that with a per-repo
+# resolver to eliminate cross-repo state collisions. Spec semantics preserved:
+# the HMAC fail-open path is still consulted at the same logical site.
 # ---------------------------------------------------------------------------
 def test_spec_1048_6_pipeline_state_legacy_sentinel_unchanged() -> None:
-    """AC6: pipeline_state.py keeps LEGACY_SENTINEL_PATH constant referencing the literal path."""
+    """AC6 (Issue #1206 update): HMAC fail-open still consults the legacy sentinel.
+
+    The static LEGACY_SENTINEL_PATH constant was replaced by the
+    get_legacy_sentinel_path() resolver. The fail-open semantic invariant
+    (HMAC verify_state_hmac consults the legacy sentinel mtime) is preserved.
+    """
     text = (LIB_DIR / "pipeline_state.py").read_text()
-    # The constant must be defined and still equal to the literal path.
-    constant_re = re.compile(
-        r"LEGACY_SENTINEL_PATH\s*[:=].*Path\(\s*[\"']/tmp/implement_pipeline_state\.json[\"']\s*\)"
+
+    # New: the resolver function is defined and used.
+    assert "def get_legacy_sentinel_path" in text, (
+        "get_legacy_sentinel_path() resolver must be defined in pipeline_state.py"
     )
-    assert constant_re.search(text), (
-        "LEGACY_SENTINEL_PATH constant must remain as Path('/tmp/implement_pipeline_state.json')"
+    assert "LEGACY_SENTINEL_FILENAME" in text, (
+        "LEGACY_SENTINEL_FILENAME constant must be defined in pipeline_state.py"
     )
-    # And the HMAC fail-open mtime check should still reference it.
-    assert "LEGACY_SENTINEL_PATH" in text
-    # Sanity: at least one usage outside the constant definition.
-    assert text.count("LEGACY_SENTINEL_PATH") >= 2, (
-        "LEGACY_SENTINEL_PATH should be defined AND referenced in the fail-open block"
+    # The HMAC fail-open block must call the resolver to get the sentinel path.
+    # (verify_state_hmac contains the call; this guards against the resolver
+    # being defined but never used in the fail-open block.)
+    assert text.count("get_legacy_sentinel_path") >= 2, (
+        "get_legacy_sentinel_path must be defined AND called from at least "
+        "one site (HMAC fail-open block or set_pipeline_base_commit)."
     )
 
 

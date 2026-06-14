@@ -29,6 +29,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Cross-repo sentinel collision (GitHub Issue #1206)
+- **Problem**: The legacy pipeline sentinel was hardcoded to the machine-global `/tmp/implement_pipeline_state.json`. Concurrent `/implement` sessions in different repos overwrote each other's sentinels, leaking issue numbers and run state across sessions. Observed in session 92097971 (autonomous-dev batch 1200-1204, 2026-06-11) where a foreign session running `/implement --fix 1288` clobbered this session's sentinel and blocked spec-validator dispatch.
+- **Solution**: Sentinel is now resolved per-repo via `pipeline_state.get_legacy_sentinel_path()`, which anchors at `<repo>/.claude/local/implement_pipeline_state.json`. Repo root is detected by walking for `.git` or `.claude` markers (priority: `.git` first); falls back to `Path.cwd()` if no marker is found. Parent directory created at mode 0o700. New `_atomic_write_json()` helper consolidates the temp-file + rename pattern with 0o600 file mode. The companion bash helper `hooks/lib/_sentinel.sh` provides the same resolution to bash hooks via `_default_sentinel()`. Bash and Python resolvers produce identical paths for the same CWD (verified by `tests/integration/test_hook_pwd_inheritance.py`). The M0 R7 cross-run-within-repo signal (mtime-based stale-state detection in `verify_state_hmac`) is preserved.
+- **Backward compatibility**: `unified_pre_tool.py` retains the legacy `/tmp/implement_pipeline_state.json` literal in a new `LEGACY_SENTINEL_LITERALS` tuple so write-protection still covers orphaned sentinel files from pre-#1206 sessions during the transition window. The new per-repo path is appended to the same tuple so both are protected.
+- **Files Changed**:
+  - `plugins/autonomous-dev/lib/pipeline_state.py`: removed `LEGACY_SENTINEL_PATH` constant; added `LEGACY_SENTINEL_FILENAME`, `get_legacy_sentinel_path()`, and `_atomic_write_json()`; refactored two inline `mkstemp` writers to use the consolidated helper.
+  - `plugins/autonomous-dev/lib/pipeline_completion_state.py`: `resolve_session_id()` and `ensure_sentinel_heartbeat()` resolve the sentinel via `get_legacy_sentinel_path()`.
+  - `plugins/autonomous-dev/hooks/unified_pre_tool.py`: seven env-var fallback sites updated; new module-level `LEGACY_SENTINEL_LITERALS` tuple covers orphan + per-repo paths; `_check_bash_state_deletion` dereferences the tuple via `*LEGACY_SENTINEL_LITERALS`.
+  - `plugins/autonomous-dev/hooks/unified_session_tracker.py`: env-var fallback updated.
+  - `plugins/autonomous-dev/hooks/lib/_sentinel.sh`: new bash helper file with `_default_sentinel()` and `_find_repo_root()`.
+  - `plugins/autonomous-dev/hooks/pre_compact_batch_saver.sh`: sources `lib/_sentinel.sh`, default resolves to `_default_sentinel`.
+  - `plugins/autonomous-dev/hooks/SessionStart-batch-recovery.sh`: sources `lib/_sentinel.sh`, default resolves to `_default_sentinel`.
+- **Tests Added** (19 new):
+  - `tests/unit/lib/test_pipeline_state_repo_root.py` (3): three-tier fallback chain.
+  - `tests/unit/lib/test_pipeline_state_legacy_path.py` (7): parent-dir 0o700, idempotence, filename constant, atomic-write 0o600, exception-path cleanup, indent passthrough.
+  - `tests/integration/test_cross_repo_sentinel_isolation.py` (2): two-repo path isolation, no clobber on writes.
+  - `tests/integration/test_hook_pwd_inheritance.py` (5): subprocess CWD inheritance for the Python resolver, `unified_pre_tool` tuple, session tracker, bash helper, Python/bash parity.
+  - `tests/regression/regression/test_issue_1206_cross_repo_collision.py` (2): replay of session-92097971 collision; pin that the `/tmp/` literal is no longer the default resolution.
+
 #### Strict Mode Template Hook Path References (GitHub Issue #84)
 - **Problem**: Hook paths in `settings.strict-mode.json` template referenced `.claude/hooks/` which resolved to wrong location when plugin installed
   - Templates use relative paths: `.claude/hooks/detect_feature_request.py`
