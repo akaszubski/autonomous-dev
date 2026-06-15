@@ -2134,6 +2134,33 @@ def _check_write_pipeline_required(
     if basename.startswith("test_") or basename.endswith("_test.py"):
         return (False, "tier0_test_file", "")
 
+    # Tier 0g: ephemeral / scratch paths — excluded. Files at these
+    # absolute locations are never committed (covered by .gitignore +
+    # repo discipline) and never user-facing, so the /implement pipeline
+    # review adds no value but charges a UX tax every time the agent
+    # needs a one-off helper script or scratch file. Restricted to
+    # ABSOLUTE prefixes so a literal ``/tmp/foo.sh`` is exempt but
+    # ``./tmp/foo.sh`` inside a project named ``tmp`` is NOT.
+    #
+    # NOTE: this is orthogonal to the security guard in
+    # :func:`_is_plugin_source_path` (which prevents an attacker
+    # placing a look-alike ``/tmp/plugins/autonomous-dev/...`` tree to
+    # be trusted as a plugin source). Pipeline gating is about review
+    # discipline, not trust elevation; the two concerns don't overlap.
+    try:
+        resolved = str(Path(file_path).expanduser())
+    except Exception:
+        resolved = file_path
+    EPHEMERAL_PREFIXES = (
+        "/tmp/",
+        "/private/tmp/",      # macOS canonicalises /tmp -> /private/tmp
+        "/var/folders/",      # macOS pytest tmp_path / mkdtemp default
+        str(Path.home() / "tmp") + "/",
+        str(Path.home() / ".cache") + "/",
+    )
+    if any(resolved.startswith(p) for p in EPHEMERAL_PREFIXES):
+        return (False, "tier0_ephemeral_path", "")
+
     # Tier classification via AST-based classifier (Phase 1, #1142+).
     tier, reason = _safe_classify_edit_tier(file_path, old_string or "", new_string or "")
 
