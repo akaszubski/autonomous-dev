@@ -278,15 +278,38 @@ If ARGUMENTS contains an issue reference (`#NNN` or issue number), fetch the iss
 ```bash
 ISSUE_NUMBER=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -1 | tr -d '#')
 if [ -n "$ISSUE_NUMBER" ]; then
-  ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title,body 2>/dev/null)
+  ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title,body,state 2>/dev/null)
   if [ $? -eq 0 ]; then
     ISSUE_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))")
     ISSUE_BODY=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('body',''))")
+    ISSUE_STATE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state',''))")
   fi
 fi
 ```
 
 Store `ISSUE_BODY` and `ISSUE_TITLE` as pipeline context. If `gh issue view` fails, proceed without issue body (ISSUE_BODY remains empty). Do NOT block the pipeline on fetch failure.
+
+**Pre-flight: skip already-merged or already-addressed issues** (Issue #936):
+
+```bash
+# Pre-flight: skip if issue is already closed or recently referenced in commits.
+# Issue #936: prevent burning pipeline time on already-merged work.
+if [ -n "$ISSUE_NUMBER" ] && ! echo "ARGUMENTS" | grep -q -- "--force"; then
+  # Check 1: issue state (free — uses already-fetched ISSUE_STATE; AC #5: gh failures leave ISSUE_STATE empty, skip silently)
+  if [ -n "$ISSUE_STATE" ] && [ "$ISSUE_STATE" != "OPEN" ]; then
+    echo "BLOCKED: Issue #${ISSUE_NUMBER} is ${ISSUE_STATE}, not OPEN. Use --force to override (rare: re-implement intentionally)."
+    exit 1
+  fi
+  # Check 2: recent commit references (always runs, even if gh unavailable; AC #5)
+  RECENT_FIX=$(git log --oneline -n 20 --grep "#${ISSUE_NUMBER}\b" 2>/dev/null | head -3)
+  if [ -n "$RECENT_FIX" ]; then
+    echo "BLOCKED: Issue #${ISSUE_NUMBER} appears already addressed in recent commits:"
+    echo "$RECENT_FIX"
+    echo "Use --force to override."
+    exit 1
+  fi
+fi
+```
 
 Activate pipeline state:
 ```bash

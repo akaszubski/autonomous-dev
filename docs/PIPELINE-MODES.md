@@ -21,6 +21,8 @@ covers:
 | **Batch (issues)** | `--issues <nums>` | Process GitHub issues with auto-worktree per issue |
 | **Resume** | `--resume <run_id>` | Recover from auto-compact / crash mid-pipeline |
 
+**Pre-flight check (Issue #936)**: When ARGUMENTS contains a single issue reference (`#N`), STEP 0 exits with `BLOCKED` and `exit 1` if the issue is already CLOSED or if a recent commit (last 20) references `#N`. This prevents burning pipeline time on already-merged work. Pass `--force` to skip the check (rare: intentional re-implementation of a closed issue). Free-text invocations (no `#N`) and `gh`-unavailable cases are unaffected.
+
 **Auto-detection**: If no mode flag is given, `/implement` scans the feature description for signals:
 - Fix keywords (`failing test`, `broken test`, `flaky test`) → suggests `--fix`
 - Light keywords or file paths (`*.md`, `*.json`, `*.yaml`, docs-only) not matching security patterns → suggests `--light`
