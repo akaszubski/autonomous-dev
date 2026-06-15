@@ -42,15 +42,24 @@ _history_lock = threading.Lock()
 MAX_HISTORY_PER_AGENT = 20
 
 # Static thresholds: agent_type -> (max_seconds, min_result_words_or_None)
+# Ordered roughly by pipeline step (see STEP_ORDER in pipeline_intent_validator.py):
+# research → plan → plan-critic → test → implement → pytest-gate → spec-validator
+# → reviewer → security-auditor → doc-master → CIA.
+# When adding a new agent to STEP_ORDER / VALID_AGENT_TYPES, add a matching entry
+# here — test_thresholds_cover_all_agents enforces coverage.
 STATIC_THRESHOLDS: dict[str, tuple[int, int | None]] = {
     "researcher-local": (90, 500),
     "researcher": (120, 300),
     "planner": (180, 500),
+    "plan-critic": (120, 200),
+    "test-master": (180, None),
     "implementer": (480, None),
+    "pytest-gate": (180, None),
+    "spec-validator": (180, 300),
     "reviewer": (180, None),
     "security-auditor": (180, None),
     "doc-master": (120, 30),
-    "test-master": (180, None),
+    "continuous-improvement-analyst": (300, 200),
 }
 
 # Adaptive threshold multiplier applied to p95
