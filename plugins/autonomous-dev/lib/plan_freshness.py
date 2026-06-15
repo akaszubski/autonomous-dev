@@ -17,8 +17,12 @@ no global state:
   output.
 
 The file-path regex mirrors STEP 5.5c structural validation in
-`commands/implement.md` (`[\\w/.-]+\\.(py|md|json|yaml|sh|ts|js)`). Keep the
-two in sync if either changes.
+`commands/implement.md` (`[\\w/.-]{1,512}\\.(py|md|json|yaml|sh|ts|js)`).
+The ``{1,512}`` upper bound on the character-class run is a defensive cap
+against pathological inputs that could exercise quadratic regex behaviour
+on the unbounded ``+`` quantifier (Issue #1194). 512 chars comfortably
+exceeds any plausible file path while keeping worst-case matching
+bounded. Keep the two in sync if either changes.
 """
 
 from __future__ import annotations
@@ -28,7 +32,9 @@ from pathlib import Path
 
 # Mirror of the STEP 5.5c regex in commands/implement.md. If you change the
 # extension list here, update the prose in 5.5c (and vice-versa).
-_FILE_PATH_REGEX = re.compile(r"[\w/.-]+\.(py|md|json|yaml|sh|ts|js)")
+# The ``{1,512}`` upper bound caps the character-class run length to defuse
+# the ReDoS surface on the previously-unbounded ``+`` quantifier (Issue #1194).
+_FILE_PATH_REGEX = re.compile(r"[\w/.-]{1,512}\.(py|md|json|yaml|sh|ts|js)")
 
 
 def extract_referenced_paths(plan_content: str) -> list[str]:
@@ -40,7 +46,9 @@ def extract_referenced_paths(plan_content: str) -> list[str]:
 
     Returns:
         Deduplicated, sorted list of path strings matching the regex
-        ``[\\w/.-]+\\.(py|md|json|yaml|sh|ts|js)``. Sort order is
+        ``[\\w/.-]{1,512}\\.(py|md|json|yaml|sh|ts|js)``. The ``{1,512}``
+        upper bound is the ReDoS cap from Issue #1194 — character-class
+        runs longer than 512 chars do not match. Sort order is
         deterministic (lexicographic) so callers can rely on stable output.
     """
     if not plan_content:

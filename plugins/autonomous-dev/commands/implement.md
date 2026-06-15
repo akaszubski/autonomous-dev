@@ -795,7 +795,7 @@ paths = extract_referenced_paths(PRE_VALIDATED_PLAN_CONTENT)
 missing = verify_paths_exist(paths, Path(REPO_ROOT))
 ```
 
-The helpers live in `plugins/autonomous-dev/lib/plan_freshness.py`. The path-extraction regex mirrors STEP 5.5c (`[\w/.-]+\.(py|md|json|yaml|sh|ts|js)`) — keep the two in sync.
+The helpers live in `plugins/autonomous-dev/lib/plan_freshness.py`. The path-extraction regex mirrors STEP 5.5c (`[\w/.-]{1,512}\.(py|md|json|yaml|sh|ts|js)`) — keep the two in sync. The `{1,512}` upper bound caps the character-class run length to defuse the ReDoS surface on the previously-unbounded `+` quantifier (Issue #1194).
 
 **Pass path** — if `missing == []`: log `STEP 4.8: PASS — N/N referenced paths exist.` (where N = `len(paths)`) and continue to STEP 5.
 
@@ -889,7 +889,7 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 
 **Always runs** (even when 5.5a skipped plan-critic). Verify the plan (from STEP 5 or revised in 5.5b) satisfies all three structural requirements:
 
-1. **File paths**: Plan contains ≥1 absolute or relative file path (matches pattern `[\w/.-]+\.(py|md|json|yaml|sh|ts|js)`)
+1. **File paths**: Plan contains ≥1 absolute or relative file path (matches pattern `[\w/.-]{1,512}\.(py|md|json|yaml|sh|ts|js)`; the `{1,512}` upper bound is a ReDoS-defensive cap per Issue #1194)
 2. **Acceptance criteria**: Plan contains an "acceptance criteria" section (case-insensitive: "acceptance criteria", "acceptance criterion", or "## Acceptance")
 3. **Testing strategy**: Plan contains a "testing strategy" or "test" section (case-insensitive: "testing strategy", "test plan", or "## Test")
 
