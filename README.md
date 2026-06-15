@@ -371,6 +371,7 @@ installed but you don't want it active in this particular tree.
 /scaffold-genai-uat      # Scaffold LLM-as-judge tests into any repo
 /mem-search              # Search claude-mem persistent memory
 /triage --auto-improvement  # Cluster open auto-improvement issues by root cause; emit ranked work queue (periodic)
+/drain-queue             # Autonomous queue drainer wrapping /implement --issues with 6 safety guardrails
 ```
 
 ---
@@ -500,7 +501,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Commands | 24 | Slash commands for workflows |
+| Commands | 25 | Slash commands for workflows |
 | Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
 | Skills | 20 | Domain knowledge (added: planning-workflow, prompt-engineering) |
 | Hooks | 25 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
@@ -539,7 +540,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 - [Spec Validation](tests/spec_validation/) - Spec-blind behavioral tests
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 24 commands
+- [Commands](plugins/autonomous-dev/commands/) - All 25 commands
 - [Hooks](docs/HOOKS.md) - 25 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
 - [Libraries](docs/LIBRARIES.md) - 221 Python utilities

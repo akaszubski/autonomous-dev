@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **`/drain-queue` autonomous queue drainer command**: Thin orchestration wrapper around `/implement --issues` that picks the top `/triage` cluster and drains it autonomously. Applies 6 safety gates: daily drain-count + wall-clock budget (`MAX_DRAINS_PER_DAY=10`, `MAX_WALL_SECONDS_PER_DAY=14400s`), cluster severity gate (only `low`/`info` auto-drainable), hydrated label tag gate (blocks on `security`, `auth`, `breaking-change`, `human-only`, etc.), cluster size gate (`MAX_CLUSTER_SIZE_AUTO_DRAINABLE=5`), circuit breaker (2 consecutive failures → 4h pause; 3 in 24h → 24h pause), and push/deploy gates. One invocation = one drain attempt; pair with `/loop` or `/schedule` for recurrence. New libraries: `lib/drain_queue_state.py` (state primitives + gate logic) and `lib/drain_runner.py` (subprocess helpers). 98 new tests across 4 test files.
+
 ### Fixed
 - **Prompt-integrity recovery latency telemetry** (Issue #1178): `unified_pre_tool.py`'s prompt-integrity deny path was invisible in `pipeline_timing_analyzer.py` — blocked Agent dispatches produced no SubagentStop and the 2-4 minute recovery overhead was untracked. A uuid4 `block_event_id` is generated at deny time and persisted into the `_record_agent_denial` state file; the allow path emits a paired `prompt_integrity_recovery` row to `.claude/logs/hook-blocks.jsonl` with computed latency. `pipeline_timing_analyzer.py` adds `PromptIntegrityRecovery` dataclass, `load_prompt_integrity_events()`, and `extract_prompt_integrity_recoveries()` (O(1) pairing by `block_event_id`); `format_timing_report()` gains optional `recoveries=` and `blocked_without_recovery=` kwargs that append a "Prompt-Integrity Recovery Overhead" section to the report. 14 new tests (8 hook + 6 analyzer).
 
