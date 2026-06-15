@@ -1020,7 +1020,9 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
     if os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
+from pathlib import Path
 from fix_forward import parse_failing_tests, classify_failures
+from flaky_tests import load_known_flaky_tests
 import subprocess
 # Read baseline failing tests from temp file written in STEP 1 (newline-separated test IDs).
 # Issue #1094: handle __TIMEOUT__ sentinel — when STEP 1 timed out, baseline is unknown and
@@ -1057,7 +1059,8 @@ except subprocess.TimeoutExpired:
 if baseline_failing is None or current_failing is None:
     print('Fix-forward classification: SKIPPED (baseline or current capture unavailable)')
 else:
-    result = classify_failures(baseline_failing, current_failing)
+    _flaky = load_known_flaky_tests(Path('.'))
+    result = classify_failures(baseline_failing, current_failing, known_flaky_tests=_flaky)
     print(f'Fixed: {len(result[\"fixed\"])} | Pre-existing: {len(result[\"pre_existing_remaining\"])} | New: {len(result[\"new_failures\"])}')
 "
 ```

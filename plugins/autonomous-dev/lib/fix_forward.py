@@ -50,23 +50,29 @@ def parse_failing_tests(pytest_output: str) -> set[str]:
 def classify_failures(
     baseline: set[str],
     current: set[str],
+    known_flaky_tests: set[str] | None = None,
 ) -> dict[str, set[str]]:
     """Classify failures into three categories.
 
     Args:
         baseline: Set of test IDs that were failing before the implementer ran.
         current: Set of test IDs that are failing after the implementer ran.
+        known_flaky_tests: Optional set of test IDs known to be flaky. When
+            provided, these IDs are excluded from new_failures (Issue #983).
 
     Returns:
         Dictionary with three keys:
         - "fixed": in baseline but not in current (was failing, now passes).
         - "pre_existing_remaining": in both baseline and current (still failing).
-        - "new_failures": in current but not in baseline (newly introduced).
+        - "new_failures": in current but not in baseline, EXCLUDING known-flaky IDs.
     """
+    new_failures = current - baseline
+    if known_flaky_tests is not None:
+        new_failures = new_failures - known_flaky_tests
     return {
         "fixed": baseline - current,
         "pre_existing_remaining": baseline & current,
-        "new_failures": current - baseline,
+        "new_failures": new_failures,
     }
 
 

@@ -72,6 +72,12 @@ DEFAULT_MIN_OBSERVATIONS = 10
 WASTEFUL_WPS_THRESHOLD = 1.0
 WASTEFUL_MIN_DURATION = 60.0
 
+# Issue #986: user-pause detection for wall_clock_seconds adjustment.
+# When raw timestamp delta exceeds this, search for user-pause gaps.
+MAX_ACTIVE_AGENT_SECONDS = 3600.0  # 1 hour — agent legitimately running this long is rare
+# Minimum contiguous gap to consider as user-pause (not agent thinking).
+MIN_PAUSE_GAP_SECONDS = 300.0  # 5 minutes — Sonnet doesn't think >5min in one block
+
 # Ghost detection thresholds
 GHOST_MAX_DURATION = 10.0
 GHOST_MAX_WORDS = 50
@@ -231,6 +237,63 @@ def extract_prompt_integrity_recoveries(
     return paired, blocked_without_recovery
 
 
+def _subtract_user_pauses(
+    events: list,
+    inv: PipelineEvent,
+    comp: PipelineEvent,
+    raw_gap: float,
+) -> float:
+    """Subtract user-pause spans from raw_gap when span is suspiciously long.
+
+    Issue #986: when a pipeline includes user-interaction pauses (plan approval,
+    plan-critic REVISE wait), wall_clock includes the pause time. Detect
+    contiguous gaps >= MIN_PAUSE_GAP_SECONDS within the inv/comp window for
+    the same session_id, subtract from raw_gap.
+
+    Args:
+        events: Full PipelineEvent list (filtered by session_id internally).
+        inv: agent_invocation PipelineEvent for this pair.
+        comp: agent_completion PipelineEvent for this pair.
+        raw_gap: Original best_gap (seconds_between(inv.ts, comp.ts)).
+
+    Returns:
+        Adjusted active wall_clock in seconds. Equals raw_gap if no qualifying
+        pause is found. Never returns negative.
+    """
+    inv_dt = parse_timestamp(inv.timestamp)
+    comp_dt = parse_timestamp(comp.timestamp)
+    if inv_dt is None or comp_dt is None:
+        return raw_gap
+
+    # Collect intra-window timestamps for the same session_id.
+    session_id = inv.session_id or ""
+    in_window_dts = []
+    for e in events:
+        if e is inv or e is comp:
+            continue
+        if (e.session_id or "") != session_id:
+            continue
+        e_dt = parse_timestamp(e.timestamp)
+        if e_dt is None:
+            continue
+        if e_dt <= inv_dt or e_dt >= comp_dt:
+            continue
+        in_window_dts.append(e_dt)
+
+    in_window_dts.sort()
+
+    # Sentinel boundaries to detect leading/trailing gaps.
+    boundary_dts = [inv_dt] + in_window_dts + [comp_dt]
+    longest_pause = 0.0
+    for i in range(1, len(boundary_dts)):
+        gap = (boundary_dts[i] - boundary_dts[i - 1]).total_seconds()
+        if gap >= MIN_PAUSE_GAP_SECONDS and gap > longest_pause:
+            longest_pause = gap
+
+    adjusted = raw_gap - longest_pause
+    return max(adjusted, 0.0)
+
+
 def extract_agent_timings(events: list[PipelineEvent]) -> list[AgentTiming]:
     """Extract paired agent timings from pipeline events.
 
@@ -290,9 +353,19 @@ def extract_agent_timings(events: list[PipelineEvent]) -> list[AgentTiming]:
         if best_comp is not None:
             used_completions.add(best_idx)
             step_num = STEP_ORDER.get(inv.subagent_type, 0.0)
+            # Issue #986: subtract user-pause spans for unreasonably long timestamps.
+            if best_gap > MAX_ACTIVE_AGENT_SECONDS:
+                active_gap = _subtract_user_pauses(events, inv, best_comp, best_gap)
+                logger.info(
+                    "extract_agent_timings: %s span %.0fs adjusted to %.0fs (subtracted pause)",
+                    inv.subagent_type, best_gap, active_gap,
+                )
+                wall_clock = active_gap
+            else:
+                wall_clock = best_gap
             timings.append(AgentTiming(
                 agent_type=inv.subagent_type,
-                wall_clock_seconds=best_gap,
+                wall_clock_seconds=wall_clock,
                 result_word_count=best_comp.result_word_count,
                 invocation_ts=inv.timestamp,
                 completion_ts=best_comp.timestamp,
