@@ -62,13 +62,28 @@ def verify_paths_exist(paths: list[str], repo_root: Path) -> list[str]:
 
     Returns:
         Sorted list of path strings whose resolved location does not exist
-        on disk. Empty list means every referenced path was found.
+        on disk. Empty list means every referenced path was found. Paths
+        that escape `repo_root` via traversal (e.g., ``../../etc/passwd``)
+        or that fail to resolve are treated as missing — `verify_paths_exist`
+        never probes the filesystem outside `repo_root` (Issue #1193).
     """
+    repo_root_resolved = repo_root.resolve()
     missing: list[str] = []
     for path_str in paths:
         candidate = Path(path_str)
         if not candidate.is_absolute():
             candidate = repo_root / candidate
-        if not candidate.exists():
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            missing.append(path_str)
+            continue
+        # Canonicalize-then-contain: traversal outside repo_root => missing.
+        try:
+            resolved.relative_to(repo_root_resolved)
+        except ValueError:
+            missing.append(path_str)
+            continue
+        if not resolved.exists():
             missing.append(path_str)
     return sorted(missing)
