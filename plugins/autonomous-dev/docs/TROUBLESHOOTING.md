@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-06-16
+**Last Updated**: 2026-06-17
 **For**: Users and developers encountering common issues
 
 ---
@@ -56,6 +56,8 @@ Use 'git commit -m "... Closes #1234"' with a literal message that closes a clus
    ```bash
    AUTONOMOUS_DEV_BYPASS=1 git commit -m "..."
    ```
+
+**Normal `/drain-queue` flow (Issue #1226)**: When `/drain-queue` invokes `/implement --issues N`, the pipeline coordinator routes the final commit through `create_commit_with_agent_message()` at STEP 12.7 (full pipeline) or STEP L4.7 (light pipeline). This helper auto-injects `Closes #N` into the commit body, so the drain-pending gate is satisfied automatically. You should only encounter this block if running a bare `git commit` outside the pipeline, using a custom commit message that omits the reference, or if the pipeline coordinator bypasses the helper step.
 
 **Why this exists**: The 2026-06-15 autonomous fire (commit 8b3b582) ignored the triage cluster and committed an unrelated fix with no `Closes #N` reference. The gate prevents the same pattern going forward.
 

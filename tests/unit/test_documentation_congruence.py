@@ -490,3 +490,68 @@ class TestHookEventNames:
             f"{filepath} uses invalid hook event names: {found}\n"
             f"Valid events: {sorted(self.VALID_EVENTS)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# 9. Issue #1226 — Closes-ref injection structural guards
+# ---------------------------------------------------------------------------
+
+class TestClosesRefInjection:
+    """implement.md must contain STEP 12.7 anchor invoking create_commit_with_agent_message.
+
+    Regression guard for Issue #1226: ensures the commit funnel for
+    single-issue --issues N runs is documented and correctly wired.
+    Prevents --no-verify from being introduced in the commit path.
+    """
+
+    @pytest.fixture
+    def implement_md(self) -> str:
+        return _read(PLUGIN / "commands" / "implement.md")
+
+    def test_implement_md_contains_step_12_7_anchor(self, implement_md: str) -> None:
+        """implement.md must contain a STEP 12.7 section (Issue #1226)."""
+        assert "STEP 12.7" in implement_md, (
+            "implement.md is missing the 'STEP 12.7' anchor required by Issue #1226.\n"
+            "The single-issue commit must route through create_commit_with_agent_message()."
+        )
+
+    def test_implement_md_step_12_7_references_helper(self, implement_md: str) -> None:
+        """STEP 12.7 in implement.md must reference create_commit_with_agent_message."""
+        assert "create_commit_with_agent_message" in implement_md, (
+            "implement.md is missing 'create_commit_with_agent_message' reference.\n"
+            "STEP 12.7 must invoke the helper so Closes #N is auto-injected."
+        )
+
+    def test_implement_md_no_no_verify_in_commit_steps(self, implement_md: str) -> None:
+        """Regression guard: --no-verify must NOT appear as an active flag in STEP 12.7/L4.7.
+
+        The plan-critic (round-1) flagged --no-verify as a serious risk in the
+        commit path. This test guards against it being re-introduced.
+        Only the FORBIDDEN notice text referencing it is allowed (in the HARD GATE warning).
+        """
+        # Extract only the STEP 12.7 and STEP L4.7 regions.
+        # We look for --no-verify appearing as a shell flag (preceded by space/quote, not
+        # embedded inside a FORBIDDEN notice). The HARD GATE notice says
+        # "NO `--no-verify` anywhere" — that text itself is allowed; actual usage is not.
+        step_127_idx = implement_md.find("### STEP 12.7")
+        step_13_idx = implement_md.find("### STEP 13:")
+        step_l47_idx = implement_md.find("### STEP L4.7")
+        step_l5_idx = implement_md.find("### STEP L5:")
+
+        regions = []
+        if step_127_idx != -1 and step_13_idx != -1:
+            regions.append(("STEP 12.7", implement_md[step_127_idx:step_13_idx]))
+        if step_l47_idx != -1 and step_l5_idx != -1:
+            regions.append(("STEP L4.7", implement_md[step_l47_idx:step_l5_idx]))
+
+        for region_name, region_text in regions:
+            # Strip lines that contain the FORBIDDEN notice (the warning itself).
+            active_lines = [
+                line for line in region_text.splitlines()
+                if "--no-verify" in line and "FORBIDDEN" not in line and "NO `--no-verify`" not in line
+            ]
+            assert not active_lines, (
+                f"{region_name} contains '--no-verify' outside of a FORBIDDEN notice:\n"
+                + "\n".join(active_lines)
+                + "\nDo NOT add --no-verify to the commit path (Issue #1226 security constraint)."
+            )

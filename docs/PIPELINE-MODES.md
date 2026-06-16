@@ -78,7 +78,8 @@ STEP 10  Validation (reviewer + security-auditor + doc-master)
 STEP 11  Remediation gate (max 2 cycles) HARD GATE
 STEP 11.5 Skill effectiveness gate (if skills/ modified)
 STEP 12  Final verification + doc-drift gate HARD GATE
-STEP 13  Git operations (commit, push if AUTO_GIT_PUSH=true)
+STEP 12.7 Commit via create_commit_with_agent_message (Closes #N injection) HARD GATE (#1226)
+STEP 13  Report and finalize + push (if AUTO_GIT_PUSH=true)
 STEP 14  Documentation congruence ....... HARD GATE
 STEP 15  Continuous improvement (bg analyst)
 ```
@@ -92,8 +93,9 @@ L2  Planning (planner, sonnet)
 L2.5 Plan structural validation HARD GATE
 L3  Implementation + test gate HARD GATE
 L3.5 Spec-blind validation HARD GATE
-L4  Documentation (doc-master)
-L5  Report and finalize + CI analyst bg
+L4   Documentation (doc-master)
+L4.7 Commit via create_commit_with_agent_message (Closes #N injection) HARD GATE (#1226)
+L5   Report and finalize + push + CI analyst bg
 ```
 
 ## Fix Pipeline Sequence

@@ -546,3 +546,117 @@ def test_integration_hook_no_marker_no_enforcement_via_subprocess(
     assert decision != "deny", (
         f"unexpected deny without marker: {proc.stdout}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1226: single-issue --issues N path — helper injects Closes #N
+# ---------------------------------------------------------------------------
+
+
+def test_single_issue_implement_helper_injects_closes(
+    hook_mod, fake_repo: Path, monkeypatch
+) -> None:
+    """Regression for Issue #1226.
+
+    When /implement --issues N routes the commit through
+    ``create_commit_with_agent_message(issue_number=N)``, the resulting
+    commit message MUST contain ``Closes #N``.
+
+    Covers three assertions:
+    1. ``create_commit_with_agent_message(issue_number=1226)`` produces a
+       commit that includes ``Closes #1226`` (verified via git log).
+    2. The drain-pending commit gate does NOT block a commit message that
+       already contains ``Closes #1226``.
+    3. Regression: the gate blocks the same message WITHOUT ``Closes #1226``.
+
+    The ``invoke_commit_message_agent`` sub-call is monkeypatched to a
+    deterministic stub so the test runs offline without a live agent.
+    """
+    import auto_implement_git_integration as _agi
+
+    # Stub out the Agent invocation — return a plausible commit message
+    def _stub_agent(workflow_id: str, request: str, **_kw) -> dict:
+        return {
+            "success": True,
+            "output": "feat: implement closes-ref injection for single-issue runs",
+            "error": "",
+        }
+
+    monkeypatch.setattr(_agi, "invoke_commit_message_agent", _stub_agent)
+
+    # --- set up a real git repo in fake_repo so auto_commit_and_push can commit ---
+    subprocess.run(["git", "init"], cwd=str(fake_repo), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=str(fake_repo), check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=str(fake_repo), check=True, capture_output=True,
+    )
+
+    # seed commit so HEAD exists (required by auto_commit_and_push)
+    seed_file = fake_repo / "seed.txt"
+    seed_file.write_text("seed", encoding="utf-8")
+    subprocess.run(["git", "add", "seed.txt"], cwd=str(fake_repo), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "--no-verify", "-m", "chore: initial seed"],
+        cwd=str(fake_repo), check=True, capture_output=True,
+    )
+
+    # add a file to commit via the helper
+    impl_file = fake_repo / "impl.py"
+    impl_file.write_text("# impl\n", encoding="utf-8")
+    subprocess.run(["git", "add", "impl.py"], cwd=str(fake_repo), check=True, capture_output=True)
+
+    # monkeypatch cwd so auto_commit_and_push runs in fake_repo
+    monkeypatch.chdir(fake_repo)
+
+    # --- write the drain marker so the gate is active during this test ---
+    _write_marker(fake_repo, issues=[1226], cluster_tag="test-1226")
+
+    # --- call create_commit_with_agent_message ---
+    from auto_implement_git_integration import create_commit_with_agent_message
+
+    result = create_commit_with_agent_message(
+        workflow_id="test-run-1226",
+        request="Fix Issue #1226 drain-queue closes ref injection",
+        branch="main",
+        push=False,
+        issue_number=1226,
+    )
+    assert result.get("success"), (
+        f"create_commit_with_agent_message returned failure: {result}"
+    )
+
+    # --- Assertion 1: HEAD commit message contains Closes #1226 ---
+    log_proc = subprocess.run(
+        ["git", "log", "-1", "--pretty=%B"],
+        cwd=str(fake_repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    commit_msg = log_proc.stdout
+    assert "Closes #1226" in commit_msg, (
+        f"Commit message missing 'Closes #1226'.\nFull message:\n{commit_msg}"
+    )
+
+    # --- Assertion 2: drain-pending gate does NOT block this commit message ---
+    gate_result = hook_mod._check_drain_pending_commit_gate(
+        {"command": f'git commit -m "{commit_msg.strip()}"'}
+    )
+    assert gate_result is None, (
+        f"Drain-pending gate blocked a commit that contains 'Closes #1226'.\n"
+        f"Gate returned: {gate_result}\n"
+        f"Commit message: {commit_msg!r}"
+    )
+
+    # --- Assertion 3 (sanity): gate BLOCKS message WITHOUT the closing ref ---
+    gate_block = hook_mod._check_drain_pending_commit_gate(
+        {"command": 'git commit -m "feat: implement closes-ref injection for single-issue runs"'}
+    )
+    assert gate_block is not None and gate_block[0] == "deny", (
+        "Drain-pending gate should block a commit without 'Closes #1226' "
+        f"when the drain marker is active. Got: {gate_block}"
+    )

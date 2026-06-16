@@ -277,6 +277,7 @@ If ARGUMENTS contains an issue reference (`#NNN` or issue number), fetch the iss
 
 ```bash
 ISSUE_NUMBER=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -1 | tr -d '#')
+export ISSUE_NUMBER
 if [ -n "$ISSUE_NUMBER" ]; then
   ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title,body 2>/dev/null)
   if [ $? -eq 0 ]; then
@@ -1699,6 +1700,35 @@ After dispatch, confirm the agent task ID is valid before proceeding to STEP 13.
 
 **FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP 12.5 for any reason, MUST NOT clean up pipeline state before STEP 12.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP 13 (commit) before confirming the CIA agent task ID is valid (background dispatch confirmation only — not completion).
 
+### STEP 12.7: Commit with Closes-ref Injection (Issue #1226)
+
+**Progress**: Output step banner (STEP 12.7/15 — Commit with Closes-ref injection).
+
+**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (lib/auto_implement_git_integration.py:1330-1346). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
+
+```bash
+# STEP 12.7: Route final commit through create_commit_with_agent_message
+# so Closes #N is auto-injected from --issues. Unblocks drain-queue
+# autonomous loop (Issue #1226).
+python3 -c "
+import sys, os
+for _p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p): sys.path.insert(0,_p); break
+from auto_implement_git_integration import create_commit_with_agent_message
+issue = int(os.environ['ISSUE_NUMBER']) if os.environ.get('ISSUE_NUMBER','').isdigit() else None
+import subprocess
+branch = subprocess.check_output(['git','branch','--show-current'], text=True).strip()
+r = create_commit_with_agent_message(
+    workflow_id=os.environ.get('RUN_ID','unknown'),
+    request=os.environ.get('FEATURE_DESC',''),
+    branch=branch,
+    push=False,
+    issue_number=issue,
+)
+sys.exit(0 if r.get('success', False) else 1)
+" 2>&1
+```
+
 ### STEP 13: Report and Finalize
 
 **Precondition**: STEP 11 Remediation Gate must have status PASS. If STEP 11 is BLOCKED, do NOT proceed with git operations.
@@ -1983,6 +2013,35 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 After dispatch, confirm the agent task ID is valid before proceeding to STEP L5. The agent runs in background; only dispatch confirmation is required.
 
 **FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP L4.5, MUST NOT clean up pipeline state before STEP L4.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP L5 git operations before confirming the CIA agent task ID is valid.
+
+### STEP L4.7: Commit with Closes-ref Injection (Issue #1226)
+
+**Progress**: Output step banner (STEP L4.7 — Commit with Closes-ref injection).
+
+**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (lib/auto_implement_git_integration.py:1330-1346). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
+
+```bash
+# STEP L4.7: Route final commit through create_commit_with_agent_message
+# so Closes #N is auto-injected from --issues. Unblocks drain-queue
+# autonomous loop (Issue #1226).
+python3 -c "
+import sys, os
+for _p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p): sys.path.insert(0,_p); break
+from auto_implement_git_integration import create_commit_with_agent_message
+issue = int(os.environ['ISSUE_NUMBER']) if os.environ.get('ISSUE_NUMBER','').isdigit() else None
+import subprocess
+branch = subprocess.check_output(['git','branch','--show-current'], text=True).strip()
+r = create_commit_with_agent_message(
+    workflow_id=os.environ.get('RUN_ID','unknown'),
+    request=os.environ.get('FEATURE_DESC',''),
+    branch=branch,
+    push=False,
+    issue_number=issue,
+)
+sys.exit(0 if r.get('success', False) else 1)
+" 2>&1
+```
 
 ### STEP L5: Report and Finalize
 
