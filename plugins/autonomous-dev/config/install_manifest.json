@@ -216,6 +216,7 @@
         "plugins/autonomous-dev/lib/doc_master_auto_apply.py",
         "plugins/autonomous-dev/lib/doc_update_risk_classifier.py",
         "plugins/autonomous-dev/lib/doc_verdict_validator.py",
+        "plugins/autonomous-dev/lib/drain_pending.py",
         "plugins/autonomous-dev/lib/drain_queue_state.py",
         "plugins/autonomous-dev/lib/drain_runner.py",
         "plugins/autonomous-dev/lib/edit_tier_classifier.py",

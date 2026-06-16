@@ -2749,6 +2749,244 @@ def _strip_body_arg_values(cmd: str) -> "tuple[str, list[str]]":
     return " ".join(out), dropped
 
 
+# Drain-pending commit-gate (Issue: drain-queue durability plan, round-2 PROCEED).
+# Recognized commit-message flag set, mirrored from git-commit semantics.
+_GIT_COMMIT_MESSAGE_FLAGS: "frozenset[str]" = frozenset({
+    "-m", "--message", "-F", "--file",
+})
+
+
+def _extract_commit_message_payload(command: str) -> Optional[str]:
+    """Extract the literal commit-message payload from a ``git commit`` invocation.
+
+    Drain-pending gate companion to ``_strip_body_arg_values`` — instead of
+    stripping the body, this returns it so the gate can scan for
+    ``Closes #N`` / ``Fixes #N`` references.
+
+    Returns ``None`` when the payload is uninspectable (the gate then
+    fails CLOSED with an explicit reason):
+
+    * No ``-m`` / ``--message`` / ``-F`` / ``--file`` flag → editor mode.
+    * ``-F -`` (stdin) — payload not in argv.
+    * ``-F <(…)`` (process substitution) — pseudo-device path.
+    * ``-F /path/that/does/not/exist`` — unreadable.
+    * Heredoc body containing unresolved ``$`` / backtick — shell expansion
+      defeats the literal-scan invariant.
+    * Heredoc with no ``-m``/``-F`` — payload is bash-expanded into argv
+      AFTER shell parsing; the hook only sees the pre-expansion raw command,
+      so falling back to the heredoc body is the safe extraction.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        The literal payload string (one or more messages concatenated by
+        ``\\n``), or ``None`` when the payload cannot be inspected.
+    """
+    if not command:
+        return None
+
+    # Heredoc form (``git commit -m "$(cat <<'EOF' ... EOF)"`` or
+    # ``git commit -F - <<EOF ... EOF``). The hook receives the raw command
+    # string, NOT shell-expanded argv. Extract the heredoc body via the
+    # existing helper and validate for unresolved expansion.
+    if "<<" in command:
+        try:
+            # Defensive import — edit_tier_classifier is in lib/ alongside
+            # this hook's sibling lib dir.
+            from edit_tier_classifier import (  # type: ignore
+                extract_heredoc_body_for_redirect,
+            )
+        except Exception:
+            return None
+        body = extract_heredoc_body_for_redirect(command)
+        if body:
+            # Reject bodies with unresolved shell expansion — we cannot
+            # safely scan for Closes #N when ``$VAR`` / `` `cmd` `` could
+            # inject arbitrary text at exec time.
+            if "$" in body or "`" in body:
+                return None
+            return body
+
+    try:
+        toks = shlex.split(command, posix=True)
+    except ValueError:
+        return None
+
+    # Locate the ``git commit`` verb.
+    git_idx: Optional[int] = None
+    for i, token in enumerate(toks):
+        if token == "git" or token.endswith("/git"):
+            # Look ahead for the ``commit`` subcommand (allowing for flags
+            # like ``git -C /repo commit``).
+            for j in range(i + 1, len(toks)):
+                if toks[j] == "commit":
+                    git_idx = j
+                    break
+                if not toks[j].startswith("-"):
+                    break
+        if git_idx is not None:
+            break
+    if git_idx is None:
+        return None
+
+    remaining = toks[git_idx + 1:]
+    messages: List[str] = []
+
+    i = 0
+    while i < len(remaining):
+        t = remaining[i]
+
+        # ``-m "msg"`` / ``--message "msg"``
+        if t in ("-m", "--message"):
+            if i + 1 >= len(remaining):
+                # Trailing flag with no value — uninspectable.
+                return None
+            messages.append(remaining[i + 1])
+            i += 2
+            continue
+
+        # ``--message=msg``
+        if t.startswith("--message="):
+            messages.append(t[len("--message="):])
+            i += 1
+            continue
+        if t.startswith("-m="):
+            # git accepts ``-m=msg`` rarely; tolerate for robustness.
+            messages.append(t[len("-m="):])
+            i += 1
+            continue
+
+        # ``-F path`` / ``--file path`` / ``--file=path`` / ``-F=path``
+        flag_path: Optional[str] = None
+        if t in ("-F", "--file") and i + 1 < len(remaining):
+            flag_path = remaining[i + 1]
+            i += 2
+        elif t.startswith("--file="):
+            flag_path = t[len("--file="):]
+            i += 1
+        elif t.startswith("-F="):
+            flag_path = t[len("-F="):]
+            i += 1
+        else:
+            i += 1
+            continue
+
+        if flag_path is None:
+            continue
+        # stdin or process-substitution → uninspectable.
+        if flag_path == "-":
+            return None
+        if flag_path.startswith("<(") or flag_path.startswith(">(") or "<(" in flag_path:
+            return None
+        # File must exist and be readable.
+        try:
+            from pathlib import Path as _Path
+            p = _Path(flag_path)
+            if not p.exists() or not p.is_file():
+                return None
+            file_text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        # Reject embedded unresolved shell expansion in the file payload.
+        if "$" in file_text or "`" in file_text:
+            return None
+        messages.append(file_text)
+
+    if not messages:
+        # No -m/-F → editor mode → uninspectable.
+        return None
+
+    return "\n".join(messages)
+
+
+# Drain-pending commit gate (drain-queue durability plan).
+# Compiled at module load — pattern matches ``Closes #1234`` / ``Fixes #1234``
+# in any case (GitHub-recognized keywords).
+_DRAIN_CLOSES_RE = re.compile(r"(?:Closes|Fixes)\s+#(\d+)", re.IGNORECASE)
+_DRAIN_GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
+
+
+def _check_drain_pending_commit_gate(
+    tool_input: Dict[str, Any],
+) -> Optional[Tuple[str, str]]:
+    """Return ``(decision, reason)`` when a ``git commit`` must be blocked.
+
+    Fires when ``.claude/local/drain_pending.json`` exists with a non-empty
+    ``issues`` list AND the inspected Bash command matches ``git commit``.
+
+    Behavior matrix:
+
+    * No marker file (or marker has empty ``issues``)  → ``None`` (no enforcement).
+    * Marker present + non-``git commit`` Bash         → ``None`` (gate scope).
+    * Marker present + ``git commit -m "Closes #N"``
+      where N ∈ marker.issues                          → ``None`` (allow).
+    * Marker present + ``git commit -m "freelance"``   → ``("deny", reason)``.
+    * Marker present + uninspectable payload (editor,
+      stdin, proc-sub, missing file, shell expansion) → ``("deny", reason)``.
+
+    The gate NEVER consults marker TTL — long ``/implement`` runs remain
+    covered. TTL is for SessionStart cleanup only.
+
+    Args:
+        tool_input: The Bash tool's input dict (expects ``command`` key).
+
+    Returns:
+        ``None`` when the gate does not apply (allow proceeds to other
+        layers). ``("deny", reason)`` when the gate fires.
+    """
+    command = tool_input.get("command", "")
+    if not command or not _DRAIN_GIT_COMMIT_RE.search(command):
+        return None
+
+    # Defensive import — never crash the entire hook stack because the
+    # marker library is unavailable (e.g. mid-deploy).
+    try:
+        # Add lib dir to sys.path so the import works regardless of how
+        # the hook was invoked (direct, via importlib, etc.).
+        _lib_dir = Path(__file__).resolve().parent.parent / "lib"
+        if str(_lib_dir) not in sys.path:
+            sys.path.insert(0, str(_lib_dir))
+        from drain_pending import DrainPendingMarker  # type: ignore
+    except Exception:
+        return None
+
+    try:
+        marker = DrainPendingMarker.read()
+    except Exception:
+        # Read errors fail-OPEN — never block a commit because the marker
+        # is unreadable. (read() already tolerates malformed JSON.)
+        return None
+
+    if marker is None or not marker.issues:
+        return None
+
+    # Marker present → enforce.
+    payload = _extract_commit_message_payload(command)
+    if payload is None:
+        reason = (
+            f"drain marker active (issues={list(marker.issues)}) — commit "
+            f"payload uninspectable (no -m/-F, stdin, process substitution, "
+            f"missing file, or unresolved shell expansion). "
+            f"Use 'git commit -m \"... Closes #{marker.issues[0]}\"' with a "
+            f"literal message that closes a cluster issue."
+        )
+        return ("deny", reason)
+
+    refs = {int(m.group(1)) for m in _DRAIN_CLOSES_RE.finditer(payload)}
+    if not (refs & set(marker.issues)):
+        got = sorted(refs) if refs else "none"
+        reason = (
+            f"drain marker active (issues={list(marker.issues)}) — commit "
+            f"message must include 'Closes #N' (or 'Fixes #N') for at least "
+            f"one cluster issue. Got refs: {got}. "
+            f"Add 'Closes #{marker.issues[0]}' to the commit body."
+        )
+        return ("deny", reason)
+
+    return None
+
+
 # Shell wrappers whose -c argument carries a sub-command. When the leading
 # verb (argv[0]) is one of these AND argv[1] == "-c", the substring scan
 # inside argv[2] is handled by _contains_gh_issue_create_bypass — do not
@@ -5558,6 +5796,29 @@ def main():
             # No tool name - ask user
             output_decision("ask", "No tool name provided")
             sys.exit(0)
+
+        # =================================================================
+        # DRAIN-PENDING COMMIT GATE (drain-queue durability plan, round-2).
+        #
+        # When ``/drain-queue`` STEP 3.6 has written ``.claude/local/
+        # drain_pending.json`` for an active cluster commitment, EVERY
+        # ``git commit`` invocation MUST reference at least one cluster issue
+        # via ``Closes #N`` / ``Fixes #N``. Otherwise the commit "freelanced"
+        # — exactly the failure mode observed on 2026-06-15T18:06Z that
+        # produced commit 8b3b582 without any ``Closes #N`` reference.
+        #
+        # This check runs BEFORE the native-tool fast path so it fires for
+        # ALL Bash ``git commit`` invocations, not just enforcement-eligible
+        # ones. The marker presence is the only gate trigger; the hook
+        # NEVER consults TTL (long /implement runs of 2h+ MUST remain
+        # covered — TTL cleanup is SessionStart-only).
+        # =================================================================
+        if tool_name == "Bash":
+            _drain_gate = _check_drain_pending_commit_gate(tool_input)
+            if _drain_gate is not None:
+                _decision, _reason = _drain_gate
+                output_decision(_decision, _reason)
+                sys.exit(0)
 
         # =================================================================
         # FAST PATH: Native tools skip ALL hook layers.

@@ -201,6 +201,40 @@ PY
 `hydrate_issue_labels` returns `[]` on network or `gh` errors, so the gate
 falls back to severity-only without crashing the drain.
 
+## STEP 3.6: Write drain-pending marker (durability gate)
+
+Once a cluster has been selected and labels hydrated, write the
+`drain_pending.json` marker so the `unified_pre_tool.py` commit gate can
+enforce `Closes #N` on every subsequent `git commit` invocation. This is the
+hard floor that prevents the autonomous loop from freelancing a commit that
+does not reference any cluster issue (the 2026-06-15T18:06Z failure mode that
+motivated the durability plan).
+
+The marker is cleared at STEP 12.5 only after post-push state=CLOSED
+verification succeeds. **The hook NEVER consults the marker's TTL** — long
+`/implement` runs (2h+ observed) MUST remain covered.
+
+```bash
+python3 - <<'PY'
+import json, os, sys
+from pathlib import Path
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from drain_pending import DrainPendingMarker
+
+selected = json.loads(Path(".claude/local/selected_cluster.json").read_text())
+DrainPendingMarker.write(
+    issues=[int(n) for n in selected["issue_numbers"]],
+    cluster_tag=selected["root_cause_tag"],
+    session_id=os.environ.get("CLAUDE_SESSION_ID", "unknown"),
+)
+print(
+    f"STEP 3.6: drain-pending marker written for "
+    f"cluster {selected['root_cause_tag']} issues={list(selected['issue_numbers'])}",
+    flush=True,
+)
+PY
+```
+
 ## STEP 4: Safety gates (severity / tag / size / skip)
 
 Apply gates in priority order. The first failing gate either STOPs or signals
@@ -324,6 +358,63 @@ SlashCommand: /implement --issues <N1,N2,...>
 ```
 
 Record the wall-seconds elapsed for STEP 12's budget accrual.
+
+## STEP 6.5: Pre-push commit-message verification (`Closes #N`)
+
+After `/implement` returns control, verify that EVERY pending commit on
+`HEAD..origin/master` references at least one cluster issue via
+`Closes #N` / `Fixes #N`. This is the second hard gate (the first is the
+hook-level block in STEP 3.6's marker). If `/implement` produced a commit
+without `Closes #N`, this STEP STOPs before push so the dirty commit cannot
+leak to origin.
+
+```bash
+python3 - <<'PY'
+import json, re, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from drain_runner import _build_env, append_stop_notification
+
+repo = Path.cwd().resolve()
+env = _build_env(repo)
+log_dir = repo / ".claude" / "local"
+cluster = json.loads(Path(".claude/local/selected_cluster.json").read_text())
+cluster_issues = set(int(n) for n in cluster["issue_numbers"])
+
+r = subprocess.run(
+    ["git", "log", "--pretty=format:%B", "origin/master..HEAD"],
+    cwd=str(repo), env=env, capture_output=True, text=True, check=False,
+)
+if r.returncode != 0:
+    append_stop_notification(
+        f"STEP 6.5: git log failed: {r.stderr.strip()}", log_dir
+    )
+    print(f"STOP: git log failed: {r.stderr.strip()}", flush=True)
+    sys.exit(1)
+
+text = r.stdout or ""
+refs = set(int(m.group(1)) for m in re.finditer(
+    r"(?:Closes|Fixes)\s+#(\d+)", text, re.IGNORECASE
+))
+if not (refs & cluster_issues):
+    append_stop_notification(
+        f"STEP 6.5: no pending commit references any cluster issue "
+        f"{sorted(cluster_issues)}; got refs={sorted(refs) or 'none'}",
+        log_dir,
+    )
+    print(
+        f"STOP STEP 6.5: pending commits do not reference any cluster issue "
+        f"({sorted(cluster_issues)}); got refs={sorted(refs) or 'none'}",
+        flush=True,
+    )
+    sys.exit(1)
+print(
+    f"STEP 6.5: commit-message verification passed — refs={sorted(refs)} "
+    f"intersect cluster={sorted(cluster_issues)}",
+    flush=True,
+)
+PY
+```
 
 ## STEP 7: Verify drain succeeded
 
@@ -493,6 +584,66 @@ PY
 
 Final exit `0`. The markdown command MAY emit a final `PushNotification:` line
 on success so headless operators know the cycle completed.
+
+## STEP 12.5: Post-push state=CLOSED verification + marker clear
+
+After the push has succeeded and the budget/breaker/history have been
+recorded (STEP 12), independently verify with the GitHub API that EVERY
+issue in the cluster is now `state=CLOSED`. This guards against the failure
+mode where the commit referenced the issue with `Closes #N` but the merge
+went to a non-default branch (so GitHub did not close the issue), or where
+push-time webhooks dropped.
+
+If ANY cluster issue is still OPEN: bump the circuit breaker, retain the
+marker for operator inspection, exit non-zero. Otherwise clear the marker
+so the next /drain-queue invocation starts clean.
+
+```bash
+python3 - <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from drain_pending import DrainPendingMarker
+from drain_queue_state import CircuitBreaker
+from drain_runner import _build_env, append_stop_notification
+
+repo = Path.cwd().resolve()
+env = _build_env(repo)
+log_dir = repo / ".claude" / "local"
+marker = DrainPendingMarker.read(repo_root=repo)
+if marker is None or not marker.issues:
+    print("STEP 12.5: no marker present; nothing to verify", flush=True)
+    sys.exit(0)
+
+unclosed: list[int] = []
+for n in marker.issues:
+    r = subprocess.run(
+        ["gh", "issue", "view", str(n), "--json", "state", "--jq", ".state"],
+        cwd=str(repo), env=env, capture_output=True, text=True, check=False,
+    )
+    if r.returncode != 0 or r.stdout.strip().upper() != "CLOSED":
+        unclosed.append(n)
+
+if unclosed:
+    CircuitBreaker.load(repo).record_failure()
+    append_stop_notification(
+        f"STEP 12.5: post-push verification failed — issues still OPEN: {unclosed}",
+        log_dir,
+    )
+    print(
+        f"STOP STEP 12.5: post-push verification failed — issues still OPEN: "
+        f"{unclosed}. Marker retained for operator inspection.",
+        flush=True,
+    )
+    sys.exit(1)
+
+DrainPendingMarker.clear(repo_root=repo)
+print(
+    f"STEP 12.5: all cluster issues CLOSED ({marker.issues}); marker cleared",
+    flush=True,
+)
+PY
+```
 
 ## Notes for maintainers
 

@@ -1,7 +1,65 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-05-31
+**Last Updated**: 2026-06-16
 **For**: Users and developers encountering common issues
+
+---
+
+## `git commit` blocked by drain-pending marker — missing `Closes #N` reference
+
+**Symptom**: A `git commit` inside a `/drain-queue` run is blocked with a message like:
+
+```
+BLOCKED: drain marker active (issues=[1234, 1235]) — commit message must include
+'Closes #N' (or 'Fixes #N') for at least one cluster issue. Got refs: none.
+Add 'Closes #1234' to the commit body.
+```
+
+Or for uninspectable payloads (no `-m` flag, stdin, process substitution):
+
+```
+BLOCKED: drain marker active (issues=[1234, 1235]) — commit payload uninspectable
+(no -m/-F, stdin, process substitution, missing file, or unresolved shell expansion).
+Use 'git commit -m "... Closes #1234"' with a literal message that closes a cluster issue.
+```
+
+**Cause**: `/drain-queue` STEP 3.6 wrote a `.claude/local/drain_pending.json` marker when it selected a cluster. The `_check_drain_pending_commit_gate` in `unified_pre_tool.py` now enforces that every `git commit` during an active drain references at least one cluster issue via `Closes #N` or `Fixes #N`. This implements OWASP LLM06 (Excessive Agency) downstream enforcement — the hook blocks freelancing commits that are unrelated to the draining cluster.
+
+**Fix options**:
+
+1. **Correct fix — add the required reference** (recommended):
+   ```bash
+   git commit -m "fix: implement issue logic
+
+   Closes #1234"
+   ```
+   For a batch-cluster commit, ALL cluster issues must appear:
+   ```bash
+   git commit -m "fix: drain cluster
+
+   Closes #1234
+   Closes #1235"
+   ```
+
+2. **Clear a stale marker** (if `/drain-queue` crashed mid-run and you are NOT inside a drain session):
+   ```bash
+   python3 -c "
+   import sys; sys.path.insert(0, 'plugins/autonomous-dev/lib')
+   from drain_pending import DrainPendingMarker
+   cleared = DrainPendingMarker.clear()
+   print('marker cleared' if cleared else 'no marker present')
+   "
+   ```
+   The marker is also reaped automatically at SessionStart if it is older than 4 hours (`STALE_MINUTES=240`).
+
+3. **Universal bypass** (emergency only — disables ALL hook enforcement):
+   ```bash
+   AUTONOMOUS_DEV_BYPASS=1 git commit -m "..."
+   ```
+
+**Why this exists**: The 2026-06-15 autonomous fire (commit 8b3b582) ignored the triage cluster and committed an unrelated fix with no `Closes #N` reference. The gate prevents the same pattern going forward.
+
+**Not applicable when**: The drain marker is absent (no active `/drain-queue` run). The gate fails open — if `drain_pending.json` is missing, unreadable, or contains an empty issue list, the gate does not fire.
 
 ---
 
