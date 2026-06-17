@@ -1,0 +1,57 @@
+name: Auto-relabel mis-categorized issues
+
+# Strips the `auto-improvement` label from any open issue whose title starts
+# with `feat:` / `feat(` / `feature:` / `feature(`. Those are feature
+# requests, not pipeline bugs — they shouldn't sit in the autonomous drain
+# pool where they choke clusters (see [1160, 1161, ...] saga).
+#
+# Issues keep their `enhancement` label (if present) so they're still
+# tracked, just out of the autonomous queue. Maintainers can decide whether
+# to implement them via the normal /implement flow.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'    # weekly, Mondays 06:17 UTC (off-peak)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  relabel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Strip auto-improvement from feat: issues"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STRIPPED=0
+          KEPT=0
+          # Pull every open issue with the auto-improvement label.
+          gh issue list --state open --label auto-improvement --limit 300 \
+            --json number,title > /tmp/auto_imp_issues.json
+          COUNT=$(jq 'length' /tmp/auto_imp_issues.json)
+          echo "Scanning $COUNT auto-improvement issues..."
+          for n in $(jq -r '.[].number' /tmp/auto_imp_issues.json); do
+            TITLE=$(jq -r --arg n "$n" '.[] | select(.number == ($n|tonumber)) | .title' /tmp/auto_imp_issues.json)
+            # Normalize: lowercase + strip leading whitespace
+            LC=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//')
+            case "$LC" in
+              feat:*|feat\(*|feature:*|feature\(*)
+                echo "  STRIP #$n: $TITLE"
+                gh issue edit "$n" --remove-label auto-improvement
+                STRIPPED=$((STRIPPED + 1))
+                ;;
+              *)
+                KEPT=$((KEPT + 1))
+                ;;
+            esac
+          done
+
+          echo "## Auto-relabel summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- scanned: $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- stripped (feat-titled): $STRIPPED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- kept (bug/pipeline): $KEPT" >> "$GITHUB_STEP_SUMMARY"

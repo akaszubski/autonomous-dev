@@ -118,11 +118,22 @@ jobs:
           echo "reason=$REASON" >> "$GITHUB_OUTPUT"
           echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
 
-      - name: Open watchdog alert issue
+      - name: Open watchdog alert issue (debounced)
         if: steps.detect.outputs.stuck == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Debounce: skip if any open drain-stuck issue was filed in the
+          # last 4h. Prevents the watchdog from polluting the queue with
+          # duplicate alerts when STUCK persists across multiple runs.
+          RECENT_ALERT=$(gh issue list --state open --label drain-stuck \
+            --search "created:>$(date -u -d '4 hours ago' +%Y-%m-%dT%H:%M:%SZ)" \
+            --json number --jq 'length')
+          if [ "$RECENT_ALERT" -gt 0 ]; then
+            echo "::notice::Skipping alert — $RECENT_ALERT open drain-stuck issue(s) in last 4h"
+            echo "- alert: SKIPPED (debounce, $RECENT_ALERT existing open)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           gh issue create \
             --title "[drain-stuck] watchdog: ${{ steps.detect.outputs.reason }}" \
             --label "drain-stuck,auto-improvement" \

@@ -1,0 +1,78 @@
+name: Daily Retrospective
+
+# Runs /retrospective once per day to detect drift between PROJECT.md intent
+# and observed behavior in recent sessions. Files alignment-update issues
+# when drift is found. Keeps the autonomous loop honest — without periodic
+# reflection it optimizes for "close issues" rather than "stay aligned."
+
+on:
+  schedule:
+    - cron: '0 5 * * *'    # daily 05:00 UTC (between drain fires)
+  workflow_dispatch: {}
+
+concurrency:
+  group: daily-retrospective
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
+jobs:
+  retrospective:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install autonomous-dev plugin into runner
+        # Same install pattern as drain-watchdog so /retrospective is a
+        # registered slash command in the runner's claude-code session.
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.claude"
+          for subdir in agents commands hooks lib skills config templates scripts; do
+            if [ -d "plugins/autonomous-dev/$subdir" ]; then
+              rsync -a --delete "plugins/autonomous-dev/$subdir/" "$HOME/.claude/$subdir/"
+            fi
+          done
+
+      - name: Guard — auth credential required
+        env:
+          OAUTH_PRESENT: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          KEY_PRESENT: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$OAUTH_PRESENT" != "true" ] && [ "$KEY_PRESENT" != "true" ]; then
+            echo "::warning::Neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY is set — retrospective disabled."
+            echo "no_auth=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+      - name: Run /retrospective
+        if: env.no_auth != 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-opus-4-7"
+          mode: "agent"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand"
+          timeout_minutes: 30
+          direct_prompt: |
+            You are the daily retrospective session for autonomous-dev. The autonomous-dev plugin is installed at `~/.claude/`.
+
+            Run `/retrospective` end-to-end. It will:
+            1. Analyze recent session activity logs in `.claude/logs/activity/`
+            2. Compare observed agent/hook behavior against PROJECT.md GOALS and SCOPE
+            3. Detect drift, bypasses, skipped agents, mis-scoped findings
+            4. Emit alignment-update proposals as GitHub issues with label `alignment-drift`
+
+            CONSTRAINTS:
+            - Do NOT use `.claude/.bypass`.
+            - Do NOT commit any code changes — retrospective is read-only on the repo. The only writes should be `gh issue create` for findings.
+            - If no drift is detected, exit cleanly with a one-line "no drift detected" report.
+
+            Report at end: number of drift findings (issues filed), top three trends seen in the activity logs, any tooling failures that block continuation.
