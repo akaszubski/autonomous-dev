@@ -137,6 +137,11 @@ jobs:
 
   heal:
     needs: check
+    # Only attempt auto-heal when STUCK AND a cluster was pre-selected AND the
+    # ANTHROPIC_API_KEY secret is set. The job step itself uses
+    # continue-on-error so a missing secret or a transient action failure does
+    # not turn the whole watchdog workflow red — the alert issue from the
+    # check job is the durable signal.
     if: needs.check.outputs.stuck == 'true' && needs.check.outputs.cluster != ''
     runs-on: ubuntu-latest
     permissions:
@@ -146,7 +151,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - name: Guard — ANTHROPIC_API_KEY required
+        env:
+          KEY_PRESENT: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$KEY_PRESENT" != "true" ]; then
+            echo "::warning::ANTHROPIC_API_KEY secret not set — auto-heal disabled. Set it under repo Settings → Secrets and variables → Actions to enable claude-code-action drain."
+            echo "stuck_no_heal=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
       - name: Auto-heal via claude-code-action
+        if: env.stuck_no_heal != 'true'
+        continue-on-error: true
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
