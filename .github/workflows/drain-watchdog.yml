@@ -1,0 +1,174 @@
+name: Drain Watchdog
+
+# Watches the autonomous /drain-queue loop and auto-heals when STUCK.
+# STUCK criteria (any one):
+#   - No new commit on master in 7h (more than one missed 6h fire)
+#   - Open auto-improvement queue > 40 AND no issue closed in 8h
+#   - Latest CI conclusion = failure on autonomous commit
+# On STUCK: runs /drain-queue via claude-code-action with the same selector
+# logic as the cloud cron routine (skip feat:-titled clusters, cap 2 issues/session).
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # every 30 min
+  workflow_dispatch: {}
+
+concurrency:
+  group: drain-watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      stuck: ${{ steps.detect.outputs.stuck }}
+      reason: ${{ steps.detect.outputs.reason }}
+      cluster: ${{ steps.detect.outputs.cluster }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect STUCK
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NOW_EPOCH=$(date -u +%s)
+          LAST_COMMIT_ISO=$(git log -1 --format=%cI origin/master)
+          LAST_COMMIT_EPOCH=$(date -u -d "$LAST_COMMIT_ISO" +%s)
+          AGE_HOURS=$(( (NOW_EPOCH - LAST_COMMIT_EPOCH) / 3600 ))
+          QUEUE_SIZE=$(gh issue list --state open --label auto-improvement --limit 200 --json number --jq 'length')
+          CLOSED_LAST_8H=$(gh issue list --state closed --limit 50 --search "closed:>$(date -u -d '8 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --json number --jq 'length')
+
+          echo "## Drain watchdog signals" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- last commit: $LAST_COMMIT_ISO ($AGE_HOURS h ago)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- open auto-improvement queue: $QUEUE_SIZE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- issues closed in last 8h: $CLOSED_LAST_8H" >> "$GITHUB_STEP_SUMMARY"
+
+          STUCK=false
+          REASON=""
+          if [ "$AGE_HOURS" -gt 7 ]; then
+            STUCK=true
+            REASON="no commit on master in ${AGE_HOURS}h (>7h threshold)"
+          elif [ "$QUEUE_SIZE" -gt 40 ] && [ "$CLOSED_LAST_8H" -eq 0 ]; then
+            STUCK=true
+            REASON="queue size $QUEUE_SIZE with 0 closures in last 8h"
+          fi
+
+          echo "- STUCK: $STUCK" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$REASON" ] && echo "- reason: $REASON" >> "$GITHUB_STEP_SUMMARY"
+
+          # Pre-compute cluster using same selector as the cloud routine
+          # so the heal step can pass it directly to /drain-queue.
+          CLUSTER=""
+          if [ "$STUCK" = "true" ]; then
+            python3 -m pip install -q -r <(grep -E '^(requests|httpx)' requirements.txt 2>/dev/null) >/dev/null 2>&1 || true
+            CLUSTER=$(python3 - <<'PY' || echo ""
+          import json, subprocess, sys
+          sys.path.insert(0, 'plugins/autonomous-dev/lib')
+          try:
+              from drain_queue_state import AUTO_DRAINABLE_SEVERITY, MAX_CLUSTER_SIZE_AUTO_DRAINABLE
+          except Exception as e:
+              print("", end="")
+              sys.exit(0)
+          out = subprocess.run(
+              ['python3', 'plugins/autonomous-dev/lib/issue_triage_analyzer.py',
+               '--auto-improvement', '--json', '--limit', '50'],
+              capture_output=True, text=True
+          )
+          try:
+              clusters = json.loads(out.stdout)
+          except Exception:
+              print("", end=""); sys.exit(0)
+
+          def is_feat(titles):
+              prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
+              return any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+
+          for c in clusters:
+              if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
+                  continue
+              if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
+                  continue
+              if is_feat(c.get('issue_titles', [])):
+                  continue
+              print(','.join(str(n) for n in c['issue_numbers'][:2]), end="")
+              break
+          PY
+            )
+            echo "- selected cluster: ${CLUSTER:-NONE}" >> "$GITHUB_STEP_SUMMARY"
+            if [ -z "$CLUSTER" ]; then
+              STUCK=false
+              REASON="$REASON; but no drainable non-feature cluster exists — nothing to heal"
+              echo "- forced STUCK=false: no drainable cluster" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          echo "stuck=$STUCK" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+
+      - name: Open watchdog alert issue
+        if: steps.detect.outputs.stuck == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "[drain-stuck] watchdog: ${{ steps.detect.outputs.reason }}" \
+            --label "drain-stuck,auto-improvement" \
+            --body "$(cat <<EOF
+          Watchdog run \`${{ github.run_id }}\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected STUCK.
+
+          - **Reason**: ${{ steps.detect.outputs.reason }}
+          - **Selected cluster for heal**: \`${{ steps.detect.outputs.cluster }}\`
+          - **Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The auto-heal step below this issue creation will attempt to drain the selected cluster via claude-code-action. If the heal succeeds, this issue should be closed by the resulting commit.
+          EOF
+          )" || true
+
+  heal:
+    needs: check
+    if: needs.check.outputs.stuck == 'true' && needs.check.outputs.cluster != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auto-heal via claude-code-action
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-opus-4-7"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand"
+          direct_prompt: |
+            The drain watchdog detected the autonomous /drain-queue loop is stuck and pre-selected this cluster for you: `${{ needs.check.outputs.cluster }}`.
+
+            Reason for stuck: ${{ needs.check.outputs.reason }}
+
+            Drain it using the cloud-routine protocol:
+
+            1. cd to repo root. Check `./.claude/.bypass` absent; if present, exit 0.
+            2. Set `CLUSTER_ISSUES=${{ needs.check.outputs.cluster }}` (already chosen by the watchdog using the same selector logic — skips feat: clusters, caps at 2 issues).
+            3. Invoke `/drain-queue` — STEP 3.6 will write `.claude/local/drain_pending.json` so the commit gate accepts `Closes #N`.
+            4. After /implement runs, verify the latest commit references each cluster issue via `Closes #N`; if not, amend the commit message to append `Closes #N` lines (the gate requires it).
+            5. Push to origin/master. Verify the cluster issues flipped to CLOSED.
+
+            Critical constraints:
+            - Do NOT run `scripts/deploy-all.sh` (CI sandbox, no SSH).
+            - Do NOT freelance if the cluster is empty — exit 0.
+            - The Closes-amend in step 4 is the ONLY exception to the no-other-commits rule.
+            - Maximum 2 issues per session (watchdog already truncated).
+
+            Report at end: cluster_issues_selected, commit SHA pushed, issue closures count, wall-clock duration.
