@@ -875,7 +875,9 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 
 **Security-sensitive escalation (Issue #1145)**: If the plan references any of `hooks/*.py`, `lib/quality_persistence_enforcer.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `config/auto_approve_policy.json`, or `templates/settings.*.json`, increase the maximum rounds from 3 to 5 rounds. The additional rounds fire ONLY if the critic continues to return REVISE — a clean PROCEED at any round still terminates the loop normally. Rationale: security-enforcement files (#1142 was a hook modification to `unified_pre_tool.py`) carry higher cost when a revision addresses one finding but re-introduces another under pressure to satisfy the critic's checklist; the extra two rounds amortize against catching that regression. Cost: one or two additional Sonnet invocations (~165s, ~$0.10 each).
 
-**Parse verdict from plan-critic output**:
+**Parse verdict from `plan_critic_verdict.json` (#1234 — file is authoritative; do NOT infer from chat output)**:
+
+The plan-critic agent writes `plan_critic_verdict.json` with at least `{verdict, composite_score, timestamp}`. Read this file and use the `verdict` field as the decision — chat-output language ("looks good", "PROCEED", absence of an explicit verdict) MUST NOT override the file. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` rather than inferring PROCEED from chat (#1234).
 
 - **PROCEED** → continue to 5.5c (structural validation)
 - **REVISE** → pass the plan-critic feedback to the planner, re-invoke planner once (same prompt as STEP 5 plus feedback), then accept the revised plan and continue to 5.5c regardless of a second critique. **The re-invocation prompt MUST use `construct_revision_prompt(agent_type="planner", baseline_context=<full original STEP 5 prompt>, feedback=<plan-critic critique text>)`** (`from prompt_integrity import construct_revision_prompt`). Passing only the critique text causes prompt-integrity to fire on shrinkage and block the re-invocation (Issue #1116).
@@ -912,6 +914,7 @@ If any requirement is missing:
 - ❌ You MUST NOT accept a plan that has no acceptance criteria section
 - ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/`
 - ❌ You MUST NOT skip structural validation for any reason (it always runs, even with a pre-validated plan)
+- ❌ You MUST NOT infer the plan-critic verdict from chat output alone when `plan_critic_verdict.json` exists — the JSON file is authoritative; chat language ("PROCEED", "looks good", absence of an explicit verdict line) MUST NOT override the file value. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` (#1234)
 
 **Additional FORBIDDEN (Issues #1145, #1155)**: You MUST NOT cap rounds at 3 when the plan touches security-sensitive paths — go to 5 if the critic continues to return REVISE (#1145). You MUST NOT skip plan-critic on a plan whose Critique History contains `provisional`, `(provisional)`, or `awaits plan-critic` — the verdict is self-assessed, not adversarial (#1155).
 
