@@ -1,12 +1,12 @@
 name: Drain Watchdog
 
 # Watches the autonomous /drain-queue loop and auto-heals when STUCK.
-# STUCK criteria (any one):
-#   - No new commit on master in 7h (more than one missed 6h fire)
-#   - Open auto-improvement queue > 40 AND no issue closed in 8h
+# STUCK criteria (any one) — tightened 2026-06-17 with cron→2h:
+#   - No new commit on master in 3h (more than one missed 2h fire)
+#   - Open auto-improvement queue > 40 AND no issue closed in 4h
 #   - Latest CI conclusion = failure on autonomous commit
 # On STUCK: runs /drain-queue via claude-code-action with the same selector
-# logic as the cloud cron routine (skip feat:-titled clusters, cap 2 issues/session).
+# logic as the cloud cron routine (skip feat:-titled clusters, cap 4 issues/session).
 
 on:
   schedule:
@@ -45,22 +45,24 @@ jobs:
           LAST_COMMIT_EPOCH=$(date -u -d "$LAST_COMMIT_ISO" +%s)
           AGE_HOURS=$(( (NOW_EPOCH - LAST_COMMIT_EPOCH) / 3600 ))
           QUEUE_SIZE=$(gh issue list --state open --label auto-improvement --limit 200 --json number --jq 'length')
-          CLOSED_LAST_8H=$(gh issue list --state closed --limit 50 --search "closed:>$(date -u -d '8 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --json number --jq 'length')
+          CLOSED_LAST_4H=$(gh issue list --state closed --limit 50 --search "closed:>$(date -u -d '4 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --json number --jq 'length')
 
           echo "## Drain watchdog signals" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- last commit: $LAST_COMMIT_ISO ($AGE_HOURS h ago)" >> "$GITHUB_STEP_SUMMARY"
           echo "- open auto-improvement queue: $QUEUE_SIZE" >> "$GITHUB_STEP_SUMMARY"
-          echo "- issues closed in last 8h: $CLOSED_LAST_8H" >> "$GITHUB_STEP_SUMMARY"
+          echo "- issues closed in last 4h: $CLOSED_LAST_4H" >> "$GITHUB_STEP_SUMMARY"
 
           STUCK=false
           REASON=""
-          if [ "$AGE_HOURS" -gt 7 ]; then
+          # Tightened 2026-06-17 with cron→2h. With drain firing every 2h,
+          # a 3h gap means at least one fire died silently.
+          if [ "$AGE_HOURS" -ge 3 ]; then
             STUCK=true
-            REASON="no commit on master in ${AGE_HOURS}h (>7h threshold)"
-          elif [ "$QUEUE_SIZE" -gt 40 ] && [ "$CLOSED_LAST_8H" -eq 0 ]; then
+            REASON="no commit on master in ${AGE_HOURS}h (≥3h threshold — at least one 2h cron fire died)"
+          elif [ "$QUEUE_SIZE" -gt 40 ] && [ "$CLOSED_LAST_4H" -eq 0 ]; then
             STUCK=true
-            REASON="queue size $QUEUE_SIZE with 0 closures in last 8h"
+            REASON="queue size $QUEUE_SIZE with 0 closures in last 4h"
           fi
 
           echo "- STUCK: $STUCK" >> "$GITHUB_STEP_SUMMARY"
