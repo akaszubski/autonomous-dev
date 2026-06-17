@@ -168,24 +168,41 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: "claude-opus-4-7"
           mode: "agent"
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep"
           direct_prompt: |
-            The drain watchdog detected the autonomous /drain-queue loop is stuck and pre-selected this cluster for you: `${{ needs.check.outputs.cluster }}`.
+            You are the drain-watchdog auto-heal session. The autonomous loop has been stuck. Pre-selected cluster: `${{ needs.check.outputs.cluster }}` (comma-separated issue numbers). Reason: ${{ needs.check.outputs.reason }}.
 
-            Reason for stuck: ${{ needs.check.outputs.reason }}
+            CONTEXT: You are running in a vanilla GitHub Actions runner. The autonomous-dev plugin and its slash commands (/drain-queue, /implement) are NOT registered — do not try to invoke them. Do the drain manually using Bash/Read/Edit/Write. The repo has been checked out at $GITHUB_WORKSPACE.
 
-            Drain it using the cloud-routine protocol:
+            STEPS:
 
-            1. cd to repo root. Check `./.claude/.bypass` absent; if present, exit 0.
-            2. Set `CLUSTER_ISSUES=${{ needs.check.outputs.cluster }}` (already chosen by the watchdog using the same selector logic — skips feat: clusters, caps at 2 issues).
-            3. Invoke `/drain-queue` — STEP 3.6 will write `.claude/local/drain_pending.json` so the commit gate accepts `Closes #N`.
-            4. After /implement runs, verify the latest commit references each cluster issue via `Closes #N`; if not, amend the commit message to append `Closes #N` lines (the gate requires it).
-            5. Push to origin/master. Verify the cluster issues flipped to CLOSED.
+            1. Pre-flight: cd into $GITHUB_WORKSPACE. Verify .claude/.bypass is absent; if present, exit 0 cleanly with a "bypass active" message.
 
-            Critical constraints:
-            - Do NOT run `scripts/deploy-all.sh` (CI sandbox, no SSH).
-            - Do NOT freelance if the cluster is empty — exit 0.
-            - The Closes-amend in step 4 is the ONLY exception to the no-other-commits rule.
-            - Maximum 2 issues per session (watchdog already truncated).
+            2. Read each cluster issue with `gh issue view <N> --json title,body`. Understand what each needs.
 
-            Report at end: cluster_issues_selected, commit SHA pushed, issue closures count, wall-clock duration.
+            3. Implement the fix(es) directly — read relevant source, make the edits, write/extend tests if appropriate. Keep the scope minimal: do exactly what each issue body asks, no more. If you find an issue is ambiguous or requires architectural decisions, post a comment on the issue explaining what's needed and skip it for this run (do NOT close it).
+
+            4. Run the local test suite to verify nothing regressed:
+               `pytest tests/unit/lib/test_drain_queue_*.py tests/regression/test_drain_queue_*.py -q` and any tests directly relevant to the files you changed.
+
+            5. Stage + commit the changes. The commit message MUST include a `Closes #N` line for each cluster issue you actually fixed. Example:
+               ```
+               fix(scope): #1234 — short summary
+
+               Longer explanation.
+
+               Closes #1234
+               ```
+               If you fixed 2 issues, include both `Closes #N` lines. If you fixed 0 (all were ambiguous), skip the commit and report which issues need human input.
+
+            6. Push: `git push origin HEAD:master`. If the push fails (e.g., non-fast-forward), `git fetch && git rebase origin/master` and retry once. If still failing, report exactly which step blocked.
+
+            7. Verify each cluster issue flipped state with `gh issue view <N> --json state` — they should be CLOSED after the push (GitHub auto-closes on Closes #N to default branch).
+
+            FORBIDDEN:
+            - Do NOT touch unrelated files.
+            - Do NOT skip tests with @skip or xfail without a written reason.
+            - Do NOT commit `.proposal` files, audit drafts, or local scratch.
+            - Do NOT push if the test suite regressed.
+
+            FINAL REPORT (one paragraph): cluster pre-selected, which issues were fixed vs. deferred (with reason), commit SHA pushed, issue closures verified, wall-clock duration.
