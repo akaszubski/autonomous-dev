@@ -239,5 +239,23 @@ class TestCiaPersistenceFor1209:
         )
 
 
+
+def test_plan_critic_factual_verification_is_hard_fail_issue_1224():
+    """Issue #1224: plan-critic factual-claim verification must be HARD FAIL, not just score cap."""
+    from pathlib import Path
+    content = Path("plugins/autonomous-dev/agents/plan-critic.md").read_text()
+    # Strengthened wording introduced for #1224
+    assert "HARD FAIL on violation, Issue #1224" in content,         "plan-critic.md must mark factual-claim verification as HARD FAIL per Issue #1224"
+    assert "emit BLOCKED verdict regardless of composite score" in content,         "plan-critic.md must escalate unverified citations to BLOCKED verdict"
+
+
+def test_implementer_has_mocked_api_surface_verification_issue_1225():
+    """Issue #1225: implementer must have standing mandate for mocked-API surface verification."""
+    from pathlib import Path
+    content = Path("plugins/autonomous-dev/agents/implementer.md").read_text()
+    assert "HARD GATE: Mocked-API Surface Verification" in content,         "implementer.md must have HARD GATE: Mocked-API Surface Verification section per Issue #1225"
+    assert "sanity: assert hasattr" in content,         "implementer.md must include the sanity-assertion pattern per Issue #1225"
+    assert "Issue #1225" in content,         "implementer.md mocked-API section must cite Issue #1225 for traceability"
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

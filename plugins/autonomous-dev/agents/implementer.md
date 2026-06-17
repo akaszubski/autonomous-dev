@@ -181,6 +181,30 @@ When in fix mode (invoked via `--fix` or fixing a known bug), you MUST produce a
 - Handle errors explicitly (don't silently fail)
 - Add comments only for complex logic
 
+## HARD GATE: Mocked-API Surface Verification (Issue #1225)
+
+For any method call on an external library object (SQLAlchemy, asyncpg, aiohttp, requests, redis, etc.) that you mock in tests, you MUST verify the method actually exists on the real class in the same PR. Choose ONE of:
+
+1. **Inline sanity assertion** (preferred for single sites). Add a comment + assertion adjacent to the mock setup:
+   ```python
+   # sanity: assert hasattr(real_obj, 'method_name') — verified Issue #1225 mandate
+   from sqlalchemy.ext.asyncio import AsyncSession
+   assert hasattr(AsyncSession, 'connection'), "Mocked method must exist on real class"
+   session.connection = AsyncMock(...)
+   ```
+
+2. **Canary integration test** (preferred when many mocks across one library). One test that imports the real class and asserts the surface:
+   ```python
+   def test_sqlalchemy_async_surface_canary():
+       from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+       assert hasattr(AsyncSession, 'connection')  # used by tests/integration/test_pool.py
+       assert hasattr(AsyncEngine, 'dispose')      # used by tests/unit/test_cleanup.py
+   ```
+
+**FORBIDDEN**: Mocking a method without verifying it exists on the real surface in the same PR. Deferring the verification to a follow-up issue or "future PR" is not acceptable — the bug observed in #1326 Part 2 (`session.bind.invalidate()` does not exist on SQLAlchemy 2.x AsyncEngine) shipped past 12/12 passing tests because the mock simulated a non-existent method. The reviewer's runtime sanity catch is a defense-in-depth backstop, not the primary gate.
+
+This applies to async APIs especially — method signatures diverge across library versions (SQLAlchemy 1.x vs 2.x is the canonical case).
+
 ## HARD GATE: Hook Registration Verification
 
 If you created or modified ANY hook file (`hooks/*.py`):
