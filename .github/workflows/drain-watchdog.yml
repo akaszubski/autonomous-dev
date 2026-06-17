@@ -151,6 +151,25 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - name: Install autonomous-dev plugin into runner
+        # claude-code reads ~/.claude/{agents,commands,hooks,lib,skills} for
+        # slash commands and agents. The plugin source lives under
+        # plugins/autonomous-dev/ — sync it to ~/.claude so /implement and
+        # /drain-queue resolve as proper slash commands in the runner.
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.claude"
+          for subdir in agents commands hooks lib skills config templates scripts; do
+            if [ -d "plugins/autonomous-dev/$subdir" ]; then
+              echo "  sync $subdir/"
+              rsync -a --delete "plugins/autonomous-dev/$subdir/" "$HOME/.claude/$subdir/"
+            fi
+          done
+          # Project-level marker so hooks recognize repo identity (#803 self-maint).
+          mkdir -p .claude
+          [ -f plugins/autonomous-dev/.claude-plugin/marketplace.json ] || true
+          echo "Plugin installed. Sample slash commands available:"
+          ls "$HOME/.claude/commands" | head -10
       - name: Guard — auth credential required
         env:
           OAUTH_PRESENT: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
@@ -168,7 +187,7 @@ jobs:
             echo "auth_mode=apikey" >> "$GITHUB_ENV"
             echo "Auth: ANTHROPIC_API_KEY (pay-per-use)"
           fi
-      - name: Auto-heal via claude-code-action
+      - name: Auto-heal via claude-code-action (runs /implement)
         if: env.stuck_no_heal != 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@beta
@@ -177,41 +196,40 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: "claude-opus-4-7"
           mode: "agent"
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand,Task"
+          timeout_minutes: 60
           direct_prompt: |
-            You are the drain-watchdog auto-heal session. The autonomous loop has been stuck. Pre-selected cluster: `${{ needs.check.outputs.cluster }}` (comma-separated issue numbers). Reason: ${{ needs.check.outputs.reason }}.
+            You are the drain-watchdog auto-heal session. The autonomous /drain-queue loop has been stuck.
 
-            CONTEXT: You are running in a vanilla GitHub Actions runner. The autonomous-dev plugin and its slash commands (/drain-queue, /implement) are NOT registered — do not try to invoke them. Do the drain manually using Bash/Read/Edit/Write. The repo has been checked out at $GITHUB_WORKSPACE.
+            **Pre-selected cluster**: `${{ needs.check.outputs.cluster }}` (comma-separated issue numbers)
+            **Reason for stuck**: ${{ needs.check.outputs.reason }}
+            **Routine ID**: `trig_017bMGfV3qAJoYvYaaHwBxU9`
 
-            STEPS:
+            ## Environment
 
-            1. Pre-flight: cd into $GITHUB_WORKSPACE. Verify .claude/.bypass is absent; if present, exit 0 cleanly with a "bypass active" message.
+            The autonomous-dev plugin has been installed at `~/.claude/` by the workflow before this step ran. The slash commands `/implement`, `/drain-queue`, `/triage`, etc., are registered. The repo is checked out at `$GITHUB_WORKSPACE`.
 
-            2. Read each cluster issue with `gh issue view <N> --json title,body`. Understand what each needs.
+            ## Protocol — follow exactly
 
-            3. Implement the fix(es) directly — read relevant source, make the edits, write/extend tests if appropriate. Keep the scope minimal: do exactly what each issue body asks, no more. If you find an issue is ambiguous or requires architectural decisions, post a comment on the issue explaining what's needed and skip it for this run (do NOT close it).
+            1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly with a "bypass active" message. Do NOT proceed.
 
-            4. Run the local test suite to verify nothing regressed:
-               `pytest tests/unit/lib/test_drain_queue_*.py tests/regression/test_drain_queue_*.py -q` and any tests directly relevant to the files you changed.
-
-            5. Stage + commit the changes. The commit message MUST include a `Closes #N` line for each cluster issue you actually fixed. Example:
+            2. **Invoke /implement on the pre-selected cluster** — this runs the full SDLC pipeline (research → plan → acceptance tests → implement → reviewer → security-auditor → doc-master → CIA):
                ```
-               fix(scope): #1234 — short summary
-
-               Longer explanation.
-
-               Closes #1234
+               /implement --issues ${{ needs.check.outputs.cluster }}
                ```
-               If you fixed 2 issues, include both `Closes #N` lines. If you fixed 0 (all were ambiguous), skip the commit and report which issues need human input.
+               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
 
-            6. Push: `git push origin HEAD:master`. If the push fails (e.g., non-fast-forward), `git fetch && git rebase origin/master` and retry once. If still failing, report exactly which step blocked.
+            3. **After /implement returns**, verify the commit was actually pushed: `git fetch origin master && git log origin/master -1`. The pipeline's STEP 13 normally pushes; if the worktree has unpushed commits, push them: `git push origin HEAD:master`.
 
-            7. Verify each cluster issue flipped state with `gh issue view <N> --json state` — they should be CLOSED after the push (GitHub auto-closes on Closes #N to default branch).
+            4. **Verify closure**: for each `N` in the cluster, run `gh issue view N --json state` and report. Issues should be CLOSED via the `Closes #N` lines that /implement STEP 12.7 auto-injects (#1226 wired this).
 
-            FORBIDDEN:
-            - Do NOT touch unrelated files.
-            - Do NOT skip tests with @skip or xfail without a written reason.
-            - Do NOT commit `.proposal` files, audit drafts, or local scratch.
-            - Do NOT push if the test suite regressed.
+            ## Critical constraints
 
-            FINAL REPORT (one paragraph): cluster pre-selected, which issues were fixed vs. deferred (with reason), commit SHA pushed, issue closures verified, wall-clock duration.
+            - **Do NOT use `.claude/.bypass`** (the universal escape hatch) unless `/implement` itself is genuinely stuck in a loop on something that is truly outside SDLC scope. The whole point of this auto-heal is to USE the SDLC, not bypass it.
+            - Do NOT run `bash scripts/deploy-all.sh` — this runner has no SSH to other machines.
+            - Do NOT commit `.proposal`, `audit drafts`, `*.bak`, or other local scratch.
+            - Do NOT push if /implement's test gate (STEP 8) failed; let the pipeline block and report.
+
+            ## Final report (one paragraph)
+
+            Cluster pre-selected, /implement pipeline outcome (PASS / BLOCKED-at-STEP-X / RAN-OUT-OF-TIME), commit SHA pushed (if any), issue closures verified (list), wall-clock duration, any agents that crashed or required retry.
