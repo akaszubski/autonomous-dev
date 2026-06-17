@@ -25,12 +25,15 @@ jobs:
       - name: "Strip auto-improvement from feat: issues"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           STRIPPED=0
           KEPT=0
           # Pull every open issue with the auto-improvement label.
-          gh issue list --state open --label auto-improvement --limit 300 \
+          # --repo is required because there's no checkout step in this job
+          # (we don't need the code, just the GitHub Issues API).
+          gh issue list --repo "$REPO" --state open --label auto-improvement --limit 300 \
             --json number,title > /tmp/auto_imp_issues.json
           COUNT=$(jq 'length' /tmp/auto_imp_issues.json)
           echo "Scanning $COUNT auto-improvement issues..."
@@ -41,7 +44,7 @@ jobs:
             case "$LC" in
               feat:*|feat\(*|feature:*|feature\(*)
                 echo "  STRIP #$n: $TITLE"
-                gh issue edit "$n" --remove-label auto-improvement
+                gh issue edit "$n" --repo "$REPO" --remove-label auto-improvement
                 STRIPPED=$((STRIPPED + 1))
                 ;;
               *)
