@@ -151,20 +151,29 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Guard — ANTHROPIC_API_KEY required
+      - name: Guard — auth credential required
         env:
+          OAUTH_PRESENT: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           KEY_PRESENT: ${{ secrets.ANTHROPIC_API_KEY != '' }}
         run: |
-          if [ "$KEY_PRESENT" != "true" ]; then
-            echo "::warning::ANTHROPIC_API_KEY secret not set — auto-heal disabled. Set it under repo Settings → Secrets and variables → Actions to enable claude-code-action drain."
+          if [ "$OAUTH_PRESENT" != "true" ] && [ "$KEY_PRESENT" != "true" ]; then
+            echo "::warning::Neither CLAUDE_CODE_OAUTH_TOKEN (Max sub) nor ANTHROPIC_API_KEY secret is set — auto-heal disabled. Set one under repo Settings → Secrets and variables → Actions to enable claude-code-action drain. Run 'claude setup-token' to generate an OAuth token."
             echo "stuck_no_heal=true" >> "$GITHUB_ENV"
             exit 0
+          fi
+          if [ "$OAUTH_PRESENT" = "true" ]; then
+            echo "auth_mode=oauth" >> "$GITHUB_ENV"
+            echo "Auth: CLAUDE_CODE_OAUTH_TOKEN (Max subscription)"
+          else
+            echo "auth_mode=apikey" >> "$GITHUB_ENV"
+            echo "Auth: ANTHROPIC_API_KEY (pay-per-use)"
           fi
       - name: Auto-heal via claude-code-action
         if: env.stuck_no_heal != 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@beta
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: "claude-opus-4-7"
           mode: "agent"
