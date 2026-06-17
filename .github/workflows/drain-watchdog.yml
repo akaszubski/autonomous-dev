@@ -151,6 +151,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: "claude-opus-4-7"
+          mode: "agent"
           allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand"
           direct_prompt: |
             The drain watchdog detected the autonomous /drain-queue loop is stuck and pre-selected this cluster for you: `${{ needs.check.outputs.cluster }}`.
