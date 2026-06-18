@@ -102,12 +102,22 @@ jobs:
               # Small feature clusters (<=2 issues) ARE drainable.
               return has_feat and cluster.get('cluster_size', 0) > 2
 
+          def is_drain_stuck_meta(cluster):
+              # Skip the watchdog's own bookkeeping issues — picking them creates
+              # a degenerate fixed-point where heal only drains its own filings
+              # while the real backlog never moves (#1248/#1242/#1254/#1255/#1256
+              # pattern observed 2026-06-18).
+              titles = cluster.get('issue_titles', [])
+              return any('[drain-stuck]' in (t or '').lower() for t in titles)
+
           for c in clusters:
               if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
                   continue
               if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
                   continue
               if is_large_feat(c):
+                  continue
+              if is_drain_stuck_meta(c):
                   continue
               print(','.join(str(n) for n in c['issue_numbers'][:2]), end="")
               break
