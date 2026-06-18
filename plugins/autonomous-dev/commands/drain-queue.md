@@ -340,6 +340,10 @@ with `append_stop_notification("STEP 5: /plan failed")`.
 This is where the batch executor at `commands/implement-batch.md` does the work.
 `/drain-queue` does NOT re-implement batch logic — it delegates.
 
+**Runtime detection**: Two execution paths exist (see issue #1258):
+- **CI watchdog path** (GitHub Actions with `claude-code-action@beta`): SlashCommand tool is available.
+- **Cloud-session path** (scheduled cron): SlashCommand is NOT available — must inline dispatch via Agent tool.
+
 ```bash
 python3 - <<'PY'
 import json, time, sys
@@ -351,11 +355,26 @@ print(f"STEP 6: invoking /implement --issues {issues}", flush=True)
 PY
 ```
 
-Then emit a SlashCommand tool line:
+### Path 1: CI watchdog (SlashCommand available)
+
+If running in GitHub Actions with `claude-code-action@beta`, emit a SlashCommand tool line:
 
 ```
 SlashCommand: /implement --issues <N1,N2,...>
 ```
+
+### Path 2: Cloud-session (no SlashCommand)
+
+If running in cloud-session cron, inline the `/implement --light` coordinator dispatch sequence via Agent tool:
+
+1. **Alignment validation**: Invoke the `alignment-validator` agent to ensure PROJECT.md consistency.
+2. **Planner**: Invoke the `planner` agent to create the implementation plan.
+3. **Implementer**: Invoke the `implementer` agent to execute the plan.
+4. **Spec-validator**: Invoke the `spec-validator` agent to verify requirements.
+5. **Test-master**: Invoke the `test-master` agent to validate tests.
+6. **Doc-master**: Invoke the `doc-master` agent to update documentation if needed.
+
+Each Agent invocation passes the issue numbers and batch context forward. The sequence mirrors `/implement --light` step order.
 
 Record the wall-seconds elapsed for STEP 12's budget accrual.
 
