@@ -67,11 +67,16 @@ jobs:
           fi
 
   # Stage 1.5: GenAI intent validation (semantic, drift-proof)
+  #
+  # Job-level if can reference vars.* but NOT secrets.* (GitHub Actions rule —
+  # secrets are only resolvable in step env, not in job-level conditionals).
+  # Enable by setting repo VARIABLE OPENROUTER_API_KEY=true under
+  # Settings → Secrets and variables → Actions → Variables.
   genai-validation:
     name: GenAI Intent Tests
     runs-on: ubuntu-latest
     needs: smoke
-    if: ${{ vars.OPENROUTER_API_KEY != '' || secrets.OPENROUTER_API_KEY != '' }}
+    if: ${{ vars.OPENROUTER_API_KEY != '' }}
     timeout-minutes: 10
 
     steps:
