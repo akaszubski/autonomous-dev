@@ -243,6 +243,122 @@ def cluster_within_tag(
     return clusters
 
 
+def merge_compatible_singletons(
+    findings: list[TriageFinding],
+    max_size: int = 4,
+) -> list[TriageFinding]:
+    """Merge singleton findings with the same root cause tag into super-clusters.
+    
+    Singletons with the same non-UNTAGGED root_cause_tag are chunked into
+    super-clusters up to max_size. Multi-issue clusters and UNTAGGED singletons
+    pass through unchanged.
+    
+    GitHub Issue: #1250
+    
+    Args:
+        findings: List of TriageFinding instances to potentially merge.
+        max_size: Maximum size for merged super-clusters (default 4).
+    
+    Returns:
+        List of TriageFinding instances with compatible singletons merged.
+    """
+    if not findings:
+        return []
+    
+    # Partition into singletons and multi-issue clusters
+    singletons = []
+    multi_clusters = []
+    
+    for finding in findings:
+        if finding.cluster_size == 1:
+            singletons.append(finding)
+        else:
+            multi_clusters.append(finding)
+    
+    # Filter out UNTAGGED singletons (they never merge)
+    untagged = []
+    tagged = []
+    
+    for singleton in singletons:
+        if singleton.root_cause_tag == "UNTAGGED":
+            untagged.append(singleton)
+        else:
+            tagged.append(singleton)
+    
+    # Group tagged singletons by root_cause_tag
+    by_tag: dict[str, list[TriageFinding]] = {}
+    for singleton in tagged:
+        tag = singleton.root_cause_tag
+        if tag not in by_tag:
+            by_tag[tag] = []
+        by_tag[tag].append(singleton)
+    
+    # Process each tag group
+    result = []
+    super_cluster_counter = 0
+    
+    for tag in sorted(by_tag.keys()):  # Sort for determinism
+        group = by_tag[tag]
+        # Sort singletons by issue number for deterministic chunking
+        group.sort(key=lambda f: f.issue_numbers[0])
+        
+        # Chunk into groups of max_size
+        for i in range(0, len(group), max_size):
+            chunk = group[i:i+max_size]
+            
+            if len(chunk) == 1:
+                # Single leftover remains as singleton
+                result.append(chunk[0])
+            else:
+                # Create super-cluster
+                # Collect all issue numbers and titles
+                all_numbers = []
+                issue_to_title = {}
+                severities = []
+                
+                for finding in chunk:
+                    for num, title in zip(finding.issue_numbers, finding.issue_titles):
+                        all_numbers.append(num)
+                        issue_to_title[num] = title
+                    severities.append(finding.severity)
+                
+                # Sort issue numbers for determinism
+                all_numbers.sort()
+                all_titles = tuple(issue_to_title[num] for num in all_numbers)
+                
+                # Aggregate severity
+                aggregated_severity = _aggregate_severity(severities)
+                
+                # Create new super-cluster with unique sub_cluster_id
+                super_cluster = TriageFinding(
+                    root_cause_tag=tag,
+                    sub_cluster_id=1000 + super_cluster_counter,
+                    issue_numbers=tuple(all_numbers),
+                    issue_titles=all_titles,
+                    cluster_size=len(all_numbers),
+                    severity=aggregated_severity,
+                    rank_score=0.0,
+                    shared_files=(),
+                    dependency_notes=(),
+                    suggested_fix_order=0,
+                )
+                result.append(super_cluster)
+                super_cluster_counter += 1
+    
+    # Add multi-clusters and untagged singletons
+    result.extend(multi_clusters)
+    result.extend(untagged)
+    
+    # Sort output by (root_cause_tag, min(issue_numbers))
+    def sort_key(f: TriageFinding) -> tuple[str, int]:
+        min_issue = min(f.issue_numbers) if f.issue_numbers else 0
+        return (f.root_cause_tag, min_issue)
+    
+    result.sort(key=sort_key)
+    
+    return result
+
+
 def compute_rank_score(
     cluster_size: int, severity_weight: float, recency_decay: float
 ) -> float:

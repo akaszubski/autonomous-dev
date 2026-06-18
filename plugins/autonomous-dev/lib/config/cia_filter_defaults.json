@@ -1,0 +1,6 @@
+{
+  "min_severity": "info",
+  "min_confidence": 0.0,
+  "min_recurrence": 2,
+  "recurrence_window_days": 7
+}
