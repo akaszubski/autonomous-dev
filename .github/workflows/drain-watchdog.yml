@@ -1,12 +1,13 @@
 name: Drain Watchdog
 
 # Watches the autonomous /drain-queue loop and auto-heals when STUCK.
-# STUCK criteria (any one) — tightened 2026-06-17 with cron→2h:
-#   - No new commit on master in 3h (more than one missed 2h fire)
-#   - Open auto-improvement queue > 40 AND no issue closed in 4h
+# STUCK criteria (any one) — tightened 2026-06-18 after observing repeated
+# cloud-session silent fire-failures (75% of cron fires die without commit):
+#   - No new commit on master in 2h (single missed 2h cron fire = STUCK)
+#   - Open auto-improvement queue > 30 AND no non-watchdog issue closed in 3h
 #   - Latest CI conclusion = failure on autonomous commit
-# On STUCK: runs /drain-queue via claude-code-action with the same selector
-# logic as the cloud cron routine (skip feat:-titled clusters, cap 4 issues/session).
+# On STUCK: runs /implement --light via claude-code-action on a fresh runner
+# (full pipeline overruns even the 60-min runner budget on hard clusters).
 
 on:
   schedule:
@@ -45,24 +46,27 @@ jobs:
           LAST_COMMIT_EPOCH=$(date -u -d "$LAST_COMMIT_ISO" +%s)
           AGE_HOURS=$(( (NOW_EPOCH - LAST_COMMIT_EPOCH) / 3600 ))
           QUEUE_SIZE=$(gh issue list --state open --label auto-improvement --limit 200 --json number --jq 'length')
-          CLOSED_LAST_4H=$(gh issue list --state closed --limit 50 --search "closed:>$(date -u -d '4 hours ago' +%Y-%m-%dT%H:%M:%SZ)" --json number --jq 'length')
+          # Exclude watchdog-self meta-issues (label drain-stuck) from the closures count —
+          # those don't represent real drain progress, just watchdog's own cleanup.
+          CLOSED_LAST_3H=$(gh issue list --state closed --limit 50 --search "closed:>$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ) -label:drain-stuck" --json number --jq 'length')
 
           echo "## Drain watchdog signals" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- last commit: $LAST_COMMIT_ISO ($AGE_HOURS h ago)" >> "$GITHUB_STEP_SUMMARY"
           echo "- open auto-improvement queue: $QUEUE_SIZE" >> "$GITHUB_STEP_SUMMARY"
-          echo "- issues closed in last 4h: $CLOSED_LAST_4H" >> "$GITHUB_STEP_SUMMARY"
+          echo "- non-meta issues closed in last 3h: $CLOSED_LAST_3H" >> "$GITHUB_STEP_SUMMARY"
 
           STUCK=false
           REASON=""
-          # Tightened 2026-06-17 with cron→2h. With drain firing every 2h,
-          # a 3h gap means at least one fire died silently.
-          if [ "$AGE_HOURS" -ge 3 ]; then
+          # Tightened 2026-06-18 after observing cloud-session silent failures.
+          # 2h gap = single missed cron fire = STUCK. Catches failures faster
+          # than 3h (which let 1.5 fires slip).
+          if [ "$AGE_HOURS" -ge 2 ]; then
             STUCK=true
-            REASON="no commit on master in ${AGE_HOURS}h (≥3h threshold — at least one 2h cron fire died)"
-          elif [ "$QUEUE_SIZE" -gt 40 ] && [ "$CLOSED_LAST_4H" -eq 0 ]; then
+            REASON="no commit on master in ${AGE_HOURS}h (≥2h threshold — single missed 2h cron fire)"
+          elif [ "$QUEUE_SIZE" -gt 30 ] && [ "$CLOSED_LAST_3H" -eq 0 ]; then
             STUCK=true
-            REASON="queue size $QUEUE_SIZE with 0 closures in last 4h"
+            REASON="queue size $QUEUE_SIZE with 0 real closures in last 3h (watchdog meta-closures excluded)"
           fi
 
           echo "- STUCK: $STUCK" >> "$GITHUB_STEP_SUMMARY"
@@ -91,16 +95,19 @@ jobs:
           except Exception:
               print("", end=""); sys.exit(0)
 
-          def is_feat(titles):
+          def is_large_feat(cluster):
+              titles = cluster.get('issue_titles', [])
               prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
-              return any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+              has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+              # Small feature clusters (<=2 issues) ARE drainable.
+              return has_feat and cluster.get('cluster_size', 0) > 2
 
           for c in clusters:
               if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
                   continue
               if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
                   continue
-              if is_feat(c.get('issue_titles', [])):
+              if is_large_feat(c):
                   continue
               print(','.join(str(n) for n in c['issue_numbers'][:2]), end="")
               break
@@ -226,11 +233,11 @@ jobs:
 
             1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly with a "bypass active" message. Do NOT proceed.
 
-            2. **Invoke /implement on the pre-selected cluster** — this runs the full SDLC pipeline (research → plan → acceptance tests → implement → reviewer → security-auditor → doc-master → CIA):
+            2. **Invoke /implement --light on the pre-selected cluster** — light mode (5 steps, 4 agents) fits the 60-min runner budget reliably; full mode (15 steps, 8 agents) often overruns and dies silently — that's why we're here:
                ```
-               /implement --issues ${{ needs.check.outputs.cluster }}
+               /implement --issues ${{ needs.check.outputs.cluster }} --light
                ```
-               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
+               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. If the cluster is genuinely security-sensitive (auth/token/encryption/migrations files), drop the `--light` flag and let the full pipeline run; otherwise --light is preferred. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
 
             3. **After /implement returns**, verify the commit was actually pushed: `git fetch origin master && git log origin/master -1`. The pipeline's STEP 13 normally pushes; if the worktree has unpushed commits, push them: `git push origin HEAD:master`.
 
