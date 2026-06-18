@@ -1,6 +1,6 @@
 {
   "name": "enforce_file_organization",
-  "type": "guard",
+  "type": "lifecycle",
   "description": "Block Write/Edit creating files in repo root outside allow-list",
   "interpreter": "python3",
   "active": true,
