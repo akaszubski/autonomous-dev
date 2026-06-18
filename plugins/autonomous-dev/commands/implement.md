@@ -873,6 +873,13 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 - **Axes**: 4 only — Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test
 - **Agent**(subagent_type="plan-critic", model="sonnet") — Pass planner output. Instruct: "Single-pass critique on 4 axes only: Assumption Audit, Existing Solution Search, Minimalism Pressure, Operational Integration Test. Output verdict: PROCEED, REVISE, or BLOCKED." (When running under --batch, include the BATCH CONTEXT block (worktree path + issue number) per implement-batch.md STEP B3.)
 
+
+**Output-length gate**: After plan-critic returns, count words in the response body. If `word_count < 80`, the response is structurally invalid (likely verdict-only ghost output). Auto-retry plan-critic ONCE with the same plan plus this reminder appended to the user message:
+
+> Your previous response was structurally invalid (only N words; verdict-only output is rejected). Re-issue your critique with three or more paragraphs of scored reasoning BEFORE the final verdict line.
+
+If the retry also returns `word_count < 80`, BLOCK the pipeline and report "plan-critic ghost output persisted across retry" — do NOT proceed on a verdict-only output.
+
 **Security-sensitive escalation (Issue #1145)**: If the plan references any of `hooks/*.py`, `lib/quality_persistence_enforcer.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `config/auto_approve_policy.json`, or `templates/settings.*.json`, increase the maximum rounds from 3 to 5 rounds. The additional rounds fire ONLY if the critic continues to return REVISE — a clean PROCEED at any round still terminates the loop normally. Rationale: security-enforcement files (#1142 was a hook modification to `unified_pre_tool.py`) carry higher cost when a revision addresses one finding but re-introduces another under pressure to satisfy the critic's checklist; the extra two rounds amortize against catching that regression. Cost: one or two additional Sonnet invocations (~165s, ~$0.10 each).
 
 **Parse verdict from `plan_critic_verdict.json` (#1234 — file is authoritative; do NOT infer from chat output)**:
@@ -1012,6 +1019,9 @@ For EACH failure, you MUST choose one:
 - ❌ You MUST NOT proceed when test count drops significantly from baseline (enforced by `coverage_baseline.check_test_count_regression()`)
 
 Loop until **0 failures, 0 errors**. Do NOT proceed to STEP 10 with any failures.
+
+After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP 8.5 spec-validator can dispatch without manual recording. (#1238)
+
 
 **Pre-Existing Failure Classification (Fix-Forward -- Issue #860)**
 
@@ -1954,6 +1964,9 @@ Resolution: Revise the feature description or run /implement without --light to 
 pytest --tb=short -q
 ```
 Loop until **0 failures, 0 errors**.
+
+After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP L3.5 spec-validator can dispatch without manual recording. (#1238)
+
 
 Coverage check: `pytest tests/ --cov=plugins --cov-report=term-missing -q 2>&1 | tail -5` — must be >= baseline - 0.5%.
 

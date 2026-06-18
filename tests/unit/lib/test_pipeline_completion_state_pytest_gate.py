@@ -103,3 +103,22 @@ class TestRecordPytestGate:
         record_pytest_gate_passed(session_id, issue_number=1)
         assert get_pytest_gate_passed(session_id, issue_number=1) is True
         assert get_pytest_gate_passed(session_id, issue_number=2) is False
+
+    def test_record_pytest_gate_idempotent(self, session_id: str):
+        """Calling record_pytest_gate_passed multiple times is idempotent (Issue #1238)."""
+        # First call - records the gate
+        record_pytest_gate_passed(session_id)
+        completed_first = get_completed_agents(session_id)
+        assert "pytest-gate" in completed_first
+        
+        # Second call with same session_id - should be idempotent (no error, same state)
+        record_pytest_gate_passed(session_id)
+        completed_second = get_completed_agents(session_id)
+        assert "pytest-gate" in completed_second
+        
+        # The completion state should be the same after both calls
+        assert completed_first == completed_second
+        
+        # Verify pytest-gate appears exactly once, not duplicated
+        pytest_gate_entries = [agent for agent in completed_second if agent == "pytest-gate"]
+        assert len(pytest_gate_entries) == 1, "pytest-gate should appear exactly once, not duplicated"
