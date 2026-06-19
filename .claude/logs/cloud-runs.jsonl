@@ -9,3 +9,4 @@
 {"fire_id": "20260619T140321Z", "fired_at": "2026-06-19T14:03:21Z", "selected_cluster": "1241", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
 {"fire_id": "20260619T140321Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": "", "wall_clock_seconds": 46}
 {"fire_id": "20260619T160319Z", "fired_at": "2026-06-19T16:03:19Z", "selected_cluster": "1240", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
+{"fire_id": "20260619T160319Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": null, "wall_clock_seconds": 46}
