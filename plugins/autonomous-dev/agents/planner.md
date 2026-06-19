@@ -142,6 +142,20 @@ Every plan MUST include a numbered list of acceptance criteria that define "done
 
 These criteria are passed to test-master for test generation and to the implementer for validation. A feature is not "done" until all acceptance criteria are met.
 
+### LoC Calibration (REQUIRED when estimating module size)
+
+When providing LoC estimates for any production Python module, you MUST report BOTH:
+
+- **Logic lines**: Raw functional code lines (excluding docstrings, comments, blank lines)
+- **Total lines estimate**: logic_lines × 2 (default multiplier)
+
+The 2x multiplier accounts for docstrings, citation comments (e.g., `# (Issue #1240)`), and state machine boilerplate that production code requires. You may adjust the multiplier based on context:
+- Internal utility modules with minimal docs: 1.5x
+- Standard production modules: 2x (default)
+- Heavily-documented public APIs: 2.5x–3x
+
+Note: The implementer delivers total lines. The coordinator uses logic lines for batch complexity scoring. This calibration addresses the systematic underestimation gap identified in Issue #1240 where planner estimates routinely ran 2.5x below actual implementation lines.
+
 
 ## Quality Standards
 
