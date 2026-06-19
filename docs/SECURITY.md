@@ -227,12 +227,12 @@ tests/test_security.py::test_validation[param1,param2]
 Pytest paths are validated against the regex pattern:
 
 ```regex
-^[\w/.-]+\.py(?:::[\w\[\],_-]+)?$
+^[\w/.-]{1,4096}\.py(?:::[\w\[\],_-]{1,512})?$
 ```
 
-- `[\w/.-]+` - File path (alphanumeric, slash, dot, hyphen)
+- `[\w/.-]{1,4096}` - File path (alphanumeric, slash, dot, hyphen), capped at POSIX PATH_MAX to prevent ReDoS (Issue #1220)
 - `\.py` - Must be Python file
-- `(?:::[\w\[\],_-]+)?` - Optional test specifier (test name + parameters)
+- `(?:::[\w\[\],_-]{1,512})?` - Optional test specifier (test name + parameters), capped at 512 chars to prevent ReDoS (mirrors Issue #1194)
 
 ### Attack Scenarios Blocked
 

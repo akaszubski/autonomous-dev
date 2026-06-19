@@ -135,7 +135,13 @@ _audit_logger_lock = threading.Lock()
 # Input validation constants
 MAX_MESSAGE_LENGTH = 10000  # 10KB max message length
 MAX_PATH_LENGTH = 4096  # POSIX PATH_MAX limit
-PYTEST_PATH_PATTERN = re.compile(r'^[\w/.-]+\.py(?:::[\w\[\],_-]+)?$')
+# The ``{1,4096}`` and ``{1,512}`` upper bounds cap the character-class run
+# lengths to defuse the ReDoS surface on the previously-unbounded ``+``
+# quantifiers (Issue #1220, mirroring Issue #1194 / commit c660f37).
+# - {1,4096} on the path segment matches ``MAX_PATH_LENGTH`` (POSIX PATH_MAX).
+# - {1,512}  on the optional test-ID segment matches the #1194 precedent;
+#   real pytest test IDs rarely exceed 200 chars.
+PYTEST_PATH_PATTERN = re.compile(r'^[\w/.-]{1,4096}\.py(?:::[\w\[\],_-]{1,512})?$')
 
 
 def _get_audit_logger() -> logging.Logger:
@@ -523,11 +529,13 @@ def validate_pytest_path(
     Pytest paths can be used to execute arbitrary Python code if not validated.
     This function uses regex validation to ensure only legitimate pytest paths.
 
-    Pattern: ^[\\w/.-]+\\.py(?:::[\\w\\[\\],_-]+)?$
-    - [\\w/.-]+: Alphanumeric, slash, dot, hyphen (file path)
+    Pattern: ^[\\w/.-]{1,4096}\\.py(?:::[\\w\\[\\],_-]{1,512})?$
+    - [\\w/.-]{1,4096}: Alphanumeric, slash, dot, hyphen (file path,
+      capped at POSIX PATH_MAX — Issue #1220 ReDoS bound)
     - \\.py: Must be Python file
-    - (?:::[\\w\\[\\],_-]+)?: Optional test specifier with :: prefix
-    - [\\w\\[\\],_-]+: Test names with parameters in brackets
+    - (?:::[\\w\\[\\],_-]{1,512})?: Optional test specifier with :: prefix
+    - [\\w\\[\\],_-]{1,512}: Test names with parameters in brackets
+      (cap mirrors Issue #1194 precedent)
 
     Attack Scenarios Blocked:
     =========================
