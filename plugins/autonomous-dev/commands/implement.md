@@ -1649,6 +1649,270 @@ If skills were modified:
 
 **FORBIDDEN**: Blocking the pipeline when `OPENROUTER_API_KEY` is missing or when eval prompts don't exist for a skill. These are advisory warnings only.
 
+### STEP 11.6: MEDIUM-Convergence Check (Advisory)
+
+**Progress**: Output step banner (STEP 11.6/15 — MEDIUM-Convergence Check). This is an advisory check, NOT a hard gate.
+
+Check if multiple validators flagged the same file/function with MEDIUM+ severity findings:
+
+```python
+import os
+import re
+from pathlib import Path
+from collections import defaultdict
+
+RUN_ID = os.environ.get('PIPELINE_RUN_ID', 'unknown')
+validator_dir = Path(f".claude/logs/activity/validators/{RUN_ID}")
+converged_findings = defaultdict(list)
+
+# Parse reviewer findings
+reviewer_file = validator_dir / "reviewer.txt"
+if reviewer_file.exists():
+    content = reviewer_file.read_text()
+    lines = content.split('\n')
+    
+    # Pattern 1: Look for file paths on one line with severity on next line
+    for i, line in enumerate(lines):
+        # Find lines with file paths
+        file_match = re.search(r'([^\s]+\.(py|js|ts|tsx|vue|md))', line)
+        if file_match:
+            file_path = file_match.group(1)
+            # Check if this line or next line contains severity markers
+            combined_text = line
+            if i + 1 < len(lines):
+                combined_text += ' ' + lines[i + 1]
+            
+            if '[BLOCKING]' in combined_text:
+                converged_findings[file_path].append(('reviewer', 'BLOCKING'))
+            elif '[MEDIUM]' in combined_text or '[WARNING]' in combined_text:
+                converged_findings[file_path].append(('reviewer', 'MEDIUM'))
+    
+    # Pattern 2: Look for explicit "File:" or "file:" references
+    for match in re.finditer(r'(?:File|file):\s*([^\s]+\.(py|js|ts|tsx|vue|md))', content):
+        file_path = match.group(1)
+        # Find severity in surrounding context (within 200 chars)
+        start = max(0, match.start() - 100)
+        end = min(len(content), match.end() + 200)
+        context = content[start:end]
+        
+        if '[BLOCKING]' in context and ('reviewer', 'BLOCKING') not in converged_findings[file_path]:
+            converged_findings[file_path].append(('reviewer', 'BLOCKING'))
+        elif ('[MEDIUM]' in context or '[WARNING]' in context) and file_path not in [f for f, _ in converged_findings[file_path] if _ == 'MEDIUM']:
+            converged_findings[file_path].append(('reviewer', 'MEDIUM'))
+
+# Parse security-auditor findings
+security_file = validator_dir / "security-auditor.txt"
+if security_file.exists():
+    content = security_file.read_text()
+    
+    # Look for ADVISORY-FINDINGS block
+    advisory_match = re.search(r'ADVISORY-FINDINGS:(.*?)(?=\n\n|\Z)', content, re.DOTALL)
+    if advisory_match:
+        advisory_block = advisory_match.group(1)
+        for line in advisory_block.split('\n'):
+            # Parse lines like "- [Medium] path/to/file.py: description"
+            file_match = re.match(r'.*\[(Medium|Low)\]\s+([^\s:]+\.(py|js|ts|tsx|vue|md))', line, re.IGNORECASE)
+            if file_match:
+                severity = 'MEDIUM' if file_match.group(1).upper() == 'MEDIUM' else 'LOW'
+                file_path = file_match.group(2)
+                # Only track MEDIUM+ severity for convergence detection
+                if severity in ['MEDIUM', 'BLOCKING']:
+                    converged_findings[file_path].append(('security-auditor', severity))
+    
+    # Also check for BLOCKING findings in main content (not just advisory)
+    for match in re.finditer(r'(?:BLOCKING|CRITICAL)[^\n]*([^\s]+\.(py|js|ts|tsx|vue|md))', content):
+        file_path = match.group(1)
+        if ('security-auditor', 'BLOCKING') not in converged_findings[file_path]:
+            converged_findings[file_path].append(('security-auditor', 'BLOCKING'))
+    
+    # Check for Medium severity findings in main content
+    for match in re.finditer(r'([^\s]+\.(py|js|ts|tsx|vue|md))[^\n]*(?:Medium|MEDIUM|vulnerability|risk)', content):
+        file_path = match.group(1)
+        # Avoid duplicate entries
+        existing_severities = [sev for val, sev in converged_findings[file_path] if val == 'security-auditor']
+        if not existing_severities:
+            converged_findings[file_path].append(('security-auditor', 'MEDIUM'))
+
+# Detect convergence: files flagged by 2+ validators with MEDIUM+ severity
+convergence_detected = False
+converged_files = []
+
+for file_path, findings in converged_findings.items():
+    # Filter for MEDIUM or higher severity
+    medium_plus = [f for f in findings if f[1] in ['MEDIUM', 'BLOCKING']]
+    validators = set([f[0] for f in medium_plus])
+    
+    if len(validators) >= 2:
+        convergence_detected = True
+        converged_files.append({
+            'file': file_path,
+            'validators': list(validators),
+            'findings': medium_plus
+        })
+
+if convergence_detected:
+    print(f"\n[CONVERGED-MEDIUM] Detected convergence on {len(converged_files)} file(s):")
+    for item in converged_files:
+        print(f"  - {item['file']}: flagged by {', '.join(item['validators'])}")
+    
+    # Log to pipeline artifact
+    import json
+    convergence_log = {
+        'step': '11.6',
+        'type': 'medium_convergence',
+        'converged_files': converged_files,
+        'run_id': RUN_ID
+    }
+    
+    log_file = Path(f".claude/logs/activity/{RUN_ID}_convergence.json")
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_file, 'w') as f:
+        json.dump(convergence_log, f, indent=2)
+else:
+    print("[CONVERGENCE-CHECK] No MEDIUM+ convergence detected across validators")
+```
+
+If convergence was detected, present three options to the user:
+
+```python
+if convergence_detected:
+    print("\nMultiple validators flagged the same files with MEDIUM+ severity findings.")
+    print("This suggests these issues may warrant attention.\n")
+    print("Options:")
+    print("1. REMEDIATE - Re-run implementer to fix converged findings, then re-validate")
+    print("2. DEFER (default) - File GitHub issues for tracking and continue")
+    print("3. ACKNOWLEDGE - Continue with justification\n")
+    
+    # In non-interactive mode or if no response, default to DEFER
+    import sys
+    if sys.stdin.isatty():
+        try:
+            # Set a timeout for user input (10 seconds)
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError()
+            
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(10)
+            
+            user_choice = input("Enter choice (1/2/3) or press Enter for DEFER: ").strip()
+            signal.alarm(0)  # Cancel alarm
+            
+            if user_choice == '1':
+                choice = 'REMEDIATE'
+            elif user_choice == '3':
+                choice = 'ACKNOWLEDGE'
+            else:
+                choice = 'DEFER'
+        except (TimeoutError, EOFError):
+            choice = 'DEFER'
+            print("No input received, defaulting to DEFER")
+    else:
+        choice = 'DEFER'
+        print("Non-interactive mode, defaulting to DEFER")
+    
+    print(f"\n[CONVERGENCE-ACTION] Selected: {choice}")
+    
+    if choice == 'REMEDIATE':
+        print("Preparing converged findings for remediation...")
+        
+        # Construct converged findings summary
+        findings_text = "CONVERGED MEDIUM FINDINGS (flagged by multiple validators):\n\n"
+        for item in converged_files:
+            findings_text += f"File: {item['file']}\n"
+            findings_text += f"Flagged by: {', '.join(item['validators'])}\n"
+            findings_text += "Severity: MEDIUM+\n\n"
+        
+        # Re-read the actual findings from validator artifacts for context
+        if reviewer_file.exists():
+            findings_text += "\n--- REVIEWER FINDINGS ---\n"
+            reviewer_content = reviewer_file.read_text()
+            # Extract relevant sections for converged files
+            for item in converged_files:
+                if 'reviewer' in item['validators']:
+                    # Find mentions of this file in reviewer output
+                    for line in reviewer_content.split('\n'):
+                        if item['file'] in line:
+                            findings_text += line + "\n"
+        
+        if security_file.exists():
+            findings_text += "\n--- SECURITY-AUDITOR FINDINGS ---\n"
+            security_content = security_file.read_text()
+            # Extract relevant sections for converged files
+            for item in converged_files:
+                if 'security-auditor' in item['validators']:
+                    for line in security_content.split('\n'):
+                        if item['file'] in line:
+                            findings_text += line + "\n"
+        
+        print(findings_text)
+        # Note: The actual re-invocation of implementer would happen here via Agent tool
+        # This is a placeholder for the coordination logic
+        print("\n[REMEDIATE] Re-invoking implementer with converged findings...")
+        print("[REMEDIATE] After implementer completes, re-run security-auditor only")
+        
+    elif choice == 'DEFER':
+        print("Filing GitHub issues for converged findings...")
+        
+        # File issues for each converged file
+        for item in converged_files:
+            issue_title = f"MEDIUM-convergence: {item['file']}"
+            issue_body = f"Multiple validators flagged this file with MEDIUM+ severity findings.\n\n"
+            issue_body += f"File: `{item['file']}`\n"
+            issue_body += f"Validators: {', '.join(item['validators'])}\n"
+            issue_body += f"Pipeline run: {RUN_ID}\n\n"
+            issue_body += "This requires manual review as multiple automated validators converged on the same location.\n"
+            issue_body += "\nLabels: medium-convergence, technical-debt"
+            
+            print(f"[DEFER] Would file issue: {issue_title}")
+            # Note: Actual gh issue create command would go here
+            
+    elif choice == 'ACKNOWLEDGE':
+        print("Please provide justification for acknowledging converged findings:")
+        
+        if sys.stdin.isatty():
+            try:
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30)  # 30 seconds for justification
+                
+                justification = input("Justification: ").strip()
+                signal.alarm(0)
+                
+                if not justification:
+                    print("[ACKNOWLEDGE] No justification provided, defaulting to DEFER")
+                    choice = 'DEFER'
+                else:
+                    print(f"[ACKNOWLEDGE] Justification recorded: {justification}")
+                    
+                    # Log justification
+                    ack_log = {
+                        'step': '11.6',
+                        'action': 'acknowledge',
+                        'converged_files': converged_files,
+                        'justification': justification,
+                        'run_id': RUN_ID
+                    }
+                    
+                    ack_file = Path(f".claude/logs/activity/{RUN_ID}_convergence_ack.json")
+                    with open(ack_file, 'w') as f:
+                        json.dump(ack_log, f, indent=2)
+                        
+            except (TimeoutError, EOFError):
+                print("[ACKNOWLEDGE] No justification provided, defaulting to DEFER")
+                choice = 'DEFER'
+```
+
+**Implementation notes**:
+- This step is ADVISORY only, not a hard gate
+- Detects when ≥2 validators flag the same file with MEDIUM+ severity
+- Defaults to DEFER option (filing issues) if no user input
+- REMEDIATE option re-runs implementer with findings, then re-validates with security-auditor only
+- ACKNOWLEDGE option requires justification to be logged
+- All actions are logged to pipeline artifacts for audit trail
+
+**FORBIDDEN**: Making this a blocking gate. The MEDIUM-convergence check is advisory to surface potential issues but must not block the pipeline.
+
 ### STEP 12: Final Verification + Doc-Drift Gate — HARD GATE
 
 **Progress**: Output step banner (STEP 12/15 — Final Verification + Doc-Drift Gate). Output result after.

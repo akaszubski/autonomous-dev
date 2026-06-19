@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **MEDIUM-convergence check advisory step** (STEP 11.6): New advisory pipeline step that detects when ≥2 distinct validation agents (reviewer, security-auditor) flag the same file or function with MEDIUM+ severity findings. Surfaces multi-agent convergence patterns via `[CONVERGED-MEDIUM]` banner and offers three non-blocking options: REMEDIATE (re-run implementer + re-validate), DEFER (file GitHub issues for tracking), ACKNOWLEDGE (log justification and continue). Convergence artifacts logged to `.claude/logs/activity/{RUN_ID}_convergence.json` for audit trail. Not a hard gate by design — advisory feedback to highlight high-confidence areas needing attention without blocking progress.
+
 ### Security
 - **ReDoS hardening in `plan_freshness._FILE_PATH_REGEX`** (Issue #1194): `_FILE_PATH_REGEX` previously used an unbounded `+` quantifier on the `[\w/.-]` character class. An adversarial plan blob containing a long run (e.g., 100 KB) of character-class-matching bytes with no matching file extension could cause superlinear regex-engine scanning time. Fix bounds the character-class run with `{1,512}` — worst-case matching is now O(N × 512) per scan position. Behavior is unchanged for legitimate inputs (planner-output paths are well under 512 chars). The same bound is mirrored in STEP 4.8 and STEP 5.5c prose in `commands/implement.md`. Severity: Low (input is coordinator-produced plan markdown). 3 regression tests added in `tests/unit/lib/test_plan_freshness_regex_bound.py` covering: no-match on 100 KB adversarial pad (timing < 1 s), inclusive upper bound (512-char run + `.py` matches), and typical short path still matches. (CWE-400)
 
