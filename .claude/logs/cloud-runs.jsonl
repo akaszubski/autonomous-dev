@@ -4,3 +4,4 @@
 {"fire_id": "20260619T080331Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": ""}
 {"fire_id": "20260619T100326Z", "fired_at": "2026-06-19T10:03:26Z", "selected_cluster": "1241", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
 {"fire_id": "20260619T100326Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": null, "note": "SlashCommand tool not loaded in this cron session; /implement cannot be invoked. Selected cluster=1241. This is the 3rd consecutive failed fire (06:02 triage_no_gh_cli; 08:03 slash_unavailable; 10:03 same)."}
+{"fire_id": "20260619T120404Z", "fired_at": "2026-06-19T12:04:04Z", "selected_cluster": "1241", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
