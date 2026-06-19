@@ -195,6 +195,21 @@ jobs:
               rsync -a --delete "plugins/autonomous-dev/$subdir/" "$HOME/.claude/$subdir/"
             fi
           done
+          # Quality fix (2026-06-19): commit 28f68ec body noted that Sonnet-tier
+          # subagents (reviewer, security-auditor, doc-master, CIA) returned 404
+          # in the cloud-action runtime — only Opus-tier agents (planner,
+          # test-master, implementer) were dispatchable. Result: autonomous
+          # commits skipped reviewer/security/docs review. Override all agent
+          # frontmatter to model: opus in the runner so the full SDLC runs.
+          OVERRIDDEN=0
+          for agent_md in "$HOME/.claude/agents"/*.md; do
+            [ -f "$agent_md" ] || continue
+            if grep -q '^model: sonnet' "$agent_md"; then
+              sed -i 's/^model: sonnet/model: opus/' "$agent_md"
+              OVERRIDDEN=$((OVERRIDDEN + 1))
+            fi
+          done
+          echo "  Overrode $OVERRIDDEN Sonnet agents → Opus for runner dispatch"
           # Project-level marker so hooks recognize repo identity (#803 self-maint).
           mkdir -p .claude
           [ -f plugins/autonomous-dev/.claude-plugin/marketplace.json ] || true
