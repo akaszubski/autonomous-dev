@@ -2,3 +2,4 @@
 {"fire_id": "20260619T060243Z", "phase": "FIRE_END", "exit_reason": "triage_analyzer_no_gh_cli", "commit_sha": null, "wall_clock_seconds": null}
 {"fire_id": "20260619T080331Z", "fired_at": "2026-06-19T08:03:31Z", "selected_cluster": "1248", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
 {"fire_id": "20260619T080331Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": ""}
+{"fire_id": "20260619T100326Z", "fired_at": "2026-06-19T10:03:26Z", "selected_cluster": "1241", "phase": "FIRE_START", "exit_reason": null, "commit_sha": null, "wall_clock_seconds": null}
