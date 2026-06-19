@@ -192,6 +192,14 @@ jobs:
       issues: write
       pull-requests: write
       id-token: write
+      # 2026-06-19: added `workflows: write` after force_heal run 27799993605
+      # ran the full SDLC on #1252 (autonomous multi-repo deploy fan-out),
+      # produced a real commit e4ba8f4 with Closes #1252, but git push was
+      # refused: "GitHub App ... without 'workflows' permission" because the
+      # commit added .github/workflows/auto-deploy-consumers.yml. Without
+      # this permission, any autonomous run whose deliverable touches CI
+      # workflows can't self-land.
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - name: Install autonomous-dev plugin into runner
