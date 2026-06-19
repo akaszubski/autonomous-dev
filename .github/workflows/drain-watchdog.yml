@@ -12,7 +12,12 @@ name: Drain Watchdog
 on:
   schedule:
     - cron: '*/30 * * * *'   # every 30 min
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_heal:
+        description: 'Bypass STUCK check and force heal cycle (for on-demand drain)'
+        type: boolean
+        default: false
 
 concurrency:
   group: drain-watchdog
@@ -58,10 +63,15 @@ jobs:
 
           STUCK=false
           REASON=""
+          # Force_heal input bypasses STUCK check — for on-demand drain cycles
+          # when the loop is otherwise quiet but the operator wants throughput.
+          if [ "${{ github.event.inputs.force_heal }}" = "true" ]; then
+            STUCK=true
+            REASON="force_heal=true (operator-triggered on-demand drain)"
           # Tightened 2026-06-18 after observing cloud-session silent failures.
           # 2h gap = single missed cron fire = STUCK. Catches failures faster
           # than 3h (which let 1.5 fires slip).
-          if [ "$AGE_HOURS" -ge 2 ]; then
+          elif [ "$AGE_HOURS" -ge 2 ]; then
             STUCK=true
             REASON="no commit on master in ${AGE_HOURS}h (≥2h threshold — single missed 2h cron fire)"
           elif [ "$QUEUE_SIZE" -gt 30 ] && [ "$CLOSED_LAST_3H" -eq 0 ]; then
