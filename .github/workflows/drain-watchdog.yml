@@ -119,7 +119,10 @@ jobs:
                   continue
               if is_drain_stuck_meta(c):
                   continue
-              print(','.join(str(n) for n in c['issue_numbers'][:2]), end="")
+              # Per-session cap bumped 2026-06-19: 2 → 3 issues per heal cycle
+              # to lift throughput. 3 × ~10min --light = ~30min, well under
+              # the 60-min runner budget.
+              print(','.join(str(n) for n in c['issue_numbers'][:3]), end="")
               break
           PY
             )
