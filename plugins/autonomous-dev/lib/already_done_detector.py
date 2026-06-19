@@ -38,7 +38,11 @@ class MatchResult(NamedTuple):
 
 _SYMBOL_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_./]*)`")  # backtick-quoted
 _IDENT_RE = re.compile(r"\b([a-z][a-z0-9_]{4,}_[a-z0-9_]+)\b")  # snake_case
-_PATH_RE = re.compile(r"([\w/.-]+\.(?:py|md|json|yaml|yml|sh|ts|js))")
+# The ``{1,512}`` upper bound caps the character-class run length to defuse
+# the ReDoS surface on the previously-unbounded ``+`` quantifier (Issue #1221;
+# mirrors the Issue #1194 fix to plan_freshness._FILE_PATH_REGEX and the
+# Issue #1220 fix to PYTEST_PATH_PATTERN).
+_PATH_RE = re.compile(r"([\w/.-]{1,512}\.(?:py|md|json|yaml|yml|sh|ts|js))")
 
 # Classification markers.
 # A line containing `#<issue>` is examined for these markers.
