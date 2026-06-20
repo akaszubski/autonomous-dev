@@ -59,7 +59,13 @@ __all__ = [
     "should_pipeline_enforce",
     "update_session_mode_partial",
     "effective_intent_class",
+    "get_user_msg_token",
 ]
+
+# Issue #1263: max chars of user prompt text persisted into the artifact.
+# The token is sha256(user_prompt_text)[:16], so a moderate cap keeps the
+# artifact small while still discriminating across user turns.
+_USER_PROMPT_TEXT_MAX_CHARS = 1000
 
 # Issue #1024 (M2): allowlist of fields update_session_mode_partial may set.
 # A closed allowlist is the safe direction — it forces the writer to fail when
@@ -256,6 +262,16 @@ def write_session_mode(
         # readers can rely on `mode.get("clarified_intent")` returning a
         # well-defined value rather than KeyError. SCHEMA_VERSION stays at 1
         # because the additions are strictly additive.
+        # Issue #1263: persist a truncated prompt copy so the router can
+        # derive a content-addressed fire-once-per-turn token. The field is
+        # additive — SCHEMA_VERSION stays at 1. Readers MUST use
+        # ``data.get("user_prompt_text")`` because older artifacts wrote
+        # before this field existed.
+        if isinstance(prompt, str):
+            user_prompt_text = prompt[:_USER_PROMPT_TEXT_MAX_CHARS]
+        else:
+            user_prompt_text = None
+
         payload = {
             "schema_version": SCHEMA_VERSION,
             "session_id": resolved_session_id,
@@ -271,6 +287,7 @@ def write_session_mode(
             "enforce_mode": enforce_mode,
             "clarification_asked": False,
             "clarified_intent": None,
+            "user_prompt_text": user_prompt_text,
         }
 
         path = _session_mode_path(session_id)
@@ -500,3 +517,50 @@ def effective_intent_class(mode: dict | None) -> str | None:
     if isinstance(clarified, str) and clarified:
         return clarified
     return mode.get("intent_class")
+
+
+# ---------------------------------------------------------------------------
+# Issue #1263 — content-addressed user-message token for SWE router
+# ---------------------------------------------------------------------------
+
+
+def get_user_msg_token(session_id: Any) -> str | None:
+    """Return a content-addressed token for fire-once-per-turn deduplication.
+
+    The token is derived from the session-mode artifact's ``user_prompt_text``
+    field (16-hex-char SHA-256 prefix). Two consecutive PreToolUse events
+    within the same user turn share the same token, so the router can dedupe.
+    A fresh prompt produces a different token, allowing the router to fire
+    again.
+
+    Forward-compat fallback: if the artifact predates Issue #1263 (no
+    ``user_prompt_text`` field), fall back to the existing ``prompt_hash``
+    field. Only the leading 16 hex chars are returned so all token forms
+    are comparable.
+
+    NEVER raises.
+
+    Args:
+        session_id: Raw session id (may be ``None``, empty, or ``"unknown"``).
+
+    Returns:
+        16-char hex token (string), or ``None`` if:
+            - The artifact is missing/stale/malformed.
+            - Neither ``user_prompt_text`` nor ``prompt_hash`` is populated.
+            - Any unexpected error occurs.
+    """
+    try:
+        data = read_session_mode(session_id)
+        if data is None:
+            return None
+        user_prompt = data.get("user_prompt_text")
+        if isinstance(user_prompt, str) and user_prompt:
+            return hashlib.sha256(
+                user_prompt.encode("utf-8", errors="ignore")
+            ).hexdigest()[:16]
+        prompt_hash = data.get("prompt_hash")
+        if isinstance(prompt_hash, str) and prompt_hash:
+            return prompt_hash[:16] if len(prompt_hash) >= 16 else prompt_hash
+        return None
+    except Exception:
+        return None
