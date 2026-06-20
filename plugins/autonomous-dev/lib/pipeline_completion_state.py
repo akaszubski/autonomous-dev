@@ -1108,6 +1108,7 @@ def record_plan_critic_skipped(
     *,
     issue_number: int = 0,
     run_id: Optional[str] = None,
+    plan_path: Optional[str] = None,
 ) -> None:
     """Record that plan-critic was skipped for a given session/issue.
 
@@ -1120,13 +1121,20 @@ def record_plan_critic_skipped(
     for-reader rationale: the commit-time gate queries with
     ``issue_number=0`` and the reader contract is preserved.
 
+    When ``plan_path`` is provided (Issue #1218), it is recorded under the
+    ``plan_critic_skipped_plan_path`` namespace so STEP 8.5 can extract the
+    canonical Acceptance Criteria section verbatim from the pre-validated
+    plan file rather than relying on the planner's STEP 5 paraphrase.
+
     Args:
         session_id: The pipeline session identifier.
         issue_number: The issue number (0 for non-batch).
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path. (#1041)
+        plan_path: Optional canonical plan file path (Issue #1218). When set,
+            recorded so STEP 8.5 can canonicalize ACs from the plan file.
 
-    Issues: #878, #1213
+    Issues: #878, #1213, #1218
     """
     state = _ensure_state(session_id, run_id=run_id)
     plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
@@ -1137,6 +1145,12 @@ def record_plan_critic_skipped(
     # can see the marker. No-op when issue_number is already 0.
     if issue_number != 0:
         plan_critic_skipped["0"] = True
+    # #1218: Record the canonical plan path for STEP 8.5 AC canonicalization.
+    if plan_path:
+        plan_paths = state.setdefault("plan_critic_skipped_plan_path", {})
+        plan_paths[issue_key] = plan_path
+        if issue_number != 0:
+            plan_paths["0"] = plan_path
     _write_state(session_id, state, run_id=run_id)
 
 
@@ -1165,6 +1179,46 @@ def get_plan_critic_skipped(
     plan_critic_skipped = state.get("plan_critic_skipped", {})
     issue_key = str(issue_number)
     return bool(plan_critic_skipped.get(issue_key, False))
+
+
+def get_plan_critic_skipped_plan_path(
+    session_id: str,
+    *,
+    issue_number: int = 0,
+    run_id: Optional[str] = None,
+) -> Optional[str]:
+    """Return the canonical plan path recorded at STEP 5.5a (Issue #1218).
+
+    When STEP 5.5a found a pre-validated plan and called
+    ``record_plan_critic_skipped(..., plan_path=...)``, this returns that
+    plan path so STEP 8.5 can extract the canonical ``## Acceptance
+    Criteria`` section verbatim from the plan file rather than relying on
+    the planner's STEP 5 paraphrase (which may diverge and cause
+    spec-validator FAIL on phantom mismatches).
+
+    Args:
+        session_id: The pipeline session identifier.
+        issue_number: The issue number (0 for non-batch).
+        run_id: Optional per-invocation run identifier.
+
+    Returns:
+        The recorded plan path as a string, or None if no path was recorded.
+
+    Issues: #1218
+    """
+    state = _read_state(session_id, run_id=run_id)
+    if not state:
+        return None
+    plan_paths = state.get("plan_critic_skipped_plan_path", {})
+    issue_key = str(issue_number)
+    val = plan_paths.get(issue_key)
+    if isinstance(val, str) and val:
+        return val
+    # Fallback to "0" scope (symmetric with the dual-write in record_*).
+    val = plan_paths.get("0")
+    if isinstance(val, str) and val:
+        return val
+    return None
 
 
 def verify_pipeline_agent_completions(

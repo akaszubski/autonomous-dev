@@ -896,10 +896,10 @@ Search `.claude/plans/` for a file whose name or content matches the current fea
 
 - **Skip plan-critic invocation** and continue to 5.5c (structural validation still runs)
 - Log: `Plan validation: SKIPPED (pre-validated plan: {path})`
-- **Record plan-critic skip in pipeline state** (Issue #878): When plan-critic is skipped, record it so the agent completeness gate knows plan-critic is not required:
+- **Record plan-critic skip in pipeline state** (Issue #878, extended #1218): When plan-critic is skipped, record it so the agent completeness gate knows plan-critic is not required. You MUST also pass the canonical plan file path so STEP 8.5 can extract the verbatim `## Acceptance Criteria` section from it (Issue #1218 — preventing planner paraphrase divergence from causing spec-validator FAIL):
 ```python
 from pipeline_completion_state import record_plan_critic_skipped
-record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM)
+record_plan_critic_skipped(SESSION_ID, issue_number=ISSUE_NUM, plan_path=PRE_VALIDATED_PLAN_PATH)
 ```
 
 If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proceed to 5.5b.
@@ -1294,6 +1294,47 @@ Evidence Manifest Gate (#1055):
 **Progress**: Output step banner (STEP 8.5/15 — Spec-Blind Validation, Agent: spec-validator (Opus)). Output agent completion and verdict after.
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
+
+**Canonical AC Source (Issue #1218)** — When STEP 5.5a recorded `plan_critic_skipped` with a `plan_path` (the pre-validated-plan skip path; see STEP 5.5a above), you MUST extract the `## Acceptance Criteria` section verbatim from that plan file and pass THAT text to spec-validator as the acceptance criteria. The planner's STEP 5 output can paraphrase or diverge from the canonical plan ACs, and passing a paraphrase causes spec-validator FAIL on phantom mismatches (the recurring failure mode this gate exists to prevent).
+
+```bash
+PLAN_PATH=$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+from pipeline_completion_state import get_plan_critic_skipped_plan_path
+print(get_plan_critic_skipped_plan_path(os.environ.get('CLAUDE_SESSION_ID', 'unknown'), issue_number=int(os.environ.get('PIPELINE_ISSUE_NUMBER', '0'))) or '')
+")
+if [ -n "$PLAN_PATH" ] && [ -f "$PLAN_PATH" ]; then
+  # Extract ## Acceptance Criteria section verbatim (from header to next ## or EOF)
+  CANONICAL_ACS=$(python3 -c "
+import re, sys
+with open('$PLAN_PATH') as f:
+    txt = f.read()
+m = re.search(r'(?ms)^## Acceptance Criteria\s*\n(.*?)(?=^## |\Z)', txt)
+print(m.group(1).strip() if m else '')
+")
+fi
+```
+
+If `CANONICAL_ACS` is non-empty: use it as the AC text passed to spec-validator. If empty (legacy plan with no `## Acceptance Criteria` header, or no pre-validated plan was found in STEP 5.5a): fall through to the planner's STEP 5 ACs unchanged (the historical behavior is preserved when no canonical source exists).
+
+**AC Divergence Detector (Issue #1218)** — When BOTH a canonical plan AC text AND a planner STEP 5 AC text are available, you MUST validate that each numbered/bulleted AC line from the canonical plan has a substring match somewhere in the planner output. Concretely: for each line in `CANONICAL_ACS` that matches `^[-*]\s+\[ \]\s+(.+)$` or `^\d+\.\s+(.+)$`, the captured text MUST appear as a substring (case-insensitive, whitespace-normalized) in the planner's STEP 5 output. If any canonical AC line is missing from the planner output, BLOCK the pipeline with this exact message:
+
+```
+BLOCKED (STEP 8.5, Issue #1218): Planner output diverges from canonical plan ACs.
+Canonical plan: {PLAN_PATH}
+Missing canonical AC lines (not found in planner STEP 5 output):
+  - {line 1}
+  - {line 2}
+  ...
+Resolution: Re-invoke planner with a reminder to preserve canonical AC text verbatim,
+or update the canonical plan file if the divergence is intentional.
+```
+
+Rationale: the divergence detector catches the failure mode at the COORDINATOR level (~0s, no API cost) instead of letting spec-validator catch it (~180s wasted per affected session). The detector runs ONLY when a pre-validated plan was used (the conditions where this divergence is possible); single-cycle spec-validator runs with no pre-validated plan are unaffected. Cross-reference: STEP 5.5a above is where the canonical plan path is recorded.
 
 **Context Boundary** — The spec-validator operates with strict isolation. You MUST pass ONLY the following to this agent:
 - Acceptance criteria from STEP 6
@@ -2287,6 +2328,8 @@ Same context boundary as STEP 8.5 in the full pipeline. Pass ONLY:
 - Feature description
 - Changed file paths
 - PROJECT.md scope sections
+
+**Canonical AC Source (Issue #1218)** — Same canonicalization rule as full-pipeline STEP 8.5 applies here: when STEP 5.5a (in light mode this is the analogous pre-validated-plan detection step, if any) recorded `plan_critic_skipped` with a `plan_path`, extract the `## Acceptance Criteria` section verbatim from that plan file via `get_plan_critic_skipped_plan_path()` and use that text rather than the planner's paraphrase. Cross-reference: see STEP 8.5 above for the full extraction and divergence-detector protocol — light mode applies the same canonicalization to prevent paraphrase-induced spec-validator FAIL.
 
 **FORBIDDEN**: Passing implementer output, code diffs, or any implementation details to the spec-validator.
 
