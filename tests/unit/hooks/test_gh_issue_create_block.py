@@ -1418,3 +1418,128 @@ class TestStripBodyArgValues:
         """Unterminated quote raises ValueError for caller fallback."""
         with pytest.raises(ValueError):
             hook._strip_body_arg_values('git commit -m "unterminated')
+
+
+# ---------------------------------------------------------------------------
+# TestGhIssueCloseFalsePositive — Issue #1216 (gh issue close -c flag support)
+# ---------------------------------------------------------------------------
+
+
+class TestGhIssueCloseFalsePositive:
+    """Issue #1216: gh issue close -c/--comment with "gh issue create" in prose.
+
+    The -c and --comment flags are body flags that can contain prose mentioning
+    "gh issue create". These should be stripped like other body flags to avoid
+    false positives.
+    """
+
+    def test_gh_issue_close_c_flag_with_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue close 1234 -c "use gh issue create for new issues" allowed.
+
+        The substring appears as PROSE inside the comment body; the command
+        is `gh issue close`, not `gh issue create`.
+        """
+        cmd = 'gh issue close 1234 -c "use gh issue create for new issues"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "gh issue close -c with substring in prose MUST NOT be blocked "
+            f"(Issue #1216); got: {result!r}"
+        )
+
+    def test_gh_issue_close_comment_flag_with_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue close 1234 --comment "mention gh issue create here" allowed.
+
+        Long form --comment flag should also be stripped.
+        """
+        cmd = 'gh issue close 1234 --comment "mention gh issue create here"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "gh issue close --comment with substring in prose MUST NOT be blocked "
+            f"(Issue #1216); got: {result!r}"
+        )
+
+    def test_gh_issue_close_c_flag_no_substring_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue close 1234 -c "fixed" allowed (regression check).
+
+        Even without the substring, gh issue close should not be blocked.
+        """
+        cmd = 'gh issue close 1234 -c "fixed"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "gh issue close -c without substring MUST NOT be blocked "
+            f"(Issue #1216 regression); got: {result!r}"
+        )
+
+    def test_gh_issue_create_still_blocked_regression(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue create -t "title" -b "body" MUST still be blocked.
+
+        Regression check: actual gh issue create commands must remain blocked.
+        """
+        cmd = 'gh issue create -t "title" -b "body"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is not None, (
+            "gh issue create MUST still be blocked "
+            f"(Issue #1216 regression); got: {result!r}"
+        )
+
+    def test_gh_issue_close_attached_comment_form_allowed(
+        self, no_pipeline, no_agent, no_marker
+    ):
+        """gh issue close 1234 --comment="..." with substring allowed.
+
+        Test the attached form --comment=VALUE.
+        """
+        cmd = 'gh issue close 1234 --comment="Please use gh issue create instead"'
+        result = hook._detect_gh_issue_create(cmd)
+        assert result is None, (
+            "gh issue close --comment= attached form with substring MUST NOT be blocked "
+            f"(Issue #1216); got: {result!r}"
+        )
+
+
+class TestStripBodyArgValuesIssue1216:
+    """Unit tests for _strip_body_arg_values with -c/--comment flags (Issue #1216)."""
+
+    def test_strip_dash_c_flag(self):
+        """Test that -c flag value is stripped."""
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue close 1234 -c "comment text with gh issue create"'
+        )
+        assert "comment text with gh issue create" not in stripped
+        assert "comment text with gh issue create" in dropped
+        assert "gh issue close 1234" in stripped
+
+    def test_strip_long_comment_flag(self):
+        """Test that --comment flag value is stripped."""
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue close 1234 --comment "another comment"'
+        )
+        assert "another comment" not in stripped
+        assert "another comment" in dropped
+        assert "gh issue close 1234" in stripped
+
+    def test_strip_attached_comment_form(self):
+        """Test that --comment=VALUE attached form is stripped."""
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue close 1234 --comment="attached comment"'
+        )
+        assert "attached comment" not in stripped
+        assert "attached comment" in dropped
+        assert "gh issue close 1234" in stripped
+
+    def test_strip_dash_c_attached_form(self):
+        """Test that -c=VALUE attached form is stripped."""
+        stripped, dropped = hook._strip_body_arg_values(
+            'gh issue close 1234 -c="short attached"'
+        )
+        assert "short attached" not in stripped
+        assert "short attached" in dropped
+        assert "gh issue close 1234" in stripped

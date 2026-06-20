@@ -2760,6 +2760,9 @@ GH_ISSUE_BODY_FLAGS: "tuple[str, ...]" = (
     "--body",
     "--title",
     "--body-file",
+    # gh issue close / comment family (Issue #1216)
+    "-c",
+    "--comment",
     # git commit family (Issue #1215)
     "-m",
     "--message",

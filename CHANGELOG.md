@@ -24,6 +24,8 @@
 
 - **Multi-issue body extraction** (Issue #1231): Fixed `/implement --issues` to correctly fetch and concatenate all issue bodies (up to 10) with section headers, replacing the previous single-issue-only extraction that silently dropped additional issue context.
 
+- **gh issue close comment flag false-positive blocking** (Issue #1216): Extended the #1215 fix to cover `gh issue close -c "..."` and `gh issue close --comment "..."` commands. The hook was incorrectly blocking these commands when the comment text contained the substring "gh issue create" as prose. Added `-c` and `--comment` flags to `GH_ISSUE_BODY_FLAGS` tuple in `unified_pre_tool.py` (3 lines) so these argument values are stripped before the substring detection runs. 9 new tests in `tests/unit/hooks/test_gh_issue_create_block.py` verify the fix and prevent regression.
+
 ### Security
 
 - **Defense-in-depth log permission hardening (Issue #1267 Bucket C #3)**: Four log-writing libraries (`coordinator_log.py`, `intent_classifier.py`, `semantic_gate.py`, `logging_utils.py`) now enforce restrictive filesystem permissions on all log directories (`0o700`) and files (`0o600`). Previously, logs were created with default umask permissions, potentially world-readable on multi-user systems. Fixed by adding `mode=0o700` to all `mkdir()` calls and `os.chmod(path, 0o600)` after each log file write. This prevents other local users from reading activity logs, workflow progress, telemetry data, or judge decisions that might contain sensitive session information. The hardening is fail-open — chmod failures are silently swallowed to preserve core functionality. Affected paths: `.claude/logs/activity/`, `.claude/logs/workflows/`, `.claude/logs/judge/`, and any telemetry subdirectories.
