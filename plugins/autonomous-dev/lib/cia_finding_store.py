@@ -245,6 +245,11 @@ def append_finding(
 
     try:
         findings_dir.mkdir(parents=True, exist_ok=True, mode=DIR_MODE)
+        # Defence-in-depth: ensure directory permissions even if mkdir didn't honor mode
+        try:
+            os.chmod(findings_dir, DIR_MODE)
+        except OSError:
+            pass
     except OSError as exc:
         try:
             sys.stderr.write(

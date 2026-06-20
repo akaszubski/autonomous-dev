@@ -36,6 +36,7 @@ from cia_finding_store import (
     MAX_EVIDENCE_LENGTH,
     MAX_TITLE_LENGTH,
     FILE_MODE,
+    DIR_MODE,
 )
 from runtime_data_aggregator import collect_cia_findings, SourceHealth
 
@@ -120,6 +121,21 @@ class TestAppendFinding:
         mode = monthly.stat().st_mode & 0o777
         assert mode == FILE_MODE, f"after second append: {oct(mode)}"
 
+
+    def test_append_finding_dir_mode_0700_backstop(self, tmp_path: Path) -> None:
+        """Directory mode is forced to 0o700 even if pre-created with looser permissions."""
+        findings_dir = tmp_path / "findings"
+        # Pre-create the directory with loose permissions
+        findings_dir.mkdir(mode=0o755)
+        initial_mode = findings_dir.stat().st_mode & 0o777
+        assert initial_mode == 0o755, f"expected 0o755, got {oct(initial_mode)}"
+        
+        # Call append_finding which should fix the permissions
+        assert append_finding(_make_record(), findings_dir=findings_dir) is True
+        
+        # Verify the directory mode was tightened to 0o700
+        final_mode = findings_dir.stat().st_mode & 0o777
+        assert final_mode == DIR_MODE, f"expected 0o700, got {oct(final_mode)}"
     @pytest.mark.skipif(os.name == "nt", reason="flock POSIX-only")
     def test_append_finding_atomic_under_concurrent_appends(
         self, tmp_path: Path
