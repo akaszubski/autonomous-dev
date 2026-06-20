@@ -16,3 +16,4 @@
 {"fire_id": "20260619T200256Z", "phase": "FIRE_END", "exit_reason": "slash_command_tool_unavailable", "commit_sha": null, "wall_clock_seconds": 333, "ended_at": "2026-06-19T20:08:29Z", "selected_cluster": "1240", "note": "Cluster selected via MCP shim (gh CLI absent \u2014 workaround in /tmp/fake_gh). /implement not invoked: SlashCommand tool not available in cloud session."}
 {"fire_id": "20260620T000256Z", "fired_at": "2026-06-20T00:02:56Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260620T000256Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260620T020144Z", "fired_at": "2026-06-20T02:02:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
