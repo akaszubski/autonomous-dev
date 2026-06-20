@@ -177,6 +177,63 @@ def is_feature_enabled(feature_name: str) -> bool:
     return feature_config.get("enabled", True)  # Default to enabled
 
 
+def is_feature_explicitly_enabled(feature_name: str) -> bool:
+    """Check if a feature is EXPLICITLY enabled via feature flags (opt-in).
+
+    Opposite semantics of ``is_feature_enabled``. Returns True ONLY if the
+    config file exists AND contains ``{feature_name: {"enabled": true}}``
+    explicitly. Any other state (missing file, missing key, malformed
+    config, ``enabled=false``, any load error) returns False.
+
+    Args:
+        feature_name: Name of feature to check (e.g., "semantic_gate")
+
+    Returns:
+        True if feature is explicitly enabled, False otherwise
+
+    Behavior matrix (opt-in semantics):
+        - Missing feature_flags.json -> False (default OFF)
+        - File exists but feature key missing -> False (default OFF)
+        - Feature exists with enabled=false -> False (explicit OFF)
+        - Feature exists with enabled=true -> True (explicit ON)
+        - Malformed feature config -> False (fail-safe OFF)
+        - Any load error -> False (fail-safe OFF)
+
+    Rationale:
+        For features that MUST be off by default in fresh repos (e.g.
+        ``semantic_gate``), opt-out semantics (``is_feature_enabled``)
+        leak by default because a missing file or key both default to
+        True. Use this function instead when the safe default is OFF.
+
+    Examples:
+        >>> # No feature_flags.json file
+        >>> is_feature_explicitly_enabled("semantic_gate")
+        False
+
+        >>> # File exists with {"conflict_resolver": {"enabled": true}}
+        >>> # (semantic_gate key absent)
+        >>> is_feature_explicitly_enabled("semantic_gate")
+        False
+
+        >>> # File exists with {"semantic_gate": {"enabled": true}}
+        >>> is_feature_explicitly_enabled("semantic_gate")
+        True
+    """
+    flags = _load_feature_flags()
+
+    if feature_name not in flags:
+        return False
+
+    feature_config = flags[feature_name]
+
+    if not isinstance(feature_config, dict):
+        return False
+
+    # Must be present AND explicitly true (no default fallback to True).
+    enabled = feature_config.get("enabled")
+    return enabled is True
+
+
 def get_feature_config(feature_name: str) -> Dict[str, Any]:
     """Get complete configuration for a feature.
 

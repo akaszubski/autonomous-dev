@@ -318,6 +318,7 @@
         "plugins/autonomous-dev/lib/search_utils.py",
         "plugins/autonomous-dev/lib/secret_patterns.py",
         "plugins/autonomous-dev/lib/security_utils.py",
+        "plugins/autonomous-dev/lib/semantic_gate.py",
         "plugins/autonomous-dev/lib/session_mode.py",
         "plugins/autonomous-dev/lib/session_resource_manager.py",
         "plugins/autonomous-dev/lib/session_state_manager.py",

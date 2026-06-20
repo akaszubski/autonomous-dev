@@ -5775,6 +5775,37 @@ def main():
         tool_input = input_data.get("tool_input", {})
 
         # =================================================================
+        # PHASE 1 SEMANTIC GATE (shadow, Issue #960).
+        # Phase 1 semantic gate runs BEFORE the universal bypass so shadow
+        # telemetry is captured even when .claude/.bypass is set. Bypass
+        # still wins the decision; the judge only logs.
+        # Default OFF via feature flag (.claude/feature_flags.json). The
+        # flag uses OPT-IN semantics — fresh repos with no config file (or
+        # a config file lacking the ``semantic_gate`` key) MUST NOT invoke
+        # the judge. Use ``is_feature_explicitly_enabled`` for this (not
+        # ``is_feature_enabled``, which is opt-out and defaults True).
+        # When enabled, the judge writes one JSONL audit line per Write/
+        # Edit attempt to .claude/logs/judge/<date>.jsonl. The verdict is
+        # NEVER enforced in Phase 1. Wrapped in try/except so any judge
+        # failure cannot affect the hook decision.
+        # =================================================================
+        if tool_name in ("Edit", "Write"):
+            try:
+                from feature_flags import is_feature_explicitly_enabled
+                if is_feature_explicitly_enabled("semantic_gate"):
+                    from semantic_gate import judge as _sem_judge
+                    _sem_judge(
+                        file_path=tool_input.get("file_path", ""),
+                        old_string=tool_input.get("old_string", "") if tool_name == "Edit" else "",
+                        new_string=tool_input.get("new_string", tool_input.get("content", "")),
+                        tool_name=tool_name,
+                        tier_signal="unknown",
+                        session_id=_session_id,
+                    )
+            except Exception:
+                pass  # Shadow mode MUST NEVER affect hook behavior
+
+        # =================================================================
         # UNIVERSAL BYPASS (Issue #969): AUTONOMOUS_DEV_BYPASS=1 OR
         # .claude/.bypass file in cwd-or-ancestor falls through to allow.
         # Checked BEFORE any other validation so a deadlocked harness can
