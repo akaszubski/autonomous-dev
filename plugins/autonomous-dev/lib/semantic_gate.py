@@ -93,6 +93,43 @@ _MAX_DIFF_CHARS = 4000
 
 _VALID_VERDICTS = ("agree", "disagree", "abstain")
 
+# ============================================================================
+# Phase 2 SWE router constants (Issue #1263)
+# ============================================================================
+#
+# Router code-file filter. Replicated from unified_pre_tool.CODE_EXTENSIONS
+# to avoid hook-import cycles (matches edit_tier_classifier.py _BASH_CODE_EXTENSIONS
+# pattern). Conservative 11-entry list focused on SDLC-relevant text formats;
+# Phase B may extend.
+_ROUTER_CODE_EXTENSIONS: frozenset = frozenset({
+    ".py", ".sh", ".js", ".ts", ".tsx", ".jsx",
+    ".md", ".json", ".yaml", ".yml", ".toml",
+})
+
+# Phase A prompt template (v2). Reuses Haiku model + safe-wrap pattern.
+_ROUTER_PROMPT_V2 = """You are a router that classifies code-edit intent.
+
+Tool: {tool_name}
+File: {file_path}
+Diff (old -> new):
+<old>
+{old_string}
+</old>
+<new>
+{new_string}
+</new>
+
+Return JSON with these exact fields:
+{{"verdict": "agree" | "disagree" | "abstain", "reasoning": "<= 200 chars"}}
+
+- "agree" if this edit IS feature/SDLC work that should route through /implement
+- "disagree" if this edit is NOT SDLC (scratch, exploration, throwaway)
+- "abstain" if unclear
+
+Respond with JSON only. No prose."""
+
+ROUTER_PROMPT_VERSION = "v2"
+
 
 # Prompt template (v1). Diff fields are wrapped in XML delimiters via
 # _safe_wrap which HTML-escapes ``&``, ``<``, ``>`` to neutralize structural
@@ -163,6 +200,37 @@ class JudgeResult:
     fail_open: bool
     latency_ms: float
     cache_hit: bool
+
+
+# ----------------------------------------------------------------------------
+# Phase 2 router result (Issue #1263 — additive; JudgeResult is preserved
+# unchanged so existing Phase 1 callers and tests stay green).
+# ----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RouterResult:
+    """Phase 2 router result. Fire-once-per-turn semantic intent classification.
+
+    Phase A (Issue #1263) is log-only. The router NEVER causes the hook to
+    block. All exception paths return ``RouterResult(fail_open=True)``.
+
+    Attributes:
+        verdict: ``"agree"`` / ``"disagree"`` / ``"abstain"``.
+        route_target: Derived from verdict; one of ``"/implement"``,
+            ``"/implement --fix"``, ``"/implement --light"``, or ``"none"``.
+        reasoning: <= 200 chars justification.
+        latency_ms: Wall-clock latency in milliseconds.
+        cache_hit: ``True`` if served from a cache (Phase B; always False here).
+        fail_open: ``True`` if any failure path was hit.
+    """
+
+    verdict: str
+    route_target: str
+    reasoning: str
+    latency_ms: float
+    cache_hit: bool
+    fail_open: bool
 
 
 # ============================================================================
@@ -571,3 +639,276 @@ def _reset_analyzer_for_testing() -> None:
     """Clear the module-level analyzer. For tests only."""
     global _ANALYZER
     _ANALYZER = None
+
+
+# ============================================================================
+# Phase 2 SWE router (Issue #1263 — Phase A: log-only)
+# ============================================================================
+
+
+def is_write_to_code_file(tool_name: str, tool_input: Dict[str, Any]) -> bool:
+    """Phase A router filter: True iff tool is Write/Edit/MultiEdit AND target is code.
+
+    Returns False for:
+        - non-Write tools (Bash, Read, etc.)
+        - missing/empty file_path
+        - file_path suffix not in ``_ROUTER_CODE_EXTENSIONS``
+
+    NEVER raises.
+
+    Args:
+        tool_name: Claude Code tool name (e.g. ``"Write"`` / ``"Edit"``).
+        tool_input: Tool input dict from the hook payload.
+
+    Returns:
+        ``True`` if the (tool, file) pair is a code-edit the router should
+        observe; ``False`` otherwise.
+    """
+    try:
+        if tool_name not in ("Write", "Edit", "MultiEdit"):
+            return False
+        file_path = tool_input.get("file_path", "") if isinstance(tool_input, dict) else ""
+        if not isinstance(file_path, str) or not file_path:
+            return False
+        suffix = Path(file_path).suffix.lower()
+        return suffix in _ROUTER_CODE_EXTENSIONS
+    except Exception:
+        return False
+
+
+def _verdict_to_route_target(verdict: str) -> str:
+    """Deterministic mapping from verdict to suggested ``/implement`` variant.
+
+    Phase A only emits the mapping in audit logs; nothing acts on it yet.
+
+    Args:
+        verdict: ``"agree"`` / ``"disagree"`` / ``"abstain"`` (any other
+            value maps to ``"none"``).
+
+    Returns:
+        One of ``"/implement"`` or ``"none"``.
+    """
+    mapping = {
+        "agree": "/implement",
+        "disagree": "none",
+        "abstain": "none",
+    }
+    return mapping.get(verdict, "none")
+
+
+def _append_route_log(log_dir: Path, entry: Dict[str, Any]) -> None:
+    """Append one JSONL row to ``<log_dir>/<UTC-date>.jsonl``. NEVER raises.
+
+    Mirrors :func:`_append_judge_log` (same fail-open contract). POSIX
+    guarantees that ``write()`` of <= PIPE_BUF bytes is atomic in append
+    mode; audit lines are ~400 bytes so no ``fcntl`` is required for
+    Phase A.
+
+    Args:
+        log_dir: Target directory (created if missing).
+        entry: One JSON-serializable record.
+    """
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        log_path = log_dir / f"{date_str}.jsonl"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str, separators=(",", ":")) + "\n")
+    except Exception:
+        # NEVER raise from audit. Mirrors _append_judge_log.
+        pass
+
+
+def _resolve_route_log_dir() -> Path:
+    """Resolve the router audit log directory.
+
+    Sibling of the judge log dir so test overrides on ``LOG_DIR_OVERRIDE``
+    redirect both: ``.../judge`` (judge) and ``.../route`` (router).
+    """
+    base = _resolve_log_dir()
+    return (base.parent / "route").resolve()
+
+
+def _emit_route_audit(
+    result: "RouterResult",
+    file_path: str,
+    tool_name: str,
+    old_string: str,
+    new_string: str,
+    session_id: Optional[str],
+) -> None:
+    """Build the router audit entry and append it. NEVER raises."""
+    try:
+        diff_hash = _diff_hash(file_path or "", old_string or "", new_string or "")
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "session_id": session_id if session_id is not None else "unknown",
+            "tool_name": tool_name or "",
+            "file_path": file_path or "",
+            "diff_hash_sha256": diff_hash,
+            "router_model": DEFAULT_MODEL,
+            "router_prompt_version": ROUTER_PROMPT_VERSION,
+            "verdict": result.verdict,
+            "route_target": result.route_target,
+            "reasoning": result.reasoning,
+            "latency_ms": result.latency_ms,
+            "cache_hit": result.cache_hit,
+            "fail_open": result.fail_open,
+        }
+        _append_route_log(_resolve_route_log_dir(), entry)
+    except Exception:
+        # NEVER raise from audit.
+        pass
+
+
+def route(
+    *,
+    file_path: str,
+    old_string: str,
+    new_string: str,
+    tool_name: str,
+    session_id: Optional[str] = None,
+) -> RouterResult:
+    """Phase 2 SWE router. Phase A is log-only — NEVER blocks.
+
+    Wraps the existing analyzer path with the same fail-open semantics as
+    :func:`judge`. On ANY exception, returns
+    ``RouterResult(verdict='abstain', fail_open=True, ...)``.
+
+    Args:
+        file_path: Path to the file being edited.
+        old_string: Old content for Edit operations (empty for Write).
+        new_string: New content for Edit/Write operations.
+        tool_name: ``"Edit"`` / ``"Write"`` / ``"MultiEdit"``.
+        session_id: Session identifier for audit correlation.
+
+    Returns:
+        A :class:`RouterResult`. NEVER raises.
+    """
+    started = perf_counter()
+    try:
+        analyzer = _get_analyzer()
+        if analyzer is None:
+            result = RouterResult(
+                verdict="abstain",
+                route_target="none",
+                reasoning="analyzer_unavailable",
+                latency_ms=0.0,
+                cache_hit=False,
+                fail_open=True,
+            )
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+            return result
+
+        wrapped_old = _safe_wrap(_truncate(old_string or ""))
+        wrapped_new = _safe_wrap(_truncate(new_string or ""))
+        wrapped_path = _safe_wrap(_truncate(file_path or "", 500))
+        wrapped_tool = _safe_wrap(tool_name or "")
+
+        prompt_vars = {
+            "file_path": wrapped_path,
+            "old_string": wrapped_old,
+            "new_string": wrapped_new,
+            "tool_name": wrapped_tool,
+        }
+
+        try:
+            raw = analyzer.analyze(_ROUTER_PROMPT_V2, **prompt_vars)
+        except Exception as exc:  # noqa: BLE001 — router MUST never raise
+            latency_ms = (perf_counter() - started) * 1000.0
+            result = RouterResult(
+                verdict="abstain",
+                route_target="none",
+                reasoning=_truncate_reasoning(
+                    f"analyzer_error:{type(exc).__name__}"
+                ),
+                latency_ms=latency_ms,
+                cache_hit=False,
+                fail_open=True,
+            )
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+            return result
+
+        latency_ms = (perf_counter() - started) * 1000.0
+
+        if raw is None:
+            result = RouterResult(
+                verdict="abstain",
+                route_target="none",
+                reasoning="timeout_or_no_response",
+                latency_ms=latency_ms,
+                cache_hit=False,
+                fail_open=True,
+            )
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+            return result
+
+        parsed = _parse_llm_json(raw)
+        if parsed is None:
+            result = RouterResult(
+                verdict="abstain",
+                route_target="none",
+                reasoning="json_parse_error",
+                latency_ms=latency_ms,
+                cache_hit=False,
+                fail_open=True,
+            )
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+            return result
+
+        verdict_raw = parsed.get("verdict", "abstain")
+        verdict = _coerce_verdict(verdict_raw)
+        if verdict is None:
+            result = RouterResult(
+                verdict="abstain",
+                route_target="none",
+                reasoning="invalid_verdict",
+                latency_ms=latency_ms,
+                cache_hit=False,
+                fail_open=True,
+            )
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+            return result
+
+        reasoning = _truncate_reasoning(parsed.get("reasoning", ""))
+        result = RouterResult(
+            verdict=verdict,
+            route_target=_verdict_to_route_target(verdict),
+            reasoning=reasoning,
+            latency_ms=latency_ms,
+            cache_hit=False,
+            fail_open=False,
+        )
+        _emit_route_audit(
+            result, file_path, tool_name, old_string, new_string, session_id
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001 — outermost guard
+        latency_ms = (perf_counter() - started) * 1000.0
+        result = RouterResult(
+            verdict="abstain",
+            route_target="none",
+            reasoning=_truncate_reasoning(
+                f"router_internal_error:{type(exc).__name__}"
+            ),
+            latency_ms=latency_ms,
+            cache_hit=False,
+            fail_open=True,
+        )
+        try:
+            _emit_route_audit(
+                result, file_path, tool_name, old_string, new_string, session_id
+            )
+        except Exception:
+            pass
+        return result

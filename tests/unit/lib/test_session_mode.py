@@ -124,12 +124,16 @@ class TestWriteSessionMode:
         assert match is not None, f"Path format wrong: {path}"
 
     def test_schema_fields_present(self) -> None:
-        """Test 3: All 14 schema keys present in written JSON.
+        """Test 3: All 15 schema keys present in written JSON.
 
         Issue #1024 (M2): clarification_asked + clarified_intent were added
         as additive optional fields. SCHEMA_VERSION stays at 1 because the
         additions are strictly additive — readers MUST use ``data.get(...)``
         with defaults when consulting these new fields.
+
+        Issue #1263: ``user_prompt_text`` was added as a 15th additive field
+        so the SWE router can derive a content-addressed user-message token
+        for fire-once-per-turn deduplication. SCHEMA_VERSION stays at 1.
         """
         session_id = "test-session-schema"
         _cleanup_artifact(session_id)
@@ -159,6 +163,8 @@ class TestWriteSessionMode:
                 # Issue #1024 (M2) — AskUserQuestion round-trip fields.
                 "clarification_asked",
                 "clarified_intent",
+                # Issue #1263 — SWE router user-message token source.
+                "user_prompt_text",
             }
             assert set(data.keys()) == expected_keys, (
                 f"Schema fields mismatch.\n"

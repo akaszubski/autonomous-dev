@@ -191,6 +191,78 @@ except Exception:
 # Used by _get_active_agent_name() as primary identity source (Issue #591).
 _agent_type: str = ""
 
+# Issue #1263: In-process fire-once-per-turn token cache for the SWE router.
+# Keyed by session_id; value is the user-message token most recently observed
+# for that session. Process restart resets this — acceptable for log-only
+# Phase A (over-logging on hook restart, not under-logging). Phase B should
+# persist this to /tmp/router_last_token_<sid>.json for restart-safety.
+_LAST_ROUTE_TOKEN_BY_SESSION: Dict[str, str] = {}
+
+
+def _maybe_invoke_swe_router(tool_name: str, tool_input: Dict[str, Any],
+                             session_id: str) -> None:
+    """Issue #1263: Phase 2 SWE router dispatcher (log-only).
+
+    Extracted from ``main()`` so it can be exercised directly in unit
+    tests. Mirrors the inline block at the PreToolUse entry; NEVER blocks
+    the hook, NEVER raises.
+
+    Decision tree:
+        1. Only Write/Edit/MultiEdit on code files (see
+           ``semantic_gate.is_write_to_code_file``).
+        2. Feature flag ``swe_router`` MUST be explicitly enabled.
+        3. ``get_user_msg_token(session_id)`` returns a token; if None we
+           skip (cannot dedupe safely).
+        4. Fire-once-per-turn: only invoke router when the token differs
+           from the last-observed token for this session.
+
+    Args:
+        tool_name: Tool name from the hook payload.
+        tool_input: Tool input dict from the hook payload.
+        session_id: Resolved session id (already sanitized by caller).
+    """
+    if tool_name not in ("Edit", "Write", "MultiEdit"):
+        return
+    try:
+        from feature_flags import is_feature_explicitly_enabled
+        if is_feature_explicitly_enabled("swe_router"):
+            from semantic_gate import (
+                route as _sem_route,
+                is_write_to_code_file as _is_write_to_code_file,
+            )
+            from session_mode import get_user_msg_token as _get_token
+            if not _is_write_to_code_file(tool_name, tool_input):
+                return
+            token = _get_token(session_id)
+            if token is None:
+                return
+            session_key = session_id or ""
+            last_token = _LAST_ROUTE_TOKEN_BY_SESSION.get(session_key)
+            if token == last_token:
+                return
+            _LAST_ROUTE_TOKEN_BY_SESSION[session_key] = token
+            _sem_route(
+                file_path=tool_input.get("file_path", ""),
+                old_string=tool_input.get("old_string", "") if tool_name == "Edit" else "",
+                new_string=tool_input.get("new_string", tool_input.get("content", "")),
+                tool_name=tool_name,
+                session_id=session_id,
+            )
+        elif is_feature_explicitly_enabled("semantic_gate"):
+            # Phase 1 fallback (existing shadow judge).
+            from semantic_gate import judge as _sem_judge
+            _sem_judge(
+                file_path=tool_input.get("file_path", ""),
+                old_string=tool_input.get("old_string", "") if tool_name == "Edit" else "",
+                new_string=tool_input.get("new_string", tool_input.get("content", "")),
+                tool_name=tool_name,
+                tier_signal="unknown",
+                session_id=session_id,
+            )
+    except Exception:
+        # Phase A MUST NEVER affect hook behavior.
+        return
+
 # Defensive import of repo_detector (Issue #662).
 # Uses importlib.util.spec_from_file_location to load the module relative to
 # __file__ so the import resolves correctly regardless of sys.path at load time.
@@ -5789,21 +5861,10 @@ def main():
         # NEVER enforced in Phase 1. Wrapped in try/except so any judge
         # failure cannot affect the hook decision.
         # =================================================================
-        if tool_name in ("Edit", "Write"):
-            try:
-                from feature_flags import is_feature_explicitly_enabled
-                if is_feature_explicitly_enabled("semantic_gate"):
-                    from semantic_gate import judge as _sem_judge
-                    _sem_judge(
-                        file_path=tool_input.get("file_path", ""),
-                        old_string=tool_input.get("old_string", "") if tool_name == "Edit" else "",
-                        new_string=tool_input.get("new_string", tool_input.get("content", "")),
-                        tool_name=tool_name,
-                        tier_signal="unknown",
-                        session_id=_session_id,
-                    )
-            except Exception:
-                pass  # Shadow mode MUST NEVER affect hook behavior
+        # Issue #1263: Phase 2 SWE router dispatcher (log-only).
+        # Falls back to Phase 1 shadow judge when only ``semantic_gate`` is
+        # enabled. NEVER blocks — wrapped in the helper's outer try/except.
+        _maybe_invoke_swe_router(tool_name, tool_input, _session_id)
 
         # =================================================================
         # UNIVERSAL BYPASS (Issue #969): AUTONOMOUS_DEV_BYPASS=1 OR

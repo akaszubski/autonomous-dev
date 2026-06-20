@@ -570,3 +570,312 @@ def test_judge_runs_even_when_bypass_active(_isolate_module_state):
     assert entry["session_id"] == "sess-bypass"
     assert entry["verdict"] == "agree"
     assert entry["fail_open"] is False
+
+
+# =============================================================================
+# Issue #1263 — Phase 2 SWE router tests (Phase A: log-only)
+# =============================================================================
+
+
+def _read_route_log_lines(log_dir: Path) -> list:
+    """Read all JSONL lines from the sibling ``route`` directory.
+
+    The router writes to ``<log_dir.parent>/route/<date>.jsonl`` while judge
+    writes to ``<log_dir>/<date>.jsonl``. This mirrors that sibling layout.
+    """
+    route_dir = (log_dir.parent / "route").resolve()
+    if not route_dir.exists():
+        return []
+    out = []
+    for path in sorted(route_dir.glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    return out
+
+
+class TestRouterCodeExtensions:
+    """AC: _ROUTER_CODE_EXTENSIONS is the 11-entry frozenset specified."""
+
+    def test_count_and_membership(self):
+        from semantic_gate import _ROUTER_CODE_EXTENSIONS
+        assert len(_ROUTER_CODE_EXTENSIONS) == 11
+        assert _ROUTER_CODE_EXTENSIONS == frozenset({
+            ".py", ".sh", ".js", ".ts", ".tsx", ".jsx",
+            ".md", ".json", ".yaml", ".yml", ".toml",
+        })
+
+    def test_is_frozenset(self):
+        from semantic_gate import _ROUTER_CODE_EXTENSIONS
+        assert isinstance(_ROUTER_CODE_EXTENSIONS, frozenset)
+
+
+class TestIsWriteToCodeFile:
+    """AC: is_write_to_code_file filter matrix."""
+
+    @pytest.mark.parametrize("tool,fp,expected", [
+        ("Write", "/abs/foo.py", True),
+        ("Edit", "rel/bar.ts", True),
+        ("MultiEdit", "baz.toml", True),
+        ("Write", "doc.md", True),
+        ("Write", "config.json", True),
+        ("Write", "compose.yaml", True),
+        ("Write", "compose.yml", True),
+        ("Write", "foo.txt", False),
+        ("Write", "foo", False),
+        ("Write", "", False),
+        ("Bash", "/abs/foo.py", False),
+        ("Read", "/abs/foo.py", False),
+        ("Edit", "/abs/foo.PY", True),  # case-insensitive suffix
+    ])
+    def test_matrix(self, tool, fp, expected):
+        from semantic_gate import is_write_to_code_file
+        assert is_write_to_code_file(tool, {"file_path": fp}) is expected
+
+    def test_missing_file_path_key(self):
+        from semantic_gate import is_write_to_code_file
+        assert is_write_to_code_file("Write", {}) is False
+
+    def test_non_dict_tool_input(self):
+        from semantic_gate import is_write_to_code_file
+        assert is_write_to_code_file("Write", None) is False  # type: ignore[arg-type]
+
+    def test_non_str_file_path(self):
+        from semantic_gate import is_write_to_code_file
+        assert is_write_to_code_file("Write", {"file_path": 123}) is False
+
+
+class TestRouterResultDataclass:
+    """AC: RouterResult dataclass shape and immutability."""
+
+    def test_fields(self):
+        from dataclasses import fields
+        from semantic_gate import RouterResult
+        names = {f.name for f in fields(RouterResult)}
+        assert names == {
+            "verdict", "route_target", "reasoning",
+            "latency_ms", "cache_hit", "fail_open",
+        }
+
+    def test_frozen(self):
+        from semantic_gate import RouterResult
+        r = RouterResult(
+            verdict="agree", route_target="/implement", reasoning="x",
+            latency_ms=10.0, cache_hit=False, fail_open=False,
+        )
+        with pytest.raises(Exception):  # FrozenInstanceError or TypeError
+            r.verdict = "disagree"  # type: ignore[misc]
+
+
+class TestRouteVerdictMapping:
+    """AC: verdict -> route_target deterministic mapping."""
+
+    @pytest.mark.parametrize("verdict,target", [
+        ("agree", "/implement"),
+        ("disagree", "none"),
+        ("abstain", "none"),
+    ])
+    def test_mapping(self, verdict, target):
+        from semantic_gate import _verdict_to_route_target
+        assert _verdict_to_route_target(verdict) == target
+
+    def test_unknown_verdict_maps_to_none(self):
+        from semantic_gate import _verdict_to_route_target
+        assert _verdict_to_route_target("weird") == "none"
+        assert _verdict_to_route_target("") == "none"
+
+
+class TestRoute:
+    """AC: route() fail-open semantics + happy path + audit emission."""
+
+    def test_analyzer_unavailable_returns_fail_open(self, _isolate_module_state):
+        with patch.object(semantic_gate, "_get_analyzer", return_value=None):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="a", new_string="b",
+                tool_name="Edit", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.verdict == "abstain"
+        assert r.route_target == "none"
+        assert r.reasoning == "analyzer_unavailable"
+        # Audit still emitted even on fail-open.
+        log_dir = _isolate_module_state
+        lines = _read_route_log_lines(log_dir)
+        assert len(lines) == 1
+        assert lines[0]["fail_open"] is True
+
+    def test_analyzer_raises_returns_fail_open(self, _isolate_module_state):
+        mock_analyzer = _make_analyzer_mock(side_effect=RuntimeError("boom"))
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="x",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.verdict == "abstain"
+        assert "analyzer_error" in r.reasoning
+        log_dir = _isolate_module_state
+        lines = _read_route_log_lines(log_dir)
+        assert len(lines) == 1
+
+    def test_analyzer_returns_none_yields_fail_open(self, _isolate_module_state):
+        # _make_analyzer_mock treats return_value=None as "use default JSON",
+        # so build the mock directly to assert the None-response branch.
+        mock_analyzer = MagicMock(name="GenAIAnalyzer")
+        mock_analyzer.analyze.return_value = None
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="x",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.reasoning == "timeout_or_no_response"
+
+    def test_malformed_json_yields_fail_open(self, _isolate_module_state):
+        """Outermost guard: any path that cannot produce a verdict -> abstain."""
+        mock_analyzer = _make_analyzer_mock(return_value="not valid json {{ broken")
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="x",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.verdict == "abstain"
+
+    def test_invalid_verdict_yields_fail_open(self, _isolate_module_state):
+        mock_analyzer = _make_analyzer_mock(
+            return_value=json.dumps({"verdict": "potato", "reasoning": "weird"})
+        )
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="x",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.verdict == "abstain"
+        assert r.reasoning == "invalid_verdict"
+
+    def test_happy_path_emits_audit(self, _isolate_module_state):
+        mock_analyzer = _make_analyzer_mock(
+            return_value=json.dumps(
+                {"verdict": "agree", "reasoning": "looks like a feature"}
+            )
+        )
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="def foo(): pass\n",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.verdict == "agree"
+        assert r.route_target == "/implement"
+        assert r.fail_open is False
+        assert r.cache_hit is False
+        log_dir = _isolate_module_state
+        lines = _read_route_log_lines(log_dir)
+        assert len(lines) == 1
+        entry = lines[0]
+        assert entry["verdict"] == "agree"
+        assert entry["route_target"] == "/implement"
+        assert entry["tool_name"] == "Write"
+        assert entry["router_prompt_version"] == "v2"
+        assert entry["router_model"] == DEFAULT_MODEL
+        assert entry["session_id"] == "s1"
+        assert entry["file_path"] == "foo.py"
+        assert isinstance(entry["latency_ms"], (int, float))
+        assert isinstance(entry["diff_hash_sha256"], str)
+        assert len(entry["diff_hash_sha256"]) == 64
+
+    def test_disagree_verdict_maps_to_none_target(self, _isolate_module_state):
+        mock_analyzer = _make_analyzer_mock(
+            return_value=json.dumps(
+                {"verdict": "disagree", "reasoning": "scratch"}
+            )
+        )
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="scratch.py", old_string="", new_string="print(1)\n",
+                tool_name="Write", session_id="s2",
+            )
+        assert r.verdict == "disagree"
+        assert r.route_target == "none"
+        assert r.fail_open is False
+
+    def test_route_never_raises_on_outermost_internal_error(self, _isolate_module_state):
+        """If something deep in the analyzer call returns a non-string, the
+        outermost guard must catch and still produce a RouterResult."""
+        # Craft a mock that returns an object the JSON parser cannot handle
+        # via type coercion. _parse_llm_json handles None, but an exotic
+        # value should still degrade to fail-open via downstream guards.
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = "{"  # unparseable but a string
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            r = semantic_gate.route(
+                file_path="foo.py", old_string="", new_string="y = 1",
+                tool_name="Write", session_id="s1",
+            )
+        assert r.fail_open is True
+        assert r.verdict == "abstain"
+
+
+class TestPipelineStateUnchanged:
+    """AC#19: PipelineState gains NO session_route field in Phase A."""
+
+    def test_no_session_route_field(self):
+        from pipeline_state import PipelineState
+        from dataclasses import fields
+        field_names = {f.name for f in fields(PipelineState)}
+        assert "session_route" not in field_names
+
+
+class TestAppendRouteLog:
+    """AC: _append_route_log writes one JSONL row and NEVER raises."""
+
+    def test_jsonl_format(self, tmp_path):
+        from semantic_gate import _append_route_log
+        entry = {"a": 1, "b": "x"}
+        _append_route_log(tmp_path, entry)
+        files = list(tmp_path.glob("*.jsonl"))
+        assert len(files) == 1
+        line = files[0].read_text(encoding="utf-8").strip()
+        parsed = json.loads(line)
+        assert parsed == entry
+
+    def test_append_does_not_raise_on_bad_dir(self):
+        from semantic_gate import _append_route_log
+        # /dev/null/nope is not a writable directory — silently swallow.
+        _append_route_log(Path("/dev/null/nope"), {"x": 1})
+
+    def test_multiple_appends_in_order(self, tmp_path):
+        from semantic_gate import _append_route_log
+        _append_route_log(tmp_path, {"i": 1})
+        _append_route_log(tmp_path, {"i": 2})
+        files = list(tmp_path.glob("*.jsonl"))
+        assert len(files) == 1
+        lines = [
+            json.loads(line)
+            for line in files[0].read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert lines == [{"i": 1}, {"i": 2}]
+
+
+class TestJudgeStillWorks:
+    """AC#2: judge()/JudgeResult are preserved unchanged for backward compat."""
+
+    def test_judge_callable_and_returns_judge_result(self, _isolate_module_state):
+        mock_analyzer = _make_analyzer_mock(
+            verdict="agree", confidence=0.9, reasoning="ok"
+        )
+        with patch.object(semantic_gate, "_get_analyzer", return_value=mock_analyzer):
+            result = semantic_gate.judge(
+                file_path="/p.py", old_string="", new_string="x",
+                tool_name="Edit", tier_signal="light",
+            )
+        from semantic_gate import JudgeResult
+        assert isinstance(result, JudgeResult)
+        # And JudgeResult has the original 6 fields including confidence.
+        from dataclasses import fields
+        names = {f.name for f in fields(JudgeResult)}
+        assert "confidence" in names
+        assert "verdict" in names
