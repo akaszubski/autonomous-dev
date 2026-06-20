@@ -68,11 +68,15 @@ def _get_agent_completions(events: List[PipelineEvent]) -> List[PipelineEvent]:
 
     Invocation events always have result_word_count=0 and would cause
     false positives. Only completion events reflect actual agent output.
+    Issue #1266: also exclude internal `__dedup_skip__:*` hook markers —
+    these are dedup-tracking events, not real agent invocations, and they
+    produce false-positive zero_word_agent_output findings.
     """
     return [
         e for e in events
         if e.tool in AGENT_TOOL_NAMES
         and e.subagent_type
+        and not e.subagent_type.startswith("__dedup_skip__")
         and e.pipeline_action == "agent_completion"
     ]
 

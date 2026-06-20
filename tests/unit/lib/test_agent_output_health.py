@@ -227,3 +227,95 @@ class TestGenerateBatchHealthSummary:
         summary = generate_batch_health_summary([])
 
         assert summary == {}
+
+
+class TestDedupSkipFilter:
+    """Issue #1266: __dedup_skip__:* markers are filtered from ghost/zero-word detection.
+
+    Internal hook dedup-tracking markers (subagent_type starting with
+    `__dedup_skip__`) are NOT real agent invocations. They always have
+    result_word_count=0 and duration_ms=1, which historically caused
+    20+ spurious CRITICAL zero_word_agent_output findings per CIA report.
+    """
+
+    def test_dedup_skip_events_filtered_from_zero_word_detection(self) -> None:
+        """Positive control: 5 __dedup_skip__ markers + 1 healthy real agent -> 0 findings."""
+        events = [
+            _make_event(
+                subagent_type="__dedup_skip__:implementer",
+                result_word_count=0,
+                duration_ms=1,
+            )
+            for _ in range(5)
+        ] + [
+            _make_event(
+                subagent_type="implementer",
+                result_word_count=100,
+                duration_ms=15000,
+            ),
+        ]
+        findings = detect_zero_word_completions(events)
+
+        assert len(findings) == 0, (
+            f"Dedup markers must be filtered out, got {len(findings)} findings: "
+            f"{[f.description for f in findings]}"
+        )
+
+    def test_real_ghost_agent_still_detected(self) -> None:
+        """Negative control: 5 dedup markers + 1 genuinely-empty real agent -> 1 finding."""
+        events = [
+            _make_event(
+                subagent_type="__dedup_skip__:implementer",
+                result_word_count=0,
+                duration_ms=1,
+            )
+            for _ in range(5)
+        ] + [
+            _make_event(
+                subagent_type="implementer",
+                result_word_count=0,
+                duration_ms=5000,
+            ),
+        ]
+        findings = detect_zero_word_completions(events)
+
+        assert len(findings) == 1, (
+            f"Real ghost agent must still surface, got {len(findings)} findings"
+        )
+        assert "implementer" in findings[0].description
+        assert "__dedup_skip__" not in findings[0].description, (
+            f"Dedup marker leaked into finding: {findings[0].description}"
+        )
+
+    def test_mixed_dedup_and_real_agents(self) -> None:
+        """Multiple agent types: only real ghosts surface; markers and healthy agents do not."""
+        events = [
+            _make_event(
+                subagent_type="__dedup_skip__:implementer",
+                result_word_count=0,
+                duration_ms=1,
+            ),
+            _make_event(
+                subagent_type="__dedup_skip__:reviewer",
+                result_word_count=0,
+                duration_ms=1,
+            ),
+            _make_event(
+                subagent_type="reviewer",
+                result_word_count=0,
+                duration_ms=4000,
+            ),
+            _make_event(
+                subagent_type="implementer",
+                result_word_count=100,
+                duration_ms=15000,
+            ),
+        ]
+        findings = detect_zero_word_completions(events)
+
+        assert len(findings) == 1, (
+            f"Expected exactly 1 finding for real reviewer ghost, got {len(findings)}: "
+            f"{[f.description for f in findings]}"
+        )
+        assert "reviewer" in findings[0].description
+        assert "__dedup_skip__" not in findings[0].description
