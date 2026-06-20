@@ -247,6 +247,7 @@ class PipelineState:
     updated_at: str = ""
     redispatch_agents: Dict[str, bool] = field(default_factory=dict)
 
+    remediation_occurred: bool = False  # Issue #1271: Track if STEP 11 remediation was triggered
 
 # =============================================================================
 # HELPERS
@@ -566,6 +567,7 @@ def load_pipeline(run_id: str) -> Optional[PipelineState]:
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
             redispatch_agents=data.get("redispatch_agents", {}),
+            remediation_occurred=data.get("remediation_occurred", False),  # Issue #1271: Default False for old state files
         )
     except (json.JSONDecodeError, KeyError, ValueError):
         return None
@@ -590,6 +592,7 @@ def save_pipeline(state: PipelineState) -> Path:
         "created_at": state.created_at,
         "updated_at": state.updated_at,
         "redispatch_agents": state.redispatch_agents,
+        "remediation_occurred": state.remediation_occurred,  # Issue #1271
     }
     path.write_text(json.dumps(data, indent=2))
     return path
@@ -941,6 +944,49 @@ def cleanup_pipeline(run_id: str) -> None:
     # Also clean up the associated secret file
     cleanup_pipeline_secret(run_id)
 
+
+
+def set_remediation_flag(run_id: str) -> bool:
+    """Set the remediation_occurred flag to True in the pipeline state.
+    
+    Issue #1271: This is called by the coordinator at STEP 11 when remediation
+    is triggered (implementer re-invoked in REMEDIATION MODE).
+    
+    Args:
+        run_id: The pipeline run identifier.
+        
+    Returns:
+        True if the flag was successfully set, False otherwise.
+    """
+    state = load_pipeline(run_id)
+    if state is None:
+        return False
+    
+    state.remediation_occurred = True
+    try:
+        save_pipeline(state)
+        return True
+    except Exception:
+        return False
+
+
+def get_remediation_flag(run_id: str) -> bool:
+    """Get the remediation_occurred flag from the pipeline state.
+    
+    Issue #1271: This is called by the coordinator at STEP 12 to determine
+    whether doc-master needs to be re-invoked due to STEP 11 remediation.
+    
+    Args:
+        run_id: The pipeline run identifier.
+        
+    Returns:
+        True if remediation occurred, False otherwise (including if state not found).
+    """
+    state = load_pipeline(run_id)
+    if state is None:
+        return False
+    
+    return state.remediation_occurred
 
 # =============================================================================
 # BASE COMMIT ANCHORING (Issue #1069)

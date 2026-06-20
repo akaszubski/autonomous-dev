@@ -1622,6 +1622,17 @@ For each cycle:
 1. **Collect BLOCKING findings** — Extract ALL findings with severity BLOCKING from the failing validator(s). Pass them VERBATIM to the implementer (do not summarize, paraphrase, or reorder).
 2. **VERBATIM PASSING REQUIRED**: Pass ALL BLOCKING findings VERBATIM to the implementer. Do NOT summarize, reword, or condense. Include the full validator output as critique history. The implementer needs the exact finding text to understand what to fix.
 3. **Re-invoke implementer in REMEDIATION MODE** — **Agent**(subagent_type="implementer", model="opus", metadata={"remediation": true}) with prompt: "REMEDIATION MODE — Fix the following BLOCKING findings. Critique history: {full validator output verbatim}. BLOCKING findings: {findings verbatim}." **The re-invocation prompt MUST be constructed via `construct_revision_prompt(agent_type="implementer", baseline_context=<full original STEP 8 prompt>, feedback=<BLOCKING findings>)`** (`from prompt_integrity import construct_revision_prompt`). Passing only the BLOCKING findings causes prompt-integrity to fire on shrinkage and block the re-invocation (Issue #1116). The coordinator MUST NOT apply fixes directly. Even for trivial one-line fixes, the implementer agent must be re-invoked. If context limits prevent implementer re-invocation, BLOCK the pipeline and suggest `/clear` then `/implement --resume`.
+
+   **Set remediation flag (Issue #1271)** — Immediately after invoking implementer in REMEDIATION MODE, set the flag:
+   ```python
+   from pipeline_state import set_remediation_flag
+   if set_remediation_flag(run_id):
+       print(f"[REMEDIATION-FLAG] Set remediation_occurred=true for run_id={run_id}")
+   else:
+       print(f"[REMEDIATION-FLAG-WARNING] Failed to set remediation flag for run_id={run_id}")
+   ```
+   This flag is checked at STEP 12 to trigger doc-master re-invocation when remediation occurred.
+
 4. **Run pytest** — Verify 0 failures after remediation fixes.
 5. **Re-run failing validators AND security-auditor** — **Agent**(subagent_type="reviewer", model="sonnet", metadata={"remediation": true}) for reviewer re-runs. **Agent**(subagent_type="security-auditor", model="sonnet", metadata={"remediation": true}) for security-auditor re-runs. **security-auditor MUST always re-run after remediation, even if it passed originally**, because remediation changes the code it certified — a PASS from STEP 10 is stale and cannot be accepted when code was modified in STEP 11. Do NOT invoke doc-master during remediation. After both validators return, overwrite the artifact files with the final post-remediation outputs:
    ```bash
@@ -2016,13 +2027,23 @@ Run: /clear then /implement --resume $RUN_ID to complete validation.
 ```
 **FORBIDDEN**: Proceeding to STEP 13 with fewer than the required agent count. Missing validation agents (reviewer, security-auditor, doc-master) is a pipeline failure, not a degraded pass.
 
-**Remediation-Aware Doc-Drift** — If STEP 11 remediation occurred (the implementer was re-invoked in REMEDIATION MODE), the STEP 10 background doc-master result is STALE — it ran against pre-remediation code and file list. You MUST:
+**Remediation-Aware Doc-Drift (Issue #1271)** — Check if STEP 11 triggered remediation using the explicit flag:
+```python
+from pipeline_state import get_remediation_flag
+remediation_occurred = get_remediation_flag(run_id)
+if remediation_occurred:
+    print(f"[REMEDIATION-CHECK] Remediation occurred at STEP 11 for run_id={run_id}")
+else:
+    print(f"[REMEDIATION-CHECK] No remediation at STEP 11 for run_id={run_id}")
+```
+
+If `remediation_occurred` is True, the STEP 10 background doc-master result is STALE — it ran against pre-remediation code and file list. You MUST:
 1. DISCARD the STEP 10 background doc-master result (do not wait for it, do not parse it)
 2. Get the CURRENT changed file list: `git diff --name-only HEAD~1 2>/dev/null || git diff --name-only --cached`
 3. Re-invoke doc-master BLOCKING (not background): **Agent**(subagent_type="doc-master", model="sonnet") — Pass the CURRENT changed file list + feature description. Log: `[DOC-VERDICT-REINVOKE] Re-invoking doc-master after remediation with updated file list (N files)`
 4. Parse the verdict from this fresh invocation — proceed to the collection point below
 
-If STEP 11 did NOT trigger remediation (both validators passed on first try), use the original STEP 10 background result as normal (existing flow below).
+If `remediation_occurred` is False (no STEP 11 remediation), use the original STEP 10 background result as normal (existing flow below).
 
 **Doc-Drift Collection Point** — Collect doc-master background result (in batch mode, see implement-batch.md STEP B3 for per-issue doc-drift verdict collection):
 1. Wait for doc-master to complete (it was launched in STEP 10 background).
