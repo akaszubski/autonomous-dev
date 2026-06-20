@@ -1033,7 +1033,7 @@ def aggregate(
     Returns:
         AggregatedReport with ranked signals and source health
     """
-    project_root = Path(project_root)
+    project_root = Path(project_root).resolve()
     now = datetime.now(timezone.utc)
     window_start = (now - timedelta(days=window_days)).isoformat()
     window_end = now.isoformat()

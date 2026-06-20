@@ -801,6 +801,33 @@ class TestAggregate:
         report = aggregate(tmp_path, window_days=7, top_n=5)
         assert len(report.signals) <= 5
 
+    @patch("runtime_data_aggregator.collect_github_signals")
+    def test_relative_project_root_no_valueerror(
+        self, mock_gh: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #1207: relative project_root must not raise ValueError.
+
+        Without ``.resolve()`` in ``aggregate()``, ``findings_dir`` stays
+        relative and ``collect_cia_findings`` raises ValueError uncaught.
+        With ``.resolve()`` the relative path is normalized to absolute
+        and the report is produced normally (silent-empty on missing dirs).
+        """
+        mock_gh.return_value = ([], SourceHealth(source="github", status="empty"))
+
+        config_dir = tmp_path / "plugins" / "autonomous-dev" / "config"
+        config_dir.mkdir(parents=True)
+        (config_dir / "known_bypass_patterns.json").write_text(
+            json.dumps({"patterns": []})
+        )
+
+        monkeypatch.chdir(tmp_path)
+        report = aggregate(Path("."), window_days=7)
+
+        assert isinstance(report, AggregatedReport)
+        assert len(report.source_health) == 5
+        cia_health = [h for h in report.source_health if h.source == "cia_findings"]
+        assert cia_health and cia_health[0].status != "error"
+
 
 # =============================================================================
 # TestPersistReport
