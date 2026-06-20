@@ -245,6 +245,7 @@ class PipelineState:
     steps: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
+    redispatch_agents: Dict[str, bool] = field(default_factory=dict)
 
 
 # =============================================================================
@@ -564,6 +565,7 @@ def load_pipeline(run_id: str) -> Optional[PipelineState]:
             steps=data.get("steps", {}),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
+            redispatch_agents=data.get("redispatch_agents", {}),
         )
     except (json.JSONDecodeError, KeyError, ValueError):
         return None
@@ -587,6 +589,7 @@ def save_pipeline(state: PipelineState) -> Path:
         "steps": state.steps,
         "created_at": state.created_at,
         "updated_at": state.updated_at,
+        "redispatch_agents": state.redispatch_agents,
     }
     path.write_text(json.dumps(data, indent=2))
     return path

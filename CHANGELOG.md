@@ -10,6 +10,8 @@
 ### Changed
 - **Planner agent LoC calibration** (Issue #1240): Added mandatory 2x multiplier for module size estimates to address systematic underestimation where planner logic-line counts ran 2.5x below actual implementation lines. Planner now reports both logic lines and total lines (logic × multiplier) with context-aware multipliers: 1.5x for utilities, 2x default, 2.5x-3x for heavily-documented APIs.
 ### Fixed
+- **Prompt-shrink detector false positives on coordinator re-dispatches** (Issue #1227): Fixed false-positive prompt compression blocks when the coordinator legitimately re-invokes an agent after an ordering-gate denial. Added redispatch awareness to `prompt_integrity.py`: new `set_redispatch_flag(agent_type)`, `consume_redispatch_flag(agent_type)`, and `is_canonical_template_match(agent_type, content, *, tolerance=0.10)` helpers. `unified_pre_tool.py` now sets redispatch flags at ordering-gate deny paths. `validate_prompt_word_count()` short-circuits on redispatch flag or canonical-template baseline reset. 6 new regression tests in `tests/regression/test_issue_1227_redispatch_fp.py`.
+
 - **Multi-issue body extraction** (Issue #1231): Fixed `/implement --issues` to correctly fetch and concatenate all issue bodies (up to 10) with section headers, replacing the previous single-issue-only extraction that silently dropped additional issue context.
 
 ### Security

@@ -42,6 +42,7 @@ Usage:
 """
 
 import json
+import os
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -237,6 +238,23 @@ def validate_prompt_word_count(
             should_reload=True,
         )
 
+    # Check for redispatch flag (Issue #1227)
+    # If the coordinator is re-dispatching after a gate denial, skip shrinkage check
+    if consume_redispatch_flag(agent_type):
+        logger.debug(
+            "Redispatch flag consumed for %s - skipping shrinkage check",
+            agent_type
+        )
+        return PromptIntegrityResult(
+            agent_type=agent_type,
+            word_count=word_count,
+            baseline_word_count=baseline_word_count,
+            shrinkage_pct=0.0,
+            passed=True,
+            reason=f"Prompt for {agent_type} OK (redispatch after gate denial, {word_count} words).",
+            should_reload=False,
+        )
+
     # Check 3: Baseline shrinkage
     if baseline_word_count is not None and baseline_word_count > 0:
         shrinkage_pct = round((1.0 - word_count / baseline_word_count) * 100, 1)
@@ -253,6 +271,37 @@ def validate_prompt_word_count(
             )
 
         if shrinkage_pct >= effective_max_shrinkage * 100:
+            # Issue #1227: Check if this matches canonical template before failing
+            if is_canonical_template_match(agent_type, prompt):
+                # Reset baseline to canonical word count
+                logger.info(
+                    "Canonical template detected for %s after shrinkage - resetting baseline from %d to %d words",
+                    agent_type, baseline_word_count, word_count
+                )
+                # Record the new baseline based on canonical template
+                try:
+                    issue_number = None
+                    try:
+                        issue_str = os.environ.get("PIPELINE_ISSUE_NUMBER", "")
+                        if issue_str and issue_str.isdigit():
+                            issue_number = int(issue_str)
+                    except (ValueError, TypeError):
+                        pass
+                    record_prompt_baseline(agent_type, issue_number=issue_number, word_count=word_count)
+                except Exception as e:
+                    logger.debug("Could not update baseline after canonical match: %s", e)
+
+                return PromptIntegrityResult(
+                    agent_type=agent_type,
+                    word_count=word_count,
+                    baseline_word_count=word_count,  # Updated to match current
+                    shrinkage_pct=0.0,
+                    passed=True,
+                    reason=f"Prompt for {agent_type} OK (canonical template reset, {word_count} words).",
+                    should_reload=False,
+                )
+
+            # Original shrinkage failure logic
             ctx_note = (
                 f" [relaxed from {max_shrinkage:.0%} for {invocation_context}]"
                 if invocation_context and invocation_context in REINVOCATION_CONTEXTS
@@ -981,3 +1030,135 @@ def clear_batch_observations(*, state_dir: Optional[Path] = None) -> None:
     obs_path = _get_observations_path(state_dir)
     obs_path.unlink(missing_ok=True)
     logger.debug("Cleared batch observations: %s", obs_path)
+
+
+def set_redispatch_flag(agent_type: str, *, state_dir: Optional[Path] = None) -> None:
+    """Set a one-shot redispatch flag for an agent.
+    
+    Called when an agent invocation is denied (e.g., by agent_ordering_gate).
+    The flag indicates the coordinator will re-dispatch the agent with the
+    canonical template, so prompt shrinkage check should be skipped.
+    
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        state_dir: Optional override for state directory.
+    """
+    del state_dir  # reserved; resolved via sentinel
+    try:
+        from pipeline_state import load_pipeline, save_pipeline, get_legacy_sentinel_path
+        sentinel = get_legacy_sentinel_path()
+        if not sentinel.exists():
+            logger.debug("No active pipeline sentinel - skipping redispatch flag set for '%s'", agent_type)
+            return
+        try:
+            sentinel_data = json.loads(sentinel.read_text(encoding="utf-8"))
+            run_id = sentinel_data.get("run_id")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug("Could not read sentinel for redispatch flag set: %s", e)
+            return
+        if not run_id:
+            return
+        state = load_pipeline(run_id)
+        if state is None:
+            logger.debug("No pipeline state for run_id %s - skipping redispatch flag set", run_id)
+            return
+        if not hasattr(state, "redispatch_agents") or state.redispatch_agents is None:
+            state.redispatch_agents = {}
+        state.redispatch_agents[agent_type] = True
+        save_pipeline(state)
+        logger.debug("Set redispatch flag for agent '%s' on run %s", agent_type, run_id)
+    except Exception as e:
+        logger.debug("Could not set redispatch flag for '%s': %s", agent_type, e)
+
+
+def consume_redispatch_flag(agent_type: str, *, state_dir: Optional[Path] = None) -> bool:
+    """Consume and clear a one-shot redispatch flag for an agent.
+    
+    Returns True if the flag was set (and clears it), False otherwise.
+    This is a one-shot mechanism: the flag is deleted after being read.
+    
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        state_dir: Optional override for state directory.
+        
+    Returns:
+        True if redispatch flag was set for this agent, False otherwise.
+    """
+    del state_dir  # reserved; resolved via sentinel
+    try:
+        from pipeline_state import load_pipeline, save_pipeline, get_legacy_sentinel_path
+        sentinel = get_legacy_sentinel_path()
+        if not sentinel.exists():
+            return False
+        try:
+            sentinel_data = json.loads(sentinel.read_text(encoding="utf-8"))
+            run_id = sentinel_data.get("run_id")
+        except (json.JSONDecodeError, OSError):
+            return False
+        if not run_id:
+            return False
+        state = load_pipeline(run_id)
+        if state is None:
+            return False
+        if not hasattr(state, "redispatch_agents") or state.redispatch_agents is None:
+            return False
+        if agent_type in state.redispatch_agents and state.redispatch_agents[agent_type]:
+            del state.redispatch_agents[agent_type]
+            save_pipeline(state)
+            logger.debug("Consumed redispatch flag for agent '%s' on run %s", agent_type, run_id)
+            return True
+        return False
+    except Exception as e:
+        logger.debug("Could not consume redispatch flag for '%s': %s", agent_type, e)
+        return False
+
+
+def is_canonical_template_match(
+    agent_type: str,
+    content: str,
+    *,
+    tolerance: float = 0.10,
+    agents_dir: Optional[Path] = None,
+) -> bool:
+    """Check if content matches canonical template word count within tolerance.
+    
+    Used to detect when the coordinator has reset to the canonical template
+    after a shrinkage detection, to avoid false-positive blocks on legitimate
+    re-dispatches.
+    
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        content: The prompt content to check.
+        tolerance: Maximum relative difference (0.10 = 10% tolerance).
+        agents_dir: Optional override for agents directory path.
+        
+    Returns:
+        True if word count is within tolerance of canonical template.
+    """
+    try:
+        # Get the canonical template
+        template = get_agent_prompt_template(agent_type, agents_dir=agents_dir)
+        canonical_wc = len(template.split())
+        actual_wc = len(content.split())
+        
+        if canonical_wc == 0:
+            return False
+            
+        # Calculate relative difference
+        rel_diff = abs(actual_wc - canonical_wc) / canonical_wc
+        
+        # Check if within tolerance
+        is_match = rel_diff <= tolerance
+        
+        if is_match:
+            logger.debug(
+                "Canonical template match for %s: actual=%d, canonical=%d, diff=%.1f%%",
+                agent_type, actual_wc, canonical_wc, rel_diff * 100
+            )
+            
+        return is_match
+        
+    except Exception as e:
+        logger.debug("Could not check canonical match for '%s': %s", agent_type, e)
+        return False
+

@@ -1187,6 +1187,12 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
             pipeline_mode=pipeline_mode,
         )
         if not gate.passed:
+            # Issue #1227: Set redispatch flag when ordering gate denies
+            try:
+                from prompt_integrity import set_redispatch_flag
+                set_redispatch_flag(target_agent)
+            except Exception:
+                pass  # Never fail the hook for flag setting
             return ("deny", gate.reason)
 
         # Issue #669: Log parallel mode warnings for observability
@@ -6796,13 +6802,20 @@ def main():
             if tool_name in AGENT_TOOL_NAMES:
                 ord_decision, ord_reason = validate_pipeline_ordering(tool_name, tool_input)
                 if ord_decision == "deny":
+                    # Issue #1227: Set redispatch flag when ordering gate denies
+                    try:
+                        from prompt_integrity import set_redispatch_flag
+                        target_agent = tool_input.get('subagent_type', '').strip().lower()
+                        if target_agent:
+                            set_redispatch_flag(target_agent)
+                    except Exception:
+                        pass  # Never fail the hook for flag setting
                     _log_pretool_activity(tool_name, tool_input, "deny", ord_reason)
                     output_decision(
                         "deny", ord_reason,
                         system_message="ORDERING: Wait for prerequisite agents to complete.",
                     )
                     sys.exit(0)
-
             # Layer 5: Prompt integrity gate (Issue #695)
             # Blocks critical agents with sub-minimum prompts during pipeline.
             if tool_name in AGENT_TOOL_NAMES:
