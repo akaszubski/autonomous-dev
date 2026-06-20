@@ -109,6 +109,8 @@ Models predictably game evaluations. Detect these patterns:
     - Use find-or-create+comment dedup (same as timing issues)
     - Circuit breaker: max 2 token efficiency issues per run
 
+16. **Evidence Manifest Gate Audit** (severity: error): Scan session logs and pipeline outputs for lines matching the prefix `Evidence Manifest gate:` (Issue #1055, Issue #1233). For each match, parse the outcome (`PASS` | `REMEDIATION` | `BLOCKED` | `SKIP`), `marker_found` value (`true` | `false` | `n/a`), and `mode` (`full` | `light` | `fix`). Flag a `[GATE-BYPASS]` finding when ALL of these hold: (a) `mode=full`, (b) `marker_found=false`, and (c) outcome is anything other than `BLOCKED`. This catches the failure mode where the coordinator advanced past STEP 8 in full mode without the implementer's Evidence Manifest table — the canonical bug from pipeline run `20260617-080132` (Issue #1233). Circuit breaker: max 1 finding per run (this is a structural gate violation; one occurrence is sufficient to file).
+
 Includes Intent-Level Pipeline Validation via `pipeline_intent_validator` (step ordering, hard gate ordering, context dropping).
 
 **Repo-aware calibration**: If analyzing a consumer repo (not autonomous-dev itself), calibrate expectations against the target repo's `settings.json` and `registered_hooks`. Consumer repos may legitimately have fewer hook layers or agents registered.

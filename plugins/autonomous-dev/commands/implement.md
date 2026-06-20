@@ -1198,7 +1198,7 @@ Plan-Implementation Alignment Check:
 
 After tests pass and the Plan-Implementation Alignment gate succeeds, you MUST verify that the implementer emitted the structured Evidence Manifest table required by the implementer agent spec (`agents/implementer.md` HARD GATE: Evidence Manifest Output). Prior to Issue #1055 this gate was prompt-advisory only — the reviewer for cluster batch #1022 flagged the missing manifest but the coordinator advanced through STEP 8+ without blocking. This subsection converts that advisory check into a mechanical coordinator-side gate (#1055).
 
-**Mode activation** — this gate is REQUIRED in **full pipeline mode only**. It does NOT apply to `--light` mode and does NOT apply to `--fix` mode; per the agent spec those modes treat the manifest as RECOMMENDED rather than REQUIRED, so the gate MUST be skipped (with a one-line log: "Evidence Manifest gate skipped: mode=light|fix (#1055)").
+**Mode activation** — this gate is REQUIRED in **full pipeline mode only**. It does NOT apply to `--light` mode and does NOT apply to `--fix` mode; per the agent spec those modes treat the manifest as RECOMMENDED rather than REQUIRED, so the gate MUST be skipped (with a one-line structured log: "Evidence Manifest gate: SKIP (#1055) — marker_found=n/a, mode=light" or "Evidence Manifest gate: SKIP (#1055) — marker_found=n/a, mode=fix").
 
 **Step 1 — Locate marker substring**
 
@@ -1212,7 +1212,7 @@ The marker is the exact literal table header line. The check is a substring pres
 
 **Step 2 — Decide pass/remediation**
 
-If the marker IS present → PASS. Log: "Evidence Manifest gate: PASS (#1055)". Continue to STEP 8.5. If the marker IS NOT present → enter ONE remediation cycle (see Step 3). After remediation, you MUST re-verify the marker.
+If the marker IS present → PASS. Log: "Evidence Manifest gate: PASS (#1055) — marker_found=true, mode=full". Continue to STEP 8.5. If the marker IS NOT present → enter ONE remediation cycle (see Step 3). After remediation, you MUST re-verify the marker.
 
 **Step 3 — Remediation (max 1 cycle)**
 
@@ -1224,11 +1224,13 @@ The remediation prompt MUST be constructed via `construct_revision_prompt(agent_
 
 **Step 4 — Post-remediation BLOCK path**
 
-After the single remediation cycle, you MUST re-verify the marker substring in the new implementer output. If the marker is now present → PASS. Log: "Evidence Manifest gate: PASS after 1 remediation cycle (#1055)". Continue to STEP 8.5. If the marker is still absent → BLOCK the pipeline with this exact message:
+After the single remediation cycle, you MUST re-verify the marker substring in the new implementer output. If the marker is now present → PASS. Log: "Evidence Manifest gate: REMEDIATION (#1055) — marker_found=true, mode=full". Continue to STEP 8.5. If the marker is still absent → BLOCK the pipeline with this exact message:
 
 ```
 BLOCKED: Implementer output is missing the Evidence Manifest table after 1 remediation cycle. The agent spec requires this manifest in full pipeline mode (#1055).
 ```
+
+In addition to the BLOCKED message, you MUST emit the structured log: "Evidence Manifest gate: BLOCKED (#1055) — marker_found=false, mode=full".
 
 You MUST NOT proceed to STEP 8.5. You MUST NOT synthesize the manifest yourself — the coordinator is a dispatcher, not a substitute.
 

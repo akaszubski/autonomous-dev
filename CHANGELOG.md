@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Evidence Manifest gate structured logging for CIA audit** (Issue #1233): The STEP 8 Evidence Manifest gate in `commands/implement.md` now emits structured log lines with `marker_found=` and `mode=` fields (e.g., `"Evidence Manifest gate: PASS (#1055) — marker_found=true, mode=full"`). Four outcomes covered: `SKIP` (light/fix modes), `PASS` (manifest found), `REMEDIATION` (fixed after retry), `BLOCKED` (missing after retry). The continuous-improvement-analyst gains Check #16 (`[GATE-BYPASS]`) which scans these logs and flags any full-mode run where `marker_found=false` and the outcome is not `BLOCKED` — catching the failure mode observed in pipeline run `20260617-080132` where the coordinator advanced past STEP 8 without the implementer's Evidence Manifest table.
 - **MEDIUM-convergence check advisory step** (STEP 11.6): New advisory pipeline step that detects when ≥2 distinct validation agents (reviewer, security-auditor) flag the same file or function with MEDIUM+ severity findings. Surfaces multi-agent convergence patterns via `[CONVERGED-MEDIUM]` banner and offers three non-blocking options: REMEDIATE (re-run implementer + re-validate), DEFER (file GitHub issues for tracking), ACKNOWLEDGE (log justification and continue). Convergence artifacts logged to `.claude/logs/activity/{RUN_ID}_convergence.json` for audit trail. Not a hard gate by design — advisory feedback to highlight high-confidence areas needing attention without blocking progress.
 
 ### Changed
