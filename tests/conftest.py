@@ -21,12 +21,33 @@ Run specific tiers:
 import pytest
 import sys
 from pathlib import Path
+import types
 
 # Add plugins directory to Python path for autonomous_dev imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins"))
 
 # Import path_utils for cache reset
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
+
+# Create alias for plugins.autonomous_dev -> plugins/autonomous-dev
+# This allows tests to import from plugins.autonomous_dev.lib.X
+_AD_HYPHEN_DIR = Path(__file__).parent.parent / "plugins" / "autonomous-dev"
+if _AD_HYPHEN_DIR.exists() and "plugins.autonomous_dev" not in sys.modules:
+    # Create virtual packages in sys.modules
+    if "plugins" not in sys.modules:
+        plugins_pkg = types.ModuleType("plugins")
+        plugins_pkg.__path__ = [str(_AD_HYPHEN_DIR.parent)]  # plugins/
+        sys.modules["plugins"] = plugins_pkg
+    
+    # Create the autonomous_dev subpackage pointing to autonomous-dev/
+    autonomous_dev_pkg = types.ModuleType("plugins.autonomous_dev")
+    autonomous_dev_pkg.__path__ = [str(_AD_HYPHEN_DIR)]  # plugins/autonomous-dev/
+    sys.modules["plugins.autonomous_dev"] = autonomous_dev_pkg
+    
+    # Also create lib subpackage
+    lib_pkg = types.ModuleType("plugins.autonomous_dev.lib")
+    lib_pkg.__path__ = [str(_AD_HYPHEN_DIR / "lib")]  # plugins/autonomous-dev/lib/
+    sys.modules["plugins.autonomous_dev.lib"] = lib_pkg
 
 
 # =============================================================================
