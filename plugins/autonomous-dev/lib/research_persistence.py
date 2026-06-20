@@ -697,6 +697,37 @@ def save_merged_research(topic: str, local_json: Dict, web_json: Dict) -> Path:
     return result
 
 
+def save_merged_research_blob(merged: str, cache_key: str) -> Path:
+    """Save a pre-merged research blob directly without parsing/deduplication.
+    
+    Purpose: Manual research priming on pipeline restart (Issue #1232).
+    Used when research content is already formatted and merged, bypassing
+    the normal local/web JSON merge workflow.
+    
+    Args:
+        merged: Pre-formatted markdown research content (must be non-empty)
+        cache_key: Research topic/cache identifier
+        
+    Returns:
+        Path to saved research file
+        
+    Raises:
+        ResearchPersistenceError: If merged content is empty or whitespace-only
+        
+    Example:
+        >>> blob = "# Security Analysis\\n\\nKey findings here..."
+        >>> path = save_merged_research_blob(blob, "Security Review")
+        >>> path.name
+        'SECURITY_REVIEW.md'
+    """
+    # Validate merged content is non-empty
+    if not merged or not merged.strip():
+        raise ResearchPersistenceError("merged research blob cannot be empty")
+    
+    # Delegate to save_research which handles frontmatter, atomic write, etc.
+    return save_research(cache_key, merged, [])
+
+
 def detect_issue_research(issue_body: str) -> Dict[str, Any]:
     """Detect if a GitHub issue body contains pre-researched content from /create-issue.
 

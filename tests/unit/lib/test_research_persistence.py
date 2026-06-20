@@ -71,6 +71,7 @@ try:
         topic_to_filename,
         get_research_dir,
         save_merged_research,
+        save_merged_research_blob,
         ResearchPersistenceError,
     )
     LIB_RESEARCH_PERSISTENCE_EXISTS = True
@@ -80,6 +81,7 @@ except ImportError:
     check_cache = None
     load_cached_research = None
     update_index = None
+    save_merged_research_blob = None
     topic_to_filename = None
     get_research_dir = None
     save_merged_research = None
@@ -1576,6 +1578,65 @@ class TestIssue622ValidateSessionPathErrorString:
             assert result is not None
             assert "topic" in result
             assert result["topic"] == "Existing Research"
+
+
+
+class TestSaveMergedResearchBlob:
+    """Test save_merged_research_blob() function for manual research priming (Issue #1232).
+    
+    This function saves pre-merged research content directly without parsing/deduplication,
+    used for pipeline restart scenarios where research is already formatted.
+    """
+
+    def test_save_merged_research_blob_success(self, temp_project, mock_path_utils):
+        """
+        GIVEN: A pre-formatted markdown research blob
+        WHEN: Calling save_merged_research_blob() with valid content
+        THEN: Saves the blob to file and cache check returns the path (cache HIT)
+        """
+        from research_persistence import save_merged_research_blob, check_cache
+        
+        mock_path_utils.return_value = temp_project
+        
+        # Pre-formatted research content
+        merged_content = "# Topic\n\nFindings here"
+        cache_key = "Test Blob Topic"
+        
+        # Save the blob
+        result_path = save_merged_research_blob(merged=merged_content, cache_key=cache_key)
+        
+        # Verify file was created
+        assert result_path.exists()
+        assert result_path.parent == temp_project / "docs" / "research"
+        
+        # Verify cache returns the same path (cache HIT)
+        cached_path = check_cache(cache_key)
+        assert cached_path == result_path
+        
+        # Verify content appears verbatim in the file body
+        content = result_path.read_text()
+        assert "# Topic" in content
+        assert "Findings here" in content
+
+    def test_save_merged_research_blob_empty_raises_error(self, temp_project, mock_path_utils):
+        """
+        GIVEN: Empty or whitespace-only content
+        WHEN: Calling save_merged_research_blob() with invalid content
+        THEN: Raises ResearchPersistenceError
+        """
+        from research_persistence import save_merged_research_blob, ResearchPersistenceError
+        
+        mock_path_utils.return_value = temp_project
+        
+        # Test with empty string
+        with pytest.raises(ResearchPersistenceError, match="merged research blob cannot be empty"):
+            save_merged_research_blob(merged="", cache_key="X")
+        
+        # Test with whitespace-only string
+        with pytest.raises(ResearchPersistenceError, match="merged research blob cannot be empty"):
+            save_merged_research_blob(merged="   ", cache_key="X")
+
+
 
 
 # ============================================================================

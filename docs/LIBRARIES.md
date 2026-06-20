@@ -14724,6 +14724,15 @@ path = save_research(
 )
 ```
 
+
+Save pre-merged research blob for pipeline restart scenarios (Issue #1232):
+```
+from research_persistence import save_merged_research_blob
+path = save_merged_research_blob(
+    merged="## Merged Research Content...",
+    cache_key="jwt_authentication_2026_01_15"
+)
+```
 Check cache before researching:
 ```
 from research_persistence import check_cache
