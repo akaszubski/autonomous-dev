@@ -1,0 +1,196 @@
+name: Drain Driver
+
+# Primary continuous drainer — runs /implement --light on every fire if a
+# drainable cluster exists. Unlike drain-watchdog (which only fires on STUCK
+# conditions), this is the actual throughput engine.
+#
+# Substrate rationale: cloud cron (claude.ai) lacks SlashCommand + gh CLI in
+# its session sandbox (telemetry confirmed 100% silent failure 06:02Z–20:02Z
+# on 2026-06-19). GitHub Actions runner has full Claude Code CLI + gh CLI +
+# all tools, and claude-code-action@beta is the proven path (drain-watchdog
+# has produced 5 real autonomous closures over 7 days).
+#
+# Cadence: hourly. /implement --light averages ~10-15 min, so hourly cadence
+# stays well clear of the 60-min runner budget and serializes cleanly via
+# concurrency. If yield is good and OAuth quota allows, can tighten to 30 min.
+
+on:
+  schedule:
+    - cron: '5 * * * *'   # every hour at :05 (offset from drain-watchdog's :00/:30)
+  workflow_dispatch:
+    inputs:
+      cluster_override:
+        description: 'Comma-separated issue numbers to drain (overrides auto-select)'
+        required: false
+
+concurrency:
+  group: drain-driver
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+  actions: write
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      cluster: ${{ steps.pick.outputs.cluster }}
+      queue_size: ${{ steps.pick.outputs.queue_size }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Pick drainable cluster
+        id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Honor manual override from workflow_dispatch input.
+          OVERRIDE="${{ github.event.inputs.cluster_override }}"
+          if [ -n "$OVERRIDE" ]; then
+            echo "Manual override: $OVERRIDE"
+            echo "cluster=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "queue_size=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          QUEUE_SIZE=$(gh issue list --state open --label auto-improvement --limit 200 --json number --jq 'length')
+          echo "queue_size=$QUEUE_SIZE" >> "$GITHUB_OUTPUT"
+          echo "## Drain driver selection" >> "$GITHUB_STEP_SUMMARY"
+          echo "- queue size: $QUEUE_SIZE" >> "$GITHUB_STEP_SUMMARY"
+
+          CLUSTER=$(python3 - <<'PY' || echo ""
+          import json, subprocess, sys
+          sys.path.insert(0, 'plugins/autonomous-dev/lib')
+          try:
+              from drain_queue_state import AUTO_DRAINABLE_SEVERITY, MAX_CLUSTER_SIZE_AUTO_DRAINABLE
+          except Exception:
+              print("", end=""); sys.exit(0)
+          out = subprocess.run(
+              ['python3', 'plugins/autonomous-dev/lib/issue_triage_analyzer.py',
+               '--auto-improvement', '--json', '--limit', '50'],
+              capture_output=True, text=True,
+          )
+          try:
+              clusters = json.loads(out.stdout)
+          except Exception:
+              print("", end=""); sys.exit(0)
+
+          def is_large_feat(c):
+              titles = c.get('issue_titles', [])
+              prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
+              has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+              return has_feat and c.get('cluster_size', 0) > 2
+
+          def is_drain_stuck_meta(c):
+              titles = c.get('issue_titles', [])
+              return any('[drain-stuck]' in (t or '').lower() for t in titles)
+
+          for c in clusters:
+              if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
+                  continue
+              if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
+                  continue
+              if is_large_feat(c):
+                  continue
+              if is_drain_stuck_meta(c):
+                  continue
+              print(','.join(str(n) for n in c['issue_numbers'][:3]), end="")
+              break
+          PY
+          )
+          echo "selected cluster: ${CLUSTER:-NONE}"
+          echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "- selected cluster: ${CLUSTER:-NONE}" >> "$GITHUB_STEP_SUMMARY"
+
+  drain:
+    needs: select
+    if: needs.select.outputs.cluster != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install autonomous-dev plugin into runner
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.claude"
+          for subdir in agents commands hooks lib skills config templates scripts; do
+            if [ -d "plugins/autonomous-dev/$subdir" ]; then
+              rsync -a --delete "plugins/autonomous-dev/$subdir/" "$HOME/.claude/$subdir/"
+            fi
+          done
+          # Override Sonnet → Opus in runner (claude-code-action 404s on Sonnet subagents).
+          OVERRIDDEN=0
+          for agent_md in "$HOME/.claude/agents"/*.md; do
+            [ -f "$agent_md" ] || continue
+            if grep -q '^model: sonnet' "$agent_md"; then
+              sed -i 's/^model: sonnet/model: opus/' "$agent_md"
+              OVERRIDDEN=$((OVERRIDDEN + 1))
+            fi
+          done
+          echo "Overrode $OVERRIDDEN Sonnet → Opus"
+          mkdir -p .claude
+
+      - name: Guard — auth credential required
+        env:
+          OAUTH_PRESENT: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          KEY_PRESENT: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$OAUTH_PRESENT" != "true" ] && [ "$KEY_PRESENT" != "true" ]; then
+            echo "::warning::Neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY set — drain disabled"
+            exit 1
+          fi
+
+      - name: Drain via claude-code-action (runs /implement --light)
+        continue-on-error: true
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-opus-4-7"
+          mode: "agent"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand,Task"
+          timeout_minutes: 50
+          direct_prompt: |
+            You are the drain-driver continuous-drain session. Drive `/implement --light` on a pre-selected cluster from the auto-improvement backlog.
+
+            **Pre-selected cluster**: `${{ needs.select.outputs.cluster }}` (comma-separated issue numbers)
+            **Queue size at fire**: ${{ needs.select.outputs.queue_size }}
+
+            ## Protocol
+
+            1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly. Do NOT proceed.
+
+            2. **Invoke /implement --light** on the cluster:
+               ```
+               /implement --issues ${{ needs.select.outputs.cluster }} --light
+               ```
+               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to agents. The session timeout is 50 min; if at minute 45 the pipeline is still running, finalize what's been done and report.
+
+            3. **After /implement returns**, verify the commit was pushed: `git fetch origin master && git log origin/master -1`. If unpushed commits exist locally, push them: `git push origin HEAD:master`.
+
+            4. **Verify closures**: for each `N` in the cluster, `gh issue view N --json state`. Report closure state.
+
+            ## Constraints
+
+            - **Do NOT use `.claude/.bypass`** — this whole pipeline exists to USE the SDLC, not bypass it.
+            - Do NOT run `bash scripts/deploy-all.sh` (no SSH from runner).
+            - Do NOT commit local scratch (`.proposal`, `*.bak`, audit drafts).
+            - Do NOT push if /implement's test gate (STEP 8) failed — let it block and report.
+
+            ## Final report (one paragraph)
+
+            Cluster: <numbers>. Pipeline outcome: PASS / BLOCKED-at-STEP-X / RAN-OUT-OF-TIME. Commit SHA pushed (if any). Issue closures verified. Wall-clock duration. Any agent crashes or retries.
