@@ -1012,6 +1012,43 @@ def _advance_plan_mode_stage() -> Optional[str]:
             return None  # No critique yet — do not advance.
 
         verdict_data = json.loads(verdict_path.read_text())
+        
+        # Validate required fields per Issue #1264
+        required_fields = ["verdict", "composite_score", "timestamp", "reasoning", "axis_scores"]
+        for field in required_fields:
+            if field not in verdict_data:
+                print(
+                    f"unified_session_tracker: verdict JSON missing required field '{field}' (Issue #1264)",
+                    file=sys.stderr
+                )
+                return None  # Gate stays closed on missing field
+        
+        # Validate reasoning field (minimum 100 chars of substantive content)
+        reasoning = verdict_data.get("reasoning", "")
+        if not isinstance(reasoning, str) or len(reasoning.strip()) < 100:
+            print(
+                f"unified_session_tracker: reasoning field too short ({len(reasoning.strip())} chars, min 100) (Issue #1264)",
+                file=sys.stderr
+            )
+            return None  # Gate stays closed on invalid reasoning
+        
+        # Validate axis_scores field (dict with at least 3 numeric entries)
+        axis_scores = verdict_data.get("axis_scores", {})
+        if not isinstance(axis_scores, dict):
+            print(
+                f"unified_session_tracker: axis_scores not a dict (Issue #1264)",
+                file=sys.stderr
+            )
+            return None  # Gate stays closed on invalid axis_scores
+        
+        numeric_axes = sum(1 for v in axis_scores.values() if isinstance(v, (int, float)))
+        if numeric_axes < 3:
+            print(
+                f"unified_session_tracker: axis_scores has only {numeric_axes} numeric entries, min 3 (Issue #1264)",
+                file=sys.stderr
+            )
+            return None  # Gate stays closed on insufficient axes
+        
         if verdict_data.get("verdict") != "PROCEED":
             return None  # REVISE or BLOCKED — gate stays closed; verdict file retained.
 

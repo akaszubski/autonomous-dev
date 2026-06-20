@@ -75,8 +75,11 @@ def _make_proceed_verdict(cwd: Path, *, freshness_seconds: int = 0) -> Path:
         json.dumps(
             {
                 "verdict": "PROCEED",
+                "composite_score": 4.0,
                 "timestamp": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
                 "round": 1,
+                "reasoning": "x" * 120,
+                "axis_scores": {"alignment": 4, "minimalism": 4, "testability": 3},
             }
         )
     )

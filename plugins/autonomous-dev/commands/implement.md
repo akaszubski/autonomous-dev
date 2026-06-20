@@ -919,13 +919,15 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 
 > Your previous response was structurally invalid (only N words; verdict-only output is rejected). Re-issue your critique with three or more paragraphs of scored reasoning BEFORE the final verdict line.
 
-If the retry also returns `word_count < 80`, BLOCK the pipeline and report "plan-critic ghost output persisted across retry" — do NOT proceed on a verdict-only output.
+If the retry (2nd invocation) also returns `word_count < 80`, retry ONCE MORE (3rd invocation). If the 3rd invocation still returns `word_count < 80`, BLOCK the pipeline and report "plan-critic ghost output persisted across 3 retries" — do NOT proceed on a verdict-only output. The structural check at 5.5c MUST NOT bypass this ghost-output retry logic.
 
 **Security-sensitive escalation (Issue #1145)**: If the plan references any of `hooks/*.py`, `lib/quality_persistence_enforcer.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `config/auto_approve_policy.json`, or `templates/settings.*.json`, increase the maximum rounds from 3 to 5 rounds. The additional rounds fire ONLY if the critic continues to return REVISE — a clean PROCEED at any round still terminates the loop normally. Rationale: security-enforcement files (#1142 was a hook modification to `unified_pre_tool.py`) carry higher cost when a revision addresses one finding but re-introduces another under pressure to satisfy the critic's checklist; the extra two rounds amortize against catching that regression. Cost: one or two additional Sonnet invocations (~165s, ~$0.10 each).
 
 **Parse verdict from `plan_critic_verdict.json` (#1234 — file is authoritative; do NOT infer from chat output)**:
 
 The plan-critic agent writes `plan_critic_verdict.json` with at least `{verdict, composite_score, timestamp}`. Read this file and use the `verdict` field as the decision — chat-output language ("looks good", "PROCEED", absence of an explicit verdict) MUST NOT override the file. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` rather than inferring PROCEED from chat (#1234).
+
+**Hook enforcement (Issue #1264)**: The `plan_mode_exit_detector.py` and `unified_session_tracker.py` hooks both validate that `plan_critic_verdict.json` contains all required fields (`verdict`, `composite_score`, `timestamp`, `reasoning`, `axis_scores`) with `reasoning` >= 100 chars and `axis_scores` containing >= 3 entries. If any field is missing or invalid, the gate stays closed regardless of the verdict value — preventing ghost outputs from advancing the pipeline.
 
 - **PROCEED** → continue to 5.5c (structural validation)
 - **REVISE** → pass the plan-critic feedback to the planner, re-invoke planner once (same prompt as STEP 5 plus feedback), then accept the revised plan and continue to 5.5c regardless of a second critique. **The re-invocation prompt MUST use `construct_revision_prompt(agent_type="planner", baseline_context=<full original STEP 5 prompt>, feedback=<plan-critic critique text>)`** (`from prompt_integrity import construct_revision_prompt`). Passing only the critique text causes prompt-integrity to fire on shrinkage and block the re-invocation (Issue #1116).

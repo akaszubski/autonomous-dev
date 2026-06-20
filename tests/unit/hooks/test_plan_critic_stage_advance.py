@@ -48,11 +48,16 @@ def _write_verdict(tmp_path, verdict="PROCEED", composite_score=3.5, timestamp=N
     ts = timestamp or datetime.now(timezone.utc).isoformat()
     verdict_path = tmp_path / ".claude" / "plan_critic_verdict.json"
     verdict_path.parent.mkdir(parents=True, exist_ok=True)
-    verdict_path.write_text(json.dumps({
+    verdict_data = {
         "verdict": verdict,
         "composite_score": composite_score,
         "timestamp": ts,
-    }))
+    }
+    # Add required fields for PROCEED verdicts (Issue #1264)
+    if verdict == "PROCEED":
+        verdict_data["reasoning"] = "x" * 120  # >= 100 chars requirement
+        verdict_data["axis_scores"] = {"alignment": 4, "minimalism": 4, "testability": 3}
+    verdict_path.write_text(json.dumps(verdict_data))
     return verdict_path
 
 

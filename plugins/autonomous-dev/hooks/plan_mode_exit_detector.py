@@ -267,12 +267,14 @@ def main() -> int:
 def _plan_critic_proceeded(verdict_path: Path):
     """Return (True, verdict_ts) iff plan-critic verdict file declares PROCEED.
 
-    AC#3 helper (Issue #937, #970). Reads the verdict JSON file written by
+    AC#3 helper (Issue #937, #970, #1264). Reads the verdict JSON file written by
     plan-critic and validates:
 
     - File exists and parses as JSON.
     - ``verdict`` field equals ``"PROCEED"`` (REVISE/BLOCKED → False).
     - ``timestamp`` field is parseable ISO 8601.
+    - ``reasoning`` field exists, is non-empty string with >= 100 chars (Issue #1264).
+    - ``axis_scores`` field exists, is dict with >= 3 numeric entries (Issue #1264).
 
     Staleness checks (e.g. verdict newer than marker) are NOT applied here —
     when this helper runs from ``main()`` no marker exists yet, so freshness
@@ -291,6 +293,44 @@ def _plan_critic_proceeded(verdict_path: Path):
         data = json.loads(verdict_path.read_text())
         if not isinstance(data, dict):
             return (False, None)
+        
+        # Validate required fields per Issue #1264
+        required_fields = ["verdict", "composite_score", "timestamp", "reasoning", "axis_scores"]
+        for field in required_fields:
+            if field not in data:
+                print(
+                    f"plan_mode_exit_detector: verdict JSON missing required field '{field}' (Issue #1264)",
+                    file=sys.stderr
+                )
+                return (False, None)
+        
+        # Validate reasoning field (minimum 100 chars of substantive content)
+        reasoning = data.get("reasoning", "")
+        if not isinstance(reasoning, str) or len(reasoning.strip()) < 100:
+            print(
+                f"plan_mode_exit_detector: reasoning field too short ({len(reasoning.strip())} chars, min 100) (Issue #1264)",
+                file=sys.stderr
+            )
+            return (False, None)
+        
+        # Validate axis_scores field (dict with at least 3 numeric entries)
+        axis_scores = data.get("axis_scores", {})
+        if not isinstance(axis_scores, dict):
+            print(
+                f"plan_mode_exit_detector: axis_scores not a dict (Issue #1264)",
+                file=sys.stderr
+            )
+            return (False, None)
+        
+        numeric_axes = sum(1 for v in axis_scores.values() if isinstance(v, (int, float)))
+        if numeric_axes < 3:
+            print(
+                f"plan_mode_exit_detector: axis_scores has only {numeric_axes} numeric entries, min 3 (Issue #1264)",
+                file=sys.stderr
+            )
+            return (False, None)
+        
+        # Original verdict check
         if data.get("verdict") != "PROCEED":
             return (False, None)
         ts_raw = data.get("timestamp")
