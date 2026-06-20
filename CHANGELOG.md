@@ -1,6 +1,9 @@
 ## [Unreleased]
 
+
 ### Fixed
+- **Remediation metadata gap eliminating false-positive CIA findings** (Issue #1217): The coordinator (`commands/implement.md` STEP 11) now passes `metadata={"remediation": true}` to all cycle-2+ re-invocations of implementer/reviewer/security-auditor during remediation flows. The `pipeline_intent_validator.py` already had logic to skip ordering checks for remediation-flagged events (added in Issue #904), but the coordinator wasn't actually passing the metadata flag, causing the continuous-improvement-analyst to report false-positive `step_ordering` CRITICAL findings like "reviewer ran before reviewer". The fix adds the metadata parameter to 3 Agent tool invocation patterns in STEP 11. 3 regression tests in `tests/regression/test_pipeline_intent_validator_remediation.py` verify the metadata propagation and that ordering checks are correctly skipped.
+
 - **plan-critic ghost JSON recurrence prevention** (Issue #1264): The plan-critic agent was emitting bare verdict JSON (`{verdict, composite_score, timestamp}`) lacking required substantive content (`reasoning`, `axis_scores`), allowing the pipeline to advance with no real adversarial critique. Fix enforces JSON contract via hook-side validation in `_plan_critic_proceeded()` (`plan_mode_exit_detector.py`, `unified_session_tracker.py`) — verdict files lacking `reasoning` or `axis_scores` are now rejected as invalid. The plan-critic verdict-write template changed from bash heredoc to Python for reliable field inclusion. STEP 5.5b retry threshold increased from 2 to 3 to account for potential validation failures. Documentation updated in `docs/AGENTS.md`, `docs/HOOK-REGISTRY.md`, and `docs/HOOKS.md` to reflect the new required fields. 10 new tests validate the enforcement.
 
 ### Added
