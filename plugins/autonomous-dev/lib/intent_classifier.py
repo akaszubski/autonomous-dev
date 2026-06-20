@@ -472,7 +472,7 @@ def _append_telemetry(
         predicted_file_count: Predicted file count.
     """
     try:
-        log_dir.mkdir(parents=True, exist_ok=True)
+        log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         log_path = log_dir / f"{date_str}.jsonl"
         entry = {
@@ -489,6 +489,7 @@ def _append_telemetry(
         }
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        os.chmod(log_path, 0o600)
     except Exception:  # noqa: BLE001 — telemetry MUST never raise
         # Silent: telemetry failures must not block the classifier.
         pass

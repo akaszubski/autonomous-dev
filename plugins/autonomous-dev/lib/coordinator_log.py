@@ -60,7 +60,7 @@ def _find_activity_log_dir(*, start_dir: Optional[Path] = None) -> Optional[Path
         if claude_dir.is_dir():
             log_dir = claude_dir / "logs" / "activity"
             try:
-                log_dir.mkdir(parents=True, exist_ok=True)
+                log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             except OSError:
                 return None
             return log_dir
@@ -126,6 +126,7 @@ def log_background_agent_completion(
     try:
         with open(log_file, "a") as f:
             f.write(json.dumps(entry) + "\n")
+        os.chmod(log_file, 0o600)
     except OSError:
         return None
 

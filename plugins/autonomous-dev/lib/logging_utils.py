@@ -9,6 +9,7 @@ Design Patterns:
 
 import json
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, Literal
@@ -47,7 +48,7 @@ class WorkflowLogger:
         if log_dir is None:
             log_dir = get_project_root() / ".claude" / "logs" / "workflows"
         self.log_dir = log_dir / workflow_id
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
         # Create log file for this agent
         self.log_file = self.log_dir / f"{agent_name}.log"
@@ -58,6 +59,10 @@ class WorkflowLogger:
 
         # File handler (detailed logs)
         file_handler = logging.FileHandler(self.log_file)
+        try:
+            os.chmod(self.log_file, 0o600)
+        except OSError:
+            pass
         file_handler.setLevel(logging.DEBUG)
         file_format = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -312,7 +317,7 @@ class WorkflowProgressTracker:
             log_dir = get_project_root() / ".claude" / "logs" / "workflows"
 
         self.progress_file = log_dir / workflow_id / "progress.json"
-        self.progress_file.parent.mkdir(parents=True, exist_ok=True)
+        self.progress_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
 
         # Initialize progress
         if not self.progress_file.exists():
@@ -348,6 +353,10 @@ class WorkflowProgressTracker:
         }
 
         self.progress_file.write_text(json.dumps(progress, indent=2))
+        try:
+            os.chmod(self.progress_file, 0o600)
+        except OSError:
+            pass
 
         # Also log to stdout for CLI visibility
         print(f"PROGRESS: {json.dumps(progress)}")

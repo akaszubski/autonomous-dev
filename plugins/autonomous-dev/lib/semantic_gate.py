@@ -39,6 +39,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -323,11 +324,12 @@ def _append_judge_log(log_dir: Path, entry: Dict[str, Any]) -> None:
         entry: One JSON-serializable record.
     """
     try:
-        log_dir.mkdir(parents=True, exist_ok=True)
+        log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         log_path = log_dir / f"{date_str}.jsonl"
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        os.chmod(log_path, 0o600)
     except Exception:  # noqa: BLE001 — audit MUST never raise
         pass
 
