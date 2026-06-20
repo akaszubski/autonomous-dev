@@ -271,18 +271,50 @@ Proceed with --[fix|light]? (reply "yes" to confirm, anything else runs the full
 
 **FORBIDDEN**: ❌ Silently switching mode without user confirmation. ❌ Prompting when a mode flag was explicitly specified. ❌ Blocking pipeline on ambiguous reply — default to FULL PIPELINE.
 
-**Issue Body Fetching** (single-issue mode only):
+**Issue Body Fetching** (single-issue and multi-issue modes):
 
 If ARGUMENTS contains an issue reference (`#NNN` or issue number), fetch the issue body for potential research reuse:
 
 ```bash
-ISSUE_NUMBER=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -1 | tr -d '#')
+# Extract all issue numbers (up to 10)
+ISSUE_NUMBERS=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -10 | tr -d '#')
+ISSUE_COUNT=$(echo "$ISSUE_NUMBERS" | wc -w)
+export ISSUE_COUNT
+
+# Export first issue number for downstream compatibility
+ISSUE_NUMBER=$(echo "$ISSUE_NUMBERS" | head -1)
 export ISSUE_NUMBER
-if [ -n "$ISSUE_NUMBER" ]; then
-  ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title,body 2>/dev/null)
-  if [ $? -eq 0 ]; then
-    ISSUE_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))")
-    ISSUE_BODY=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('body',''))")
+
+if [ "$ISSUE_COUNT" -eq 1 ]; then
+  # Single-issue mode (backward compatible)
+  if [ -n "$ISSUE_NUMBER" ]; then
+    ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title,body 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      ISSUE_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))")
+      ISSUE_BODY=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('body',''))")
+    fi
+  fi
+elif [ "$ISSUE_COUNT" -gt 1 ]; then
+  # Multi-issue mode: concatenate all issue bodies
+  ISSUE_BODY=""
+  for ISSUE_NUM in $ISSUE_NUMBERS; do
+    ISSUE_DATA=$(gh issue view "$ISSUE_NUM" --json title,body 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      THIS_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))")
+      THIS_BODY=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('body',''))")
+      ISSUE_BODY="${ISSUE_BODY}## Issue #${ISSUE_NUM}: ${THIS_TITLE}
+
+${THIS_BODY}
+
+"
+    fi
+  done
+  # ISSUE_TITLE remains from first issue for compatibility
+  if [ -n "$ISSUE_NUMBER" ]; then
+    ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --json title 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      ISSUE_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))")
+    fi
   fi
 fi
 ```
@@ -834,6 +866,15 @@ This step is performed inline by the coordinator. No agent is invoked for the fr
 If research came from the issue body (ISSUE_RESEARCH_HIT), prefix the research context with: "Research from GitHub Issue #$ISSUE_NUMBER:" followed by the extracted research sections from `detect_issue_research()`. The planner should treat this identically to merged research from STEP 4.
 
 **Agent**(subagent_type="planner", model="opus") — Pass merged research + feature description + PROJECT.md GOALS and SCOPE sections (verbatim). Read `.claude/PROJECT.md` and extract the GOALS section and SCOPE section (both IN Scope and OUT of Scope). Include them in the planner prompt as: "PROJECT.md GOALS: [verbatim text]. PROJECT.md SCOPE (In Scope): [verbatim items]. PROJECT.md SCOPE (Out of Scope): [verbatim items]. The plan MUST align with these scope boundaries." Output: file-by-file plan, dependencies, edge cases, testing strategy.
+
+**MULTI-ISSUE REQUIREMENTS (HARD GATE)**: When ISSUE_COUNT > 1, the planner prompt MUST include the following requirements text:
+
+> **MULTI-ISSUE REQUIREMENTS (HARD GATE)**: You are implementing {ISSUE_COUNT} issues: {ISSUE_NUMBERS}.
+> - You MUST include at least one file change for EACH issue number
+> - You MUST cite the specific issue number when addressing each requirement
+> - You MUST NOT substitute work from recent commits or ambient context
+> - If you cannot find evidence for an issue's requirements in the provided context, explicitly state: "Issue #{N}: Requirements unclear from provided context" rather than inferring
+> - Your plan's acceptance criteria MUST map to specific issue numbers
 
 **When `PRE_VALIDATED_PLAN_PATH` is set (detected in STEP 4.7)**: PREFIX the planner prompt with the following block BEFORE all other context:
 
