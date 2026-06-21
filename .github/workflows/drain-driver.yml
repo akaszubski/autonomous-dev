@@ -1,8 +1,7 @@
 name: Drain Driver
 
-# Primary continuous drainer — runs /implement --light on every fire if a
-# drainable cluster exists. Unlike drain-watchdog (which only fires on STUCK
-# conditions), this is the actual throughput engine.
+# Primary continuous drainer — runs /drain-queue on every fire to exercise all six safety guardrails.
+# Unlike drain-watchdog (which only fires on STUCK conditions), this is the actual throughput engine.
 #
 # Substrate rationale: cloud cron (claude.ai) lacks SlashCommand + gh CLI in
 # its session sandbox (telemetry confirmed 100% silent failure 06:02Z–20:02Z
@@ -10,7 +9,7 @@ name: Drain Driver
 # all tools, and claude-code-action@beta is the proven path (drain-watchdog
 # has produced 5 real autonomous closures over 7 days).
 #
-# Cadence: hourly. /implement --light averages ~10-15 min, so hourly cadence
+# Cadence: hourly. /drain-queue averages ~10-15 min, so hourly cadence
 # stays well clear of the 60-min runner budget and serializes cleanly via
 # concurrency. If yield is good and OAuth quota allows, can tighten to 30 min.
 
@@ -112,7 +111,7 @@ jobs:
 
   drain:
     needs: select
-    if: needs.select.outputs.cluster != ''
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -154,7 +153,7 @@ jobs:
             exit 1
           fi
 
-      - name: Drain via claude-code-action (runs /implement --light)
+      - name: Drain via /drain-queue
         continue-on-error: true
         uses: anthropics/claude-code-action@beta
         with:
@@ -165,32 +164,29 @@ jobs:
           allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand,Task"
           timeout_minutes: 50
           direct_prompt: |
-            You are the drain-driver continuous-drain session. Drive `/implement --light` on a pre-selected cluster from the auto-improvement backlog.
+            You are the drain-driver continuous-drain session.
 
-            **Pre-selected cluster**: `${{ needs.select.outputs.cluster }}` (comma-separated issue numbers)
             **Queue size at fire**: ${{ needs.select.outputs.queue_size }}
 
             ## Protocol
 
             1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly. Do NOT proceed.
 
-            2. **Invoke /implement --light** on the cluster:
+            2. **Invoke /drain-queue**:
                ```
-               /implement --issues ${{ needs.select.outputs.cluster }} --light
+               /drain-queue
                ```
-               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to agents. The session timeout is 50 min; if at minute 45 the pipeline is still running, finalize what's been done and report.
+               /drain-queue runs its own selection (STEP 3), applies all six safety guardrails, invokes /implement --issues internally, pushes, and logs to DrainHistory.jsonl. Do NOT invoke /implement directly. Do NOT pass --issues to /drain-queue (it has no such flag). Let the command run end-to-end. The session timeout is 50 min.
 
-            3. **After /implement returns**, verify the commit was pushed: `git fetch origin master && git log origin/master -1`. If unpushed commits exist locally, push them: `git push origin HEAD:master`.
-
-            4. **Verify closures**: for each `N` in the cluster, `gh issue view N --json state`. Report closure state.
+            3. **After /drain-queue returns**, report its outcome (PASS / STOP reason / BLOCKED-at-step).
 
             ## Constraints
 
-            - **Do NOT use `.claude/.bypass`** — this whole pipeline exists to USE the SDLC, not bypass it.
+            - **Do NOT invoke `/implement` directly** — all drain logic routes through `/drain-queue`.
+            - Do NOT use `.claude/.bypass`.
             - Do NOT run `bash scripts/deploy-all.sh` (no SSH from runner).
             - Do NOT commit local scratch (`.proposal`, `*.bak`, audit drafts).
-            - Do NOT push if /implement's test gate (STEP 8) failed — let it block and report.
 
             ## Final report (one paragraph)
 
-            Cluster: <numbers>. Pipeline outcome: PASS / BLOCKED-at-STEP-X / RAN-OUT-OF-TIME. Commit SHA pushed (if any). Issue closures verified. Wall-clock duration. Any agent crashes or retries.
+            /drain-queue outcome: PASS / STOP-reason / BLOCKED-at-STEP-X. Commit SHA pushed (if any). Issue closures verified. Wall-clock duration. Any agent crashes or retries.

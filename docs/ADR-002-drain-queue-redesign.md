@@ -11,7 +11,7 @@ covers:
 
 # ADR-002: Drain-Queue Redesign — Confidence-Based Autonomous Loop with Outcome Measurement
 
-**Status**: Proposed
+**Status**: Accepted (Phases A–B implemented; Phases C–D pending)
 **Date**: 2026-06-21
 **Tracker issue**: TBD (filed alongside this ADR)
 **Bug issues**: TBD × 4 (filed alongside this ADR — severity classifier, workflow bypass, watchdog self-loop, duplicate selector)
@@ -151,8 +151,8 @@ The redesign is complete when ALL of the following are true (each maps to a Phas
 
 - [ ] Phase A: queue size on a 7-day rolling window decreases.
 - [ ] Phase A: zero `[drain-stuck]` meta-issues filed in any 48-hour window.
-- [ ] Phase B: zero invocations of `/implement --light` from any workflow file — workflows MUST go through `/drain-queue`.
-- [ ] Phase B: `DrainHistory.jsonl` records at least 1 entry per workflow run (success or failure).
+- [x] Phase B: zero invocations of `/implement --light` from any workflow file — workflows MUST go through `/drain-queue`. _(Done — Issue #1274: both drain-driver.yml and drain-watchdog.yml now invoke `/drain-queue`; regression tests added in `tests/regression/smoke/test_drain_workflows_route_through_drain_queue.py`.)_
+- [ ] Phase B: `DrainHistory.jsonl` records at least 1 entry per workflow run (success or failure). _(Pending first successful live workflow run after Issue #1274 merge.)_
 - [ ] Phase C: `TriageFinding.confidence` field populated for 100% of clusters; `severity` is no longer in any drain gate condition.
 - [ ] Phase C: every successful drain has a `before_metrics` + `after_metrics` record.
 - [ ] Phase C: regression in test count → automatic revert with `drain-reverted` issue reopening, within 30 min.

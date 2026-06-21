@@ -6,7 +6,7 @@ name: Drain Watchdog
 #   - No new commit on master in 2h (single missed 2h cron fire = STUCK)
 #   - Open auto-improvement queue > 30 AND no non-watchdog issue closed in 3h
 #   - Latest CI conclusion = failure on autonomous commit
-# On STUCK: runs /implement --light via claude-code-action on a fresh runner
+# On STUCK: runs /drain-queue via claude-code-action on a fresh runner
 # (full pipeline overruns even the 60-min runner budget on hard clusters).
 
 on:
@@ -185,7 +185,7 @@ jobs:
     # continue-on-error so a missing secret or a transient action failure does
     # not turn the whole watchdog workflow red — the alert issue from the
     # check job is the durable signal.
-    if: needs.check.outputs.stuck == 'true' && needs.check.outputs.cluster != ''
+    if: needs.check.outputs.stuck == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -253,7 +253,7 @@ jobs:
             echo "auth_mode=apikey" >> "$GITHUB_ENV"
             echo "Auth: ANTHROPIC_API_KEY (pay-per-use)"
           fi
-      - name: Auto-heal via claude-code-action (runs /implement)
+      - name: Auto-heal via claude-code-action (runs /drain-queue)
         if: env.stuck_no_heal != 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@beta
@@ -265,37 +265,34 @@ jobs:
           allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,SlashCommand,Task"
           timeout_minutes: 60
           direct_prompt: |
-            You are the drain-watchdog auto-heal session. The autonomous /drain-queue loop has been stuck.
+            You are the drain-watchdog auto-heal session. The autonomous drain loop has been stuck.
 
-            **Pre-selected cluster**: `${{ needs.check.outputs.cluster }}` (comma-separated issue numbers)
             **Reason for stuck**: ${{ needs.check.outputs.reason }}
             **Routine ID**: `trig_017bMGfV3qAJoYvYaaHwBxU9`
 
             ## Environment
 
-            The autonomous-dev plugin has been installed at `~/.claude/` by the workflow before this step ran. The slash commands `/implement`, `/drain-queue`, `/triage`, etc., are registered. The repo is checked out at `$GITHUB_WORKSPACE`.
+            The autonomous-dev plugin has been installed at `~/.claude/` by the workflow before this step ran. The slash commands `/drain-queue`, `/implement`, `/triage`, etc., are registered. The repo is checked out at `$GITHUB_WORKSPACE`.
 
             ## Protocol — follow exactly
 
             1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly with a "bypass active" message. Do NOT proceed.
 
-            2. **Invoke /implement --light on the pre-selected cluster** — light mode (5 steps, 4 agents) fits the 60-min runner budget reliably; full mode (15 steps, 8 agents) often overruns and dies silently — that's why we're here:
+            2. **Invoke /drain-queue**:
                ```
-               /implement --issues ${{ needs.check.outputs.cluster }} --light
+               /drain-queue
                ```
-               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. If the cluster is genuinely security-sensitive (auth/token/encryption/migrations files), drop the `--light` flag and let the full pipeline run; otherwise --light is preferred. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
+               /drain-queue runs its own selection (STEP 3), applies all six safety guardrails (budget, circuit-breaker, pause-flag, tag gate, cluster-size, push verification), invokes /implement --issues internally, pushes, and logs to DrainHistory.jsonl. Do NOT invoke /implement directly. Do NOT pass --issues to /drain-queue (it has no such flag). Let the command run end-to-end. The session timeout is 60 min.
 
-            3. **After /implement returns**, verify the commit was actually pushed: `git fetch origin master && git log origin/master -1`. The pipeline's STEP 13 normally pushes; if the worktree has unpushed commits, push them: `git push origin HEAD:master`.
-
-            4. **Verify closure**: for each `N` in the cluster, run `gh issue view N --json state` and report. Issues should be CLOSED via the `Closes #N` lines that /implement STEP 12.7 auto-injects (#1226 wired this).
+            3. **After /drain-queue returns**, report its outcome.
 
             ## Critical constraints
 
-            - **Do NOT use `.claude/.bypass`** (the universal escape hatch) unless `/implement` itself is genuinely stuck in a loop on something that is truly outside SDLC scope. The whole point of this auto-heal is to USE the SDLC, not bypass it.
+            - **Do NOT invoke `/implement` directly** — all drain logic routes through `/drain-queue`.
+            - Do NOT use `.claude/.bypass` unless `/drain-queue` itself is stuck in a loop on something genuinely outside SDLC scope.
             - Do NOT run `bash scripts/deploy-all.sh` — this runner has no SSH to other machines.
             - Do NOT commit `.proposal`, `audit drafts`, `*.bak`, or other local scratch.
-            - Do NOT push if /implement's test gate (STEP 8) failed; let the pipeline block and report.
 
             ## Final report (one paragraph)
 
-            Cluster pre-selected, /implement pipeline outcome (PASS / BLOCKED-at-STEP-X / RAN-OUT-OF-TIME), commit SHA pushed (if any), issue closures verified (list), wall-clock duration, any agents that crashed or required retry.
+            /drain-queue outcome (PASS / STOP-reason / BLOCKED-at-STEP-X), commit SHA pushed (if any), issue closures verified (list), wall-clock duration, any agents that crashed or required retry.
