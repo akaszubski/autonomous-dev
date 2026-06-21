@@ -271,6 +271,24 @@ def main():
     sys.exit(0)
 
 
+def _extract_file_paths(text: str) -> list[str]:
+    """Extract file paths with specific extensions from text.
+    
+    Returns deduplicated list of paths in order of first appearance.
+    Caps path length at 512 chars to prevent ReDoS.
+    """
+    if not isinstance(text, str) or not text:
+        return []
+    
+    # Conservative regex with bounded repetition to prevent ReDoS
+    # Matches path-like tokens ending in target extensions
+    pattern = r'(?<![\w./-])([\w./-]{1,512}\.(?:py|md|json|yaml|yml|sh))(?![\w./-])'
+    matches = re.findall(pattern, text)
+    
+    # Deduplicate while preserving order
+    return list(dict.fromkeys(matches))
+
+
 def _summarize_input(tool_name: str, tool_input: dict) -> dict:
     """Create a compact summary of tool input (no full content)."""
     summary = {}
@@ -313,6 +331,13 @@ def _summarize_input(tool_name: str, tool_input: dict) -> dict:
         # Word count for intent validation (Issue #367)
         prompt_text = tool_input.get("prompt", "")
         summary["prompt_word_count"] = len(prompt_text.split()) if isinstance(prompt_text, str) else 0
+        
+        # Issue #1280: Extract file paths for security-auditor and doc-master
+        if summary["subagent_type"] in ("security-auditor", "doc-master"):
+            paths = _extract_file_paths(prompt_text)
+            summary["prompt_file_count"] = len(paths)
+            summary["prompt_file_paths"] = paths
+        
         # Batch context detection (Issue #526)
         if isinstance(prompt_text, str) and "BATCH CONTEXT" in prompt_text:
             summary["batch_mode"] = True
