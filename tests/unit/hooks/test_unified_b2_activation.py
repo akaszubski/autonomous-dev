@@ -602,3 +602,42 @@ class TestNoEnforceReferences:
         # If the hook can locate it (via lib path), the symbol exists in the
         # classifier module.
         assert hasattr(etc, "classify_edit_tier")
+
+
+# ===========================================================================
+# Issue #1152: No duplicate opt-out hints
+# ===========================================================================
+
+
+class TestNoDuplicateOptOutHints:
+    """Regression test for Issue #1152: opt-out hint appears only once."""
+    
+    def test_write_denial_has_single_opt_out_hint(self, tmp_path, monkeypatch, capsys):
+        """Write/Edit denial reason must contain exactly one opt-out hint."""
+        # Run from a directory that has NO `.claude/.bypass` marker
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("AUTONOMOUS_DEV_BYPASS", raising=False)
+        
+        # Make pipeline inactive to trigger the deny path
+        _make_pipeline_inactive(monkeypatch)
+        
+        # Create a substantial edit that will trigger full tier
+        new_content = "class NewThing:\n" + "\n".join(f"    x_{i} = {i}" for i in range(120))
+        
+        result = _run_main_with_tool(
+            "Write", 
+            {"file_path": "/repo/src/models.py", "content": new_content},
+            monkeypatch, 
+            capsys,
+        )
+        
+        assert result["permissionDecision"] == "deny", (
+            f"Write to code file without pipeline must deny. Got: {result!r}"
+        )
+        
+        reason = result.get("permissionDecisionReason", "")
+        opt_out_count = reason.count("Per-repo opt-out: touch .claude/.bypass && git commit.")
+        assert opt_out_count == 1, (
+            f"Opt-out hint must appear exactly ONCE in denial reason (Issue #1152). "
+            f"Found {opt_out_count} occurrences in: {reason!r}"
+        )

@@ -2286,7 +2286,6 @@ def _check_write_pipeline_required(
         flag = ""
     directive = (
         f"Run /implement {flag}\"<brief description of change to {file_name}>\". "
-        f"Per-repo opt-out: touch .claude/.bypass && git commit. "
         f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
     )
     if escalated_by_sliding_window:
@@ -2424,7 +2423,6 @@ def _check_bash_code_file_pipeline_required(
     directive = (
         f"Run /implement {flag}\"<brief description of change to {basename}>\" "
         f"instead of Bash-writing to code files (pattern: {pattern}). "
-        f"Per-repo opt-out: touch .claude/.bypass && git commit. "
         f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
     )
     return (True, tier, directive, target)
@@ -6582,7 +6580,7 @@ def main():
                                 cwd = os.getcwd()
                                 if _is_batch_context(cwd):
                                     if os.environ.get("SKIP_BATCH_CIA_GATE", "").strip().lower() not in ("1", "true", "yes"):
-                                        _batch_cia_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
+                                        _batch_cia_session_id = _resolve_session_id_safe(_session_id) or _session_id
                                         _batch_cia_result = _check_batch_cia_completions(_batch_cia_session_id)
                                         if _batch_cia_result is not None:
                                             _log_pretool_activity(tool_name, tool_input, "deny", _batch_cia_result)
@@ -6612,7 +6610,7 @@ def main():
                                 cwd = os.getcwd()
                                 if _is_batch_context(cwd):
                                     if os.environ.get("SKIP_BATCH_DOC_MASTER_GATE", "").strip().lower() not in ("1", "true", "yes"):
-                                        _batch_dm_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
+                                        _batch_dm_session_id = _resolve_session_id_safe(_session_id) or _session_id
                                         _batch_dm_result = _check_batch_doc_master_completions(_batch_dm_session_id)
                                         if _batch_dm_result is not None:
                                             _log_pretool_activity(tool_name, tool_input, "deny", _batch_dm_result)
@@ -6671,7 +6669,7 @@ def main():
                                 if _skip_gate_via_env:
                                     _log_pretool_activity(tool_name, tool_input, "allow", "bypass: SKIP_AGENT_COMPLETENESS_GATE set in process environment")
                                 if not _skip_gate_via_env and not _skip_gate_via_file and not _skip_gate_via_command:
-                                    _agent_gate_session_id = os.environ.get("CLAUDE_SESSION_ID", _session_id)
+                                    _agent_gate_session_id = _resolve_session_id_safe(_session_id) or _session_id
                                     cwd = os.getcwd()
                                     if _is_batch_context(cwd):
                                         # Batch mode: check all issues in the state file
