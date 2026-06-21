@@ -7,8 +7,9 @@ work in Issue #1172 — it catches the case where a plan was previously
 validated but the referenced files have since been moved, renamed, or
 deleted.
 
-The module exports two pure functions with no side effects, no logging, and
-no global state:
+The module exports two pure functions with no side effects (debug-level
+diagnostic logging is permitted for MAX_PATHS truncation and path traversal
+rejection) and no global state:
 
 - `extract_referenced_paths(plan_content)` — parse a plan markdown blob and
   return a deduplicated, sorted list of file-path-like tokens.
@@ -113,6 +114,7 @@ def verify_paths_exist(paths: list[str], repo_root: Path) -> list[str]:
         try:
             resolved.relative_to(repo_root_resolved)
         except ValueError:
+            logger.debug("Path traversal rejected: %r escapes repo_root", path_str)
             missing.append(path_str)
             continue
         if not resolved.exists():

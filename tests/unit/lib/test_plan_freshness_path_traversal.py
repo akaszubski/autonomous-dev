@@ -114,3 +114,33 @@ def test_legitimate_in_root_absolute_path_resolves(tmp_path: Path) -> None:
         f"Legitimate in-root absolute path must NOT be reported missing. "
         f"Got {missing!r}"
     )
+
+
+def test_traversal_rejection_logged(tmp_path: Path, caplog) -> None:
+    """Issue #1219: verify debug log is emitted when path traversal is rejected.
+
+    When `verify_paths_exist` rejects a path for escaping repo_root via
+    `relative_to()` raising ValueError, it should emit a debug log message
+    containing the rejected path for incident investigation.
+    """
+    import logging
+    
+    # Enable debug logging for the plan_freshness module
+    caplog.set_level(logging.DEBUG, logger="plan_freshness")
+    
+    # Use a path that will traverse outside repo_root
+    traversal_path = "../../etc/passwd"
+    missing = verify_paths_exist([traversal_path], tmp_path)
+    
+    # Behavior preserved: path is reported as missing
+    assert traversal_path in missing, f"Path should be reported as missing, got {missing!r}"
+    
+    # Debug log should be emitted
+    debug_messages = [r.message for r in caplog.records if r.levelno == logging.DEBUG]
+    assert any("traversal rejected" in msg.lower() for msg in debug_messages), (
+        f"Expected 'traversal rejected' in debug logs, got: {debug_messages}"
+    )
+    # Verify the path is included in the debug message
+    assert any(traversal_path in msg for msg in debug_messages), (
+        f"Expected path '{traversal_path}' in debug logs, got: {debug_messages}"
+    )
