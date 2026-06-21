@@ -174,8 +174,8 @@ Pending Phase C completion.
 
 The redesign is complete when ALL of the following are true (each maps to a Phase):
 
-- [ ] Phase A: queue size on a 7-day rolling window decreases.
-- [ ] Phase A: zero `[drain-stuck]` meta-issues filed in any 48-hour window.
+- [ ] Phase A: queue size on a 7-day rolling window decreases. *(BLOCKED by Phase B — see #1274; code shipped but operational flow bypassed.)*
+- [ ] Phase A: zero `[drain-stuck]` meta-issues filed in any 48-hour window. *(BLOCKED by Phase B — see #1274.)*
 - [ ] Phase B: zero invocations of `/implement --light` from any workflow file — workflows MUST go through `/drain-queue`.
 - [ ] Phase B: `DrainHistory.jsonl` records at least 1 entry per workflow run (success or failure).
 - [ ] Phase C: `TriageFinding.confidence` field populated for 100% of clusters; `severity` is no longer in any drain gate condition.
