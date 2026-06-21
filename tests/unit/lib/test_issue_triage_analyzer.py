@@ -22,6 +22,7 @@ from issue_triage_analyzer import (  # noqa: E402
     SEVERITY_WEIGHTS,
     STOPWORDS,
     TriageFinding,
+    _infer_confidence,
     _infer_severity,
     _recency_decay,
     cluster_within_tag,
@@ -168,12 +169,61 @@ class TestExtractSharedFiles:
 
 class TestInferSeverity:
     def test_severity_keywords(self):
-        assert _infer_severity([{"name": "security"}]) == "high"
+        # Issue #1273: "security" label no longer maps to "high" (tag_gate independently blocks).
+        assert _infer_severity([{"name": "security"}]) == "low"
         assert _infer_severity([{"name": "p0"}]) == "high"
         assert _infer_severity([{"name": "bug"}]) == "medium"
         assert _infer_severity([{"name": "regression"}]) == "medium"
         assert _infer_severity([{"name": "documentation"}]) == "low"
         assert _infer_severity([]) == "low"
+
+    def test_security_only_returns_low(self):
+        """security-only label no longer raises severity to high (Issue #1273)."""
+        assert _infer_severity([{"name": "security"}]) == "low"
+
+    def test_security_plus_critical_returns_high(self):
+        """critical wins when combined with security."""
+        assert _infer_severity([{"name": "security"}, {"name": "critical"}]) == "high"
+
+    def test_security_plus_bug_returns_medium(self):
+        """bug wins when combined with security (medium > low)."""
+        assert _infer_severity([{"name": "security"}, {"name": "bug"}]) == "medium"
+
+    def test_string_label_normalization_security(self):
+        """Plain string label 'security' (not dict) still returns 'low'."""
+        assert _infer_severity(["security"]) == "low"
+
+
+# =============================================================================
+# _infer_confidence
+# =============================================================================
+
+
+class TestInferConfidence:
+    def test_high_keyword_gives_full_confidence(self):
+        """p0 label with high severity gives confidence 1.0."""
+        assert _infer_confidence([{"name": "p0"}], "high") == 1.0
+
+    def test_medium_keyword_gives_full_confidence(self):
+        """bug label with medium severity gives confidence 1.0."""
+        assert _infer_confidence([{"name": "bug"}], "medium") == 1.0
+
+    def test_low_default_gives_zero_confidence(self):
+        """documentation label produces low severity → confidence 0.0."""
+        assert _infer_confidence([{"name": "documentation"}], "low") == 0.0
+
+    def test_empty_labels_gives_zero(self):
+        """Empty labels always yield confidence 0.0."""
+        assert _infer_confidence([], "high") == 0.0
+
+    def test_string_labels_normalized(self):
+        """Plain string labels work the same as dict labels."""
+        assert _infer_confidence(["bug"], "medium") == 1.0
+        assert _infer_confidence(["documentation"], "low") == 0.0
+
+    def test_security_only_confidence_zero(self):
+        """security-only produces low severity, so confidence is 0.0 (Issue #1273)."""
+        assert _infer_confidence([{"name": "security"}], "low") == 0.0
 
 
 # =============================================================================
@@ -252,6 +302,37 @@ class TestTriageFinding:
         # frozen=True so attribute assignment must raise.
         with pytest.raises(Exception):
             f.cluster_size = 99
+
+    def test_confidence_default_and_explicit(self):
+        """confidence defaults to 0.0 and can be set explicitly."""
+        f_default = TriageFinding(
+            root_cause_tag="CI",
+            sub_cluster_id=1,
+            issue_numbers=(1,),
+            issue_titles=("test",),
+            cluster_size=1,
+            severity="low",
+            rank_score=1.0,
+            shared_files=(),
+            dependency_notes=(),
+            suggested_fix_order=1,
+        )
+        assert f_default.confidence == 0.0
+
+        f_explicit = TriageFinding(
+            root_cause_tag="CI",
+            sub_cluster_id=1,
+            issue_numbers=(1,),
+            issue_titles=("test",),
+            cluster_size=1,
+            severity="high",
+            rank_score=2.0,
+            shared_files=(),
+            dependency_notes=(),
+            suggested_fix_order=1,
+            confidence=0.9,
+        )
+        assert f_explicit.confidence == 0.9
 
 
 # =============================================================================

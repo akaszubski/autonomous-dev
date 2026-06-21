@@ -59,7 +59,9 @@ PATH_REGEX = re.compile(r"(?:[a-zA-Z0-9_\-./]+/)+[a-zA-Z0-9_\-]+\.(?:py|md|sh|js
 TAG_REGEX = re.compile(r"^\s*\[([^\]]+)\]")
 
 # Severity classifications by label name substring.
-HIGH_LABEL_KEYWORDS = ("critical", "security", "p0")
+HIGH_LABEL_KEYWORDS = ("critical", "p0")
+# Note: tag_gate() in drain_queue_state.py independently blocks security-labeled
+# clusters via HUMAN_GATE_TAGS (Issue #1273 fixes severity inference only).
 MEDIUM_LABEL_KEYWORDS = ("bug", "regression", "p1")
 
 DEFAULT_REPO = "akaszubski/autonomous-dev"
@@ -93,6 +95,9 @@ class TriageFinding:
         dependency_notes: Sorted lexicographic tuple of free-form notes describing
             cross-cluster dependencies.
         suggested_fix_order: 1-indexed global order after sorting by ``rank_score`` DESC.
+        confidence: A heuristic score in [0.0, 1.0] reflecting how well the label set maps
+            to the inferred severity. 0.0 = no signal (default/fallback), 1.0 = exact match
+            against HIGH_LABEL_KEYWORDS.
     """
 
     root_cause_tag: str
@@ -105,6 +110,7 @@ class TriageFinding:
     shared_files: Tuple[str, ...]
     dependency_notes: Tuple[str, ...]
     suggested_fix_order: int
+    confidence: float = 0.0
 
 
 # =============================================================================
@@ -341,6 +347,7 @@ def merge_compatible_singletons(
                     shared_files=(),
                     dependency_notes=(),
                     suggested_fix_order=0,
+                    confidence=0.0,  # Phase A: super-cluster confidence is 0.0; refined in Phase C.
                 )
                 result.append(super_cluster)
                 super_cluster_counter += 1
@@ -405,9 +412,16 @@ def _infer_severity(labels: List[Dict[str, Any]]) -> str:
         labels: List of label dicts from the gh CLI (each dict has a ``"name"`` key).
 
     Returns:
-        ``"high"`` if any label contains ``critical``, ``security``, or ``p0``.
+        ``"high"`` if any label contains ``critical`` or ``p0``.
         ``"medium"`` if any label contains ``bug``, ``regression``, or ``p1``.
         Otherwise ``"low"``.
+
+    Note:
+        Removing ``security`` from HIGH_LABEL_KEYWORDS corrects severity inference but
+        does NOT make security-labeled clusters auto-drainable. The ``tag_gate()`` in
+        ``drain_queue_state.py`` independently blocks any cluster whose labels intersect
+        ``HUMAN_GATE_TAGS`` (which includes ``"security"`` and ``"security-advisory"``).
+        Auto-drain eligibility for security clusters is Phase B/C work (Issue #1273).
     """
     if not labels:
         return "low"
@@ -427,6 +441,43 @@ def _infer_severity(labels: List[Dict[str, Any]]) -> str:
         if kw in joined:
             return "medium"
     return "low"
+
+
+def _infer_confidence(labels: List[Dict[str, Any]], severity: str) -> float:
+    """Compute a heuristic confidence score in [0.0, 1.0] for the inferred severity.
+
+    Uses the same dict-vs-string normalization pattern as :func:`_infer_severity`.
+
+    Args:
+        labels: List of label dicts from the gh CLI (each dict has a ``"name"`` key),
+            or plain strings.
+        severity: The already-inferred severity string (``"high"``, ``"medium"``, or ``"low"``).
+
+    Returns:
+        ``1.0`` if severity is ``"high"`` or ``"medium"`` AND any label directly matches
+        a keyword in the corresponding keyword tuple. ``0.0`` if severity is ``"low"``,
+        labels are empty, or no direct keyword match was found.
+    """
+    if not labels or severity == "low":
+        return 0.0
+    names = []
+    for entry in labels:
+        if isinstance(entry, dict):
+            name = entry.get("name")
+        else:
+            name = entry
+        if isinstance(name, str):
+            names.append(name.lower())
+    joined = " ".join(names)
+    if severity == "high":
+        for kw in HIGH_LABEL_KEYWORDS:
+            if kw in joined:
+                return 1.0
+    elif severity == "medium":
+        for kw in MEDIUM_LABEL_KEYWORDS:
+            if kw in joined:
+                return 1.0
+    return 0.0
 
 
 def _aggregate_severity(severities: Sequence[str]) -> str:
@@ -587,6 +638,12 @@ def _build_finding(
 
     rank_score = compute_rank_score(len(ordered), severity_weight, recency)
 
+    # Compute confidence from the flattened labels across all issues in the cluster.
+    all_labels: List[Any] = []
+    for issue in ordered:
+        all_labels.extend(issue.get("labels", []))
+    confidence = _infer_confidence(all_labels, severity)
+
     return TriageFinding(
         root_cause_tag=root_cause_tag,
         sub_cluster_id=sub_cluster_id,
@@ -598,6 +655,7 @@ def _build_finding(
         shared_files=shared_files,
         dependency_notes=tuple(sorted(cross_cluster_notes)),
         suggested_fix_order=0,
+        confidence=confidence,
     )
 
 
@@ -714,6 +772,7 @@ def _triage_from_issues(
                     shared_files=f.shared_files,
                     dependency_notes=notes,
                     suggested_fix_order=0,
+                    confidence=f.confidence,
                 )
             )
         findings = annotated
@@ -736,6 +795,7 @@ def _triage_from_issues(
                 shared_files=f.shared_files,
                 dependency_notes=f.dependency_notes,
                 suggested_fix_order=idx,
+                confidence=f.confidence,
             )
         )
     return ordered

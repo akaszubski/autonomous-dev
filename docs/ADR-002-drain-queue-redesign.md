@@ -114,7 +114,7 @@ Sequenced so each PR is independently shippable and the system is at least as fu
 
 Targeted bug fixes that restore minimal throughput without architectural change. Without this, no further work has anything to measure.
 
-- **Fix severity classifier**: drop `security` from `HIGH_LABEL_KEYWORDS`. Add explicit `confidence:high|medium|low` label support (no-op for now; sets up Phase C). Update `_infer_severity` docstring + unit tests.
+- **Fix severity classifier**: drop `security` from `HIGH_LABEL_KEYWORDS`. Add `confidence: float = 0.0` field to `TriageFinding` and `_infer_confidence()` helper (Phase A groundwork — populates confidence from existing label keywords; operator `confidence:high|medium|low` label override and body-content heuristics are Phase C). Update `_infer_severity` docstring + unit tests.
 - **Fix watchdog self-loop**: change watchdog meta-issue labels from `drain-stuck,auto-improvement` to `drain-stuck` only. Update `drain-watchdog.yml` lines 168-169. Selector already excludes `[drain-stuck]` by title prefix; the label change prevents queue inflation.
 - **No selector unification yet** — Phase B handles that. Phase A keeps the duplicated logic for now (the duplication is annoying but stable).
 
@@ -130,7 +130,7 @@ Targeted bug fixes that restore minimal throughput without architectural change.
 
 ### Phase C — Confidence model + outcome measurement (1-2 weeks, 3-4 PRs)
 
-- Add `confidence` field to `TriageFinding`. Initial heuristic: high if issue body contains a literal `Acceptance Criteria` section + a `Proposed fix` section; medium if either present; low otherwise. Operator override via `confidence:*` label.
+- Populate `TriageFinding.confidence` with real heuristics (field already added in Phase A). Full heuristic: high if issue body contains a literal `Acceptance Criteria` section + a `Proposed fix` section; medium if either present; low otherwise. Operator override via `confidence:*` label replaces Phase A keyword-match approach.
 - Replace `AUTO_DRAINABLE_SEVERITY` with `AUTO_DRAINABLE_CONFIDENCE_THRESHOLD = 0.80`.
 - Add before/after measurement: capture `pytest --co -q` count + coverage % at `PIPELINE_BASE_COMMIT`. Re-measure after drain commit. Diff → DrainHistory record.
 - Add auto-revert: if regression detected AND no fix commit within 30 min, `git revert` the drain commit and reopen issues with `drain-reverted` label + ping operator.

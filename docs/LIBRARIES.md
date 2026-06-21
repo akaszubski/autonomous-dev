@@ -16043,6 +16043,7 @@ A single root-cause cluster of related auto-improvement issues.
 - `shared_files: Tuple[str, ...]` — Sorted file paths mentioned in 2+ issue bodies
 - `dependency_notes: Tuple[str, ...]` — Sorted notes describing cross-cluster dependencies
 - `suggested_fix_order: int` — 1-indexed global rank after sorting by `rank_score` DESC
+- `confidence: float` — Heuristic score in `[0.0, 1.0]` reflecting how well the label set maps to the inferred severity; `0.0` when no signal is available (default); `1.0` when an exact keyword match for `HIGH_LABEL_KEYWORDS` or `MEDIUM_LABEL_KEYWORDS` is found. Populated by `_infer_confidence()` (Phase A groundwork; Phase C will replace with body-content heuristics and operator label overrides). `security`-labeled clusters default to `0.0` here — they remain blocked by `tag_gate()` in `drain_queue_state.py` independently (Issue #1273).
 
 ### Public API
 
@@ -16088,7 +16089,7 @@ print(format_report(findings, health))
 ```
 
 **Testing**:
-- `tests/unit/lib/test_issue_triage_analyzer.py` — 21 unit tests
+- `tests/unit/lib/test_issue_triage_analyzer.py` — 32 unit tests (11 added by Issue #1273: `TestInferSeverity` security-keyword removal + `TestInferConfidence` class with 6 methods + `test_confidence_default_and_explicit`)
 - `tests/integration/test_triage_command.py` — 10 integration tests
 - `tests/structural/test_triage_command_structure.py` — 4 structural tests
 - `tests/fixtures/triage/seeded_queue.json` — 11 seeded issues for deterministic integration tests
