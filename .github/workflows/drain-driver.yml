@@ -194,3 +194,14 @@ jobs:
             ## Final report (one paragraph)
 
             Cluster: <numbers>. Pipeline outcome: PASS / BLOCKED-at-STEP-X / RAN-OUT-OF-TIME. Commit SHA pushed (if any). Issue closures verified. Wall-clock duration. Any agent crashes or retries.
+
+      - name: Ping healthchecks.io (dead-man's-switch)
+        if: always()
+        run: |
+          # Dead-man's-switch: any workflow run (success or failure) pings
+          # healthchecks.io. If no ping for 60 min + 30 min grace = 90 min,
+          # healthchecks emails operator (drain-driver has stopped firing).
+          # Mac Studio launchd cron is the primary keep-alive; this alert
+          # only fires when BOTH GH schedule AND Mac Studio cron fail.
+          curl -fsS -m 10 --retry 3 -o /dev/null \
+            "${{ secrets.HEALTHCHECK_DRAIN_DRIVER }}" || true
