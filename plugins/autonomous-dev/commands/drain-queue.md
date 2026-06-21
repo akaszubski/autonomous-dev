@@ -664,6 +664,43 @@ print(
 PY
 ```
 
+## Coordinator Bypass of plan-critic
+
+When the coordinator classifies an issue as a "mechanical extension" and decides to skip plan-critic, it MUST record the bypass for audit trail purposes. This involves two function calls:
+
+1. Record the skip in pipeline state with the bypass reason
+2. Write a machine-readable verdict file for CIA and other consumers
+
+Example code for the coordinator:
+
+```python
+from plugins.autonomous_dev.lib.pipeline_completion_state import (
+    record_plan_critic_skipped,
+    write_coordinator_bypass_verdict
+)
+
+# When bypassing plan-critic for mechanical extension
+issue_number = 1279
+bypass_reason = "mechanical extension: adding test coverage"
+plan_summary = "Add regression tests for coordinator bypass logging"
+
+# Record in pipeline state
+record_plan_critic_skipped(
+    session_id, 
+    issue_number=issue_number,
+    bypass_reason=bypass_reason
+)
+
+# Write the verdict file for audit trail
+write_coordinator_bypass_verdict(
+    issue_number,
+    bypass_reason,
+    plan_summary=plan_summary
+)
+```
+
+The verdict file at `.claude/plan_critic_verdict.json` will contain a `"COORDINATOR_BYPASS"` verdict with structured metadata, allowing CIA to distinguish intentional skips from missed invocations.
+
 ## Notes for maintainers
 
 * **STEP 6 delegates to `/implement --issues`** (see `commands/implement-batch.md`).
