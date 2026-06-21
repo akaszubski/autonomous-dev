@@ -59,7 +59,7 @@ PATH_REGEX = re.compile(r"(?:[a-zA-Z0-9_\-./]+/)+[a-zA-Z0-9_\-]+\.(?:py|md|sh|js
 TAG_REGEX = re.compile(r"^\s*\[([^\]]+)\]")
 
 # Severity classifications by label name substring.
-HIGH_LABEL_KEYWORDS = ("critical", "security", "p0")
+HIGH_LABEL_KEYWORDS = ("critical", "p0")  # security is a topic label, not a severity signal
 MEDIUM_LABEL_KEYWORDS = ("bug", "regression", "p1")
 
 DEFAULT_REPO = "akaszubski/autonomous-dev"
@@ -405,9 +405,11 @@ def _infer_severity(labels: List[Dict[str, Any]]) -> str:
         labels: List of label dicts from the gh CLI (each dict has a ``"name"`` key).
 
     Returns:
-        ``"high"`` if any label contains ``critical``, ``security``, or ``p0``.
+        ``"high"`` if any label contains ``critical`` or ``p0``.
         ``"medium"`` if any label contains ``bug``, ``regression``, or ``p1``.
         Otherwise ``"low"``.
+        
+    Note: ``security`` is a topic/area label, not a severity signal.
     """
     if not labels:
         return "low"

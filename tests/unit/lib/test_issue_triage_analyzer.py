@@ -168,12 +168,17 @@ class TestExtractSharedFiles:
 
 class TestInferSeverity:
     def test_severity_keywords(self):
-        assert _infer_severity([{"name": "security"}]) == "high"
+        assert _infer_severity([{"name": "security"}]) == "low"
         assert _infer_severity([{"name": "p0"}]) == "high"
+        assert _infer_severity([{"name": "critical"}]) == "high"
         assert _infer_severity([{"name": "bug"}]) == "medium"
         assert _infer_severity([{"name": "regression"}]) == "medium"
         assert _infer_severity([{"name": "documentation"}]) == "low"
         assert _infer_severity([]) == "low"
+        
+        # Combined cases: security with actual severity labels
+        assert _infer_severity([{"name": "security"}, {"name": "critical"}]) == "high"
+        assert _infer_severity([{"name": "security"}, {"name": "p0"}]) == "high"
 
 
 # =============================================================================
