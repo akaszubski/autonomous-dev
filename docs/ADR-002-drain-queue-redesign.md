@@ -145,6 +145,31 @@ Targeted bug fixes that restore minimal throughput without architectural change.
 
 ---
 
+## Implementation Progress
+
+This section tracks rolling progress against the Migration Plan phases above.
+
+### Phase A — Unblock the Queue (COMPLETE)
+
+- Issue #1273 (severity classifier) — CLOSED. Fix landed at `plugins/autonomous-dev/lib/issue_triage_analyzer.py:62` where `HIGH_LABEL_KEYWORDS = ("critical", "p0")` excludes `security`. The docstring at line 412 confirms: "security is a topic/area label, not a severity signal".
+- Issue #1275 (watchdog self-loop) — CLOSED.
+- Exit criterion ("queue size starts decreasing autonomously within 24h") status: **NOT MET** — despite both Phase A fixes shipping, the queue remains at 32+ open `auto-improvement` issues and the watchdog continues filing `[drain-stuck]` meta-issues (5+ in the last 3 days). Phase A surfaced the deeper Phase B blockers: the workflows bypass `/drain-queue` entirely (#1274), so the Phase A fixes do not flow through to operational behaviour. Phase B is now the critical path.
+
+### Phase B — Unify selector + route workflows (IN PROGRESS)
+
+- Issue #1274 (workflows bypass `/drain-queue`) — OPEN
+- Issue #1276 (selector duplication) — OPEN
+
+### Phase C — Confidence model + outcome measurement (NOT STARTED)
+
+Pending Phase B completion.
+
+### Phase D — Cleanup and documentation (NOT STARTED)
+
+Pending Phase C completion.
+
+---
+
 ## Acceptance Criteria for the Full Redesign
 
 The redesign is complete when ALL of the following are true (each maps to a Phase):
