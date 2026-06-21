@@ -352,7 +352,8 @@ class SyncValidator:
             List of file path strings found in hook commands.
         """
         paths = []
-        path_pattern = re.compile(r'[\w./~-]+\.(py|sh)')
+        # Bounded regex to prevent ReDoS (Issue #1222)
+        path_pattern = re.compile(r'[\w./~-]{1,512}\.(py|sh)')
 
         for event_name, entries in hooks.items():
             if not isinstance(entries, list):

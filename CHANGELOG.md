@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 
+### Security
+- **ReDoS hardening in `sync_validator.py` path regex** (Issue #1222): The path validation regex in `sync_validator._validate_hook_file()` line 355 previously used an unbounded `+` quantifier on the `[\w./~-]` character class. An adversarial input could cause superlinear regex-engine scanning time. Fix bounds the character-class run to `{1,512}` to prevent ReDoS attacks, following the same defensive pattern established in Issues #1194, #1220, and #1221. The public API is unchanged — paths exceeding 512 characters (extremely rare in practice) are now rejected. Added 3 regression tests in `tests/unit/lib/test_sync_validator_regex_bound.py` covering: no-match on 100 KB adversarial pad, inclusive upper bound (512-char path matches), and typical short paths still match. (CWE-1333)
+
 ### Changed
 - **ADR-002 Phase A completion criterion added** (Issue #1277): Added explicit acceptance criterion to exclude tracker issues with `root-cause` label from auto-drain selection. The drain-driver exposed a tracker-selection bug where trackers labeled `root-cause` + `auto-improvement` get repeatedly selected despite being meta-tracking issues. Fix documented in `docs/ADR-002-drain-queue-redesign.md` line 179 as new Phase A checkbox criterion. The referenced issue #1277 had its `auto-improvement` label removed (GitHub side-effect, no file change) to prevent the tracker from re-entering the drain queue.
 
