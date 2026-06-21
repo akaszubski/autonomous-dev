@@ -727,6 +727,107 @@ def evaluate_cluster_gates(
     return ("pass", "")
 
 
+# =============================================================================
+# Cluster selection helpers — pure functions operating on triage JSON dicts
+# =============================================================================
+
+_LARGE_FEAT_PREFIXES: Tuple[str, ...] = ("feat:", "feat(", "feature:", "feature(")
+
+
+def is_large_feat(cluster: Dict[str, Any]) -> bool:
+    """Return True when cluster is a large feature cluster that should not be auto-drained.
+
+    Mirrors the ``is_large_feat`` inline definition in both drain-driver.yml and
+    drain-watchdog.yml exactly.  Small feature clusters (``cluster_size <= 2``)
+    are NOT filtered — only multi-issue feature batches that are better handled
+    via a dedicated planning session.
+
+    Args:
+        cluster: A dict with at minimum ``issue_titles`` (list of str) and
+            ``cluster_size`` (int), as produced by
+            ``issue_triage_analyzer.py --json``.
+
+    Returns:
+        ``True`` if the cluster has any title starting with a feat/feature
+        conventional-commit prefix AND ``cluster_size > 2``.
+    """
+    titles: List[Any] = cluster.get("issue_titles", [])
+    has_feat = any(
+        (t or "").lower().strip().startswith(_LARGE_FEAT_PREFIXES) for t in titles
+    )
+    return has_feat and cluster.get("cluster_size", 0) > 2
+
+
+def is_drain_stuck_meta(cluster: Dict[str, Any]) -> bool:
+    """Return True when cluster contains watchdog bookkeeping meta-issues.
+
+    Identifies clusters whose titles contain ``[drain-stuck]`` — these are
+    filed by the watchdog itself and picking them creates a degenerate
+    fixed-point where the heal loop only drains its own filings while the
+    real backlog never advances.
+
+    Mirrors the ``is_drain_stuck_meta`` inline definition in both
+    drain-driver.yml and drain-watchdog.yml exactly.
+
+    Args:
+        cluster: A dict with at minimum ``issue_titles`` (list of str).
+
+    Returns:
+        ``True`` if any title contains ``[drain-stuck]`` (case-insensitive).
+    """
+    titles: List[Any] = cluster.get("issue_titles", [])
+    return any("[drain-stuck]" in (t or "").lower() for t in titles)
+
+
+def select_next_cluster(
+    clusters: List[Dict[str, Any]],
+    *,
+    max_issues: int = 3,
+) -> Optional[Dict[str, Any]]:
+    """Return the first cluster from *clusters* that passes all four pre-dispatch filters.
+
+    Iterates *clusters* in list order and applies the following gates in sequence:
+
+    1. ``severity_gate(cluster['severity'])`` — blocks ``medium``/``high`` clusters.
+    2. ``size_gate(cluster['cluster_size'])`` — blocks clusters with > 5 issues.
+    3. ``is_large_feat(cluster)`` — blocks large conventional-commit feature clusters.
+    4. ``is_drain_stuck_meta(cluster)`` — blocks watchdog bookkeeping meta-issues.
+
+    The first cluster that passes all four checks is returned.
+
+    .. note::
+        **tag_gate and skip_gate are NOT applied here** — they require hydrated
+        GitHub labels unavailable from triage JSON. Callers that dispatch
+        /drain-queue will encounter those gates downstream via
+        ``drain_runner.hydrate_issue_labels``.
+
+    Args:
+        clusters: Ordered list of cluster dicts produced by
+            ``issue_triage_analyzer.py --json``.  Each dict must contain at
+            minimum: ``severity`` (str), ``cluster_size`` (int),
+            ``issue_titles`` (list of str), ``issue_numbers`` (list of int).
+        max_issues: Passed through by the caller to slice ``cluster['issue_numbers']``.
+            This parameter does NOT affect selection — it is provided so callers
+            can read it in one place rather than duplicating the slice constant.
+
+    Returns:
+        The first drainable cluster dict, or ``None`` if no cluster passes.
+    """
+    for cluster in clusters:
+        blocked, _ = severity_gate(cluster.get("severity", ""))
+        if blocked:
+            continue
+        blocked, _ = size_gate(cluster.get("cluster_size", 0))
+        if blocked:
+            continue
+        if is_large_feat(cluster):
+            continue
+        if is_drain_stuck_meta(cluster):
+            continue
+        return cluster
+    return None
+
+
 __all__ = [
     # Constants
     "MAX_DRAINS_PER_DAY",
@@ -749,6 +850,10 @@ __all__ = [
     "size_gate",
     "skip_gate",
     "evaluate_cluster_gates",
+    # Cluster selection helpers
+    "is_large_feat",
+    "is_drain_stuck_meta",
+    "select_next_cluster",
     # Path helpers (exposed for tests)
     "_budget_path",
     "_breaker_path",

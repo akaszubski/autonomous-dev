@@ -30,6 +30,9 @@ from drain_queue_state import (  # noqa: E402
     MAX_CLUSTER_SIZE_AUTO_DRAINABLE,
     SKIP_LABELS,
     evaluate_cluster_gates,
+    is_drain_stuck_meta,
+    is_large_feat,
+    select_next_cluster,
     severity_gate,
     size_gate,
     skip_gate,
@@ -314,3 +317,133 @@ class TestConstantsRelationships:
         """A soft skip label must not also be a human-gated STOP tag."""
         overlap = SKIP_LABELS & HUMAN_GATE_TAGS
         assert overlap == set(), f"Overlap creates ambiguous gate: {overlap}"
+
+
+# =============================================================================
+# select_next_cluster pure-function tests (ADR-002 Phase B Invariant 1)
+# =============================================================================
+
+
+def _make_cluster(
+    *,
+    severity: str = "low",
+    cluster_size: int = 1,
+    issue_numbers: tuple[int, ...] = (101,),
+    issue_titles: tuple[str, ...] | None = None,
+) -> dict:
+    """Build a minimal cluster dict matching the triage JSON wire format.
+
+    Uses plain dicts (NOT TriageFinding instances) to pin the JSON/asdict
+    wire format that the workflow scripts consume.
+    """
+    if issue_titles is None:
+        issue_titles = tuple(f"[TEST] issue {n}" for n in issue_numbers)
+    return {
+        "severity": severity,
+        "cluster_size": cluster_size,
+        "issue_numbers": list(issue_numbers),
+        "issue_titles": list(issue_titles),
+    }
+
+
+class TestSelectNextCluster:
+    """Tests for select_next_cluster() pure function (ADR-002 Phase B Invariant 1).
+
+    All test inputs use plain dicts to mirror the JSON wire format produced by
+    issue_triage_analyzer.py --json.  TriageFinding instances are NOT used here
+    because select_next_cluster() operates on dicts, not dataclasses.
+
+    tag_gate and skip_gate are intentionally absent from these tests because
+    they require hydrated GitHub labels unavailable in triage JSON — enforcement
+    happens downstream in drain_runner.hydrate_issue_labels.
+    """
+
+    def test_empty_list_returns_none(self) -> None:
+        """An empty cluster list must return None without raising."""
+        assert select_next_cluster([]) is None
+
+    def test_all_severity_blocked_returns_none(self) -> None:
+        """All high-severity clusters → none drainable → None."""
+        clusters = [
+            _make_cluster(severity="high", cluster_size=1, issue_numbers=(1,)),
+            _make_cluster(severity="high", cluster_size=2, issue_numbers=(2, 3)),
+        ]
+        assert select_next_cluster(clusters) is None
+
+    def test_all_size_blocked_returns_none(self) -> None:
+        """All clusters above MAX_CLUSTER_SIZE_AUTO_DRAINABLE (5) → None."""
+        clusters = [
+            _make_cluster(severity="low", cluster_size=6, issue_numbers=tuple(range(6))),
+            _make_cluster(severity="low", cluster_size=7, issue_numbers=tuple(range(7))),
+        ]
+        assert select_next_cluster(clusters) is None
+
+    def test_is_large_feat_filtered(self) -> None:
+        """Cluster with feat: title AND cluster_size=3 → filtered → None."""
+        cluster = _make_cluster(
+            severity="low",
+            cluster_size=3,
+            issue_numbers=(10, 11, 12),
+            issue_titles=("feat: add OAuth support", "feat: add SSO", "feat: add MFA"),
+        )
+        assert select_next_cluster([cluster]) is None
+
+    def test_small_feat_cluster_not_filtered(self) -> None:
+        """Cluster with feat: title but cluster_size=2 → still drainable (small feat allowed)."""
+        cluster = _make_cluster(
+            severity="low",
+            cluster_size=2,
+            issue_numbers=(20, 21),
+            issue_titles=("feat: add OAuth support", "feat: add SSO"),
+        )
+        result = select_next_cluster([cluster])
+        assert result is not None
+        assert result["cluster_size"] == 2
+
+    def test_is_drain_stuck_meta_filtered(self) -> None:
+        """Cluster whose title contains [drain-stuck] → filtered → None."""
+        cluster = _make_cluster(
+            severity="low",
+            cluster_size=1,
+            issue_numbers=(30,),
+            issue_titles=("[drain-stuck] watchdog: no commit in 2h",),
+        )
+        assert select_next_cluster([cluster]) is None
+
+    def test_first_drainable_returned(self) -> None:
+        """First cluster is blocked (high severity), second is clean → second returned."""
+        blocked = _make_cluster(severity="high", cluster_size=1, issue_numbers=(40,))
+        drainable = _make_cluster(severity="low", cluster_size=2, issue_numbers=(41, 42))
+        result = select_next_cluster([blocked, drainable])
+        assert result is not None
+        assert result["issue_numbers"] == [41, 42]
+
+    def test_deterministic_ordering(self) -> None:
+        """Same input list → same output on repeated calls."""
+        clusters = [
+            _make_cluster(severity="high", cluster_size=1, issue_numbers=(50,)),
+            _make_cluster(severity="low", cluster_size=2, issue_numbers=(51, 52)),
+            _make_cluster(severity="low", cluster_size=1, issue_numbers=(53,)),
+        ]
+        result_a = select_next_cluster(clusters)
+        result_b = select_next_cluster(clusters)
+        assert result_a == result_b
+        assert result_a is not None
+        assert result_a["issue_numbers"] == [51, 52]
+
+    def test_no_tag_gate_applied(self) -> None:
+        """Cluster with 'breaking-change' in TITLE (not labels) → still drainable.
+
+        Confirms that tag_gate is NOT applied in select_next_cluster.
+        'breaking-change' in the title text is fine; tag_gate only fires on
+        hydrated GitHub labels, which happen downstream.
+        """
+        cluster = _make_cluster(
+            severity="low",
+            cluster_size=1,
+            issue_numbers=(60,),
+            issue_titles=("fix: breaking-change in API response format",),
+        )
+        result = select_next_cluster([cluster])
+        assert result is not None
+        assert result["issue_numbers"] == [60]

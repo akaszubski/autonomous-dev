@@ -152,6 +152,7 @@ The redesign is complete when ALL of the following are true (each maps to a Phas
 - [ ] Phase A: queue size on a 7-day rolling window decreases.
 - [ ] Phase A: zero `[drain-stuck]` meta-issues filed in any 48-hour window.
 - [x] Phase B: zero invocations of `/implement --light` from any workflow file — workflows MUST go through `/drain-queue`. _(Done — Issue #1274: both drain-driver.yml and drain-watchdog.yml now invoke `/drain-queue`; regression tests added in `tests/regression/smoke/test_drain_workflows_route_through_drain_queue.py`.)_
+- [x] Phase B: Invariant 1 — single authoritative `select_next_cluster()` function in `drain_queue_state.py`; no inline Python duplicating selector logic in any workflow file. _(Done — Issue #1276: `is_large_feat`, `is_drain_stuck_meta`, and `select_next_cluster` extracted as pure functions; inline heredocs in drain-driver.yml and drain-watchdog.yml replaced with `python3 scripts/select_next_drainable_cluster.py`; 9 unit tests in `tests/unit/lib/test_drain_queue_gates.py::TestSelectNextCluster`.)_
 - [ ] Phase B: `DrainHistory.jsonl` records at least 1 entry per workflow run (success or failure). _(Pending first successful live workflow run after Issue #1274 merge.)_
 - [ ] Phase C: `TriageFinding.confidence` field populated for 100% of clusters; `severity` is no longer in any drain gate condition.
 - [ ] Phase C: every successful drain has a `before_metrics` + `after_metrics` record.

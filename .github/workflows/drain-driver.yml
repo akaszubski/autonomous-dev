@@ -65,46 +65,7 @@ jobs:
           echo "## Drain driver selection" >> "$GITHUB_STEP_SUMMARY"
           echo "- queue size: $QUEUE_SIZE" >> "$GITHUB_STEP_SUMMARY"
 
-          CLUSTER=$(python3 - <<'PY' || echo ""
-          import json, subprocess, sys
-          sys.path.insert(0, 'plugins/autonomous-dev/lib')
-          try:
-              from drain_queue_state import AUTO_DRAINABLE_SEVERITY, MAX_CLUSTER_SIZE_AUTO_DRAINABLE
-          except Exception:
-              print("", end=""); sys.exit(0)
-          out = subprocess.run(
-              ['python3', 'plugins/autonomous-dev/lib/issue_triage_analyzer.py',
-               '--auto-improvement', '--json', '--limit', '50'],
-              capture_output=True, text=True,
-          )
-          try:
-              clusters = json.loads(out.stdout)
-          except Exception:
-              print("", end=""); sys.exit(0)
-
-          def is_large_feat(c):
-              titles = c.get('issue_titles', [])
-              prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
-              has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
-              return has_feat and c.get('cluster_size', 0) > 2
-
-          def is_drain_stuck_meta(c):
-              titles = c.get('issue_titles', [])
-              return any('[drain-stuck]' in (t or '').lower() for t in titles)
-
-          for c in clusters:
-              if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
-                  continue
-              if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
-                  continue
-              if is_large_feat(c):
-                  continue
-              if is_drain_stuck_meta(c):
-                  continue
-              print(','.join(str(n) for n in c['issue_numbers'][:3]), end="")
-              break
-          PY
-          )
+          CLUSTER=$(python3 scripts/select_next_drainable_cluster.py || echo "")
           echo "selected cluster: ${CLUSTER:-NONE}"
           echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
           echo "- selected cluster: ${CLUSTER:-NONE}" >> "$GITHUB_STEP_SUMMARY"

@@ -87,55 +87,7 @@ jobs:
           CLUSTER=""
           if [ "$STUCK" = "true" ]; then
             python3 -m pip install -q -r <(grep -E '^(requests|httpx)' requirements.txt 2>/dev/null) >/dev/null 2>&1 || true
-            CLUSTER=$(python3 - <<'PY' || echo ""
-          import json, subprocess, sys
-          sys.path.insert(0, 'plugins/autonomous-dev/lib')
-          try:
-              from drain_queue_state import AUTO_DRAINABLE_SEVERITY, MAX_CLUSTER_SIZE_AUTO_DRAINABLE
-          except Exception as e:
-              print("", end="")
-              sys.exit(0)
-          out = subprocess.run(
-              ['python3', 'plugins/autonomous-dev/lib/issue_triage_analyzer.py',
-               '--auto-improvement', '--json', '--limit', '50'],
-              capture_output=True, text=True
-          )
-          try:
-              clusters = json.loads(out.stdout)
-          except Exception:
-              print("", end=""); sys.exit(0)
-
-          def is_large_feat(cluster):
-              titles = cluster.get('issue_titles', [])
-              prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
-              has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
-              # Small feature clusters (<=2 issues) ARE drainable.
-              return has_feat and cluster.get('cluster_size', 0) > 2
-
-          def is_drain_stuck_meta(cluster):
-              # Skip the watchdog's own bookkeeping issues — picking them creates
-              # a degenerate fixed-point where heal only drains its own filings
-              # while the real backlog never moves (#1248/#1242/#1254/#1255/#1256
-              # pattern observed 2026-06-18).
-              titles = cluster.get('issue_titles', [])
-              return any('[drain-stuck]' in (t or '').lower() for t in titles)
-
-          for c in clusters:
-              if c['severity'] not in AUTO_DRAINABLE_SEVERITY:
-                  continue
-              if c['cluster_size'] > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
-                  continue
-              if is_large_feat(c):
-                  continue
-              if is_drain_stuck_meta(c):
-                  continue
-              # Per-session cap bumped 2026-06-19: 2 → 3 issues per heal cycle
-              # to lift throughput. 3 × ~10min --light = ~30min, well under
-              # the 60-min runner budget.
-              print(','.join(str(n) for n in c['issue_numbers'][:3]), end="")
-              break
-          PY
-            )
+            CLUSTER=$(python3 scripts/select_next_drainable_cluster.py || echo "")
             echo "- selected cluster: ${CLUSTER:-NONE}" >> "$GITHUB_STEP_SUMMARY"
             if [ -z "$CLUSTER" ]; then
               STUCK=false
