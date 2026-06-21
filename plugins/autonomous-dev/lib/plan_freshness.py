@@ -27,8 +27,16 @@ bounded. Keep the two in sync if either changes.
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
+
+# Configure logger for this module
+logger = logging.getLogger(__name__)
+
+# Maximum number of paths to return from extract_referenced_paths to prevent
+# unbounded memory consumption on pathological inputs (Issue #1223)
+MAX_PATHS = 500
 
 # Mirror of the STEP 5.5c regex in commands/implement.md. If you change the
 # extension list here, update the prose in 5.5c (and vice-versa).
@@ -50,13 +58,28 @@ def extract_referenced_paths(plan_content: str) -> list[str]:
         upper bound is the ReDoS cap from Issue #1194 — character-class
         runs longer than 512 chars do not match. Sort order is
         deterministic (lexicographic) so callers can rely on stable output.
+        
+        As of Issue #1223, the result list is truncated to `MAX_PATHS` (500)
+        entries to prevent unbounded memory consumption on pathological inputs.
+        When truncation occurs, a debug message is logged.
     """
     if not plan_content:
         return []
     # `findall` with a single-group pattern returns just the group; use
     # `finditer` to recover the full match.
     matches = {m.group(0) for m in _FILE_PATH_REGEX.finditer(plan_content)}
-    return sorted(matches)
+    sorted_paths = sorted(matches)
+    
+    # Truncate to MAX_PATHS if needed (Issue #1223)
+    if len(sorted_paths) > MAX_PATHS:
+        truncated_count = len(sorted_paths) - MAX_PATHS
+        logger.debug(
+            f"Truncating extract_referenced_paths result from {len(sorted_paths)} "
+            f"to {MAX_PATHS} entries ({truncated_count} paths omitted)"
+        )
+        sorted_paths = sorted_paths[:MAX_PATHS]
+    
+    return sorted_paths
 
 
 def verify_paths_exist(paths: list[str], repo_root: Path) -> list[str]:
