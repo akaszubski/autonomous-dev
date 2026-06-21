@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 
+### Changed
+- **ADR-002 Phase status notes added to user-facing documentation**: Added Phase A completion and Phase B in-progress status notes to `/drain-queue` command descriptions in `docs/RUNBOOK.md` (line 100) and `plugins/autonomous-dev/docs/COMMANDS.md` (line 16), including hyperlinks to the ADR-002 design document and issue references (#1274, #1276). These notes inform users of the current implementation status without modifying the command behavior itself.
+
 ### Fixed
 - **Severity classifier no longer treats `security` label as a HIGH severity signal (ADR-002 Phase A, Issue #1273)**: `_infer_severity()` in `plugins/autonomous-dev/lib/issue_triage_analyzer.py` previously inherited `security` in its `HIGH_LABEL_KEYWORDS` tuple, causing routine `[Security advisory]` hardening issues to be classified `severity=high` and thereby blocked from autonomous handling (the drain selector only auto-drains `low`/`info`). `HIGH_LABEL_KEYWORDS` is now `("critical", "p0")` (line 62); the function docstring at line 412 documents the rationale ("`security` is a topic/area label, not a severity signal"). The fix decouples topic from severity per ADR-002 Invariant 3 and unblocks the security-labeled hardening issues that were stuck in the queue at the time of the audit. ADR-002 Implementation Progress section also added in this commit to track Phase A completion and Phase B/C/D status (tracker #1277).
 
