@@ -166,7 +166,7 @@ jobs:
           fi
           gh issue create \
             --title "[drain-stuck] watchdog: ${{ steps.detect.outputs.reason }}" \
-            --label "drain-stuck,auto-improvement" \
+            --label "drain-stuck" \
             --body "$(cat <<EOF
           Watchdog run \`${{ github.run_id }}\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected STUCK.
 
