@@ -136,7 +136,7 @@ When you run /implement, watch for:
 - Package listing: pip list, pip show, npm list
 
 **Blocked Patterns** (denied):
-- rm -rf (recursive delete)
+- rm -rf targeting dangerous paths (/, ~, ., .git, .ssh, .aws, .env) — targeted regex, NOT a blanket rm -rf block; safe cleanup paths like `.worktrees/batch-*` or `build/` are allowed
 - sudo (privilege escalation)
 - git push --force (history rewrite)
 - eval (arbitrary code execution)
@@ -306,17 +306,23 @@ Time saved: 10-20 seconds (skipped prompt + user interaction)
 ### Example 2: Blocked Command (Denied)
 
 ```
-Claude attempts: rm -rf build/
+Claude attempts: rm -rf /tmp/build-artifacts
     |
-Layer 0 (Sandbox): is_command_safe("rm -rf build/")
+Layer 0 (Sandbox): is_command_safe("rm -rf /tmp/build-artifacts")
     |
-Classification: BLOCKED (matches "rm -rf" pattern)
+Classification: BLOCKED (matches targeted rm pattern — absolute path)
     |
 Result: Command denied, audit logged
-Message: "BLOCKED: Dangerous pattern 'rm -rf' detected. Use safer alternative."
+Message: "BLOCKED: Dangerous pattern detected."
     |
 Workflow: Claude can proceed with safe alternative (e.g., find . -delete)
 ```
+
+Note: Safe cleanup paths such as `rm -rf .worktrees/batch-*` or `rm -rf build/` are NOT
+blocked in development/testing profiles. The `blocked_patterns` entry is a targeted regex
+that matches `rm` with flags targeting only dangerous destinations: `/` (absolute paths),
+`~` (home dir), `.` (current dir), `.git`, `.ssh`, `.aws`, `.env`. The `production` profile
+retains a blanket `rm` block.
 
 ### Example 3: Unknown Command (First Prompt)
 

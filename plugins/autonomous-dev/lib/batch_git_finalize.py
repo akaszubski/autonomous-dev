@@ -6,11 +6,14 @@ pipeline have been implemented and tested.
 Issue #333: Auto-commit, merge, and cleanup worktrees after batch pipeline.
 """
 
+import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def commit_batch_changes(
@@ -129,12 +132,38 @@ def cleanup_worktree(worktree_path: Path) -> Tuple[bool, Optional[str], Optional
         # If we can't determine CWD, proceed anyway
         pass
 
-    # Remove worktree directory and prune
-    # Use rm + prune for compatibility (git worktree remove requires git 2.17+)
-    try:
-        shutil.rmtree(worktree_path)
-    except OSError as e:
-        return False, f"Failed to remove worktree directory: {e}", safe_cwd
+    # Remove worktree using git's own command. This sidesteps the sandbox
+    # blocked_pattern concern for `rm -rf` and is portable (git >= 2.17 is
+    # universally available). The `--force` flag mirrors the prior
+    # `shutil.rmtree` semantics: remove even if the worktree has untracked
+    # or modified files (caller has already orchestrated commit/merge).
+    remove_result = subprocess.run(
+        ["git", "worktree", "remove", "--force", str(worktree_path)],
+        cwd=main_repo,
+        capture_output=True,
+        text=True,
+    )
+    if remove_result.returncode != 0:
+        # Fall back to shutil.rmtree if `git worktree remove` failed
+        # (e.g., worktree was already partially detached / corrupted).
+        logger.warning(
+            "git worktree remove --force failed (rc=%d), falling back to "
+            "shutil.rmtree: %s",
+            remove_result.returncode,
+            remove_result.stderr.strip(),
+        )
+        try:
+            shutil.rmtree(worktree_path)
+        except OSError as e:
+            return (
+                False,
+                (
+                    f"Failed to remove worktree: "
+                    f"git worktree remove err: {remove_result.stderr.strip()}; "
+                    f"shutil.rmtree err: {e}"
+                ),
+                safe_cwd,
+            )
 
     # Prune stale worktree references
     subprocess.run(
