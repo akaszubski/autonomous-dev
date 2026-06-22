@@ -296,6 +296,36 @@ print(f"STEP 4: selected cluster {selected['root_cause_tag']}#"
 PY
 ```
 
+## STEP 4.5: Capture before_metrics
+
+Run pytest against the base commit (before any implementation changes) to
+establish the test-suite baseline. This snapshot is stored in
+`.claude/local/drain_before_metrics.json` and consumed by STEP 12 when
+recording the drain outcome.
+
+```bash
+python3 - <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from drain_runner import capture_pytest_snapshot, _build_env
+from pipeline_state import get_pipeline_base_commit
+
+repo = Path.cwd().resolve()
+env = _build_env(repo)
+base_commit = get_pipeline_base_commit() or "HEAD"
+before = capture_pytest_snapshot(repo, env, git_ref=base_commit)
+Path(".claude/local/drain_before_metrics.json").write_text(json.dumps(before))
+print(
+    f"STEP 4.5: before_metrics captured — "
+    f"test_count={before.get('test_count')}, "
+    f"failing={before.get('failing_tests')}, "
+    f"error={before.get('error')}",
+    flush=True,
+)
+PY
+```
+
 ## STEP 5: Plan resolution
 
 Search `.claude/plans/` (last 90 days) for a pre-validated plan that matches
@@ -581,11 +611,21 @@ import json, time, sys
 from pathlib import Path
 sys.path.insert(0, "plugins/autonomous-dev/lib")
 from drain_queue_state import DrainBudget, CircuitBreaker, DrainHistory
+from drain_runner import capture_pytest_snapshot, _build_env
 
 repo = Path.cwd().resolve()
+env = _build_env(repo)
 t0 = float(Path(".claude/local/drain_t0.txt").read_text())
 elapsed = time.time() - t0
 cluster = json.loads(Path(".claude/local/selected_cluster.json").read_text())
+
+before_path = Path(".claude/local/drain_before_metrics.json")
+before = (
+    json.loads(before_path.read_text())
+    if before_path.exists()
+    else {"test_count": None, "failing_tests": None, "coverage_pct": None, "error": "no_before_snapshot"}
+)
+after = capture_pytest_snapshot(repo, env)
 
 CircuitBreaker.load(repo).record_success()
 DrainBudget.load(repo).add(elapsed)
@@ -594,10 +634,17 @@ DrainHistory.load(repo).append({
     "cluster_id": f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']}",
     "issue_numbers": list(cluster["issue_numbers"]),
     "wall_seconds": elapsed,
+    "before_metrics": before,
+    "after_metrics": after,
 })
-print(f"STEP 12: drain logged — cluster "
-      f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']} "
-      f"in {elapsed:.0f}s", flush=True)
+print(
+    f"STEP 12: drain logged — cluster "
+    f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']} "
+    f"in {elapsed:.0f}s | "
+    f"tests before={before.get('test_count')} after={after.get('test_count')} "
+    f"failing before={before.get('failing_tests')} after={after.get('failing_tests')}",
+    flush=True,
+)
 PY
 ```
 

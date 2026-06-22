@@ -29,11 +29,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+try:
+    from .drain_queue_state import _empty_metrics
+except ImportError:  # pragma: no cover - path-based fallback for scripts
+    from drain_queue_state import _empty_metrics  # type: ignore
 
 
 # =============================================================================
@@ -332,6 +338,192 @@ def append_stop_notification(reason: str, drain_log_dir: Path) -> None:
 
 
 # =============================================================================
+# Pytest metrics capture (Phase C, Issue #1290)
+# =============================================================================
+
+# Patterns to parse pytest summary lines, e.g.:
+#   "3 passed, 1 failed in 0.23s"
+#   "5 passed in 0.12s"
+#   "2 error"
+_PYTEST_PASSED_RE = re.compile(r"\b(\d+)\s+passed\b")
+_PYTEST_FAILED_RE = re.compile(r"\b(\d+)\s+failed\b")
+_PYTEST_ERROR_RE = re.compile(r"\b(\d+)\s+error\b")
+
+
+def capture_pytest_snapshot(
+    repo: Path,
+    env: Dict[str, str],
+    *,
+    git_ref: Optional[str] = None,
+    timeout: int = 300,
+) -> Dict[str, Any]:
+    """Run pytest and return a snapshot dict.
+
+    The returned dict has keys: ``test_count``, ``failing_tests``,
+    ``coverage_pct``, ``error``.
+
+    ``coverage_pct`` is always ``None`` in v1 (running with ``--cov`` adds
+    significant overhead and requires ``pytest-cov`` — deferred to a later
+    issue when pytest-cov availability is verified).
+
+    If ``git_ref`` is provided, stashes local changes, checks out that ref,
+    runs pytest, then restores HEAD. On stash/checkout failure the function
+    returns :func:`drain_queue_state._empty_metrics` with
+    ``error="git_checkout_failed"`` — the working tree is left intact.
+
+    All subprocess calls pass explicit ``cwd=str(repo)`` and ``env=env`` per
+    Issue #1064 discipline.
+
+    Args:
+        repo: Absolute path to the repository root.
+        env: Subprocess environment (passed explicitly per Issue #1064).
+        git_ref: Optional git ref to check out before running pytest. When
+            ``None``, pytest runs against the current HEAD.
+        timeout: Seconds before the pytest subprocess is killed. Default 300.
+
+    Returns:
+        Dict with keys ``test_count`` (int|None), ``failing_tests`` (int|None),
+        ``coverage_pct`` (None), ``error`` (str|None).
+    """
+    repo = Path(repo).resolve()
+    stashed = False
+
+    if git_ref is not None:
+        # Stash any local changes so checkout is clean.
+        stash_result = subprocess.run(
+            ["git", "stash", "--include-untracked", "--quiet"],
+            cwd=str(repo),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        stashed = stash_result.returncode == 0
+
+        checkout_result = subprocess.run(
+            ["git", "checkout", git_ref, "--quiet"],
+            cwd=str(repo),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if checkout_result.returncode != 0:
+            # Restore stash if we stashed.
+            if stashed:
+                subprocess.run(
+                    ["git", "stash", "pop", "--quiet"],
+                    cwd=str(repo),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            metrics = _empty_metrics()
+            metrics["error"] = "git_checkout_failed"
+            return metrics
+
+    error_tag: Optional[str] = None
+    pytest_result: Optional[subprocess.CompletedProcess] = None  # type: ignore[type-arg]
+
+    try:
+        pytest_result = subprocess.run(
+            ["pytest", "--tb=no", "-q"],
+            cwd=str(repo),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        error_tag = "timeout"
+    except FileNotFoundError:
+        error_tag = "pytest_not_found"
+    except OSError:
+        error_tag = "os_error"
+    finally:
+        # Always restore git state when we checked out a specific ref.
+        if git_ref is not None:
+            _restore_git_state(repo, env, git_ref=git_ref, stashed=stashed)
+
+    if error_tag is not None:
+        metrics = _empty_metrics()
+        metrics["error"] = error_tag
+        return metrics
+
+    output = (pytest_result.stdout or "") if pytest_result is not None else ""
+    # Parse last 10 lines where pytest prints the summary.
+    last_lines = "\n".join(output.splitlines()[-10:])
+
+    passed = 0
+    failed = 0
+    errors = 0
+
+    m = _PYTEST_PASSED_RE.search(last_lines)
+    if m:
+        passed = int(m.group(1))
+    m = _PYTEST_FAILED_RE.search(last_lines)
+    if m:
+        failed = int(m.group(1))
+    m = _PYTEST_ERROR_RE.search(last_lines)
+    if m:
+        errors = int(m.group(1))
+
+    test_count = passed + failed + errors
+    failing_tests = failed + errors
+
+    return {
+        "test_count": test_count,
+        "failing_tests": failing_tests,
+        "coverage_pct": None,
+        "error": None,
+    }
+
+
+def _restore_git_state(
+    repo: Path,
+    env: Dict[str, str],
+    *,
+    git_ref: Optional[str],
+    stashed: bool,
+) -> None:
+    """Restore the git working tree after a checkout for capture_pytest_snapshot.
+
+    Internal helper. Returns HEAD to the branch it was on before checkout, then
+    pops any stashed changes. Both operations are best-effort: failures are
+    silently ignored so the caller's error path is not disrupted.
+
+    Args:
+        repo: Repository root.
+        env: Subprocess environment.
+        git_ref: The ref that was checked out (used to confirm a restore is
+            needed). When ``None``, no checkout happened and this is a no-op.
+        stashed: Whether a ``git stash`` was successfully created before the
+            checkout.
+    """
+    if git_ref is None:
+        return
+    subprocess.run(
+        ["git", "checkout", "-", "--quiet"],
+        cwd=str(repo),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if stashed:
+        subprocess.run(
+            ["git", "stash", "pop", "--quiet"],
+            cwd=str(repo),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+
+# =============================================================================
 # Top-level orchestrator
 # =============================================================================
 
@@ -435,5 +627,8 @@ __all__ = [
     "relevant_files_changed",
     "invoke_deploy_all",
     "append_stop_notification",
+    "capture_pytest_snapshot",
     "run_drain",
+    # Re-exported for use in drain-queue.md inline scripts
+    "_build_env",
 ]

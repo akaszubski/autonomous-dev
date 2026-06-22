@@ -160,9 +160,12 @@ This section tracks rolling progress against the Migration Plan phases above.
 - Issue #1274 (workflows bypass `/drain-queue`) — OPEN
 - Issue #1276 (selector duplication) — OPEN
 
-### Phase C — Confidence model + outcome measurement (NOT STARTED)
+### Phase C — Confidence model + outcome measurement (IN PROGRESS)
 
-Pending Phase B completion.
+- Issue #1290 (before/after pytest metrics capture) — SHIPPED. `drain_runner.capture_pytest_snapshot()` public function captures test count and failing-test count by running `pytest --tb=no -q` and parsing summary lines. Optional `git_ref` parameter stashes local changes, checks out the ref, runs pytest, then restores HEAD — used by `commands/drain-queue.md` STEP 4.5 to baseline test counts at `PIPELINE_BASE_COMMIT` before drain. `drain_queue_state._empty_metrics()` sentinel distinguishes "capture failed / not attempted" from zero counts (all four keys `test_count`, `failing_tests`, `coverage_pct`, `error` set to `None`). `DrainHistory.append()` records now carry `before_metrics` + `after_metrics` keys as specified by Invariant 4. Tests: 9 unit (`tests/unit/lib/test_drain_queue_history.py`) + 5 regression (`TestCapturePytestSnapshotSubprocessContract` in `tests/regression/test_drain_queue_runner_subprocess_kwargs.py`).
+- Coverage delta (`coverage_pct` field): deferred — `coverage_pct` is always `None` in v1; running with `--cov` adds significant overhead and requires `pytest-cov` availability, which is not yet verified across drain targets.
+- Confidence model (`TriageFinding.confidence`): not yet shipped.
+- Auto-revert on regression: not yet shipped.
 
 ### Phase D — Cleanup and documentation (NOT STARTED)
 

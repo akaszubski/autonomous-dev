@@ -356,6 +356,107 @@ class TestRunDrainSubprocessDiscipline:
 # =============================================================================
 
 
+class TestCapturePytestSnapshotSubprocessContract:
+    """capture_pytest_snapshot must pass cwd= and env= to subprocess.run.
+
+    Regression for Issue #1290 (Phase C metrics capture). The subprocess
+    discipline from Issue #1064 applies: static-shape tests on cmd alone would
+    silently pass even when cwd= or env= is wrong.
+    """
+
+    def test_passes_cwd_and_env_to_subprocess(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """capture_pytest_snapshot captures cwd=str(repo) and env=env in subprocess."""
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            # Only capture the pytest invocation (not any git stash/checkout calls).
+            if cmd and cmd[0] == "pytest":
+                captured.update({"cmd": cmd, **kwargs})
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="3 passed in 0.12s\n", stderr=""
+            )
+
+        monkeypatch.setattr(drain_runner.subprocess, "run", fake_run)
+        sentinel_env = {"PATH": "/usr/bin", "DRAIN_TEST": "capture_snapshot"}
+        drain_runner.capture_pytest_snapshot(tmp_path, sentinel_env)
+
+        assert "cwd" in captured, "subprocess.run must receive cwd="
+        assert captured["cwd"] == str(tmp_path), (
+            f"cwd must equal str(repo); got {captured['cwd']!r}"
+        )
+        assert "env" in captured, "subprocess.run must receive env="
+        assert captured["env"] == sentinel_env, (
+            f"env must be the passed-in env dict; got {captured['env']!r}"
+        )
+
+    def test_snapshot_result_has_expected_keys(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Return value always has test_count, failing_tests, coverage_pct, error."""
+
+        def fake_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="5 passed in 0.20s\n", stderr=""
+            )
+
+        monkeypatch.setattr(drain_runner.subprocess, "run", fake_run)
+        result = drain_runner.capture_pytest_snapshot(tmp_path, env={})
+        assert set(result.keys()) == {"test_count", "failing_tests", "coverage_pct", "error"}
+
+    def test_parses_passed_count_from_pytest_output(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Parses '5 passed' from pytest stdout."""
+
+        def fake_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="5 passed in 0.20s\n", stderr=""
+            )
+
+        monkeypatch.setattr(drain_runner.subprocess, "run", fake_run)
+        result = drain_runner.capture_pytest_snapshot(tmp_path, env={})
+        assert result["test_count"] == 5
+        assert result["failing_tests"] == 0
+        assert result["error"] is None
+
+    def test_parses_mixed_passed_failed_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Parses '3 passed, 2 failed, 1 error' from pytest stdout."""
+
+        def fake_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="3 passed, 2 failed, 1 error in 1.00s\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(drain_runner.subprocess, "run", fake_run)
+        result = drain_runner.capture_pytest_snapshot(tmp_path, env={})
+        assert result["test_count"] == 6
+        assert result["failing_tests"] == 3
+        assert result["error"] is None
+
+    def test_returns_empty_metrics_on_file_not_found(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """FileNotFoundError (pytest not installed) → error='pytest_not_found'."""
+
+        def fake_run(cmd, **kwargs):
+            if cmd and cmd[0] == "pytest":
+                raise FileNotFoundError("pytest not found")
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(drain_runner.subprocess, "run", fake_run)
+        result = drain_runner.capture_pytest_snapshot(tmp_path, env={})
+        assert result["error"] == "pytest_not_found"
+        assert result["test_count"] is None
+        assert result["failing_tests"] is None
+
+
 class TestAppendStopNotification:
     def test_writes_jsonl_record(self, tmp_path: Path) -> None:
         drain_runner.append_stop_notification("budget exhausted", tmp_path)

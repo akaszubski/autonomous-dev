@@ -23,6 +23,14 @@ Fail-mode policy (per round-4 planner correction):
 
 Module constants are the single source of truth for thresholds. Tests assert
 their values to prevent silent drift.
+
+Extended schema (Phase C metrics, Issue #1290):
+
+:class:`DrainHistory` records are extended with ``before_metrics`` and
+``after_metrics`` keys when ``drain_runner.capture_pytest_snapshot`` is
+available. The :func:`_empty_metrics` sentinel distinguishes "capture failed /
+not attempted" from "zero counts". Consumers MUST treat ``None`` values as
+"no data" rather than "zero".
 """
 
 from __future__ import annotations
@@ -122,6 +130,26 @@ def _parse_iso(value: str) -> Optional[datetime]:
         return dt
     except (ValueError, TypeError):
         return None
+
+
+def _empty_metrics() -> Dict[str, Any]:
+    """Null sentinel for pytest snapshot when capture fails.
+
+    Used by ``drain_runner.capture_pytest_snapshot`` when pytest cannot run
+    (timeout, not installed, git checkout failure). :class:`DrainHistory`
+    records this sentinel as ``before_metrics`` / ``after_metrics`` so
+    consumers can distinguish "no data" from "zero counts".
+
+    Returns:
+        Dict with ``test_count``, ``failing_tests``, ``coverage_pct``, and
+        ``error`` keys all set to ``None``.
+    """
+    return {
+        "test_count": None,
+        "failing_tests": None,
+        "coverage_pct": None,
+        "error": None,
+    }
 
 
 # =============================================================================
@@ -754,4 +782,6 @@ __all__ = [
     "_breaker_path",
     "_pause_flag_path",
     "_history_path",
+    # Metrics sentinel (Phase C, Issue #1290)
+    "_empty_metrics",
 ]
