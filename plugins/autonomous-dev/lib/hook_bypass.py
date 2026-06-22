@@ -1,4 +1,4 @@
-"""Universal hook bypass mechanism (Issue #969 / #942-A).
+"""Universal hook bypass mechanism (Issue #969 / #942-A, #1197).
 
 Two equivalent bypass signals:
 
@@ -24,12 +24,15 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 ENV_VAR_NAME = "AUTONOMOUS_DEV_BYPASS"
 BYPASS_FILE_RELATIVE = Path(".claude") / ".bypass"
 LOG_FILE_RELATIVE = Path(".claude") / "logs" / "hook-bypass.jsonl"
+STATE_FILE_RELATIVE = Path(".claude") / "state" / "bypass_window.json"
 WALK_DEPTH_LIMIT = 30  # safety cap for parent walk
 
 # Values that count as "explicitly off" when set as the env var.
@@ -130,11 +133,125 @@ def _resolve_log_path(start_dir: Path | None = None) -> Path:
     return start_dir / LOG_FILE_RELATIVE
 
 
+def _resolve_state_path(start_dir: Path | None = None) -> Path:
+    """Resolve the absolute path to .claude/state/bypass_window.json.
+    
+    Issue #1197: Used for tracking bypass window state transitions.
+    """
+    if start_dir is None:
+        try:
+            start_dir = Path.cwd()
+        except (OSError, FileNotFoundError):
+            start_dir = Path(".")
+    return start_dir / STATE_FILE_RELATIVE
+
+
+def _read_window_state(start_dir: Path | None = None) -> Dict[str, Any]:
+    """Read bypass window state from disk.
+    
+    Issue #1197: Returns {"active": bool, "since": iso} or empty dict if missing/corrupt.
+    NEVER raises.
+    """
+    try:
+        state_path = _resolve_state_path(start_dir)
+        if state_path.exists():
+            with state_path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+    except Exception:
+        return {}
+
+
+def _write_window_state(active: bool, start_dir: Path | None = None) -> None:
+    """Write bypass window state to disk atomically.
+    
+    Issue #1197: Uses tempfile + os.replace for atomic writes. NEVER raises.
+    """
+    try:
+        state_path = _resolve_state_path(start_dir)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        state = {
+            "active": active,
+            "since": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Atomic write via tempfile + replace
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=state_path.parent,
+            prefix=".bypass_window.",
+            suffix=".tmp"
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+            os.replace(tmp_path, state_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _emit_window_transition_marker(
+    bypass_active: bool, 
+    start_dir: Path | None = None
+) -> None:
+    """Emit window transition markers on state changes.
+    
+    Issue #1197: Emits [BYPASS-WINDOW-OPEN] or [BYPASS-WINDOW-CLOSE] markers
+    to the bypass log when the bypass state transitions. NEVER raises.
+    """
+    try:
+        prev_state = _read_window_state(start_dir)
+        prev_active = prev_state.get("active", False)
+        
+        # Determine if there's a transition
+        if bypass_active and not prev_active:
+            marker = "BYPASS-WINDOW-OPEN"
+        elif not bypass_active and prev_active:
+            marker = "BYPASS-WINDOW-CLOSE"
+        else:
+            # No transition, do nothing
+            return
+        
+        # Write the marker
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "marker": marker
+        }
+        
+        try:
+            line = json.dumps(event, ensure_ascii=False)
+        except (TypeError, ValueError):
+            line = json.dumps({"timestamp": event["timestamp"], "marker": marker})
+        
+        try:
+            log_path = _resolve_log_path(start_dir)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception:
+            try:
+                sys.stderr.write(f"[hook-bypass] {line} (marker_write_failed)\n")
+            except Exception:
+                pass
+        
+        # Update state file
+        _write_window_state(bypass_active, start_dir)
+        
+    except Exception:
+        pass
+
+
 def log_bypass_used(
     *,
     hook_name: str,
     tool_name: str = "",
     reason: str = "env_or_file",
+    command_head: str = "",
     start_dir: Path | None = None,
 ) -> None:
     """Append one JSONL line recording a bypass event.
@@ -150,6 +267,7 @@ def log_bypass_used(
         hook_name: Filename of the hook that observed the bypass.
         tool_name: Optional tool name from the hook's input payload.
         reason: Free-form reason tag. Defaults to ``"env_or_file"``.
+        command_head: Optional truncated Bash command excerpt (Issue #1197).
         start_dir: Project root to anchor the log path. Defaults to cwd.
     """
     event = {
@@ -158,6 +276,11 @@ def log_bypass_used(
         "tool_name": tool_name,
         "reason": reason,
     }
+    
+    # Issue #1197: Include command_head only when non-empty, truncate defensively
+    if command_head:
+        event["command_head"] = command_head[:200]
+    
     try:
         line = json.dumps(event, ensure_ascii=False)
     except (TypeError, ValueError):
@@ -169,7 +292,6 @@ def log_bypass_used(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as fh:
             fh.write(line + "\n")
-        return
     except OSError as exc:
         # Fall back to stderr — never raise.
         try:
@@ -182,3 +304,16 @@ def log_bypass_used(
             sys.stderr.write(f"[hook-bypass] {line} (unexpected_error: {exc})\n")
         except Exception:
             pass
+    
+    # Issue #1197: After writing the per-event JSONL, emit window transition marker
+    _emit_window_transition_marker(bypass_active=True, start_dir=start_dir)
+
+
+def check_and_log_window_close(start_dir: Path | None = None) -> None:
+    """Check if bypass is inactive and emit close marker if needed.
+    
+    Issue #1197: Called when bypass is NOT active to detect close transitions.
+    This is needed because log_bypass_used is only called when bypass IS active.
+    NEVER raises.
+    """
+    _emit_window_transition_marker(bypass_active=False, start_dir=start_dir)

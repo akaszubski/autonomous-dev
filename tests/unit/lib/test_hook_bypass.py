@@ -100,8 +100,13 @@ class TestLogBypassUsed:
         )
         log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
         assert log_path.exists()
-        line = log_path.read_text(encoding="utf-8").strip()
-        event = json.loads(line)
+        event_lines = [
+            json.loads(l)
+            for l in log_path.read_text(encoding="utf-8").splitlines()
+            if l.strip() and '"marker"' not in l
+        ]
+        assert len(event_lines) == 1
+        event = event_lines[0]
         for key in ("timestamp", "hook_name", "tool_name", "reason"):
             assert key in event
         assert event["hook_name"] == "plan_gate.py"
@@ -113,10 +118,12 @@ class TestLogBypassUsed:
                 hook_name=f"hook_{i}.py", tool_name="Bash", reason="r"
             )
         log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
-        lines = [
-            l for l in log_path.read_text("utf-8").splitlines() if l.strip()
+        event_lines = [
+            l
+            for l in log_path.read_text("utf-8").splitlines()
+            if l.strip() and '"marker"' not in l
         ]
-        assert len(lines) == 3
+        assert len(event_lines) == 3
 
     def test_stderr_fallback_when_log_dir_unwritable(
         self, project_dir, monkeypatch, capsys
@@ -162,3 +169,232 @@ class TestBypassOffDefaultNoRegression:
             == Path(".claude") / "logs" / "hook-bypass.jsonl"
         )
         assert hook_bypass.WALK_DEPTH_LIMIT >= 10
+
+# ---------------------------------------------------------------------------
+# Issue #1197: Command head and window transition markers
+# ---------------------------------------------------------------------------
+
+
+class TestCommandHeadAndWindowMarkers:
+    def test_log_bypass_used_records_command_head(self, project_dir, monkeypatch):
+        """Issue #1197: command_head appears in JSONL when provided."""
+        monkeypatch.chdir(project_dir)
+        hook_bypass.log_bypass_used(
+            hook_name="test.py", 
+            tool_name="Bash",
+            command_head="git status --short"
+        )
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Find the event line (not the marker line)
+        event_line = None
+        for line in lines:
+            data = json.loads(line)
+            if "hook_name" in data:
+                event_line = data
+                break
+        
+        assert event_line is not None
+        assert event_line["command_head"] == "git status --short"
+        assert event_line["tool_name"] == "Bash"
+
+    def test_log_bypass_used_omits_empty_command_head(self, project_dir, monkeypatch):
+        """Issue #1197: command_head field absent when not provided."""
+        monkeypatch.chdir(project_dir)
+        hook_bypass.log_bypass_used(
+            hook_name="test.py", 
+            tool_name="Write"
+        )
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Find the event line
+        event_line = None
+        for line in lines:
+            data = json.loads(line)
+            if "hook_name" in data:
+                event_line = data
+                break
+        
+        assert event_line is not None
+        assert "command_head" not in event_line
+        assert event_line["tool_name"] == "Write"
+
+    def test_log_bypass_used_truncates_long_command_head(self, project_dir, monkeypatch):
+        """Issue #1197: defensive 200-char truncation."""
+        monkeypatch.chdir(project_dir)
+        long_command = "x" * 300
+        hook_bypass.log_bypass_used(
+            hook_name="test.py", 
+            tool_name="Bash",
+            command_head=long_command
+        )
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Find the event line
+        event_line = None
+        for line in lines:
+            data = json.loads(line)
+            if "hook_name" in data:
+                event_line = data
+                break
+        
+        assert event_line is not None
+        assert event_line["command_head"] == "x" * 200
+        assert len(event_line["command_head"]) == 200
+
+    def test_window_transition_open_emits_marker(self, project_dir, monkeypatch):
+        """Issue #1197: first call with bypass_active=True emits OPEN marker."""
+        monkeypatch.chdir(project_dir)
+        
+        # Clean state
+        state_path = project_dir / hook_bypass.STATE_FILE_RELATIVE
+        if state_path.exists():
+            state_path.unlink()
+        
+        # First bypass should emit OPEN marker
+        hook_bypass.log_bypass_used(
+            hook_name="test.py",
+            tool_name="Bash"
+        )
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Should have marker line
+        markers = []
+        for line in lines:
+            data = json.loads(line)
+            if "marker" in data:
+                markers.append(data["marker"])
+        
+        assert "BYPASS-WINDOW-OPEN" in markers
+
+    def test_window_transition_close_emits_marker(self, project_dir, monkeypatch):
+        """Issue #1197: after OPEN, check_and_log_window_close emits CLOSE."""
+        monkeypatch.chdir(project_dir)
+        
+        # Clean state
+        state_path = project_dir / hook_bypass.STATE_FILE_RELATIVE
+        if state_path.exists():
+            state_path.unlink()
+        
+        # First bypass should emit OPEN marker
+        hook_bypass.log_bypass_used(
+            hook_name="test.py",
+            tool_name="Bash"
+        )
+        
+        # Now check for close
+        hook_bypass.check_and_log_window_close()
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Should have both markers
+        markers = []
+        for line in lines:
+            data = json.loads(line)
+            if "marker" in data:
+                markers.append(data["marker"])
+        
+        assert "BYPASS-WINDOW-OPEN" in markers
+        assert "BYPASS-WINDOW-CLOSE" in markers
+
+    def test_window_no_transition_no_marker(self, project_dir, monkeypatch):
+        """Issue #1197: repeated calls with same state emit no marker."""
+        monkeypatch.chdir(project_dir)
+        
+        # Clean state
+        state_path = project_dir / hook_bypass.STATE_FILE_RELATIVE
+        if state_path.exists():
+            state_path.unlink()
+        
+        # First bypass should emit OPEN marker
+        hook_bypass.log_bypass_used(
+            hook_name="test1.py",
+            tool_name="Bash"
+        )
+        
+        # Second bypass should NOT emit another OPEN marker
+        hook_bypass.log_bypass_used(
+            hook_name="test2.py",
+            tool_name="Write"
+        )
+        
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        # Should have only one OPEN marker
+        markers = []
+        for line in lines:
+            data = json.loads(line)
+            if "marker" in data:
+                markers.append(data["marker"])
+        
+        assert markers.count("BYPASS-WINDOW-OPEN") == 1
+
+    def test_window_state_file_corrupt_fails_open(self, project_dir, monkeypatch):
+        """Issue #1197: corrupt state file is treated as 'no prior state', no exception."""
+        monkeypatch.chdir(project_dir)
+        
+        # Create corrupt state file
+        state_path = project_dir / hook_bypass.STATE_FILE_RELATIVE
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text("not json {{{ corrupt")
+        
+        # Should not raise, should treat as no prior state
+        hook_bypass.log_bypass_used(
+            hook_name="test.py",
+            tool_name="Bash"
+        )
+        
+        # Should emit OPEN marker since corrupt state is treated as no state
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        assert log_path.exists()
+        lines = log_path.read_text("utf-8").strip().split("\n")
+        
+        markers = []
+        for line in lines:
+            data = json.loads(line)
+            if "marker" in data:
+                markers.append(data["marker"])
+        
+        assert "BYPASS-WINDOW-OPEN" in markers
+
+    def test_log_bypass_used_never_raises_on_disk_error(self, project_dir, monkeypatch):
+        """Issue #1197: make log path read-only and verify no exception."""
+        monkeypatch.chdir(project_dir)
+        
+        # Create the log file first
+        log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("existing content\n")
+        
+        # Make parent directory read-only
+        import os
+        os.chmod(log_path.parent, 0o555)
+        
+        try:
+            # Should not raise even though we can't write
+            hook_bypass.log_bypass_used(
+                hook_name="test.py",
+                tool_name="Bash",
+                command_head="test command"
+            )
+            # Should complete without exception
+            assert True
+        finally:
+            # Restore write permissions for cleanup
+            os.chmod(log_path.parent, 0o755)

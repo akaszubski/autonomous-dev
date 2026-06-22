@@ -5880,14 +5880,23 @@ def main():
         # always be unstuck by setting either signal from outside.
         # =================================================================
         try:
-            from hook_bypass import is_bypassed, log_bypass_used
+            from hook_bypass import is_bypassed, log_bypass_used, check_and_log_window_close
             if is_bypassed():
+                # Issue #1197: Extract command head for Bash tools
+                command_head = ""
+                if tool_name == "Bash":
+                    command_head = (tool_input.get("command") or "")[:200]
+                
                 log_bypass_used(
                     hook_name=Path(__file__).name,
                     tool_name=tool_name,
+                    command_head=command_head,
                 )
                 output_decision("allow", "Universal bypass active (#969)")
                 sys.exit(0)
+            else:
+                # Issue #1197: Check for window close transitions
+                check_and_log_window_close()
         except ImportError:
             pass  # bypass library unavailable - continue with normal hook logic
 

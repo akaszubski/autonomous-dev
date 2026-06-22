@@ -217,8 +217,13 @@ class TestLogBypassUsed:
         log_file = project_dir / "_log_target_" / "ignored"  # ensure not used
         log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
         assert log_path.exists()
-        line = log_path.read_text(encoding="utf-8").strip()
-        event = json.loads(line)
+        event_lines = [
+            json.loads(l)
+            for l in log_path.read_text(encoding="utf-8").splitlines()
+            if l.strip() and '"marker"' not in l
+        ]
+        assert len(event_lines) == 1
+        event = event_lines[0]
         for key in ("timestamp", "hook_name", "tool_name", "reason"):
             assert key in event, f"missing key: {key}"
         assert event["hook_name"] == "plan_gate.py"
@@ -234,9 +239,13 @@ class TestLogBypassUsed:
                 hook_name=f"hook_{i}.py", tool_name="Bash", reason="env_or_file"
             )
         log_path = project_dir / hook_bypass.LOG_FILE_RELATIVE
-        lines = [l for l in log_path.read_text(encoding="utf-8").splitlines() if l.strip()]
-        assert len(lines) == 3
-        for i, line in enumerate(lines):
+        event_lines = [
+            l
+            for l in log_path.read_text(encoding="utf-8").splitlines()
+            if l.strip() and '"marker"' not in l
+        ]
+        assert len(event_lines) == 3
+        for i, line in enumerate(event_lines):
             event = json.loads(line)
             assert event["hook_name"] == f"hook_{i}.py"
 
@@ -424,7 +433,9 @@ class TestBypassTelemetry:
         )
         lines = [l for l in log_path.read_text("utf-8").splitlines() if l.strip()]
         assert lines, "telemetry file is empty"
-        event = json.loads(lines[-1])
+        event_lines = [l for l in lines if '"marker"' not in l]
+        assert event_lines, "no per-event telemetry line found (only markers)"
+        event = json.loads(event_lines[-1])
         for key in ("timestamp", "hook_name", "tool_name", "reason"):
             assert key in event, f"missing key in telemetry: {key}"
         assert event["hook_name"].endswith(".py")
