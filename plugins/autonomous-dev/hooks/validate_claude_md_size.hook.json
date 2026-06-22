@@ -1,0 +1,6 @@
+{
+  "name": "validate_claude_md_size",
+  "type": "utility",
+  "description": "CLAUDE.md size validator; orphan helper, not registered to any lifecycle event.",
+  "interpreter": "python3"
+}

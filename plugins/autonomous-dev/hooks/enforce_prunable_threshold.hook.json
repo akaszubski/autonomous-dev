@@ -1,0 +1,6 @@
+{
+  "name": "enforce_prunable_threshold",
+  "type": "utility",
+  "description": "Threshold check helper imported by lib/hook_safety.py; not a lifecycle-event hook.",
+  "interpreter": "python3"
+}

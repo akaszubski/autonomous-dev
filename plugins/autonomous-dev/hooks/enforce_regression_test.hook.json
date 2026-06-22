@@ -1,0 +1,6 @@
+{
+  "name": "enforce_regression_test",
+  "type": "utility",
+  "description": "Regression-test enforcement helper imported by lib/bugfix_detector.py; not a lifecycle-event hook.",
+  "interpreter": "python3"
+}
