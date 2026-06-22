@@ -72,6 +72,11 @@ HUMAN_GATE_TAGS: frozenset[str] = frozenset({
 
 AUTO_DRAINABLE_SEVERITY: frozenset[str] = frozenset({"low", "info"})
 
+AUTO_DRAINABLE_CONFIDENCE_THRESHOLD: float = 0.80
+# Drains only proceed when cluster confidence >= 0.80. Confidence is computed
+# by issue_triage_analyzer._infer_confidence() based on issue body quality, OR
+# overridden via confidence:high|medium|low labels. See ADR-002 Phase C / Issue #1291.
+
 
 # =============================================================================
 # Path helpers
@@ -725,19 +730,41 @@ def skip_gate(cluster_labels: frozenset[str]) -> Tuple[bool, str]:
     return (False, "")
 
 
+def confidence_gate(cluster_confidence: float) -> Tuple[bool, str]:
+    """Block if cluster_confidence < AUTO_DRAINABLE_CONFIDENCE_THRESHOLD.
+
+    Args:
+        cluster_confidence: Per-cluster confidence from TriageFinding.confidence
+            (set by issue_triage_analyzer._infer_confidence or label override).
+
+    Returns:
+        (blocked, reason). blocked=True → STOP.
+    """
+    if cluster_confidence < AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:
+        return (
+            True,
+            f"confidence too low ({cluster_confidence:.2f} < "
+            f"{AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:.2f})",
+        )
+    return (False, "")
+
+
 def evaluate_cluster_gates(
     cluster_severity: str,
     cluster_size: int,
     cluster_labels: frozenset[str],
+    *,
+    cluster_confidence: float = 0.0,
 ) -> Tuple[str, str]:
-    """Evaluate all three STOP gates in priority order. Skip is separate.
+    """Evaluate all four STOP gates in priority order. Skip is separate.
 
-    Order: severity → tag → size. First failure short-circuits.
+    Order: severity → tag → size → confidence. First failure short-circuits.
 
     Args:
         cluster_severity: ``TriageFinding.severity``.
         cluster_size: Cluster size.
         cluster_labels: Hydrated label set.
+        cluster_confidence: Per-cluster confidence score from TriageFinding.confidence.
 
     Returns:
         ``(verdict, reason)`` where verdict is one of ``"pass"``, ``"stop"``.
@@ -750,6 +777,9 @@ def evaluate_cluster_gates(
     if blocked:
         return ("stop", reason)
     blocked, reason = size_gate(cluster_size)
+    if blocked:
+        return ("stop", reason)
+    blocked, reason = confidence_gate(cluster_confidence)
     if blocked:
         return ("stop", reason)
     return ("pass", "")
@@ -765,6 +795,7 @@ __all__ = [
     "MAX_CLUSTER_SIZE_AUTO_DRAINABLE",
     "HUMAN_GATE_TAGS",
     "AUTO_DRAINABLE_SEVERITY",
+    "AUTO_DRAINABLE_CONFIDENCE_THRESHOLD",
     "SKIP_LABELS",
     # Classes
     "DrainBudget",
@@ -776,6 +807,7 @@ __all__ = [
     "tag_gate",
     "size_gate",
     "skip_gate",
+    "confidence_gate",
     "evaluate_cluster_gates",
     # Path helpers (exposed for tests)
     "_budget_path",

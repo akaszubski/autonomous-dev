@@ -13,7 +13,13 @@ sys.path.insert(0, str(_LIB_DIR))
 from issue_triage_analyzer import TriageFinding, merge_compatible_singletons  # noqa: E402
 
 
-def _make(tag: str, sub_id: int, numbers: tuple[int, ...], severity: str = "low") -> TriageFinding:
+def _make(
+    tag: str,
+    sub_id: int,
+    numbers: tuple[int, ...],
+    severity: str = "low",
+    confidence: float = 0.0,
+) -> TriageFinding:
     return TriageFinding(
         root_cause_tag=tag,
         sub_cluster_id=sub_id,
@@ -25,6 +31,7 @@ def _make(tag: str, sub_id: int, numbers: tuple[int, ...], severity: str = "low"
         shared_files=(),
         dependency_notes=(),
         suggested_fix_order=0,
+        confidence=confidence,
     )
 
 
@@ -229,3 +236,68 @@ class TestMergeCompatibleSingletons:
         untagged = [f for f in result if f.root_cause_tag == "UNTAGGED"]
         assert len(untagged) == 1
         assert untagged[0].cluster_size == 1
+
+    def test_merged_super_cluster_propagates_max_confidence(self):
+        """Regression for Issue #1291 FINDING-1: confidence must propagate via max().
+
+        Two high-confidence singletons (confidence=0.8) with the same tag should
+        produce a merged super-cluster with confidence >= 0.8. Without the fix,
+        merge_compatible_singletons omitted the ``confidence`` field and the
+        TriageFinding dataclass default (0.0) was used, causing confidence_gate to
+        always block auto-drain for super-clusters.
+        """
+        findings = [
+            _make("SECURITY", 70, (800,), "medium", confidence=0.8),
+            _make("SECURITY", 71, (801,), "medium", confidence=0.9),
+        ]
+
+        result = merge_compatible_singletons(findings, max_size=4)
+
+        assert len(result) == 1, "Two same-tag singletons should merge into one super-cluster"
+        merged = result[0]
+
+        assert merged.root_cause_tag == "SECURITY"
+        assert merged.cluster_size == 2
+        assert sorted(merged.issue_numbers) == [800, 801]
+        # The critical assertion: confidence must be max(0.8, 0.9) = 0.9
+        assert merged.confidence >= 0.8, (
+            f"Expected merged super-cluster confidence >= 0.8, got {merged.confidence}. "
+            "merge_compatible_singletons must propagate confidence via max() — "
+            "see Issue #1291 FINDING-1."
+        )
+
+    def test_zero_confidence_singletons_merge_to_zero_confidence(self):
+        """Zero-confidence singletons should produce a zero-confidence super-cluster.
+
+        Ensures the aggregation is honest — we do not fabricate confidence from
+        nothing. The confidence_gate will block these, which is the correct behavior.
+        """
+        findings = [
+            _make("PERF", 80, (900,), "low", confidence=0.0),
+            _make("PERF", 81, (901,), "low", confidence=0.0),
+            _make("PERF", 82, (902,), "low", confidence=0.0),
+        ]
+
+        result = merge_compatible_singletons(findings, max_size=4)
+
+        assert len(result) == 1
+        merged = result[0]
+        assert merged.confidence == 0.0, (
+            "Three zero-confidence singletons must produce a zero-confidence super-cluster."
+        )
+
+    def test_mixed_confidence_singletons_take_max(self):
+        """Three singletons with mixed confidences: result should be max value."""
+        findings = [
+            _make("DB", 90, (1000,), "low", confidence=0.0),
+            _make("DB", 91, (1001,), "low", confidence=0.5),
+            _make("DB", 92, (1002,), "low", confidence=0.85),
+        ]
+
+        result = merge_compatible_singletons(findings, max_size=4)
+
+        assert len(result) == 1
+        merged = result[0]
+        assert merged.confidence == pytest.approx(0.85), (
+            f"Expected max confidence 0.85, got {merged.confidence}."
+        )

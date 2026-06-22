@@ -25,10 +25,12 @@ if str(_LIB) not in sys.path:
     sys.path.insert(0, str(_LIB))
 
 from drain_queue_state import (  # noqa: E402
+    AUTO_DRAINABLE_CONFIDENCE_THRESHOLD,
     AUTO_DRAINABLE_SEVERITY,
     HUMAN_GATE_TAGS,
     MAX_CLUSTER_SIZE_AUTO_DRAINABLE,
     SKIP_LABELS,
+    confidence_gate,
     evaluate_cluster_gates,
     severity_gate,
     size_gate,
@@ -47,6 +49,7 @@ def _make_finding(
     *,
     issue_numbers: tuple[int, ...] = (101,),
     severity: str = "low",
+    confidence: float = 0.0,
 ) -> TriageFinding:
     """Construct a TriageFinding with sensible defaults — frozen dataclass."""
     return TriageFinding(
@@ -60,6 +63,7 @@ def _make_finding(
         shared_files=(),
         dependency_notes=(),
         suggested_fix_order=1,
+        confidence=confidence,
     )
 
 
@@ -230,6 +234,7 @@ class TestEvaluateClusterGates:
             cluster_severity="low",
             cluster_size=2,
             cluster_labels=frozenset({"auto-improvement", "bug"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "pass"
         assert reason == ""
@@ -240,6 +245,7 @@ class TestEvaluateClusterGates:
             cluster_severity="high",
             cluster_size=2,
             cluster_labels=frozenset({"security"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "severity" in reason.lower() or "human review" in reason.lower()
@@ -249,6 +255,7 @@ class TestEvaluateClusterGates:
             cluster_severity="low",
             cluster_size=3,
             cluster_labels=frozenset({"breaking-change"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "breaking-change" in reason
@@ -258,6 +265,7 @@ class TestEvaluateClusterGates:
             cluster_severity="low",
             cluster_size=MAX_CLUSTER_SIZE_AUTO_DRAINABLE + 2,
             cluster_labels=frozenset({"auto-improvement"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "compound" in reason
@@ -314,3 +322,82 @@ class TestConstantsRelationships:
         """A soft skip label must not also be a human-gated STOP tag."""
         overlap = SKIP_LABELS & HUMAN_GATE_TAGS
         assert overlap == set(), f"Overlap creates ambiguous gate: {overlap}"
+
+
+# =============================================================================
+# Confidence gate (Phase C, Issue #1291)
+# =============================================================================
+
+
+class TestConfidenceGate:
+    def test_confidence_1_0_passes(self) -> None:
+        blocked, reason = confidence_gate(1.0)
+        assert blocked is False
+        assert reason == ""
+
+    def test_confidence_at_threshold_passes(self) -> None:
+        blocked, reason = confidence_gate(0.80)
+        assert blocked is False
+        assert reason == ""
+
+    def test_confidence_just_below_threshold_blocks(self) -> None:
+        blocked, reason = confidence_gate(0.79)
+        assert blocked is True
+        assert "0.79" in reason
+
+    def test_confidence_0_5_blocks(self) -> None:
+        blocked, reason = confidence_gate(0.5)
+        assert blocked is True
+
+    def test_confidence_0_0_blocks(self) -> None:
+        blocked, reason = confidence_gate(0.0)
+        assert blocked is True
+
+    def test_negative_confidence_blocks(self) -> None:
+        blocked, reason = confidence_gate(-0.1)
+        assert blocked is True
+
+    def test_blocked_reason_includes_threshold(self) -> None:
+        blocked, reason = confidence_gate(0.5)
+        assert blocked is True
+        assert f"{AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:.2f}" in reason
+
+
+# =============================================================================
+# evaluate_cluster_gates with confidence (Phase C, Issue #1291)
+# =============================================================================
+
+
+class TestEvaluateClusterGatesWithConfidence:
+    def test_all_pass_with_confidence_1_0(self) -> None:
+        """All gates pass when confidence=1.0 and other dimensions are clean."""
+        verdict, reason = evaluate_cluster_gates(
+            cluster_severity="low",
+            cluster_size=2,
+            cluster_labels=frozenset({"auto-improvement"}),
+            cluster_confidence=1.0,
+        )
+        assert verdict == "pass"
+        assert reason == ""
+
+    def test_confidence_blocks_when_prior_gates_pass(self) -> None:
+        """Confidence gate fires when severity/tag/size all pass but confidence is low."""
+        verdict, reason = evaluate_cluster_gates(
+            cluster_severity="low",
+            cluster_size=1,
+            cluster_labels=frozenset({"auto-improvement"}),
+            cluster_confidence=0.0,
+        )
+        assert verdict == "stop"
+        assert "confidence" in reason.lower()
+
+    def test_confidence_reason_string_in_evaluate_result(self) -> None:
+        """The reason returned from evaluate_cluster_gates references the threshold."""
+        verdict, reason = evaluate_cluster_gates(
+            cluster_severity="low",
+            cluster_size=1,
+            cluster_labels=frozenset(),
+            cluster_confidence=0.5,
+        )
+        assert verdict == "stop"
+        assert f"{AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:.2f}" in reason

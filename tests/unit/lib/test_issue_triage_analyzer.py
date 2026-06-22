@@ -22,6 +22,7 @@ from issue_triage_analyzer import (  # noqa: E402
     SEVERITY_WEIGHTS,
     STOPWORDS,
     TriageFinding,
+    _infer_confidence,
     _infer_severity,
     _recency_decay,
     cluster_within_tag,
@@ -273,3 +274,30 @@ class TestConstants:
         assert "the" in STOPWORDS
         assert "of" in STOPWORDS
         assert "and" in STOPWORDS
+
+
+# =============================================================================
+# _infer_confidence (Phase C, Issue #1291)
+# =============================================================================
+
+
+class TestInferConfidence:
+    def test_both_sections_returns_0_8(self) -> None:
+        body = "## Acceptance Criteria\n- pass\n## Proposed fix\nDo the thing."
+        assert _infer_confidence([body]) == 0.8
+
+    def test_only_acceptance_criteria_returns_0_0(self) -> None:
+        body = "## Acceptance Criteria\n- pass"
+        assert _infer_confidence([body]) == 0.0
+
+    def test_only_proposed_fix_returns_0_0(self) -> None:
+        body = "## Proposed fix\nDo the thing."
+        assert _infer_confidence([body]) == 0.0
+
+    def test_no_sections_returns_0_0(self) -> None:
+        body = "This issue has no structured sections."
+        assert _infer_confidence([body]) == 0.0
+
+    def test_case_insensitive_match(self) -> None:
+        body = "ACCEPTANCE CRITERIA\n- check\nPROPOSED FIX\nfix it."
+        assert _infer_confidence([body]) == 0.8

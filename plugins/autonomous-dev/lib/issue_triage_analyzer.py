@@ -93,6 +93,9 @@ class TriageFinding:
         dependency_notes: Sorted lexicographic tuple of free-form notes describing
             cross-cluster dependencies.
         suggested_fix_order: 1-indexed global order after sorting by ``rank_score`` DESC.
+        confidence: Autonomous-drain confidence score in [0.0, 1.0]. 0.8 indicates
+            high-quality issue body (has Acceptance Criteria + Proposed fix sections).
+            Used by drain_queue_state.confidence_gate. Phase C (Issue #1291).
     """
 
     root_cause_tag: str
@@ -105,6 +108,7 @@ class TriageFinding:
     shared_files: Tuple[str, ...]
     dependency_notes: Tuple[str, ...]
     suggested_fix_order: int
+    confidence: float = 0.0
 
 
 # =============================================================================
@@ -328,7 +332,12 @@ def merge_compatible_singletons(
                 
                 # Aggregate severity
                 aggregated_severity = _aggregate_severity(severities)
-                
+
+                # Aggregate confidence: super-cluster is drainable if any constituent
+                # singleton had high confidence (matching _infer_confidence semantics).
+                all_confidences = [finding.confidence for finding in chunk]
+                aggregated_confidence = max(all_confidences) if all_confidences else 0.0
+
                 # Create new super-cluster with unique sub_cluster_id
                 super_cluster = TriageFinding(
                     root_cause_tag=tag,
@@ -341,6 +350,7 @@ def merge_compatible_singletons(
                     shared_files=(),
                     dependency_notes=(),
                     suggested_fix_order=0,
+                    confidence=aggregated_confidence,
                 )
                 result.append(super_cluster)
                 super_cluster_counter += 1
@@ -429,6 +439,33 @@ def _infer_severity(labels: List[Dict[str, Any]]) -> str:
         if kw in joined:
             return "medium"
     return "low"
+
+
+def _infer_confidence(issue_bodies: List[str]) -> float:
+    """Infer confidence score from issue body content (Phase C, Issue #1291).
+
+    Returns 0.8 when any body contains BOTH 'Acceptance Criteria' AND 'Proposed fix'
+    sections (case-insensitive). High-quality issue bodies signal that the fix is
+    well-scoped enough for autonomous drain.
+
+    Returns 0.0 otherwise (conservative default — operators can override via
+    confidence:high|medium|low labels which are read elsewhere).
+
+    Args:
+        issue_bodies: List of issue body strings for the cluster.
+
+    Returns:
+        0.8 when any body contains both required sections; 0.0 otherwise.
+    """
+    if not issue_bodies:
+        return 0.0
+    for body in issue_bodies:
+        if not body:
+            continue
+        body_lower = body.lower()
+        if "acceptance criteria" in body_lower and "proposed fix" in body_lower:
+            return 0.8
+    return 0.0
 
 
 def _aggregate_severity(severities: Sequence[str]) -> str:
@@ -600,6 +637,7 @@ def _build_finding(
         shared_files=shared_files,
         dependency_notes=tuple(sorted(cross_cluster_notes)),
         suggested_fix_order=0,
+        confidence=_infer_confidence(bodies),
     )
 
 
@@ -716,6 +754,7 @@ def _triage_from_issues(
                     shared_files=f.shared_files,
                     dependency_notes=notes,
                     suggested_fix_order=0,
+                    confidence=f.confidence,
                 )
             )
         findings = annotated
@@ -738,6 +777,7 @@ def _triage_from_issues(
                 shared_files=f.shared_files,
                 dependency_notes=f.dependency_notes,
                 suggested_fix_order=idx,
+                confidence=f.confidence,
             )
         )
     return ordered

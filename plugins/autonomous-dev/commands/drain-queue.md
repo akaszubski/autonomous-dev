@@ -281,6 +281,7 @@ verdict, reason = evaluate_cluster_gates(
     cluster_severity=cluster["severity"],
     cluster_size=cluster["cluster_size"],
     cluster_labels=labels,
+    cluster_confidence=cluster.get("confidence", 0.0),
 )
 if verdict != "pass":
     append_stop_notification(f"STEP 4: gate stop — {reason}", log_dir)
@@ -291,7 +292,8 @@ selected = cluster
 Path(".claude/local/selected_cluster.json").write_text(json.dumps(selected))
 print(f"STEP 4: selected cluster {selected['root_cause_tag']}#"
       f"{selected['sub_cluster_id']} "
-      f"({selected['cluster_size']} issues, severity={selected['severity']})",
+      f"({selected['cluster_size']} issues, severity={selected['severity']}, "
+      f"confidence={cluster.get('confidence', 0.0):.2f})",
       flush=True)
 PY
 ```
