@@ -11,6 +11,8 @@
 - **ADR-002 Phase C: Before/after pytest metrics in DrainHistory** (Issue #1290): Added optional `before_metrics` and `after_metrics` dict fields to `DrainHistory` records to capture pytest test count and coverage delta for each drain. `/drain-queue` STEP 12 extended to read `/tmp/drain_before_metrics.json` if present and persist metrics in the history record. Backward compatible — legacy entries lack the new keys. Added 5 unit tests in `tests/unit/lib/test_drain_history_metrics.py`.
 
 
+- **Shared-file cluster merging in issue triage (Issue #1288)**: New `merge_by_shared_files(clusters)` function in `plugins/autonomous-dev/lib/issue_triage_analyzer.py` merges clusters within the same root-cause tag when they share at least one file reference, improving auto-drainable cluster sizes while respecting the `MAX_CLUSTER_SIZE_AUTO_DRAINABLE` limit. Integrated into `_triage_from_issues` after initial Jaccard clustering but before cross-cluster dependency detection. Added 5 parametrized test scenarios in `tests/unit/lib/test_issue_triage_analyzer.py`.
+
 
 ### Fixed
 - **Agent-completeness gate enforced under .bypass in self-maintenance mode for git commits** (Issue #1195): Under self-maintenance mode (canonical autonomous-dev repo), the `.claude/.bypass` marker no longer fully short-circuits the agent-completeness commit gate for `git commit` Bash invocations. Consumer-repo behavior is unchanged. Added conditional bypass-exit logic in `unified_pre_tool.py` and 2 tests in new `TestBypassSelfMaintenanceInteraction` class in `tests/regression/test_issue_802_agent_completeness_gate.py`.

@@ -30,6 +30,7 @@ from issue_triage_analyzer import (  # noqa: E402
     extract_root_cause_tag,
     extract_shared_files,
     extract_title_tokens,
+    merge_by_shared_files,
 )
 
 
@@ -262,6 +263,115 @@ class TestTriageFinding:
 # =============================================================================
 # Constants sanity
 # =============================================================================
+
+
+class TestMergeBySharedFiles:
+    """Tests for merge_by_shared_files function."""
+    
+    def _make_finding(
+        self,
+        tag="[lint]",
+        sub_id=1,
+        issue_nums=(1,),
+        titles=None,
+        files=(),
+        rank=10.0,
+        recency=1,
+        severity="medium",
+        cluster_size=None,
+    ):
+        """Helper to create TriageFinding instances for tests."""
+        if titles is None:
+            titles = tuple(f"Issue {num}" for num in issue_nums)
+        return TriageFinding(
+            root_cause_tag=tag,
+            sub_cluster_id=sub_id,
+            issue_numbers=tuple(issue_nums),
+            issue_titles=tuple(titles),
+            cluster_size=cluster_size if cluster_size is not None else len(issue_nums),
+            severity=severity,
+            rank_score=rank,
+            shared_files=tuple(files),
+            dependency_notes=(),
+            suggested_fix_order=0,
+        )
+    
+    @pytest.mark.parametrize(
+        "findings, expected_cluster_count, expected_max_size, description",
+        [
+            # 1. No shared files -> not merged
+            (
+                [
+                    lambda self: self._make_finding(sub_id=1, issue_nums=(1,), files=("a.py",)),
+                    lambda self: self._make_finding(sub_id=2, issue_nums=(2,), files=("b.py",)),
+                ],
+                2,
+                1,
+                "no overlap",
+            ),
+            # 2. Shared file, combined size <= 5 -> merged
+            (
+                [
+                    lambda self: self._make_finding(sub_id=1, issue_nums=(1,), files=("a.py",)),
+                    lambda self: self._make_finding(sub_id=2, issue_nums=(2,), files=("a.py", "b.py")),
+                ],
+                1,
+                2,
+                "overlap under limit",
+            ),
+            # 3. Shared file but combined size > 5 -> not merged
+            (
+                [
+                    lambda self: self._make_finding(sub_id=1, issue_nums=(1, 2, 3), files=("a.py",), cluster_size=3),
+                    lambda self: self._make_finding(sub_id=2, issue_nums=(4, 5, 6), files=("a.py",), cluster_size=3),
+                ],
+                2,
+                3,
+                "exceeds size limit",
+            ),
+            # 4. Transitive chain A-B share, B-C share, A-C don't -> all merged
+            (
+                [
+                    lambda self: self._make_finding(sub_id=1, issue_nums=(1,), files=("a.py",)),
+                    lambda self: self._make_finding(sub_id=2, issue_nums=(2,), files=("a.py", "b.py")),
+                    lambda self: self._make_finding(sub_id=3, issue_nums=(3,), files=("b.py",)),
+                ],
+                1,
+                3,
+                "transitive chain",
+            ),
+            # 5. Different bracket tags with shared files -> not merged
+            (
+                [
+                    lambda self: self._make_finding(tag="[lint]", sub_id=1, issue_nums=(1,), files=("a.py",)),
+                    lambda self: self._make_finding(tag="[tests]", sub_id=2, issue_nums=(2,), files=("a.py",)),
+                ],
+                2,
+                1,
+                "different tags",
+            ),
+        ],
+    )
+    def test_merge_by_shared_files(self, findings, expected_cluster_count, expected_max_size, description):
+        """Test merge_by_shared_files with various scenarios."""
+        # Create actual finding instances from the lambdas
+        actual_findings = [f(self) for f in findings]
+        
+        result = merge_by_shared_files(actual_findings)
+        
+        assert len(result) == expected_cluster_count, f"{description}: got {len(result)} clusters, expected {expected_cluster_count}"
+        assert max(f.cluster_size for f in result) == expected_max_size, f"{description}: max cluster size was {max(f.cluster_size for f in result)}, expected {expected_max_size}"
+        
+        # Additional checks for merged results
+        if description == "overlap under limit":
+            # Should have merged issues 1 and 2
+            assert result[0].issue_numbers == (1, 2), f"Merged cluster should have issues (1, 2), got {result[0].issue_numbers}"
+            assert set(result[0].shared_files) == {"a.py", "b.py"}, f"Merged cluster should have both files"
+        
+        if description == "transitive chain":
+            # All three should be merged
+            assert result[0].issue_numbers == (1, 2, 3), f"Transitive merge should have issues (1, 2, 3), got {result[0].issue_numbers}"
+            assert set(result[0].shared_files) == {"a.py", "b.py"}, f"Transitive merge should have both files"
 
 
 class TestConstants:

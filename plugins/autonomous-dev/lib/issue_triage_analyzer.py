@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from drain_queue_state import MAX_CLUSTER_SIZE_AUTO_DRAINABLE
+
 # Robust import of runtime_data_aggregator.fetch_open_issues_with_label
 try:
     from .runtime_data_aggregator import fetch_open_issues_with_label, SourceHealth  # type: ignore
@@ -600,6 +602,113 @@ def detect_cross_cluster_dependencies(
     return out
 
 
+def merge_by_shared_files(clusters: List[TriageFinding]) -> List[TriageFinding]:
+    """Merge TriageFinding clusters with shared_files overlap within the same root_cause_tag bucket.
+    
+    Rules:
+      - Both clusters must share the same root_cause_tag
+      - shared_files sets must intersect (>= 1 common file)
+      - Combined cluster_size must be <= MAX_CLUSTER_SIZE_AUTO_DRAINABLE
+      - Merging is transitive (achieved by repeated-pass loop until stable)
+    
+    Pure function: deterministic, same input -> same output.
+    """
+    if not clusters:
+        return []
+    
+    result = list(clusters)
+    merged_any = True
+    
+    while merged_any:
+        merged_any = False
+        
+        # Iterate by stable index order for determinism
+        for i in range(len(result)):
+            for j in range(i + 1, len(result)):
+                a, b = result[i], result[j]
+                
+                # Check same root_cause_tag
+                if a.root_cause_tag != b.root_cause_tag:
+                    continue
+                
+                # Check size constraint
+                if a.cluster_size + b.cluster_size > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
+                    continue
+                
+                # Check shared_files overlap
+                if not (set(a.shared_files) & set(b.shared_files)):
+                    continue
+                
+                # Merge b into a
+                merged = _merge_two_findings(a, b)
+                result = result[:i] + [merged] + result[i+1:j] + result[j+1:]
+                merged_any = True
+                break
+                
+            if merged_any:
+                break
+    
+    return result
+
+
+def _merge_two_findings(a: TriageFinding, b: TriageFinding) -> TriageFinding:
+    """Merge two TriageFinding instances into one.
+    
+    When merging, create a new dataclass instance with:
+    - root_cause_tag: unchanged (must be the same)
+    - sub_cluster_id: from a (preserve lower id for determinism)
+    - issue_numbers: sorted union of both lists
+    - issue_titles: parallel to issue_numbers
+    - cluster_size: len(merged issue_numbers)
+    - severity: most severe of both
+    - rank_score: a.rank_score + b.rank_score
+    - shared_files: sorted tuple of union of both sets
+    - dependency_notes: concatenate non-empty notes from both
+    - suggested_fix_order: from a
+    """
+    # Build dict mapping issue number to title for both findings
+    num_to_title_a = dict(zip(a.issue_numbers, a.issue_titles))
+    num_to_title_b = dict(zip(b.issue_numbers, b.issue_titles))
+    
+    # Merge dicts (a takes precedence on collision)
+    num_to_title = {**num_to_title_b, **num_to_title_a}
+    
+    # Get sorted union of issue numbers
+    merged_numbers = sorted(set(a.issue_numbers) | set(b.issue_numbers))
+    
+    # Get parallel titles
+    merged_titles = tuple(num_to_title[num] for num in merged_numbers)
+    
+    # Aggregate severity - use existing helper if available, otherwise inline
+    severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+    merged_severity = a.severity if severity_order.get(a.severity, 1) >= severity_order.get(b.severity, 1) else b.severity
+    
+    # Merge shared_files
+    merged_files = tuple(sorted(set(a.shared_files) | set(b.shared_files)))
+    
+    # Concatenate non-empty dependency notes
+    notes = []
+    if a.dependency_notes:
+        notes.extend(a.dependency_notes)
+    if b.dependency_notes:
+        notes.extend(b.dependency_notes)
+    merged_notes = tuple(notes)
+    
+    # Create merged finding
+    return TriageFinding(
+        root_cause_tag=a.root_cause_tag,
+        sub_cluster_id=a.sub_cluster_id,
+        issue_numbers=tuple(merged_numbers),
+        issue_titles=merged_titles,
+        cluster_size=len(merged_numbers),
+        severity=merged_severity,
+        rank_score=a.rank_score + b.rank_score,
+        shared_files=merged_files,
+        dependency_notes=merged_notes,
+        suggested_fix_order=a.suggested_fix_order,
+    )
+
+
 # =============================================================================
 # Main Triage Pipeline
 # =============================================================================
@@ -740,6 +849,9 @@ def _triage_from_issues(
                 now=now,
             )
             findings.append(finding)
+
+    # Issue #1288: merge clusters with shared_files overlap within size limits
+    findings = merge_by_shared_files(findings)
 
     # Compute cross-cluster dependency notes.
     dep_map = detect_cross_cluster_dependencies(findings)
