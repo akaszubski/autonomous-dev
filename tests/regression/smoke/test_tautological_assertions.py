@@ -39,13 +39,8 @@ ALLOWLIST: List[Tuple[str, str, str]] = [
     ("tests/unit/hooks/test_enforce_tdd.py", "test_neither_found_gives_benefit", "#783"),
     ("tests/unit/lib/test_claude_md_updater.py", "test_summary", "#783"),
     ("tests/unit/scripts/test_genai_install_wrapper.py", "test_error_handling_permission_denied", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_session_tracker_script_has_deprecation_notice", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_agent_tracker_script_imports_from_lib", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_agent_tracker_script_still_executable", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_agent_tracker_docstring_shows_import_path", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_deprecation_timeline_documented", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_script_error_mentions_lib_version_if_import_fails", "#783"),
-    ("tests/unit/test_scripts_deprecation_issue79.py", "test_script_suggests_plugin_installation_on_error", "#783"),
+    # NOTE: 7 entries for tests/unit/test_scripts_deprecation_issue79.py were
+    # removed when the test file itself was deleted upstream.
 ]
 
 

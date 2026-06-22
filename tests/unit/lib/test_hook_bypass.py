@@ -394,7 +394,7 @@ class TestCommandHeadAndWindowMarkers:
                 command_head="test command"
             )
             # Should complete without exception
-            assert True
+            assert True, "log_bypass_used must not raise on disk error (Issue #1197)"
         finally:
             # Restore write permissions for cleanup
             os.chmod(log_path.parent, 0o755)
