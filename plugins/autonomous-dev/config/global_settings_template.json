@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/post_compact_enricher.sh\"",
+            "command": "bash ~/.claude/hooks/post_compact_enricher.sh",
             "timeout": 5,
             "type": "command"
           }
@@ -16,7 +16,7 @@
       {
         "hooks": [
           {
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/plan_mode_exit_detector.py\"",
+            "command": "python3 ~/.claude/hooks/plan_mode_exit_detector.py",
             "timeout": 3,
             "type": "command"
           }
@@ -26,7 +26,7 @@
       {
         "hooks": [
           {
-            "command": "ACTIVITY_LOGGING=true python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/session_activity_logger.py\"",
+            "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
             "timeout": 5,
             "type": "command"
           }
@@ -38,7 +38,7 @@
       {
         "hooks": [
           {
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre_compact_batch_saver.sh\"",
+            "command": "bash ~/.claude/hooks/pre_compact_batch_saver.sh",
             "timeout": 5,
             "type": "command"
           }
@@ -50,40 +50,50 @@
       {
         "hooks": [
           {
-            "command": "MCP_AUTO_APPROVE=true SANDBOX_ENABLED=false python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_pre_tool.py\"",
+            "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
+            "timeout": 3,
+            "type": "command"
+          }
+        ],
+        "matcher": "Task|Agent"
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/hooks/enforce_file_organization.py",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/hooks/plan_gate.py",
+            "timeout": 3,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "MCP_AUTO_APPROVE=true SANDBOX_ENABLED=false python3 ~/.claude/hooks/unified_pre_tool.py",
             "timeout": 5,
             "type": "command"
           }
         ],
         "matcher": "*"
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/plan_gate.py\"",
-            "timeout": 3
-          }
-        ]
-      },
-      {
-        "matcher": "Task|Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ACTIVITY_LOGGING=true python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/session_activity_logger.py\"",
-            "timeout": 3
-          }
-        ]
       }
     ],
     "Stop": [
       {
         "hooks": [
           {
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/stop_quality_gate.py\"",
-            "timeout": 60,
+            "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
+            "timeout": 3,
             "type": "command"
           }
         ],
@@ -92,7 +102,7 @@
       {
         "hooks": [
           {
-            "command": "CONVERSATION_ARCHIVE=true python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/conversation_archiver.py\"",
+            "command": "CONVERSATION_ARCHIVE=true python3 ~/.claude/hooks/conversation_archiver.py",
             "timeout": 10,
             "type": "command"
           }
@@ -104,7 +114,7 @@
       {
         "hooks": [
           {
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_session_tracker.py\"",
+            "command": "python3 ~/.claude/hooks/unified_session_tracker.py",
             "timeout": 5,
             "type": "command"
           }
@@ -116,7 +126,7 @@
       {
         "hooks": [
           {
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/task_completed_handler.py\"",
+            "command": "python3 ~/.claude/hooks/task_completed_handler.py",
             "timeout": 5,
             "type": "command"
           }
@@ -128,7 +138,7 @@
       {
         "hooks": [
           {
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/unified_prompt_validator.py\"",
+            "command": "python3 ~/.claude/hooks/unified_prompt_validator.py",
             "timeout": 5,
             "type": "command"
           }
