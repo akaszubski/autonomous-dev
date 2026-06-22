@@ -12,7 +12,7 @@ Expected: All tests FAIL until memory_relevance.py is implemented
 
 import pytest
 from datetime import datetime, timedelta
-from autonomous_dev.lib.memory_relevance import (
+from plugins.autonomous_dev.lib.memory_relevance import (
     extract_keywords,
     calculate_relevance,
     rank_memories,

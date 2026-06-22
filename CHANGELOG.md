@@ -1,6 +1,10 @@
 ## [Unreleased]
 
 
+### Fixed
+- **Test collection errors in unit/lib tests** (Issue #1205): Fixed 4 collection errors in `tests/unit/lib/` caused by 3 test files using incorrect import paths (`autonomous_dev.lib.*` instead of `plugins.autonomous_dev.lib.*`). The affected test files (`test_memory_formatter.py`, `test_memory_relevance.py`, and `test_acceptance_criteria_parser.py` with 16 import occurrences total) now use the correct import pattern aligned with the conftest.py module aliasing and 60+ other tests in the suite.
+
+
 ### Security
 - **ReDoS hardening in `sync_validator.py` path regex** (Issue #1222): The path validation regex in `sync_validator._validate_hook_file()` line 355 previously used an unbounded `+` quantifier on the `[\w./~-]` character class. An adversarial input could cause superlinear regex-engine scanning time. Fix bounds the character-class run to `{1,512}` to prevent ReDoS attacks, following the same defensive pattern established in Issues #1194, #1220, and #1221. The public API is unchanged — paths exceeding 512 characters (extremely rare in practice) are now rejected. Added 3 regression tests in `tests/unit/lib/test_sync_validator_regex_bound.py` covering: no-match on 100 KB adversarial pad, inclusive upper bound (512-char path matches), and typical short paths still match. (CWE-1333)
 

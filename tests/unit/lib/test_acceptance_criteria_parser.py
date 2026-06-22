@@ -90,7 +90,7 @@ TBD
         THEN: Returns issue body as string
         """
         # Import the module (will fail until implementation exists)
-        from autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
 
         # Arrange
         issue_number = 161
@@ -124,7 +124,7 @@ TBD
         WHEN: Fetching issue body via gh CLI
         THEN: Raises ValueError with 404 message
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
 
         # Arrange
         issue_number = 99999
@@ -147,7 +147,7 @@ TBD
         WHEN: Fetching issue body
         THEN: Raises RuntimeError with installation guidance
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
 
         # Arrange
         issue_number = 161
@@ -166,7 +166,7 @@ TBD
         WHEN: Fetching issue body
         THEN: Raises RuntimeError with network error message
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import fetch_issue_body
 
         # Arrange
         issue_number = 161
@@ -193,7 +193,7 @@ TBD
         WHEN: Parsing acceptance criteria
         THEN: Returns dict with categories and criteria
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Act
         result = parse_acceptance_criteria(sample_issue_body)
@@ -229,7 +229,7 @@ TBD
         WHEN: Parsing acceptance criteria
         THEN: Returns dict with "General" category
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Arrange
         issue_body = """
@@ -256,7 +256,7 @@ TBD
         WHEN: Parsing acceptance criteria
         THEN: Returns empty dict
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Act
         result = parse_acceptance_criteria(sample_issue_no_criteria)
@@ -271,7 +271,7 @@ TBD
         WHEN: Parsing acceptance criteria
         THEN: Returns empty dict (graceful degradation)
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Arrange
         issue_body = """
@@ -295,7 +295,7 @@ Just implement it.
         WHEN: Parsing acceptance criteria
         THEN: Returns criteria without checkbox markers
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Act
         result = parse_acceptance_criteria(sample_issue_body)
@@ -320,7 +320,7 @@ Just implement it.
         WHEN: Formatting for UAT tests
         THEN: Returns Gherkin-style test scenarios
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
 
         # Arrange
         criteria = {
@@ -355,7 +355,7 @@ Just implement it.
         WHEN: Formatting for UAT tests
         THEN: Generates valid pytest scenario names
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
 
         # Arrange
         criteria = {
@@ -380,7 +380,7 @@ Just implement it.
         WHEN: Formatting for UAT tests
         THEN: Preserves category information for test organization
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import format_for_uat
 
         # Arrange
         criteria = {
@@ -408,7 +408,7 @@ Just implement it.
         WHEN: Executing full pipeline (fetch → parse → format)
         THEN: Returns UAT test scenarios ready for test generation
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import (
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import (
             fetch_issue_body,
             parse_acceptance_criteria,
             format_for_uat
@@ -442,7 +442,7 @@ Just implement it.
         WHEN: Parsing acceptance criteria
         THEN: Gracefully handles errors and returns partial results
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import parse_acceptance_criteria
 
         # Arrange
         malformed_body = """
@@ -474,7 +474,7 @@ Just implement it.
         WHEN: Parsing and formatting
         THEN: Preserves unicode characters correctly
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import (
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import (
             parse_acceptance_criteria,
             format_for_uat
         )
@@ -505,7 +505,7 @@ Just implement it.
         WHEN: Parsing and formatting
         THEN: Handles long text without truncation
         """
-        from autonomous_dev.lib.acceptance_criteria_parser import (
+        from plugins.autonomous_dev.lib.acceptance_criteria_parser import (
             parse_acceptance_criteria,
             format_for_uat
         )

@@ -13,7 +13,7 @@ Expected: All tests FAIL until memory_formatter.py is implemented
 
 import pytest
 from datetime import datetime
-from autonomous_dev.lib.memory_formatter import (
+from plugins.autonomous_dev.lib.memory_formatter import (
     count_tokens,
     format_memory_block,
     format_memories_with_budget,
