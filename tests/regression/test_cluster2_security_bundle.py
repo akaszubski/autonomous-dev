@@ -234,6 +234,25 @@ class TestLockedRmw:
         finally:
             _cleanup_session(sid)
 
+    def test_locked_rmw_rejects_traversal_run_id(self) -> None:
+        """`_locked_rmw` MUST validate run_id before constructing lockfile path (#1188)."""
+        sid = _fresh_session_id()
+        traversal_id = "../etc/passwd"
+        traversal_lock = Path(f"/tmp/pipeline_agent_completions_{traversal_id}.lock")
+        # Pre-condition: ensure no stale file at the traversal path
+        if traversal_lock.exists():
+            traversal_lock.unlink()
+        try:
+            with pytest.raises(ValueError, match="invalid characters"):
+                pcs._locked_rmw(sid, lambda state: None, run_id=traversal_id)
+            # Post-condition: no lockfile was created at the traversal path
+            assert not traversal_lock.exists(), (
+                f"Lockfile created at traversal path {traversal_lock}; validation ran AFTER open()"
+            )
+        finally:
+            _cleanup_session(sid)
+
+
 
 # ---------------------------------------------------------------------------
 # AC-3: _resolve_session_id_safe sanitizes env-var input (#1171)

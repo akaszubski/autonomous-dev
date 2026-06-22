@@ -1477,11 +1477,18 @@ def _locked_rmw(
             ``state`` in place. Return value is ignored.
         run_id: Optional per-invocation run identifier. When provided,
             the lockfile key matches the state file's per-run key for
-            scope parity.
+            scope parity. Must match ``_RUN_ID_RE`` (``[a-zA-Z0-9_-]{1,64}``);
+            ValueError is raised otherwise.
 
-    Issues: #1170
+    Issues: #1170, #1188
     """
     if run_id:
+        if not _RUN_ID_RE.match(run_id):
+            raise ValueError(
+                f"run_id contains invalid characters: {run_id!r}\n"
+                f"Expected: 1-64 characters matching [a-zA-Z0-9_-]\n"
+                f"See: docs/ARCHITECTURE-OVERVIEW.md"
+            )
         key = run_id
     else:
         key = hashlib.sha256(session_id.encode()).hexdigest()[:8]
