@@ -1226,7 +1226,7 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
             get_validation_mode,
             record_agent_launch,
         )
-        from agent_ordering_gate import check_ordering_prerequisites
+        from agent_ordering_gate import check_ordering_with_session_fallback
 
         session_id = _session_id or os.getenv("CLAUDE_SESSION_ID", "unknown")
         issue_number = _get_current_issue_number()
@@ -1251,11 +1251,11 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
         # planner->implementer prerequisite must be skipped.
         pipeline_mode = _get_pipeline_mode_from_state()
 
-        gate = check_ordering_prerequisites(
+        gate = check_ordering_with_session_fallback(
             target_agent,
-            completed,
+            session_id,
+            issue_number=issue_number,
             validation_mode=mode,
-            launched_agents=launched,
             pipeline_mode=pipeline_mode,
         )
         if not gate.passed:
@@ -1265,7 +1265,7 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
                 set_redispatch_flag(target_agent)
             except Exception:
                 pass  # Never fail the hook for flag setting
-            return ("deny", gate.reason)
+            return ("deny", f"{gate.reason} (session_id: {session_id})")
 
         # Issue #669: Log parallel mode warnings for observability
         if gate.warning:

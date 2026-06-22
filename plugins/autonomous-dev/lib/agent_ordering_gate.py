@@ -333,10 +333,11 @@ def check_ordering_with_session_fallback(
     Wraps check_ordering_prerequisites with a two-step state lookup:
     1. Read completions from the primary session_id.
     2. If empty, fall back to the 'unknown' session state.
+    3. If still empty and session_id != 'unknown', attempt sentinel resolution (Issue #1196).
 
     This handles the case where the coordinator initialized pipeline state
     before CLAUDE_SESSION_ID was set — state is written under session_id='unknown'
-    but the hook reads with the real session ID. Issue #738.
+    but the hook reads with the real session ID. Issue #738, #1196.
 
     Args:
         target_agent: The agent about to be invoked.
@@ -353,6 +354,7 @@ def check_ordering_with_session_fallback(
             get_completed_agents,
             get_launched_agents,
             get_plan_critic_skipped,
+            resolve_session_id,
         )
     except ImportError:
         # If state module not available, fall back to pure logic (no completions)
@@ -366,6 +368,16 @@ def check_ordering_with_session_fallback(
     completed = get_completed_agents(session_id, issue_number=issue_number)
     launched = get_launched_agents(session_id, issue_number=issue_number)
     plan_critic_skipped = get_plan_critic_skipped(session_id, issue_number=issue_number)
+
+    # Issue #1196: If completions are empty and session_id is not "unknown",
+    # attempt to resolve the sentinel session_id and fetch completions under it.
+    if not completed and session_id != "unknown":
+        sentinel_sid = resolve_session_id(max_age_seconds=3600)
+        if sentinel_sid != session_id and sentinel_sid != "unknown":
+            # Try fetching completions under the sentinel session_id
+            completed = get_completed_agents(sentinel_sid, issue_number=issue_number)
+            launched = get_launched_agents(sentinel_sid, issue_number=issue_number)
+            plan_critic_skipped = get_plan_critic_skipped(sentinel_sid, issue_number=issue_number)
 
     return check_ordering_prerequisites(
         target_agent,
