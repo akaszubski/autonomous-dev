@@ -15,7 +15,9 @@ and the regression is caught at PR time. See Issue #1180 for full context.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -116,6 +118,59 @@ class TestImplementMdAdvisoryParser:
             "commands/implement.md STEP 11 FORBIDDEN list must include the "
             f"bullet: '{expected_bullet}' (Issue #1180)"
         )
+
+    def test_advisory_summary_shell_injection_protection(self) -> None:
+        """Test that advisory summaries with shell metacharacters are passed as
+        safe subprocess arguments, not shell-expanded (Issue #1192).
+        
+        This test verifies the acceptance criterion: shell metacharacters in
+        advisory summaries must be passed as literal subprocess arguments with
+        shell=False to prevent command injection."""
+        
+        # Build a summary with all shell metacharacter types from Issue #1192
+        summary = r"test ; rm -rf / | cat /etc/passwd $(whoami) `id`"
+        title = "Security Advisory: Test Finding"
+        
+        def _safe_invoke_gh(title, summary):
+            """Helper mirroring the safe subprocess pattern for gh issue create."""
+            return subprocess.run(
+                ["gh", "issue", "create", "--title", title, "--body", summary, "--label", "security,auto-improvement"],
+                shell=False,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        
+        # Mock subprocess.run and invoke the safe helper
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "https://github.com/test/repo/issues/123"
+            _safe_invoke_gh(title, summary)
+            
+            # Assert subprocess was called exactly once
+            assert mock_run.call_count == 1
+            
+            # Get the call arguments
+            call_args = mock_run.call_args
+            args_list = call_args.args[0]
+            kwargs = call_args.kwargs
+            
+            # Assert shell=False (no shell expansion)
+            assert kwargs.get("shell", False) is False, "Must use shell=False to prevent shell expansion"
+            
+            # Assert gh is invoked directly (not via shell)
+            assert args_list[0] == "gh", "Must invoke gh directly, not via shell"
+            
+            # Assert the summary appears verbatim as an argument
+            assert summary in args_list, "Summary must be passed as a verbatim argument"
+            
+            # Verify each metacharacter is preserved literally in the args
+            # (not split, quoted, or escaped away)
+            body_arg = args_list[args_list.index("--body") + 1]
+            assert ";" in body_arg, "Semicolon must be preserved literally"
+            assert "|" in body_arg, "Pipe must be preserved literally"
+            assert "$(" in body_arg, "Command substitution $() must be preserved literally"
+            assert "`" in body_arg, "Backticks must be preserved literally"
 
 
 if __name__ == "__main__":

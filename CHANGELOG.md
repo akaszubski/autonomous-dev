@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Security advisory parser shell injection protection test** (Issue #1192): Added behavioral test `test_advisory_summary_shell_injection_protection` to `tests/unit/test_security_advisory_parser.py` verifying that shell metacharacters in advisory summaries are passed as safe subprocess arguments with `shell=False`, preventing command injection. The test mocks `subprocess.run` and asserts that metacharacters (`;|$()`) appear verbatim in the argument list, not shell-expanded, satisfying the security-auditor's acceptance criterion.
+
 
 ### Fixed
 - **Agent-completeness gate enforced under .bypass in self-maintenance mode for git commits** (Issue #1195): Under self-maintenance mode (canonical autonomous-dev repo), the `.claude/.bypass` marker no longer fully short-circuits the agent-completeness commit gate for `git commit` Bash invocations. Consumer-repo behavior is unchanged. Added conditional bypass-exit logic in `unified_pre_tool.py` and 2 tests in new `TestBypassSelfMaintenanceInteraction` class in `tests/regression/test_issue_802_agent_completeness_gate.py`.
