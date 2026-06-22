@@ -63,8 +63,9 @@ jobs:
             pip install openai -q
             python -c "from plugins.autonomous_dev.lib.hybrid_validator import validate_manifest_alignment; import sys; result = validate_manifest_alignment('.'); sys.exit(result.get_exit_code())"
           else
-            echo "Using regex validation (no API key)"
-            python plugins/autonomous-dev/lib/validate_manifest_doc_alignment.py
+            echo "Skipping manifest-doc alignment (no OPENROUTER_API_KEY secret set)."
+            echo "Fallback regex validator was removed 2026-03-20 (commit 494a378)."
+            echo "To enable: add OPENROUTER_API_KEY repo secret. Skip is intentional, not a failure."
           fi
 
   # Stage 1.5: GenAI intent validation (semantic, drift-proof)
