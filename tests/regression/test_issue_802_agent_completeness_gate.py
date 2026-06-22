@@ -157,3 +157,96 @@ class TestNonPipelineCommitsUnaffected:
         # a valid result regardless.
         assert isinstance(passed, bool)
         assert isinstance(missing, set)
+
+
+class TestBypassSelfMaintenanceInteraction:
+    """Tests for Issue #1195: .bypass + self-maintenance + agent gate interaction."""
+
+    def test_agent_completeness_enforced_under_bypass_self_maintenance(self, session_id, monkeypatch, tmp_path):
+        """.bypass + self-maintenance mode + missing agents should BLOCK git commit."""
+        # Create the bypass marker
+#!/usr/bin/env python3
+"""
+Test Issue #1195: .bypass + self-maintenance mode should still enforce agent-completeness.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# Add the lib directory to the path
+sys.path.insert(0, str(Path(__file__).parents[2] / "plugins" / "autonomous-dev" / "lib"))
+import pipeline_completion_state as pcs
+
+
+@pytest.fixture(autouse=True)
+def cleanup_state_file():
+    """Remove any state file after each test."""
+    yield
+    state_file = Path(f"/tmp/pipeline_state_{os.getpid()}.json")
+    if state_file.exists():
+        state_file.unlink()
+
+
+@pytest.fixture
+def session_id():
+    """Generate a unique session ID for testing."""
+    import hashlib
+    import time
+    return hashlib.sha256(f"test-{time.time()}".encode()).hexdigest()[:8]
+
+
+class TestBypassSelfMaintenanceInteraction:
+    """Tests for Issue #1195: .bypass + self-maintenance + agent gate interaction."""
+
+    def test_hook_has_self_maintenance_bypass_logic(self):
+        """Verify the hook contains the Issue #1195 fix logic."""
+        hook_path = Path(__file__).parents[2] / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
+        source = hook_path.read_text()
+        
+        # Verify the Issue #1195 comment exists
+        assert "Issue #1195" in source, "Missing Issue #1195 comment"
+        
+        # Verify the self-maintenance check is present in bypass section
+        # Look for the pattern of checking _is_self_maintenance_mode after is_bypassed
+        assert "_skip_bypass_exit" in source, "Missing _skip_bypass_exit variable"
+        assert "_is_self_maintenance_mode() and tool_name == \"Bash\"" in source, \
+            "Missing self-maintenance check in bypass logic"
+        
+        # Verify git commit check is in the bypass logic
+        lines = source.split("\n")
+        bypass_section_found = False
+        self_maint_check_found = False
+        
+        for i, line in enumerate(lines):
+            if "if is_bypassed():" in line:
+                bypass_section_found = True
+                # Check the next ~20 lines for the self-maintenance logic
+                for j in range(i, min(i + 25, len(lines))):
+                    if "_is_self_maintenance_mode()" in lines[j]:
+                        self_maint_check_found = True
+                        break
+                break
+        
+        assert bypass_section_found, "Bypass section not found"
+        assert self_maint_check_found, "Self-maintenance check not found in bypass section"
+    
+    def test_agent_completeness_state_with_missing_agents(self, session_id):
+        """Test that missing agents are correctly detected."""
+        # Set up pipeline state with missing agents
+        pcs.record_agent_completion(session_id, "planner")
+        pcs.record_agent_completion(session_id, "implementer")
+        # Missing: security-auditor, reviewer, doc-master
+        
+        # Verify the agent completeness check finds missing agents
+        passed, completed, missing = pcs.verify_pipeline_agent_completions(session_id, "full")
+        assert not passed  # Should fail due to missing agents
+        assert "security-auditor" in missing
+        assert "reviewer" in missing
+        assert "doc-master" in missing
+        assert "planner" in completed
+        assert "implementer" in completed

@@ -5892,8 +5892,18 @@ def main():
                     tool_name=tool_name,
                     command_head=command_head,
                 )
-                output_decision("allow", "Universal bypass active (#969)")
-                sys.exit(0)
+                
+                # Issue #1195: In self-maintenance mode, still enforce agent-completeness gate
+                # for git commits even when bypass is active
+                _skip_bypass_exit = False
+                if _is_self_maintenance_mode() and tool_name == "Bash":
+                    command = tool_input.get("command", "")
+                    if "git commit" in command or ("git -c" in command and "commit" in command):
+                        _skip_bypass_exit = True
+                
+                if not _skip_bypass_exit:
+                    output_decision("allow", "Universal bypass active (#969)")
+                    sys.exit(0)
             else:
                 # Issue #1197: Check for window close transitions
                 check_and_log_window_close()

@@ -2,6 +2,8 @@
 
 
 ### Fixed
+- **Agent-completeness gate enforced under .bypass in self-maintenance mode for git commits** (Issue #1195): Under self-maintenance mode (canonical autonomous-dev repo), the `.claude/.bypass` marker no longer fully short-circuits the agent-completeness commit gate for `git commit` Bash invocations. Consumer-repo behavior is unchanged. Added conditional bypass-exit logic in `unified_pre_tool.py` and 2 tests in new `TestBypassSelfMaintenanceInteraction` class in `tests/regression/test_issue_802_agent_completeness_gate.py`.
+
 - **Test collection errors in unit/lib tests** (Issue #1205): Fixed 4 collection errors in `tests/unit/lib/` caused by 3 test files using incorrect import paths (`autonomous_dev.lib.*` instead of `plugins.autonomous_dev.lib.*`). The affected test files (`test_memory_formatter.py`, `test_memory_relevance.py`, and `test_acceptance_criteria_parser.py` with 16 import occurrences total) now use the correct import pattern aligned with the conftest.py module aliasing and 60+ other tests in the suite.
 - **Agent-ordering gate session_id boundary mismatch** (Issue #1196): Hook now falls back to sentinel-resolved session_id when payload session_id has no recorded completions (mtime-guarded, 3600s TTL); deny messages now include the evaluated session_id for diagnosability.
 
