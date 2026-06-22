@@ -591,16 +591,35 @@ t0 = float(Path(".claude/local/drain_t0.txt").read_text())
 elapsed = time.time() - t0
 cluster = json.loads(Path(".claude/local/selected_cluster.json").read_text())
 
+# Load before_metrics if available (Issue #1290)
+before_metrics = None
+try:
+    with open("/tmp/drain_before_metrics.json", "r") as f:
+        before_metrics = json.load(f)
+except (OSError, json.JSONDecodeError):
+    pass  # File missing or malformed, continue without metrics
+
+# TODO(Issue #1290 follow-up): Capture actual after_metrics via pytest invocation
+after_metrics = None
+
 CircuitBreaker.load(repo).record_success()
 DrainBudget.load(repo).add(elapsed)
 # revert_status="pending" marks this drain as a candidate for the auto-revert checker (Issue #1292, gated on #1290 metrics)
-DrainHistory.load(repo).append({
+# Build record with optional metrics fields
+record = {
     "outcome": "success",
     "cluster_id": f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']}",
     "issue_numbers": list(cluster["issue_numbers"]),
     "wall_seconds": elapsed,
     "revert_status": "pending",
-})
+}
+# Only add metrics keys if not None (backward compat)
+if before_metrics is not None:
+    record["before_metrics"] = before_metrics
+if after_metrics is not None:
+    record["after_metrics"] = after_metrics
+
+DrainHistory.load(repo).append(record)
 print(f"STEP 12: drain logged — cluster "
       f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']} "
       f"in {elapsed:.0f}s", flush=True)

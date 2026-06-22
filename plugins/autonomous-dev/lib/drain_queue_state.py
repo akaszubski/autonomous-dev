@@ -576,6 +576,10 @@ class DrainHistory:
     Optional fields that callers MAY include in records (Issue #1292):
     - ``revert_status``: one of "pending", "reverted", "not_needed". Default absent (legacy).
     - ``revert_sha``: SHA of the revert commit if revert_status == "reverted". Default absent.
+    
+    Optional fields for pytest metrics (Issue #1290):
+    - ``before_metrics``: dict shaped ``{test_count: int, coverage_pct: float, failing_tests: list[str]}``
+    - ``after_metrics``: same shape as before_metrics
     """
 
     repo_root: Path
@@ -594,6 +598,8 @@ class DrainHistory:
         Optional fields (Issue #1292):
         - ``revert_status``: one of "pending", "reverted", "not_needed"
         - ``revert_sha``: SHA of revert commit if reverted
+        - ``before_metrics``: dict with test_count, coverage_pct, failing_tests (Issue #1290)
+        - ``after_metrics``: same shape as before_metrics
         """
         path = _history_path(self.repo_root)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
