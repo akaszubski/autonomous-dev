@@ -207,3 +207,42 @@ class TestSpec844ValidatePromptSlots:
         assert "implementer output" in result.present_slots
         assert "changed files" in result.missing_slots
         assert "test results" in result.missing_slots
+
+    def test_security_auditor_forbids_credential_quoting(self):
+        """Security auditor spec contains FORBIDDEN rule against quoting credentials."""
+        # Read the security-auditor.md file
+        security_auditor_path = REPO_ROOT / "plugins" / "autonomous-dev" / "agents" / "security-auditor.md"
+        assert security_auditor_path.exists(), f"Security auditor spec not found at {security_auditor_path}"
+        
+        content = security_auditor_path.read_text(encoding="utf-8")
+        
+        # Check for the FORBIDDEN rule about not quoting credential values
+        # Look for key phrases that should be present in the rule
+        content_lower = content.lower()
+        
+        # Check that the rule exists (case-insensitive, robust search)
+        has_credential_rule = (
+            "credential" in content_lower and 
+            "do not quote" in content_lower
+        ) or (
+            "credential values" in content_lower and
+            "verbatim" in content_lower
+        ) or (
+            "must not quote credential" in content_lower
+        )
+        
+        assert has_credential_rule, (
+            "Security auditor spec must contain FORBIDDEN rule about not quoting credential values. "
+            "Expected text like: 'You MUST NOT quote credential values verbatim in finding text'"
+        )
+        
+        # More specific check - look for the exact or similar phrasing
+        forbidden_lines = [line for line in content.split('\n') if '❌' in line]
+        credential_rule_found = any(
+            'credential' in line.lower() and ('quote' in line.lower() or 'verbatim' in line.lower())
+            for line in forbidden_lines
+        )
+        
+        assert credential_rule_found, (
+            "Security auditor spec must have a FORBIDDEN (❌) bullet specifically about not quoting credentials"
+        )

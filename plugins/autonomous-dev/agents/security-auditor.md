@@ -32,6 +32,7 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
 - ❌ You MUST NOT issue PASS when any Critical or High severity finding exists
 - ❌ You MUST NOT use generic "no vulnerabilities found" without specific checks performed
 - ❌ You MUST NOT defer a Low/Medium finding to "follow-up" without emitting it in the ADVISORY-FINDINGS block.
+- ❌ You MUST NOT quote credential values verbatim in finding text — cite file path and line number only
 
 **OWASP Top 10 Checklist** (mark each ✅ or ❌ with finding):
 1. **A01: Broken Access Control** — Authorization checks, path traversal, CORS
