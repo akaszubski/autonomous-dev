@@ -208,3 +208,67 @@ class TestFileIsJsonlParseable:
             parsed = json.loads(line)  # Must not raise
             assert isinstance(parsed, dict), f"Line {i} is not a JSON object"
             assert "cluster_id" in parsed, f"Line {i} missing cluster_id"
+
+
+class TestDrainHistoryRevertFields:
+    """Tests for #1292 revert_status / revert_sha fields and iter_pending_revert_candidates."""
+
+    def test_revert_fields_round_trip(self, tmp_path):
+        from drain_queue_state import DrainHistory
+        history = DrainHistory.load(tmp_path)
+        history.append({
+            "timestamp": "2026-06-23T10:00:00+00:00",
+            "outcome": "success",
+            "drain_sha": "abc1234def5678",
+            "revert_status": "pending",
+            "revert_sha": None,
+            "issues": [100, 101],
+        })
+        records = history.read_all()
+        assert len(records) == 1
+        assert records[0]["revert_status"] == "pending"
+        assert records[0]["revert_sha"] is None
+        assert records[0]["drain_sha"] == "abc1234def5678"
+
+    def test_backward_compat_missing_revert_fields(self, tmp_path):
+        """Legacy records without revert_status/revert_sha load without crash."""
+        from drain_queue_state import DrainHistory, _history_path
+        path = _history_path(tmp_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Write a legacy record (no revert_status, no revert_sha)
+        path.write_text(json.dumps({
+            "timestamp": "2026-06-23T08:00:00+00:00",
+            "outcome": "success",
+            "drain_sha": "old1234",
+            "issues": [50],
+        }) + "\n", encoding="utf-8")
+        history = DrainHistory.load(tmp_path)
+        records = history.read_all()
+        assert len(records) == 1
+        # read_all doesn't fill defaults — iter_pending_revert_candidates does
+        assert "revert_status" not in records[0]
+
+    def test_iter_pending_revert_candidates_filters_correctly(self, tmp_path):
+        from drain_queue_state import DrainHistory, iter_pending_revert_candidates
+        from datetime import datetime, timezone, timedelta
+        history = DrainHistory.load(tmp_path)
+        now = datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc)
+        old_ts = (now - timedelta(minutes=40)).isoformat()
+        new_ts = (now - timedelta(minutes=10)).isoformat()
+        # (a) eligible
+        history.append({"timestamp": old_ts, "outcome": "success",
+                        "drain_sha": "aaa", "revert_status": "pending"})
+        # (b) already reverted
+        history.append({"timestamp": old_ts, "outcome": "success",
+                        "drain_sha": "bbb", "revert_status": "reverted"})
+        # (c) not a success
+        history.append({"timestamp": old_ts, "outcome": "stop", "drain_sha": "ccc"})
+        # (d) too new
+        history.append({"timestamp": new_ts, "outcome": "success",
+                        "drain_sha": "ddd", "revert_status": "pending"})
+        # (e) no drain_sha
+        history.append({"timestamp": old_ts, "outcome": "success",
+                        "drain_sha": "", "revert_status": "pending"})
+        candidates = iter_pending_revert_candidates(history, min_age_seconds=1800, now=now)
+        assert len(candidates) == 1
+        assert candidates[0]["drain_sha"] == "aaa"

@@ -1,0 +1,60 @@
+name: Drain Regression Check
+
+# Auto-revert orchestration for regressing drain commits.
+# Issue #1292 (ADR-002 Phase C Invariant 4). Fires every 10 minutes.
+# Reads DrainHistory pending revert candidates (age > 30 min, success outcome),
+# detects regression (after.failing_tests > before.failing_tests), reverts if
+# warranted, reopens closed issues with 'drain-reverted' label.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+# Never cancel — a mid-revert cancel leaves repo dirty.
+concurrency:
+  group: drain-regression-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for git log --grep
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.email "drain-revert-bot@autonomous-dev"
+          git config user.name "Drain Revert Bot"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run regression check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEALTHCHECK_DRAIN_REVERT: ${{ secrets.HEALTHCHECK_DRAIN_REVERT }}
+        run: |
+          python3 plugins/autonomous-dev/scripts/drain_regression_check.py
+
+      - name: Healthcheck ping (always)
+        if: always()
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_DRAIN_REVERT }}
+        run: |
+          if [ -n "$HEALTHCHECK_URL" ]; then
+            curl -fsS -m 10 --retry 3 -o /dev/null "$HEALTHCHECK_URL" || true
+          else
+            echo "HEALTHCHECK_DRAIN_REVERT not set; skipping ping"
+          fi

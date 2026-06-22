@@ -629,6 +629,15 @@ before = (
 )
 after = capture_pytest_snapshot(repo, env)
 
+# Capture drain commit SHA (HEAD is the drain commit at this point — after push)
+import subprocess as _sp
+_drain_sha_result = _sp.run(
+    ["git", "log", "-1", "--format=%H", "HEAD"],
+    cwd=str(repo), env=env, capture_output=True, text=True,
+    shell=False, check=False, timeout=15,
+)
+drain_sha = _drain_sha_result.stdout.strip() if _drain_sha_result.returncode == 0 else ""
+
 CircuitBreaker.load(repo).record_success()
 DrainBudget.load(repo).add(elapsed)
 DrainHistory.load(repo).append({
@@ -638,6 +647,9 @@ DrainHistory.load(repo).append({
     "wall_seconds": elapsed,
     "before_metrics": before,
     "after_metrics": after,
+    "drain_sha": drain_sha,
+    "revert_status": "pending",
+    "revert_sha": None,
 })
 print(
     f"STEP 12: drain logged — cluster "

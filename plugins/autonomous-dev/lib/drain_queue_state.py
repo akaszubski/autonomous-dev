@@ -157,6 +157,18 @@ def _empty_metrics() -> Dict[str, Any]:
     }
 
 
+def _empty_revert_state() -> Dict[str, Any]:
+    """Default revert-state sentinel for DrainHistory records.
+
+    Used when loading old JSONL records pre-#1292 that lack the new keys.
+    Default is "pending" so the regression checker considers them
+    candidates — conservative, because (a) if metrics have error != None,
+    detect_regression() returns no_regression; (b) the 30-min wall-clock
+    guard skips records too new to act on.
+    """
+    return {"revert_status": "pending", "revert_sha": None}
+
+
 # =============================================================================
 # DrainBudget — daily drain-count + wall-clock cap (UTC)
 # =============================================================================
@@ -645,6 +657,61 @@ class DrainHistory:
 
 
 # =============================================================================
+# Revert-candidate query (Issue #1292, ADR-002 Phase C Invariant 4)
+# =============================================================================
+
+
+def iter_pending_revert_candidates(
+    history: "DrainHistory",
+    *,
+    min_age_seconds: int = 1800,
+    now: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Yield DrainHistory records that are revert candidates.
+
+    A candidate satisfies ALL:
+      * outcome == "success"
+      * revert_status == "pending" (missing field defaults to "pending")
+      * age since drain timestamp >= min_age_seconds (default 1800s)
+      * drain_sha is present and non-empty (can't revert without a SHA)
+
+    Returns a list of record dicts (copies, with revert_status/revert_sha
+    defaults filled in if absent). Does NOT mutate the underlying JSONL.
+    """
+    now_dt = now if now is not None else datetime.now(timezone.utc)
+    candidates: List[Dict[str, Any]] = []
+    for record in history.read_all():
+        if record.get("outcome") != "success":
+            continue
+        revert_status = record.get("revert_status", "pending")
+        if revert_status != "pending":
+            continue
+        drain_sha = record.get("drain_sha", "")
+        if not drain_sha:
+            continue
+        ts_str = record.get("timestamp")
+        if not ts_str:
+            continue
+        try:
+            ts = _parse_iso(ts_str)
+        except Exception:
+            continue
+        if ts is None:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age_seconds = (now_dt - ts).total_seconds()
+        if age_seconds < min_age_seconds:
+            continue
+        # Return augmented copy with defaults filled in
+        out = dict(record)
+        out.setdefault("revert_status", "pending")
+        out.setdefault("revert_sha", None)
+        candidates.append(out)
+    return candidates
+
+
+# =============================================================================
 # Pure-function gate logic — operates on TriageFinding-shaped clusters + labels
 # =============================================================================
 
@@ -816,4 +883,7 @@ __all__ = [
     "_history_path",
     # Metrics sentinel (Phase C, Issue #1290)
     "_empty_metrics",
+    # Revert state (Phase C, Issue #1292)
+    "_empty_revert_state",
+    "iter_pending_revert_candidates",
 ]
