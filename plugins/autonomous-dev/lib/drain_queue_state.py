@@ -565,6 +565,10 @@ class DrainHistory:
 
     File: ``<repo_root>/.claude/local/drain_log.jsonl``. Read tolerates
     malformed lines (skips them); append is line-atomic via single ``write``.
+    
+    Optional fields that callers MAY include in records (Issue #1292):
+    - ``revert_status``: one of "pending", "reverted", "not_needed". Default absent (legacy).
+    - ``revert_sha``: SHA of the revert commit if revert_status == "reverted". Default absent.
     """
 
     repo_root: Path
@@ -579,6 +583,10 @@ class DrainHistory:
         The record is augmented with a ``timestamp`` field if not already set.
         Write failure propagates to the caller as ``OSError`` — callers that
         want non-fatal behavior should catch it themselves.
+        
+        Optional fields (Issue #1292):
+        - ``revert_status``: one of "pending", "reverted", "not_needed"
+        - ``revert_sha``: SHA of revert commit if reverted
         """
         path = _history_path(self.repo_root)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -609,6 +617,17 @@ class DrainHistory:
         except OSError:
             return []
         return out
+
+    @classmethod
+    def latest_pending_reverts(cls, repo_root: Path) -> List[Dict[str, Any]]:
+        """Return records with outcome=success and revert_status=pending."""
+        history = cls.load(repo_root)
+        records = history.read_all()
+        return [
+            rec for rec in records
+            if rec.get("outcome") == "success"
+            and rec.get("revert_status") == "pending"
+        ]
 
 
 # =============================================================================

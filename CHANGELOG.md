@@ -4,6 +4,8 @@
 - **Security hardening for credential leak prevention** (Issue #1191): Added FORBIDDEN bullet to `security-auditor.md` instructing the agent not to quote credential values verbatim in finding text — must cite file path and line number only. This prevents accidental credential leakage from internal code into public GitHub issue bodies via the implement.md advisory-issue filer (line ~1427). Added test `test_security_auditor_forbids_credential_quoting` in `tests/spec_validation/test_spec_issue844_prompt_integrity_reload.py` asserting this bullet is present.
 
 - **Security advisory parser shell injection protection test** (Issue #1192): Added behavioral test `test_advisory_summary_shell_injection_protection` to `tests/unit/test_security_advisory_parser.py` verifying that shell metacharacters in advisory summaries are passed as safe subprocess arguments with `shell=False`, preventing command injection. The test mocks `subprocess.run` and asserts that metacharacters (`;|$()`) appear verbatim in the argument list, not shell-expanded, satisfying the security-auditor's acceptance criterion.
+- **Phase C auto-revert scaffolding for drain-queue** (Issue #1292): Added optional `revert_status` and `revert_sha` fields to `DrainHistory` records and new `latest_pending_reverts()` query method to support automatic revert on regression detection. This is scaffolding only — the actual revert checker is gated on Issue #1290 (before/after pytest metrics). Added 4 unit tests for field persistence and legacy compatibility.
+
 
 
 ### Fixed

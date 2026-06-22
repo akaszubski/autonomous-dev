@@ -589,11 +589,13 @@ cluster = json.loads(Path(".claude/local/selected_cluster.json").read_text())
 
 CircuitBreaker.load(repo).record_success()
 DrainBudget.load(repo).add(elapsed)
+# revert_status="pending" marks this drain as a candidate for the auto-revert checker (Issue #1292, gated on #1290 metrics)
 DrainHistory.load(repo).append({
     "outcome": "success",
     "cluster_id": f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']}",
     "issue_numbers": list(cluster["issue_numbers"]),
     "wall_seconds": elapsed,
+    "revert_status": "pending",
 })
 print(f"STEP 12: drain logged — cluster "
       f"{cluster['root_cause_tag']}#{cluster['sub_cluster_id']} "
