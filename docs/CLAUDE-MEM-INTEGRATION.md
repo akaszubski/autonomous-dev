@@ -44,7 +44,7 @@ bun run worker
 
 ### 2. Configure Hook Ordering
 
-Both autonomous-dev and claude-mem use lifecycle hooks. Configure execution order in your `~/.claude/settings.local.json`:
+Both autonomous-dev and claude-mem use lifecycle hooks. Configure execution order in your `~/.claude/settings.json` (hooks are no longer in settings.local.json after Issue #1183):
 
 ```json
 {
@@ -137,7 +137,7 @@ Both plugins can coexist because:
 
 If hooks conflict:
 
-1. Check hook execution order in settings.local.json
+1. Check hook execution order in settings.json (no longer in settings.local.json)
 2. Verify both services are running
 3. Check logs: `~/.claude-mem/logs/` and `~/.claude/logs/`
 

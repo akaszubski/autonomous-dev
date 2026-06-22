@@ -287,10 +287,10 @@ After files are installed, detect the project type and generate PROJECT.md inlin
 - User runs formatting and testing tools manually
 
 **Automatic Hooks Mode**:
-- Hooks are configured automatically in settings.local.json
+- Hooks are configured automatically in `settings.json` (via `sync_settings_hooks.py`)
 - Post-edit formatting via auto_format.py
 - Pre-tool-use validation via unified_pre_tool.py
-- See `.claude/settings.local.json` for full hook configuration
+- `settings.local.json` carries only permissions and user customizations. See Issue #1183 for rationale.
 
 ---
 
