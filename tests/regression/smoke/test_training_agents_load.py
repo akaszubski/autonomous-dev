@@ -22,6 +22,16 @@ import sys
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+# Skip entire module when training agents are not installed (e.g., autonomous-dev
+# itself, where these training-specific agents intentionally don't live).
+# They ship via realign / training-focused repos that depend on autonomous-dev.
+_AGENTS_DIR = Path(__file__).parent.parent.parent.parent / "plugins" / "autonomous-dev" / "agents"
+if not (_AGENTS_DIR / "data-quality-validator.md").exists():
+    pytest.skip(
+        "Training agents not installed in this repo (ship via realign — Issue #274)",
+        allow_module_level=True,
+    )
+
 
 class TestTrainingAgentsLoad:
     """Smoke tests for training agents loading."""

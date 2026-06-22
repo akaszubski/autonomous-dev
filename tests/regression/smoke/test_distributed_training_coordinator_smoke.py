@@ -39,6 +39,16 @@ LIB_DIR = (
     / "lib"
 )
 
+# Skip entire module when training agents are not installed (e.g., autonomous-dev
+# itself, where these training-specific agents intentionally don't live).
+# They ship via realign / training-focused repos that depend on autonomous-dev.
+if not (AGENTS_DIR / "distributed-training-coordinator.md").exists():
+    pytest.skip(
+        "distributed-training-coordinator agent not installed in this repo "
+        "(training agents ship via realign — see Issue #283 origin)",
+        allow_module_level=True,
+    )
+
 # Add lib to path
 sys.path.insert(0, str(LIB_DIR))
 
