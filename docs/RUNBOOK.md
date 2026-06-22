@@ -10,6 +10,14 @@ For behaviour rules see [`CLAUDE.md`](../CLAUDE.md). For purpose, scope, and arc
 
 Testing uses the **Diamond Model** (not traditional TDD pyramid). Acceptance criteria drive testing; unit tests are regression locks, not specifications. See [docs/TESTING-STRATEGY.md](TESTING-STRATEGY.md).
 
+**Python 3.14 + cryptography environment workaround** (closed #1286 from 2026-06-22 audit): on machines with Python 3.14 and a system-installed `cryptography` wheel that wasn't built for 3.14, pytest plugin auto-load fails with `ImportError: cannot import name 'exceptions' from 'cryptography.hazmat.bindings._rust'`. Workaround for any `pytest` invocation:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest --override-ini="addopts=" <targets>
+```
+
+`/implement`'s test gate, `/implement --fix`'s test context capture, and the implementer agent's verification steps should use this form when the environment trips this error.
+
 ```bash
 # Full deterministic suite (unit + integration + regression + security + property)
 pytest --tb=short -q
