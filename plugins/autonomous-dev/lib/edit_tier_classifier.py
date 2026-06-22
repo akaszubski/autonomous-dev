@@ -446,7 +446,7 @@ _CHAINED_ASSIGN_RE = re.compile(
     =
     (                       # value (one of three literal forms)
         '[^'\n]*'           #   single-quoted
-        | "[^"$`\\\n]*"       #   double-quoted, NO $/`/\\/newline (rejects $(...) , `...`, expansions)
+        | "[^"$`\\\n]*"       #   double-quoted, NO $, backtick, backslash, or newline (rejects $(...) , `...`, expansions)
         | [^\s;'\"<>|&`$]+   #   bareword: NO whitespace, separators, redirects, $, or `
     )
     """,
