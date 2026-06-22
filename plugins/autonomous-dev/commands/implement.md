@@ -1694,7 +1694,7 @@ After the STEP 11 gate completes (final security-auditor verdict reached, post-r
       ```bash
       gh issue list --label security --label auto-improvement --state open --search "<summary>" --json title,number
       ```
-      Skip filing if a matching open issue exists. If the `gh issue list --search` query errors, assume no duplicate and proceed to file.
+      Skip filing if a matching open issue exists. If the `gh issue list --search` query errors, log `[ADVISORY-DEDUP-FAILED] <summary>` and skip filing for this finding.
    b. **File the issue**:
       ```bash
       gh issue create --title "[Security advisory] <summary>" --body "<verbatim finding line + RUN_ID context>" --label security --label auto-improvement

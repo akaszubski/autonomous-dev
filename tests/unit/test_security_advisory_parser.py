@@ -173,5 +173,35 @@ class TestImplementMdAdvisoryParser:
             assert "`" in body_arg, "Backticks must be preserved literally"
 
 
+
+    def test_advisory_dedup_query_error_results_in_skip(self) -> None:
+        """Test that when gh issue list errors during dedup, the coordinator
+        logs [ADVISORY-DEDUP-FAILED] and skips filing (Issue #1190).
+        
+        This test verifies that the fail-closed behavior is documented in 
+        commands/implement.md - when dedup query fails, skip filing rather 
+        than risking duplicate issues."""
+        
+        content = _read(IMPLEMENT_MD)
+        
+        # Check for the fail-closed behavior documentation
+        assert "[ADVISORY-DEDUP-FAILED]" in content, (
+            "commands/implement.md must document that when gh issue list errors, "
+            "the coordinator logs '[ADVISORY-DEDUP-FAILED] <summary>' (Issue #1190)"
+        )
+        
+        # Check that it explicitly says to skip filing on dedup error
+        assert "skip filing for this finding" in content, (
+            "commands/implement.md must explicitly state to 'skip filing for this "
+            "finding' when the dedup query errors (fail-closed behavior, Issue #1190)"
+        )
+        
+        # Verify the old dangerous text is NOT present
+        assert "assume no duplicate and proceed to file" not in content, (
+            "commands/implement.md must NOT contain the old fail-open text "
+            "'assume no duplicate and proceed to file' (Issue #1190)"
+        )
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
