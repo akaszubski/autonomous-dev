@@ -260,6 +260,13 @@ def audit_project(project_root: Path) -> Dict[str, Any]:
           ``skipped_reasons=["dogfooding"]`` with no duplicates.
         - Malformed JSON in either file → returns ``success=False`` with
           ``error`` populated.
+    
+    Race Condition Note:
+        This function performs non-atomic sequential reads of settings.json
+        and settings.local.json. A theoretical TOCTOU race exists if files
+        are modified between reads. Given the controlled deploy-time
+        execution context and read-only nature (no write-back), this poses
+        no practical risk. (Issue #1186)
     """
     project_root = Path(project_root).resolve()
     claude_dir = project_root / ".claude"
