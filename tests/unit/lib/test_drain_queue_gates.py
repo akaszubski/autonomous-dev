@@ -223,13 +223,14 @@ class TestSkipGate:
 
 
 class TestEvaluateClusterGates:
-    """All gates checked in order: severity → tag → size."""
+    """All gates checked in order: severity → tag → size → confidence."""
 
     def test_pass_clean_low_severity_small_safe(self) -> None:
         verdict, reason = evaluate_cluster_gates(
             cluster_severity="low",
             cluster_size=2,
             cluster_labels=frozenset({"auto-improvement", "bug"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "pass"
         assert reason == ""
@@ -240,6 +241,7 @@ class TestEvaluateClusterGates:
             cluster_severity="high",
             cluster_size=2,
             cluster_labels=frozenset({"security"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "severity" in reason.lower() or "human review" in reason.lower()
@@ -249,6 +251,7 @@ class TestEvaluateClusterGates:
             cluster_severity="low",
             cluster_size=3,
             cluster_labels=frozenset({"breaking-change"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "breaking-change" in reason
@@ -258,6 +261,7 @@ class TestEvaluateClusterGates:
             cluster_severity="low",
             cluster_size=MAX_CLUSTER_SIZE_AUTO_DRAINABLE + 2,
             cluster_labels=frozenset({"auto-improvement"}),
+            cluster_confidence=1.0,
         )
         assert verdict == "stop"
         assert "compound" in reason

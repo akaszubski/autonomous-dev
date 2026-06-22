@@ -235,10 +235,13 @@ print(
 PY
 ```
 
-## STEP 4: Safety gates (severity / tag / size / skip)
+## STEP 4: Safety gates (severity / tag / size / confidence / skip)
 
 Apply gates in priority order. The first failing gate either STOPs or signals
-a SKIP-to-next-cluster (3-attempt budget).
+a SKIP-to-next-cluster (3-attempt budget). Per ADR-002 Phase C (Issue #1291),
+``confidence_gate`` (threshold 0.80) is the autonomy decision: severity remains
+in the order for ranking/impact-tier reporting, but confidence is what gates
+autonomous handling.
 
 ```bash
 python3 - <<'PY'
@@ -281,6 +284,7 @@ verdict, reason = evaluate_cluster_gates(
     cluster_severity=cluster["severity"],
     cluster_size=cluster["cluster_size"],
     cluster_labels=labels,
+    cluster_confidence=float(cluster.get("confidence", 0.0)),
 )
 if verdict != "pass":
     append_stop_notification(f"STEP 4: gate stop — {reason}", log_dir)

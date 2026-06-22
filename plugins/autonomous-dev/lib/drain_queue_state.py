@@ -64,6 +64,13 @@ HUMAN_GATE_TAGS: frozenset[str] = frozenset({
 
 AUTO_DRAINABLE_SEVERITY: frozenset[str] = frozenset({"low", "info"})
 
+# ADR-002 Phase C (Issue #1291): confidence-based eligibility threshold.
+# A cluster is eligible for autonomous drain only when its confidence
+# (readiness-for-autonomy signal, derived from labels and issue-body quality)
+# meets or exceeds this threshold. Per PROJECT.md: "HIGH confidence diagnoses
+# applied autonomously" — the autonomy decision is confidence, not severity.
+AUTO_DRAINABLE_CONFIDENCE_THRESHOLD: float = 0.80
+
 
 # =============================================================================
 # Path helpers
@@ -716,19 +723,57 @@ def skip_gate(cluster_labels: frozenset[str]) -> Tuple[bool, str]:
     return (False, "")
 
 
+def confidence_gate(cluster_confidence: float) -> Tuple[bool, str]:
+    """Block if cluster confidence is below :data:`AUTO_DRAINABLE_CONFIDENCE_THRESHOLD`.
+
+    ADR-002 Phase C (Issue #1291). Confidence is the autonomy decision:
+    only clusters whose readiness-for-autonomy signal meets the threshold
+    are eligible for autonomous drain. Severity remains in
+    :func:`evaluate_cluster_gates` for impact-tier ranking but no longer
+    drives the autonomy decision.
+
+    Args:
+        cluster_confidence: A float in ``[0.0, 1.0]`` derived from issue
+            labels (``confidence:high|medium|low``) and issue-body quality
+            heuristics (see :mod:`issue_triage_analyzer`).
+
+    Returns:
+        ``(blocked, reason)``. ``blocked=True`` → STOP.
+    """
+    try:
+        conf = float(cluster_confidence)
+    except (TypeError, ValueError):
+        conf = 0.0
+    if conf < AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:
+        return (
+            True,
+            f"confidence too low for autonomy "
+            f"(confidence={conf:.2f} < threshold="
+            f"{AUTO_DRAINABLE_CONFIDENCE_THRESHOLD:.2f})",
+        )
+    return (False, "")
+
+
 def evaluate_cluster_gates(
     cluster_severity: str,
     cluster_size: int,
     cluster_labels: frozenset[str],
+    cluster_confidence: float = 0.0,
 ) -> Tuple[str, str]:
-    """Evaluate all three STOP gates in priority order. Skip is separate.
+    """Evaluate all STOP gates in priority order. Skip is separate.
 
-    Order: severity → tag → size. First failure short-circuits.
+    Order: severity → tag → size → confidence. First failure short-circuits.
+
+    Per ADR-002 Phase C (Issue #1291), ``confidence_gate`` is the final
+    eligibility check: severity stays in the ordering for ranking/impact-tier
+    reporting, but ``confidence_gate`` is the autonomy decision.
 
     Args:
         cluster_severity: ``TriageFinding.severity``.
         cluster_size: Cluster size.
         cluster_labels: Hydrated label set.
+        cluster_confidence: Readiness-for-autonomy signal in ``[0.0, 1.0]``.
+            Defaults to ``0.0`` (blocks unless caller supplies a real value).
 
     Returns:
         ``(verdict, reason)`` where verdict is one of ``"pass"``, ``"stop"``.
@@ -741,6 +786,9 @@ def evaluate_cluster_gates(
     if blocked:
         return ("stop", reason)
     blocked, reason = size_gate(cluster_size)
+    if blocked:
+        return ("stop", reason)
+    blocked, reason = confidence_gate(cluster_confidence)
     if blocked:
         return ("stop", reason)
     return ("pass", "")
@@ -756,6 +804,7 @@ __all__ = [
     "MAX_CLUSTER_SIZE_AUTO_DRAINABLE",
     "HUMAN_GATE_TAGS",
     "AUTO_DRAINABLE_SEVERITY",
+    "AUTO_DRAINABLE_CONFIDENCE_THRESHOLD",
     "SKIP_LABELS",
     # Classes
     "DrainBudget",
@@ -767,6 +816,7 @@ __all__ = [
     "tag_gate",
     "size_gate",
     "skip_gate",
+    "confidence_gate",
     "evaluate_cluster_gates",
     # Path helpers (exposed for tests)
     "_budget_path",

@@ -431,6 +431,59 @@ def _infer_severity(labels: List[Dict[str, Any]]) -> str:
     return "low"
 
 
+def _infer_confidence(
+    labels: List[Dict[str, Any]],
+    body: str = "",
+) -> float:
+    """Infer readiness-for-autonomy confidence in ``[0.0, 1.0]``.
+
+    ADR-002 Phase C (Issue #1291). The drain-queue confidence gate
+    consumes this value to decide whether a cluster is eligible for
+    autonomous handling.
+
+    Decision order:
+
+    1. ``confidence:high`` label → ``1.0`` (operator-tagged HIGH).
+    2. ``confidence:medium`` / ``confidence:low`` label → ``0.0``
+       (operator-tagged BELOW threshold).
+    3. Issue body contains BOTH an ``Acceptance Criteria`` section AND a
+       ``Proposed fix`` (or ``Proposed Fix`` / ``Implementation Approach``)
+       section → ``0.8`` (well-structured issue heuristic).
+    4. Otherwise → ``0.0``.
+
+    Args:
+        labels: List of label dicts from the gh CLI (each dict has a
+            ``"name"`` key) or bare strings.
+        body: Issue body text used for the structural heuristic.
+
+    Returns:
+        A float in ``[0.0, 1.0]``.
+    """
+    names: List[str] = []
+    for entry in labels or []:
+        if isinstance(entry, dict):
+            name = entry.get("name")
+        else:
+            name = entry
+        if isinstance(name, str):
+            names.append(name.lower())
+    for name in names:
+        if name == "confidence:high":
+            return 1.0
+        if name in ("confidence:medium", "confidence:low"):
+            return 0.0
+    if body:
+        lowered = body.lower()
+        has_acceptance = "acceptance criteria" in lowered
+        has_proposed = (
+            "proposed fix" in lowered
+            or "implementation approach" in lowered
+        )
+        if has_acceptance and has_proposed:
+            return 0.8
+    return 0.0
+
+
 def _aggregate_severity(severities: Sequence[str]) -> str:
     """Return the most severe of a sequence of severity labels."""
     order = ["high", "medium", "low"]
