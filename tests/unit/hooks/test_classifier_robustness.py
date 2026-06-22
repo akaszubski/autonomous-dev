@@ -121,7 +121,20 @@ def _invoke_hook(
     )
     stdout = proc.stdout.strip()
     if not stdout:
-        return {}
+        # When stdout is empty, check if the subprocess failed
+        if proc.returncode != 0:
+            # This is a real failure - the hook crashed or errored out
+            raise AssertionError(
+                f"Hook subprocess failed with returncode {proc.returncode}. "
+                f"stderr: {proc.stderr.strip() or '(empty)'}"
+            )
+        # Returncode is 0 but stdout is empty - genuinely vacuous behavior
+        # Return diagnostic info so callers can see what happened
+        return {
+            "_returncode": 0,
+            "_stderr": proc.stderr.strip() or "(empty)",
+            "_warning": "empty stdout but exit 0"
+        }
     try:
         return json.loads(stdout)
     except json.JSONDecodeError:
@@ -129,7 +142,6 @@ def _invoke_hook(
         # output is a sign of test setup error.
         return {"_raw_stdout": stdout, "_returncode": proc.returncode,
                 "_stderr": proc.stderr}
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
