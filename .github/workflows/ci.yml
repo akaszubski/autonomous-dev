@@ -6,9 +6,21 @@ name: CI
 on:
   push:
     branches: [master, main]
+    paths-ignore:
+      # Telemetry-only commits don't change tested code — skip CI to avoid
+      # noise from cloud-drain FIRE_START/FIRE_END pushes every ~2h.
+      - '.claude/logs/cloud-runs.jsonl'
+      - '.claude/logs/**'
   pull_request:
     branches: [master, main]
   workflow_dispatch:
+
+# Defer-not-cancel: if a CI run is already in progress for this branch,
+# new pushes queue up rather than kill the running job. Matches the
+# user-stated intent "if something is running we don't run again".
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   # Stage 1: Fast smoke tests (fail fast)
@@ -110,7 +122,10 @@ jobs:
     name: Full Test Suite
     runs-on: ubuntu-latest
     needs: smoke
-    timeout-minutes: 15
+    # 15-min timeout was too tight — unit+integration+regression suites
+    # take ~25-40 min. Job has been silently timing-out → "cancelled"
+    # status for months. Bumped to 60 min so runs actually complete.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
