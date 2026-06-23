@@ -385,6 +385,47 @@ pytest tests/genai/ --genai        # GenAI validation (opt-in, T0)
 
 ---
 
+## Tier Selection Criteria
+
+**Target distribution ratio** (5:2:2:1 for T3:T2:T1:T0) — balanced coverage across the test pyramid.
+
+### When to write T0 tests (acceptance, permanent)
+- Testing acceptance criteria from the plan
+- Validating critical user-facing workflows
+- Protecting against doc-to-code drift
+- Smoke tests for deployment verification
+- **Target**: ~10% of tests
+
+### When to write T1 tests (integration, stable)
+- Testing interaction between 2+ components
+- Validating API contracts between modules
+- End-to-end workflow tests
+- Database/filesystem integration points
+- **Target**: ~20% of tests
+
+### When to write T2 tests (regression, semi-stable)
+- Protecting against known bug recurrence
+- Feature-level regression prevention
+- Edge case coverage for released features
+- Performance regression tests
+- **Target**: ~20% of tests
+
+### When to write T3 tests (unit, ephemeral)
+- Testing pure functions in isolation
+- Implementation detail verification
+- TDD red-green cycles
+- Hook validation tests
+- Security boundary checks
+- **Target**: ~50% of tests
+
+**Anti-pattern**: Writing only T3 unit tests (bottom-heavy). While unit tests are valuable for development, a test suite with 90%+ unit tests lacks integration coverage and user workflow validation.
+
+**Balance warning**: The tier distribution gate warns when:
+- Upper tiers (T0+T1+T2) represent less than 25% of total tests
+- Any tier drifts more than 50% from its target ratio
+
+---
+
 ## GenAI Test Infrastructure
 
 ```python

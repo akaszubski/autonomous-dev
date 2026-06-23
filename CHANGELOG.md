@@ -3,6 +3,8 @@
 
 ### Added
 - **Test pruning analysis in `/improve` weekly cycle** (Issue #908): Added STEP 2.8 to `/improve` command that runs `/sweep --tests` analysis weekly to surface prunable test candidates. Tracks drift target of <500 prunable tests as root-cause metric for test pyramid health. Persistence via `.claude/logs/sweep-tests-*.log` for weekly cycle tracking.
+- **Tier distribution gate in test health dashboard** (Issue #908): Added warning-only tier distribution gate to `/improve` test health analysis, checking for test pyramid balance according to 5:2:2:1 target ratio (T3:T2:T1:T0). Gate warns when upper tiers (T0+T1+T2) drop below 25% of total tests, indicating bottom-heavy pyramid drift. Integrated into `test_lifecycle_manager.format_dashboard()` output. Added tier selection criteria to testing-guide skill documenting when to use each tier. Added 6 unit tests in `TestTierDistributionGate` class.
+
 
 - **Epic #1162 kickoff: CC-native redundancy refactor documentation foundation**: Documented the planned CC-native redundancy refactor strategy in `docs/ARCHITECTURE-OVERVIEW.md` under a new "CC-Native vs Plugin Components" section. The refactor will (1) migrate 22 skills from `plugins/autonomous-dev/skills/` to `.claude/skills/`, (2) migrate 25 commands to `.claude/commands/`, (3) drop `config/auto_approve_policy.json` in favor of native `permissions.allow`/`permissions.deny`, and (4) refactor MCP security to retain only `unified_pre_tool.py` Layer 1 input validation. Estimated ~25% plugin overhead reduction. Methodology (8-step pipeline, plan-critic loop, agent dispatch ordering, session archiving) is load-bearing and preserved. This commit is documentation-only — subsequent sub-PRs deliver the actual refactor phases. (Issue #1162)
 

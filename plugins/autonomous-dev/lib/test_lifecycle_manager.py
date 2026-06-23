@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 # Run `/sweep --tests --prune` to reduce the count.
 PRUNABLE_THRESHOLD = 100
 
+# Target tier distribution (ratio out of 10)
+# T0: acceptance tests, T1: unit tests, T2: integration tests, T3: regression tests
+TIER_DISTRIBUTION_TARGETS = {"T0": 1, "T1": 2, "T2": 2, "T3": 5}
+
 # Import existing analyzers with fallback for both installed and dev paths
 try:
     from test_issue_tracer import TestIssueTracer, TracingReport
@@ -188,6 +192,11 @@ class TestLifecycleManager:
         if not passed:
             gate_line += " — run /sweep --tests --prune"
         lines.append(gate_line)
+        lines.append("")
+        # Tier balance gate
+        tier_passed, tier_msg = check_tier_distribution(report.tier_distribution)
+        tier_status = "OK" if tier_passed else f"WARNING ({tier_msg})"
+        lines.append(f"Tier Balance Gate: {tier_status}")
         lines.append("")
 
         # Summary section
@@ -351,6 +360,47 @@ def check_issue_tracing(project_root: Path, issue_number: int) -> str:
         logger.debug("check_issue_tracing failed: %s", e)
 
     return ""
+def check_tier_distribution(tier_distribution: dict) -> tuple[bool, str]:
+    """Check whether tier distribution is balanced according to targets.
+
+    Warning triggers when:
+    - (T0+T1+T2) / total < 0.25 (too bottom-heavy with T3 tests)
+    - Any tier ratio drifts > 50% from target ratio
+
+    Args:
+        tier_distribution: Mapping of tier_id to test count.
+
+    Returns:
+        Tuple of (passed: bool, warning_msg: str).
+    """
+    if not tier_distribution:
+        return (True, "OK")
+
+    total = sum(tier_distribution.values())
+    if total == 0:
+        return (True, "OK")
+
+    # Check if too bottom-heavy (T0+T1+T2 < 25% of total)
+    upper_tiers = tier_distribution.get("T0", 0) + tier_distribution.get("T1", 0) + tier_distribution.get("T2", 0)
+    upper_ratio = upper_tiers / total
+    if upper_ratio < 0.25:
+        return (False, f"too bottom-heavy: T0+T1+T2 only {upper_ratio:.1%} of tests")
+
+    # Check if any tier drifts > 50% from target
+    target_total = sum(TIER_DISTRIBUTION_TARGETS.values())
+    for tier_id, target_count in TIER_DISTRIBUTION_TARGETS.items():
+        target_ratio = target_count / target_total
+        actual_count = tier_distribution.get(tier_id, 0)
+        actual_ratio = actual_count / total
+
+        if target_ratio > 0:
+            drift = abs(actual_ratio - target_ratio) / target_ratio
+            if drift > 0.5:
+                return (False, f"{tier_id} ratio {actual_ratio:.1%} drifts >50% from target {target_ratio:.1%}")
+
+    return (True, "OK")
+
+
 
 
 def check_prunable_threshold(
