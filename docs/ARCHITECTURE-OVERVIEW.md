@@ -283,6 +283,25 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 
 ## Cross-References
 
+
+## CC-Native vs Plugin Components
+
+In audit Issue #1162, it was identified that autonomous-dev currently bundles all components (skills, commands, permissions, MCP validation) within the plugin structure, creating unnecessary overhead. The refactor strategy addresses this redundancy by migrating certain components to Claude Code's native infrastructure while preserving the load-bearing methodology that defines autonomous-dev's value proposition.
+
+| Component | Current Location | Target Location | Status |
+|-----------|-----------------|-----------------|--------|
+| Skills (22) | `plugins/autonomous-dev/skills/` | `.claude/skills/` | Planned |
+| Commands (25) | `plugins/autonomous-dev/commands/` | `.claude/commands/` | Planned |
+| Permission Policy | `config/auto_approve_policy.json` | Native `permissions.allow`/`permissions.deny` | Planned |
+| MCP Validation | `unified_pre_tool.py` (6 layers) | `unified_pre_tool.py` (Layer 1 only) | Planned |
+| 8-step Pipeline | `commands/implement.md` | `commands/implement.md` (preserved) | No change |
+| Plan-critic Loop | `agents/plan-critic.md` | `agents/plan-critic.md` (preserved) | No change |
+| Agent Ordering | `lib/agent_ordering_gate.py` | `lib/agent_ordering_gate.py` (preserved) | No change |
+| Session Archiving | `hooks/conversation_archiver.py` | `hooks/conversation_archiver.py` (preserved) | No change |
+
+The refactor preserves autonomous-dev's core methodology — the 8-step pipeline, plan-critic adversarial review, strict agent dispatch ordering, and session archiving. These remain plugin-specific as they represent the harness's unique contribution. The migration targets redundant components that duplicate Claude Code native functionality, with an estimated 25% reduction in plugin overhead. Implementation will be delivered across multiple sub-PRs, each focused on a single component migration to minimize risk. Progress is tracked under Issue #1162.
+
+---
 **Related Documentation**:
 - [AGENTS.md](AGENTS.md) - Complete agent reference
 - [LIBRARIES.md](LIBRARIES.md) - Library API documentation
