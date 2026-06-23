@@ -63,7 +63,7 @@ ENFORCEMENT_GATES = {  # rough heuristics for backfill scan
 
 # ---------------------------------------------------------------------------
 # Schema (kept inline so the file is self-contained — single source of truth
-# for the migration script. Mirrors docs/research/SESSIONS_DB_SCHEMA_V2.md.)
+# for the migration script. Mirrors docs/development/SESSIONS_DB_SCHEMA_V2.md.)
 # ---------------------------------------------------------------------------
 SCHEMA_SQL = r"""
 CREATE TABLE IF NOT EXISTS sessions (

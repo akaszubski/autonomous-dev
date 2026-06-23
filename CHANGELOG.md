@@ -29,6 +29,7 @@
 
 ### Changed
 - Added `user_facing` front-matter to plugin command files and regenerated COMMANDS.md catalogue; new congruence assertion in `test_documentation_congruence.py` prevents future drift (#1159)
+- **Sessions database v2 migration kept as in-progress**: Schema documentation moved to `docs/development/SESSIONS_DB_SCHEMA_V2.md`, migration script at `scripts/migrate_sessions_v2.py`, .gitignore rules added for `sessions_v2*.db` files (Issue #1157)
 - **ADR-002 Phase A completion criterion added** (Issue #1277): Added explicit acceptance criterion to exclude tracker issues with `root-cause` label from auto-drain selection. The drain-driver exposed a tracker-selection bug where trackers labeled `root-cause` + `auto-improvement` get repeatedly selected despite being meta-tracking issues. Fix documented in `docs/ADR-002-drain-queue-redesign.md` line 179 as new Phase A checkbox criterion. The referenced issue #1277 had its `auto-improvement` label removed (GitHub side-effect, no file change) to prevent the tracker from re-entering the drain queue.
 
 - **ADR-002 Phase status notes added to user-facing documentation**: Added Phase A completion and Phase B in-progress status notes to `/drain-queue` command descriptions in `docs/RUNBOOK.md` (line 100) and `plugins/autonomous-dev/docs/COMMANDS.md` (line 16), including hyperlinks to the ADR-002 design document and issue references (#1274, #1276). These notes inform users of the current implementation status without modifying the command behavior itself.
