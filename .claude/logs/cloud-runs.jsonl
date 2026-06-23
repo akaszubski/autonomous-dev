@@ -79,3 +79,4 @@
 {"fire_id": "20260623T160254Z", "fired_at": "2026-06-23T16:02:54Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260623T160254Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "git_push_failed": true, "git_push_error": "HTTP 403 after 4 retries with exponential backoff (2s,4s,8s,16s); landed via mcp__github__create_or_update_file"}
 {"fire_id": "20260623T220143Z", "fired_at": "2026-06-23T22:02:05Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260623T220143Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
