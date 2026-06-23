@@ -22,7 +22,7 @@ extra safety layer.
 | # | Gate                                  | Threshold (module constant)      |
 |---|---------------------------------------|----------------------------------|
 | 1 | Daily drain-count + wall-clock budget | `MAX_DRAINS_PER_DAY=10`, `MAX_WALL_SECONDS_PER_DAY=14400` |
-| 2 | Cluster severity                      | only `low`, `info` (`AUTO_DRAINABLE_SEVERITY`) |
+| 2 | Cluster severity                      | only `low`, `info`, `medium` (`AUTO_DRAINABLE_SEVERITY`); `high` blocks (ADR-002 Phase D) |
 | 3 | Hydrated cluster labels (tag gate)    | intersection with `HUMAN_GATE_TAGS` blocks |
 | 4 | Cluster size                          | `MAX_CLUSTER_SIZE_AUTO_DRAINABLE=5` |
 | 5 | Circuit breaker                       | 2 consecutive failures → 4h pause; 3 in 24h → 24h pause |
