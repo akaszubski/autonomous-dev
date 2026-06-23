@@ -1,6 +1,9 @@
 ## [Unreleased]
 
+
 ### Added
+- **Test pruning analysis in `/improve` weekly cycle** (Issue #908): Added STEP 2.8 to `/improve` command that runs `/sweep --tests` analysis weekly to surface prunable test candidates. Tracks drift target of <500 prunable tests as root-cause metric for test pyramid health. Persistence via `.claude/logs/sweep-tests-*.log` for weekly cycle tracking.
+
 - **Epic #1162 kickoff: CC-native redundancy refactor documentation foundation**: Documented the planned CC-native redundancy refactor strategy in `docs/ARCHITECTURE-OVERVIEW.md` under a new "CC-Native vs Plugin Components" section. The refactor will (1) migrate 22 skills from `plugins/autonomous-dev/skills/` to `.claude/skills/`, (2) migrate 25 commands to `.claude/commands/`, (3) drop `config/auto_approve_policy.json` in favor of native `permissions.allow`/`permissions.deny`, and (4) refactor MCP security to retain only `unified_pre_tool.py` Layer 1 input validation. Estimated ~25% plugin overhead reduction. Methodology (8-step pipeline, plan-critic loop, agent dispatch ordering, session archiving) is load-bearing and preserved. This commit is documentation-only — subsequent sub-PRs deliver the actual refactor phases. (Issue #1162)
 
 - **Security hardening for credential leak prevention** (Issue #1191): Added FORBIDDEN bullet to `security-auditor.md` instructing the agent not to quote credential values verbatim in finding text — must cite file path and line number only. This prevents accidental credential leakage from internal code into public GitHub issue bodies via the implement.md advisory-issue filer (line ~1427). Added test `test_security_auditor_forbids_credential_quoting` in `tests/spec_validation/test_spec_issue844_prompt_integrity_reload.py` asserting this bullet is present.

@@ -116,6 +116,47 @@ print(manager.format_dashboard(report))
 
 Pass the dashboard output to the CI analyst agent in STEP 3 so it can include test lifecycle health in its analysis.
 
+### STEP 2.8: Test Pruning Analysis (Weekly)
+
+Run `/sweep --tests` analysis to surface prunable test candidates as part of the weekly cycle (root-cause Issue #908):
+
+```bash
+# Only run if last weekly run was ≥7 days ago (avoid redundant slow scans)
+last_prune_log=$(find .claude/logs -name "sweep-tests-*.log" -mtime -7 2>/dev/null | head -1)
+if [ -z "$last_prune_log" ]; then
+    echo "Running weekly test pruning analysis (Issue #908)..."
+    python3 -c "
+import sys, os as _os
+from datetime import datetime
+from pathlib import Path
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
+    if _os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
+try:
+    from test_pruning_analyzer import TestPruningAnalyzer
+    analyzer = TestPruningAnalyzer(Path('.'))
+    report = analyzer.analyze()
+    prunable = sum(1 for f in report.findings if f.prunable)
+    total = len(report.findings)
+    print(f'Pruning analysis: {prunable} prunable / {total} total findings across {report.files_scanned} files ({report.scan_duration_ms:.0f}ms)')
+    # Persist weekly log for cycle tracking
+    log_dir = Path('.claude/logs')
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime('%Y%m%d')
+    (log_dir / f'sweep-tests-{stamp}.log').write_text(
+        f'prunable={prunable} total={total} files={report.files_scanned} ms={report.scan_duration_ms:.0f}\\n'
+    )
+except Exception as e:
+    print(f'Test pruning analysis unavailable: {e}')
+" 2>&1
+else
+    echo "Test pruning analysis already run this week (last: $last_prune_log)"
+fi
+```
+
+Pass the prunable-count summary to the CI analyst in STEP 3 so it can include test-pruning drift in its analysis. Drift target: prunable count should trend toward <500 (Issue #908 acceptance criterion).
+
 ### STEP 3: Analyze with Continuous Improvement Agent
 
 Launch the `continuous-improvement-analyst` agent (Task tool, subagent_type: continuous-improvement-analyst) with:
