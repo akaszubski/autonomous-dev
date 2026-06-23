@@ -501,7 +501,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Commands | 25 | Slash commands for workflows |
+| Commands | 22 | User-facing slash commands for workflows |
 | Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
 | Skills | 20 | Domain knowledge (added: planning-workflow, prompt-engineering) |
 | Hooks | 25 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
@@ -540,7 +540,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 - [Spec Validation](tests/spec_validation/) - Spec-blind behavioral tests
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 25 commands
+- [Commands](plugins/autonomous-dev/commands/) - All 22 user-facing commands
 - [Hooks](docs/HOOKS.md) - 25 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
 - [Libraries](docs/LIBRARIES.md) - 221 Python utilities

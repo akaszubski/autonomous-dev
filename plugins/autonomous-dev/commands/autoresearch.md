@@ -4,6 +4,7 @@ description: "Autonomous experiment loop — hypothesize, modify, benchmark, com
 argument-hint: "--target <path> --metric <path> [--iterations N] [--min-improvement F] [--dry-run]"
 allowed-tools: [Bash, Read, Write, Edit, Glob, Grep]
 user-invocable: true
+user_facing: true
 ---
 
 # Autonomous Experiment Loop

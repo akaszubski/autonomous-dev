@@ -3,6 +3,7 @@ name: drain-queue
 description: "Autonomous queue drainer — picks the top /triage cluster, applies safety gates, drains via /implement --issues, pushes, deploys."
 argument-hint: "[--dry-run]"
 user-invocable: true
+user_facing: true
 allowed-tools: [Bash, Read, SlashCommand, PushNotification]
 ---
 

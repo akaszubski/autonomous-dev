@@ -3,6 +3,7 @@ name: refactor
 description: "Unified code, docs, and test optimization -- shape analysis, waste detection, dead code, doc redundancy"
 argument-hint: "[--tests] [--docs] [--code] [--fix] [--quick] [--deep] [--issues] [--batch]"
 user-invocable: true
+user_facing: true
 allowed-tools: [Read, Bash, Grep, Glob, Agent]
 ---
 

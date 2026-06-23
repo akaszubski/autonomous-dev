@@ -5,6 +5,7 @@ argument-hint: "[--project-dir <path>]"
 allowed-tools: [Read, Write, Bash, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 # /setup - Project Initialization Wizard

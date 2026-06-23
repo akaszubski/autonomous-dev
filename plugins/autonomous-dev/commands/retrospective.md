@@ -4,6 +4,7 @@ description: "Analyze recent sessions to detect intent evolution, drift, and pro
 argument-hint: "[--sessions N] [--dry-run] [--auto-file] [--date YYYY-MM-DD]"
 allowed-tools: [Task, Read, Bash, Glob, Grep]
 user-invocable: true
+user_facing: true
 ---
 
 # Session Retrospective

@@ -5,6 +5,7 @@ argument-hint: "Feature description [--no-issues] (e.g., '/plan Add JWT authenti
 allowed-tools: [Task, Read, Bash, Grep, Glob, WebSearch, Write]
 disable-model-invocation: false
 user-invocable: true
+user_facing: true
 ---
 
 # Create Validated Plan

@@ -310,6 +310,36 @@ class TestCommandsMdSync:
             f"{sorted(missing)}"
         )
 
+    def test_commands_md_row_count_matches_user_facing_frontmatter(self):
+        """Issue #1159: COMMANDS.md row count must equal the on-disk count of
+        `user_facing: true` command files. Prevents catalogue drift."""
+        # Count user_facing: true files
+        user_facing_count = 0
+        commands_path = PLUGIN / "commands"
+        for f in commands_path.glob("*.md"):
+            if "archived" in str(f) or f.name == "README.md":
+                continue
+            text = f.read_text(encoding="utf-8")
+            # Parse front-matter manually
+            if re.search(r'^user_facing:\s*true\s*$', text, re.MULTILINE):
+                user_facing_count += 1
+        
+        # Count COMMANDS.md command entries (table rows)
+        commands_md = _read(PLUGIN / "docs" / "COMMANDS.md")
+        # Slice from "## Active Commands" to next "## " header
+        m = re.search(r"^## Active Commands\s*$(.*?)^## ", commands_md, re.DOTALL | re.MULTILINE)
+        assert m, "COMMANDS.md missing '## Active Commands' section"
+        section = m.group(1)
+        # Match table rows like "| `/cmd-name` | ..."
+        commands_md_count = len(re.findall(r"^\|\s*`/([\w-]+)`\s*\|", section, re.MULTILINE))
+        
+        # Assert equal, with a helpful failure message listing the diff
+        assert commands_md_count == user_facing_count, (
+            f"COMMANDS.md has {commands_md_count} commands in Active Commands table, "
+            f"but there are {user_facing_count} files with 'user_facing: true' on disk.\n"
+            f"This indicates the catalogue has drifted from the actual user-facing commands."
+        )
+
 
 # ---------------------------------------------------------------------------
 # 4. Pipeline step count consistency

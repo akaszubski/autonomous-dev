@@ -5,6 +5,7 @@ argument-hint: "[--force] [--skip-congruence]"
 allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob]
 disable-model-invocation: false
 user-invocable: true
+user_facing: true
 ---
 
 # /scaffold-genai-uat - GenAI UAT Test Scaffolding

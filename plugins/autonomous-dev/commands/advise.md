@@ -5,6 +5,7 @@ argument-hint: Proposal or decision to analyze (e.g., "Add Redis for caching")
 allowed-tools: [Read, Grep, Glob, WebSearch, WebFetch]
 disable-model-invocation: false
 user-invocable: true
+user_facing: true
 ---
 
 # Critical Thinking Analysis

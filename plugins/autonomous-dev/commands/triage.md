@@ -3,6 +3,7 @@ name: triage
 description: "Periodic-aggregation root-cause triage of the open auto-improvement queue"
 argument-hint: "[--auto-improvement] [--repo OWNER/REPO] [--limit N] [--include-fp-acknowledged] [--json]"
 user-invocable: true
+user_facing: true
 allowed-tools: [Bash, Read]
 ---
 

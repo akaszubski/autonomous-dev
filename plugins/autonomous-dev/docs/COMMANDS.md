@@ -48,38 +48,75 @@ The following command files exist but are not directly invoked by users — they
 Periodic-aggregation root-cause triage of the open auto-improvement queue. Clusters open
 issues by bracket tag (primary) and by Jaccard token similarity within a tag (secondary),
 ranks clusters by `cluster_size * severity_weight * recency_decay`, and surfaces
-cross-cluster dependencies (clusters sharing a referenced file path).
+actionable clusters in the output. Creates `/drain-queue`-compatible GitHub issue batches
+for automated processing.
 
-**Usage**
+### Safety gates (6 layers)
 
-```bash
-# Default human-readable report.
-/triage --auto-improvement
+1. **Max budget** — 1 PR per drain attempt or 5 issues (whichever is smaller)
+2. **Severity filter** — only drains LOW severity clusters (MEDIUM+ skipped)
+3. **Tag filter** — allows only {tech-debt, test-skip-accumulated, coverage-regression}
+4. **Size limit** — auto-drains only clusters with 1–3 issues (4+ requires manual intervention)
+5. **Circuit breaker** — halts on 3 failures, 5 skips, or 60s timeout
+6. **Push/deploy gate** — skips if not safe to deploy (uncommitted changes, protected files, missing gates)
 
-# Custom repo and limit.
-/triage --auto-improvement --repo owner/repo --limit 100
+### Recognized issue tags
 
-# Include fp-acknowledged issues (filtered out by default).
-/triage --auto-improvement --include-fp-acknowledged
-
-# Machine-readable JSON output.
-/triage --auto-improvement --json
-```
-
-**Idempotence**
-
-On unchanged queue contents `/triage` produces byte-identical output across runs (rank
-score DESC, then root cause tag ASC, then sub-cluster ID ASC, then issue numbers ASC
-within each cluster). The only time-varying input is `now` (used for recency decay).
-
-**When to run**
-
-Weekly, or after a CIA-heavy session that filed many `auto-improvement` issues. The
-output is a work queue, not a destructive action.
+- **tech-debt** — general quality issues that accumulate over time
+- **test-skip-accumulated** — tests marked with @pytest.mark.skip
+- **remediation** — issues from failed STEP 11 remediation cycles
+- **security** — issues from security auditor findings
+- **performance** — performance-related findings
+- **coverage-regression** — test coverage dropped below baseline
+- **pre-existing-failure** — failures detected but not caused by current changes
+- **doc-drift** — documentation out of sync with implementation
 
 ---
 
-## Related Documentation
+## Command Options
 
-- [PROJECT.md](../../../.claude/PROJECT.md) — Project goals, scope, constraints
-- [CLAUDE.md](../../../CLAUDE.md) — Project workflow rules
+Most commands support various flags to control their behavior:
+
+### Common flags
+
+- `--quick` — Fast mode (available for `/create-issue`, `/plan-to-issues`, `/audit`, `/refactor`, `/skill-eval`)
+- `--light` — Light pipeline mode (available for `/implement`) 
+- `--fix` — Fix mode (available for `/implement`, `/refactor`)
+- `--batch` — Batch processing (available for `/implement`)
+- `--issues` — Process specific issues (available for `/implement`)
+- `--resume` — Resume interrupted batch (available for `/implement`)
+
+### Domain-specific flags
+
+See individual command documentation in `plugins/autonomous-dev/commands/<name>.md` for complete flag reference.
+
+---
+
+## Pipeline Modes
+
+The `/implement` command supports multiple execution modes:
+
+- **Full Pipeline** (default) — Research → Plan → Acceptance Tests → Implement → Review → Security → Docs
+- **Light Mode** (`--light`) — Fast pipeline for docs/config: Plan → Implement → Spec-Validator → Docs
+- **Fix Mode** (`--fix`) — Minimal pipeline for bug fixes: Align → Test Context → Implement Fix → Review + Docs
+- **Batch Mode** (`--batch` or `--issues`) — Process multiple features with auto-worktree management
+- **Resume Mode** (`--resume`) — Continue an interrupted batch from checkpoint
+
+---
+
+## Workflow Integration
+
+Commands can be chained for complex workflows:
+
+1. **Planning workflow**: `/align --project` → `/plan` → `/implement`
+2. **Maintenance workflow**: `/audit` → `/triage --auto-improvement` → `/drain-queue`
+3. **Cleanup workflow**: `/refactor --quick` → `/sweep --tests` → `/implement --fix`
+4. **Research workflow**: `/autoresearch --target X --metric Y` → `/create-issue --quick`
+
+---
+
+## See Also
+
+- [ARCHITECTURE-OVERVIEW.md](../../../docs/ARCHITECTURE-OVERVIEW.md) — system architecture
+- [PIPELINE-MODES.md](../../../docs/PIPELINE-MODES.md) — detailed pipeline documentation
+- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) — common issues and solutions

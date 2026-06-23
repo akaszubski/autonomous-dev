@@ -4,6 +4,7 @@ description: "Measure skill effectiveness — behavioral delta from skill inject
 argument-hint: "[--quick] [--skill name] [--update]"
 allowed-tools: [Bash]
 user-invocable: true
+user_facing: true
 ---
 
 # Skill Effectiveness Evaluation

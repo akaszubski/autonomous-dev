@@ -5,6 +5,7 @@ argument-hint: (no arguments needed)
 allowed-tools: [Task, Read, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 ## Implementation

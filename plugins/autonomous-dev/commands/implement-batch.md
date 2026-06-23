@@ -3,6 +3,7 @@ name: implement-batch
 description: Batch processing mode for /implement command
 version: 1.0.0
 user-invocable: false
+user_facing: false
 ---
 
 # BATCH FILE MODE

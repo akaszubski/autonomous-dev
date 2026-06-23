@@ -5,6 +5,7 @@ argument-hint: "Issue title [--quick] (e.g., 'Add JWT authentication' or 'Add JW
 allowed-tools: [Task, Read, Bash, Grep, Glob]
 disable-model-invocation: false
 user-invocable: true
+user_facing: true
 ---
 
 # Create GitHub Issue with Research Integration

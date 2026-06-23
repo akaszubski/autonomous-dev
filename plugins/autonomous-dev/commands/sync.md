@@ -5,6 +5,7 @@ argument-hint: "--github | --env | --marketplace | --plugin-dev | --all | --unin
 allowed-tools: [Bash]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 Do NOT fetch any URLs or documentation. Execute the script below directly.

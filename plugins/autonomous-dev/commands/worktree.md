@@ -5,6 +5,7 @@ argument-hint: "Optional flags: --list (default), --status FEATURE, --review FEA
 allowed-tools: [Task, Read, Write, Bash, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 ## Implementation

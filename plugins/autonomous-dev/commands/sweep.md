@@ -3,6 +3,7 @@ name: sweep
 description: "Codebase hygiene sweep — /refactor --quick alias, or --tests for test pruning analysis"
 argument-hint: "[--fix] [--tests]"
 user-invocable: true
+user_facing: true
 allowed-tools: [Read, Bash, Grep, Glob, Agent]
 ---
 

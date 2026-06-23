@@ -5,6 +5,7 @@ argument-hint: Search query (e.g., "authentication patterns" or "error handling"
 allowed-tools: [Bash, Read]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 # Search claude-mem Persistent Memory

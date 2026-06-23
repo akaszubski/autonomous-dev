@@ -5,6 +5,7 @@ argument-hint: Optional flags - --quick, --security, --docs, --code, --claude, -
 allowed-tools: [Task, Read, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 # Comprehensive Quality Audit

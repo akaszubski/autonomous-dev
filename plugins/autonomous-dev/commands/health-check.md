@@ -5,6 +5,7 @@ argument-hint: "[--verbose]"
 allowed-tools: [Read, Bash, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 ## Implementation

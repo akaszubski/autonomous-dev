@@ -7,6 +7,7 @@ category: core
 allowed-tools: [Read, Write, Edit, Grep, Glob]
 disable-model-invocation: true
 user-invocable: true
+user_facing: true
 ---
 
 # /align - Unified Alignment Command

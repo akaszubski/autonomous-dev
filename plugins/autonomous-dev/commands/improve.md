@@ -4,6 +4,7 @@ description: "Analyze recent sessions for improvement opportunities"
 argument-hint: "[--auto-file] [--session <id>] [--date YYYY-MM-DD] [--trends]"
 allowed-tools: [Task, Read, Bash, Glob, Grep]
 user-invocable: true
+user_facing: true
 ---
 
 # Continuous Improvement Analysis

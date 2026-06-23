@@ -5,6 +5,7 @@ argument-hint: "[--quick] (e.g., '/plan-to-issues' or '/plan-to-issues --quick')
 allowed-tools: [Agent, Read, Bash, Grep, Glob]
 disable-model-invocation: false
 user-invocable: true
+user_facing: true
 ---
 
 # Batch-Convert Plan into GitHub Issues
