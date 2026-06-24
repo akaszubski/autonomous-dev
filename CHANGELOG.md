@@ -2,6 +2,7 @@
 
 
 ### Added
+- **Issue #908 infrastructure complete — bulk test pruning deferred** (Issue #908): Tier-distribution warning hook and testing-guide skill documentation delivered in commit d2baf52. Infrastructure is operational: `enforce_tier_distribution.py` hook registered, `/sweep --tests` integrated into `/improve` weekly cycle (STEP 2.8), tier selection guidance in testing-guide skill. The bulk test pruning work (reducing 2,353 prunable tests to <500) is deferred to a focused follow-up issue for risk mitigation — ensures existing test coverage remains stable while infrastructure matures.
 - **Test pruning analysis in `/improve` weekly cycle** (Issue #908): Added STEP 2.8 to `/improve` command that runs `/sweep --tests` analysis weekly to surface prunable test candidates. Tracks drift target of <500 prunable tests as root-cause metric for test pyramid health. Persistence via `.claude/logs/sweep-tests-*.log` for weekly cycle tracking.
 - **Tier distribution gate in test health dashboard** (Issue #908): Added warning-only tier distribution gate to `/improve` test health analysis, checking for test pyramid balance according to 5:2:2:1 target ratio (T3:T2:T1:T0). Gate warns when upper tiers (T0+T1+T2) drop below 25% of total tests, indicating bottom-heavy pyramid drift. Integrated into `test_lifecycle_manager.format_dashboard()` output. Added tier selection criteria to testing-guide skill documenting when to use each tier. Added 6 unit tests in `TestTierDistributionGate` class.
 
