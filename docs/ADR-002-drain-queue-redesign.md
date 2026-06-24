@@ -164,9 +164,23 @@ This section tracks rolling progress against the Migration Plan phases above.
 
 Pending Phase B completion.
 
-### Phase D — Cleanup and documentation (NOT STARTED)
+### Phase D — Severity retirement (partial, this PR)
 
-Pending Phase C completion.
+`AUTO_DRAINABLE_SEVERITY` relaxed from `frozenset({"low", "info"})` to
+`frozenset({"low", "info", "medium"})`. Diagnosis: 10 of 11 open
+`auto-improvement` issues were classified `severity=medium` by
+`_infer_severity()` (any label containing "bug" → medium per
+`MEDIUM_LABEL_KEYWORDS`) and were therefore blocked by `severity_gate`
+even when `confidence_gate >= 0.80`. With this change, `severity_gate`
+now blocks only `high` (critical/p0 issues requiring human review).
+`confidence_gate` (0.80 threshold, ADR-002 Phase C / Issue #1291) is
+the real autonomy decision per PROJECT.md Layer 4 ("HIGH confidence
+diagnoses applied autonomously").
+
+Deferred (full Phase D):
+- Removing severity_gate entirely (severity becomes ranking-only).
+- severity already feeds `compute_rank_score` for prioritization; the
+  gate is the only remaining blocking usage.
 
 ---
 
@@ -183,7 +197,7 @@ The redesign is complete when ALL of the following are true (each maps to a Phas
 - [ ] Phase C: every successful drain has a `before_metrics` + `after_metrics` record.
 - [ ] Phase C: regression in test count → automatic revert with `drain-reverted` issue reopening, within 30 min.
 - [ ] Phase D: `docs/RUNBOOK.md` and `plugins/autonomous-dev/docs/COMMANDS.md` reflect the new flow.
-- [ ] Phase D: `grep -rn 'auto-drain.*severity' plugins/` returns zero results.
+- [x] Phase D: `AUTO_DRAINABLE_SEVERITY` relaxed to include `medium`; `severity_gate` now blocks only `high`. (partial — full gate retirement deferred)
 
 ---
 

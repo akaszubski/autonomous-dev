@@ -100,10 +100,10 @@ class TestSeverityGate:
         blocked, _ = severity_gate("info")
         assert blocked is False
 
-    def test_medium_severity_blocks(self) -> None:
+    def test_medium_severity_passes(self) -> None:
         blocked, reason = severity_gate("medium")
-        assert blocked is True
-        assert "medium" in reason
+        assert blocked is False
+        assert reason == ""
 
     def test_high_severity_blocks(self) -> None:
         blocked, reason = severity_gate("high")
@@ -119,8 +119,50 @@ class TestSeverityGate:
         # AUTO_DRAINABLE_SEVERITY governs the gate.
         assert "low" in AUTO_DRAINABLE_SEVERITY
         assert "info" in AUTO_DRAINABLE_SEVERITY
+        assert "medium" in AUTO_DRAINABLE_SEVERITY
         assert "high" not in AUTO_DRAINABLE_SEVERITY
-        assert "medium" not in AUTO_DRAINABLE_SEVERITY
+
+
+# =============================================================================
+# Severity gate — Phase D relaxation tests
+# =============================================================================
+
+
+class TestSeverityGatePhaseD:
+    """Tests for Phase D severity_gate relaxation (this PR).
+
+    severity_gate now blocks only 'high'. 'medium' passes through to be
+    decided by confidence_gate (>=0.80 per #1291). Full retirement of
+    severity_gate is deferred to a follow-up issue.
+    """
+
+    def test_medium_severity_now_passes(self) -> None:
+        """medium-severity clusters pass severity_gate (Phase D)."""
+        blocked, reason = severity_gate("medium")
+        assert blocked is False
+        assert reason == ""
+
+    def test_high_severity_still_blocks(self) -> None:
+        """high-severity clusters still require human review."""
+        blocked, reason = severity_gate("high")
+        assert blocked is True
+        assert "human review" in reason.lower()
+
+    def test_evaluate_cluster_gates_medium_severity_low_confidence_blocked_by_confidence(self) -> None:
+        """confidence_gate is now the real autonomy decision when severity passes.
+
+        With severity=medium AND confidence=0.5 (below 0.80 threshold), the
+        cluster MUST be blocked by confidence_gate, not severity_gate.
+        Verifies Phase D shift: confidence is the decider.
+        """
+        verdict, reason = evaluate_cluster_gates(
+            cluster_severity="medium",
+            cluster_size=1,
+            cluster_labels=frozenset({"auto-improvement"}),
+            cluster_confidence=0.5,
+        )
+        assert verdict == "stop"
+        assert "confidence" in reason.lower()
 
 
 # =============================================================================
