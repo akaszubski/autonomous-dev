@@ -1,0 +1,14 @@
+{
+  "name": "enforce_tier_distribution",
+  "type": "lifecycle",
+  "description": "Warn when test tier distribution drifts from target ratio (T3:T2:T1:T0 = 5:2:2:1)",
+  "interpreter": "python3",
+  "active": true,
+  "registrations": [
+    {
+      "event": "PreToolUse",
+      "matcher": "Write|Edit",
+      "timeout": 5
+    }
+  ]
+}

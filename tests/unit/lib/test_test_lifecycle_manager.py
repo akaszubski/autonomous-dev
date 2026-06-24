@@ -338,3 +338,83 @@ class TestEmptyProject:
         assert report.summary.total_findings == 0
         assert report.summary.tier_balance == "unknown"
         assert report.scan_duration_ms > 0
+
+
+class TestTierDistributionGate:
+    """Test the tier distribution gate warning logic."""
+
+    def test_healthy_distribution_passes(self) -> None:
+        """A healthy 5:2:2:1 distribution passes with no warning."""
+        from test_lifecycle_manager import check_tier_distribution
+
+        tier_dist = {"T0": 10, "T1": 20, "T2": 20, "T3": 50}
+        passed, msg = check_tier_distribution(tier_dist)
+
+        assert passed is True
+        assert msg == "OK"
+
+    def test_bottom_heavy_distribution_warns(self) -> None:
+        """A distribution with T3=900 and tiny others warns as bottom-heavy."""
+        from test_lifecycle_manager import check_tier_distribution
+
+        tier_dist = {"T0": 10, "T1": 10, "T2": 10, "T3": 900}
+        passed, msg = check_tier_distribution(tier_dist)
+
+        assert passed is False
+        assert "too bottom-heavy" in msg
+        # Should mention the actual percentage
+        assert "3.2%" in msg or "3.1%" in msg  # (10+10+10)/930 = ~3.2%
+
+    def test_empty_distribution_passes(self) -> None:
+        """An empty distribution passes without division by zero."""
+        from test_lifecycle_manager import check_tier_distribution
+
+        # Empty dict
+        passed, msg = check_tier_distribution({})
+        assert passed is True
+        assert msg == "OK"
+
+        # All zeros
+        tier_dist = {"T0": 0, "T1": 0, "T2": 0, "T3": 0}
+        passed, msg = check_tier_distribution(tier_dist)
+        assert passed is True
+        assert msg == "OK"
+
+    def test_missing_t0_entirely_warns(self) -> None:
+        """Missing T0 tier entirely causes drift warning."""
+        from test_lifecycle_manager import check_tier_distribution
+
+        # T0 missing entirely (0%) when target is 10%
+        tier_dist = {"T1": 20, "T2": 20, "T3": 60}
+        passed, msg = check_tier_distribution(tier_dist)
+
+        assert passed is False
+        # T0 at 0% drifts 100% from target 10%
+        assert "T0" in msg
+        assert "drift" in msg
+
+    def test_exactly_25_percent_upper_tiers_passes(self) -> None:
+        """Boundary case: T0+T1+T2 == exactly 25% passes."""
+        from test_lifecycle_manager import check_tier_distribution
+
+        # 25% in upper tiers (25/100), 75% in T3
+        tier_dist = {"T0": 5, "T1": 10, "T2": 10, "T3": 75}
+        passed, msg = check_tier_distribution(tier_dist)
+
+        assert passed is True
+        assert msg == "OK"
+
+    def test_tier_balance_gate_in_dashboard(self, tmp_path: Path) -> None:
+        """Tier Balance Gate line appears in dashboard output."""
+        from test_lifecycle_manager import TestLifecycleManager, TestHealthReport
+
+        manager = TestLifecycleManager(tmp_path)
+        report = TestHealthReport()
+        report.tier_distribution = {"T0": 5, "T1": 5, "T2": 5, "T3": 85}
+
+        dashboard = manager.format_dashboard(report)
+
+        assert "Tier Balance Gate:" in dashboard
+        # Should show warning for bottom-heavy distribution
+        assert "WARNING" in dashboard
+        assert "too bottom-heavy" in dashboard

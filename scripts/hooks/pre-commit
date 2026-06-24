@@ -23,8 +23,11 @@ python3 scripts/validate_structure.py
 
 echo "🔍 Checking for accidentally staged .claude/ files..."
 
-# Block .claude/ files except PROJECT.md
-STAGED_CLAUDE_FILES=$(git diff --cached --name-only | grep "^\.claude/" | grep -v "^\.claude/PROJECT.md" || true)
+# Block .claude/ files except PROJECT.md and cloud-runs.jsonl
+# (cloud-runs.jsonl is auto-appended telemetry tracked since the cloud-drain
+# workflow was introduced; master commits it on every fire — bypassing this
+# hook with --no-verify each time was the prior workaround.)
+STAGED_CLAUDE_FILES=$(git diff --cached --name-only | grep "^\.claude/" | grep -v "^\.claude/PROJECT.md" | grep -v "^\.claude/logs/cloud-runs.jsonl" || true)
 if [ -n "$STAGED_CLAUDE_FILES" ]; then
     echo ""
     echo "❌ ERROR: Attempting to commit .claude/ files (should be gitignored):"

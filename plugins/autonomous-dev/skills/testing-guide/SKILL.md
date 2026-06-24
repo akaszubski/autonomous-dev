@@ -385,6 +385,106 @@ pytest tests/genai/ --genai        # GenAI validation (opt-in, T0)
 
 ---
 
+## Tier Selection Criteria
+
+**Target distribution ratio** (5:2:2:1 for T3:T2:T1:T0) — balanced coverage across the test pyramid. Monitored by `enforce_tier_distribution.py` hook (Issue #908).
+
+### Tier Selection Decision Tree
+
+```
+START: What are you testing?
+│
+├─ User-facing acceptance criteria from the plan?
+│  └─> T0 (tests/genai/ or tests/regression/smoke/)
+│
+├─ Critical user workflow or deployment smoke test?
+│  └─> T0 (tests/regression/smoke/)
+│
+├─ Full end-to-end scenario with multiple components?
+│  └─> T1 (tests/e2e/)
+│
+├─ Component interaction (2-3 modules talking)?
+│  └─> T1 (tests/integration/)
+│
+├─ Released feature protection against regression?
+│  └─> T2 (tests/regression/regression/)
+│
+├─ Property-based invariant testing?
+│  └─> T2 (tests/property/)
+│
+├─ Pure function in isolation?
+│  └─> T3 (tests/unit/)
+│
+├─ TDD red-green cycle or implementation detail?
+│  └─> T3 (tests/unit/ or tests/regression/progression/)
+│
+└─ Hook, security boundary, or internal validation?
+   └─> T3 (tests/hooks/ or tests/security/)
+```
+
+### Common Tier Misclassification Patterns
+
+**Pattern 1: "Everything is a unit test"**
+- **Wrong**: Testing pipeline execution in `tests/unit/test_pipeline.py`
+- **Right**: Move to `tests/integration/test_pipeline.py` (component interaction)
+
+**Pattern 2: "Too many smoke tests"**
+- **Wrong**: Every new feature gets a smoke test
+- **Right**: Only critical paths and deployment verification get T0 smoke tests
+
+**Pattern 3: "Regression tests for internal refactoring"**
+- **Wrong**: Adding to `tests/regression/regression/` for internal API changes
+- **Right**: Use `tests/unit/` for implementation-coupled tests that change with code
+
+**Pattern 4: "GenAI tests for deterministic logic"**
+- **Wrong**: Using `genai.judge()` to test `2 + 2 == 4`
+- **Right**: Use assert for deterministic; GenAI for congruence/drift detection
+
+**Pattern 5: "Integration tests that mock everything"**
+- **Wrong**: `tests/integration/test_db.py` that mocks the entire database
+- **Right**: Either use real DB (integration) or move to unit tests if testing in isolation
+
+**Cross-reference**: This tier guidance supports the test pyramid health monitoring from Issues #908/#886/#887.
+
+
+
+### When to write T0 tests (acceptance, permanent)
+- Testing acceptance criteria from the plan
+- Validating critical user-facing workflows
+- Protecting against doc-to-code drift
+- Smoke tests for deployment verification
+- **Target**: ~10% of tests
+
+### When to write T1 tests (integration, stable)
+- Testing interaction between 2+ components
+- Validating API contracts between modules
+- End-to-end workflow tests
+- Database/filesystem integration points
+- **Target**: ~20% of tests
+
+### When to write T2 tests (regression, semi-stable)
+- Protecting against known bug recurrence
+- Feature-level regression prevention
+- Edge case coverage for released features
+- Performance regression tests
+- **Target**: ~20% of tests
+
+### When to write T3 tests (unit, ephemeral)
+- Testing pure functions in isolation
+- Implementation detail verification
+- TDD red-green cycles
+- Hook validation tests
+- Security boundary checks
+- **Target**: ~50% of tests
+
+**Anti-pattern**: Writing only T3 unit tests (bottom-heavy). While unit tests are valuable for development, a test suite with 90%+ unit tests lacks integration coverage and user workflow validation.
+
+**Balance warning**: The tier distribution gate warns when:
+- Upper tiers (T0+T1+T2) represent less than 25% of total tests
+- Any tier drifts more than 50% from its target ratio
+
+---
+
 ## GenAI Test Infrastructure
 
 ```python

@@ -119,6 +119,8 @@
         "plugins/autonomous-dev/hooks/enforce_regression_test.py",
         "plugins/autonomous-dev/hooks/enforce_tdd.hook.json",
         "plugins/autonomous-dev/hooks/enforce_tdd.py",
+        "plugins/autonomous-dev/hooks/enforce_tier_distribution.hook.json",
+        "plugins/autonomous-dev/hooks/enforce_tier_distribution.py",
         "plugins/autonomous-dev/hooks/genai_prompts.hook.json",
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.hook.json",
