@@ -50,7 +50,7 @@ Re-sync dogfood repos after upstream changes without full reinstall.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/validate_structure.py` | Plugin directory layout, dogfooding architecture, no duplicates. Also enforces the canonical `"Component counts:"` line in `CLAUDE.md` against live file counts (Issue #1140): blocks if agents/skills/commands/hooks/libraries counts diverge. |
+| `scripts/validate_structure.py` | Plugin directory layout, dogfooding architecture, no duplicates. Also enforces the canonical `"Component counts:"` line in `CLAUDE.md` against live file counts (Issue #1140): blocks if agents/skills/commands/hooks/libraries counts diverge. The regex accepts both bare `"X commands"` and qualified `"X user-facing commands"` forms; when the qualified form is detected, count is limited to command files with `user_facing: true` front-matter (Issues #1140, #1159). |
 | `scripts/validate_manifest.py` | `install_manifest.json` in sync with source files |
 | `scripts/validate_hook_paths.py` | All hook paths in settings.*.json exist on disk |
 | `scripts/validate_component_classifications.py` | Component classifications match registry |

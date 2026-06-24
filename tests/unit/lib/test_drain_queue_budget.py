@@ -70,8 +70,8 @@ class TestConstantsPin:
     def test_max_cluster_size_auto_drainable_value(self) -> None:
         assert MAX_CLUSTER_SIZE_AUTO_DRAINABLE == 5
 
-    def test_auto_drainable_severity_is_low_info(self) -> None:
-        assert AUTO_DRAINABLE_SEVERITY == frozenset({"low", "info"})
+    def test_auto_drainable_severity_includes_medium_phase_d(self) -> None:
+        assert AUTO_DRAINABLE_SEVERITY == frozenset({"low", "info", "medium"})
 
     def test_human_gate_tags_includes_security_and_breaking(self) -> None:
         # Spot-check the security-critical entries.

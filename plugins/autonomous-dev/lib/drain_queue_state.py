@@ -62,7 +62,10 @@ HUMAN_GATE_TAGS: frozenset[str] = frozenset({
     "major",  # per round-4 research (Renovate major-version gate)
 })
 
-AUTO_DRAINABLE_SEVERITY: frozenset[str] = frozenset({"low", "info"})
+# Phase D partial (this PR): expanded from {low, info} to include 'medium'.
+# severity_gate now blocks ONLY 'high' (critical/p0 → human review). The real
+# autonomy decision is confidence_gate (>=0.80) per ADR-002 Phase D / #1291.
+AUTO_DRAINABLE_SEVERITY: frozenset[str] = frozenset({"low", "info", "medium"})
 
 # ADR-002 Phase C (Issue #1291): confidence-based eligibility threshold.
 # A cluster is eligible for autonomous drain only when its confidence
@@ -653,7 +656,13 @@ SKIP_LABELS: frozenset[str] = frozenset({"blocked", "waiting"})
 
 
 def severity_gate(cluster_severity: str) -> Tuple[bool, str]:
-    """Block if cluster severity is NOT in :data:`AUTO_DRAINABLE_SEVERITY`.
+    """Block if cluster severity is 'high' (Phase D — partial retirement).
+
+    As of ADR-002 Phase D (this commit), severity_gate retains a defense-in-depth
+    role for blocking 'high' severity (critical/p0 issues requiring human review).
+    The real autonomy decision is :func:`confidence_gate` (threshold 0.80 per
+    Issue #1291 / Phase C). 'medium' severity now passes this gate; whether the
+    cluster ultimately drains depends on confidence and tag gates.
 
     Args:
         cluster_severity: ``TriageFinding.severity`` ("low", "medium", "high").
