@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,44 @@ def _write_claude_md(
         f"Full diagram and layer breakdown in docs/ARCHITECTURE-OVERVIEW.md.\n"
     )
     return claude_md
+
+
+class TestSummaryRegex:
+    """Tests for SUMMARY_RE regex — bare and 'user-facing' qualifier variants."""
+
+    def test_summary_re_matches_bare_commands(self, validate_module: Any) -> None:
+        """SUMMARY_RE matches a line with bare 'commands' (no qualifier)."""
+        line = "Component counts: 16 agents, 20 skills, 25 commands, 25 hooks, 232 libraries"
+        m = validate_module.SUMMARY_RE.search(line)
+        assert m is not None, "SUMMARY_RE should match bare 'commands'"
+        assert m.group("commands") == "25"
+
+    def test_summary_re_matches_user_facing_commands(self, validate_module: Any) -> None:
+        """SUMMARY_RE matches a line with 'user-facing commands' qualifier."""
+        line = "Component counts: 16 agents, 20 skills, 22 user-facing commands, 25 hooks, 232 libraries"
+        m = validate_module.SUMMARY_RE.search(line)
+        assert m is not None, "SUMMARY_RE should match 'user-facing commands'"
+        assert m.group("commands") == "22"
+
+    def test_summary_re_rejects_malformed_line(self, validate_module: Any) -> None:
+        """SUMMARY_RE returns None for a line with non-numeric command count."""
+        line = "Component counts: 16 agents, 20 skills, NO commands, 25 hooks, 232 libraries"
+        m = validate_module.SUMMARY_RE.search(line)
+        assert m is None, "SUMMARY_RE should not match a non-numeric command count"
+
+    def test_component_counts_validation_passes_against_current_claude_md(
+        self, validate_module: Any
+    ) -> None:
+        """check_component_count_drift() returns no 'summary line missing or malformed' error
+        against the actual repo CLAUDE.md (end-to-end path the pre-commit hook exercises)."""
+        errors = validate_module.check_component_count_drift()
+        malformed_errors = [
+            e for e in errors if "missing or malformed" in e or "summary line missing" in e
+        ]
+        assert malformed_errors == [], (
+            "Canonical 'Component counts:' line in CLAUDE.md is missing or malformed.\n"
+            f"Errors: {malformed_errors}"
+        )
 
 
 class TestComponentCountDriftCheck:
@@ -167,4 +206,62 @@ class TestComponentCountDriftCheck:
         assert exit_code == 1, f"Expected exit code 1 when drift detected, got {exit_code}"
         assert "sentinel error from count drift" in captured.out, (
             f"Sentinel error not in stdout. Output was:\n{captured.out}"
+        )
+
+
+class TestUserFacingCommandCount:
+    """Tests for _count_user_facing_commands() and its dispatch in check_component_count_drift().
+
+    Added in Issue #1159 follow-up: CLAUDE.md uses 'X user-facing commands' qualifier so the
+    counter must only count files with user_facing: true in their YAML front-matter.
+    """
+
+    def test_count_user_facing_commands_matches_front_matter(
+        self, validate_module: Any
+    ) -> None:
+        """_count_user_facing_commands() equals grep count of files with user_facing: true."""
+        # Ground-truth via subprocess grep (anchored to start of line per YAML convention)
+        commands_dir = (
+            Path(__file__).resolve().parents[3]
+            / "plugins"
+            / "autonomous-dev"
+            / "commands"
+        )
+        result = subprocess.run(
+            ["grep", "-rl", "^user_facing: true", str(commands_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        grep_count = len([l for l in result.stdout.splitlines() if l.strip()])
+
+        module_count = validate_module._count_user_facing_commands()
+
+        assert module_count == grep_count, (
+            f"_count_user_facing_commands() returned {module_count} but "
+            f"grep found {grep_count} files with 'user_facing: true'"
+        )
+
+    def test_count_commands_total_at_least_user_facing(
+        self, validate_module: Any
+    ) -> None:
+        """_count_commands() >= _count_user_facing_commands(): total >= user-facing subset."""
+        total = validate_module._count_commands()
+        user_facing = validate_module._count_user_facing_commands()
+        assert total >= user_facing, (
+            f"_count_commands() ({total}) must be >= _count_user_facing_commands() ({user_facing})"
+        )
+
+    def test_check_component_count_drift_passes_against_current_claude_md_with_user_facing_qualifier(
+        self, validate_module: Any
+    ) -> None:
+        """End-to-end: check_component_count_drift() reports no commands drift against
+        the actual CLAUDE.md which uses the 'user-facing commands' qualifier."""
+        errors = validate_module.check_component_count_drift()
+        commands_drift_errors = [e for e in errors if "'commands'" in e]
+        assert commands_drift_errors == [], (
+            "check_component_count_drift() reports commands drift against actual CLAUDE.md.\n"
+            "CLAUDE.md uses 'user-facing commands' qualifier so _count_user_facing_commands() "
+            "should be dispatched.\n"
+            f"Commands drift errors: {commands_drift_errors}"
         )
