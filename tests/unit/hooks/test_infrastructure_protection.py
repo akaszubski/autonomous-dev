@@ -448,17 +448,23 @@ class TestInstallManifestProtection:
 
     @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
     def test_install_manifest_allows_edit_inside_pipeline(self, _mock, monkeypatch):
-        """Edit to install_manifest.json with implementer agent → allow."""
+        """Edit to install_manifest.json with implementer agent + active sentinel → allow."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
 
-        result = self._run_hook("Edit", {
-            "file_path": "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json",
-            "old_string": "old",
-            "new_string": "new",
-        })
+        # Activate agent_dispatch_sentinel (required since #1296 — defense-in-depth)
+        from agent_dispatch_sentinel import write as _sentinel_write, clear as _sentinel_clear
+        _sentinel_write("implementer")
+        try:
+            result = self._run_hook("Edit", {
+                "file_path": "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json",
+                "old_string": "old",
+                "new_string": "new",
+            })
 
-        decision = result["hookSpecificOutput"]["permissionDecision"]
-        assert decision == "allow"
+            decision = result["hookSpecificOutput"]["permissionDecision"]
+            assert decision == "allow"
+        finally:
+            _sentinel_clear()
 
 
 # ---------------------------------------------------------------------------

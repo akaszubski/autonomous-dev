@@ -794,7 +794,7 @@ class TestSubagentTypePriority:
         # Mock pipeline as active and ordering gate to capture the target_agent
         captured = {}
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             captured["target"] = target
             result = MagicMock()
             result.passed = True
@@ -830,7 +830,7 @@ class TestSubagentTypePriority:
         monkeypatch.setenv("PRE_TOOL_PIPELINE_ORDERING", "true")
         captured = {}
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             captured["target"] = target
             result = MagicMock()
             result.passed = True
@@ -857,7 +857,7 @@ class TestSubagentTypePriority:
         """
         monkeypatch.setenv("PRE_TOOL_PIPELINE_ORDERING", "true")
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             result = MagicMock()
             result.passed = False
             result.reason = "ORDERING VIOLATION: implementer requires planner to complete first"
@@ -883,7 +883,7 @@ class TestSubagentTypePriority:
         monkeypatch.setenv("PRE_TOOL_PIPELINE_ORDERING", "true")
         captured = {}
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             captured["target"] = target
             result = MagicMock()
             result.passed = True
@@ -918,7 +918,7 @@ class TestSubagentTypePriority:
         monkeypatch.setenv("PRE_TOOL_PIPELINE_ORDERING", "true")
         captured = {}
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             captured["target"] = target
             result = MagicMock()
             result.passed = True
@@ -952,7 +952,7 @@ class TestSubagentTypePriority:
         monkeypatch.setenv("PRE_TOOL_PIPELINE_ORDERING", "true")
         captured = {}
 
-        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None):
+        def mock_check(target, completed, validation_mode=None, launched_agents=None, pipeline_mode=None, plan_critic_skipped=False):
             captured["target"] = target
             captured["launched_agents"] = launched_agents
             result = MagicMock()

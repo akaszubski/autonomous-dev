@@ -6037,7 +6037,7 @@ def main():
                                 )
                             )
                             sys.exit(0)
-                        # implementer-dispatched edit: permit as before
+                        # implementer-dispatched edit: permit as before (fall through to WPG/other checks)
                     elif not pipeline_active:
                         file_name = Path(file_path).name if file_path else "unknown"
                         block_reason = (
@@ -6049,21 +6049,21 @@ def main():
                             f"Do NOT write infrastructure files directly."
                         )
                         _log_deviation(file_name, tool_name, "infrastructure_protection_block")
-                    _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
-                    output_decision(
-                        "deny", block_reason,
-                        system_message=(
-                            f"BLOCKED: Direct edit to '{file_name}' denied. "
-                            f"Use /implement to modify infrastructure files."
-                        ),
-                    )
-                    # Issue #803: Record denial for cross-tool workaround detection.
-                    # If the agent retries via Bash heredoc, the deny cache catches it.
-                    try:
-                        _update_deny_cache(file_path)
-                    except Exception:
-                        pass  # Never fail the hook for cache writes
-                    sys.exit(0)
+                        _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                        output_decision(
+                            "deny", block_reason,
+                            system_message=(
+                                f"BLOCKED: Direct edit to '{file_name}' denied. "
+                                f"Use /implement to modify infrastructure files."
+                            ),
+                        )
+                        # Issue #803: Record denial for cross-tool workaround detection.
+                        # If the agent retries via Bash heredoc, the deny cache catches it.
+                        try:
+                            _update_deny_cache(file_path)
+                        except Exception:
+                            pass  # Never fail the hook for cache writes
+                        sys.exit(0)
 
                 # Issue #1142+ (Phase 1 polarity flip): Default-on production-code
                 # Write/Edit gate. Replaces the previous opt-IN check via

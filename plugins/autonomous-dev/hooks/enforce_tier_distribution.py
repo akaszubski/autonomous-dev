@@ -28,6 +28,16 @@ except ImportError:
     # Inline the target if TestLifecycleManager not available
     TIER_DISTRIBUTION_TARGETS = {"T0": 1, "T1": 2, "T2": 2, "T3": 5}
 
+try:
+    from hook_safety import safe_main as _hook_safe_main
+except ImportError:
+    def _hook_safe_main(fn):
+        """Fallback stub if hook_safety unavailable; preserves exit semantics."""
+        result = fn()
+        if isinstance(result, int):
+            sys.exit(result)
+        sys.exit(0)
+
 
 def count_test_tiers(repo_root: Path) -> dict:
     """Count tests by tier in the repository.
@@ -237,4 +247,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    _hook_safe_main(main)
