@@ -174,9 +174,9 @@ jobs:
 
             1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly. Do NOT proceed.
 
-            2. **Invoke /implement --light** on the cluster:
+            2. **Invoke /drain-queue** on the cluster (applies the six guardrails — DrainBudget, CircuitBreaker, PauseFlag, drain_pending marker, post-push verification, DrainHistory log — before delegating to `/implement --issues`):
                ```
-               /implement --issues ${{ needs.select.outputs.cluster }} --light
+               /drain-queue --cluster ${{ needs.select.outputs.cluster }}
                ```
                Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to agents. The session timeout is 50 min; if at minute 45 the pipeline is still running, finalize what's been done and report.
 

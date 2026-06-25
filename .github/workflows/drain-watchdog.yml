@@ -279,11 +279,11 @@ jobs:
 
             1. **Pre-flight**: cd into `$GITHUB_WORKSPACE`. If `.claude/.bypass` exists, exit 0 cleanly with a "bypass active" message. Do NOT proceed.
 
-            2. **Invoke /implement --light on the pre-selected cluster** — light mode (5 steps, 4 agents) fits the 60-min runner budget reliably; full mode (15 steps, 8 agents) often overruns and dies silently — that's why we're here:
+            2. **Invoke /drain-queue on the pre-selected cluster** — `/drain-queue` applies the six guardrails (DrainBudget, CircuitBreaker, PauseFlag, drain_pending marker, post-push verification, DrainHistory log) before delegating to `/implement --issues` in light mode (5 steps, 4 agents) which fits the 60-min runner budget reliably; full mode (15 steps, 8 agents) often overruns and dies silently — that's why we're here:
                ```
-               /implement --issues ${{ needs.check.outputs.cluster }} --light
+               /drain-queue --cluster ${{ needs.check.outputs.cluster }}
                ```
-               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. If the cluster is genuinely security-sensitive (auth/token/encryption/migrations files), drop the `--light` flag and let the full pipeline run; otherwise --light is preferred. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
+               Let the pipeline run end-to-end. Do NOT skip steps. Do NOT inline the fix yourself — delegate to the agents as the pipeline directs. The session timeout is 60 min; if the pipeline is still running at minute 55, stop dispatching new agents, finalize what's been done, and report.
 
             3. **After /implement returns**, verify the commit was actually pushed: `git fetch origin master && git log origin/master -1`. The pipeline's STEP 13 normally pushes; if the worktree has unpushed commits, push them: `git push origin HEAD:master`.
 
