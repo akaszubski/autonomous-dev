@@ -501,21 +501,23 @@ if $DO_LOCAL && ! $DRY_RUN && ! $SKIP_VALIDATE; then
     echo "=== Post-deploy validation ==="
     echo ""
 
-    # Validate global
-    echo "  ~/.claude:"
-    if python3 -c "import ast; ast.parse(open('$GLOBAL_DEST/hooks/unified_pre_tool.py').read())" 2>/dev/null; then
-        log_ok "global hook parses cleanly"
-    else
-        log_fail "global hook SYNTAX ERROR"
+    # Validate global (only if we actually deployed global this run — Issue #1313)
+    if $DO_GLOBAL; then
+        echo "  ~/.claude:"
+        if python3 -c "import ast; ast.parse(open('$GLOBAL_DEST/hooks/unified_pre_tool.py').read())" 2>/dev/null; then
+            log_ok "global hook parses cleanly"
+        else
+            log_fail "global hook SYNTAX ERROR"
+        fi
+        src_hash=$(checksum "$PLUGIN_SRC/hooks/unified_pre_tool.py")
+        dest_hash=$(checksum "$GLOBAL_DEST/hooks/unified_pre_tool.py")
+        if [ "$src_hash" = "$dest_hash" ]; then
+            log_ok "global hook matches source"
+        else
+            log_fail "global hook DIFFERS from source"
+        fi
+        echo ""
     fi
-    src_hash=$(checksum "$PLUGIN_SRC/hooks/unified_pre_tool.py")
-    dest_hash=$(checksum "$GLOBAL_DEST/hooks/unified_pre_tool.py")
-    if [ "$src_hash" = "$dest_hash" ]; then
-        log_ok "global hook matches source"
-    else
-        log_fail "global hook DIFFERS from source"
-    fi
-    echo ""
 
     # Validate each local repo
     for repo_name in $LOCAL_REPOS; do

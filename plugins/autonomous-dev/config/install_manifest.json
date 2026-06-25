@@ -167,6 +167,7 @@
         "plugins/autonomous-dev/lib/acceptance_criteria_parser.py",
         "plugins/autonomous-dev/lib/acceptance_criteria_tracker.py",
         "plugins/autonomous-dev/lib/active_security_scanner.py",
+        "plugins/autonomous-dev/lib/agent_dispatch_sentinel.py",
         "plugins/autonomous-dev/lib/agent_feedback.py",
         "plugins/autonomous-dev/lib/agent_invoker.py",
         "plugins/autonomous-dev/lib/agent_ordering_gate.py",
