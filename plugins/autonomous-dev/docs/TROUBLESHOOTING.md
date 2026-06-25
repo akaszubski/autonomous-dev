@@ -243,6 +243,46 @@ Per-repo opt-out: touch .claude/.bypass && git commit.
 
 **Not applicable when**: `.claude/.bypass` is present (gate skipped), or the pipeline is already active (gate is a no-op). Test files (`test_*.py`, files under `tests/` or `test/`) are always excluded from this gate. Bash commands writing to code files (`cat > X.py`, `sed -i X.py`, `tee X.py`, heredocs) are subject to the same gate; `git apply` and `patch < diff` are excluded as user-driven patch tooling.
 
+
+## Coordinator Cannot Directly Edit Protected Path (Issue #1296)
+
+**Symptom**: During a `/implement` pipeline run, the coordinator is blocked from editing infrastructure files with:
+
+```
+BLOCKED: Coordinator cannot directly edit protected path '<filename>' mid-pipeline.
+Re-dispatch the implementer agent with this change as a remediation cycle. (Issue #1296)
+```
+
+**Cause**: Issue #1296 introduced the agent-dispatch sentinel mechanism to prevent coordinators from bypassing the implementer agent for protected infrastructure paths (`agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md`). The sentinel file (`.claude/local/active_agent_dispatch.json`) tracks when an agent-dispatched edit is in flight. If the pipeline is active but no sentinel exists, the coordinator's direct edit attempt is blocked.
+
+**Fix**: The coordinator must re-dispatch the implementer agent:
+
+1. **In coordinator context** — include the required change in your remediation instructions:
+   ```
+   "Re-dispatch the implementer agent to add the missing import/function/etc."
+   ```
+
+2. **Sentinel lifecycle** — the sentinel is automatically:
+   - Written when an agent is dispatched (via Task tool)
+   - Cleared after the agent completes (PostToolUse hook)
+   - Expires after 30 seconds (TTL safety)
+
+**When this doesn't apply**: 
+- Outside `/implement` pipeline (no pipeline active)
+- When editing user-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`)
+- When `.claude/.bypass` is present (universal escape hatch)
+- When the sentinel is active (agent-dispatched edit in progress)
+
+**Debug**: Check if a sentinel is active:
+```bash
+if [ -f .claude/local/active_agent_dispatch.json ]; then
+  cat .claude/local/active_agent_dispatch.json
+else
+  echo "No active agent dispatch"
+fi
+```
+
+---
 ---
 
 ## Universal Escape: Unstick Any Blocked Hook (Issue #969)

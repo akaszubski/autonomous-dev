@@ -1137,6 +1137,13 @@ def main() -> int:
                 pass  # Non-blocking: skip entry is advisory only
             return 0
 
+        # Issue #1296: clear agent-dispatch sentinel on SubagentStop
+        try:
+            from agent_dispatch_sentinel import clear as _ads_clear
+            _ads_clear()
+        except Exception:
+            pass  # never block on sentinel clear failure
+
         # Issue #1087: Recover missing subagent_type and duration_ms via the
         # subagent invocation cache populated by session_activity_logger on
         # PreToolUse. Claude Code's SubagentStop payload frequently omits

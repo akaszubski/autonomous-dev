@@ -5993,17 +5993,62 @@ def main():
                     # Fail closed — if protection check errors, treat as protected
                     is_protected = True
                     pipeline_active = False
-                if is_protected and not pipeline_active:
-                    file_name = Path(file_path).name if file_path else "unknown"
-                    block_reason = (
-                        f"BLOCKED: Direct edit to '{file_name}' denied. "
-                        f"Infrastructure files (agents/, commands/, hooks/, lib/, skills/) "
-                        f"require the /implement pipeline. Run: /implement \"description\" "
-                        f"REQUIRED NEXT ACTION: Run /implement with a description of your "
-                        f"change. Delegate the edit to the implementer agent. "
-                        f"Do NOT write infrastructure files directly."
-                    )
-                    _log_deviation(file_name, tool_name, "infrastructure_protection_block")
+                if is_protected:
+                    # Issue #1296: pipeline-active is NOT a blanket permit. The implementer agent
+                    # must be the actor — coordinator direct-edits to protected paths during an
+                    # active pipeline are also blocked.
+                    if pipeline_active:
+                        try:
+                            from agent_dispatch_sentinel import is_active as _ads_is_active
+                            if not _ads_is_active():
+                                file_name = Path(file_path).name if file_path else "unknown"
+                                block_reason = (
+                                    f"BLOCKED: Coordinator cannot directly edit protected path '{file_name}' "
+                                    f"mid-pipeline. Re-dispatch the implementer agent with this "
+                                    f"change as a remediation cycle. (Issue #1296) "
+                                    f"REQUIRED NEXT ACTION: Use the Task tool to invoke the implementer "
+                                    f"agent to make this change. Do NOT edit infrastructure files directly."
+                                )
+                                _log_deviation(file_name, tool_name, "coordinator_bypass_block")
+                                _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                                output_decision(
+                                    "deny", block_reason,
+                                    system_message=(
+                                        f"Coordinator cannot directly edit protected path '{file_path}' "
+                                        f"mid-pipeline. Re-dispatch the implementer agent. (Issue #1296)"
+                                    )
+                                )
+                                sys.exit(0)
+                        except ImportError:
+                            # Issue #1296: Fail CLOSED when sentinel library missing for security-critical check
+                            file_name = Path(file_path).name if file_path else "unknown"
+                            block_reason = (
+                                f"BLOCKED: Sentinel library missing — security-critical component unavailable, "
+                                f"refusing to allow protected-path edit to '{file_name}'. "
+                                f"The agent_dispatch_sentinel module is required for coordinator bypass detection."
+                            )
+                            _log_deviation(file_name, tool_name, "sentinel_import_error_block")
+                            _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                            output_decision(
+                                "deny", block_reason,
+                                system_message=(
+                                    f"Sentinel library missing — cannot verify agent dispatch status. "
+                                    f"Blocking protected-path edit for security. (Issue #1296)"
+                                )
+                            )
+                            sys.exit(0)
+                        # implementer-dispatched edit: permit as before
+                    elif not pipeline_active:
+                        file_name = Path(file_path).name if file_path else "unknown"
+                        block_reason = (
+                            f"BLOCKED: Direct edit to '{file_name}' denied. "
+                            f"Infrastructure files (agents/, commands/, hooks/, lib/, skills/) "
+                            f"require the /implement pipeline. Run: /implement \"description\" "
+                            f"REQUIRED NEXT ACTION: Run /implement with a description of your "
+                            f"change. Delegate the edit to the implementer agent. "
+                            f"Do NOT write infrastructure files directly."
+                        )
+                        _log_deviation(file_name, tool_name, "infrastructure_protection_block")
                     _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
                     output_decision(
                         "deny", block_reason,

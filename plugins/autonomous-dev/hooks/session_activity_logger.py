@@ -187,6 +187,13 @@ def main():
                         start_time=time.time(),
                         description=pre_tool_input.get("description", ""),
                     )
+                # Issue #1296: write agent-dispatch sentinel so unified_pre_tool can distinguish
+                # coordinator-direct edits from implementer-dispatched edits to protected paths.
+                try:
+                    from agent_dispatch_sentinel import write as _ads_write
+                    _ads_write(agent_name=pre_subagent_type if pre_subagent_type else "unknown")
+                except Exception:
+                    pass  # never block on sentinel write failure
             # Always exit on PreToolUse — we don't write a log entry from this hook
             # (unified_pre_tool.py owns PreToolUse activity logging).
             sys.exit(0)
