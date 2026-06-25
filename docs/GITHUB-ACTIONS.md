@@ -23,6 +23,7 @@ Automated PR review and issue implementation using Claude via `anthropics/claude
 |----------|---------|------|
 | Claude Code Review | PR opened/updated, `@claude` comment | `.github/workflows/claude-review.yml` |
 | Claude Issue Implementation | Issue labeled `claude-implement` | `.github/workflows/claude-implement.yml` |
+| Auto-tag on push | Push to `master` (non-log paths) | `.github/workflows/auto-tag-on-push.yml` |
 
 ## Usage
 
@@ -51,9 +52,22 @@ The PR will reference the original issue. Review the PR as you would any human-a
 - **Review required**: Auto-generated PRs still require human review and approval before merge
 - **Tool access**: Review workflow has read-only tools; implementation workflow has write access limited to the PR branch
 
+### Auto-tag on push
+
+Every push to `master` (excluding `.claude/logs/**`) runs `.github/workflows/auto-tag-on-push.yml`, which:
+
+1. Reads the plugin version from `plugins/autonomous-dev/.claude-plugin/marketplace.json` (validated as `N.N.N`)
+2. Computes a 7-char SHA suffix via `git rev-parse --short=7 HEAD`
+3. Emits an annotated tag of the form `autonomous-dev-v<version>+<sha7>`
+4. Pushes the tag to origin (idempotent — skips if the tag already exists)
+
+The tag is consumed by `scripts/pull-plugin-update.sh` running on consumer Macs via a launchd timer. See the "Consumer-side auto-update (launchd)" section of [RUNBOOK.md](../docs/RUNBOOK.md) for setup instructions.
+
+**Credentials**: only `secrets.GITHUB_TOKEN` is used (no custom SSH keys required). **Permissions**: `contents: write` only, with a 3-minute job timeout and a `cancel-in-progress: false` concurrency group.
+
 ## Cost Management
 
-Both workflows use `claude-sonnet-4-5-20250929` to keep CI costs reasonable. The concurrency groups prevent duplicate runs when PRs are updated rapidly.
+The Claude review and issue-implementation workflows use `claude-sonnet-4-5-20250929` to keep CI costs reasonable. The concurrency groups prevent duplicate runs when PRs are updated rapidly. The auto-tag workflow uses only standard GitHub Actions (no Anthropic API calls) — it is always free.
 
 ## Troubleshooting
 

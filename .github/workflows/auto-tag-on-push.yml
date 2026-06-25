@@ -1,0 +1,77 @@
+name: Auto-tag on push to master
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '.claude/logs/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read plugin version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION_FILE="plugins/autonomous-dev/.claude-plugin/marketplace.json"
+          if [ ! -f "$VERSION_FILE" ]; then
+            echo "::error file=$VERSION_FILE::Version file missing"
+            exit 1
+          fi
+          PATCH=$(jq -r '.version' "$VERSION_FILE")
+          if [ -z "$PATCH" ] || [ "$PATCH" = "null" ]; then
+            echo "::error::Version field missing or null in $VERSION_FILE"
+            exit 1
+          fi
+          if ! echo "$PATCH" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$PATCH' is not in N.N.N form"
+            exit 1
+          fi
+          SHA7=$(git rev-parse --short=7 HEAD)
+          TAG="autonomous-dev-v${PATCH}+${SHA7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Computed tag: $TAG"
+
+      - name: Check tag does not already exist
+        id: check
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+            echo "::notice::Tag $TAG already exists -- nothing to do (idempotent)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push annotated tag
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Auto-tag on push: $TAG ($(git log -1 --format=%s))"
+          git push origin "$TAG"
+          echo "Pushed tag $TAG"
+
+      - name: Summary
+        run: |
+          echo "## auto-tag-on-push" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tag: \`${{ steps.version.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pushed: ${{ steps.check.outputs.skip != 'true' }}" >> "$GITHUB_STEP_SUMMARY"

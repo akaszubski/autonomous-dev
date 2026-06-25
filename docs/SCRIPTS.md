@@ -36,6 +36,23 @@ Deploys the plugin to all configured targets: local machine + all dogfooding rep
 
 **Related**: `scripts/deploy_local.sh` (local-only), `scripts/deploy-to-repos.sh` (dogfood repos only).
 
+### `scripts/pull-plugin-update.sh` — **Consumer-side auto-update** (Issue #1302)
+
+```bash
+bash scripts/pull-plugin-update.sh                # Pull + deploy if a new tag is present
+bash scripts/pull-plugin-update.sh --dry-run      # Show what would happen without writing
+bash scripts/pull-plugin-update.sh --no-deploy    # Fetch and record tag, skip deploy
+bash scripts/pull-plugin-update.sh --help         # Show usage
+```
+
+Idempotent consumer-side pull-and-deploy script, designed to run on a 30-minute launchd interval on each consumer Mac. Fetches tags from origin, finds the latest `autonomous-dev-v*` tag (emitted by `.github/workflows/auto-tag-on-push.yml`), and runs `bash scripts/deploy-all.sh --local --no-global` only when a new tag is detected.
+
+**State**: last-applied tag is recorded in `.claude/local/last_pulled_tag`; logs are appended to `.claude/logs/pull-plugin-update.log`.
+
+**Safety**: requires a clean working tree and uses `git pull --ff-only` (no merge or rebase). If the working tree is dirty or the pull fails, the script exits non-zero without updating the state file, so the next tick retries deployment.
+
+**See also**: [RUNBOOK.md — Consumer-side auto-update (launchd)](RUNBOOK.md#consumer-side-auto-update-launchd) for one-time setup instructions (launchd plist template, operations table, failure modes).
+
 ### `scripts/dogfood-bootstrap.sh`
 
 Bootstrap dogfooding on a new repo — install plugin, configure `~/.claude/settings.json` for that repo's cwd, verify hooks fire.

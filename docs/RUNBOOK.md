@@ -204,6 +204,88 @@ bash scripts/deploy-all.sh --dry-run   # Preview
 
 ---
 
+## Consumer-side auto-update (launchd)
+
+**Why tag-and-pull instead of CI push?** GitHub Actions has no SSH credentials for arbitrary consumer Macs, and adding per-host SSH keys to repo secrets is operationally fragile (rotation, revocation, audit). Instead, every push to `master` triggers `.github/workflows/auto-tag-on-push.yml`, which emits an annotated tag of the form `autonomous-dev-v<patch>+<sha7>`. Each consumer Mac runs `scripts/pull-plugin-update.sh` on a launchd interval timer; the script fetches tags, compares the latest against a local state file, and runs `bash scripts/deploy-all.sh --local --no-global` only when a new tag is present.
+
+The result is **eventual consistency without inbound credentials**: every consumer converges to the latest tagged master, idempotently, without GitHub needing to know about their hostnames.
+
+### One-time setup per consumer Mac
+
+1. **Verify the script is executable** (it ships with the executable bit set, but verify after a fresh `git clone`):
+
+   ```bash
+   chmod 755 ~/Dev/autonomous-dev/scripts/pull-plugin-update.sh
+   ```
+
+2. **Manual smoke test** before installing the timer:
+
+   ```bash
+   bash ~/Dev/autonomous-dev/scripts/pull-plugin-update.sh --dry-run
+   ```
+
+   Expected: log line "DRY-RUN: would checkout master, pull --ff-only, ..." and exit 0. If you see a git error, fix the working-tree state before installing launchd (the timer will surface the same error every 30 minutes otherwise).
+
+3. **Install the launchd plist** (template below). Save as `~/Library/LaunchAgents/com.autonomousdev.pullupdate.plist`:
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+     "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+       <key>Label</key>
+       <string>com.autonomousdev.pullupdate</string>
+       <key>ProgramArguments</key>
+       <array>
+           <string>/bin/bash</string>
+           <string>/Users/REPLACE_ME/Dev/autonomous-dev/scripts/pull-plugin-update.sh</string>
+       </array>
+       <key>StartInterval</key>
+       <integer>1800</integer>
+       <key>RunAtLoad</key>
+       <true/>
+       <key>StandardOutPath</key>
+       <string>/Users/REPLACE_ME/Dev/autonomous-dev/.claude/logs/pull-plugin-update.stdout.log</string>
+       <key>StandardErrorPath</key>
+       <string>/Users/REPLACE_ME/Dev/autonomous-dev/.claude/logs/pull-plugin-update.stderr.log</string>
+   </dict>
+   </plist>
+   ```
+
+   Replace `REPLACE_ME` with your username, then load the agent:
+
+   ```bash
+   launchctl load ~/Library/LaunchAgents/com.autonomousdev.pullupdate.plist
+   ```
+
+   `StartInterval=1800` = run every 30 minutes. Adjust per environment (production: 1800; lab: 300).
+
+### Operations
+
+| Action | Command |
+|---|---|
+| Disable the timer | `launchctl unload ~/Library/LaunchAgents/com.autonomousdev.pullupdate.plist` |
+| Re-enable | `launchctl load ~/Library/LaunchAgents/com.autonomousdev.pullupdate.plist` |
+| Force a run now | `bash ~/Dev/autonomous-dev/scripts/pull-plugin-update.sh` |
+| Tail logs | `tail -f ~/Dev/autonomous-dev/.claude/logs/pull-plugin-update.log` |
+| See last applied tag | `cat ~/Dev/autonomous-dev/.claude/local/last_pulled_tag` |
+| Reset state (force re-deploy) | `rm ~/Dev/autonomous-dev/.claude/local/last_pulled_tag` |
+
+### Failure modes
+
+| Symptom in log | Cause | Recovery |
+|---|---|---|
+| `git fetch origin --tags failed` | Network / GitHub outage | Wait; next tick retries. Investigate if persistent. |
+| `git checkout master failed (working tree may be dirty)` | Local edits on consumer Mac | Commit, stash, or discard local changes manually. |
+| `git pull --ff-only failed (master may have diverged)` | Consumer Mac has local commits ahead of origin | Reconcile manually; the script will not force-push or rebase. |
+| `Tag ... is not an ancestor of HEAD after pull` | Race between fetch and pull, or tag on different branch | Re-run manually; the next tick should recover. |
+| `deploy-all.sh failed. State file NOT updated.` | Plugin deployment error | Inspect `pull-plugin-update.log`; the next tick will retry deployment because state was not advanced. |
+
+The script is **idempotent**: if the latest tag matches the state file, it exits 0 silently. Repeated invocations are cheap (one `git fetch`, no checkout, no deploy).
+
+---
+
 ## Enforcement
 
 **PROJECT.md is the gatekeeper** — All work validates against this file before execution.

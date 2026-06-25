@@ -207,6 +207,8 @@ For existing projects, use:
 /sync
 ```
 
+For consumer Macs enrolled in the auto-update flow: updates are delivered automatically via a launchd timer running `scripts/pull-plugin-update.sh`. See [docs/RUNBOOK.md — Consumer-side auto-update (launchd)](docs/RUNBOOK.md#consumer-side-auto-update-launchd) for setup.
+
 ### Uninstall
 
 Two paths — pick the one that matches your situation:
