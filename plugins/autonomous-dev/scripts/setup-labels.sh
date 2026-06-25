@@ -8,6 +8,12 @@
 #   high-priority   — generic operator-triage marker; paired with selector-stall.
 set -euo pipefail
 
+# Preflight: ensure gh CLI is authenticated (Issue #1314 LOW-3)
+if ! gh auth status >/dev/null 2>&1; then
+  echo "ERROR: gh CLI is not authenticated. Set GH_TOKEN env var or run 'gh auth login' first." >&2
+  exit 1
+fi
+
 echo "Ensuring required labels exist..."
 
 gh label create selector-stall \

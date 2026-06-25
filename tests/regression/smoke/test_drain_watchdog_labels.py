@@ -83,3 +83,37 @@ def test_drain_watchdog_selector_stall_debounce_present() -> None:
         "drain-watchdog.yml selector-stall step must reuse the '4 hours ago' "
         "debounce pattern (Issue #1303 AC2)"
     )
+
+
+def test_drain_watchdog_log_lines_bounded_by_head_c() -> None:
+    """Issue #1314 LOW-1: LOG_LINES bounded by `head -c 65536` to prevent
+    runaway memory on pathologically long commit subjects."""
+    content = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "head -c 65536" in content
+
+
+def test_drain_watchdog_normalizes_tool_failure_exit_tokens() -> None:
+    """Issue #1314 FINDING-2: tool-failure exit tokens (exit=*, *_unavailable)
+    are normalized to empty cluster so they don't break the stall streak."""
+    content = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "TOOL_FAILURE_PREFIXES" in content or "'exit='" in content
+    assert "TOOL_FAILURE_SUFFIXES" in content or "'_unavailable'" in content
+
+
+def test_drain_watchdog_selector_stall_step_has_timeout() -> None:
+    """Issue #1314 LOW-4: the Detect selector stall step has timeout-minutes
+    to prevent runaway hangs."""
+    content = WORKFLOW_FILE.read_text(encoding="utf-8")
+    # Extract the section between "Detect selector stall" and the next step
+    # (next '- name:' OR end of file)
+    import re
+    match = re.search(
+        r"- name: Detect selector stall.*?(?=\n      - name:|\Z)",
+        content,
+        re.DOTALL,
+    )
+    assert match, "Could not find 'Detect selector stall' step"
+    step_section = match.group(0)
+    assert re.search(r"^\s*timeout-minutes:\s*5\s*", step_section, re.MULTILINE), (
+        "timeout-minutes: 5 not found in step"
+    )

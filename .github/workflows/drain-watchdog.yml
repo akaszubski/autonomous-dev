@@ -189,6 +189,7 @@ jobs:
         # consecutive recent fires, the autonomous loop has effectively halted
         # and operator triage is required. Runs unconditionally — has its own
         # internal threshold/debounce logic.
+        timeout-minutes: 5  # Issue #1314 LOW-4: prevent runaway hangs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.run_id }}
@@ -201,6 +202,10 @@ jobs:
           # lookback window the detector itself uses.
           LOG_LINES=$(git log --grep='FIRE_END' --since='6 hours ago' \
             --pretty=format:'%cI|%s' origin/master 2>/dev/null || true)
+          # Bound to 64KB to prevent runaway memory on pathologically long
+          # commit subjects (Issue #1314 LOW-1). Two-step form avoids any
+          # SIGPIPE/pipefail interaction from chaining `head -c` to git log.
+          LOG_LINES=$(printf '%s' "$LOG_LINES" | head -c 65536)
           export LOG_LINES
 
           STALL_RESULT=$(python3 - <<'PY'
@@ -221,8 +226,18 @@ jobs:
               # OR "telemetry(cloud-drain): FIRE_END 20260625T060153Z cluster=1100,1101"
               parts = subject.split()
               cluster_token = parts[-1] if parts else ''
-              # Normalise: "no_drainable_cluster" -> "" (empty marker for detector)
-              if cluster_token == 'no_drainable_cluster':
+              # Normalise tool-failure markers AND the no_drainable_cluster
+              # sentinel to "" (empty marker for the detector). These tokens
+              # indicate the selector did NOT get a chance to run (gh CLI
+              # unavailable, slash-command tool missing, etc.) — NOT selector
+              # successes, so they must count as empty fires (Issue #1314
+              # FINDING-2). Observed tokens: no_drainable_cluster,
+              # exit=<n>, *_unavailable, *_no_gh_cli.
+              TOOL_FAILURE_PREFIXES = ('exit=',)
+              TOOL_FAILURE_SUFFIXES = ('_unavailable', '_no_gh_cli')
+              if cluster_token == 'no_drainable_cluster' \
+                 or any(cluster_token.startswith(p) for p in TOOL_FAILURE_PREFIXES) \
+                 or any(cluster_token.endswith(s) for s in TOOL_FAILURE_SUFFIXES):
                   cluster_str = ''
               else:
                   cluster_str = cluster_token

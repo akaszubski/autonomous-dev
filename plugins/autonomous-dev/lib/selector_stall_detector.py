@@ -68,6 +68,18 @@ def detect_stall(
     Returns:
         ``SelectorStallResult`` describing the stall status.
 
+    Trust assumption (intentional, Issue #1314 LOW-2):
+        Rows with malformed ISO timestamps are silently skipped without
+        resetting the consecutive-empty streak. This is deliberate — the
+        caller upstream produces these rows from ``git log %cI`` which is
+        well-formed, so malformed timestamps indicate corrupted telemetry
+        rather than legitimate state. Changing this to RESET the streak
+        would convert any single corrupted commit subject into a stall
+        detection-killer; changing it to RAISE would crash the watchdog
+        on data corruption rather than degrade gracefully. See the
+        regression test ``test_malformed_timestamp_row_is_skipped_without_resetting_streak``
+        in ``tests/unit/lib/test_selector_stall_detector.py`` which pins this.
+
     Known limitation (AC4 relaxed, Issue #1303): v1 does NOT inspect cluster
     severities to suppress "all clusters severity=high" false positives. An
     operator may manually close such false-positive alerts. A follow-up issue

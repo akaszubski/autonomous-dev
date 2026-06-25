@@ -172,3 +172,28 @@ def test_detect_stall_with_realistic_telemetry_format() -> None:
     )
     assert result.stalled is True
     assert result.consecutive_empty == 4
+
+
+def test_malformed_timestamp_row_is_skipped_without_resetting_streak() -> None:
+    """Issue #1314 FINDING-3: regression — malformed ISO timestamps skip
+    without resetting the consecutive-empty streak.
+
+    This pins the intentional "permissive parsing" behavior documented in
+    selector_stall_detector.py's docstring. If the detector ever changes to
+    reset the streak on a malformed-ts row OR to raise an exception, this
+    test fails loudly.
+    """
+    now = datetime(2026, 6, 25, 12, 0, 0, tzinfo=timezone.utc)
+    # 4 empty fires with a malformed-ts row interleaved. Without the skip-
+    # without-reset behavior, the streak would collapse to 2 and the K=4
+    # threshold would not fire.
+    fires = [
+        ("2026-06-25T07:00:00+00:00", ""),
+        ("2026-06-25T08:00:00+00:00", ""),
+        ("THIS-IS-NOT-A-VALID-ISO-TIMESTAMP", ""),  # malformed: skip without reset
+        ("2026-06-25T10:00:00+00:00", ""),
+        ("2026-06-25T11:00:00+00:00", ""),
+    ]
+    result = detect_stall(fires, now_utc=now)
+    assert result.stalled is True
+    assert result.consecutive_empty == 4
