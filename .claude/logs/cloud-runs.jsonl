@@ -107,3 +107,4 @@
 {"fire_id": "20260625T100134Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260625T080146Z", "phase": "FIRE_END", "exit_reason": "commit_landed", "commit_sha": "4cd1998a193e609da30ad5ba2ee4d24cfc85c13b", "cluster": "1274,1285", "closed": ["1274"], "skipped": ["1285"], "skip_reasons": {"1285": "multi_file_enforcement_layer_change_full_mode"}}
 {"fire_id": "20260625T140148Z", "fired_at": "2026-06-25T14:02:07Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260625T140148Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
