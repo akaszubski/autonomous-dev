@@ -1,7 +1,7 @@
 ---
 name: drain-queue
 description: "Autonomous queue drainer — picks the top /triage cluster, applies safety gates, drains via /implement --issues, pushes, deploys."
-argument-hint: "[--dry-run]"
+argument-hint: "[--dry-run] [--cluster N1,N2,...]"
 user-invocable: true
 user_facing: true
 allowed-tools: [Bash, Read, SlashCommand, PushNotification]
@@ -60,6 +60,8 @@ Recognized flags:
 * `--dry-run` — run only the read-only pre-flight checks (worktree clean,
   default branch resolvable, budget within cap, pause flag absent) and report.
   No `gh`/`git` mutating calls; no state writes.
+* `--cluster N1,N2,...` — bypass cluster selection and use the specified issue numbers.
+  Still applies safety gates. Used by workflows to pre-select clusters.
 
 ## STEP 1: Pre-flight checks
 
@@ -145,30 +147,73 @@ PY
 
 On STOP, emit `PushNotification:` and exit.
 
-## STEP 3: Run `/triage --auto-improvement --json`
+## STEP 3: Cluster selection (via /triage or --cluster)
 
-Use the analyzer's JSON output and select the top cluster by `rank_score`.
-
-```bash
-TRIAGE_JSON=$(python3 -m issue_triage_analyzer --auto-improvement --json 2>/dev/null || \
-              python3 plugins/autonomous-dev/lib/issue_triage_analyzer.py --auto-improvement --json)
-echo "$TRIAGE_JSON" > .claude/local/last_triage.json
-```
-
-If the JSON array is empty:
+Parse arguments and either use explicit --cluster or run triage:
 
 ```bash
 python3 - <<'PY'
-import json, sys
+import json, sys, re
 from pathlib import Path
 sys.path.insert(0, "plugins/autonomous-dev/lib")
 from drain_runner import append_stop_notification
 
-data = json.loads(Path(".claude/local/last_triage.json").read_text())
-if not data:
-    append_stop_notification("STEP 3: queue drained completely", Path(".claude/local"))
-    print("STOP: queue drained completely", flush=True)
-    sys.exit(0)
+# Parse arguments
+args = """{{ARGUMENTS}}""".strip()
+cluster_override = None
+if '--cluster' in args:
+    match = re.search(r'--cluster\s+([0-9,]+)', args)
+    if match:
+        cluster_override = [int(n.strip()) for n in match.group(1).split(',')]
+
+if cluster_override:
+    # Create synthetic cluster from explicit issue numbers
+    cluster = {
+        "issue_numbers": cluster_override,
+        "cluster_size": len(cluster_override),
+        "severity": "medium",  # Default, will be validated by gates
+        "root_cause_tag": f"explicit-{'-'.join(map(str, cluster_override[:3]))}",
+        "sub_cluster_id": 0
+    }
+    clusters = [cluster]
+    Path(".claude/local/last_triage.json").write_text(json.dumps(clusters))
+    print(f"STEP 3: using explicit cluster {cluster_override}", flush=True)
+else:
+    # Run triage to get clusters
+    import subprocess
+    result = subprocess.run(
+        ["python3", "-m", "issue_triage_analyzer", "--auto-improvement", "--json"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        result = subprocess.run(
+            ["python3", "plugins/autonomous-dev/lib/issue_triage_analyzer.py", 
+             "--auto-improvement", "--json"],
+            capture_output=True, text=True
+        )
+    
+    clusters = json.loads(result.stdout) if result.stdout else []
+    Path(".claude/local/last_triage.json").write_text(json.dumps(clusters))
+    
+    if not clusters:
+        append_stop_notification("STEP 3: queue drained completely", Path(".claude/local"))
+        print("STOP: queue drained completely", flush=True)
+        sys.exit(0)
+    
+    # Apply cluster_selector with auto-drain gates
+    from cluster_selector import select_next_cluster
+    selected = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    
+    if selected is None:
+        append_stop_notification("STEP 3: no drainable cluster found", Path(".claude/local"))
+        print("STOP: no drainable cluster found (all filtered by gates)", flush=True)
+        sys.exit(0)
+    
+    # Update clusters to have the selected one first
+    clusters = [selected] + [c for c in clusters if c != selected]
+    Path(".claude/local/last_triage.json").write_text(json.dumps(clusters))
+    print(f"STEP 3: selected cluster {selected.get('root_cause_tag', 'unknown')} "
+          f"with {len(selected['issue_numbers'])} issues", flush=True)
 PY
 ```
 
@@ -189,7 +234,7 @@ from drain_runner import hydrate_issue_labels, _build_env
 repo = Path.cwd().resolve()
 env = _build_env(repo)
 data = json.loads(Path(".claude/local/last_triage.json").read_text())
-cluster = data[0]  # top by rank_score
+cluster = data[0]  # Already selected by cluster_selector or explicit
 labels: set[str] = set()
 for n in cluster["issue_numbers"]:
     labels.update(hydrate_issue_labels(int(n), repo, env))

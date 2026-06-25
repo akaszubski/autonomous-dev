@@ -178,3 +178,237 @@ Issue: #1276 - Implement cascade parser and resolver"""
     assert result is not None
     assert result["issue_numbers"] == [1274]
     assert 1277 not in result["issue_numbers"]
+
+# Tests for apply_auto_drain_gates functionality
+
+def test_auto_drain_gates_filters_human_gate_tags():
+    """When apply_auto_drain_gates=True, clusters with HUMAN_GATE_TAGS are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "low",
+            "cluster_size": 1,
+            "issues": [{
+                "number": 1,
+                "title": "Security issue",
+                "body": "",
+                "labels": [{"name": "security"}],  # This is a HUMAN_GATE_TAG
+                "state": "open"
+            }]
+        },
+        {
+            "issue_numbers": [2],
+            "severity": "low",
+            "cluster_size": 1,
+            "issues": [{
+                "number": 2,
+                "title": "Regular issue",
+                "body": "",
+                "labels": [],
+                "state": "open"
+            }]
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [2]
+
+
+def test_auto_drain_gates_filters_large_clusters():
+    """When apply_auto_drain_gates=True, clusters exceeding MAX_CLUSTER_SIZE_AUTO_DRAINABLE are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1, 2, 3, 4, 5, 6],  # 6 issues > MAX_CLUSTER_SIZE_AUTO_DRAINABLE (5)
+            "severity": "low",
+            "cluster_size": 6,
+            "issues": []
+        },
+        {
+            "issue_numbers": [7, 8],
+            "severity": "low",
+            "cluster_size": 2,
+            "issues": []
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [7, 8]
+
+
+def test_auto_drain_gates_filters_high_severity():
+    """When apply_auto_drain_gates=True, clusters below AUTO_DRAINABLE_SEVERITY threshold are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "high",  # Not in AUTO_DRAINABLE_SEVERITY
+            "cluster_size": 1,
+            "issues": []
+        },
+        {
+            "issue_numbers": [2],
+            "severity": "medium",  # In AUTO_DRAINABLE_SEVERITY
+            "cluster_size": 1,
+            "issues": []
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [2]
+
+
+def test_auto_drain_gates_filters_skip_labels():
+    """When apply_auto_drain_gates=True, clusters with skip labels (blocked/waiting) are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "low",
+            "cluster_size": 1,
+            "issues": [{
+                "number": 1,
+                "title": "Blocked issue",
+                "body": "",
+                "labels": [{"name": "blocked"}],  # Skip label
+                "state": "open"
+            }]
+        },
+        {
+            "issue_numbers": [2],
+            "severity": "low",
+            "cluster_size": 1,
+            "issues": [{
+                "number": 2,
+                "title": "Regular issue",
+                "body": "",
+                "labels": [],
+                "state": "open"
+            }]
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [2]
+
+
+def test_auto_drain_gates_filters_large_feat():
+    """When apply_auto_drain_gates=True, large feature clusters (>2 issues with feat: prefix) are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1, 2, 3],
+            "severity": "low",
+            "cluster_size": 3,
+            "issue_titles": ["feat: big feature", "feat: part 2", "feat: part 3"],
+            "issues": []
+        },
+        {
+            "issue_numbers": [4],
+            "severity": "low",
+            "cluster_size": 1,
+            "issue_titles": ["fix: bug fix"],
+            "issues": []
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [4]
+
+
+def test_auto_drain_gates_filters_drain_stuck_meta():
+    """When apply_auto_drain_gates=True, drain-stuck meta issues are filtered."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "low",
+            "cluster_size": 1,
+            "issue_titles": ["[drain-stuck] Watchdog meta issue"],
+            "issues": []
+        },
+        {
+            "issue_numbers": [2],
+            "severity": "low",
+            "cluster_size": 1,
+            "issue_titles": ["Regular issue"],
+            "issues": []
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is not None
+    assert result["issue_numbers"] == [2]
+
+
+def test_auto_drain_gates_default_false_preserves_behavior():
+    """When apply_auto_drain_gates=False (default), existing tracker/leaf behavior is preserved."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "high",  # Would be filtered with gates, but not with default
+            "cluster_size": 1,
+            "issues": [{
+                "number": 1,
+                "title": "High severity issue",
+                "body": "",
+                "labels": [],
+                "state": "open"
+            }]
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=False)
+    assert result is not None
+    assert result["issue_numbers"] == [1]
+    
+    # Without the explicit parameter (testing default)
+    result2 = select_next_cluster(clusters)
+    assert result2 is not None
+    assert result2["issue_numbers"] == [1]
+
+
+def test_all_workflow_callers_get_same_selection():
+    """All three workflow callers (drain-driver, drain-watchdog, /drain-queue) get the same selection given the same input."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "high",
+            "cluster_size": 1,
+            "issues": []
+        },
+        {
+            "issue_numbers": [2],
+            "severity": "low",  
+            "cluster_size": 1,
+            "issues": []
+        },
+        {
+            "issue_numbers": [3],
+            "severity": "medium",
+            "cluster_size": 1,
+            "issues": []
+        }
+    ]
+    
+    # All callers use apply_auto_drain_gates=True
+    result1 = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    result2 = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    result3 = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    
+    assert result1 == result2 == result3
+    assert result1 is not None
+    assert result1["issue_numbers"] == [2]  # Low severity passes gates
+
+
+def test_no_drainable_cluster_returns_none():
+    """When all clusters are filtered by gates, returns None."""
+    clusters = [
+        {
+            "issue_numbers": [1],
+            "severity": "high",  # Filtered
+            "cluster_size": 1,
+            "issues": []
+        },
+        {
+            "issue_numbers": [2, 3, 4, 5, 6, 7],  # Too large
+            "severity": "low",
+            "cluster_size": 6,
+            "issues": []
+        }
+    ]
+    result = select_next_cluster(clusters, apply_auto_drain_gates=True)
+    assert result is None

@@ -1,9 +1,13 @@
 """Cluster selection logic for drain-queue command."""
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Optional, Dict, Any, List
 
 
-def select_next_cluster(clusters):
+def select_next_cluster(clusters, *, apply_auto_drain_gates: bool = False):
     r"""Select the next cluster to drain, skipping tracker-shaped issues.
 
     Args:
@@ -17,6 +21,8 @@ def select_next_cluster(clusters):
                   - body: str
                   - labels: list of label dicts (each {"name": str}) OR list of str
                   - state: str ("open" or "closed")
+        apply_auto_drain_gates: If True, apply auto-drain gates (severity, tag,
+            size, skip, large-feat, drain-stuck-meta) before tracker/leaf logic.
 
     Returns:
         A cluster dict for drainage, or None if no drainable cluster exists.
@@ -39,6 +45,79 @@ def select_next_cluster(clusters):
         issues in any cluster in the input, return a synthetic cluster pointing
         at the LOWEST-NUMBERED open leaf.
     """
+    # Apply auto-drain gates if requested
+    if apply_auto_drain_gates:
+        # Import gate functions to avoid circular imports
+        from drain_queue_state import (
+            severity_gate,
+            tag_gate, 
+            size_gate,
+            skip_gate,
+            AUTO_DRAINABLE_SEVERITY,
+            MAX_CLUSTER_SIZE_AUTO_DRAINABLE,
+            HUMAN_GATE_TAGS,
+            SKIP_LABELS,
+        )
+        
+        # Helper functions for large-feat and drain-stuck-meta detection
+        def is_large_feat(cluster):
+            """Check if cluster is a large feature (>2 issues with feat: prefix)."""
+            titles = cluster.get('issue_titles', [])
+            prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
+            has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+            return has_feat and cluster.get('cluster_size', 0) > 2
+
+        def is_drain_stuck_meta(cluster):
+            """Check if cluster is drain-stuck meta issue."""
+            titles = cluster.get('issue_titles', [])
+            return any('[drain-stuck]' in (t or '').lower() for t in titles)
+        
+        # Filter clusters through gates
+        filtered_clusters = []
+        for cluster in clusters:
+            # Severity gate
+            severity = cluster.get('severity', '').lower()
+            if severity not in AUTO_DRAINABLE_SEVERITY:
+                continue
+                
+            # Size gate
+            cluster_size = cluster.get('cluster_size', len(cluster.get('issue_numbers', [])))
+            if cluster_size > MAX_CLUSTER_SIZE_AUTO_DRAINABLE:
+                continue
+                
+            # Large feat gate
+            if is_large_feat(cluster):
+                continue
+                
+            # Drain-stuck-meta gate
+            if is_drain_stuck_meta(cluster):
+                continue
+                
+            # Tag gate - check if cluster has hydrated labels
+            cluster_labels = set()
+            for issue in cluster.get('issues', []):
+                labels = issue.get('labels', [])
+                for label in labels:
+                    if isinstance(label, dict):
+                        cluster_labels.add(label.get('name', '').lower())
+                    else:
+                        cluster_labels.add(str(label).lower())
+            
+            if cluster_labels & HUMAN_GATE_TAGS:
+                continue
+                
+            # Skip gate - soft skip labels
+            if cluster_labels & SKIP_LABELS:
+                continue
+            
+            # Cluster passes all gates
+            filtered_clusters.append(cluster)
+        
+        # Use filtered clusters for selection
+        clusters = filtered_clusters
+        if not clusters:
+            return None
+    
     # Collect all open issues from all clusters for leaf checking
     all_open_issues = set()
     for cluster in clusters:

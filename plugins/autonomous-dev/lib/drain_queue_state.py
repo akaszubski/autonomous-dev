@@ -769,6 +769,20 @@ def confidence_gate(cluster_confidence: float) -> Tuple[bool, str]:
     return (False, "")
 
 
+def is_large_feat(cluster: Dict[str, Any]) -> bool:
+    """Check if cluster is a large feature (>2 issues with feat: prefix)."""
+    titles = cluster.get('issue_titles', [])
+    prefixes = ('feat:', 'feat(', 'feature:', 'feature(')
+    has_feat = any((t or '').lower().lstrip().startswith(prefixes) for t in titles)
+    return has_feat and cluster.get('cluster_size', 0) > 2
+
+
+def is_drain_stuck_meta(cluster: Dict[str, Any]) -> bool:
+    """Check if cluster is drain-stuck meta issue."""
+    titles = cluster.get('issue_titles', [])
+    return any('[drain-stuck]' in (t or '').lower() for t in titles)
+
+
 def evaluate_cluster_gates(
     cluster_severity: str,
     cluster_size: int,
@@ -833,6 +847,8 @@ __all__ = [
     "skip_gate",
     "confidence_gate",
     "evaluate_cluster_gates",
+    "is_large_feat",
+    "is_drain_stuck_meta",
     # Path helpers (exposed for tests)
     "_budget_path",
     "_breaker_path",
