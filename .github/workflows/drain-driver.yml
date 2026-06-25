@@ -49,11 +49,12 @@ jobs:
         id: pick
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLUSTER_OVERRIDE: ${{ github.event.inputs.cluster_override }}
         run: |
           set -euo pipefail
 
           # Honor manual override from workflow_dispatch input.
-          OVERRIDE="${{ github.event.inputs.cluster_override }}"
+          OVERRIDE="$CLUSTER_OVERRIDE"
           if [ -n "$OVERRIDE" ]; then
             echo "Manual override: $OVERRIDE"
             echo "cluster=$OVERRIDE" >> "$GITHUB_OUTPUT"
@@ -197,6 +198,8 @@ jobs:
 
       - name: Ping healthchecks.io (dead-man's-switch)
         if: always()
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_DRAIN_DRIVER }}
         run: |
           # Dead-man's-switch: any workflow run (success or failure) pings
           # healthchecks.io. If no ping for 60 min + 30 min grace = 90 min,
@@ -204,4 +207,4 @@ jobs:
           # Mac Studio launchd cron is the primary keep-alive; this alert
           # only fires when BOTH GH schedule AND Mac Studio cron fail.
           curl -fsS -m 10 --retry 3 -o /dev/null \
-            "${{ secrets.HEALTHCHECK_DRAIN_DRIVER }}" || true
+            "$HEALTHCHECK_URL" || true

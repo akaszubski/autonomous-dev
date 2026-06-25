@@ -152,6 +152,11 @@ jobs:
         if: steps.detect.outputs.stuck == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REASON: ${{ steps.detect.outputs.reason }}
+          CLUSTER: ${{ steps.detect.outputs.cluster }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           # Debounce: skip if any open drain-stuck issue was filed in the
           # last 4h. Prevents the watchdog from polluting the queue with
@@ -165,14 +170,14 @@ jobs:
             exit 0
           fi
           gh issue create \
-            --title "[drain-stuck] watchdog: ${{ steps.detect.outputs.reason }}" \
+            --title "[drain-stuck] watchdog: $REASON" \
             --label "drain-stuck" \
             --body "$(cat <<EOF
-          Watchdog run \`${{ github.run_id }}\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected STUCK.
+          Watchdog run \`$RUN_ID\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected STUCK.
 
-          - **Reason**: ${{ steps.detect.outputs.reason }}
-          - **Selected cluster for heal**: \`${{ steps.detect.outputs.cluster }}\`
-          - **Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Reason**: $REASON
+          - **Selected cluster for heal**: \`$CLUSTER\`
+          - **Workflow run**: $SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
 
           The auto-heal step below this issue creation will attempt to drain the selected cluster via claude-code-action. If the heal succeeds, this issue should be closed by the resulting commit.
           EOF
@@ -186,6 +191,9 @@ jobs:
         # internal threshold/debounce logic.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           # Pull recent FIRE_END telemetry commits (subject format:
@@ -255,11 +263,11 @@ jobs:
             --title "[selector-stall] watchdog: $REASON" \
             --label "selector-stall,high-priority" \
             --body "$(cat <<EOF
-          Watchdog run \`${{ github.run_id }}\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected a selector stall.
+          Watchdog run \`$RUN_ID\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected a selector stall.
 
           - **Reason**: $REASON
           - **Consecutive empty fires**: $COUNT
-          - **Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Workflow run**: $SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
 
           The cloud-drain selector returned \`no_drainable_cluster\` for $COUNT consecutive fires in the last 6h. The autonomous loop has effectively halted: either the auto-improvement backlog is genuinely empty, or every remaining cluster is filtered out by current selector rules (severity, size, feat-prefix, drain-stuck-meta).
 
