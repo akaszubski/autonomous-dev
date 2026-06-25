@@ -103,3 +103,4 @@
 {"fire_id": "20260625T060153Z", "fired_at": "2026-06-25T06:02:13Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260625T060153Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260625T080146Z", "fired_at": "2026-06-25T08:02:26Z", "selected_cluster": "1274,1285", "phase": "FIRE_START", "selector": "mcp_github_fallback_urllib_403"}
+{"fire_id": "20260625T100134Z", "fired_at": "2026-06-25T10:01:53Z", "selected_cluster": "none", "phase": "FIRE_START"}
