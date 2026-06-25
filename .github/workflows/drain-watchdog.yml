@@ -178,6 +178,101 @@ jobs:
           EOF
           )" || true
 
+      - name: Detect selector stall (Issue #1303)
+        # Backward-looking stall detection: independent of the per-fire STUCK
+        # check above. If the selector returned no_drainable_cluster for K
+        # consecutive recent fires, the autonomous loop has effectively halted
+        # and operator triage is required. Runs unconditionally — has its own
+        # internal threshold/debounce logic.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Pull recent FIRE_END telemetry commits (subject format:
+          # "telemetry(cloud-drain): FIRE_END <ts> <cluster>") within the
+          # lookback window the detector itself uses.
+          LOG_LINES=$(git log --grep='FIRE_END' --since='6 hours ago' \
+            --pretty=format:'%cI|%s' origin/master 2>/dev/null || true)
+          export LOG_LINES
+
+          STALL_RESULT=$(python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'plugins/autonomous-dev/lib')
+          from selector_stall_detector import detect_stall
+
+          raw = os.environ.get('LOG_LINES', '')
+          fires = []  # (timestamp_iso, cluster_str) oldest -> newest
+          rows = []
+          for line in raw.splitlines():
+              line = line.strip()
+              if not line or '|' not in line:
+                  continue
+              ts_iso, subject = line.split('|', 1)
+              # Subject example:
+              #   "telemetry(cloud-drain): FIRE_END 20260625T060153Z no_drainable_cluster"
+              # OR "telemetry(cloud-drain): FIRE_END 20260625T060153Z cluster=1100,1101"
+              parts = subject.split()
+              cluster_token = parts[-1] if parts else ''
+              # Normalise: "no_drainable_cluster" -> "" (empty marker for detector)
+              if cluster_token == 'no_drainable_cluster':
+                  cluster_str = ''
+              else:
+                  cluster_str = cluster_token
+              rows.append((ts_iso, cluster_str))
+          # git log returns newest -> oldest; detector wants oldest -> newest.
+          rows.reverse()
+
+          result = detect_stall(rows)
+          if result.stalled:
+              print(f"STALLED|{result.consecutive_empty}|{result.reason}")
+          else:
+              print(f"OK|{result.consecutive_empty}|")
+          PY
+          )
+
+          STATUS=$(echo "$STALL_RESULT" | cut -d'|' -f1)
+          COUNT=$(echo "$STALL_RESULT" | cut -d'|' -f2)
+          REASON=$(echo "$STALL_RESULT" | cut -d'|' -f3-)
+
+          echo "- selector-stall check: status=$STATUS consecutive_empty=$COUNT" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$STATUS" != "STALLED" ]; then
+            exit 0
+          fi
+
+          # Debounce: skip if any open selector-stall issue was filed in the
+          # last 4h. Mirrors the drain-stuck debounce above.
+          RECENT_STALL=$(gh issue list --state open --label selector-stall \
+            --search "created:>$(date -u -d '4 hours ago' +%Y-%m-%dT%H:%M:%SZ)" \
+            --json number --jq 'length')
+          if [ "$RECENT_STALL" -gt 0 ]; then
+            echo "::notice::Skipping selector-stall alert — $RECENT_STALL open issue(s) in last 4h"
+            echo "- selector-stall alert: SKIPPED (debounce, $RECENT_STALL existing open)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          gh issue create \
+            --title "[selector-stall] watchdog: $REASON" \
+            --label "selector-stall,high-priority" \
+            --body "$(cat <<EOF
+          Watchdog run \`${{ github.run_id }}\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected a selector stall.
+
+          - **Reason**: $REASON
+          - **Consecutive empty fires**: $COUNT
+          - **Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The cloud-drain selector returned \`no_drainable_cluster\` for $COUNT consecutive fires in the last 6h. The autonomous loop has effectively halted: either the auto-improvement backlog is genuinely empty, or every remaining cluster is filtered out by current selector rules (severity, size, feat-prefix, drain-stuck-meta).
+
+          Operator triage:
+          1. \`gh issue list --state open --label auto-improvement --limit 20\` — confirm the backlog state.
+          2. If the backlog is non-empty, inspect why \`plugins/autonomous-dev/lib/issue_triage_analyzer.py\` is rejecting every cluster (severity, size, feat-prefix, drain-stuck-meta filters).
+          3. If this is a known false positive (e.g., all clusters are genuinely severity=high), close this issue manually — v1 of the detector does not inspect cluster severities.
+
+          See Issue #1303 for the detector design.
+          EOF
+          )" || true
+          echo "- selector-stall alert: FILED ($REASON)" >> "$GITHUB_STEP_SUMMARY"
+
   heal:
     needs: check
     # Only attempt auto-heal when STUCK AND a cluster was pre-selected AND the

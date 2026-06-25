@@ -164,6 +164,10 @@ This section tracks rolling progress against the Migration Plan phases above.
 
 Pending Phase B completion.
 
+### Phase E — Selector-stall detection (COMPLETE, Issue #1303)
+
+Independent of Phases A–D. Adds a `selector_returned_empty` backward-looking signal to the watchdog: when the last K=4 FIRE_END telemetry commits within 6 hours all report `no_drainable_cluster`, the watchdog opens a `[selector-stall]` issue with labels `selector-stall` and `high-priority`. Implemented in new pure-Python module `plugins/autonomous-dev/lib/selector_stall_detector.py`. The 4h debounce pattern from the existing drain-stuck alert is reused. Known limitation (AC4 relaxed, v1): does NOT inspect cluster severities to suppress "all clusters severity=high" false positives — operators close such false positives manually. New `plugins/autonomous-dev/scripts/setup-labels.sh` creates the required labels idempotently.
+
 ### Phase D — Severity retirement (partial, this PR)
 
 `AUTO_DRAINABLE_SEVERITY` relaxed from `frozenset({"low", "info"})` to
