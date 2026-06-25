@@ -98,3 +98,5 @@
 {"fire_id": "20260625T000329Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "GITHUB_TOKEN stub (14 chars, 403); HEAD detached from master; .claude/logs/ gitignored so telemetry stays local"}
 {"fire_id": "20260625T020207Z", "fired_at": "2026-06-25T02:02:07Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260625T020207Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260625T040212Z", "fired_at": "2026-06-25T04:02:12Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260625T040212Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
