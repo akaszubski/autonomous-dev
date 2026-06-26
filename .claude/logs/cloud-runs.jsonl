@@ -114,3 +114,4 @@
 {"fire_id": "20260625T200149Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260626T020138Z", "fired_at": "2026-06-26T02:02:32Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260626T020138Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260626T040400Z", "fired_at": "2026-06-26T04:04:00Z", "selected_cluster": "1285,1300", "phase": "FIRE_START", "note": "urllib_to_api.github.com_403; selection performed via MCP github tool"}
