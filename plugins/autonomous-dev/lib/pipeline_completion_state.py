@@ -1139,7 +1139,7 @@ def record_plan_critic_skipped(
             recorded so STEP 8.5 can canonicalize ACs from the plan file.
         bypass_reason: Optional reason why plan-critic was bypassed (#1279).
 
-    Issues: #878, #1213, #1218, #1279
+    Issues: #878, #1213, #1218, #1279, #1325
     """
     state = _ensure_state(session_id, run_id=run_id)
     plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
@@ -1163,6 +1163,30 @@ def record_plan_critic_skipped(
         if issue_number != 0:
             reasons["0"] = bypass_reason
     _write_state(session_id, state, run_id=run_id)
+
+    # Issue #1325: Emit activity log event when plan-critic is skipped
+    # so CIA can verify the skip has a corresponding logged justification.
+    log_dir = _find_activity_log_dir()
+    if log_dir is not None:
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": "plan_critic_skipped",
+            "session_id": session_id,
+            "issue_number": issue_number,
+            "plan_path": plan_path,
+            "bypass_reason": bypass_reason or "pre-validated plan",
+            "run_id": run_id,
+            "source": "pipeline_completion_state",
+        }
+        log_file = log_dir / (datetime.now().strftime("%Y-%m-%d") + ".jsonl")
+        try:
+            with open(log_file, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+            # Set file permissions to 0600 (owner read/write only) for security
+            os.chmod(log_file, 0o600)
+        except OSError:
+            # Non-blocking: activity logging failures should not disrupt pipeline
+            pass
 
 
 def get_plan_critic_skipped(

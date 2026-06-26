@@ -102,3 +102,120 @@ class TestPlanCriticSkipPlanPath:
         assert (
             get_plan_critic_skipped_plan_path("nonexistent-session-1218") is None
         )
+
+
+class TestPlanCriticActivityLogging:
+    """Tests for Issue #1325: plan-critic skip activity logging."""
+
+    def test_activity_log_created_on_skip(self, cleanup_session, tmp_path, monkeypatch):
+        """When plan-critic is skipped, an activity log entry is written."""
+        # Create a mock activity log directory
+        activity_dir = tmp_path / ".claude" / "logs" / "activity"
+        activity_dir.mkdir(parents=True)
+        
+        # Patch _find_activity_log_dir to return our test directory
+        import pipeline_completion_state
+        monkeypatch.setattr(
+            pipeline_completion_state,
+            "_find_activity_log_dir",
+            lambda start_dir=None: activity_dir
+        )
+        
+        # Record the skip with all parameters
+        from datetime import datetime
+        test_date = datetime.now().strftime("%Y-%m-%d")
+        
+        record_plan_critic_skipped(
+            cleanup_session,
+            issue_number=1325,
+            plan_path="/test/plan.md",
+            bypass_reason="test bypass",
+            run_id="test-run-123"
+        )
+        
+        # Check that the log file was created
+        log_file = activity_dir / f"{test_date}.jsonl"
+        assert log_file.exists(), f"Expected log file {log_file} to exist"
+        
+        # Read and verify the log entry
+        import json
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+        
+        assert len(lines) == 1, f"Expected 1 log entry, got {len(lines)}"
+        entry = json.loads(lines[0])
+        
+        # Verify the entry has the expected fields
+        assert entry["event_type"] == "plan_critic_skipped"
+        assert entry["session_id"] == cleanup_session
+        assert entry["issue_number"] == 1325
+        assert entry["plan_path"] == "/test/plan.md"
+        assert entry["bypass_reason"] == "test bypass"
+        assert entry["run_id"] == "test-run-123"
+        assert entry["source"] == "pipeline_completion_state"
+        assert "timestamp" in entry
+        
+    def test_activity_log_default_bypass_reason(self, cleanup_session, tmp_path, monkeypatch):
+        """When bypass_reason is None, defaults to 'pre-validated plan'."""
+        # Create a mock activity log directory
+        activity_dir = tmp_path / ".claude" / "logs" / "activity"
+        activity_dir.mkdir(parents=True)
+        
+        # Patch _find_activity_log_dir to return our test directory
+        import pipeline_completion_state
+        monkeypatch.setattr(
+            pipeline_completion_state,
+            "_find_activity_log_dir",
+            lambda start_dir=None: activity_dir
+        )
+        
+        # Record the skip without bypass_reason
+        from datetime import datetime
+        test_date = datetime.now().strftime("%Y-%m-%d")
+        
+        record_plan_critic_skipped(cleanup_session)
+        
+        # Read and verify the log entry
+        import json
+        log_file = activity_dir / f"{test_date}.jsonl"
+        with open(log_file, "r") as f:
+            entry = json.loads(f.readline())
+        
+        assert entry["bypass_reason"] == "pre-validated plan"
+        
+    def test_activity_log_failure_does_not_block(self, cleanup_session, monkeypatch):
+        """If activity logging fails, the function still completes successfully."""
+        # Patch _find_activity_log_dir to return a non-writable directory
+        import pipeline_completion_state
+        monkeypatch.setattr(
+            pipeline_completion_state,
+            "_find_activity_log_dir",
+            lambda start_dir=None: Path("/non/existent/dir")
+        )
+        
+        # This should not raise an exception
+        record_plan_critic_skipped(
+            cleanup_session,
+            issue_number=1325,
+            plan_path="/test/plan.md",
+            bypass_reason="test bypass"
+        )
+        
+        # Verify the state was still written (the primary function)
+        assert get_plan_critic_skipped(cleanup_session, issue_number=1325) is True
+        
+    def test_no_activity_log_when_dir_not_found(self, cleanup_session, monkeypatch):
+        """When _find_activity_log_dir returns None, no log is written."""
+        # Patch _find_activity_log_dir to return None
+        import pipeline_completion_state
+        monkeypatch.setattr(
+            pipeline_completion_state,
+            "_find_activity_log_dir",
+            lambda start_dir=None: None
+        )
+        
+        # This should complete without errors
+        record_plan_critic_skipped(cleanup_session, issue_number=1325)
+        
+        # Verify the state was still written
+        assert get_plan_critic_skipped(cleanup_session, issue_number=1325) is True
