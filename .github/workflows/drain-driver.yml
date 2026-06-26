@@ -10,13 +10,15 @@ name: Drain Driver
 # all tools, and claude-code-action@beta is the proven path (drain-watchdog
 # has produced 5 real autonomous closures over 7 days).
 #
-# Cadence: hourly. /implement --light averages ~10-15 min, so hourly cadence
-# stays well clear of the 60-min runner budget and serializes cleanly via
-# concurrency. If yield is good and OAuth quota allows, can tighten to 30 min.
+# Cadence: every 30 min at :05 and :35 (Issue #1318 — tightened from hourly
+# for GHA cron lag resilience). /implement --light averages ~10-15 min, so
+# 30-min cadence stays well clear of the 60-min runner budget and serializes
+# cleanly via concurrency. Offset (:05/:35) avoids contention with
+# drain-watchdog's :00/:30 slots.
 
 on:
   schedule:
-    - cron: '5 * * * *'   # every hour at :05 (offset from drain-watchdog's :00/:30)
+    - cron: '5,35 * * * *'   # every 30 min at :05 and :35 (offset from drain-watchdog's :00/:30) — Issue #1318: GHA cron lag resilience
   workflow_dispatch:
     inputs:
       cluster_override:
