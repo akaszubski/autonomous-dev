@@ -2124,7 +2124,10 @@ sys.exit(0 if r.get('success', False) else 1)
 
 **Precondition**: STEP 11 Remediation Gate must have status PASS. If STEP 11 is BLOCKED, do NOT proceed with git operations.
 
+**Pre-commit structural validator handling**: If `git commit` fails due to a pre-commit structural validator hook (e.g., missing section header, install_manifest sync error), the coordinator MAY invoke the implementer once to fix the structural issue, then retry the commit. This is distinct from the spec-validator remediation budget (STEP 11) and does not count against it.
+
 **Progress**: Output the **Final Summary** table per Pipeline Progress Protocol. Include per-step elapsed times, total pipeline time (from PIPELINE_START), files changed, test counts, and security result. Then finalize pipeline state and proceed with git operations.
+
 
 ```bash
 # Finalize pipeline state to session record (before cleanup)
