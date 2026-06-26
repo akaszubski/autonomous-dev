@@ -44,6 +44,7 @@ jobs:
         id: detect
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_HEAL: ${{ github.event.inputs.force_heal }}
         run: |
           set -euo pipefail
           NOW_EPOCH=$(date -u +%s)
@@ -65,7 +66,7 @@ jobs:
           REASON=""
           # Force_heal input bypasses STUCK check — for on-demand drain cycles
           # when the loop is otherwise quiet but the operator wants throughput.
-          if [ "${{ github.event.inputs.force_heal }}" = "true" ]; then
+          if [ "$FORCE_HEAL" = "true" ]; then
             STUCK=true
             REASON="force_heal=true (operator-triggered on-demand drain)"
           # Tightened 2026-06-18 after observing cloud-session silent failures.

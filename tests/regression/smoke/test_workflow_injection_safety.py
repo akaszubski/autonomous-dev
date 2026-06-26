@@ -9,7 +9,6 @@ variables that cannot break out of their string context.
 Scope: narrowed to the two workflows migrated under #1287
 (drain-driver.yml, drain-watchdog.yml). Other workflows have known
 remaining interpolations tracked as follow-up issues:
-  - drain-watchdog.yml:68 (force_heal)
   - ci.yml:173, 177 (needs.*.result)
   - safety-net.yml language-detect block (9 sites)
   - auto-tag-on-push.yml:53, 76, 77
@@ -39,11 +38,7 @@ SCOPED_WORKFLOWS = [
 # as follow-up issues for separate migration. Each entry is (workflow_name,
 # substring-on-the-run-line) — if the offending line contains this substring,
 # it is allowed. KEEP THIS LIST SHORT — every entry is technical debt.
-ALLOWED_EXCLUSIONS = {
-    # drain-watchdog.yml line 68: force_heal input.
-    # Follow-up: Migrate drain-watchdog.yml:68 force_heal input to env-block.
-    ("drain-watchdog.yml", "github.event.inputs.force_heal"),
-}
+ALLOWED_EXCLUSIONS: set = set()
 
 
 def _iter_run_blocks(workflow_path: Path):
