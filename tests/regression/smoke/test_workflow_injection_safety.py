@@ -6,10 +6,9 @@ The safe pattern is env: block + double-quoted "$VAR" shell reference; the
 runner sets env vars with proper escaping so the shell sees ordinary
 variables that cannot break out of their string context.
 
-Scope: narrowed to the two workflows migrated under #1287
-(drain-driver.yml, drain-watchdog.yml). Other workflows have known
-remaining interpolations tracked as follow-up issues:
-  - ci.yml:173, 177 (needs.*.result)
+Scope: narrowed to workflows already migrated under #1287/#1307
+(drain-driver.yml, drain-watchdog.yml, ci.yml). Other workflows have
+known remaining interpolations tracked as follow-up issues:
   - safety-net.yml language-detect block (9 sites)
   - auto-tag-on-push.yml:53, 76, 77
 
@@ -32,6 +31,7 @@ EXPR_PATTERN = re.compile(r"\$\{\{")
 SCOPED_WORKFLOWS = [
     WORKFLOWS_DIR / "drain-driver.yml",
     WORKFLOWS_DIR / "drain-watchdog.yml",
+    WORKFLOWS_DIR / "ci.yml",
 ]
 
 # Documented exclusions: interpolations intentionally left in scope but tracked

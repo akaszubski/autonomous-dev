@@ -169,12 +169,15 @@ jobs:
 
     steps:
       - name: Check results
+        env:
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+          TEST_RESULT: ${{ needs.test.result }}
         run: |
-          if [ "${{ needs.smoke.result }}" == "failure" ]; then
+          if [ "$SMOKE_RESULT" = "failure" ]; then
             echo "Smoke tests failed - blocking merge"
             exit 1
           fi
-          if [ "${{ needs.test.result }}" == "failure" ]; then
+          if [ "$TEST_RESULT" = "failure" ]; then
             echo "Test suite failed - blocking merge"
             exit 1
           fi
