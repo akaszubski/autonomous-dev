@@ -335,6 +335,21 @@ Helper invoked by agents to record completion state. Not typically used directly
 
 ## Worktree Maintenance
 
+### `scripts/launchd/drain-driver-cron.sh` — **Drain-driver launchd heartbeat** (Issue #1326)
+
+This script is deployed to `~/bin/drain-driver-cron.sh` on Mac Studio and fired by `com.akaszubski.drain-driver-cron` launchd every 30 minutes. It serves two roles simultaneously:
+
+1. **GHA dispatch fallback**: if the last `drain-driver.yml` run is older than 90 minutes, it triggers `gh workflow run drain-driver.yml`. This covers the documented GHA cron drop rate (~58% of fires missed) and prevents consecutive-skip starvation.
+2. **Healthchecks.io heartbeat**: pings `HEALTHCHECK_PING_URL` on every successful determination — whether `skip` (active run found), `ok` (last run recent), or `DISPATCHED`. Decouples the healthchecks heartbeat from GHA cron: as long as Mac Studio is awake and launchd is loaded, the check stays green.
+
+The script exits 1 immediately if `HEALTHCHECK_PING_URL` still contains the `<your-healthchecks-uuid>` placeholder — fail-fast on misconfiguration.
+
+**Deploy**: see [RUNBOOK.md — Launchd-as-heartbeat](RUNBOOK.md#launchd-as-heartbeat-drain-driver-durable-cron) for the full one-time setup procedure, T+0 fault-injection assertions, and T+7 verification steps.
+
+**Companion plist**: `scripts/launchd/com.akaszubski.drain-driver-cron.plist` — version-controlled launchd plist template. Sets `StartInterval` to 1800 seconds (30 min), configures `PATH`, `HOME`, and `HEALTHCHECK_PING_URL` environment variables. The `HEALTHCHECK_PING_URL` value contains a `<your-healthchecks-uuid>` placeholder that must be substituted before loading — see RUNBOOK for the `sed` one-liner.
+
+---
+
 ### `scripts/cleanup-worktrees.sh` — **Stale worktree recovery** (Issue #1130)
 
 ```bash

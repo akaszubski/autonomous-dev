@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.akaszubski.drain-driver-cron</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>/Users/andrewkaszubski/bin/drain-driver-cron.sh</string>
+  </array>
+
+  <!-- Fire every 30 minutes (1800 seconds) -->
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/andrewkaszubski/Library/Logs/drain-driver-cron.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/andrewkaszubski/Library/Logs/drain-driver-cron.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/andrewkaszubski</string>
+    <!-- Substitute <your-healthchecks-uuid> with the real UUID from healthchecks.io before loading.
+         The script exits 1 on cycle 1 if the placeholder is still present.
+         See docs/RUNBOOK.md "Launchd-as-heartbeat" for deploy verification steps. -->
+    <key>HEALTHCHECK_PING_URL</key>
+    <string>https://hc-ping.com/&lt;your-healthchecks-uuid&gt;</string>
+  </dict>
+</dict>
+</plist>

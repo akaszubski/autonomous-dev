@@ -322,3 +322,152 @@ sqlite3 ~/.claude/archive/sessions.db \
 ```
 
 For full schema and cross-repo aggregation queries see [SESSION-ANALYTICS.md](SESSION-ANALYTICS.md).
+
+---
+
+## Launchd-as-heartbeat (drain-driver durable cron)
+
+### Why
+
+GHA's built-in `schedule:` cron is unreliable under high repository load — documented to drop 5-15% of fires during busy periods. The Mac Studio launchd job (`com.akaszubski.drain-driver-cron`, installed 2026-06-22) already exists as a dispatch fallback: it triggers `gh workflow run drain-driver.yml` when the last GHA run is stale (>90 min). But that alone is not a heartbeat — when GHA is current (last run <90 min ago), launchd sees no need to dispatch and stays silent. Healthchecks.io gets no ping → DOWN alert.
+
+**The fix**: `scripts/launchd/drain-driver-cron.sh` pings `HEALTHCHECK_PING_URL` on every successful invocation (`skip`, `ok`, and `DISPATCHED`). Healthchecks alerting is now decoupled from GHA dispatch: as long as Mac Studio is awake and launchd is loaded, the check stays green. GHA becomes the worker; launchd becomes the heartbeat.
+
+Empirical data (2026-06-26): 4 skip events in 7 hours (16% of cycles). Under the old design, 8+ consecutive skips at 30-min cadence would exhaust the 240-min healthchecks threshold and page. With skip-branch pinging, that failure mode is closed.
+
+### One-time setup per Mac Studio
+
+1. **Copy script and plist**:
+
+   ```bash
+   cp scripts/launchd/drain-driver-cron.sh ~/bin/drain-driver-cron.sh
+   chmod 755 ~/bin/drain-driver-cron.sh
+   cp scripts/launchd/com.akaszubski.drain-driver-cron.plist \
+     ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist
+   ```
+
+2. **Substitute the healthchecks UUID** (obtain from healthchecks.io dashboard):
+
+   ```bash
+   sed -i '' 's|<your-healthchecks-uuid>|ACTUAL-UUID-HERE|g' \
+     ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist
+   ```
+
+3. **Verify substitution** — output must show a real URL, NOT contain the literal string `<your-`:
+
+   ```bash
+   grep HEALTHCHECK_PING_URL ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist
+   ```
+
+   Expected: `<string>https://hc-ping.com/ACTUAL-UUID-HERE</string>`
+
+4. **Prevent Mac Studio from sleeping** (it is a server — sleep causes launchd to skip fires):
+
+   ```bash
+   pmset -g | grep -i sleep
+   # If "sleep" value is non-zero:
+   sudo pmset -a sleep 0
+   ```
+
+5. **Load the plist**:
+
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist 2>/dev/null || true
+   launchctl load ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist
+   ```
+
+6. **Verify loaded**:
+
+   ```bash
+   launchctl list | grep drain-driver-cron
+   ```
+
+   Expected: a row with the label `com.akaszubski.drain-driver-cron`.
+
+### T+0 fault-injection assertions (run at deploy)
+
+Run all four assertions immediately after loading the plist. Each proves a distinct load-bearing behaviour.
+
+#### (a) `ok` branch ping verification
+
+Tail the log and wait up to one 30-min cycle:
+
+```bash
+tail -f ~/Library/Logs/drain-driver-cron.log
+```
+
+Expect at least one line containing `ok` within 30 minutes. Then verify healthchecks received the ping:
+
+```bash
+curl -s "https://healthchecks.io/api/v3/checks/<uuid>/" -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
+  | jq -r .last_ping
+```
+
+The timestamp returned MUST be within the last 30 minutes. If `last_ping` is older or null, the curl in `_ping_ok()` is failing — check Mac Studio network connectivity and `HEALTHCHECK_PING_URL` value.
+
+#### (b) `skip` branch ping verification
+
+Force a skip by dispatching an active run in the background, then wait for the next launchd fire:
+
+```bash
+gh workflow run drain-driver.yml --repo akaszubski/autonomous-dev --ref master &
+sleep 60
+```
+
+Within the next 30-min launchd cycle, the log MUST contain a `skip (active=...)` line. Within 5 minutes of that skip, re-check `last_ping` — it MUST have advanced. Proves the skip branch pings and closes the consecutive-skip starvation gap.
+
+#### (c) Placeholder preflight regression test
+
+Verify the script exits 1 immediately if the placeholder was never substituted:
+
+```bash
+# Copy plist with placeholder still present to a throwaway label
+cp ~/Library/LaunchAgents/com.akaszubski.drain-driver-cron.plist /tmp/com.test.placeholder-check.plist
+# Edit the throwaway to revert to placeholder (if your plist already has real UUID, fake it)
+sed -i '' 's|hc-ping.com/[^<]*|hc-ping.com/<your-test-placeholder>|g' /tmp/com.test.placeholder-check.plist
+# Adjust the label so it doesn't clash:
+sed -i '' 's|com.akaszubski.drain-driver-cron|com.test.placeholder-check|g' /tmp/com.test.placeholder-check.plist
+launchctl load /tmp/com.test.placeholder-check.plist
+# Wait one fire (or manually run the script with the placeholder URL):
+HEALTHCHECK_PING_URL="https://hc-ping.com/<your-test-placeholder>" bash ~/bin/drain-driver-cron.sh || true
+grep "ERROR: HEALTHCHECK_PING_URL placeholder not substituted" ~/Library/Logs/drain-driver-cron.log
+# Cleanup:
+launchctl unload /tmp/com.test.placeholder-check.plist 2>/dev/null || true
+rm /tmp/com.test.placeholder-check.plist
+```
+
+MUST produce the `ERROR: HEALTHCHECK_PING_URL placeholder not substituted` log line. Proves the script fails fast on deploy-time misconfiguration instead of silently pinging nothing.
+
+#### (d) Skip-only-removal negative test (destructive — restore after)
+
+This test proves the skip-branch ping is load-bearing (not dead code):
+
+```bash
+# Temporarily comment out _ping_ok in the skip branch only:
+sed -i '' 's/^    _ping_ok$/    # _ping_ok  # NEGATIVE-TEST: temporarily removed/' \
+  ~/bin/drain-driver-cron.sh
+```
+
+On a day with active GHA runs (high-skip probability), watch `last_ping` for 4+ hours. If skip is the only branch firing, `last_ping` will NOT advance → healthchecks would alert after 240 min. This proves skip-branch ping is not redundant. Restore immediately:
+
+```bash
+sed -i '' 's/^    # _ping_ok  # NEGATIVE-TEST: temporarily removed$/    _ping_ok/' \
+  ~/bin/drain-driver-cron.sh
+```
+
+### T+7 days success verification
+
+Seven days after deploy, run:
+
+```bash
+curl -s "https://healthchecks.io/api/v3/checks/<uuid>/flips/?seconds=604800" \
+  -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
+  | jq '[.flips[] | select(.up == 0)] | length'
+```
+
+- **0** → PASS. No DOWN flips in the 7-day window. The fix is working.
+- **≥1** → FAIL. Investigate: tail `~/Library/Logs/drain-driver-cron.log` for the failure window, check `launchctl list | grep drain-driver-cron` (PID column shows last exit code), verify Mac Studio was not asleep (`pmset -g log | grep -i "sleep" | tail -20`).
+
+### Consecutive-skip starvation risk
+
+Empirical observation (2026-06-26): 4 skip events in a 7-hour window = 16% skip rate. Under the pre-fix design, 8 consecutive skips at 30-min cadence spans exactly 240 minutes — the healthchecks alert threshold — and would page. The `_ping_ok` call in the skip branch closes this gap: every skip cycle now advances `last_ping`, so consecutive skips never starve the check. This is why `_ping_ok` in the skip branch is NOT optional and NOT equivalent to `_ping_ok` in only the `ok`/`DISPATCHED` branches.
