@@ -120,3 +120,4 @@
 {"fire_id": "20260626T100136Z", "fired_at": "2026-06-26T10:03:00Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260626T100136Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260626T140213Z", "fired_at": "2026-06-26T14:03:20Z", "selected_cluster": "1285,1300", "phase": "FIRE_START"}
+{"fire_id": "20260626T140213Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1285,1300", "skip_comments_posted": 2}
