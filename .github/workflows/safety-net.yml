@@ -67,23 +67,27 @@ jobs:
           go-version: '1.21'
 
       - name: Install dependencies
+        env:
+          LANGUAGE: ${{ steps.detect.outputs.language }}
         run: |
-          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+          if [ "$LANGUAGE" = "python" ]; then
             python -m pip install --upgrade pip
             if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
             if [ -f "pyproject.toml" ]; then pip install -e ".[dev]" || pip install -e . || true; fi
-          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+          elif [ "$LANGUAGE" = "javascript" ]; then
             npm install
-          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+          elif [ "$LANGUAGE" = "go" ]; then
             go mod download
           fi
 
       - name: Security Scan
+        env:
+          LANGUAGE: ${{ steps.detect.outputs.language }}
         run: |
           echo "🔒 Running security scan..."
 
           # Language-specific security scanning
-          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+          if [ "$LANGUAGE" = "python" ]; then
             pip install bandit
             python -m bandit -r src/ -ll --quiet || echo "⚠️ Security issues found"
 
@@ -93,7 +97,7 @@ jobs:
               exit 1
             fi
 
-          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+          elif [ "$LANGUAGE" = "javascript" ]; then
             npm install -g eslint-plugin-security
             npx eslint --plugin security src/ || echo "⚠️ Security issues found"
 
@@ -103,7 +107,7 @@ jobs:
               exit 1
             fi
 
-          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+          elif [ "$LANGUAGE" = "go" ]; then
             go install github.com/securego/gosec/v2/cmd/gosec@latest
             gosec ./... || echo "⚠️ Security issues found"
 
@@ -117,10 +121,12 @@ jobs:
           echo "✅ Security scan passed"
 
       - name: Run Tests with Coverage
+        env:
+          LANGUAGE: ${{ steps.detect.outputs.language }}
         run: |
           echo "📊 Running tests with coverage..."
 
-          if [ "${{ steps.detect.outputs.language }}" = "python" ]; then
+          if [ "$LANGUAGE" = "python" ]; then
             pip install pytest pytest-cov
             python -m pytest tests/ \
               --cov=src \
@@ -129,10 +135,10 @@ jobs:
               --tb=no \
               -q
 
-          elif [ "${{ steps.detect.outputs.language }}" = "javascript" ]; then
+          elif [ "$LANGUAGE" = "javascript" ]; then
             npm test -- --coverage --coverageThreshold='{"global":{"lines":80}}'
 
-          elif [ "${{ steps.detect.outputs.language }}" = "go" ]; then
+          elif [ "$LANGUAGE" = "go" ]; then
             go test -cover ./... -coverprofile=coverage.out
             go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | sed 's/%//' | \
               awk '{if ($1 < 80) exit 1}'
