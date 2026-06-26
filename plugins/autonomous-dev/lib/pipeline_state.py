@@ -112,7 +112,7 @@ def get_legacy_sentinel_path(repo_root: Optional[Path] = None) -> Path:
     return sentinel_dir / LEGACY_SENTINEL_FILENAME
 
 
-def _atomic_write_json(
+def atomic_write_json(
     path: Path,
     data: dict,
     *,
@@ -158,6 +158,10 @@ def _atomic_write_json(
         except OSError:
             pass
         raise
+
+
+# Backward-compat alias — external callers that imported the private name continue to work.
+_atomic_write_json = atomic_write_json
 
 
 # =============================================================================
@@ -921,7 +925,7 @@ def finalize_to_session(
     except OSError:
         return False
     try:
-        _atomic_write_json(session_file, session_data, indent=2)
+        atomic_write_json(session_file, session_data, indent=2)
     except Exception:
         return False
 
@@ -1045,7 +1049,7 @@ def set_pipeline_base_commit(
         return False
     state["base_commit"] = base_commit
     try:
-        _atomic_write_json(Path(path), state)
+        atomic_write_json(Path(path), state)
     except OSError:
         return False
     return True
@@ -1152,7 +1156,7 @@ def record_baseline_scope(
     state["baseline_count"] = int(baseline_count)
 
     try:
-        _atomic_write_json(Path(state_path), state)
+        atomic_write_json(Path(state_path), state)
     except (OSError, json.JSONDecodeError):
         return False
     return True

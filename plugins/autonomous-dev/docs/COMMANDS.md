@@ -1,6 +1,6 @@
 # Command Reference
 
-**22 user-invocable slash commands + 3 internal sub-commands** — source of truth: `plugins/autonomous-dev/commands/<name>.md` frontmatter.
+**23 user-invocable slash commands + 3 internal sub-commands** — source of truth: `plugins/autonomous-dev/commands/<name>.md` frontmatter.
 
 ---
 
@@ -13,6 +13,7 @@
 | `/audit` | Comprehensive quality audit - code quality, documentation, coverage, security |
 | `/autoresearch` | Autonomous experiment loop — hypothesize, modify, benchmark, commit or revert |
 | `/create-issue` | Create GitHub issue with automated research (--quick for fast mode) |
+| `/goa` | Governance, Observability, Audit — autonomous infra-health observer. Monitors cron drop rates and healthchecks.io down events, files issues on breach. Subcommands: start \| stop \| status. |
 | `/drain-queue` | Autonomous queue drainer — picks top /triage cluster, applies 6 safety gates (budget, severity, tag, size, circuit breaker, push/deploy) plus 3-layer durability enforcement (STEP 3.6 drain-pending marker + hook-level `Closes #N` commit gate + STEP 12.5 post-push `state=CLOSED` verification), drains via /implement --issues, then pushes and deploys; one invocation = one drain attempt. **Note**: Phase A of [ADR-002](../../../docs/ADR-002-drain-queue-redesign.md) is COMPLETE (severity classifier fixed, watchdog self-loop eliminated). Phase B is IN PROGRESS — workflows currently bypass /drain-queue (issues #1274, #1276). |
 | `/health-check` | Validate all plugin components are working correctly (agents, hooks, commands) |
 | `/implement` | Smart code implementation with full pipeline and batch modes |
