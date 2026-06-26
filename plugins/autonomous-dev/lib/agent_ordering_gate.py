@@ -90,6 +90,32 @@ FIX_PIPELINE_AGENTS = {
     "continuous-improvement-analyst",
 }
 
+def normalize_pipeline_mode(mode: str) -> str:
+    """Normalize pipeline mode string to canonical form.
+    
+    Issue #1285: Coordinator may pass '--light' or '--fix' (with dashes),
+    but we need 'light' or 'fix'. Also handles case variations.
+    
+    Args:
+        mode: Pipeline mode string (e.g., '--light', 'LIGHT', 'fix')
+        
+    Returns:
+        Normalized mode: 'light', 'fix', 'tdd-first', or 'full' (default)
+    """
+    if not mode:
+        return "full"
+    
+    # Strip leading dashes and normalize to lowercase
+    normalized = mode.lstrip('-').lower().strip()
+    
+    # Map to canonical values
+    if normalized in ('light', 'fix', 'tdd-first'):
+        return normalized
+    
+    # Default to full for unrecognized modes
+    return "full"
+
+
 # The sequential pair that is mode-dependent:
 # Issue #838: reviewer->security-auditor moved to SEQUENTIAL_REQUIRED (always enforced).
 # No mode-dependent pairs remain, but keep the set for backward compatibility.
@@ -181,7 +207,10 @@ def check_ordering_prerequisites(
     # Issue #697: In --fix mode, planner is not part of the pipeline, so the
     # planner->implementer prerequisite must be skipped.
     missing = []
-    mode_agents = get_required_agents(pipeline_mode, plan_critic_skipped=plan_critic_skipped)
+    # Issue #1285: Normalize mode string
+    normalized_mode = normalize_pipeline_mode(pipeline_mode)
+    
+    mode_agents = get_required_agents(normalized_mode, plan_critic_skipped=plan_critic_skipped)
     core_prereqs = CORE_PREREQUISITES.get(target, set())
     for prereq in core_prereqs:
         if prereq not in mode_agents:
@@ -279,11 +308,14 @@ def get_required_agents(
     Returns:
         A new set of required agent names (copy, not reference).
     """
-    if mode == "fix":
+    # Issue #1285: Normalize mode string
+    normalized_mode = normalize_pipeline_mode(mode)
+    
+    if normalized_mode == "fix":
         return set(FIX_PIPELINE_AGENTS)
-    elif mode == "light":
+    elif normalized_mode == "light":
         return set(LIGHT_PIPELINE_AGENTS)
-    elif mode == "tdd-first":
+    elif normalized_mode == "tdd-first":
         return set(FULL_PIPELINE_AGENTS) | {"test-master"}
     else:
         # full mode (default)
@@ -379,12 +411,15 @@ def check_ordering_with_session_fallback(
             launched = get_launched_agents(sentinel_sid, issue_number=issue_number)
             plan_critic_skipped = get_plan_critic_skipped(sentinel_sid, issue_number=issue_number)
 
+    # Issue #1285: Normalize pipeline mode
+    normalized_mode = normalize_pipeline_mode(pipeline_mode)
+    
     return check_ordering_prerequisites(
         target_agent,
         completed,
         validation_mode=validation_mode,
         launched_agents=launched,
-        pipeline_mode=pipeline_mode,
+        pipeline_mode=normalized_mode,
         plan_critic_skipped=plan_critic_skipped,
     )
 
