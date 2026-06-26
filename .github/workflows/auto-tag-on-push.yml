@@ -48,9 +48,10 @@ jobs:
 
       - name: Check tag does not already exist
         id: check
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${{ steps.version.outputs.tag }}"
           if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
             echo "::notice::Tag $TAG already exists -- nothing to do (idempotent)"
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -71,7 +72,15 @@ jobs:
           echo "Pushed tag $TAG"
 
       - name: Summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          SKIP: ${{ steps.check.outputs.skip }}
         run: |
+          if [ "$SKIP" = "true" ]; then
+            PUSHED="false"
+          else
+            PUSHED="true"
+          fi
           echo "## auto-tag-on-push" >> "$GITHUB_STEP_SUMMARY"
-          echo "- tag: \`${{ steps.version.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- pushed: ${{ steps.check.outputs.skip != 'true' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pushed: $PUSHED" >> "$GITHUB_STEP_SUMMARY"
