@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "lib"))
 
 from cluster_selector import select_next_cluster
@@ -19,8 +20,21 @@ def test_tracker_by_title_prefix():
             "issues": [{"number": 2, "title": "Regular issue", "body": "", "labels": [], "state": "open"}]
         }
     ]
-    result = select_next_cluster(clusters)
-    assert result["issue_numbers"] == [2]
+    
+    # Mock subprocess to return OPEN for all issues
+    def mock_run(cmd, **kwargs):
+        result = Mock()
+        if "rate_limit" in cmd:
+            result.returncode = 0
+            result.stdout = "200"
+        else:
+            result.returncode = 0
+            result.stdout = "OPEN"
+        return result
+    
+    with patch("subprocess.run", side_effect=mock_run):
+        result = select_next_cluster(clusters)
+        assert result["issue_numbers"] == [2]
 
 
 def test_tracker_by_labels():
@@ -41,8 +55,12 @@ def test_tracker_by_labels():
             "issues": [{"number": 2, "title": "Regular issue", "body": "", "labels": [], "state": "open"}]
         }
     ]
-    result = select_next_cluster(clusters)
-    assert result["issue_numbers"] == [2]
+    
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "OPEN"
+        result = select_next_cluster(clusters)
+        assert result["issue_numbers"] == [2]
 
 
 def test_tracker_by_phase_plan():
@@ -64,8 +82,12 @@ def test_tracker_by_phase_plan():
             "issues": [{"number": 2, "title": "Regular issue", "body": "", "labels": [], "state": "open"}]
         }
     ]
-    result = select_next_cluster(clusters)
-    assert result["issue_numbers"] == [2]
+    
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "OPEN"
+        result = select_next_cluster(clusters)
+        assert result["issue_numbers"] == [2]
 
 
 def test_prefers_leaf_over_tracker():
@@ -103,8 +125,12 @@ def test_prefers_leaf_over_tracker():
             }]
         }
     ]
-    result = select_next_cluster(clusters)
-    assert result["issue_numbers"] == [1274]
+    
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "OPEN"
+        result = select_next_cluster(clusters)
+        assert result["issue_numbers"] == [1274]
 
 
 def test_regression_issue_1277():
@@ -174,15 +200,22 @@ Issue: #1276 - Implement cascade parser and resolver"""
         }
     ]
     
-    result = select_next_cluster(clusters)
-    assert result is not None
-    assert result["issue_numbers"] == [1274]
-    assert 1277 not in result["issue_numbers"]
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "OPEN"
+        result = select_next_cluster(clusters)
+        assert result is not None
+        assert result["issue_numbers"] == [1274]
+        assert 1277 not in result["issue_numbers"]
 
 # Tests for apply_auto_drain_gates functionality
 
-def test_auto_drain_gates_filters_human_gate_tags():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_human_gate_tags(mock_run):
     """When apply_auto_drain_gates=True, clusters with HUMAN_GATE_TAGS are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -214,8 +247,12 @@ def test_auto_drain_gates_filters_human_gate_tags():
     assert result["issue_numbers"] == [2]
 
 
-def test_auto_drain_gates_filters_large_clusters():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_large_clusters(mock_run):
     """When apply_auto_drain_gates=True, clusters exceeding MAX_CLUSTER_SIZE_AUTO_DRAINABLE are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1, 2, 3, 4, 5, 6],  # 6 issues > MAX_CLUSTER_SIZE_AUTO_DRAINABLE (5)
@@ -235,8 +272,12 @@ def test_auto_drain_gates_filters_large_clusters():
     assert result["issue_numbers"] == [7, 8]
 
 
-def test_auto_drain_gates_filters_high_severity():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_high_severity(mock_run):
     """When apply_auto_drain_gates=True, clusters below AUTO_DRAINABLE_SEVERITY threshold are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -256,8 +297,12 @@ def test_auto_drain_gates_filters_high_severity():
     assert result["issue_numbers"] == [2]
 
 
-def test_auto_drain_gates_filters_skip_labels():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_skip_labels(mock_run):
     """When apply_auto_drain_gates=True, clusters with skip labels (blocked/waiting) are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -289,8 +334,12 @@ def test_auto_drain_gates_filters_skip_labels():
     assert result["issue_numbers"] == [2]
 
 
-def test_auto_drain_gates_filters_large_feat():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_large_feat(mock_run):
     """When apply_auto_drain_gates=True, large feature clusters (>2 issues with feat: prefix) are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1, 2, 3],
@@ -312,8 +361,12 @@ def test_auto_drain_gates_filters_large_feat():
     assert result["issue_numbers"] == [4]
 
 
-def test_auto_drain_gates_filters_drain_stuck_meta():
+@patch("subprocess.run")
+def test_auto_drain_gates_filters_drain_stuck_meta(mock_run):
     """When apply_auto_drain_gates=True, drain-stuck meta issues are filtered."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -335,8 +388,12 @@ def test_auto_drain_gates_filters_drain_stuck_meta():
     assert result["issue_numbers"] == [2]
 
 
-def test_auto_drain_gates_default_false_preserves_behavior():
+@patch("subprocess.run")
+def test_auto_drain_gates_default_false_preserves_behavior(mock_run):
     """When apply_auto_drain_gates=False (default), existing tracker/leaf behavior is preserved."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -361,8 +418,12 @@ def test_auto_drain_gates_default_false_preserves_behavior():
     assert result2["issue_numbers"] == [1]
 
 
-def test_all_workflow_callers_get_same_selection():
+@patch("subprocess.run")
+def test_all_workflow_callers_get_same_selection(mock_run):
     """All three workflow callers (drain-driver, drain-watchdog, /drain-queue) get the same selection given the same input."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],
@@ -394,8 +455,12 @@ def test_all_workflow_callers_get_same_selection():
     assert result1["issue_numbers"] == [2]  # Low severity passes gates
 
 
-def test_no_drainable_cluster_returns_none():
+@patch("subprocess.run")
+def test_no_drainable_cluster_returns_none(mock_run):
     """When all clusters are filtered by gates, returns None."""
+    # Mock subprocess to return OPEN for all issues
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "OPEN"
     clusters = [
         {
             "issue_numbers": [1],

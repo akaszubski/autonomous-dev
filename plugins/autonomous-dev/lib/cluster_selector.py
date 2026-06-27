@@ -1,10 +1,72 @@
 """Cluster selection logic for drain-queue command."""
 
+import logging
 import re
+import subprocess
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional, Dict, Any, List
+    from typing import Optional, Dict, Any, List, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+def _is_cluster_closed(cluster) -> "Tuple[bool, str]":
+    """Check if any issue in the cluster is CLOSED via gh CLI.
+    
+    Args:
+        cluster: Cluster dict with issue_numbers list
+        
+    Returns:
+        (True, "issue_already_closed") if any issue is CLOSED
+        (False, "") otherwise or on error (graceful degradation)
+    """
+    issue_numbers = cluster.get("issue_numbers", [])
+    if not issue_numbers:
+        return (False, "")
+    
+    for issue_num in issue_numbers:
+        try:
+            result = subprocess.run(
+                ["gh", "issue", "view", str(issue_num), "--json", "state", "--jq", ".state"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip().upper() == "CLOSED":
+                return (True, "issue_already_closed")
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, Exception) as e:
+            # Graceful: treat errors as not closed (don't block on gh failures)
+            logger.debug(f"gh issue view failed for #{issue_num}: {e}")
+            continue
+    
+    return (False, "")
+
+
+def _gh_rate_limit_ok(min_remaining: int = 100) -> bool:
+    """Check if GitHub API rate limit has enough remaining calls.
+    
+    Args:
+        min_remaining: Minimum remaining calls required (default 100)
+        
+    Returns:
+        True if remaining >= min_remaining or on any error (graceful degradation)
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", "rate_limit", "--jq", ".rate.remaining"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            remaining = int(result.stdout.strip())
+            return remaining >= min_remaining
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, ValueError, Exception) as e:
+        # Graceful: on any failure assume rate limit is OK (don't block)
+        logger.debug(f"gh rate limit check failed: {e}")
+    
+    return True
 
 
 def select_next_cluster(clusters, *, apply_auto_drain_gates: bool = False):
@@ -118,6 +180,11 @@ def select_next_cluster(clusters, *, apply_auto_drain_gates: bool = False):
         if not clusters:
             return None
     
+    # Check rate limit before dedup loop
+    rate_limit_ok = _gh_rate_limit_ok()
+    if not rate_limit_ok:
+        logger.warning("GitHub API rate limit low (<100), skipping closed-issue dedup")
+    
     # Collect all open issues from all clusters for leaf checking
     all_open_issues = set()
     for cluster in clusters:
@@ -127,6 +194,13 @@ def select_next_cluster(clusters, *, apply_auto_drain_gates: bool = False):
     
     # Process clusters in order
     for cluster in clusters:
+        # Check if cluster issues are closed (if rate limit allows)
+        if rate_limit_ok:
+            is_closed, reason = _is_cluster_closed(cluster)
+            if is_closed:
+                logger.info(f"Skipping cluster {cluster.get('issue_numbers')} - {reason}")
+                continue
+        
         issues = cluster.get("issues", [])
         issue_numbers = cluster.get("issue_numbers", [])
         
