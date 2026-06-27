@@ -86,7 +86,7 @@ Models predictably game evaluations. Detect these patterns:
     - Use `save_timing_entry()` to persist timings for adaptive threshold computation
 
 12. **Test Lifecycle Health** (severity: warning): If test health dashboard data is provided, flag these conditions:
-    - `>20 prunable candidates` → `[TEST-PRUNING]` — test suite has significant dead weight
+    - `>5 deletable test files` → `[TEST-PRUNING]` — test suite has significant dead weight (uses `deletable_file_count` after Issue #1317 retuned the gate from raw findings to actually-deletable files)
     - `>50% untraced tests` (untraced_test_count > tests_scanned / 2) → `[TEST-UNTRACED]` — tests not linked to issues
     - Zero T0 acceptance tests in tier distribution → `[TEST-NO-ACCEPTANCE]` — no top-tier validation
     - Tier balance is "bottom-heavy" or "top-heavy" → `[TEST-IMBALANCE]` — pyramid shape is wrong
