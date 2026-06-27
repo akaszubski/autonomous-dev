@@ -138,7 +138,15 @@ Do NOT proceed past Step 5 until the plan-critic issues PROCEED.
 
 **HARD GATE: Transition to STEP 6**
 
-After the final PROCEED verdict from Step 5, you MUST immediately proceed to STEP 6 (issue creation). Do NOT skip to Step 7.
+After the final PROCEED verdict from Step 5, you MUST:
+1. Record that plan-critic passed by calling:
+   ```python
+   from pipeline_completion_state import record_plan_critic_passed
+   session_id = os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("AUTONOMOUS_DEV_SESSION_ID") or "unknown"
+   record_plan_critic_passed(session_id, plan_slug)
+   ```
+   where `plan_slug` is the identifier for the plan (e.g., extracted from the plan filename).
+2. Then immediately proceed to STEP 6 (issue creation). Do NOT skip to Step 7.
 
 **FORBIDDEN**:
 - FORBIDDEN: Writing the plan file (Step 7) before completing Step 6

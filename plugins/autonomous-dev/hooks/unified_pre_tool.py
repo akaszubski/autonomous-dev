@@ -3481,6 +3481,166 @@ def _detect_gh_issue_marker_creation(command: str) -> "Optional[str]":
         return None  # Fail-open on any error
 
 
+
+
+
+def _detect_architectural_decision_without_plan_critic(
+    tool_name: str, tool_input: dict
+) -> "Optional[str]":
+    """Detect architectural-decision creation without plan-critic approval.
+    
+    Blocks:
+    1. Write tool creating new docs/architecture/adr-NNN-*.md files
+    2. Bash gh issue create with architectural keywords
+    
+    Unless record_plan_critic_passed() was called earlier in session.
+    
+    Issue #1330.
+    """
+    import os
+    import re
+    from pathlib import Path
+    
+    # Get session ID
+    session_id = os.environ.get("CLAUDE_SESSION_ID") or \
+                 os.environ.get("AUTONOMOUS_DEV_SESSION_ID") or \
+                 "unknown"
+    
+    # Check Write tool for new ADR creation
+    if tool_name == "Write":
+        file_path = tool_input.get("file_path", "")
+        # Match docs/architecture/adr-NNN-*.md pattern
+        if re.match(r".*docs/architecture/adr-\d+-.*\.md$", file_path):
+            # Check if file already exists (allow edits to existing)
+            if not Path(file_path).exists():
+                # This is a NEW ADR creation - check gate
+                pass  # Fall through to gate check
+            else:
+                # Existing file - allow edits
+                return None
+        else:
+            # Not an ADR file
+            return None
+    
+    # Check Bash tool for gh issue create with architectural keywords
+    elif tool_name == "Bash":
+        command = tool_input.get("command", "")
+        
+        # Check if this is gh issue create
+        if "gh issue create" not in command:
+            return None
+        
+        # Extract body content
+        body = ""
+        
+        # Check for --body argument
+        body_match = re.search(r"""--body\s+["']([^"']*)["']""", command)
+        if body_match:
+            body = body_match.group(1)
+        else:
+            # Check for --body-file
+            body_file_match = re.search(r'--body-file\s+(\S+)', command)
+            if body_file_match:
+                body_file = body_file_match.group(1)
+                try:
+                    with open(body_file, 'r') as f:
+                        body = f.read()
+                except (IOError, OSError):
+                    pass
+        
+        # Check for architectural keywords in body
+        architectural_keywords = [
+            "architectural-debt",  # label
+            "Status: Proposed",
+            "architectural review",
+            r"ADR-\d{3,4}",  # regex pattern
+            "## Open Questions",
+            "## Implementation Phases"
+        ]
+        
+        found_keyword = False
+        for keyword in architectural_keywords:
+            if keyword.startswith(r"ADR-"):
+                # Regex pattern
+                if re.search(keyword, body):
+                    found_keyword = True
+                    break
+            else:
+                # Direct string match
+                if keyword in body:
+                    found_keyword = True
+                    break
+        
+        if not found_keyword:
+            return None
+        
+        # Found architectural keyword - fall through to gate check
+    
+    else:
+        # Not Write or Bash tool
+        return None
+    
+    # Check bypass file
+    bypass_file = Path("/tmp/skip_plan_critic_gate")
+    if bypass_file.exists():
+        try:
+            bypass_file.unlink()
+        except OSError:
+            pass
+        
+        # Log bypass usage to activity log
+        try:
+            from pathlib import Path
+            import sys
+            import json
+            from datetime import datetime
+            
+            # Add lib to path
+            lib_path = Path(__file__).parent.parent / "lib"
+            if lib_path.exists():
+                sys.path.insert(0, str(lib_path))
+            
+            from activity_log import log_activity
+            
+            log_activity(
+                tool_name=tool_name,
+                event="plan_critic_gate_bypass",
+                details={
+                    "bypass": "plan_critic_gate one-shot file",
+                    "session_id": session_id
+                }
+            )
+        except ImportError:
+            pass  # Activity logging is optional
+        
+        return None  # Allow with bypass
+    
+    # Check if plan-critic passed in this session
+    try:
+        from pathlib import Path
+        import sys
+        
+        # Add lib to path
+        lib_path = Path(__file__).parent.parent / "lib"
+        if lib_path.exists():
+            sys.path.insert(0, str(lib_path))
+        
+        from pipeline_completion_state import get_plan_critic_passed
+        
+        if get_plan_critic_passed(session_id):
+            return None  # Allow - plan-critic has passed
+    except ImportError:
+        # If we can't import, fail open
+        return None
+    
+    # Block - plan-critic has not passed
+    return (
+        "BLOCKED: Architectural-decision creation detected. plan-critic has not run in this session.\n"
+        "REQUIRED NEXT ACTION: Invoke /plan with the architectural-decision description, complete the 3+ round plan-critic loop, then proceed to file the issue / write the ADR.\n"
+        "Bypass (emergency): touch /tmp/skip_plan_critic_gate (one-shot, logged to activity log)."
+    )
+
+
 def _detect_gh_issue_create(command: str) -> "Optional[str]":
     """Detect direct 'gh issue create' usage outside approved contexts (Issue #599).
 
@@ -6065,6 +6225,16 @@ def main():
                             pass  # Never fail the hook for cache writes
                         sys.exit(0)
 
+                # Issue #1330: Block architectural decision creation without plan-critic
+                arch_block = _detect_architectural_decision_without_plan_critic(tool_name, tool_input)
+                if arch_block:
+                    _log_pretool_activity(tool_name, tool_input, "deny", arch_block)
+                    output_decision(
+                        "deny", arch_block,
+                        system_message=arch_block,
+                    )
+                    sys.exit(0)
+
                 # Issue #1142+ (Phase 1 polarity flip): Default-on production-code
                 # Write/Edit gate. Replaces the previous opt-IN check via
                 # `.claude/.enforce`. Per-repo opt-out is now via the existing
@@ -6588,6 +6758,16 @@ def main():
                                 system_message="BLOCKED: Use /create-issue or /create-issue --quick.",
                             )
                             sys.exit(0)
+
+                    # Issue #1330: Block architectural decision creation without plan-critic
+                    arch_block = _detect_architectural_decision_without_plan_critic("Bash", tool_input)
+                    if arch_block:
+                        _log_pretool_activity(tool_name, tool_input, "deny", arch_block)
+                        output_decision(
+                            "deny", arch_block,
+                            system_message=arch_block,
+                        )
+                        sys.exit(0)
 
                     # Issue #557: Block settings.json writes during active pipeline
                     try:

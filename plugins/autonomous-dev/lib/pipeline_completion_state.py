@@ -1256,6 +1256,59 @@ def get_plan_critic_skipped_plan_path(
     return None
 
 
+def record_plan_critic_passed(
+    session_id: str,
+    plan_slug: str,
+    *,
+    run_id: Optional[str] = None,
+) -> None:
+    """Record that plan-critic passed for this session.
+
+    Args:
+        session_id: Session identifier.
+        plan_slug: Slug identifier for the plan that passed critic.
+        run_id: Optional test run identifier.
+
+    Since:
+        2026-06-27 (Issue #1330)
+    """
+    if not session_id or session_id == "unknown":
+        return
+
+    state = _ensure_state(session_id, run_id=run_id)
+    state["plan_critic_passed"] = True
+    state["plan_critic_passed_plan_slug"] = plan_slug
+    state["plan_critic_passed_timestamp"] = datetime.now().isoformat()
+    _write_state(session_id, state, run_id=run_id)
+
+
+def get_plan_critic_passed(
+    session_id: str,
+    *,
+    run_id: Optional[str] = None,
+) -> bool:
+    """Check if plan-critic passed for this session.
+
+    Args:
+        session_id: Session identifier.
+        run_id: Optional test run identifier.
+
+    Returns:
+        True if plan_critic_passed was recorded, False otherwise.
+
+    Since:
+        2026-06-27 (Issue #1330)
+    """
+    if not session_id or session_id == "unknown":
+        return False
+
+    state = _read_state(session_id, run_id=run_id)
+    if not state:
+        return False
+    
+    return bool(state.get("plan_critic_passed", False))
+
+
 def write_coordinator_bypass_verdict(
     issue_number: int, 
     bypass_reason: str, 
