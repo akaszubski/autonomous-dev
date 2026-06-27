@@ -143,6 +143,16 @@ auditable.
 
 ---
 
+## Why manual /schedule paste?
+
+The current `/goa start` flow outputs /schedule commands for manual operator paste rather than auto-invoking them. This is intentional and tracked as a deferred enhancement (Issue #1322).
+
+**Rationale**: /schedule is a Claude platform capability, not a slash command implemented in this repo. Auto-invocation is blocked until the platform exposes a stable programmatic contract — e.g., CLI subprocess, JSON contract via Routines REST API, or a /schedule-batch wrapper command.
+
+Until that precondition is met, the copy-paste flow remains the correct integration pattern. Issue #1322 tracks this gap and will be resolved when programmatic /schedule invocation becomes available.
+
+---
+
 ## Queued Follow-up Issues
 
 The following enhancements are queued for future implementation:
