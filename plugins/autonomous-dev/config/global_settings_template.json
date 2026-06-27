@@ -70,6 +70,16 @@
       {
         "hooks": [
           {
+            "command": "python3 ~/.claude/hooks/enforce_tier_distribution.py",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      },
+      {
+        "hooks": [
+          {
             "command": "python3 ~/.claude/hooks/plan_gate.py",
             "timeout": 3,
             "type": "command"
