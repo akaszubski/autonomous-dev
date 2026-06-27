@@ -63,6 +63,7 @@ class TestHealthSummary:
     Args:
         total_findings: Combined finding count across all analyzers.
         prunable_count: Number of prunable test findings.
+        deletable_file_count: Number of test files that can be deleted (from prune_tests dry run).
         untraced_test_count: Test files with no issue references.
         orphaned_pair_count: Tests referencing closed issues.
         untested_issue_count: Open issues with no test references.
@@ -71,6 +72,7 @@ class TestHealthSummary:
 
     total_findings: int = 0
     prunable_count: int = 0
+    deletable_file_count: int = 0
     untraced_test_count: int = 0
     orphaned_pair_count: int = 0
     untested_issue_count: int = 0
@@ -84,6 +86,7 @@ class TestHealthReport:
     Args:
         tracing: TracingReport from TestIssueTracer, or None on failure.
         pruning: PruningReport from TestPruningAnalyzer, or None on failure.
+        deletable_files: List of paths that can be deleted (from prune_tests dry run).
         tier_distribution: Mapping of tier_id to test count.
         coverage_baseline: Coverage baseline dict, or None on failure.
         summary: Aggregated summary metrics.
@@ -93,6 +96,7 @@ class TestHealthReport:
 
     tracing: Optional[TracingReport] = None
     pruning: Optional[PruningReport] = None
+    deletable_files: List[Path] = field(default_factory=list)
     tier_distribution: Dict[str, int] = field(default_factory=dict)
     coverage_baseline: Optional[dict] = None
     summary: TestHealthSummary = field(default_factory=TestHealthSummary)
@@ -139,6 +143,10 @@ class TestLifecycleManager:
         try:
             pruner = TestPruningAnalyzer(self.project_root)
             report.pruning = pruner.analyze()
+            
+            # Also run prune_tests in dry_run mode to get deletable file count
+            prune_result = pruner.prune_tests(dry_run=True)
+            report.deletable_files = prune_result.deleted_files
         except Exception as e:
             report.errors.append(f"TestPruningAnalyzer failed: {e}")
             logger.warning("TestPruningAnalyzer failed: %s", e)
@@ -181,12 +189,12 @@ class TestLifecycleManager:
         lines.append(f"Scan duration: {report.scan_duration_ms:.0f}ms")
         lines.append("")
 
-        # Gate status
+        # Gate status (now uses deletable file count)
         passed, gate_msg = check_prunable_threshold(report)
         gate_label = "PASS" if passed else "FAIL"
         gate_line = (
             f"Gate Status: {gate_label} "
-            f"({report.summary.prunable_count} prunable, "
+            f"({report.summary.deletable_file_count} deletable files, "
             f"threshold: {PRUNABLE_THRESHOLD})"
         )
         if not passed:
@@ -205,6 +213,7 @@ class TestLifecycleManager:
         lines.append("")
         lines.append(f"- Total findings: {s.total_findings}")
         lines.append(f"- Prunable candidates: {s.prunable_count}")
+        lines.append(f"- Deletable files: {s.deletable_file_count}")
         lines.append(f"- Untraced tests: {s.untraced_test_count}")
         lines.append(f"- Orphaned pairs: {s.orphaned_pair_count}")
         lines.append(f"- Untested issues: {s.untested_issue_count}")
@@ -292,6 +301,9 @@ class TestLifecycleManager:
                 summary.total_findings += 1
                 if finding.prunable:
                     summary.prunable_count += 1
+        
+        # Deletable file count from prune_tests dry run
+        summary.deletable_file_count = len(report.deletable_files)
 
         # Tier balance assessment
         summary.tier_balance = self._assess_tier_balance(report.tier_distribution)
@@ -408,11 +420,11 @@ def check_prunable_threshold(
     *,
     threshold: Optional[int] = None,
 ) -> tuple:
-    """Check whether prunable findings exceed the allowed threshold.
+    """Check whether deletable test files exceed the allowed threshold.
 
     Args:
         report: A TestHealthReport (from TestLifecycleManager.analyze()).
-        threshold: Maximum allowed prunable count. Defaults to PRUNABLE_THRESHOLD.
+        threshold: Maximum allowed deletable file count. Defaults to PRUNABLE_THRESHOLD.
 
     Returns:
         Tuple of (passed: bool, message: str).
@@ -420,16 +432,16 @@ def check_prunable_threshold(
     if threshold is None:
         threshold = PRUNABLE_THRESHOLD
 
-    prunable_count = report.summary.prunable_count
+    deletable_file_count = report.summary.deletable_file_count
 
-    if prunable_count <= threshold:
+    if deletable_file_count <= threshold:
         return (
             True,
-            f"Prunable count {prunable_count} within threshold {threshold}",
+            f"Deletable file count {deletable_file_count} within threshold {threshold}",
         )
     else:
         return (
             False,
-            f"Prunable count {prunable_count} exceeds threshold {threshold}. "
+            f"Deletable file count {deletable_file_count} exceeds threshold {threshold}. "
             f"Run /sweep --tests --prune",
         )
