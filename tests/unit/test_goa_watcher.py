@@ -393,11 +393,3 @@ class TestRunWatchFrequencyGatePersistence:
             "With only 2 recent filings, a 3rd issue SHOULD be filed (gate not triggered)"
         )
 
-        # Also verify via the pure function
-        result = goa_watcher.file_issue_if_breach.__wrapped__ if hasattr(
-            goa_watcher.file_issue_if_breach, "__wrapped__"
-        ) else None
-        # Direct check: 2 recent filings < gate (3), so filing proceeds
-        recent_2 = [{"filed_utc": now_utc}, {"filed_utc": now_utc}]
-        # The gate is: recent_count >= FREQUENCY_GATE_MAX_PER_24H (3)
-        # 2 < 3, so it should NOT block — verified by filed_calls above

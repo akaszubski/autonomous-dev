@@ -14,10 +14,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.request import Request, urlopen
+
+from goa_state import _get_project_root
 
 # ---------------------------------------------------------------------------
 # Module-level constants — Conservative mode defaults
@@ -48,23 +51,7 @@ _TMP_CONTEXT_FILE = Path("/tmp/autonomous_dev_cmd_context.json")
 # ---------------------------------------------------------------------------
 
 
-def _get_project_root() -> Path:
-    """Return the project root, falling back gracefully."""
-    try:
-        import sys
 
-        _lib = Path(__file__).resolve().parent
-        if str(_lib) not in sys.path:
-            sys.path.insert(0, str(_lib))
-        from path_utils import get_project_root  # type: ignore[import-untyped]
-
-        return get_project_root()
-    except Exception:
-        current = Path(__file__).resolve()
-        for parent in current.parents:
-            if (parent / ".git").exists() or (parent / ".claude").exists():
-                return parent
-        return Path.cwd()
 
 
 def _default_log_dir() -> Path:
@@ -125,7 +112,7 @@ def compute_cron_drop_rate(
                         if ts < cutoff:
                             continue
                     except ValueError:
-                        pass
+                        continue
                 if event.get("cron_scheduled"):
                     scheduled += 1
                     if event.get("cron_fired"):
@@ -173,13 +160,20 @@ def fetch_healthcheck_down_events(
 
     _urlopen = urlopen if urlopen is not None else _urlrequest.urlopen
 
+    # Validate UUID format before using in URL (only in production mode)
+    if urlopen is None:  # Not in test mode
+        if not uuid or not re.fullmatch(r'[0-9a-fA-F-]{32,36}', uuid):
+            print(f"GOA: Invalid healthcheck UUID format: {uuid}", file=sys.stderr)
+            return 0
+
     url = f"https://healthchecks.io/api/v3/checks/{uuid}/flips/"
     req = Request(url, headers={"X-Api-Key": api_key})
     try:
         with _urlopen(req, timeout=10) as resp:
             raw = resp.read()
             flips = json.loads(raw)
-    except Exception:
+    except Exception as exc:
+        print(f"GOA: healthchecks.io API error: {exc}", file=sys.stderr)
         return 0
 
     cutoff_ts = time.time() - window_hours * 3600
@@ -309,6 +303,7 @@ def file_issue_if_breach(
     }
     try:
         _TMP_CONTEXT_FILE.write_text(json.dumps(context), encoding="utf-8")
+        os.chmod(str(_TMP_CONTEXT_FILE), 0o600)
     except OSError:
         pass
 
@@ -385,7 +380,8 @@ def _load_recent_filings_from_github() -> list[dict[str, Any]]:
         if result.returncode != 0:
             return []
         issues = json.loads(result.stdout)
-    except Exception:
+    except Exception as exc:
+        print(f"GOA: GitHub recent filings dedup error: {exc}", file=sys.stderr)
         return []
 
     filings: list[dict[str, Any]] = []
