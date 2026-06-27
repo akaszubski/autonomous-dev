@@ -333,7 +333,7 @@ GHA's built-in `schedule:` cron is unreliable under high repository load — doc
 
 **The fix**: `scripts/launchd/drain-driver-cron.sh` pings `HEALTHCHECK_PING_URL` on every successful invocation (`skip`, `ok`, and `DISPATCHED`). Healthchecks alerting is now decoupled from GHA dispatch: as long as Mac Studio is awake and launchd is loaded, the check stays green. GHA becomes the worker; launchd becomes the heartbeat.
 
-Empirical data (2026-06-26): 4 skip events in 7 hours (16% of cycles). Under the old design, 8+ consecutive skips at 30-min cadence would exhaust the 240-min healthchecks threshold and page. With skip-branch pinging, that failure mode is closed.
+Empirical data (2026-06-26): 4 skip events in 7 hours (16% of cycles). Under the old design, 3+ consecutive skips at 30-min cadence would exhaust the 90-min healthchecks threshold (period 60 + grace 30; tightened 2026-06-27 from the prior 240 min once #1326 made Mac Studio the reliable heartbeat source) and page. With skip-branch pinging, that failure mode is closed.
 
 ### One-time setup per Mac Studio
 
@@ -448,7 +448,7 @@ sed -i '' 's/^    _ping_ok$/    # _ping_ok  # NEGATIVE-TEST: temporarily removed
   ~/bin/drain-driver-cron.sh
 ```
 
-On a day with active GHA runs (high-skip probability), watch `last_ping` for 4+ hours. If skip is the only branch firing, `last_ping` will NOT advance → healthchecks would alert after 240 min. This proves skip-branch ping is not redundant. Restore immediately:
+On a day with active GHA runs (high-skip probability), watch `last_ping` for 90+ min. If skip is the only branch firing, `last_ping` will NOT advance → healthchecks would alert after 90 min (period 60 + grace 30, tightened 2026-06-27). This proves skip-branch ping is not redundant. Restore immediately:
 
 ```bash
 sed -i '' 's/^    # _ping_ok  # NEGATIVE-TEST: temporarily removed$/    _ping_ok/' \
@@ -470,4 +470,4 @@ curl -s "https://healthchecks.io/api/v3/checks/<uuid>/flips/?seconds=604800" \
 
 ### Consecutive-skip starvation risk
 
-Empirical observation (2026-06-26): 4 skip events in a 7-hour window = 16% skip rate. Under the pre-fix design, 8 consecutive skips at 30-min cadence spans exactly 240 minutes — the healthchecks alert threshold — and would page. The `_ping_ok` call in the skip branch closes this gap: every skip cycle now advances `last_ping`, so consecutive skips never starve the check. This is why `_ping_ok` in the skip branch is NOT optional and NOT equivalent to `_ping_ok` in only the `ok`/`DISPATCHED` branches.
+Empirical observation (2026-06-26): 4 skip events in a 7-hour window = 16% skip rate. Under the pre-fix design at the current 90-min threshold (period 60 + grace 30, tightened 2026-06-27), just 3 consecutive skips at 30-min cadence would exhaust the window and page (the prior 240-min threshold tolerated 8 skips, but #1326 made Mac Studio reliable enough to tighten). The `_ping_ok` call in the skip branch closes this gap: every skip cycle now advances `last_ping`, so consecutive skips never starve the check. This is why `_ping_ok` in the skip branch is NOT optional and NOT equivalent to `_ping_ok` in only the `ok`/`DISPATCHED` branches — and the tighter threshold makes this property even more load-bearing.

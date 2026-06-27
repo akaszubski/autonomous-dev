@@ -204,11 +204,14 @@ jobs:
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_DRAIN_DRIVER }}
         run: |
           # Dead-man's-switch: any workflow run (success or failure) pings
-          # healthchecks.io. Threshold widened 2026-06-26 (Issue #1318): period
-          # 180 min + grace 60 min = 240 min (4h) total tolerance. Calibrated
-          # for observed GHA cron drop rate (~58% missed fires, with gaps up
-          # to 115 min) — matches drain-driver's tightened 30-min cadence
-          # (5,35 * * * *) plus headroom for back-to-back drops.
+          # healthchecks.io. Threshold: period 60 min + grace 30 min = 90 min
+          # total tolerance. Tightened from 240 min on 2026-06-27 after
+          # Issue #1326 deployed Mac Studio launchd as the primary heartbeat
+          # source — it pings every 30 min reliably regardless of GHA cron
+          # lag, so the wide 240-min tolerance that #1318 chose to absorb
+          # GHA scheduler drift is no longer needed. 90 min detects real
+          # outages ~2.5x faster (3 consecutive Mac Studio fires missed =
+          # alert, vs. 8 under the old threshold).
           # Mac Studio launchd cron is the primary keep-alive; this alert
           # only fires when BOTH GH schedule AND Mac Studio cron fail.
           curl -fsS -m 10 --retry 3 -o /dev/null \
