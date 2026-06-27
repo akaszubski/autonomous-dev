@@ -137,7 +137,8 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    from pipeline_state import get_legacy_sentinel_path
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -193,7 +194,8 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    from pipeline_state import get_legacy_sentinel_path
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -386,7 +388,8 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    from pipeline_state import get_legacy_sentinel_path
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -409,7 +412,8 @@ state = {
     'session_id': sid
 }
 state = sign_state(state, sid)
-with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
+from pipeline_state import get_legacy_sentinel_path
+with open(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())), 'w') as f:
     json.dump(state, f)
 "
 
@@ -429,7 +433,8 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         sys.path.insert(0, _p)
         break
 from pipeline_state import set_pipeline_base_commit
-state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+from pipeline_state import get_legacy_sentinel_path
+state_path = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
 ok = set_pipeline_base_commit('$PIPELINE_BASE_COMMIT', state_path=state_path)
 print(f'PIPELINE_BASE_COMMIT recorded: $PIPELINE_BASE_COMMIT (ok={ok})')
 "
@@ -569,7 +574,8 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.
         sys.path.insert(0, _p)
         break
 from pipeline_state import record_baseline_scope, CANONICAL_BASELINE_CMD
-state_path = _os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+from pipeline_state import get_legacy_sentinel_path
+state_path = _os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
 ok = record_baseline_scope(state_path, CANONICAL_BASELINE_CMD, int('$BASELINE_TEST_COUNT' or 0))
 print(f'Baseline scope recorded: {CANONICAL_BASELINE_CMD!r} (ok={ok})')
 "
@@ -634,7 +640,8 @@ def _resolve_session_id():
     sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
     if sid and sid != 'unknown':
         return sid
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+    from pipeline_state import get_legacy_sentinel_path
+    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
     try:
         if os.path.exists(sentinel):
             mtime = os.path.getmtime(sentinel)
@@ -648,7 +655,8 @@ def _resolve_session_id():
         pass
     return 'unknown'
 
-state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+from pipeline_state import get_legacy_sentinel_path
+state_path = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
 if os.path.exists(state_path):
     with open(state_path) as f:
         state = json.load(f)
@@ -1354,7 +1362,8 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         sys.path.insert(0, _p)
         break
 from pipeline_state import get_pipeline_base_commit
-state_path = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+from pipeline_state import get_legacy_sentinel_path
+state_path = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
 print(get_pipeline_base_commit(state_path=state_path) or '')
 ")
 # Anchor diff to PIPELINE_BASE_COMMIT so the file list reflects ONLY changes
