@@ -6,10 +6,11 @@ The safe pattern is env: block + double-quoted "$VAR" shell reference; the
 runner sets env vars with proper escaping so the shell sees ordinary
 variables that cannot break out of their string context.
 
-Scope: workflows migrated under #1287, #1306, #1307, #1308, #1309 —
-drain-driver.yml, drain-watchdog.yml, ci.yml, safety-net.yml,
-auto-tag-on-push.yml. Whole-repo expansion to a glob over all
-.github/workflows/*.yml is tracked as follow-up #1310.
+Scope: ALL workflows in .github/workflows/*.yml. The env-block migration
+started under #1287 (drain-driver.yml) and was extended via #1306–#1309 to
+cover drain-watchdog.yml, ci.yml, safety-net.yml, auto-tag-on-push.yml.
+Issue #1310 widened this regression test to enforce the safe pattern on
+every workflow.
 """
 
 from __future__ import annotations
@@ -24,13 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 EXPR_PATTERN = re.compile(r"\$\{\{")
 
-SCOPED_WORKFLOWS = [
-    WORKFLOWS_DIR / "drain-driver.yml",
-    WORKFLOWS_DIR / "drain-watchdog.yml",
-    WORKFLOWS_DIR / "ci.yml",
-    WORKFLOWS_DIR / "safety-net.yml",
-    WORKFLOWS_DIR / "auto-tag-on-push.yml",
-]
+SCOPED_WORKFLOWS = sorted(WORKFLOWS_DIR.glob("*.yml"))
 
 # Documented exclusions: interpolations intentionally left in scope but tracked
 # as follow-up issues for separate migration. Each entry is (workflow_name,

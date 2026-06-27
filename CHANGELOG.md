@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Changed
+- **Workflow injection safety test widened to all `.github/workflows/*.yml` (Issue #1310)**: The `test_workflow_injection_safety.py` regression test now uses `sorted(WORKFLOWS_DIR.glob("*.yml"))` instead of a hardcoded 5-file list, ensuring any new workflow added to the repository is automatically covered by the env-block safety assertions. The module docstring was updated to reflect the completed scope expansion from the initial migration (#1287, #1306–#1309) to full coverage. (#1310)
+
 ### Fixed
 - **Mac Studio launchd as canonical healthchecks.io heartbeat for drain-driver (Issue #1326)**: Closed the consecutive-skip starvation gap where GHA's built-in cron schedule drops 5-15% of fires. Under the old design, when Mac Studio launchd skipped dispatch (GHA run was current), healthchecks.io received no ping, triggering false DOWN alerts after 8+ consecutive skips at 30-min cadence. Fix: `scripts/launchd/drain-driver-cron.sh` now pings `HEALTHCHECK_PING_URL` on every successful determination — `skip`, `ok`, and `DISPATCHED`. Healthchecks alerting is decoupled from GHA dispatch: as long as Mac Studio is awake and launchd loaded, the check stays green. Empirical validation: 4 skip events in 7 hours (16% of cycles) previously exhausted the 240-min threshold; with skip-branch pinging, that failure mode is closed. Version-controlled as `scripts/launchd/drain-driver-cron.sh` and `scripts/launchd/com.akaszubski.drain-driver-cron.plist`; deploy procedure documented in RUNBOOK.md "Launchd-as-heartbeat" section with 4-part T+0 fault-injection checklist. (#1326)
 
