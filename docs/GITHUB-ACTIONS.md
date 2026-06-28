@@ -24,6 +24,13 @@ Automated PR review and issue implementation using Claude via `anthropics/claude
 | Claude Code Review | PR opened/updated, `@claude` comment | `.github/workflows/claude-review.yml` |
 | Claude Issue Implementation | Issue labeled `claude-implement` | `.github/workflows/claude-implement.yml` |
 | Auto-tag on push | Push to `master` (non-log paths) | `.github/workflows/auto-tag-on-push.yml` |
+| CI | Push/PR to `master`/`main`, manual dispatch | `.github/workflows/ci.yml` |
+
+### CI Workflow (`ci.yml`)
+
+Three-stage pipeline: **Smoke** (fast sanity checks, Stage 1) → **Full Test Suite** (unit + integration + regression, Stage 2, depends on smoke) → **CI Summary** (merge gate, Stage 3, always runs).
+
+The CI Summary gate uses positive assertions: it blocks merge unless `SMOKE_RESULT` is exactly `"success"` and `TEST_RESULT` is `"success"` or `"skipped"`. Any other conclusion — including `cancelled` and `timed_out` — is treated as blocking. This prevents silently allowing merges when jobs time out or are cancelled before completion. (Issue #1333)
 
 ## Usage
 

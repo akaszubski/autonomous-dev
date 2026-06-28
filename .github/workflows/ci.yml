@@ -173,12 +173,12 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
           TEST_RESULT: ${{ needs.test.result }}
         run: |
-          if [ "$SMOKE_RESULT" = "failure" ]; then
-            echo "Smoke tests failed - blocking merge"
+          if [ "$SMOKE_RESULT" != "success" ]; then
+            echo "Smoke tests did not pass (status: $SMOKE_RESULT) - blocking merge"
             exit 1
           fi
-          if [ "$TEST_RESULT" = "failure" ]; then
-            echo "Test suite failed - blocking merge"
+          if [ "$TEST_RESULT" != "success" ] && [ "$TEST_RESULT" != "skipped" ]; then
+            echo "Full test suite did not pass (status: $TEST_RESULT) - blocking merge"
             exit 1
           fi
           echo "All CI checks passed!"
