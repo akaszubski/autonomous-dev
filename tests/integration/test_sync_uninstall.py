@@ -205,7 +205,7 @@ class TestSyncUninstallIntegration:
 
         dispatcher = SyncDispatcher(project_root=temp_project_with_install)
 
-        with patch('plugins.autonomous_dev.lib.sync_dispatcher.Path.home') as mock_home:
+        with patch('plugins.autonomous_dev.lib.sync_dispatcher.modes.Path.home') as mock_home:
             mock_home.return_value = tmp_path / "home"
             result = dispatcher.sync(mode=SyncMode.UNINSTALL, force=True, local_only=True)
 
