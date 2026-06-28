@@ -323,6 +323,16 @@ sqlite3 ~/.claude/archive/sessions.db \
 
 For full schema and cross-repo aggregation queries see [SESSION-ANALYTICS.md](SESSION-ANALYTICS.md).
 
+### Exit Code Reference
+
+Commands in the autonomous-dev pipeline use the following exit codes:
+
+| Exit Code | Meaning | Context |
+|-----------|---------|---------|
+| 0 | Success | Normal completion |
+| 1 | General failure | Standard error condition |
+| 2 | Cross-machine conflict | Another instance holds the claim (implement-batch) |
+
 ---
 
 ## Launchd-as-heartbeat (drain-driver durable cron)

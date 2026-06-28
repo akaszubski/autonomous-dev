@@ -619,10 +619,10 @@ The claim signal is a GitHub Issue label `in-progress` PLUS a marker comment. Bo
 ```python
 import os, sys
 sys.path.insert(0, "plugins/autonomous-dev/lib")
-from issue_claim import is_claimed, claim_issue, _actor_string
+from issue_claim import is_claimed, claim_issue, actor_string
 
 run_id = os.environ.get("BATCH_ID", os.environ.get("PIPELINE_RUN_ID", f"run-{os.getpid()}"))
-actor = _actor_string(run_id)
+actor = actor_string(run_id)
 
 # 1. Conflict check first.
 for issue_number in remaining_issues:
@@ -632,6 +632,7 @@ for issue_number in remaining_issues:
               f"(age={info['age_seconds']}s). Remediation: wait for completion, "
               f"or run `gh issue edit {issue_number} --remove-label in-progress` "
               f"if the other run is known dead (claim auto-expires after 4h).")
+        # Exit code 2: cross-machine conflict abort (another instance holds the claim)
         sys.exit(2)
 
 # 2. Acquire claims (best-effort).

@@ -67,7 +67,7 @@ def _is_cluster_in_progress(cluster) -> "Tuple[bool, str]":
                 actor = (info or {}).get("actor", "unknown")
                 return (True, f"issue_claimed_by:{actor}")
         except Exception as e:
-            logger.debug(f"is_claimed failed for #{issue_num}: {e}")
+            logger.debug(f"is_claimed failed for #{issue_num}", exc_info=True)
             continue
     return (False, "")
 

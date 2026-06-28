@@ -35,7 +35,7 @@ CLAIM_COMMENT_RE = re.compile(
 RELEASE_COMMENT_PREFIX = "🤖 Released #"
 
 
-def _actor_string(run_id: str, *, host: Optional[str] = None, pid: Optional[int] = None) -> str:
+def actor_string(run_id: str, *, host: Optional[str] = None, pid: Optional[int] = None) -> str:
     """Build the canonical actor string used for claim attribution.
 
     Args:
@@ -49,6 +49,9 @@ def _actor_string(run_id: str, *, host: Optional[str] = None, pid: Optional[int]
     host = host or socket.gethostname()
     pid = pid if pid is not None else os.getpid()
     return f"{host}:{pid}:{run_id}"
+
+# Backward compatibility alias
+_actor_string = actor_string
 
 
 def _format_claim_comment(issue_number: int, actor: str, ts: Optional[str] = None) -> str:
@@ -237,20 +240,32 @@ def claim_issue(issue_number: int, actor: str) -> bool:
 
     Args:
         issue_number: GH issue number to claim.
-        actor: "host:pid:run_id" actor string (typically from _actor_string).
+        actor: "host:pid:run_id" actor string (typically from actor_string).
 
     Returns:
         True iff BOTH the comment post and label add succeeded.
+        
+    Note:
+        If label-add fails after retry, the comment remains as an orphan marker
+        (acceptable: includes timestamp for audit trail).
     """
+    import time
     body = _format_claim_comment(issue_number, actor)
     c_proc = _gh_run(["issue", "comment", str(issue_number), "--body", body])
     if c_proc.returncode != 0:
         logger.warning(f"claim_issue: comment failed for #{issue_number}: {c_proc.stderr}")
         return False
+    
+    # Try to add label, with one retry on failure
     l_proc = _gh_run(["issue", "edit", str(issue_number), "--add-label", CLAIM_LABEL])
     if l_proc.returncode != 0:
-        logger.warning(f"claim_issue: label add failed for #{issue_number}: {l_proc.stderr}")
-        return False
+        # Retry once after 1 second delay
+        logger.debug(f"claim_issue: label add failed for #{issue_number}, retrying in 1s")
+        time.sleep(1)
+        l_proc = _gh_run(["issue", "edit", str(issue_number), "--add-label", CLAIM_LABEL])
+        if l_proc.returncode != 0:
+            logger.warning(f"claim_issue: label add failed for #{issue_number} after retry: {l_proc.stderr}")
+            return False
     return True
 
 
@@ -259,7 +274,7 @@ def release_issue(issue_number: int, actor: str, *, reason: str = "completed") -
 
     Args:
         issue_number: GH issue number to release.
-        actor: "host:pid:run_id" actor string (typically from _actor_string).
+        actor: "host:pid:run_id" actor string (typically from actor_string).
         reason: Short reason recorded in the release marker comment.
 
     Returns:
