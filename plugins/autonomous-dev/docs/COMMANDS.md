@@ -42,6 +42,18 @@ The following command files exist but are not directly invoked by users — they
 - `/implement-fix` — minimal fix pipeline (see `/implement --fix`)
 - `/implement-resume` — resume an interrupted batch (see `/implement --resume <id>`)
 
+### `/implement --issues` — cross-machine claim mutex (Issue #1335)
+
+Before running the pipeline, `/implement --issues N [M ...]` acquires a cross-machine claim on each target issue via a GH Issue label (`in-progress`) and a marker comment. This prevents a local run and a concurrent cloud-drain from processing the same cluster in parallel.
+
+**Exit 2 (abort)**: If any target issue is already claimed by a different actor (different host or PID), the command aborts immediately:
+
+```
+ABORT: Issue #N is being implemented by <actor> (age=<seconds>s).
+```
+
+Claims auto-expire after 4 hours. To clear a stuck label manually: `gh issue edit N --remove-label in-progress`. See TROUBLESHOOTING.md "Issue stuck with `in-progress` label" for full details.
+
 ---
 
 ## /triage --auto-improvement

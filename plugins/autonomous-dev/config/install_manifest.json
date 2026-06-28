@@ -276,6 +276,7 @@
         "plugins/autonomous-dev/lib/installation_analyzer.py",
         "plugins/autonomous-dev/lib/installation_validator.py",
         "plugins/autonomous-dev/lib/intent_classifier.py",
+        "plugins/autonomous-dev/lib/issue_claim.py",
         "plugins/autonomous-dev/lib/issue_scope_detector.py",
         "plugins/autonomous-dev/lib/issue_triage_analyzer.py",
         "plugins/autonomous-dev/lib/logging_utils.py",

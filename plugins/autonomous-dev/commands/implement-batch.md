@@ -173,6 +173,17 @@ For each feature in the list:
    - `light` → light pipeline (implement.md --light)
 3. If a feature fails, log the failure and continue to the next feature
 
+   **Cross-machine claim release on terminal failure** (Issue: race fix): if the failure is terminal (batch will STOP), call `release_issue` for every BATCH_CLAIMED_ISSUES entry before exiting:
+   ```python
+   import os, sys
+   sys.path.insert(0, "plugins/autonomous-dev/lib")
+   from issue_claim import release_issue
+   actor = os.environ.get("BATCH_CLAIM_ACTOR", "")
+   for n in os.environ.get("BATCH_CLAIMED_ISSUES", "").split(","):
+       if n.strip() and actor:
+           release_issue(int(n), actor, reason="failed")
+   ```
+
 **Per-Issue Validator Artifact Write** (Issue #991): After reviewer and security-auditor both return for each issue, persist their verbatim outputs so the CIA can compute the Validator Diversity Score:
 ```bash
 ISSUE_RUN_ID="${BATCH_ID}-issue${ISSUE_NUMBER}"
@@ -487,6 +498,17 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
 
    **HARD GATE**: The coordinator MUST close all successfully implemented issues. Skipping this step is a pipeline completeness violation. If `gh` CLI is unavailable, log a warning but do not fail the batch.
 
+   **Release cross-machine claims** (Issue: race fix): after closing issues, release every claim acquired in STEP I1.4. Best-effort: failures are logged but do not fail the batch.
+   ```python
+   import os, sys
+   sys.path.insert(0, "plugins/autonomous-dev/lib")
+   from issue_claim import release_issue
+   actor = os.environ.get("BATCH_CLAIM_ACTOR", "")
+   for n in os.environ.get("BATCH_CLAIMED_ISSUES", "").split(","):
+       if n.strip() and actor:
+           release_issue(int(n), actor, reason="completed")
+   ```
+
 **STEP B5: Batch Summary**
 
 Include per-feature timing breakdown in the summary (see Batch Mode Progress Protocol).
@@ -587,6 +609,49 @@ If a match is found, skip that issue (remove from the batch feature list) and op
 - `anti` — explicit non-closure marker (`Pending: #N`, `Preflight-skipped: #N`, `Deferred: #N`). Filtered to `None` internally.
 - `stale_branch` — closure marker present but the commit is not reachable from HEAD (unmerged side branch). Filtered to `None` internally.
 - `mention` — bare `#N` reference with no marker. Filtered to `None` internally.
+
+**STEP I1.4: Cross-Machine Claim Acquisition**
+
+After already-done filtering and BEFORE mode detection, acquire a cross-machine claim for every remaining issue. This prevents simultaneous cloud-drain and local runs from doing the same work (race observed 2026-06-28: cluster #1331+#1334 raced between local /implement and cloud-drain).
+
+The claim signal is a GitHub Issue label `in-progress` PLUS a marker comment. Both are visible to any actor on any machine via `gh`. Local-filesystem sentinels (`.claude/local/*`) are NOT sufficient — they cannot be read from a different checkout.
+
+```python
+import os, sys
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from issue_claim import is_claimed, claim_issue, _actor_string
+
+run_id = os.environ.get("BATCH_ID", os.environ.get("PIPELINE_RUN_ID", f"run-{os.getpid()}"))
+actor = _actor_string(run_id)
+
+# 1. Conflict check first.
+for issue_number in remaining_issues:
+    claimed, info = is_claimed(issue_number, actor=actor)
+    if claimed:
+        print(f"ABORT: Issue #{issue_number} is being implemented by {info['actor']} "
+              f"(age={info['age_seconds']}s). Remediation: wait for completion, "
+              f"or run `gh issue edit {issue_number} --remove-label in-progress` "
+              f"if the other run is known dead (claim auto-expires after 4h).")
+        sys.exit(2)
+
+# 2. Acquire claims (best-effort).
+claimed_issues = []
+for issue_number in remaining_issues:
+    if claim_issue(issue_number, actor):
+        claimed_issues.append(issue_number)
+    else:
+        print(f"WARN: failed to claim #{issue_number} (gh error) — proceeding without claim")
+
+os.environ["BATCH_CLAIMED_ISSUES"] = ",".join(str(n) for n in claimed_issues)
+os.environ["BATCH_CLAIM_ACTOR"] = actor
+```
+
+**HARD GATE**: ABORT (exit 2) if any target issue is claimed by a different actor. Do NOT silently proceed. Do NOT force-claim — stale claims (>4h) are auto-ignored by `is_claimed()`'s inline staleness check.
+
+**FORBIDDEN**:
+- ❌ Skipping the claim check
+- ❌ Calling `claim_issue` without first calling `is_claimed`
+- ❌ Forgetting to set BATCH_CLAIMED_ISSUES / BATCH_CLAIM_ACTOR for STEP B3 / B4 release
 
 **STEP I1.5: Mode Detection and Confirmation**
 

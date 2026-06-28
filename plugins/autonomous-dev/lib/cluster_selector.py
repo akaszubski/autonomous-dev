@@ -43,6 +43,35 @@ def _is_cluster_closed(cluster) -> "Tuple[bool, str]":
     return (False, "")
 
 
+def _is_cluster_in_progress(cluster) -> "Tuple[bool, str]":
+    """Check if any issue in the cluster has a fresh in-progress claim (cross-machine mutex).
+
+    Args:
+        cluster: Cluster dict with issue_numbers list.
+
+    Returns:
+        (True, "issue_claimed_by:<actor>") if any issue is claimed.
+        (False, "") otherwise or on any error.
+    """
+    issue_numbers = cluster.get("issue_numbers", [])
+    if not issue_numbers:
+        return (False, "")
+    try:
+        from issue_claim import is_claimed
+    except ImportError:
+        return (False, "")
+    for issue_num in issue_numbers:
+        try:
+            claimed, info = is_claimed(issue_num)
+            if claimed:
+                actor = (info or {}).get("actor", "unknown")
+                return (True, f"issue_claimed_by:{actor}")
+        except Exception as e:
+            logger.debug(f"is_claimed failed for #{issue_num}: {e}")
+            continue
+    return (False, "")
+
+
 def _gh_rate_limit_ok(min_remaining: int = 100) -> bool:
     """Check if GitHub API rate limit has enough remaining calls.
     
@@ -200,7 +229,11 @@ def select_next_cluster(clusters, *, apply_auto_drain_gates: bool = False):
             if is_closed:
                 logger.info(f"Skipping cluster {cluster.get('issue_numbers')} - {reason}")
                 continue
-        
+            in_progress, ip_reason = _is_cluster_in_progress(cluster)
+            if in_progress:
+                logger.info(f"Skipping cluster {cluster.get('issue_numbers')} - {ip_reason}")
+                continue
+
         issues = cluster.get("issues", [])
         issue_numbers = cluster.get("issue_numbers", [])
         

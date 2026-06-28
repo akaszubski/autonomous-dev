@@ -1,7 +1,40 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-06-17
+**Last Updated**: 2026-06-28
 **For**: Users and developers encountering common issues
+
+---
+
+## Issue stuck with `in-progress` label — `/implement --issues` aborts with exit 2
+
+**Symptom**: Running `/implement --issues N` (or `/drain-queue → /implement --issues`) immediately aborts with a message like:
+
+```
+ABORT: Issue #N is being implemented by mac-studio:12345 (age=1800s).
+Remediation: wait for completion, or run
+  gh issue edit N --remove-label in-progress
+if the other run is known dead (claim auto-expires after 4h).
+```
+
+**Cause**: A cross-machine claim mutex (Issue #1335) prevents two concurrent runs — e.g., a local `/implement --issues` and a cloud-drain `/drain-queue → /implement --issues` — from processing the same GH issue in parallel. The claim is a `in-progress` GH Issue label plus a marker comment `🤖 Implementing #N now [host=…, pid=…, ts=…]`. If the previous run completed normally, `release_issue` removed the label. If it crashed or was killed before release, the label persists.
+
+**Claims auto-expire**: `is_claimed()` treats any claim older than 4 hours as stale and ignores it — no label removal required. If the stuck claim is less than 4 hours old and the holder is known dead, remove it manually:
+
+```bash
+# Remove the in-progress label manually
+gh issue edit N --remove-label in-progress
+```
+
+**Expected flow** (no action needed): When a run completes or fails normally, `release_issue(N, actor, reason="completed"|"failed")` removes the label and posts a `🤖 Released #N [...]` comment. You should only see the stuck state if the pipeline crashed (OOM, `kill -9`, or Mac sleep) mid-run.
+
+**Verify whether the claim is stale** (older than 4h = safe to remove):
+
+```bash
+# Show the in-progress comment timestamp
+gh issue view N --json comments --jq '.comments[] | select(.body | startswith("🤖 Implementing")) | {createdAt, body}'
+```
+
+**Why this exists**: Race observed 2026-06-28 where a local `/implement --issues` and cloud-drain ran simultaneously on cluster #1331+#1334, producing duplicate implementation commits. Local-filesystem sentinels (`.claude/local/*`) cannot be read from a different machine checkout; GH Issue labels are globally visible.
 
 ---
 
