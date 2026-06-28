@@ -189,7 +189,13 @@
       "EnterWorktree",
       "ToolSearch",
       "TaskStop",
-      "mcp__*"
+      "mcp__*",
+      "Bash(mkdir*)",
+      "Write(.claude/plans/**)",
+      "Edit(.claude/plans/**)",
+      "Write(.claude/decisions/**)",
+      "Edit(.claude/decisions/**)",
+      "Bash(mkdir -p .claude/*)"
     ],
     "ask": [],
     "deny": [
