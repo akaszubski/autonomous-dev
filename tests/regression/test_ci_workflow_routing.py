@@ -157,6 +157,17 @@ def test_test_job_has_route_step_with_id(test_steps: list[dict[str, Any]]) -> No
         "instead of hard-failing the test job (Issue #1337 FINDING-3). "
         f"Got continue-on-error={coe!r}."
     )
+    # Issue #1337 FINDING-1: Route tests output redirect must use /dev/stderr
+    # (portable across all GHA runner contexts: container steps, composite
+    # actions), not /dev/tty (which is not guaranteed to be connected).
+    assert "/dev/tty" not in run, (
+        f"Route tests step must not use /dev/tty (Issue #1337 FINDING-1); "
+        f"use /dev/stderr instead.\nrun body was:\n{run}"
+    )
+    assert "/dev/stderr" in run, (
+        f"Route tests step must redirect via /dev/stderr for portability "
+        f"(Issue #1337 FINDING-1);\nrun body was:\n{run}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,4 +268,24 @@ def test_step_is_guarded_by_skip_all_check(
         f"{step_name!r} step has an unexpected 'if:' guard.\n"
         f"  expected to contain: {EXPECTED_IF_GUARD}\n"
         f"  actual:              {if_value!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# AC2: Marker emission has documenting comment (Issue #1337)
+# ---------------------------------------------------------------------------
+def test_marker_emission_documented_in_workflow() -> None:
+    """The ci.yml workflow must contain a comment documenting why ``marker``
+    is emitted to ``$GITHUB_OUTPUT`` despite having no downstream consumer
+    (Issue #1337).
+
+    Rationale: ``pytest -m "$marker"`` wiring is deferred per #1332. Without
+    a comment, future readers may delete the marker emission as dead code.
+    """
+    text = CI_YAML_PATH.read_text()
+    assert "#1332" in text and "#1337" in text and "marker" in text.lower(), (
+        "ci.yml must contain a comment referencing #1332 and #1337 that "
+        "documents why the marker= emission is intentional (Issue #1337). "
+        "Expected a YAML comment like: "
+        "'# marker= emitted for future use; pytest -m wiring deferred per #1332 (see #1337).'"
     )

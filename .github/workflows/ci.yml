@@ -138,6 +138,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'plugins/autonomous-dev/requirements-dev.txt'
 
+      # marker= emitted for future use; pytest -m wiring deferred per #1332 (see #1337).
       - name: Route tests
         id: route
         run: |
@@ -151,7 +152,7 @@ jobs:
           print(f'skip_all={skip_all}')
           print(f'marker={marker}')
           print(f'categories={sorted(r.get(\"categories\", []))}')
-          " | tee /dev/tty | grep -E '^skip_all=|^marker=' >> "$GITHUB_OUTPUT"
+          " | tee /dev/stderr | grep -E '^skip_all=|^marker=' >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
       - name: Install dependencies
