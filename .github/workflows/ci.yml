@@ -138,27 +138,47 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'plugins/autonomous-dev/requirements-dev.txt'
 
+      - name: Route tests
+        id: route
+        run: |
+          python3 -c "
+          import sys, os
+          sys.path.insert(0, 'plugins/autonomous-dev/lib')
+          from test_routing import route_tests
+          r = route_tests()
+          skip_all = 'true' if r.get('skip_all') else 'false'
+          marker = r.get('marker_expression', '')
+          print(f'skip_all={skip_all}')
+          print(f'marker={marker}')
+          print(f'categories={sorted(r.get(\"categories\", []))}')
+          " | tee /dev/tty | grep -E '^skip_all=|^marker=' >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
       - name: Install dependencies
+        if: steps.route.outputs.skip_all != 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov pyyaml
+          pip install pytest pytest-cov pyyaml pytest-xdist
 
       - name: Run unit tests
+        if: steps.route.outputs.skip_all != 'true'
         run: |
           echo "Running unit tests..."
-          python -m pytest tests/unit/ -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/unit/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
 
       - name: Run integration tests
+        if: steps.route.outputs.skip_all != 'true'
         run: |
           echo "Running integration tests..."
-          python -m pytest tests/integration/ -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/integration/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
 
       - name: Run regression tests
+        if: steps.route.outputs.skip_all != 'true'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "Running regression tests..."
-          python -m pytest tests/regression/ -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/regression/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
 
   # Stage 3: Summary
   summary:

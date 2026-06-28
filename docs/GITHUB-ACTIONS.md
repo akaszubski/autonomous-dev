@@ -28,9 +28,11 @@ Automated PR review and issue implementation using Claude via `anthropics/claude
 
 ### CI Workflow (`ci.yml`)
 
-Three-stage pipeline: **Smoke** (fast sanity checks, Stage 1) → **Full Test Suite** (unit + integration + regression, Stage 2, depends on smoke) → **CI Summary** (merge gate, Stage 3, always runs).
+Three-stage pipeline: **Smoke** (fast sanity checks, Stage 1) → **Full Test Suite** (unit + integration + regression, Stage 2, depends on smoke) → **CI Summary** (merge gate, Stage 3, always runs). A conditional **GenAI Intent Tests** job (Stage 1.5) also runs after smoke when the `OPENROUTER_API_KEY` repo variable is set.
 
 The CI Summary gate uses positive assertions: it blocks merge unless `SMOKE_RESULT` is exactly `"success"` and `TEST_RESULT` is `"success"` or `"skipped"`. Any other conclusion — including `cancelled` and `timed_out` — is treated as blocking. This prevents silently allowing merges when jobs time out or are cancelled before completion. (Issue #1333)
+
+**Full Test Suite — Route tests pre-step and parallelization (Issue #1332)**: The `test` job begins with a `Route tests` step (`id: route`) that calls `route_tests()` from `plugins/autonomous-dev/lib/test_routing.py`. When the routing result sets `skip_all=true` (e.g., for docs-only PRs), the install and all three pytest steps are short-circuited via `if:` guards, so documentation-only changes do not consume the full job budget. When the suite does run, all three pytest steps (unit, integration, regression) use `pytest-xdist` with `-n auto` to parallelize across available runner cores, which is the primary wall-clock fix for timeout issues. Regression tests asserting this structure live in `tests/regression/test_ci_workflow_routing.py`.
 
 ## Usage
 
