@@ -94,6 +94,8 @@ GATE_FIXTURES = [
     # SMOKE non-success must always block, regardless of TEST
     ("failure", "success", 1),
     ("cancelled", "success", 1),
+    # defense-in-depth: skipped smoke (future workflow change) — gate is != "success", so this blocks correctly
+    ("skipped", "success", 1),
 ]
 
 
