@@ -145,6 +145,18 @@ def test_test_job_has_route_step_with_id(test_steps: list[dict[str, Any]]) -> No
         f"Route tests step must write to GITHUB_OUTPUT so steps.route.outputs "
         f"is populated; run body was:\n{run}"
     )
+    # Issue #1337 FINDING-3: the route step MUST set continue-on-error: true
+    # so that a routing-step failure (e.g., ImportError in test_routing) falls
+    # through to the gated downstream steps instead of hard-failing the job.
+    # Removing this property would silently convert a soft fall-through into
+    # a hard failure for the whole test job.
+    coe = route_step.get("continue-on-error")
+    assert coe is True, (
+        "Route tests step MUST set 'continue-on-error: true' so that a "
+        "routing-step failure falls through to the gated downstream steps "
+        "instead of hard-failing the test job (Issue #1337 FINDING-3). "
+        f"Got continue-on-error={coe!r}."
+    )
 
 
 # ---------------------------------------------------------------------------
