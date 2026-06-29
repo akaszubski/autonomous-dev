@@ -21,7 +21,26 @@ PYTHONPATH="$PROJECT_ROOT/plugins/autonomous-dev/lib:$PYTHONPATH" \
     --local-settings "$PROJECT_ROOT/.claude/settings.local.json" \
     --project-root "$PROJECT_ROOT"
 HOOK_RC=$?
-exit $(( STRUCT_RC | HOOK_RC ))
+
+# Check plugin registration (Issue #945)
+PLUGIN_REGISTERED=0
+if [[ -f "$HOME/.claude/plugins/installed_plugins.json" ]]; then
+  if python3 -c "import json; data=json.load(open('$HOME/.claude/plugins/installed_plugins.json')); plugins=[p for p in data.get('plugins',[]) if p.get('name')=='autonomous-dev']; exit(0 if plugins else 1)" 2>/dev/null; then
+    echo "✓ Plugin registered in installed_plugins.json"
+    PLUGIN_REGISTERED=0
+  else
+    echo "⚠ Plugin NOT registered - slash commands won't work"
+    echo "  Run: /plugin marketplace add akaszubski/autonomous-dev"
+    echo "  Then: /plugin install autonomous-dev"
+    PLUGIN_REGISTERED=1
+  fi
+else
+  echo "⚠ No installed_plugins.json found - plugin not registered"
+  PLUGIN_REGISTERED=1
+fi
+
+exit $(( STRUCT_RC | HOOK_RC | PLUGIN_REGISTERED ))
+```
 ```
 
 # Health Check - Plugin Component Validation
@@ -64,6 +83,11 @@ Validates 3 critical component types:
    - FORBIDDEN: hook commands referencing undefined environment variables (e.g. `$UNDEFINED_VAR`)
    - Exit code 1 indicates required action; exit code 0 means all hook paths are healthy
 
+
+6. **Plugin Registration** (Issue #945)
+   - Verifies autonomous-dev entry exists in ~/.claude/plugins/installed_plugins.json
+   - Reports if plugin is not registered (slash commands won't work)
+   - Shows registered version and source path
 ## Expected Output
 
 ```

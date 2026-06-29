@@ -396,6 +396,133 @@ bootstrap_setup_command() {
     fi
 }
 
+# Register the plugin in ~/.claude/plugins/installed_plugins.json
+register_plugin() {
+    log_step "Registering autonomous-dev plugin..."
+    
+    local plugins_dir="${HOME}/.claude/plugins"
+    local plugins_file="${plugins_dir}/installed_plugins.json"
+    local marketplaces_file="${plugins_dir}/marketplaces.json"
+    
+    # Create plugins directory if it doesn't exist
+    mkdir -p "$plugins_dir" 2>/dev/null || {
+        log_warning "Failed to create plugins directory"
+        return 1
+    }
+    
+    # Read version from marketplace.json (prefer .claude-plugin/marketplace.json)
+    local marketplace_json="${STAGING_DIR}/files/plugins/autonomous-dev/.claude-plugin/marketplace.json"
+    if [[ ! -f "$marketplace_json" ]]; then
+        # Fallback to plugin.json
+        marketplace_json="${STAGING_DIR}/files/plugins/autonomous-dev/plugin.json"
+    fi
+    
+    if [[ ! -f "$marketplace_json" ]]; then
+        log_warning "No marketplace.json or plugin.json found - skipping plugin registration"
+        return 1
+    fi
+    
+    # Extract plugin info using Python for reliable JSON parsing
+    local plugin_info
+    plugin_info=$(python3 -c "
+import json
+import sys
+
+try:
+    with open('$marketplace_json') as f:
+        data = json.load(f)
+    
+    # Extract key fields
+    plugin = {
+        'name': data.get('name', 'autonomous-dev'),
+        'version': data.get('version', '3.40.0'),
+        'displayName': data.get('displayName', 'Autonomous Development'),
+        'source': 'local',
+        'sourcePath': '$PROJECT_ROOT/plugins/autonomous-dev'
+    }
+    
+    print(json.dumps(plugin))
+except Exception as e:
+    print(json.dumps({'error': str(e)}), file=sys.stderr)
+    sys.exit(1)
+" 2>&1) || {
+        log_warning "Failed to parse marketplace.json"
+        return 1
+    }
+    
+    # Check if parsing failed
+    if echo "$plugin_info" | grep -q '"error"'; then
+        log_warning "Failed to extract plugin info from marketplace.json"
+        return 1
+    fi
+    
+    # Create or update installed_plugins.json
+    if [[ -f "$plugins_file" ]]; then
+        # Merge with existing plugins
+        python3 -c "
+import json
+import sys
+
+plugin_info = json.loads('$plugin_info')
+
+try:
+    with open('$plugins_file') as f:
+        plugins = json.load(f)
+    
+    # Ensure plugins is a dict with 'plugins' array
+    if not isinstance(plugins, dict):
+        plugins = {'plugins': []}
+    if 'plugins' not in plugins:
+        plugins['plugins'] = []
+    if not isinstance(plugins['plugins'], list):
+        plugins['plugins'] = []
+    
+    # Remove existing autonomous-dev entry if present
+    plugins['plugins'] = [p for p in plugins['plugins'] if p.get('name') != 'autonomous-dev']
+    
+    # Add our plugin
+    plugins['plugins'].append(plugin_info)
+    
+    with open('$plugins_file', 'w') as f:
+        json.dump(plugins, f, indent=2)
+    
+    print('success')
+except Exception as e:
+    print(f'error: {e}', file=sys.stderr)
+    sys.exit(1)
+" || {
+            log_warning "Failed to update installed_plugins.json"
+            return 1
+        }
+    else
+        # Create new file
+        echo "{\"plugins\": [$plugin_info]}" | python3 -m json.tool > "$plugins_file" || {
+            log_warning "Failed to create installed_plugins.json"
+            return 1
+        }
+    fi
+    
+    # Add marketplace entry if missing
+    if [[ ! -f "$marketplaces_file" ]]; then
+        # Create marketplaces.json with default entry
+        cat > "$marketplaces_file" <<'INNER_EOF'
+{
+  "marketplaces": [
+    {
+      "name": "akaszubski",
+      "url": "https://github.com/akaszubski",
+      "description": "Autonomous Development Plugin Marketplace"
+    }
+  ]
+}
+INNER_EOF
+        log_success "Created marketplaces.json"
+    fi
+    
+    log_success "Plugin registered successfully"
+    return 0
+}
+
 # Configure global settings.json with correct permission patterns
 configure_global_settings() {
     log_step "Configuring global settings..."
@@ -2415,6 +2542,14 @@ main() {
         log_info "Skipped global settings.json hook registration (use --global-settings to opt in, Issue #995)"
     fi
 
+    # Register plugin in installed_plugins.json (Issue #945)
+    local plugin_registered=false
+    if register_plugin; then
+        plugin_registered=true
+    else
+        log_warning "Plugin registration failed - slash commands may not work"
+    fi
+
     # Migrate hooks from array to object format (Issue #156)
     # Gated by --global-settings (Issue #995): when global hooks registration is
     # opt-out, the hooks block in ~/.claude/settings.json should not exist —
@@ -2518,7 +2653,7 @@ main() {
         echo "║     agents, skills without restart)                          ║"
         echo "║     Note: /reload-plugins does NOT reload hooks/settings     ║"
         echo "║                                                              ║"
-        echo "║  2. All 7 commands and 22 agents are now available!          ║"
+        echo "║  2. Plugin registered successfully - commands ready!          ║"
         echo "║                                                              ║"
         echo "║  Commands available after restart:                           ║"
         echo "║    /setup           - Interactive project setup              ║"
@@ -2533,6 +2668,14 @@ main() {
         echo "║  3. Run /setup in your project to begin                      ║"
         echo "║                                                              ║"
         echo "╚══════════════════════════════════════════════════════════════╝"
+        if [[ "$plugin_registered" != "true" ]]; then
+            echo "║                                                              ║"
+            echo "║  ⚠ MANUAL PLUGIN REGISTRATION REQUIRED:                     ║"
+            echo "║    After restart, run these commands:                        ║"
+            echo "║    /plugin marketplace add akaszubski/autonomous-dev         ║"
+            echo "║    /plugin install autonomous-dev                            ║"
+            echo "║                                                              ║"
+        fi
     elif $bootstrap_success; then
         echo "╔══════════════════════════════════════════════════════════════╗"
         echo "║                  PARTIAL INSTALLATION                        ║"
