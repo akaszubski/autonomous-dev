@@ -353,6 +353,37 @@ def _format_block(command: str, reason: str, user_input: str) -> str:
 
 
 # ============================================================================
+# Wrapped Command Extraction
+# ============================================================================
+
+def _extract_wrapped_command(text: str) -> Optional[tuple[str, str]]:
+    """Extract command from XML-wrapped form.
+    
+    Handles Claude Code's XML-wrapped slash-command form:
+    <command-name>/implement</command-name><command-args>--skip-review</command-args>
+    
+    Args:
+        text: Text that may contain XML-wrapped command.
+        
+    Returns:
+        (command_name, args_str) if BOTH tags are present, None otherwise.
+        Per Issue #924: Returns None when <command-args> is absent (not empty string).
+    """
+    import re
+    
+    name_match = re.search(r"<command-name>/?([\w-]+)</command-name>", text)
+    if not name_match:
+        return None
+    
+    # Issue #924 fix: require BOTH tags present
+    args_match = re.search(r"<command-args>(.*?)</command-args>", text, re.DOTALL)
+    if not args_match:
+        return None
+    
+    return name_match.group(1), args_match.group(1)
+
+
+# ============================================================================
 # Activity Logging
 # ============================================================================
 
