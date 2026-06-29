@@ -176,8 +176,16 @@ When you run `/implement "Add analytics dashboard"`:
 ### One-Line Install
 
 ```bash
+# Per-repo install (default, recommended)
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
+
+# Global install (all repos)  
+bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh) --scope=user
 ```
+
+**Installation Scopes:**
+- **Per-repo** (default): Installs to `./.claude/` in current directory. Safer — failures don't affect other repos.
+- **Global** (`--scope=user`): Installs to `~/.claude/` for all repos. Convenient but riskier.
 
 Then **fully quit Claude Code** (Cmd+Q on Mac, Ctrl+Q on Windows/Linux) and reopen it.
 

@@ -69,6 +69,7 @@ GLOBAL_SETTINGS=false  # Issue #995: opt-in to ~/.claude/settings.json hook regi
 UNINSTALL=false        # Issue #951: --uninstall shell-only uninstall
 DRY_RUN=false          # Issue #951: --dry-run for --uninstall
 UNINSTALL_REPOS=""     # Issue #951: --repos <space-or-comma-separated list>
+USER_SCOPE=false       # Issue #952: --scope=user for global install (opt-in)
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -107,6 +108,10 @@ while [[ $# -gt 0 ]]; do
         --repos)
             UNINSTALL_REPOS="$2"
             shift 2
+            ;;
+        --scope=user|--scope=global)
+            USER_SCOPE=true
+            shift
             ;;
         --help|-h)
             echo "autonomous-dev Plugin Installer"
@@ -159,6 +164,8 @@ while [[ $# -gt 0 ]]; do
             echo "                                      autonomous-dev hook entries in each repo's"
             echo "                                      .claude/settings.json are stripped (with"
             echo "                                      backup); user-added entries are preserved."
+            echo "  --scope=user                        Install globally to ~/.claude/ (opt-in)."
+            echo "                                      Default: per-repo install to ./.claude/."
             echo "  --help, -h                          Show this help message"
             echo ""
             echo "After running this script:"
@@ -180,6 +187,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+
+# Issue #952: Determine installation directory based on scope
+if [[ "$USER_SCOPE" == "true" ]]; then
+    INSTALL_DIR="${HOME}/.claude"
+    INSTALL_SCOPE="global"
+else
+    INSTALL_DIR="$(pwd)/.claude"
+    INSTALL_SCOPE="per-repo"
+fi
+export INSTALL_DIR INSTALL_SCOPE
 # Logging functions
 log_info() {
     echo -e "${BLUE}ℹ${NC} $1"
@@ -1277,13 +1294,15 @@ for file_path in component.get('files', []):
 
 # Install hook files to ~/.claude/hooks/
 install_hook_files() {
-    log_step "Installing hook files to ~/.claude/hooks/..."
+    log_step "Installing hook files to ${INSTALL_DIR}/hooks/..."
 
     # Clean orphan hooks first (TRUE SYNC - remove files not in manifest)
-    clean_orphan_files "${HOME}/.claude/hooks" "hooks" ".py"
+    : "${INSTALL_DIR:=${HOME}/.claude}"
+    clean_orphan_files "${INSTALL_DIR}/hooks" "hooks" ".py"
 
     local hook_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/hooks"
-    local hook_target_dir="${HOME}/.claude/hooks"
+    : "${INSTALL_DIR:=${HOME}/.claude}"
+    local hook_target_dir="${INSTALL_DIR}/hooks"
     local installed=0
     local failed=0
 
@@ -1361,10 +1380,11 @@ install_hook_files() {
 # Install core commands globally to ~/.claude/commands/ (sync.md, setup.md)
 # These commands must be available in ALL repos for bootstrapping
 install_global_commands() {
-    log_step "Installing core commands to ~/.claude/commands/..."
+    log_step "Installing core commands to ${INSTALL_DIR}/commands/..."
 
     local command_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/commands"
-    local command_target_dir="${HOME}/.claude/commands"
+    : "${INSTALL_DIR:=${HOME}/.claude}"
+    local command_target_dir="${INSTALL_DIR}/commands"
     local installed=0
     local failed=0
 
@@ -1425,13 +1445,15 @@ install_global_commands() {
 
 # Install lib files to ~/.claude/lib/
 install_lib_files() {
-    log_step "Installing lib files to ~/.claude/lib/..."
+    log_step "Installing lib files to ${INSTALL_DIR}/lib/..."
 
     # Clean orphan libs first (TRUE SYNC - remove files not in manifest)
-    clean_orphan_files "${HOME}/.claude/lib" "lib" ".py"
+    : "${INSTALL_DIR:=${HOME}/.claude}"
+    clean_orphan_files "${INSTALL_DIR}/lib" "lib" ".py"
 
     local lib_source_dir="${STAGING_DIR}/files/plugins/autonomous-dev/lib"
-    local lib_target_dir="${HOME}/.claude/lib"
+    : "${INSTALL_DIR:=${HOME}/.claude}"
+    local lib_target_dir="${INSTALL_DIR}/lib"
     local installed=0
     local failed=0
 
@@ -2166,6 +2188,35 @@ main() {
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
 
+
+    # Issue #952: Check for existing global install and offer migration
+    if [[ "$USER_SCOPE" == "false" ]] && [[ -f "${HOME}/.claude/hooks/unified_pre_tool.py" ]]; then
+        echo ""
+        echo "================================================================"
+        echo "  MIGRATION NOTICE"
+        echo "================================================================"
+        echo ""
+        echo "Detected existing global installation in ~/.claude/"
+        echo ""
+        echo "autonomous-dev now installs per-repo by default (./.claude/)."
+        echo "This is safer: failures in one repo do not cascade to others."
+        echo ""
+        echo "Options:"
+        echo "  1. Continue per-repo install (RECOMMENDED) - global remains for other repos"
+        echo "  2. Keep using global: re-run with 'bash install.sh --scope=user'"
+        echo "  3. Remove global first: 'bash install.sh --uninstall --scope=user'"
+        echo ""
+        if [[ -t 0 ]]; then
+            read -r -p "Continue with per-repo install? [Y/n] " REPLY
+            if [[ -n "$REPLY" && ! "$REPLY" =~ ^[Yy]$ ]]; then
+                echo "Installation cancelled. Re-run with --scope=user for global install."
+                exit 0
+            fi
+        else
+            echo "Non-interactive shell: proceeding with per-repo install."
+        fi
+        echo ""
+    fi
     # Issue #948: Standalone MCP migration mode — short-circuit the normal
     # install flow. This is intentionally NOT mixed with regular installs:
     # users invoke `install.sh --migrate-mcp-to-repo <path> --server <name>`
