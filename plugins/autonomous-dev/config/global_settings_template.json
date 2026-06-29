@@ -190,7 +190,6 @@
       "ToolSearch",
       "TaskStop",
       "mcp__*",
-      "Bash(mkdir*)",
       "Write(.claude/plans/**)",
       "Edit(.claude/plans/**)",
       "Write(.claude/decisions/**)",
