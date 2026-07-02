@@ -1468,11 +1468,26 @@ If conditions are NOT met, skip this step silently and proceed to STEP 10.
 
 **FORBIDDEN**: Blocking the pipeline based on mobile-tester output. The mobile-tester verdict is informational only.
 
-### STEP 10: Validation — Reviewer, Security, and Docs (3 agents)
+### STEP 10: Validation — Reviewer, Security, and Docs (3 agents) — HARD GATE
 
 **Progress**: Output step banner (STEP 10/15 — Validation). Output each agent completion as they return.
 
+### HARD GATE: Parallel Agent Dispatch Requirement (Issues #459, #1148, #1345)
+
+In parallel mode, all three validation agents (reviewer, security-auditor, doc-master) MUST be launched in a SINGLE message turn. This is a blocking requirement, not a suggestion.
+
+**REQUIRED**: The coordinator MUST emit all three Agent tool calls in a single content block of a single assistant message — one `<function_calls>` block containing three sibling Agent invocations.
+
+**FORBIDDEN**:
+- Launching reviewer, then awaiting its response before launching security-auditor
+- Launching security-auditor, then awaiting its response before launching doc-master
+- Three separate tool calls in three separate assistant messages
+- Any sequential emission pattern that defeats the purpose of parallel mode
+
+Sequential emission is a NOVEL BYPASS that violates the parallel execution contract. The routing decision (parallel vs sequential) is meaningless if the dispatch itself is sequential.
+
 **Validation mode routing**: Before launching any validator, check if any changed files match security-sensitive patterns:
+
 - Security-sensitive patterns: `hooks/*.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `*.env*`, `*secret*`, `config/auto_approve_policy.json`, `templates/settings.*.json`, `*trading*`, `*payment*`, `*billing*`, `*financial*`, `*transaction*`, `*wallet*`, `*crypto*`, `*permission*`, `*session*`, `*credential*`, `*password*`, `*oauth*`, `*sso*`, `*jwt*`, `*rbac*`, `migrations/`, `*migrate*`, `alembic/`
 
 Output the selected mode before proceeding:
