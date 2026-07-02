@@ -114,30 +114,36 @@ def main():
             if not message:
                 sys.exit(0)
             if log_level == "debug":
+                session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+                if session_id == "unknown":
+                    sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
                 entry = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "hook": "Stop",
                     "message": message[:10000],
                     "message_length": len(message),
-                    "session_id": os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown")),
+                    "session_id": session_id,
                     "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
                     "stop_hook_active": hook_input.get("stop_hook_active", False),
                     "debug": True,
                 }
             else:
+                session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+                if session_id == "unknown":
+                    sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
                 entry = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "hook": "Stop",
                     "message_preview": message[:1000],
                     "message_length": len(message),
-                    "session_id": os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown")),
+                    "session_id": session_id,
                     "agent": os.environ.get("CLAUDE_AGENT_NAME", "main"),
                     "stop_hook_active": hook_input.get("stop_hook_active", False),
                 }
 
             log_dir = _find_log_dir()
             log_dir.mkdir(parents=True, exist_ok=True)
-            session_id = os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown"))
+            session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
             date_str = _get_session_date(session_id)
             log_file = log_dir / f"{date_str}.jsonl"
             with open(log_file, "a") as f:
@@ -150,7 +156,9 @@ def main():
             if not user_prompt:
                 sys.exit(0)
 
-            session_id = os.environ.get("CLAUDE_SESSION_ID", hook_input.get("session_id", "unknown"))
+            session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+            if session_id == "unknown":
+                sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
             entry = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "hook": "UserPromptSubmit",
@@ -204,7 +212,9 @@ def main():
         tool_output = hook_input.get("tool_output", {})
 
         # Session ID: prefer env var, fall back to hook stdin JSON
-        session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id", "unknown")
+        session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+        if session_id == "unknown":
+            sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
 
         if log_level == "debug":
             # Debug mode: log full raw stdin (tool_input + tool_output)
