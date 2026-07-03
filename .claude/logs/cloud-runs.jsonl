@@ -181,3 +181,4 @@
 {"fire_id": "20260703T080746Z", "fired_at": "2026-07-03T08:08:25Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260703T080746Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260703T100727Z", "fired_at": "2026-07-03T10:08:30Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "github rest returned 403 (session lacks github app auth)"}
+{"fire_id": "20260703T100727Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github rest returned 403 (session lacks github app auth)"}
