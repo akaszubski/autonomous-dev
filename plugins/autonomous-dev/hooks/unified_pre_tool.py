@@ -6013,6 +6013,36 @@ def main():
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input", {})
 
+
+        # =================================================================
+        # ISSUE #1357: Warn when main invokes general-purpose outside pipeline
+        # =================================================================
+        if tool_name in AGENT_TOOL_NAMES:
+            subagent_type = tool_input.get("subagent_type", "")
+            if subagent_type == "general-purpose":
+                agent_name = _get_active_agent_name()
+                # Treat empty string or None as "main" for this check
+                if not agent_name or agent_name == "main":
+                    if not _is_pipeline_active():
+                        # Emit warning to stderr
+                        sys.stderr.write("[WARN] general-purpose launched outside pipeline; use /implement to route through researcher-local → researcher.\n")
+                        
+                        # Log to activity log
+                        try:
+                            from activity_log import log_activity
+                            log_activity(
+                                tool_name=tool_name,
+                                event="general_purpose_outside_pipeline",
+                                details={
+                                    "level": "warn",
+                                    "hook": "unified_pre_tool",
+                                    "subagent": "general-purpose",
+                                    "agent": "main",
+                                    "session_id": _session_id
+                                }
+                            )
+                        except ImportError:
+                            pass  # Activity logging is optional
         # =================================================================
         # PHASE 1 SEMANTIC GATE (shadow, Issue #960).
         # Phase 1 semantic gate runs BEFORE the universal bypass so shadow
