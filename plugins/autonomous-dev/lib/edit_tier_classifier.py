@@ -9,7 +9,7 @@ Classifies a Write/Edit operation into one of three tiers:
 The tier determines which /implement variant the gate directs the model
 toward — `/implement --fix`, `/implement --light`, or `/implement` (full).
 
-Pure module: only stdlib `ast` and `re`. No fs / network / subprocess.
+Pure module: only stdlib `ast`, `re`, and `os`. No fs / network / subprocess.
 
 Design Decisions:
 - Python files: AST-based diff. We parse old and new and compare the sets of
@@ -29,6 +29,7 @@ Issue: #1142 (Phase 1 — default-on tier-aware Write Gate, Polarity Flip).
 from __future__ import annotations
 
 import ast
+import os
 import re
 from pathlib import Path
 from typing import Tuple
@@ -537,6 +538,31 @@ def _resolve_chained_assignments(command: str) -> str:
     return "".join(out_chars)
 
 
+
+def _is_temp_path(path: str) -> bool:
+    """Check if a path is in a temporary directory (Issue #1355).
+    
+    Returns True if the path starts with /tmp/, /var/tmp/, or $TMPDIR.
+    """
+    if not path:
+        return False
+    # Strip quotes if present
+    p = path.strip().strip('\'"')
+    if not p:
+        return False
+    
+    # Check for absolute temp paths
+    if p.startswith('/tmp/') or p.startswith('/var/tmp/'):
+        return True
+    
+    # Check for TMPDIR environment variable
+    tmpdir = os.environ.get('TMPDIR', '/tmp')
+    if tmpdir and p.startswith(tmpdir + '/'):
+        return True
+    
+    return False
+
+
 def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     """Return (target_path, pattern_name) if the bash command writes a code file.
 
@@ -545,7 +571,8 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     base64-decoded heredocs.
 
     Returns ("", "") when no match or when the command is excluded patch
-    tooling (`git apply`, `patch < diff`).
+    tooling (`git apply`, `patch < diff`), or when targeting /tmp or similar
+    temporary directories (Issue #1355).
 
     Pure function: only regex, no fs/subprocess.
     """
@@ -577,6 +604,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     m = re.search(r"\btee\s+(?:-a\s+)?([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "tee")
 
@@ -588,6 +618,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     )
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "sed -i")
 
@@ -596,6 +629,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     m = re.search(r"\bcat\s+(?:--\s+)?[>]{1,2}\s*([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "cat redirect")
 
@@ -617,6 +653,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     )
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "heredoc redirect")
 
@@ -639,6 +678,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
         )
         if open_match:
             target = open_match.group(1)
+            # Issue #1355: Skip temp paths
+            if _is_temp_path(target):
+                return ("", "")
             if _path_is_code_file(target):
                 return (target, "python -c open()")
         # Path('X.py').write_text(...) / Path("X.py").write_bytes(...)
@@ -648,6 +690,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
         )
         if path_match:
             target = path_match.group(1)
+            # Issue #1355: Skip temp paths
+            if _is_temp_path(target):
+                return ("", "")
             if _path_is_code_file(target):
                 return (target, "python -c Path.write_*")
 
@@ -659,6 +704,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     )
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "base64 decode redirect")
 
@@ -666,6 +714,9 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
     m = re.search(r"\bawk\s+[\'\"][^\'\"]+[\'\"][^|;]*[>]{1,2}\s*([^\s;&|<>]+)", stripped)
     if m:
         target = m.group(1)
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            return ("", "")
         if _path_is_code_file(target):
             return (target, "awk redirect")
 
@@ -676,10 +727,14 @@ def detect_bash_code_file_write(command: str) -> Tuple[str, str]:
         target = m.group(1)
         if target in {"/dev/null", "/dev/stderr", "/dev/stdout", "&1", "&2"}:
             continue
+        # Issue #1355: Skip temp paths
+        if _is_temp_path(target):
+            continue
         if _path_is_code_file(target):
             return (target, "redirect")
 
     return ("", "")
+
 
 
 # Heredoc opener — captures the delimiter word so we can pair it with the
