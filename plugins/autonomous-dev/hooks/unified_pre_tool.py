@@ -1108,11 +1108,15 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
 
         # Detect reinvocation context for relaxed thresholds (Issue #789, #791)
         invocation_ctx = _detect_invocation_context(prompt)
+        # Issue #1358: Get pipeline mode to pass to prompt integrity functions
+        pipeline_mode = _get_pipeline_mode_from_state()
+
 
         if baseline_word_count is not None:
             result = validate_prompt_word_count(
                 agent_type, prompt, baseline_word_count,
                 max_shrinkage=0.20, invocation_context=invocation_ctx,
+                pipeline_mode=pipeline_mode,  # Issue #1358
             )
             if not result.passed:
                 issue_ctx = f" (issue #{current_issue_str})" if current_issue_str else ""
@@ -1137,7 +1141,10 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
             #
             # Issue #764: Use current issue number instead of hardcoded 0.
             seed_issue = int(current_issue_str) if current_issue_str else 0
-            record_prompt_baseline(agent_type, issue_number=seed_issue, word_count=word_count)
+            record_prompt_baseline(
+                agent_type, issue_number=seed_issue, word_count=word_count,
+                pipeline_mode=pipeline_mode,  # Issue #1358
+            )
             import logging
             _pi_logger = logging.getLogger("unified_pre_tool.prompt_integrity")
             _pi_logger.debug(
