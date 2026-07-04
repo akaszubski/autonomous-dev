@@ -93,7 +93,9 @@ MAX_CUMULATIVE_SHRINKAGE = 0.30  # 30% total drift threshold (Issue #870, calibr
 #
 # "fix" (Issue #1358) is a PRIMARY-invocation case for --fix mode: the prompt
 # lacks the full research payload and uses a 3.0x multiplier (60% threshold).
-REINVOCATION_CONTEXTS = {"remediation", "re-review", "doc-update-retry", "research-skip", "fix"}
+# "light" (Issue #1359) is a PRIMARY-invocation case for --light mode: the prompt
+# lacks the full research payload and uses a 2.5x multiplier (37.5% threshold).
+REINVOCATION_CONTEXTS = {"remediation", "re-review", "doc-update-retry", "research-skip", "fix", "light"}
 
 
 # Default baseline persistence location (relative to project root).
@@ -191,6 +193,8 @@ def validate_prompt_word_count(
         if invocation_context and invocation_context in REINVOCATION_CONTEXTS:
             if invocation_context == "fix":
                 effective_max_shrinkage = max_shrinkage * 3.0  # Issue #1358
+            elif invocation_context == "light":
+                effective_max_shrinkage = max_shrinkage * 2.5  # Issue #1359
             else:
                 effective_max_shrinkage = max_shrinkage * 2.0
             logger.debug(
