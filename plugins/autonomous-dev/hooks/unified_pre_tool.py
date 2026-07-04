@@ -2194,6 +2194,8 @@ def _check_write_pipeline_required(
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     try:
         if skip_file.exists():
+            # Log the sentinel consumption (Issue #1356)
+            _log_write_gate_bypass_consumed(file_path, skip_file)
             try:
                 skip_file.unlink()
             except OSError:
@@ -2345,6 +2347,8 @@ def _check_bash_code_file_pipeline_required(
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     try:
         if skip_file.exists():
+            # Log the sentinel consumption (Issue #1356)
+            _log_write_gate_bypass_consumed("", skip_file)  # No specific file path in Bash context
             try:
                 skip_file.unlink()
             except OSError:
@@ -4547,6 +4551,52 @@ def combine_decisions(validators_results: List[Tuple[str, str, str]]) -> Tuple[s
         return ("ask", "; ".join(ask_reasons))
     else:
         return ("ask", "; ".join(reasons))
+
+
+def _log_write_gate_bypass_consumed(file_path: str, skip_file: Path) -> None:
+    """Log consumption of write-gate operator bypass sentinel (Issue #1356).
+    
+    Args:
+        file_path: The target file being written/edited (empty string for Bash context).
+        skip_file: Path to the sentinel file.
+    """
+    try:
+        import json as _json
+        import time
+        from datetime import datetime as _dt, timezone as _tz
+        
+        # Get the agent identity
+        agent_name = _get_active_agent_name()
+        if not agent_name:
+            agent_name = "main"  # Default to main if no agent context
+        
+        # Calculate sentinel age
+        sentinel_age_seconds = -1.0
+        try:
+            sentinel_mtime = skip_file.stat().st_mtime
+            sentinel_age_seconds = time.time() - sentinel_mtime
+        except Exception:
+            pass
+        
+        # Prepare log entry
+        log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        date_str = _dt.now().strftime("%Y-%m-%d")
+        
+        entry = {
+            "timestamp": _dt.now(_tz.utc).isoformat(),
+            "event": "write_gate_operator_bypass_consumed",
+            "agent": agent_name,
+            "file_path": file_path or "(bash context)",
+            "sentinel_age_seconds": round(sentinel_age_seconds, 2) if sentinel_age_seconds >= 0 else -1,
+            "session_id": _resolve_session_id_safe(_session_id) or "unknown",
+        }
+        
+        # Write to activity log
+        with open(log_dir / f"{date_str}.jsonl", "a") as f:
+            f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
+    except Exception:
+        pass  # Fail silently to not disrupt the bypass flow
 
 
 def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:

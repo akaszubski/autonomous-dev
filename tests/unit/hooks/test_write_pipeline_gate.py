@@ -310,3 +310,62 @@ class TestNoPath:
         )
         assert block is False
         assert tier == "no_path"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1356 — Logging bypass consumption
+# ---------------------------------------------------------------------------
+
+
+class TestBypassLogging:
+    """When operator bypass sentinel is consumed, activity is logged (Issue #1356)."""
+
+    def test_bypass_consumption_logged_to_activity(self, monkeypatch, tmp_path):
+        """When sentinel is consumed, an entry is written to activity log with agent identity."""
+        import json
+        from datetime import datetime
+        
+        # Set up a temporary working directory with logs
+        log_dir = tmp_path / ".claude" / "logs" / "activity"
+        log_dir.mkdir(parents=True)
+        log_file = log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.jsonl"
+        
+        # Monkeypatch getcwd to return our temp dir
+        monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
+        
+        # Set up agent identity
+        monkeypatch.setattr(hook, "_agent_type", "reviewer")
+        
+        # Create the sentinel file
+        skip_file = Path("/tmp/skip_write_pipeline_gate")
+        skip_file.touch()
+        
+        # Make the call that should consume the sentinel and log
+        big_new = "\n".join(f"def func_{i}(): pass" for i in range(20))
+        block, tier, _ = hook._check_write_pipeline_required(
+            "Edit", "/home/user/app/service.py", "", big_new
+        )
+        
+        # Verify the bypass was consumed
+        assert block is False
+        assert tier == "operator_bypass"
+        
+        # Check that the log entry was written
+        assert log_file.exists(), "Activity log file should be created"
+        
+        # Read and verify the log entry
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+        
+        assert len(lines) >= 1, "At least one log entry should be written"
+        
+        # Parse the last entry (our test entry)
+        entry = json.loads(lines[-1])
+        
+        # Verify the log entry fields
+        assert entry["event"] == "write_gate_operator_bypass_consumed"
+        assert entry["agent"] == "reviewer"
+        assert entry["file_path"] == "/home/user/app/service.py"
+        assert "sentinel_age_seconds" in entry
+        assert "timestamp" in entry
+        assert "session_id" in entry
