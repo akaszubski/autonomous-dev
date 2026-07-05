@@ -73,3 +73,17 @@ is `now` (used for recency decay).
 Weekly, or after a CIA-heavy session that filed many `auto-improvement` issues. The
 output is a work queue, not a destructive action. Pair with `gh issue list --label
 auto-improvement` to spot-check.
+
+
+## Filing aggregates
+
+The daily aggregate lifecycle helper `plugins/autonomous-dev/lib/daily_aggregate_manager.py::open_or_supersede_daily_aggregate` is the only sanctioned path for creating aggregate issues with guarded titles.
+
+Direct `gh issue create` commands with titles starting with "Auto-triage findings —" or "[CRITICAL] AI triage —" are HARD-BLOCKED by `unified_pre_tool.py::_detect_daily_aggregate_direct_filing`.
+
+Living-aggregate semantics:
+- Idempotent within same UTC day: repeated calls edit the existing aggregate
+- Supersedes prior day aggregates: closes old aggregate with "Superseded by #NEW" comment
+- Only the triage-aggregate marker command can bypass the title guard
+
+This ensures aggregate issues follow consistent lifecycle patterns and prevent duplicate filing.

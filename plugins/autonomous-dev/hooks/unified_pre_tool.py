@@ -628,7 +628,7 @@ GH_ISSUE_COMMAND_CONTEXT_PATH = os.getenv(
 # Issue #1203: 'plan' added — plan.md STEP 6 files issues by design per its own
 # HARD GATE (>=2 independent work items). Whitelisting here is the minimal fix
 # vs rerouting plan.md to use a different mechanism.
-GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'retrospective', 'plan'}
+GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'retrospective', 'plan', 'triage-aggregate'}
 
 # Environment variables protected from inline spoofing in Bash commands (Issue #557)
 # Non-prefix vars that don't start with CLAUDE_ are listed individually
@@ -3650,6 +3650,91 @@ def _detect_architectural_decision_without_plan_critic(
         "REQUIRED NEXT ACTION: Invoke /plan with the architectural-decision description, complete the 3+ round plan-critic loop, then proceed to file the issue / write the ADR.\n"
         "Bypass (emergency): touch /tmp/skip_plan_critic_gate (one-shot, logged to activity log)."
     )
+
+
+
+
+def _get_active_issue_command() -> "Optional[str]":
+    """Get the currently active issue command from context file.
+    
+    Returns:
+        The command string if valid and recent, else None.
+    """
+    try:
+        import json as _json
+        from pathlib import Path
+        
+        context_path = Path(GH_ISSUE_COMMAND_CONTEXT_PATH)
+        if not context_path.exists():
+            return None
+        
+        with open(context_path) as f:
+            data = _json.load(f)
+        
+        command = data.get("command")
+        if command not in GH_ISSUE_COMMANDS:
+            return None
+        
+        # Use file modification time for age check (same as _is_issue_command_active)
+        import time as _time
+        age = _time.time() - context_path.stat().st_mtime
+        if age > 3600:
+            return None
+        
+        return command
+    except Exception:
+        return None
+
+
+def _detect_daily_aggregate_direct_filing(command_str: str) -> "Optional[str]":
+    """Detect direct `gh issue create --title "<prefix> ..."` for guarded prefixes.
+
+    Returns block reason if a guarded title is being filed without marker,
+    else None. Called AFTER _is_issue_command_active() returns False so
+    /improve, /plan marker paths retain precedence.
+
+    Two-scan title extraction:
+      Scan 1 CLI-arg form: --title <val> or --title="val" or --title='val'
+      Scan 2 list-literal: '--title', 'val' (subprocess list form)
+
+    Guarded prefixes (exact startswith with em-dash):
+      - "Auto-triage findings —"
+      - "[CRITICAL] AI triage —"
+
+    Only allow when active marker command == 'triage-aggregate'.
+    """
+    import re
+    
+    GUARDED = ("Auto-triage findings —", "[CRITICAL] AI triage —")
+    titles = []
+    
+    # Scan 1: CLI form - handles regular quotes
+    # Match: --title "value" or --title='value' or --title="value"
+    for m in re.finditer(r"--title\s*[=\s]\s*(['\"])([^'\"]*?)\1", command_str):
+        titles.append(m.group(2))
+    
+    # Scan 2: Escaped quotes form (e.g., within os.system)  
+    # Match: --title \"value\"
+    for m in re.finditer(r'--title\s+\\"([^"]*?)\\"', command_str):
+        titles.append(m.group(1))
+    
+    # Scan 3: list-literal form
+    # Match: '--title', 'value'
+    for m in re.finditer(r"['\"]\s*--title\s*['\"]\s*,\s*['\"](.*?)['\"]", command_str):
+        titles.append(m.group(1))
+    
+    for title in titles:
+        for prefix in GUARDED:
+            if title.startswith(prefix):
+                # Check if triage-aggregate marker is the active one
+                active = _get_active_issue_command()
+                if active != 'triage-aggregate':
+                    return (
+                        f"Direct filing of guarded title '{title[:60]}...' blocked. "
+                        f"Use plugins/autonomous-dev/lib/daily_aggregate_manager.py::"
+                        f"open_or_supersede_daily_aggregate() instead."
+                    )
+    return None
 
 
 def _detect_gh_issue_create(command: str) -> "Optional[str]":
@@ -6863,6 +6948,17 @@ def main():
                                 system_message="BLOCKED: Use /create-issue or /create-issue --quick.",
                             )
                             sys.exit(0)
+
+                    # Issue #1369: Block direct filing of guarded aggregate titles
+                    aggregate_block = _detect_daily_aggregate_direct_filing(command)
+                    if aggregate_block:
+                        _log_deviation("daily_aggregate_direct", tool_name, "daily_aggregate_blocked")
+                        _log_pretool_activity(tool_name, tool_input, "deny", aggregate_block)
+                        output_decision(
+                            "deny", aggregate_block,
+                            system_message="BLOCKED: Use daily_aggregate_manager for aggregate issues.",
+                        )
+                        sys.exit(0)
 
                     # Issue #1330: Block architectural decision creation without plan-critic
                     arch_block = _detect_architectural_decision_without_plan_critic("Bash", tool_input)
