@@ -5825,15 +5825,26 @@ def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple
     """
     import time as _time
 
-    # Issue #938: Scope/escape guard. Precedence: escape > scope > default.
+    # Issue #1361: Polarity flipped from #938. Only two bypasses remain here:
+    #   1. AUTONOMOUS_DEV_SKIP_PLAN_REVIEW env var (plan-review escape hatch)
+    #   2. .claude/SKIP_PLAN_REVIEW sentinel file (plan-review escape hatch)
+    # The scope check (AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT or _is_adev_project())
+    # is deleted — enforcement is now default-ON in every repo.
+    # Universal bypass (Issue #969, .claude/.bypass / AUTONOMOUS_DEV_BYPASS)
+    # short-circuits BEFORE this function via hook_bypass.is_bypassed() in the
+    # hook preamble.
     if (os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "").strip().lower()
             in ("1", "true", "yes", "on")):
         return None
     if (Path(os.getcwd()) / ".claude" / "SKIP_PLAN_REVIEW").exists():
         return None
-    if not (os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "").strip().lower()
-            in ("1", "true", "yes", "on") or _is_adev_project()):
-        return None
+
+    # Emit deprecation notice when GLOBAL_ENFORCEMENT is observed (Issue #1361).
+    try:
+        from hook_bypass import warn_global_enforcement_deprecated_once
+        warn_global_enforcement_deprecated_once()
+    except ImportError:
+        pass
 
     marker = _read_plan_exit_marker()
     if marker is None:
@@ -5943,15 +5954,22 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
     """
     import time as _time
 
-    # Issue #938: Scope/escape guard. Precedence: escape > scope > default.
+    # Issue #1361: Polarity flipped from #938. Only the two plan-review escape
+    # hatches short-circuit here now — the AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT
+    # /_is_adev_project() scope check is deleted (default-ON enforcement).
+    # Universal bypass is handled by hook_bypass.is_bypassed() in the preamble.
     if (os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "").strip().lower()
             in ("1", "true", "yes", "on")):
         return None
     if (Path(os.getcwd()) / ".claude" / "SKIP_PLAN_REVIEW").exists():
         return None
-    if not (os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "").strip().lower()
-            in ("1", "true", "yes", "on") or _is_adev_project()):
-        return None
+
+    # Emit deprecation notice when GLOBAL_ENFORCEMENT is observed (Issue #1361).
+    try:
+        from hook_bypass import warn_global_enforcement_deprecated_once
+        warn_global_enforcement_deprecated_once()
+    except ImportError:
+        pass
 
     marker = _read_plan_exit_marker()
     if marker is None:

@@ -265,13 +265,17 @@ Use `/plan` for changes touching >3 files, >100 lines, or with uncertain approac
 
 The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 6 axes, iterates planner until composite ≥3.0) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
 
-### Plan-exit enforcement is scoped to autonomous-dev projects (since #938)
+### Plan-exit enforcement is default-ON in every repo (since #1361, flipped from #938)
 
-When deployed user-globally, the plan-exit hooks (`plan_mode_exit_detector.py`,
-`unified_pre_tool.py`) fire only inside autonomous-dev projects (detected via
-`repo_detector.is_autonomous_dev_repo`). In foreign projects they silently no-op.
+Issue #1361 completed the polarity flip started in the general SDLC enforcement
+work (#1142+ Phase 1). The plan-exit hooks (`plan_mode_exit_detector.py`,
+`unified_pre_tool.py`) now fire in **every** repo by default, not just inside
+autonomous-dev. In prior versions (2026-04-25 through 2026-07-04), foreign
+projects silently no-op'd — a session could call ExitPlanMode without running
+plan-critic and nothing objected.
 
-Three escape hatches exist (any one bypasses):
+Three plan-review-specific escape hatches exist (any one bypasses this gate
+only, leaving all other hooks in effect):
 
 - **`/implement --skip-review`** — one-shot, plan-only. Best for ad-hoc cases.
 - **`export AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1`** — persistent across sessions and
@@ -281,8 +285,13 @@ Three escape hatches exist (any one bypasses):
   lost on `git clean -fdx` or fresh clone. Use the env var for cross-session
   persistence.
 
-To re-enable enforcement in foreign projects: `export AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1`.
-The escape hatches above still win over global enforcement.
+For a whole-hook stack opt-out (turns off plan-exit AND every other hook), use
+the universal Issue #969 bypass documented below (`.claude/.bypass` or
+`AUTONOMOUS_DEV_BYPASS=1`).
+
+`AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT` is **deprecated** (#1361) — enforcement is
+now the default. Setting the var emits a stderr deprecation notice; it is
+otherwise a no-op. Remove it to silence the notice.
 
 **Universal hook bypass** (Issue #969): if any hook is blocking and you cannot run
 a slash command to unstick it, set `AUTONOMOUS_DEV_BYPASS=1` or `touch .claude/.bypass`

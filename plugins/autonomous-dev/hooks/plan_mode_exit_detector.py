@@ -15,13 +15,19 @@ plan-exit pipeline: plan_exited → (plan-critic runs) → critique_done →
 /implement allowed. A systemMessage is output to instruct the model to
 invoke plan-critic before proceeding.
 
-Scope/escape gating (Issue #938):
-- When deployed user-globally (~/.claude/hooks), the hook is silent in foreign
-  projects (no marker, no message) unless AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1.
+Scope/escape gating (Issue #1361 — polarity flipped from Issue #938):
+- Enforcement is now default-ON in every repo (matches #1142+ Phase 1 for
+  general SDLC enforcement). Foreign projects are no longer silently skipped.
 - Three escape hatches bypass enforcement (in any project):
     AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=<truthy>   (env var, cross-session)
     .claude/SKIP_PLAN_REVIEW                   (sentinel file)
     /implement --skip-review                   (one-shot, plan-only)
+- Universal bypass (Issue #969) short-circuits every hook BEFORE this gate:
+    AUTONOMOUS_DEV_BYPASS=<truthy>             (env var)
+    .claude/.bypass                            (file flag, walks up chain)
+- ``AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT`` is deprecated — enforcement is now
+  the default. Setting the var emits a stderr deprecation notice but is
+  otherwise a no-op.
 
 Exit codes:
     0: Always (PostToolUse cannot block)
@@ -155,39 +161,46 @@ def main() -> int:
     if tool_name != "ExitPlanMode":
         return 0
 
-    # Issue #938: Scope/escape gates (precedence: escape > scope > default).
+    # Issue #1361: Polarity flipped from #938. Scope gate deleted — enforcement
+    # is now default-ON in every repo (matches Phase 1 for general SDLC
+    # enforcement). Only two mechanisms bypass now:
+    #   1. Universal bypass (Issue #969) — handled above via hook_bypass.
+    #   2. Plan-review escape hatch — AUTONOMOUS_DEV_SKIP_PLAN_REVIEW or the
+    #      .claude/SKIP_PLAN_REVIEW sentinel file.
+    # AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT is now a deprecated no-op; emit a
+    # stderr notice when set so users know to unset it.
     cwd = Path(os.getcwd())
     env_skip = _truthy(os.environ.get("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", ""))
     sentinel = (cwd / ".claude" / "SKIP_PLAN_REVIEW").exists()
-    global_enforce = _truthy(os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", ""))
-    is_adev = _is_adev_project()
-    in_scope = global_enforce or is_adev
 
-    # Gate 1: Escape hatch wins. Warning is only emitted for genuine
-    # autonomous-dev projects so foreign-project bypasses stay silent
-    # (even when GLOBAL_ENFORCEMENT is opted in).
+    # Deprecation notice for the retired GLOBAL_ENFORCEMENT env var.
+    try:
+        from hook_bypass import warn_global_enforcement_deprecated_once
+        warn_global_enforcement_deprecated_once()
+    except ImportError:
+        pass
+
+    # Gate 1: Escape hatch wins — plan-review specifically opted out.
+    # After the #1361 polarity flip the warning is emitted unconditionally
+    # (default-ON enforcement means every repo is "in scope"), so there is
+    # no reason to gate the warning on _is_adev_project() anymore.
     if env_skip or sentinel:
-        if is_adev:
-            warning = (
-                "PLAN-CRITIC BYPASS — Plan critique skipped via "
-                + ("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW env var" if env_skip
-                   else ".claude/SKIP_PLAN_REVIEW sentinel")
-                + ". Proceeding without critique. Unset to re-enable."
-            )
-            try:
-                print(json.dumps({
-                    "hookSpecificOutput": {"hookEventName": "PostToolUse"},
-                    "systemMessage": warning,
-                }))
-            except Exception:
-                pass
+        warning = (
+            "PLAN-CRITIC BYPASS — Plan critique skipped via "
+            + ("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW env var" if env_skip
+               else ".claude/SKIP_PLAN_REVIEW sentinel")
+            + ". Proceeding without critique. Unset to re-enable."
+        )
+        try:
+            print(json.dumps({
+                "hookSpecificOutput": {"hookEventName": "PostToolUse"},
+                "systemMessage": warning,
+            }))
+        except Exception:
+            pass
         return 0
 
-    # Gate 2: Out of scope — silent no-op.
-    if not in_scope:
-        return 0
-
-    # Gate 3: In scope, no escape — fall through to existing marker-write logic.
+    # Gate 2: Default-ON — fall through to existing marker-write logic.
 
     # Write marker file
     try:

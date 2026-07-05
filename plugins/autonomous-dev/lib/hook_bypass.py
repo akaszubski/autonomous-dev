@@ -311,9 +311,38 @@ def log_bypass_used(
 
 def check_and_log_window_close(start_dir: Path | None = None) -> None:
     """Check if bypass is inactive and emit close marker if needed.
-    
+
     Issue #1197: Called when bypass is NOT active to detect close transitions.
     This is needed because log_bypass_used is only called when bypass IS active.
     NEVER raises.
     """
     _emit_window_transition_marker(bypass_active=False, start_dir=start_dir)
+
+
+def warn_global_enforcement_deprecated_once() -> None:
+    """Print stderr deprecation notice when AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT is set.
+
+    Issue #1361: After the plan-exit polarity flip, ``AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT``
+    is a no-op — enforcement fires in every repo by default. The env var stays parseable
+    for backward-compat (setting it does not break anything), but when observed we emit
+    a stderr notice so users know to unset it.
+
+    Since each hook invocation is a fresh subprocess, this is effectively "one line per
+    tool call" when the var is set — that's the trade-off for zero state complexity, and
+    the noise is a self-correcting incentive to unset the var.
+
+    NEVER raises.
+    """
+    try:
+        raw = os.environ.get("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "").strip().lower()
+        if raw not in ("1", "true", "yes", "on"):
+            return
+        print(
+            "DEPRECATION: AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT is now the default and no "
+            "longer needed. Set AUTONOMOUS_DEV_BYPASS=1 or touch .claude/.bypass to "
+            "opt out. Remove the variable to suppress this notice.",
+            file=sys.stderr,
+        )
+    except Exception:
+        # Deprecation telemetry must NEVER break the hook.
+        pass

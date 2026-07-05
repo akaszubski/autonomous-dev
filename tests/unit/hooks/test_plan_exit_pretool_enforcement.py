@@ -603,31 +603,126 @@ class TestBashAllowlistHelper:
 
 
 # ============================================================================
-# Issue #938: Scope check / escape hatch integration
+# Issue #938 + #1361: Scope check / escape hatch integration
 # ============================================================================
 
 
 class TestScopeCheckIntegration:
-    """Issue #938: scope check / escape hatch short-circuits enforcement."""
+    """Issue #938 (scope) + Issue #1361 (polarity flip): escape-hatch integration.
 
-    def test_foreign_project_with_marker_returns_none(
+    Post-#1361 the scope check is deleted — enforcement is default-ON in every
+    repo. The escape hatches (AUTONOMOUS_DEV_SKIP_PLAN_REVIEW, .claude/SKIP_PLAN_REVIEW)
+    remain unchanged and still short-circuit the gate. The universal bypass
+    (Issue #969: AUTONOMOUS_DEV_BYPASS or .claude/.bypass) short-circuits
+    hooks BEFORE this function is reached and is exercised at hook-preamble level.
+    """
+
+    def test_foreign_project_with_marker_blocks_after_polarity_flip(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
-        """Foreign project + marker present → gate returns None (silent)."""
+        """AC-1: Foreign project + marker → gate FIRES (deny) after #1361 flip.
+
+        Before #1361 the gate silently no-op'd in foreign repos. After the
+        polarity flip, enforcement is default-ON everywhere.
+        """
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        # Override the autouse fixture to simulate a foreign project.
+        # Simulate a foreign project — no longer a bypass condition.
         monkeypatch.setattr(
             unified_pre_tool, "_is_adev_project_fn", lambda: False
         )
         for var in (
             "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
             "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
+            "AUTONOMOUS_DEV_BYPASS",
         ):
             monkeypatch.delenv(var, raising=False)
 
+        result = _check_plan_exit_native("Write", {"file_path": "x.py"})
+        assert result is not None, (
+            "AC-1: post-#1361, foreign project must enforce plan-exit gate"
+        )
+        assert result[0] == "deny"
+        assert result[1] == _PLAN_EXIT_DENY_REASON
+
+        mcp_result = _check_plan_exit_mcp("mcp__ms365__send-mail")
+        assert mcp_result is not None
+        assert mcp_result[0] == "deny"
+
+    def test_foreign_project_with_skip_env_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """AC-4: Foreign project + SKIP env var → escape hatch still works."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        monkeypatch.setenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "1")
+
         assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
         assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None
+
+    def test_foreign_project_with_sentinel_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """AC-5: Foreign project + .claude/SKIP_PLAN_REVIEW → escape hatch still works."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        (tmp_path / ".claude" / "SKIP_PLAN_REVIEW").write_text("")
+        monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
+
+        assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
+        assert _check_plan_exit_mcp("mcp__ms365__send-mail") is None
+
+    def test_global_enforcement_emits_deprecation_notice(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        """AC-6: AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1 → stderr deprecation notice, gate still fires.
+
+        The env var is deprecated post-#1361 — enforcement is now the default
+        regardless. Setting the var emits a stderr notice AND enforcement fires
+        just as it would without the var.
+        """
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
+        monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
+
+        result = _check_plan_exit_native("Write", {"file_path": "x.py"})
+        assert result is not None, "Enforcement must still fire when GE=1"
+        assert result[0] == "deny"
+
+        captured = capsys.readouterr()
+        assert "DEPRECATION" in captured.err, (
+            f"AC-6: expected deprecation notice on stderr, got: {captured.err!r}"
+        )
+        assert "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT" in captured.err
+
+    def test_mcp_gate_also_emits_deprecation_notice(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        """AC-6 + AC-7: MCP gate mirrors native gate — deprecation notice + enforcement."""
+        _write_marker(tmp_path, stage="plan_exited")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            unified_pre_tool, "_is_adev_project_fn", lambda: False
+        )
+        monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
+        monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
+
+        result = _check_plan_exit_mcp("mcp__ms365__send-mail")
+        assert result is not None, "MCP gate must fire when GE=1 (post-#1361)"
+        assert result[0] == "deny"
+
+        captured = capsys.readouterr()
+        assert "DEPRECATION" in captured.err
 
     def test_in_project_with_skip_env_with_marker_returns_none(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
