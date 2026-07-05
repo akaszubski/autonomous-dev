@@ -23,6 +23,8 @@ user_facing: true
 | **Batch Issues** | `--issues <nums>` | Process GitHub issues with auto-worktree |
 | **Resume** | `--resume <id>` | Resume interrupted batch from checkpoint |
 
+
+**Same-Session Planning Note**: When running `/plan` followed by `/implement` in the same session, pass `--no-issues` to `/plan` to avoid the `/drain-queue` autonomous drainer picking up your issues mid-session. This is expected behavior — the drainer continuously processes new `auto-improvement`-labelled issues and has no visibility into your active session's intent. See #1373.
 ## Implementation
 
 **COORDINATOR FORBIDDEN LIST** — You MUST NOT do any of the following (violations = pipeline failure):

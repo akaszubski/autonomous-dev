@@ -181,6 +181,8 @@ Run /plan-to-issues for thorough issue creation with full section templates.
 
 Record `Issues not created — --no-issues flag was set` in the `## Linked Issues` section of the plan file.
 
+**Coordination Note**: If you intend to run `/implement` immediately after `/plan` in the same session, pass `--no-issues` to avoid the `/drain-queue` autonomous drainer picking up your newly-filed issues mid-session. The drainer has no visibility into your session intent; without `--no-issues`, both paths may complete the same work concurrently and produce merge conflicts (see #1373).
+
 #### Guard: single work item
 
 If the Minimal Path from Step 4 contains **<2 independent work items**, log the following and proceed directly to Step 7:
