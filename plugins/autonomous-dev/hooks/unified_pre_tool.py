@@ -610,7 +610,7 @@ PIPELINE_AGENTS = [
 ]
 
 # Agents authorized to create GitHub issues directly (Issue #599)
-GH_ISSUE_AGENTS = {'continuous-improvement-analyst', 'issue-creator'}
+GH_ISSUE_AGENTS = {'issue-creator'}
 
 # Marker file path for allowing gh issue create from commands (Issue #599)
 GH_ISSUE_MARKER_PATH = "/tmp/autonomous_dev_gh_issue_allowed.marker"

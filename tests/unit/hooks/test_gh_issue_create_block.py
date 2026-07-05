@@ -156,13 +156,13 @@ class TestGhIssueCreateAllowThrough:
             result = hook._detect_gh_issue_create(cmd)
             assert result is None
 
-    def test_continuous_improvement_analyst_allowed(self, no_pipeline, no_marker):
-        """continuous-improvement-analyst agent should be allowed."""
+    def test_cia_agent_no_longer_allowed(self, no_pipeline, no_marker):
+        """continuous-improvement-analyst agent should NOT be allowed."""
         with patch.object(hook, "_get_active_agent_name",
                           return_value="continuous-improvement-analyst"):
             cmd = 'gh issue create --title "test"'
             result = hook._detect_gh_issue_create(cmd)
-            assert result is None
+            assert result is not None
 
     def test_issue_creator_agent_allowed(self, no_pipeline, no_marker):
         """issue-creator agent should be allowed."""
@@ -208,7 +208,7 @@ class TestGhIssueCreateEdgeCases:
     def test_gh_issue_agents_constant_exists(self):
         """GH_ISSUE_AGENTS constant should be defined."""
         assert hasattr(hook, "GH_ISSUE_AGENTS")
-        assert "continuous-improvement-analyst" in hook.GH_ISSUE_AGENTS
+        assert "continuous-improvement-analyst" not in hook.GH_ISSUE_AGENTS
         assert "issue-creator" in hook.GH_ISSUE_AGENTS
 
     def test_gh_issue_marker_path_constant_exists(self):
@@ -441,7 +441,7 @@ class TestGhIssueCreateSubprocessBypass:
     def test_bypass_allowed_when_authorized_agent(self, no_pipeline, no_marker):
         """Subprocess bypass is allowed for authorized agents."""
         with patch.object(hook, "_get_active_agent_name",
-                          return_value="continuous-improvement-analyst"):
+                          return_value="issue-creator"):
             cmd = (
                 "python3 -c \"import subprocess; "
                 "subprocess.run(['gh', 'issue', 'create', '--title', 'x'])\""
@@ -633,9 +633,9 @@ class TestGhIssueMarkerCreationBlocking:
             assert result is None
 
     def test_authorized_agent_allows_touch(self, no_pipeline):
-        """Authorized agent (continuous-improvement-analyst) should be allowed."""
+        """Authorized agent (issue-creator) should be allowed."""
         with patch.object(hook, "_get_active_agent_name",
-                          return_value="continuous-improvement-analyst"):
+                          return_value="issue-creator"):
             cmd = "touch /tmp/autonomous_dev_gh_issue_allowed.marker"
             result = hook._detect_gh_issue_marker_creation(cmd)
             assert result is None
