@@ -51,24 +51,30 @@ def clean_marker():
 @pytest.mark.parametrize("command,should_block", [
     # 1. Direct gh issue create with guarded title - should block without marker
     ('gh issue create --repo o/r --title "Auto-triage findings — 2026-07-05" --label auto-triage', True),
-    
+
     # 2. Backtick-wrapped form - should block without marker
     ('`gh issue create --title "Auto-triage findings — 2026-07-05"`', True),
-    
-    # 3. Command substitution form - should block without marker  
+
+    # 3. Command substitution form - should block without marker
     ('$(gh issue create --title "Auto-triage findings — 2026-07-05")', True),
-    
+
     # 4. sh -c form - should block without marker
     ('sh -c \'gh issue create --title "Auto-triage findings — 2026-07-05"\'', True),
-    
+
     # 5. Python subprocess form - should block without marker
     ('python3 -c "subprocess.run([\'gh\', \'issue\', \'create\', \'--title\', \'Auto-triage findings — 2026-07-05\'])"', True),
-    
+
     # 6. Python os.system form with CRITICAL prefix - should block without marker
     ('python3 -c "os.system(\'gh issue create --title \\"[CRITICAL] AI triage — 2026-07-05 14:30\\"\')"', True),
-    
+
     # 7. Non-guarded title - should NOT block
     ('gh issue create --title "feat: add foo"', False),
+
+    # 8. Issue #1374 — drain-stuck watchdog aggregate title (date suffix) - should block without marker
+    ('gh issue create --title "[drain-stuck] watchdog 2026-07-09" --label drain-stuck', True),
+
+    # 9. Issue #1374 — drain-stuck watchdog legacy colon-format title - should block without marker
+    ('gh issue create --title "[drain-stuck] watchdog: some reason" --label drain-stuck', True),
 ])
 def test_guarded_title_blocks_without_marker(command, should_block):
     """Test that guarded titles are blocked without triage-aggregate marker."""
@@ -89,6 +95,9 @@ def test_guarded_title_blocks_without_marker(command, should_block):
     'sh -c \'gh issue create --title "Auto-triage findings — 2026-07-05"\'',
     'python3 -c "subprocess.run([\'gh\', \'issue\', \'create\', \'--title\', \'Auto-triage findings — 2026-07-05\'])"',
     'python3 -c "os.system(\'gh issue create --title \\"[CRITICAL] AI triage — 2026-07-05 14:30\\"\')"',
+    # Issue #1374 — drain-stuck watchdog aggregate flow ALLOWED with marker
+    'gh issue create --title "[drain-stuck] watchdog 2026-07-09" --label drain-stuck',
+    'gh issue create --title "[drain-stuck] watchdog: some reason" --label drain-stuck',
 ])
 def test_guarded_title_allowed_with_triage_aggregate_marker(command):
     """Test that guarded titles are allowed when triage-aggregate marker is active."""
@@ -116,25 +125,42 @@ def test_guard_ordering_improve_marker_takes_precedence():
 
 
 def test_different_prefix_variations():
-    """Test detection of both guarded prefixes."""
+    """Test detection of all three guarded prefixes (Issue #1374 adds drain-stuck)."""
     # Test Auto-triage prefix
     cmd1 = 'gh issue create --title "Auto-triage findings — test"'
     result1 = _detect_daily_aggregate_direct_filing(cmd1)
     assert result1 is not None
-    
+
     # Test CRITICAL prefix
     cmd2 = 'gh issue create --title "[CRITICAL] AI triage — urgent"'
     result2 = _detect_daily_aggregate_direct_filing(cmd2)
     assert result2 is not None
-    
+
     # Test partial match doesn't trigger (missing em-dash)
     cmd3 = 'gh issue create --title "Auto-triage findings - test"'
     result3 = _detect_daily_aggregate_direct_filing(cmd3)
     assert result3 is None
-    
+
     cmd4 = 'gh issue create --title "[CRITICAL] AI triage - test"'
     result4 = _detect_daily_aggregate_direct_filing(cmd4)
     assert result4 is None
+
+    # Issue #1374 — drain-stuck watchdog date format
+    cmd5 = 'gh issue create --title "[drain-stuck] watchdog 2026-07-09"'
+    result5 = _detect_daily_aggregate_direct_filing(cmd5)
+    assert result5 is not None
+
+    # Issue #1374 — drain-stuck watchdog legacy colon format (still starts with "[drain-stuck] watchdog")
+    cmd6 = 'gh issue create --title "[drain-stuck] watchdog: no commit in 2h"'
+    result6 = _detect_daily_aggregate_direct_filing(cmd6)
+    assert result6 is not None
+
+    # Issue #1374 — near-miss boundary check: guard prefix is precisely "[drain-stuck] watchdog",
+    # NOT the broader "[drain-stuck]". A different [drain-stuck] variant (e.g., fmarshal) must NOT
+    # be blocked — proves startswith("[drain-stuck] watchdog") boundary is precise.
+    cmd7 = 'gh issue create --title "[drain-stuck] fmarshal 2026-07-09"'
+    result7 = _detect_daily_aggregate_direct_filing(cmd7)
+    assert result7 is None, "guard must not fire on '[drain-stuck] fmarshal' — proves it's not a bare '[drain-stuck]' prefix match"
 
 
 def test_title_extraction_formats():

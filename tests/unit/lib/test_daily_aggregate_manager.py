@@ -180,7 +180,7 @@ def test_subprocess_kwargs():
 def test_today_utc_is_required_kwarg():
     """Calling without today_utc raises TypeError."""
     runner = FakeGHRunner([])
-    
+
     with pytest.raises(TypeError) as exc_info:
         open_or_supersede_daily_aggregate(
             repo="owner/repo",
@@ -190,8 +190,9 @@ def test_today_utc_is_required_kwarg():
             # missing today_utc
             gh_runner=runner
         )
-    
+
     assert "today_utc" in str(exc_info.value)
+
 
 def test_multiple_prior_days_all_superseded():
     """Verify helper closes ALL prior-day open aggregates (not just 1).
@@ -352,3 +353,99 @@ def test_marker_removed_on_exception():
     
     # Note: The current implementation doesn't have try/finally cleanup for the marker
     # This test documents the actual behavior (marker persists after exception)
+
+
+def test_drain_stuck_edit_and_supersede_sequence():
+    """Issue #1374 — [drain-stuck] watchdog aggregate flow across 3 days.
+
+    Simulates:
+      Day 1 morning (2026-07-07): no prior issues → creates #100
+      Day 1 evening (2026-07-07): #100 still open → edits #100 in place
+      Day 2 morning (2026-07-08): #100 still open (yesterday's) → creates #101,
+                                  closes #100 with "Superseded by #101" comment
+    """
+    # --- Day 1 morning: first fire, empty state → create #100 ---
+    responses_day1_am = [
+        # gh issue list returns empty
+        CompletedProcess([], 0, "[]", ""),
+        # gh issue create returns #100
+        CompletedProcess([], 0, "https://github.com/akaszubski/autonomous-dev/issues/100", ""),
+    ]
+    fake = FakeGHRunner(responses_day1_am)
+    result = open_or_supersede_daily_aggregate(
+        repo="akaszubski/autonomous-dev",
+        label="drain-stuck",
+        title_prefix="[drain-stuck] watchdog",
+        body="body-1",
+        today_utc=date(2026, 7, 7),
+        gh_runner=fake,
+    )
+    assert result == {'action': 'created', 'issue_number': 100, 'superseded': []}
+    # Verify create call carries the date-suffixed title (not colon-format)
+    create_call = fake.calls[1]
+    assert create_call['argv'][:3] == ['gh', 'issue', 'create']
+    assert '[drain-stuck] watchdog 2026-07-07' in create_call['argv']
+
+    # --- Day 1 evening: same UTC day, #100 open → edit in place ---
+    responses_day1_pm = [
+        # gh issue list returns #100 (today's)
+        CompletedProcess([], 0, json.dumps([
+            {'number': 100, 'title': '[drain-stuck] watchdog 2026-07-07',
+             'createdAt': '2026-07-07T09:00:00Z'}
+        ]), ""),
+        # gh issue edit succeeds
+        CompletedProcess([], 0, "", ""),
+    ]
+    fake = FakeGHRunner(responses_day1_pm)
+    result = open_or_supersede_daily_aggregate(
+        repo="akaszubski/autonomous-dev",
+        label="drain-stuck",
+        title_prefix="[drain-stuck] watchdog",
+        body="body-1-updated",
+        today_utc=date(2026, 7, 7),
+        gh_runner=fake,
+    )
+    assert result == {'action': 'edited', 'issue_number': 100, 'superseded': []}
+    # Verify only list + edit, no create
+    assert len(fake.calls) == 2
+    assert fake.calls[0]['argv'][:3] == ['gh', 'issue', 'list']
+    assert fake.calls[1]['argv'][:3] == ['gh', 'issue', 'edit']
+    assert '100' in fake.calls[1]['argv']
+
+    # --- Day 2 morning: new UTC day, #100 still open → create #101, close #100 ---
+    responses_day2_am = [
+        # gh issue list returns yesterday's #100 (still open)
+        CompletedProcess([], 0, json.dumps([
+            {'number': 100, 'title': '[drain-stuck] watchdog 2026-07-07',
+             'createdAt': '2026-07-07T09:00:00Z'}
+        ]), ""),
+        # gh issue create returns #101
+        CompletedProcess([], 0, "https://github.com/akaszubski/autonomous-dev/issues/101", ""),
+        # gh issue close (supersede #100)
+        CompletedProcess([], 0, "", ""),
+    ]
+    fake = FakeGHRunner(responses_day2_am)
+    result = open_or_supersede_daily_aggregate(
+        repo="akaszubski/autonomous-dev",
+        label="drain-stuck",
+        title_prefix="[drain-stuck] watchdog",
+        body="body-2",
+        today_utc=date(2026, 7, 8),
+        gh_runner=fake,
+    )
+    assert result == {
+        'action': 'superseded_and_created',
+        'issue_number': 101,
+        'superseded': [100],
+    }
+    # Verify sequence: list → create #101 → close #100 with Superseded comment
+    assert len(fake.calls) == 3
+    assert fake.calls[0]['argv'][:3] == ['gh', 'issue', 'list']
+    assert fake.calls[1]['argv'][:3] == ['gh', 'issue', 'create']
+    assert '[drain-stuck] watchdog 2026-07-08' in fake.calls[1]['argv']
+    close_call = fake.calls[2]
+    assert close_call['argv'][:3] == ['gh', 'issue', 'close']
+    assert '100' in close_call['argv']
+    assert '--comment' in close_call['argv']
+    comment_idx = close_call['argv'].index('--comment')
+    assert close_call['argv'][comment_idx + 1] == 'Superseded by #101'

@@ -214,6 +214,16 @@ The agent-completeness gate blocks `git commit` when required pipeline agents (`
 - Block message directs the user to `/create-issue` or `/create-issue --quick`; also includes a FORBIDDEN clause explicitly prohibiting suggestions to run `! gh issue create` or any other bypass method (the `!` prefix runs commands outside the hook system)
 - Fails open on any detection error to avoid blocking legitimate work
 
+**Daily Aggregate Direct-Filing Guard** (Issues #1369, #1374 — called after the GitHub Issue Creation Gate when `_is_issue_command_active()` returns False):
+- `_detect_daily_aggregate_direct_filing(command_str)` blocks direct `gh issue create` calls whose `--title` begins with a guarded prefix unless the `triage-aggregate` command context marker is active
+- **Guarded prefixes** (exact `startswith` match on extracted title value):
+  - `"Auto-triage findings —"` (em-dash) — auto-triage daily aggregate
+  - `"[CRITICAL] AI triage —"` (em-dash) — critical-severity triage aggregate
+  - `"[drain-stuck] watchdog"` (Issue #1374) — drain-watchdog stuck-detector aggregate; matches both legacy colon-format `"[drain-stuck] watchdog: <reason>"` and new date-suffix format `"[drain-stuck] watchdog YYYY-MM-DD"`
+- **Sanctioned path**: call `plugins/autonomous-dev/lib/daily_aggregate_manager.py::open_or_supersede_daily_aggregate(repo, label, title_prefix, body, today_utc)` instead — same-UTC-day fires edit the existing aggregate in-place; prior-day open aggregates are superseded with a `Superseded by #<new>` comment before a new one is created
+- **Title extraction**: three scan forms — CLI-arg `--title "val"`, escaped-quotes `--title \"val\"`, and list-literal `'--title', 'val'`
+- Fails open on detection errors; never blocks when the active command marker is `triage-aggregate`
+
 **Marker File Creation Guard** (Issue #627):
 - Blocks direct creation of the marker file `autonomous_dev_gh_issue_allowed.marker` outside approved contexts, closing the bypass where manually writing the marker file would short-circuit the gh issue create gate
 - Uses deny-by-default logic: if the substring `autonomous_dev_gh_issue_allowed` appears anywhere in the command, the command is blocked unless the operation is provably read-only or a delete — this prevents bypass via novel write methods (e.g. `python3 -c "..."`, `dd`, `install`, `os.open`) that a fixed allowlist would miss

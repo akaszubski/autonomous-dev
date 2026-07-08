@@ -149,7 +149,7 @@ jobs:
           echo "reason=$REASON" >> "$GITHUB_OUTPUT"
           echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
 
-      - name: Open watchdog alert issue (debounced)
+      - name: Open watchdog alert issue (aggregate)
         if: steps.detect.outputs.stuck == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -159,30 +159,37 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          # Debounce: skip if any open drain-stuck issue was filed in the
-          # last 4h. Prevents the watchdog from polluting the queue with
-          # duplicate alerts when STUCK persists across multiple runs.
-          RECENT_ALERT=$(gh issue list --state open --label drain-stuck \
-            --search "created:>$(date -u -d '4 hours ago' +%Y-%m-%dT%H:%M:%SZ)" \
-            --json number --jq 'length')
-          if [ "$RECENT_ALERT" -gt 0 ]; then
-            echo "::notice::Skipping alert — $RECENT_ALERT open drain-stuck issue(s) in last 4h"
-            echo "- alert: SKIPPED (debounce, $RECENT_ALERT existing open)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          gh issue create \
-            --title "[drain-stuck] watchdog: $REASON" \
-            --label "drain-stuck" \
-            --body "$(cat <<EOF
-          Watchdog run \`$RUN_ID\` at $(date -u +%Y-%m-%dT%H:%M:%SZ) detected STUCK.
+          python3 - <<'PY'
+          import os
+          import sys
+          from datetime import datetime, timezone
+          sys.path.insert(0, "plugins/autonomous-dev/lib")
+          from daily_aggregate_manager import open_or_supersede_daily_aggregate
 
-          - **Reason**: $REASON
-          - **Selected cluster for heal**: \`$CLUSTER\`
-          - **Workflow run**: $SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
-
-          The auto-heal step below this issue creation will attempt to drain the selected cluster via claude-code-action. If the heal succeeds, this issue should be closed by the resulting commit.
-          EOF
-          )" || true
+          reason = os.environ["REASON"]
+          cluster = os.environ.get("CLUSTER", "")
+          run_id = os.environ["RUN_ID"]
+          server = os.environ["SERVER_URL"]
+          repo = os.environ["REPOSITORY"]
+          now = datetime.now(timezone.utc)
+          body = (
+              f"Watchdog run `{run_id}` at {now.isoformat()} detected STUCK.\n\n"
+              f"- **Reason**: {reason}\n"
+              f"- **Selected cluster for heal**: `{cluster}`\n"
+              f"- **Workflow run**: {server}/{repo}/actions/runs/{run_id}\n\n"
+              "The auto-heal step below this issue creation will attempt to drain "
+              "the selected cluster via claude-code-action. If the heal succeeds, "
+              "this issue should be closed by the resulting commit."
+          )
+          result = open_or_supersede_daily_aggregate(
+              repo=repo,
+              label="drain-stuck",
+              title_prefix="[drain-stuck] watchdog",
+              body=body,
+              today_utc=now.date(),
+          )
+          print(f"::notice::aggregate {result['action']} #{result['issue_number']}")
+          PY
 
       - name: Detect selector stall (Issue #1303)
         # Backward-looking stall detection: independent of the per-fire STUCK

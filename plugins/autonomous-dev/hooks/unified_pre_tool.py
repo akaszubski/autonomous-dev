@@ -3697,15 +3697,22 @@ def _detect_daily_aggregate_direct_filing(command_str: str) -> "Optional[str]":
       Scan 1 CLI-arg form: --title <val> or --title="val" or --title='val'
       Scan 2 list-literal: '--title', 'val' (subprocess list form)
 
-    Guarded prefixes (exact startswith with em-dash):
-      - "Auto-triage findings —"
-      - "[CRITICAL] AI triage —"
+    Guarded prefixes (exact startswith):
+      - "Auto-triage findings —" (em-dash)
+      - "[CRITICAL] AI triage —" (em-dash)
+      - "[drain-stuck] watchdog" (Issue #1374 — covers both the legacy
+        "[drain-stuck] watchdog: <reason>" and the new
+        "[drain-stuck] watchdog <YYYY-MM-DD>" title formats)
 
     Only allow when active marker command == 'triage-aggregate'.
     """
     import re
-    
-    GUARDED = ("Auto-triage findings —", "[CRITICAL] AI triage —")
+
+    GUARDED = (
+        "Auto-triage findings —",
+        "[CRITICAL] AI triage —",
+        "[drain-stuck] watchdog",  # Issue #1374 — matches both "[drain-stuck] watchdog: $REASON" and "[drain-stuck] watchdog 2026-07-09" via startswith
+    )
     titles = []
     
     # Scan 1: CLI form - handles regular quotes
