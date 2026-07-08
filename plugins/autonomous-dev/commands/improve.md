@@ -294,6 +294,13 @@ Steps (run from the repo root resolved via `git rev-parse`):
    # Side effects per decision.
    create_failures = 0
    for d in decisions:
+       # Check target_repo to determine if we should file the issue
+       target_repo = d.signal.raw_data.get("target_repo", "autonomous-dev")
+       if target_repo != "autonomous-dev":
+           # Skip non-framework findings
+           print(f"Skipping auto-file for target_repo={target_repo} (framework-only auto-file)")
+           continue
+       
        if d.route == "hold":
            continue
        evidence = (

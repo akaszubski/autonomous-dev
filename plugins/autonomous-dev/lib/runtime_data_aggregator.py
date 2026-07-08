@@ -952,6 +952,24 @@ def collect_cia_findings(
                         latest_dt = dt
                         latest_ts = str(rec.get("ts", ""))
 
+                # Determine target_repo: preserve if present, otherwise classify
+                target_repo = None
+                for rec in cluster_records:
+                    # Take the first non-empty target_repo value in the cluster
+                    tr = rec.get("target_repo")
+                    if tr:
+                        target_repo = tr
+                        break
+                
+                # If no target_repo found, classify based on content
+                if not target_repo:
+                    from .finding_target_classifier import classify_finding_target
+                    # Use the first record's title for classification
+                    first_rec = cluster_records[0] if cluster_records else {}
+                    finding_title = str(first_rec.get("title", ""))
+                    finding_evidence = str(first_rec.get("evidence", ""))
+                    target_repo = classify_finding_target(finding_title, finding_evidence)
+
                 signals.append(
                     AggregatedSignal(
                         source=source_name,
@@ -965,9 +983,11 @@ def collect_cia_findings(
                             "file_refs_union": sorted(file_refs_union),
                             "sub_cluster_size": len(cluster_records),
                             "max_severity_label": max_sev_label,
+                            "target_repo": target_repo,
                         },
                         timestamp=latest_ts,
                     )
+                )
                 )
 
         health = SourceHealth(
