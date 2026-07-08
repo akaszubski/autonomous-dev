@@ -391,6 +391,7 @@ installed but you don't want it active in this particular tree.
 /mem-search              # Search claude-mem persistent memory
 /triage --auto-improvement  # Cluster open auto-improvement issues by root cause; emit ranked work queue (periodic)
 /drain-queue             # Autonomous queue drainer wrapping /implement --issues with 6 safety guardrails
+/goa                     # Governance, Observability, Audit — autonomous infra-health observer (start | stop | status)
 ```
 
 ---

@@ -242,6 +242,7 @@
         "plugins/autonomous-dev/lib/feature_dependency_analyzer.py",
         "plugins/autonomous-dev/lib/feature_flags.py",
         "plugins/autonomous-dev/lib/file_discovery.py",
+        "plugins/autonomous-dev/lib/finding_target_classifier.py",
         "plugins/autonomous-dev/lib/first_run_warning.py",
         "plugins/autonomous-dev/lib/fix_forward.py",
         "plugins/autonomous-dev/lib/flaky_tests.py",
