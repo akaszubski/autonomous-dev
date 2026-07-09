@@ -344,7 +344,21 @@ if removed:
 
 RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
 export RUN_ID
-export PIPELINE_STATE_FILE="/tmp/implement_pipeline_${RUN_ID}.json"
+# Issue #1376: resolve sentinel via get_legacy_sentinel_path() so coordinator
+# writes and hook reads land at the same path. Pre-#1376 this hardcoded
+# /tmp/implement_pipeline_${RUN_ID}.json, which broke the hook's mode-aware
+# agent-completeness gate in --light mode (hook reads <repo>/.claude/local/,
+# coordinator wrote to /tmp/, mode="light" invisible to hook).
+PIPELINE_STATE_FILE="$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p); break
+from pipeline_state import get_legacy_sentinel_path
+print(get_legacy_sentinel_path())
+")"
+export PIPELINE_STATE_FILE
+mkdir -p "$(dirname "$PIPELINE_STATE_FILE")"
 PIPELINE_START=$(date +%s)
 
 # Acquire exclusive non-blocking run lock (Issue #1047)
@@ -2249,7 +2263,17 @@ unset PIPELINE_INVOCATION_CONTEXT
 **REQUIRED**: Run pipeline state cleanup:
 
 ```bash
-rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true
+# Issue #1376: cleanup the per-repo sentinel; fall back via get_legacy_sentinel_path()
+# rather than the legacy /tmp/ path.
+CLEANUP_STATE_FILE="${PIPELINE_STATE_FILE:-$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p); break
+from pipeline_state import get_legacy_sentinel_path
+print(get_legacy_sentinel_path())
+")}"
+rm -f "$CLEANUP_STATE_FILE" && python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from pipeline_state import cleanup_pipeline;cleanup_pipeline('RUN_ID');from pipeline_completion_state import clear_session;clear_session('SESSION_ID')" 2>/dev/null || true
 unset PIPELINE_INVOCATION_CONTEXT
 ```
 
@@ -2517,7 +2541,19 @@ git push origin $(git branch --show-current) 2>/dev/null || echo "Warning: Push 
 
 **Precondition (Issue #1211)**: STEP L4.5 must have dispatched CIA before this point. The `unified_pre_tool.py` agent-completeness gate will block the git commit/push above otherwise. If you reach STEP L5 and the gate is blocked, return to STEP L4.5 and dispatch CIA before retrying.
 
-**REQUIRED**: Pipeline state cleanup. CIA was already dispatched at STEP L4.5; no agent dispatch happens at L5. Cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
+**REQUIRED**: Pipeline state cleanup. CIA was already dispatched at STEP L4.5; no agent dispatch happens at L5. Cleanup (Issue #1376):
+
+```bash
+CLEANUP_STATE_FILE="${PIPELINE_STATE_FILE:-$(python3 -c "
+import sys, os
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p); break
+from pipeline_state import get_legacy_sentinel_path
+print(get_legacy_sentinel_path())
+")}"
+rm -f "$CLEANUP_STATE_FILE"
+```
 
 **FORBIDDEN** (Issue #1211): Cleaning up before STEP L4 doc-drift collection completes; skipping cleanup (state files accumulate).
 
