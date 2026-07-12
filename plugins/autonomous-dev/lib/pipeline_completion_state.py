@@ -1158,6 +1158,8 @@ def record_plan_critic_skipped(
             plan_paths["0"] = plan_path
     # #1279: Record the bypass reason for audit trail.
     if bypass_reason:
+        # Sanitize: strip control chars and truncate to prevent bloating state files.
+        bypass_reason = ''.join(c for c in bypass_reason if c.isprintable() or c in '\n\t')[:2048]
         reasons = state.setdefault("plan_critic_bypass_reason", {})
         reasons[issue_key] = bypass_reason
         if issue_number != 0:
