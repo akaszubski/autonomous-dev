@@ -931,6 +931,29 @@ If no matching file with `"Verdict: PROCEED"` or `"**PROCEED**"` is found, proce
 
 **Provisional-verdict negative filter (Issue #1155)**: The skip does NOT fire when the plan file's Critique History section contains any of `provisional`, `(provisional)`, or `awaits plan-critic` (case-insensitive substring match). These markers indicate the verdict was self-assessed by the planner, not issued by an adversarial plan-critic round. Concretely: the macro plan at `.claude/plans/1260-cycle5-audit-fixes.md` self-assessed its own verdict as `PROCEED (provisional)` and included the explicit note `Awaits plan-critic at /implement time.` The 5.5a skip read the `PROCEED` marker, applied the skip, and ran without adversarial review — exactly the failure mode this filter prevents. When the negative filter matches, fall through to 5.5b and invoke plan-critic as if the file did not exist. Rationale: a `Verdict: PROCEED` line in a freshly-generated plan MUST come from a completed plan-critic round (round-table row or section header `### Round N (plan-critic, ...)`), not from the planner's self-assessment.
 
+#### 5.5a.2 — Graceful Degradation When plan-critic Subagent Is Not Registered (Issue #1377)
+
+If the Agent tool invocation for `subagent_type='plan-critic'` returns an error, exception, or refusal whose message (case-insensitive substring match) contains ANY of the following patterns, the coordinator MUST treat this as an environment condition (plan-critic subagent is not registered in the current Claude Code runtime):
+
+- `agent type not available`
+- `unknown subagent type`
+- `invalid subagent_type`
+- `subagent_type` combined with `not registered`
+- `no such subagent`
+
+When this condition is detected, the coordinator MUST:
+
+1. Call `record_plan_critic_skipped(session_id=<current session_id>, issue_number=<current issue_number>, bypass_reason=f"agent_type_unavailable: {raw_error_verbatim}")`. The `raw_error_verbatim` MUST be the exact error text returned by the failed Agent invocation. Embedding it in `bypass_reason` preserves auditability — the continuous-improvement-analyst (CIA) can grep the activity log for the specific error text and verify the invocation actually failed. A `bypass_reason` of bare `agent_type_unavailable` without the raw error text is hallucinatable and MUST be rejected on review.
+2. Continue to STEP 5.5c (structural validation). The already-existing `check_minimum_agent_count(..., plan_critic_skipped=True)` branch in `plugins/autonomous-dev/lib/agent_ordering_gate.py` handles the missing-agent case correctly.
+3. Do NOT retry plan-critic invocation. Do NOT substitute a different subagent. Do NOT skip STEP 5.5 entirely — the skip MUST be recorded.
+
+**FORBIDDEN in 5.5a.2:**
+- ❌ Silently proceeding past STEP 5.5 without calling `record_plan_critic_skipped`.
+- ❌ Using `bypass_reason='agent_type_unavailable'` without the raw error text appended.
+- ❌ Detecting the failure anywhere other than the coordinator (hooks do NOT inspect Agent tool error payloads).
+
+**DEPENDENCY NOTE (Issue #1228):** This degradation path depends on Issue #1228 (session-ID namespace split) for the ordering gate hook to fully read the recorded skip. Until #1228 lands, the record IS written correctly to the completion state, but the hook may not resolve the session_id namespace on read. Once #1228 is resolved this path becomes fully operational with no further code or docs changes here.
+
 #### 5.5b — Budget Plan-Critic Invocation
 
 **When no pre-validated plan exists**, invoke the plan-critic agent with a constrained budget:
@@ -987,7 +1010,7 @@ If any requirement is missing:
 
 - ❌ You MUST NOT accept a plan that contains 0 file paths (structural validation always blocks this)
 - ❌ You MUST NOT accept a plan that has no acceptance criteria section
-- ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/`
+- ❌ You MUST NOT skip plan-critic when no pre-validated plan file exists in `.claude/plans/`, **EXCEPT** when the plan-critic subagent type is not registered in the current Claude Code environment — in which case follow STEP 5.5a.2 (Issue #1377).
 - ❌ You MUST NOT skip structural validation for any reason (it always runs, even with a pre-validated plan)
 - ❌ You MUST NOT infer the plan-critic verdict from chat output alone when `plan_critic_verdict.json` exists — the JSON file is authoritative; chat language ("PROCEED", "looks good", absence of an explicit verdict line) MUST NOT override the file value. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` (#1234)
 
