@@ -23,9 +23,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
+HOOK_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(LIB_DIR))
+sys.path.insert(0, str(HOOK_DIR))
 
 import pipeline_completion_state as pcs
+import unified_pre_tool
 
 
 @pytest.fixture(autouse=True)
@@ -236,3 +239,110 @@ class TestHookPipelineModeReading:
             "Bug pattern found: PIPELINE_MODE must not default to 'full' directly. "
             "It should fall back to _get_pipeline_mode_from_state() instead (Issue #849)."
         )
+
+
+class TestIssue1027ModeTTLSameSession:
+    """Regression for Issue #1027: mtime-TTL must NOT misclassify a confirmed
+    same-session long-running light run as 'full'.
+
+    The #1173 mtime-TTL fallback fired even for a CONFIRMED same-session run,
+    demoting a --light pipeline to 'full' merely because 30 min elapsed since
+    the last state write. The #1027 fix scopes the TTL fallback to
+    INDETERMINATE sessions only.
+    """
+
+    def _write_state(self, path: Path, *, session_id: str, mode: str, age_seconds: float) -> None:
+        """Write a pipeline state file with a controlled mtime age."""
+        import time as _time
+
+        path.write_text(json.dumps({"session_id": session_id, "mode": mode}))
+        old = _time.time() - age_seconds
+        os.utime(path, (old, old))
+
+    def test_long_mtime_same_session_light_honored(self, tmp_path, monkeypatch):
+        """Confirmed same-session run with a stale mtime honors 'light'.
+
+        This is the core #1027 regression. Before the fix, the mtime-TTL
+        fallback returned 'full' even though the session matched.
+        """
+        state_path = tmp_path / "state.json"
+        # mtime far older than the 30-min TTL.
+        self._write_state(
+            state_path,
+            session_id="sess-1027",
+            mode="light",
+            age_seconds=unified_pre_tool._PIPELINE_STATE_TTL_SECONDS + 600,
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-1027")
+        monkeypatch.delenv("PIPELINE_MODE", raising=False)
+
+        assert unified_pre_tool._get_pipeline_mode_from_state() == "light"
+
+    def test_indeterminate_session_old_mtime_returns_full(self, tmp_path, monkeypatch):
+        """Unknown/indeterminate session + old mtime -> 'full' (TTL guard intact)."""
+        state_path = tmp_path / "state.json"
+        self._write_state(
+            state_path,
+            session_id="unknown",
+            mode="light",
+            age_seconds=unified_pre_tool._PIPELINE_STATE_TTL_SECONDS + 600,
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        # Current session also indeterminate.
+        monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+        monkeypatch.setattr(unified_pre_tool, "_session_id", "unknown")
+        monkeypatch.delenv("PIPELINE_MODE", raising=False)
+
+        assert unified_pre_tool._get_pipeline_mode_from_state() == "full"
+
+    def test_mismatched_known_session_returns_full_no_leak(self, tmp_path, monkeypatch):
+        """Mismatched known sessions -> 'full' (stale file unlinked, no leak).
+
+        _is_stale_session() unlinks the foreign file and the helper returns the
+        'full' safe default. Guards against cross-session mode leakage.
+        """
+        state_path = tmp_path / "state.json"
+        self._write_state(
+            state_path,
+            session_id="sess-OTHER",
+            mode="light",
+            age_seconds=5,  # fresh mtime — proves it's the session check, not TTL
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-CURRENT")
+        monkeypatch.delenv("PIPELINE_MODE", raising=False)
+
+        assert unified_pre_tool._get_pipeline_mode_from_state() == "full"
+        # Stale-session detection removed the foreign file.
+        assert not state_path.exists()
+
+    def test_same_session_fresh_mtime_honors_mode(self, tmp_path, monkeypatch):
+        """Confirmed same-session run with a fresh mtime honors the stored mode."""
+        state_path = tmp_path / "state.json"
+        self._write_state(
+            state_path,
+            session_id="sess-fresh",
+            mode="fix",
+            age_seconds=5,
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-fresh")
+        monkeypatch.delenv("PIPELINE_MODE", raising=False)
+
+        assert unified_pre_tool._get_pipeline_mode_from_state() == "fix"
+
+    def test_env_var_precedence_over_state(self, tmp_path, monkeypatch):
+        """PIPELINE_MODE env var still takes precedence over the state file."""
+        state_path = tmp_path / "state.json"
+        self._write_state(
+            state_path,
+            session_id="sess-env",
+            mode="light",
+            age_seconds=5,
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-env")
+        monkeypatch.setenv("PIPELINE_MODE", "fix")
+
+        assert unified_pre_tool._get_pipeline_mode_from_state() == "fix"

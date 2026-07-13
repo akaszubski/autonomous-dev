@@ -82,9 +82,16 @@ class TestGhIssueCreateBlocking:
         assert "/create-issue" in result
 
     def test_gh_issue_create_with_flags(self, no_pipeline, no_agent, no_marker):
-        """gh issue create with various flags should be blocked."""
+        """gh issue create with various flags should be blocked.
+
+        Issue #1383: a same-owner ``-R owner/repo`` target must still block
+        (the cross-owner allow-through only applies to DIFFERENT owners). We
+        pin the current owner to ``owner`` so this stays same-owner and the
+        block assertion holds regardless of the host repo's real origin.
+        """
         cmd = 'gh issue create -R owner/repo --title "test" --label "bug"'
-        result = hook._detect_gh_issue_create(cmd)
+        with patch.object(hook, "_resolve_current_repo_owner", return_value="owner"):
+            result = hook._detect_gh_issue_create(cmd)
         assert result is not None
         assert "BLOCKED" in result
 
@@ -1543,3 +1550,142 @@ class TestStripBodyArgValuesIssue1216:
         assert "short attached" not in stripped
         assert "short attached" in dropped
         assert "gh issue close 1234" in stripped
+
+
+# ---------------------------------------------------------------------------
+# TestIssue1383CrossOwnerAllowThrough — cross-owner upstream filing allowed
+# ---------------------------------------------------------------------------
+
+class TestIssue1383CrossOwnerAllowThrough:
+    """Regression for Issue #1383: `gh issue create --repo <other-org>/<repo>`
+    that targets a DIFFERENT owner is a legitimate upstream-filing action and
+    must be allowed through the gate. Same-owner / missing / malformed /
+    unresolvable targets all fail-closed (keep blocking, route to /create-issue).
+    """
+
+    def _detect(self, cmd, current_owner):
+        """Run _detect_gh_issue_create with a patched current-repo owner."""
+        with patch.object(
+            hook, "_resolve_current_repo_owner", return_value=current_owner
+        ), patch.object(hook, "_is_issue_command_active", return_value=False):
+            return hook._detect_gh_issue_create(cmd)
+
+    def test_cross_org_owner_differs_allowed(self, no_pipeline, no_agent, no_marker):
+        """--repo other-org/repo when current owner is my-org -> allowed (None)."""
+        cmd = "gh issue create --repo other-org/upstream --title 'bug'"
+        assert self._detect(cmd, "my-org") is None
+
+    def test_same_org_blocked(self, no_pipeline, no_agent, no_marker):
+        """--repo my-org/repo when current owner is my-org -> blocked."""
+        cmd = "gh issue create --repo my-org/self --title 'bug'"
+        assert self._detect(cmd, "my-org") is not None
+
+    def test_no_repo_flag_blocked(self, no_pipeline, no_agent, no_marker):
+        """No --repo flag -> ambiguous -> blocked (route to /create-issue)."""
+        cmd = "gh issue create --title 'bug' --body 'details'"
+        assert self._detect(cmd, "my-org") is not None
+
+    def test_malformed_repo_no_slash_blocked(self, no_pipeline, no_agent, no_marker):
+        """--repo value without a slash (bare owner) -> blocked."""
+        cmd = "gh issue create --repo justowner --title 'bug'"
+        assert self._detect(cmd, "my-org") is not None
+
+    def test_duplicate_repo_last_wins_cross_owner_allowed(self, no_pipeline, no_agent, no_marker):
+        """Duplicate --repo: last wins. Last is cross-owner -> allowed."""
+        cmd = "gh issue create --repo my-org/self --repo other-org/up --title 't'"
+        assert self._detect(cmd, "my-org") is None
+
+    def test_duplicate_repo_last_wins_same_owner_blocked(self, no_pipeline, no_agent, no_marker):
+        """Duplicate --repo: last wins. Last is same-owner -> blocked."""
+        cmd = "gh issue create --repo other-org/up --repo my-org/self --title 't'"
+        assert self._detect(cmd, "my-org") is not None
+
+    def test_repo_equals_form_cross_owner_allowed(self, no_pipeline, no_agent, no_marker):
+        """--repo=owner/name attached form, cross-owner -> allowed."""
+        cmd = "gh issue create --repo=other-org/upstream --title 'bug'"
+        assert self._detect(cmd, "my-org") is None
+
+    def test_dash_R_short_flag_cross_owner_allowed(self, no_pipeline, no_agent, no_marker):
+        """-R short flag, cross-owner -> allowed."""
+        cmd = "gh issue create -R other-org/upstream --title 'bug'"
+        assert self._detect(cmd, "my-org") is None
+
+    def test_unresolvable_current_owner_blocked(self, no_pipeline, no_agent, no_marker):
+        """When current owner cannot be resolved (None) -> fail-closed (blocked)."""
+        cmd = "gh issue create --repo other-org/upstream --title 'bug'"
+        assert self._detect(cmd, None) is not None
+
+    def test_case_insensitive_owner_compare_same_owner_blocked(self, no_pipeline, no_agent, no_marker):
+        """Owner comparison is case-insensitive: My-Org vs my-org -> same -> blocked."""
+        cmd = "gh issue create --repo My-Org/self --title 'bug'"
+        assert self._detect(cmd, "my-org") is not None
+
+    def test_case_insensitive_owner_compare_cross_owner_allowed(self, no_pipeline, no_agent, no_marker):
+        """Case-insensitive: OTHER-org differs from my-org -> allowed."""
+        cmd = "gh issue create --repo OTHER-org/upstream --title 'bug'"
+        assert self._detect(cmd, "my-org") is None
+
+
+class TestIssue1383CrossOwnerHelper:
+    """Direct unit tests for _gh_issue_create_target_is_cross_owner()."""
+
+    def _is_cross(self, cmd, current_owner):
+        with patch.object(
+            hook, "_resolve_current_repo_owner", return_value=current_owner
+        ):
+            return hook._gh_issue_create_target_is_cross_owner(cmd)
+
+    def test_cross_owner_true(self):
+        assert self._is_cross("gh issue create --repo a/r", "b") is True
+
+    def test_same_owner_false(self):
+        assert self._is_cross("gh issue create --repo a/r", "a") is False
+
+    def test_no_repo_false(self):
+        assert self._is_cross("gh issue create --title x", "a") is False
+
+    def test_bare_owner_no_slash_false(self):
+        assert self._is_cross("gh issue create --repo a", "b") is False
+
+    def test_malformed_shell_false(self):
+        # Unbalanced quote -> shlex ValueError -> fail-closed False.
+        assert self._is_cross("gh issue create --repo a/r --title 'oops", "b") is False
+
+    def test_repo_flag_at_end_missing_value_false(self):
+        # --repo is the last token with no value -> fail-closed False.
+        assert self._is_cross("gh issue create --title x --repo", "b") is False
+
+    def test_unresolvable_owner_false(self):
+        assert self._is_cross("gh issue create --repo a/r", None) is False
+
+
+class TestIssue1383ResolveCurrentRepoOwner:
+    """Integration-ish tests for _resolve_current_repo_owner() with a real
+    tmp git repo (validates the subprocess + parse_owner_repo wiring)."""
+
+    def _init_repo(self, tmp_path, remote_url=None):
+        import subprocess as _sp
+
+        _sp.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        if remote_url is not None:
+            _sp.run(
+                ["git", "remote", "add", "origin", remote_url],
+                cwd=tmp_path,
+                check=True,
+            )
+        return tmp_path
+
+    def test_resolves_owner_from_https_remote(self, tmp_path, monkeypatch):
+        repo = self._init_repo(tmp_path, "https://github.com/some-owner/some-repo.git")
+        monkeypatch.chdir(repo)
+        assert hook._resolve_current_repo_owner() == "some-owner"
+
+    def test_resolves_owner_from_ssh_remote(self, tmp_path, monkeypatch):
+        repo = self._init_repo(tmp_path, "git@github.com:ssh-owner/ssh-repo.git")
+        monkeypatch.chdir(repo)
+        assert hook._resolve_current_repo_owner() == "ssh-owner"
+
+    def test_no_origin_returns_none(self, tmp_path, monkeypatch):
+        repo = self._init_repo(tmp_path, remote_url=None)
+        monkeypatch.chdir(repo)
+        assert hook._resolve_current_repo_owner() is None
