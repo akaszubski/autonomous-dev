@@ -66,6 +66,7 @@ import importlib.util
 import json
 import re
 import shlex
+import subprocess
 import sys
 import os
 from pathlib import Path
@@ -1659,6 +1660,14 @@ def _get_pipeline_mode_from_state() -> str:
     Issue #849: PIPELINE_MODE env-var takes precedence at all call-sites.
     Issue #1173: mtime-TTL fallback closes the indeterminate-session gap where
     stale fix-mode state would leak into a fresh --light run.
+    Issue #1027 refinement: the #1173 mtime-TTL->"full" fallback is scoped to
+    INDETERMINATE sessions only. A CONFIRMED same-session run (stored
+    session_id == current session_id, both known/non-"unknown") honors
+    state.get("mode") regardless of mtime age — a long-running --light run must
+    not be misclassified as "full" merely because 30 min elapsed since the last
+    state write. The mismatched-known-session leak is already handled earlier by
+    _is_stale_session() (which unlinks the foreign file); indeterminate sessions
+    remain TTL-guarded, so no cross-session leakage is reintroduced.
 
     Returns:
         Pipeline mode string, defaulting to "full".
@@ -1683,12 +1692,25 @@ def _get_pipeline_mode_from_state() -> str:
                 return "full"  # Stale session — safe default
             # Issue #1173: mtime-TTL fallback. When session_id is indeterminate
             # (e.g. 'unknown'), _is_stale_session() returns False and stale mode
-            # would otherwise leak. Treat state older than the TTL as expired
-            # regardless of session identity.
-            import time as _time
-            mtime = state_path.stat().st_mtime
-            if _time.time() - mtime >= _PIPELINE_STATE_TTL_SECONDS:
-                return "full"
+            # would otherwise leak. Treat state older than the TTL as expired.
+            # Issue #1027: scope the TTL fallback to INDETERMINATE sessions only.
+            # A confirmed same-session run (stored == current, both known) honors
+            # the stored mode regardless of mtime age, so a long-running --light
+            # run is not misclassified as "full" after 30 min of inactivity.
+            stored_sid = state.get("session_id", "")
+            current_sid = _resolve_session_id_safe(_session_id) or "unknown"
+            same_session_confirmed = (
+                bool(stored_sid)
+                and stored_sid != "unknown"
+                and bool(current_sid)
+                and current_sid != "unknown"
+                and stored_sid == current_sid
+            )
+            if not same_session_confirmed:
+                import time as _time
+                mtime = state_path.stat().st_mtime
+                if _time.time() - mtime >= _PIPELINE_STATE_TTL_SECONDS:
+                    return "full"
             return state.get("mode", "full")
     except Exception:
         pass
@@ -1934,6 +1956,18 @@ def _is_pipeline_active() -> bool:
                         return False  # Fail closed: tampered state = not active
                 except ImportError:
                     return False  # Fail closed: HMAC present but verify library unavailable
+
+            # Issue #1384: a bare recovery heartbeat is NOT a live pipeline.
+            # pipeline_completion_state.py writes {"session_id","recovered","recovered_at"}
+            # on restart -- no run_id/mode/explicitly_invoked and no hmac (skips the
+            # integrity branch above) so it would otherwise sail through the mtime-TTL
+            # return True for 30 min. A genuine STEP-0 sentinel always carries at least one
+            # of run_id/mode/explicitly_invoked, so the any(...) guard keeps real active
+            # pipelines classified active (unchanged).
+            if state.get("recovered") and not any(
+                state.get(k) for k in ("run_id", "mode", "explicitly_invoked")
+            ):
+                return False
 
             # Use file mtime for staleness (Issue #636).
             # Pipeline agents touch this file on each hook call (see above),
@@ -2997,6 +3031,53 @@ _DRAIN_CLOSES_RE = re.compile(r"(?:Closes|Fixes)\s+#(\d+)", re.IGNORECASE)
 _DRAIN_GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
 
 
+def _is_message_only_amend(command: str) -> bool:
+    """Return True iff command is a ``git commit --amend`` whose staged tree == HEAD.
+
+    A message-only amend (e.g. ``git commit --amend --no-edit`` or an amend that
+    only rewords the commit message) changes NO tracked content — the staged tree
+    is identical to HEAD. Such an amend does not warrant re-firing the agent
+    completeness gate (Issue #1382): the pipeline agents already validated the
+    content on the original commit, and rewording the message is a no-op for the
+    purposes of that gate.
+
+    Fail-open (returns False) on any error, malformed command, missing HEAD
+    (initial commit), or non-amend command. Only returns True on a confident
+    no-op/message-only amend, so the caller keeps enforcing in every ambiguous
+    case. A content-changing amend (staged tree differs from HEAD) returns False
+    and remains gated.
+
+    Args:
+        command: The raw Bash command string to inspect.
+
+    Returns:
+        True only when the command is a confirmed message-only ``git commit
+        --amend`` whose staged tree equals HEAD; False otherwise.
+    """
+    try:
+        try:
+            tokens = shlex.split(command, posix=True)
+        except ValueError:
+            return False
+        if "--amend" not in tokens:
+            return False
+        head = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            timeout=5,
+        )
+        if head.returncode != 0:
+            return False  # no HEAD -> initial commit, not an amend
+        diff = subprocess.run(
+            ["git", "diff-index", "--quiet", "--cached", "HEAD", "--"],
+            capture_output=True,
+            timeout=5,
+        )
+        return diff.returncode == 0  # exit 0 = staged tree == HEAD = message-only
+    except Exception:
+        return False
+
+
 def _check_drain_pending_commit_gate(
     tool_input: Dict[str, Any],
 ) -> Optional[Tuple[str, str]]:
@@ -3744,6 +3825,98 @@ def _detect_daily_aggregate_direct_filing(command_str: str) -> "Optional[str]":
     return None
 
 
+def _resolve_current_repo_owner() -> "Optional[str]":
+    """Return the current repo's owner via ``git remote get-url origin``.
+
+    Reuses ``parse_owner_repo()`` from the dependabot_tracker library to parse
+    both SSH and HTTPS remote URL forms. Fail-open: returns None on any error
+    (subprocess failure, non-GitHub remote, missing origin, import failure).
+    A None result routes the caller to fail-closed (keep blocking) because the
+    owner comparison cannot be made. (Issue #1383)
+
+    Returns:
+        The owner segment of the origin remote (e.g. ``"anthropics"``), or None
+        when it cannot be determined.
+    """
+    try:
+        _lib_dir = Path(__file__).resolve().parent.parent / "lib"
+        if str(_lib_dir) not in sys.path:
+            sys.path.insert(0, str(_lib_dir))
+        from dependabot_tracker import parse_owner_repo  # type: ignore
+
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        parsed = parse_owner_repo(result.stdout.strip())
+        return parsed[0] if parsed else None
+    except Exception:
+        return None
+
+
+def _gh_issue_create_target_is_cross_owner(command: str) -> bool:
+    """Return True iff ``gh issue create`` targets a DIFFERENT owner's repo.
+
+    A cross-owner ``gh issue create --repo <other-org>/<repo>`` is a legitimate
+    upstream-filing action that the /create-issue pipeline does not cover, so it
+    should be allowed through the gate. A same-owner (or ambiguous) target must
+    keep routing to /create-issue.
+
+    Fail-CLOSED (returns False -> keep blocking) on any ambiguity: malformed
+    shell, no ``--repo``/``-R`` flag, a bare (owner-less) target, an
+    unresolvable current owner, or any exception.
+
+    Security notes (allow-decision derived from an untrusted command string):
+        * shlex tokenization mirrors gh/Cobra argv semantics.
+        * When ``--repo``/``-R`` appears multiple times, the LAST occurrence
+          wins (gh/Cobra flag semantics).
+        * Owner comparison is case-insensitive on the OWNER segment only.
+        * ``GH_REPO`` env indirection is intentionally out of scope — only the
+          command string is inspected.
+
+    Args:
+        command: The raw Bash command string to inspect.
+
+    Returns:
+        True only when a target owner is confidently parsed AND differs from the
+        resolved current-repo owner; False in every ambiguous or same-owner
+        case. (Issue #1383)
+    """
+    try:
+        try:
+            tokens = shlex.split(command, posix=True)
+        except ValueError:
+            return False
+        target = None
+        i = 0
+        while i < len(tokens):
+            t = tokens[i]
+            if t in ("--repo", "-R"):
+                if i + 1 < len(tokens):
+                    target = tokens[i + 1]
+                    i += 2
+                    continue
+                return False
+            elif t.startswith("--repo=") or t.startswith("-R="):
+                target = t.split("=", 1)[1]
+            i += 1
+        if not target or "/" not in target:
+            return False
+        target_owner = target.split("/", 1)[0].strip().lower()
+        if not target_owner:
+            return False
+        current_owner = _resolve_current_repo_owner()
+        if not current_owner:
+            return False
+        return target_owner != current_owner.strip().lower()
+    except Exception:
+        return False
+
+
 def _detect_gh_issue_create(command: str) -> "Optional[str]":
     """Detect direct 'gh issue create' usage outside approved contexts (Issue #599).
 
@@ -3845,6 +4018,14 @@ def _detect_gh_issue_create(command: str) -> "Optional[str]":
         # by _detect_gh_issue_marker_creation since #627) — that allow-through
         # was dead code. The WRITE blocker is kept as defense-in-depth.
         if _is_issue_command_active():
+            return None
+
+        # Allow-through 4: cross-owner upstream filing (Issue #1383).
+        # `gh issue create --repo <other-org>/<repo>` targets a repo owned by a
+        # DIFFERENT owner than the current repo — a legitimate upstream-filing
+        # action that /create-issue does not cover. Same-owner / missing / bare /
+        # unresolvable targets all fail-closed (False) and keep blocking.
+        if _gh_issue_create_target_is_cross_owner(command):
             return None
 
         return (
@@ -7092,6 +7273,21 @@ def main():
                     ):
                         try:
                             if _is_pipeline_active():
+                                # Issue #1382: a message-only `git commit --amend`
+                                # (staged tree == HEAD) changes no tracked content,
+                                # so the agent-completeness gate must NOT re-fire.
+                                # Computed BEFORE the batch/non-batch split so both
+                                # paths honor it via the shared skip guard below. A
+                                # content-changing amend (diff exit 1) returns False
+                                # here and stays gated.
+                                _skip_gate_via_amend = _is_message_only_amend(command)
+                                if _skip_gate_via_amend:
+                                    _log_pretool_activity(
+                                        tool_name,
+                                        tool_input,
+                                        "allow",
+                                        "bypass: message-only git commit --amend (tree unchanged, #1382)",
+                                    )
                                 # Issue #802: env var bypass + file-based bypass
                                 # Env var works when set in harness; file works from Bash:
                                 #   touch /tmp/skip_agent_completeness_gate
@@ -7120,7 +7316,7 @@ def main():
                                     _log_pretool_activity(tool_name, tool_input, "allow", "bypass: inline env var in command string")
                                 if _skip_gate_via_env:
                                     _log_pretool_activity(tool_name, tool_input, "allow", "bypass: SKIP_AGENT_COMPLETENESS_GATE set in process environment")
-                                if not _skip_gate_via_env and not _skip_gate_via_file and not _skip_gate_via_command:
+                                if not _skip_gate_via_env and not _skip_gate_via_file and not _skip_gate_via_command and not _skip_gate_via_amend:
                                     _agent_gate_session_id = _resolve_session_id_safe(_session_id) or _session_id
                                     cwd = os.getcwd()
                                     if _is_batch_context(cwd):

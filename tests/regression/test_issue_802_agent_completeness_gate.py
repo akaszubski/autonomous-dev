@@ -21,8 +21,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
 HOOKS_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(LIB_DIR))
+sys.path.insert(0, str(HOOKS_DIR))
 
 import pipeline_completion_state as pcs
+import unified_pre_tool
 
 
 @pytest.fixture(autouse=True)
@@ -250,3 +252,113 @@ class TestBypassSelfMaintenanceInteraction:
         assert "doc-master" in missing
         assert "planner" in completed
         assert "implementer" in completed
+
+def _init_git_repo(path: Path):
+    """Initialize a real git repo with an identity for committing."""
+    import subprocess as _sp
+
+    _sp.run(["git", "init", "-q"], cwd=path, check=True)
+    _sp.run(["git", "config", "user.email", "t@example.com"], cwd=path, check=True)
+    _sp.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+    return path
+
+
+def _commit_file(path: Path, name: str, content: str, message: str):
+    """Create/stage a file and commit it."""
+    import subprocess as _sp
+
+    (path / name).write_text(content)
+    _sp.run(["git", "add", name], cwd=path, check=True)
+    _sp.run(["git", "commit", "-q", "-m", message], cwd=path, check=True)
+
+
+class TestIssue1382MessageOnlyAmend:
+    """Regression for Issue #1382: the agent-completeness gate must NOT re-fire
+    on a message-only ``git commit --amend`` (staged tree == HEAD).
+
+    A message-only amend changes no tracked content, so the pipeline agents
+    that validated the original commit do not need to re-run. Content-changing
+    amends and non-amend commits remain gated.
+    """
+
+    def test_message_only_amend_no_edit_is_true(self, tmp_path, monkeypatch):
+        """`git commit --amend --no-edit` on a clean tree -> True (no-op amend)."""
+        repo = _init_git_repo(tmp_path)
+        _commit_file(repo, "a.txt", "hello", "initial commit")
+        monkeypatch.chdir(repo)
+
+        assert unified_pre_tool._is_message_only_amend("git commit --amend --no-edit") is True
+
+    def test_message_only_amend_reword_is_true(self, tmp_path, monkeypatch):
+        """`git commit --amend -m 'new msg'` with no staged changes -> True."""
+        repo = _init_git_repo(tmp_path)
+        _commit_file(repo, "a.txt", "hello", "initial commit")
+        monkeypatch.chdir(repo)
+
+        assert (
+            unified_pre_tool._is_message_only_amend("git commit --amend -m 'reworded'")
+            is True
+        )
+
+    def test_staged_content_change_amend_is_false(self, tmp_path, monkeypatch):
+        """`--amend` with staged content changes -> False (still gated)."""
+        import subprocess as _sp
+
+        repo = _init_git_repo(tmp_path)
+        _commit_file(repo, "a.txt", "hello", "initial commit")
+        # Stage a real content change.
+        (repo / "a.txt").write_text("hello world")
+        _sp.run(["git", "add", "a.txt"], cwd=repo, check=True)
+        monkeypatch.chdir(repo)
+
+        assert (
+            unified_pre_tool._is_message_only_amend("git commit --amend --no-edit")
+            is False
+        )
+
+    def test_no_head_initial_commit_is_false(self, tmp_path, monkeypatch):
+        """`--amend` with no HEAD (empty repo, initial commit) -> False."""
+        import subprocess as _sp
+
+        repo = _init_git_repo(tmp_path)
+        # No commits yet: HEAD does not resolve. Stage a file.
+        (repo / "a.txt").write_text("hello")
+        _sp.run(["git", "add", "a.txt"], cwd=repo, check=True)
+        monkeypatch.chdir(repo)
+
+        assert (
+            unified_pre_tool._is_message_only_amend("git commit --amend --no-edit")
+            is False
+        )
+
+    def test_non_amend_commit_is_false(self, tmp_path, monkeypatch):
+        """A plain `git commit -m x` (no --amend) -> False."""
+        repo = _init_git_repo(tmp_path)
+        _commit_file(repo, "a.txt", "hello", "initial commit")
+        monkeypatch.chdir(repo)
+
+        assert unified_pre_tool._is_message_only_amend("git commit -m 'x'") is False
+
+    def test_malformed_command_unbalanced_quotes_is_false(self, tmp_path, monkeypatch):
+        """Unbalanced quotes -> shlex ValueError -> fail-open False."""
+        repo = _init_git_repo(tmp_path)
+        _commit_file(repo, "a.txt", "hello", "initial commit")
+        monkeypatch.chdir(repo)
+
+        assert (
+            unified_pre_tool._is_message_only_amend("git commit --amend -m 'oops")
+            is False
+        )
+
+    def test_gate_skip_wired_into_hook_source(self):
+        """The hook must fold the amend bypass into the shared gate skip guard.
+
+        Verifies the #1382 wiring: `_skip_gate_via_amend` is computed and
+        included in the `if not ...` guard that gates the completeness check
+        for BOTH batch and non-batch paths.
+        """
+        source = (HOOKS_DIR / "unified_pre_tool.py").read_text()
+        assert "_is_message_only_amend" in source
+        assert "_skip_gate_via_amend" in source
+        assert "not _skip_gate_via_amend" in source
+        assert "Issue #1382" in source or "#1382" in source

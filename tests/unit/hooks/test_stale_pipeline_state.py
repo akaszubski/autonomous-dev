@@ -228,6 +228,111 @@ class TestPipelineActiveWithStaleness:
         assert state_path.exists()
 
 
+class TestIssue1384RecoveryBreadcrumbNotActive:
+    """Regression for Issue #1384: a bare recovery heartbeat is NOT a live pipeline.
+
+    pipeline_completion_state.py writes {"session_id","recovered","recovered_at"}
+    on restart. With no run_id/mode/explicitly_invoked and no hmac, it previously
+    sailed through the mtime-TTL return True for 30 min, causing context-blind
+    gates to treat a dead pipeline as live. A genuine STEP-0 sentinel always
+    carries at least one of run_id/mode/explicitly_invoked and MUST still be
+    classified active.
+    """
+
+    def _bare_recovery(self, session_id: str = "current-session") -> dict:
+        """Recovery breadcrumb exactly as pipeline_completion_state writes it."""
+        return {
+            "session_id": session_id,
+            "recovered": True,
+            "recovered_at": datetime.now().isoformat(),
+        }
+
+    def _setup(self, tmp_path: Path, monkeypatch, state: dict, *, age_seconds: float = 5.0):
+        """Write state, wire env vars, and set the mtime age."""
+        import time as _time
+
+        state_path = tmp_path / "state.json"
+        _write_state_file(state_path, state)
+        old = _time.time() - age_seconds
+        os.utime(state_path, (old, old))
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", state.get("session_id", "current-session"))
+        monkeypatch.setattr(unified_pre_tool, "_agent_type", "")
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        return state_path
+
+    def test_bare_recovery_breadcrumb_not_active(self, tmp_path, monkeypatch):
+        """Fresh, matching-session bare recovery breadcrumb -> not active."""
+        self._setup(tmp_path, monkeypatch, self._bare_recovery())
+        assert unified_pre_tool._is_pipeline_active() is False
+
+    def test_sentinel_with_run_id_still_active(self, tmp_path, monkeypatch):
+        """Genuine sentinel carrying run_id remains active (backwards-compat)."""
+        state = self._bare_recovery()
+        state["run_id"] = "test-run"
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is True
+
+    def test_sentinel_with_mode_still_active(self, tmp_path, monkeypatch):
+        """Genuine sentinel carrying mode remains active."""
+        state = self._bare_recovery()
+        state["mode"] = "full"
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is True
+
+    def test_sentinel_with_explicitly_invoked_still_active(self, tmp_path, monkeypatch):
+        """Genuine sentinel carrying explicitly_invoked remains active."""
+        state = self._bare_recovery()
+        state["explicitly_invoked"] = True
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is True
+
+    def test_breadcrumb_with_spurious_extra_field_not_active(self, tmp_path, monkeypatch):
+        """A recovery breadcrumb with an unrelated extra field is still inactive.
+
+        Only run_id/mode/explicitly_invoked promote a recovered marker to active.
+        """
+        state = self._bare_recovery()
+        state["some_unrelated_field"] = "value"
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is False
+
+    def test_breadcrumb_older_than_ttl_not_active(self, tmp_path, monkeypatch):
+        """A recovery breadcrumb older than the TTL is inactive (unchanged path)."""
+        self._setup(
+            tmp_path,
+            monkeypatch,
+            self._bare_recovery(),
+            age_seconds=unified_pre_tool._PIPELINE_STATE_TTL_SECONDS + 600,
+        )
+        assert unified_pre_tool._is_pipeline_active() is False
+
+    def test_no_recovered_flag_uses_ttl_path(self, tmp_path, monkeypatch):
+        """Without a 'recovered' flag, a fresh state uses the TTL path -> active."""
+        state = {
+            "session_id": "current-session",
+            "mode": "full",
+            "run_id": "r",
+            "explicitly_invoked": True,
+            "session_start": datetime.now().isoformat(),
+        }
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is True
+
+    def test_recovered_with_falsy_run_id_still_not_active(self, tmp_path, monkeypatch):
+        """A recovered marker with a falsy run_id ('') is still inactive.
+
+        The any(...) guard treats '' as falsy, so an empty run_id does not
+        promote the breadcrumb to active.
+        """
+        state = self._bare_recovery()
+        state["run_id"] = ""
+        state["mode"] = ""
+        state["explicitly_invoked"] = False
+        self._setup(tmp_path, monkeypatch, state)
+        assert unified_pre_tool._is_pipeline_active() is False
+
+
 class TestExplicitImplementWithStaleness:
     """Integration tests: _is_explicit_implement_active() with stale session detection."""
 
