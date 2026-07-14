@@ -26,27 +26,22 @@ A *harness* is the software and structure that wraps an AI model to keep it on t
 
 ## What Does It Actually Do?
 
-When you type `/implement "#72"`, Claude coordinates specialist agents through a multi-stage pipeline:
+When you type `/implement "#72"`, Claude coordinates specialist agents through a 15-step pipeline (the default full mode). The step numbers below are the real `STEP N/15` ids you'll see in the run output and logs:
 
-| Step | Agent | What It Does |
+| Step | Stage | What It Does |
 |------|-------|--------------|
-| 1 | **alignment check** | Checks if the feature fits your PROJECT.md goals and scope. Blocks if it doesn't. |
-| 2 | **researcher** (x2) | Searches codebase + web for patterns, best practices, existing solutions |
-| 3 | **planner** | Designs the architecture and creates a file-by-file implementation plan |
-| 3.5 | **plan-critic** | Adversarial review across 6 axes (assumption audit, scope creep, existing solutions, minimalism, uncertainty, operational integration test). Iterates planner until verdict is PROCEED. |
-| 4 | **acceptance tests** | Writes acceptance tests that define what "done" means |
-| 5 | **implementer** | Writes code + unit tests to make the acceptance tests pass |
-| 5.5 | **plan-implementation alignment gate** | Compares planned files vs implemented files. Blocks on >50% divergence. |
-| 6 | **spec-validator** | Spec-blind behavioral validation — writes tests from acceptance criteria *without seeing* the implementation, then validates against it |
-| 7 | **reviewer** | Reviews code quality across 6 dimensions (correctness, tests, security, performance, maintainability, observability) |
-| 8 | **security-auditor** | Scans for vulnerabilities (OWASP top 10, 29 security-sensitive path patterns) |
-| 9 | **doc-master** | Updates documentation to match the new code |
-
-After all agents complete:
-- Code is committed with a descriptive message
-- Changes are pushed to your branch
-- The GitHub issue is closed with a summary
-- A continuous improvement analyst examines the session for drift, bypasses, and pipeline health
+| 1–2 | **pre-flight + alignment** | Blocks pre-staged files; checks the feature against PROJECT.md goals/scope. Out of scope → blocked before any code. |
+| 3–4 | **researcher** (×2, parallel) | `researcher-local` (Haiku, codebase) + `researcher` (Sonnet, web) find patterns, best practices, existing solutions |
+| 5 | **planner** (Opus) | Designs the architecture and a file-by-file implementation plan |
+| 5.5 | **plan-critic** (Sonnet) | Adversarial single-pass review across **4 axes** (assumption audit, existing-solution search, minimalism, operational-integration test). Verdict PROCEED / REVISE / BLOCKED; REVISE re-invokes the planner. Plus structural validation of the plan. |
+| 6 | **acceptance tests** | Writes acceptance tests that define what "done" means (acceptance-first default) |
+| 8 | **implementer** (Opus) + **test gate** | Writes code + unit tests. **HARD GATES**: 0 test failures, no stubs, bug-fix regression test required, planned-vs-implemented file alignment (blocks >50% divergence) |
+| 8.5 | **spec-validator** (Opus) | Spec-blind behavioral validation — writes tests from acceptance criteria *without seeing* the implementation, then validates against it |
+| 9–9.5 | **registration + agent-count gates** | Verifies new hooks are registered; blocks if required pipeline agents haven't run |
+| 10 | **reviewer + security-auditor + doc-master** | Run **in parallel** for low-risk changes; **sequential** (reviewer → security) on security-sensitive paths. Review across 6 dimensions; OWASP scan; doc-drift check |
+| 11 | **remediation gate** | Blocking findings loop back to the implementer, max 2 cycles, then block-and-file |
+| 12.5 | **continuous-improvement-analyst** | Examines the session for drift, bypasses, gaming — **dispatched before commit** (#1211) |
+| 13–15 | **git + doc-congruence + cleanup** | Commit (blocked until agents complete), push, close issue; documentation-congruence HARD GATE; state cleanup |
 
 **One command. Full software development lifecycle. Aligned to your project.**
 
@@ -76,7 +71,7 @@ After all agents complete:
 
 autonomous-dev enforces process through three layers, each addressing a different failure mode:
 
-- **Hooks** (deterministic enforcement) — Run on every tool call, commit, and prompt. Hard gates that can't be argued with: tests must pass with 0 failures before code review starts, no stubs or placeholders allowed, security scan is mandatory, documentation must stay in sync. These are the harness equivalent of guardrails — if the model tries to skip a step, it's physically blocked.
+- **Hooks** (deterministic enforcement) — Run on every tool call, commit, and prompt. Hard gates that can't be argued with: tests must pass with 0 failures before code review starts, no stubs or placeholders allowed, security scan is mandatory, documentation must stay in sync. Functional infrastructure (`agents/`, `hooks/`, `lib/`, `commands/`) is write-protected outside the pipeline, and a dispatch sentinel keeps the coordinator from directly editing those paths mid-pipeline — it must re-dispatch the implementer agent (#1296). These are the harness equivalent of guardrails — if the model tries to skip a step, it's physically blocked.
 
 - **Agents** (adversarial evaluation) — Each pipeline step is handled by a specialist agent with a specific job and constrained tools. Critically, the implementer never reviews its own work — a separate reviewer agent with a skeptical mandate evaluates it. This follows the generator/evaluator pattern: the tension between agents improves quality, just like a GAN network. No single agent can skip steps or self-approve.
 
@@ -88,9 +83,9 @@ autonomous-dev enforces process through three layers, each addressing a differen
 
 Substantial enforcement hardening shipped recently. Current focus areas:
 
-- **Mode-aware enforcement** — hooks respect the active pipeline mode (`full` / `light` / `fix` / `tdd-first`); a `--light` run is no longer held to the full-pipeline agent set, and the gate short-circuits message-only `git commit --amend` (context-aware gating, not surface-signal gating)
+- **Mode- and intent-aware enforcement** — hooks respect the active pipeline mode (`full` / `light` / `fix` / `tdd-first`) so a `--light` run isn't held to the full agent set, and an intent/session-mode classifier scopes the SDLC gates to actual software-development edits (not scratch/exploration/meta-work). The gate also short-circuits message-only `git commit --amend` — context-aware gating, not surface-signal gating
 - **Default-ON global enforcement** — the SDLC gates fire in every repo by default, opt out per-repo with `.claude/.bypass` (Phase 1 polarity flip, #1142+/#1361)
-- **Autonomous operations loop** — `/triage` clusters the open improvement queue by root cause, `/drain-queue` drains it through `/implement --issues` behind safety guardrails, `/goa` is a standing infra-health observer
+- **Autonomous operations loop** — `/triage` clusters the open improvement queue by root cause, `/drain-queue` drains it through `/implement --issues` behind safety guardrails, and a scheduled **cloud-drain** runs the same loop unattended. Cross-machine issue claiming (a GitHub `in-progress` label + marker-comment mutex) stops a local run and the cloud drainer from racing the same cluster. `/goa` is a standing infra-health observer
 - **Planning workflow** — 7-step `/plan` + adversarial `plan-critic` review (1-5 Likert, composite ≥3.0 → PROCEED)
 - **Session analytics** — every conversation archived to `~/.claude/archive/` with a 17-column SQLite index
 - **Closed-loop self-improvement** — benchmark → modify → re-benchmark → commit-or-revert (see [EVALUATION.md](docs/EVALUATION.md))
@@ -247,10 +242,10 @@ See [TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#uninstal
 ### Pipeline Modes
 
 ```bash
-/implement "#72"              # Full pipeline (default) - acceptance-first
-/implement --light "#72"      # Light pipeline - docs/config/simple changes
-/implement --tdd-first "#72"  # TDD-first - unit tests before implementation
-/implement --fix "#72"        # Fix mode - root-cause analysis HARD GATE for bug fixes
+/implement "#72"              # Full pipeline (default) - acceptance-first, ~8 agents
+/implement --light "#72"      # Light - 4 agents (plan, implement, docs, CIA); no research/security
+/implement --tdd-first "#72"  # TDD-first - unit tests before implementation (adds test-master)
+/implement --fix "#72"        # Fix - 5-step: root-cause + regression-test + spec-blind HARD GATES
 ```
 
 ### Planning Workflow
@@ -263,7 +258,7 @@ Use `/plan` for changes touching >3 files, >100 lines, or with uncertain approac
 /plan-to-issues               # Thorough-mode fallback for batch issue creation
 ```
 
-The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 6 axes, iterates planner until composite ≥3.0) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
+The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 6 axes in `/plan`; the in-pipeline `/implement` gate uses a faster 4-axis budget subset, iterating the planner until PROCEED) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
 
 ### Plan-exit enforcement is default-ON in every repo (since #1361, flipped from #938)
 
@@ -354,7 +349,9 @@ installed but you don't want it active in this particular tree.
 
 ```bash
 /implement --issues 72 73 74 75    # Multiple GitHub issues with worktree isolation
+/implement --issues 72 73 --no-worktree   # In-place (for repos where .claude/* is gitignored)
 /implement --batch backlog.txt     # From a file (one feature per line)
+/implement --batch backlog.txt --full-tests  # Run the full suite instead of smart test routing
 /implement --resume <batch-id>     # Resume after context reset
 ```
 
@@ -416,9 +413,9 @@ Research Self-Critique (inline FEEDBACK pass, Self-Refine pattern)
      |
 Planning (Opus)
      |
-Plan Validation Gate (plan-critic, Opus)  <- HARD GATE: adversarial review
-     |                                       6 axes, ≥3.0 composite to PROCEED
-     |                                       REVISE re-invokes planner
+Plan Validation Gate (plan-critic, Sonnet) <- HARD GATE: adversarial review
+     |                                        4 axes (budget mode), PROCEED to pass
+     |                                        REVISE re-invokes planner
      |
 Acceptance Tests (test-master)            <- Acceptance-first (default)
      |                                       or TDD-first (--tdd-first)
@@ -440,11 +437,13 @@ Spec-Blind Validation (spec-validator) <- HARD GATE: behavioral tests
      |
 Remediation Gate (max 2 cycles on findings)
      |
-Git Operations (commit, push, close issue)
+Continuous Improvement (CIA analysis)    <- dispatched BEFORE commit (#1211)
      |
 Agent Completeness Gate (blocks commit if required agents missing)
      |
-Continuous Improvement (background analysis)
+Git Operations (commit, push, close issue)
+     |
+Doc-Congruence Gate (HARD GATE: docs/code parity)
      |
 Session Archive (transcript + SQLite index)
 ```
