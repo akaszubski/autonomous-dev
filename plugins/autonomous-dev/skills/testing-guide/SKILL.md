@@ -1,7 +1,7 @@
 ---
 name: testing-guide
 description: "GenAI-first testing with structural assertions, congruence validation, and tier-based test structure. Use when writing tests, setting up test infrastructure, or validating coverage. TRIGGER when: test, pytest, coverage, TDD, test patterns, congruence, validation. DO NOT TRIGGER when: production code implementation, documentation, config-only changes."
-allowed-tools: [Read, Grep, Glob, Bash]
+allowed-tools: "Read, Grep, Glob, Bash"
 ---
 
 # Testing Guide
