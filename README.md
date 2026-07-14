@@ -88,12 +88,12 @@ autonomous-dev enforces process through three layers, each addressing a differen
 
 Substantial enforcement hardening shipped recently. Current focus areas:
 
-- **Planning workflow** — 7-step `/plan` + adversarial `plan-critic` review (1-5 Likert across 6 axes, composite ≥3.0 → PROCEED)
-- **Iterative refinement** — Self-Refine pattern integrated into `/implement`, `/advise`, `/refactor`
-- **Pipeline ordering** — Deterministic sequencing; `reviewer → security-auditor` always sequential on security-sensitive changes
-- **Session analytics** — Every conversation archived to `~/.claude/archive/` with 17-column SQLite index
-- **Prompt quality gate** — Write-time enforcement on `agents/*.md` and `commands/*.md` (PRISM-validated anti-patterns blocked)
-- **Closed-loop self-improvement** — Benchmark → modify → re-benchmark → commit-or-revert (see [EVALUATION.md](docs/EVALUATION.md))
+- **Mode-aware enforcement** — hooks respect the active pipeline mode (`full` / `light` / `fix` / `tdd-first`); a `--light` run is no longer held to the full-pipeline agent set, and the gate short-circuits message-only `git commit --amend` (context-aware gating, not surface-signal gating)
+- **Default-ON global enforcement** — the SDLC gates fire in every repo by default, opt out per-repo with `.claude/.bypass` (Phase 1 polarity flip, #1142+/#1361)
+- **Autonomous operations loop** — `/triage` clusters the open improvement queue by root cause, `/drain-queue` drains it through `/implement --issues` behind safety guardrails, `/goa` is a standing infra-health observer
+- **Planning workflow** — 7-step `/plan` + adversarial `plan-critic` review (1-5 Likert, composite ≥3.0 → PROCEED)
+- **Session analytics** — every conversation archived to `~/.claude/archive/` with a 17-column SQLite index
+- **Closed-loop self-improvement** — benchmark → modify → re-benchmark → commit-or-revert (see [EVALUATION.md](docs/EVALUATION.md))
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release-over-release details with issue references.
 
@@ -110,7 +110,7 @@ The solution is **deterministic rails**: a software layer that gates and validat
 | 3 | **Isolated Sub-Agents** | Specialist agents, each spawned with fresh context and constrained tools. Model selection per agent (Haiku/Sonnet/Opus) |
 | 4 | **Virtual File System** | Git worktree isolation for batch mode. `checkpoint.py` + `artifacts.py` persist outputs to `.claude/artifacts/` per phase |
 | 5 | **Human-in-the-Loop** | Plan mode (STEP 5) requires user approval before implementation. `pause_controller.py` for explicit gates |
-| 6 | **Hook Enforcement** | 25 hooks with JSON `{"decision": "block"}` hard gates — not prompt-level nudges. Research-confirmed: nudges produce unreliable compliance. Includes `plan_gate.py` (blocks complex Write/Edit without validated plan) and Layer 6 prompt quality gate (blocks anti-pattern prompts to `agents/*.md` and `commands/*.md`) |
+| 6 | **Hook Enforcement** | 26 hooks with JSON `{"decision": "block"}` hard gates — not prompt-level nudges. Research-confirmed: nudges produce unreliable compliance. Includes `plan_gate.py` (blocks complex Write/Edit without validated plan) and Layer 6 prompt quality gate (blocks anti-pattern prompts to `agents/*.md` and `commands/*.md`) |
 | 7 | **State Persistence** | `CheckpointManager` for resume after failure. `batch_state_manager.py` for multi-feature recovery. `/implement --resume` |
 | 8 | **Context Management** | Progressive skill injection loads domain knowledge per-step. `/clear` between features. Agent isolation prevents context rot |
 | 9 | **Deterministic Ordering** | `agent_ordering_gate.py` enforces pipeline sequence. "You MUST NOT run STEP 10 before STEP 8 test gate passes" |
@@ -521,11 +521,11 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Commands | 22 | User-facing slash commands for workflows |
-| Agents | 16 | Specialized AI for each SDLC stage (added: plan-critic) |
-| Skills | 20 | Domain knowledge (added: planning-workflow, prompt-engineering) |
-| Hooks | 25 | Automatic validation and enforcement (added: plan_gate, conversation_archiver, prompt quality gate) |
-| Libraries | 221 | Python utilities |
+| Commands | 23 | User-facing slash commands for workflows |
+| Agents | 16 | Specialized AI for each SDLC stage, model-tiered (Haiku/Sonnet/Opus) |
+| Skills | 20 | Domain knowledge injected progressively per-step |
+| Hooks | 26 | Automatic validation and enforcement (JSON `{"decision": "block"}` hard gates) |
+| Libraries | 241 | Python utilities |
 
 ---
 
@@ -560,10 +560,10 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 - [Spec Validation](tests/spec_validation/) - Spec-blind behavioral tests
 
 ### Reference
-- [Commands](plugins/autonomous-dev/commands/) - All 22 user-facing commands
-- [Hooks](docs/HOOKS.md) - 25 active hooks
+- [Commands](plugins/autonomous-dev/commands/) - All 23 user-facing commands
+- [Hooks](docs/HOOKS.md) - 26 active hooks
 - [Hook Registry](docs/HOOK-REGISTRY.md) - Sidecar metadata schema
-- [Libraries](docs/LIBRARIES.md) - 221 Python utilities
+- [Libraries](docs/LIBRARIES.md) - 241 Python utilities
 - [Scripts](docs/SCRIPTS.md) - Operational tooling (deploy, validate, benchmark, mine)
 - [Label Taxonomy](docs/LABEL-TAXONOMY.md) - GitHub labels + `[BYPASS]`/`[INCOMPLETE]`/`[ORDERING]` finding tags
 
