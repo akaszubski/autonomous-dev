@@ -67,17 +67,19 @@ When you type `/implement "#72"`, Claude coordinates specialist agents through a
 
 **The difference**: Claude stops guessing. The harness keeps it honest.
 
-### Three-Layer Harness Architecture
+### Four-Layer Harness Architecture
 
-autonomous-dev enforces process through three layers, each addressing a different failure mode:
+autonomous-dev enforces process through four layers, each addressing a different failure mode — enforce now, add intelligence, learn from the session, then evolve:
 
-- **Hooks** (deterministic enforcement) — Run on every tool call, commit, and prompt. Hard gates that can't be argued with: tests must pass with 0 failures before code review starts, no stubs or placeholders allowed, security scan is mandatory, documentation must stay in sync. Functional infrastructure (`agents/`, `hooks/`, `lib/`, `commands/`) is write-protected outside the pipeline, and a dispatch sentinel keeps the coordinator from directly editing those paths mid-pipeline — it must re-dispatch the implementer agent (#1296). These are the harness equivalent of guardrails — if the model tries to skip a step, it's physically blocked.
+- **1. Hooks** (deterministic enforcement) — Run on every tool call, commit, and prompt. Hard gates that can't be argued with: tests must pass with 0 failures before code review starts, no stubs or placeholders allowed, security scan is mandatory, documentation must stay in sync. Functional infrastructure (`agents/`, `hooks/`, `lib/`, `commands/`) is write-protected outside the pipeline, and a dispatch sentinel keeps the coordinator from directly editing those paths mid-pipeline — it must re-dispatch the implementer agent (#1296). These are the harness equivalent of guardrails — if the model tries to skip a step, it's physically blocked.
 
-- **Agents** (adversarial evaluation) — Each pipeline step is handled by a specialist agent with a specific job and constrained tools. Critically, the implementer never reviews its own work — a separate reviewer agent with a skeptical mandate evaluates it. This follows the generator/evaluator pattern: the tension between agents improves quality, just like a GAN network. No single agent can skip steps or self-approve.
+- **2. Agents** (adversarial evaluation) — Each pipeline step is handled by a specialist agent with a specific job and constrained tools. The implementer never reviews its own work — a separate reviewer agent with a skeptical mandate evaluates it (generator/evaluator pattern). *Skills* power this layer: instead of stuffing every rule into context upfront, domain knowledge is injected progressively — testing standards load during test writing, security patterns during security review — keeping each agent focused within its current step.
 
-- **Skills** (progressive context injection) — Instead of stuffing the context window with every rule upfront (which causes context anxiety and drift), skills inject domain knowledge only when relevant. Testing standards load during test writing. Security patterns load during security review. This keeps Claude focused within its current step.
+- **3. Continuous Improvement** (post-session, self-correcting) — Every session logs JSONL to `.claude/logs/activity/`. The `continuous-improvement-analyst` evaluates those logs against PROJECT.md + CLAUDE.md and emits structured finding records; `/improve --auto-file` promotes recurring findings into GitHub issues labeled `auto-improvement`. Runs asynchronously, never blocks active work. (This is the layer that, earlier today, caught this very session's gate mis-scopes and filed #1385/#1387/#1388.)
 
-**The result**: Every feature goes through every step. Not because Claude remembers to, but because the harness won't let it skip.
+- **4. Autonomous Self-Improvement** (closed-loop, evidence-driven) — `/triage` clusters the improvement queue by root cause → `/drain-queue` (and the scheduled cloud-drain) works it through `/implement --issues` behind safety guardrails → benchmarks gate whether a change is kept or reverted. Effectiveness benchmarks measure reviewer/agent accuracy; HIGH-confidence diagnoses are applied autonomously, the rest filed as issues.
+
+**The result**: Every feature goes through every step — not because Claude remembers to, but because the harness won't let it skip — and the harness itself gets better every week from its own runtime data.
 
 ### Recent Improvements
 
@@ -531,7 +533,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 ## Documentation
 
 ### Core Concepts
-- [Architecture](docs/ARCHITECTURE-OVERVIEW.md) - Three-layer system (hooks + agents + continuous improvement)
+- [Architecture](docs/ARCHITECTURE-OVERVIEW.md) - Four-layer system (hooks + agents + continuous improvement + autonomous self-improvement)
 - [Harness Evolution](docs/HARNESS-EVOLUTION.md) - How the harness has evolved across releases
 - [Maintaining Philosophy](docs/MAINTAINING-PHILOSOPHY.md) - Why alignment-first works
 - [Model Behavior Notes](docs/model-behavior-notes.md) - Production-validated patterns for prompt design
