@@ -988,7 +988,6 @@ def collect_cia_findings(
                         timestamp=latest_ts,
                     )
                 )
-                )
 
         health = SourceHealth(
             source=source_name,
