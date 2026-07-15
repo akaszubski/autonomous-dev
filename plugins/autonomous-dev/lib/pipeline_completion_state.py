@@ -61,6 +61,29 @@ SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 STALE_UNKNOWN_TTL_SECONDS = 3600
 
 
+def _sanitize_bypass_reason(bypass_reason: Optional[str]) -> Optional[str]:
+    """Sanitize bypass_reason by stripping control chars and truncating.
+    
+    Strips all control characters except newline and tab, then truncates
+    to 2048 characters maximum. Prevents log injection and excessive 
+    storage consumption.
+    
+    Args:
+        bypass_reason: Raw bypass reason text, may contain control chars.
+        
+    Returns:
+        Sanitized text or None if input was None.
+        
+    Issue: #1380
+    """
+    if bypass_reason is None:
+        return None
+    # Strip control chars except newline and tab    
+    sanitized = ''.join(c for c in bypass_reason if c.isprintable() or c in '\n\t')
+    # Truncate to 2048 chars
+    return sanitized[:2048]
+
+
 def _find_activity_log_dir(start_dir: Optional[Path] = None) -> Optional[Path]:
     """Locate the ``.claude/logs/activity/`` directory by walking up from *start_dir*.
 
@@ -1158,6 +1181,7 @@ def record_plan_critic_skipped(
             plan_paths["0"] = plan_path
     # #1279: Record the bypass reason for audit trail.
     if bypass_reason:
+        bypass_reason = _sanitize_bypass_reason(bypass_reason)  # Issue #1380
         reasons = state.setdefault("plan_critic_bypass_reason", {})
         reasons[issue_key] = bypass_reason
         if issue_number != 0:
@@ -1320,7 +1344,7 @@ def write_coordinator_bypass_verdict(
     extension" issues), this creates a machine-readable verdict file that 
     signals the bypass was intentional.
     
-    The verdict file is written atomically to `.claude/plan_critic_verdict.json`
+    The verdict file is written atomically to `.claude/plan_critic verdict.json`
     with a specific schema that passes hook validation.
     
     Args:
@@ -1331,6 +1355,9 @@ def write_coordinator_bypass_verdict(
     Issues: #1279
     """
     import tempfile
+    
+    # Issue #1380: Sanitize bypass_reason to prevent log injection
+    bypass_reason = _sanitize_bypass_reason(bypass_reason) or ""
     
     # Prepare the verdict data
     timestamp = datetime.now(timezone.utc).isoformat()
