@@ -956,6 +956,8 @@ When this condition is detected, the coordinator MUST:
 
 #### 5.5b — Budget Plan-Critic Invocation
 
+If the invocation fails with any of the error patterns listed in 5.5a.2, treat this as an environment condition and follow that sub-section immediately.
+
 **When no pre-validated plan exists**, invoke the plan-critic agent with a constrained budget:
 
 - **Rounds**: 1 (single pass, no iterative critique)
